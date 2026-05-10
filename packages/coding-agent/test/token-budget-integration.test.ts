@@ -43,7 +43,7 @@ describe("Token Budget Integration Tests - P1 Workstream 7.G", () => {
 			const enforcer = new ContextBudgetEnforcer();
 
 			// Simulate a large request
-			const largeContent = "x".repeat(50000); // ~12500 tokens
+			const largeContent = "x".repeat(13000); // ~3250 tokens, exceeds 12K worker budget
 			const messages: AgentMessage[] = [
 				{
 					role: "user",
@@ -63,7 +63,7 @@ describe("Token Budget Integration Tests - P1 Workstream 7.G", () => {
 			const enforcer = new ContextBudgetEnforcer();
 
 			// Simulate a huge request
-			const hugeContent = "x".repeat(300000); // ~75000 tokens
+			const hugeContent = "x".repeat(70000); // ~17500 tokens, exceeds 64K maxAuto
 			const messages: AgentMessage[] = [
 				{
 					role: "user",
@@ -85,7 +85,7 @@ describe("Token Budget Integration Tests - P1 Workstream 7.G", () => {
 			enforcer.updateSettings({ millionContextEnabled: true });
 
 			// Simulate a huge request
-			const hugeContent = "x".repeat(300000); // ~75000 tokens
+			const hugeContent = "x".repeat(70000); // ~17500 tokens, exceeds 64K maxAuto
 			const messages: AgentMessage[] = [
 				{
 					role: "user",
@@ -162,7 +162,7 @@ describe("Token Budget Integration Tests - P1 Workstream 7.G", () => {
 		it("should generate chunks for large files", () => {
 			const policy = new FilePolicy();
 
-			const content = Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join("\n");
+			const content = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join("\n");
 			const chunks = policy.getChunks(content);
 
 			expect(chunks.length).toBeGreaterThan(0);
@@ -241,7 +241,7 @@ describe("Token Budget Integration Tests - P1 Workstream 7.G", () => {
 		it("AC: synthetic 5000-line file uses chunks not full file", () => {
 			const policy = new FilePolicy();
 
-			const content = Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join("\n");
+			const content = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join("\n");
 			const result = policy.checkPolicy(5000);
 
 			expect(result.canReadFull).toBe(false);

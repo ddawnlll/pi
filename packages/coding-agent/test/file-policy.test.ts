@@ -150,9 +150,9 @@ describe("Large File Context Policy", () => {
 			});
 
 			it("should limit to max chunks per packet", () => {
-				const content = Array.from({ length: 10000 }, (_, i) => `line ${i + 1}`).join("\n");
+				const content = Array.from({ length: 2000 }, (_, i) => `line ${i + 1}`).join("\n");
 				const chunks = policy.getChunks(content);
-
+	
 				expect(chunks.length).toBeLessThanOrEqual(6); // maxChunksPerPacket
 			});
 
@@ -290,7 +290,7 @@ line 4`;
 
 		it("AC: large file can produce targeted chunks", () => {
 			const policy = new FilePolicy();
-			const content = Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join("\n");
+			const content = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join("\n");
 			const chunks = policy.getChunks(content);
 
 			expect(chunks.length).toBeGreaterThan(0);

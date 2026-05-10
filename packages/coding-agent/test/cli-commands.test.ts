@@ -157,46 +157,46 @@ describe("CLI Commands - P1 Milestone 4", () => {
 		});
 
 		it("should format token estimate for medium file", () => {
-			const content = "a".repeat(20000); // 20000 chars = ~5000 tokens
-			const output = formatFileTokenEstimate("test.ts", content, 500);
+			const content = "a".repeat(20000); // 20000 chars = ~5000 tokens (Medium: 4001-12000)
+			const output = formatFileTokenEstimate("test.ts", content, 1200);
 
 			expect(output).toContain("test.ts");
-			expect(output).toContain("Lines: 500");
+			expect(output).toContain("Lines: 1,200");
 			expect(output).toContain("Characters: 20,000");
 			expect(output).toContain("Estimated Tokens: 5,000");
 			expect(output).toContain("Medium");
 		});
 
 		it("should format token estimate for large file", () => {
-			const content = "a".repeat(60000); // 60000 chars = ~15000 tokens
-			const output = formatFileTokenEstimate("test.ts", content, 1500);
-
-			expect(output).toContain("test.ts");
-			expect(output).toContain("Lines: 1,500");
-			expect(output).toContain("Characters: 60,000");
-			expect(output).toContain("Estimated Tokens: 15,000");
-			expect(output).toContain("Large");
-		});
-
-		it("should format token estimate for very large file", () => {
-			const content = "a".repeat(120000); // 120000 chars = ~30000 tokens
+			const content = "a".repeat(52000); // 52000 chars = ~13000 tokens (Large: 12001-24000)
 			const output = formatFileTokenEstimate("test.ts", content, 3000);
 
 			expect(output).toContain("test.ts");
 			expect(output).toContain("Lines: 3,000");
-			expect(output).toContain("Characters: 120,000");
-			expect(output).toContain("Estimated Tokens: 30,000");
+			expect(output).toContain("Characters: 52,000");
+			expect(output).toContain("Estimated Tokens: 13,000");
+			expect(output).toContain("Large");
+		});
+
+		it("should format token estimate for very large file", () => {
+			const content = "a".repeat(100000); // 100000 chars = ~25000 tokens (Very Large: 24001-64000)
+			const output = formatFileTokenEstimate("test.ts", content, 5000);
+
+			expect(output).toContain("test.ts");
+			expect(output).toContain("Lines: 5,000");
+			expect(output).toContain("Characters: 100,000");
+			expect(output).toContain("Estimated Tokens: 25,000");
 			expect(output).toContain("Very Large");
 		});
 
 		it("should format token estimate for huge file", () => {
-			const content = "a".repeat(300000); // 300000 chars = ~75000 tokens
-			const output = formatFileTokenEstimate("test.ts", content, 7500);
+			const content = "a".repeat(260000); // 260000 chars = ~65000 tokens (Huge: >64000)
+			const output = formatFileTokenEstimate("test.ts", content, 8500);
 
 			expect(output).toContain("test.ts");
-			expect(output).toContain("Lines: 7,500");
-			expect(output).toContain("Characters: 300,000");
-			expect(output).toContain("Estimated Tokens: 75,000");
+			expect(output).toContain("Lines: 8,500");
+			expect(output).toContain("Characters: 260,000");
+			expect(output).toContain("Estimated Tokens: 65,000");
 			expect(output).toContain("Huge");
 		});
 	});

@@ -220,8 +220,8 @@ describe("Coding Agent Tools", () => {
 
 		it("should return policy guidance for large file without offset/limit", async () => {
 			const testFile = join(testDir, "large-file.txt");
-			// Create a file with 5000 lines (large: 2501-7999)
-			const lines = Array.from({ length: 5000 }, (_, i) => `Line ${i + 1}`);
+			// Create a file with 3000 lines (large: 2501-7999)
+			const lines = Array.from({ length: 3000 }, (_, i) => `Line ${i + 1}`);
 			writeFileSync(testFile, lines.join("\n"));
 
 			const result = await readTool.execute("test-call-large", { path: testFile });
@@ -237,8 +237,8 @@ describe("Coding Agent Tools", () => {
 
 		it("should return policy guidance for huge file without offset/limit", async () => {
 			const testFile = join(testDir, "huge-file.txt");
-			// Create a file with 10000 lines (huge: ≥8000)
-			const lines = Array.from({ length: 10000 }, (_, i) => `Line ${i + 1}`);
+			// Create a file with 8500 lines (huge: ≥8000)
+			const lines = Array.from({ length: 8500 }, (_, i) => `Line ${i + 1}`);
 			writeFileSync(testFile, lines.join("\n"));
 
 			const result = await readTool.execute("test-call-huge", { path: testFile });
@@ -274,8 +274,8 @@ describe("Coding Agent Tools", () => {
 
 		it("should allow targeted read of large file with offset/limit", async () => {
 			const testFile = join(testDir, "large-targeted.txt");
-			// Create a file with 5000 lines (large)
-			const lines = Array.from({ length: 5000 }, (_, i) => `Line ${i + 1}`);
+			// Create a file with 3000 lines (large)
+			const lines = Array.from({ length: 3000 }, (_, i) => `Line ${i + 1}`);
 			writeFileSync(testFile, lines.join("\n"));
 
 			const result = await readTool.execute("test-call-large-targeted", {
@@ -294,8 +294,8 @@ describe("Coding Agent Tools", () => {
 
 		it("should allow targeted read of huge file with offset/limit", async () => {
 			const testFile = join(testDir, "huge-targeted.txt");
-			// Create a file with 10000 lines (huge)
-			const lines = Array.from({ length: 10000 }, (_, i) => `Line ${i + 1}`);
+			// Create a file with 8500 lines (huge)
+			const lines = Array.from({ length: 8500 }, (_, i) => `Line ${i + 1}`);
 			writeFileSync(testFile, lines.join("\n"));
 
 			const result = await readTool.execute("test-call-huge-targeted", {
