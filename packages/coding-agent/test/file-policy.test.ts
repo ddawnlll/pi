@@ -152,7 +152,7 @@ describe("Large File Context Policy", () => {
 			it("should limit to max chunks per packet", () => {
 				const content = Array.from({ length: 2000 }, (_, i) => `line ${i + 1}`).join("\n");
 				const chunks = policy.getChunks(content);
-	
+
 				expect(chunks.length).toBeLessThanOrEqual(6); // maxChunksPerPacket
 			});
 
