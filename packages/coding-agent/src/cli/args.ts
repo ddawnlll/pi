@@ -43,6 +43,9 @@ export interface Args {
 	listModels?: string | true;
 	offline?: boolean;
 	verbose?: boolean;
+	doctor?: boolean;
+	tokenEstimate?: string;
+	json?: boolean;
 	messages: string[];
 	fileArgs: string[];
 	/** Unknown flags (potentially extension flags) - map of flag name to value */
@@ -162,6 +165,12 @@ export function parseArgs(args: string[]): Args {
 			result.verbose = true;
 		} else if (arg === "--offline") {
 			result.offline = true;
+		} else if (arg === "--doctor") {
+			result.doctor = true;
+		} else if (arg === "--token-estimate" && i + 1 < args.length) {
+			result.tokenEstimate = args[++i];
+		} else if (arg === "--json") {
+			result.json = true;
 		} else if (arg.startsWith("@")) {
 			result.fileArgs.push(arg.slice(1)); // Remove @ prefix
 		} else if (arg.startsWith("--")) {
@@ -245,6 +254,9 @@ ${chalk.bold("Options:")}
   --no-context-files, -nc        Disable AGENTS.md and CLAUDE.md discovery and loading
   --export <file>                Export session file to HTML and exit
   --list-models [search]         List available models (with optional fuzzy search)
+  --doctor                       Run token safety diagnostics and exit
+  --token-estimate <file>        Estimate tokens for a file and exit
+  --json                         Output results in JSON format (for --doctor, --token-estimate)
   --verbose                      Force verbose startup (overrides quietStartup setting)
   --offline                      Disable startup network operations (same as PI_OFFLINE=1)
   --help, -h                     Show this help

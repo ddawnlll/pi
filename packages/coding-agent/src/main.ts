@@ -485,6 +485,74 @@ export async function main(args: string[], options?: MainOptions) {
 
 	const cwd = process.cwd();
 	const agentDir = getAgentDir();
+
+	// Handle --doctor command
+	if (parsed.doctor) {
+		const { runDoctor, formatDoctorResults, formatDoctorResultsJson, getDoctorExitCode } = await import(
+			"./cli/doctor.js"
+		);
+		const settingsManager = SettingsManager.create(cwd, agentDir);
+		const { modelRegistry } = await createAgentSessionServices({
+			cwd,
+			agentDir,
+			authStorage: AuthStorage.create(),
+			extensionFlagValues: parsed.unknownFlags,
+			resourceLoaderOptions: {},
+		});
+
+		const results = await runDoctor(settingsManager, modelRegistry);
+
+		if (parsed.json) {
+			console.log(formatDoctorResultsJson(results));
+		} else {
+			console.log(formatDoctorResults(results));
+		}
+
+		process.exit(getDoctorExitCode(results));
+	}
+
+	// Handle --token-estimate command
+	if (parsed.tokenEstimate) {
+		const { formatFileTokenEstimate } = await import("./cli/token-report.js");
+		const { readFileSync } = await import("fs");
+		const { resolve } = await import("path");
+
+		try {
+			const filePath = resolve(cwd, parsed.tokenEstimate);
+			const content = readFileSync(filePath, "utf-8");
+			const lineCount = content.split("\n").length;
+
+			if (parsed.json) {
+				const estimatedTokens = Math.ceil(content.length / 4);
+				const result = {
+					file: filePath,
+					lines: lineCount,
+					characters: content.length,
+					estimatedTokens,
+					classification:
+						estimatedTokens <= 4000
+							? "small"
+							: estimatedTokens <= 12000
+								? "medium"
+								: estimatedTokens <= 24000
+									? "large"
+									: estimatedTokens <= 64000
+										? "very-large"
+										: "huge",
+				};
+				console.log(JSON.stringify(result, null, 2));
+			} else {
+				console.log(formatFileTokenEstimate(filePath, content, lineCount));
+			}
+
+			process.exit(0);
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : "Failed to estimate tokens";
+			console.error(chalk.red(`Error: ${message}`));
+			process.exit(1);
+		}
+	}
+
 	const startupSettingsManager = SettingsManager.create(cwd, agentDir);
 	reportDiagnostics(collectSettingsDiagnostics(startupSettingsManager, "startup session lookup"));
 
