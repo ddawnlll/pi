@@ -199,6 +199,134 @@ describe("Coding Agent Tools", () => {
 			expect(output).toContain("definitely not a png");
 			expect(result.content.some((c: any) => c.type === "image")).toBe(false);
 		});
+
+		it("should return policy guidance for medium file without offset/limit", async () => {
+			const testFile = join(testDir, "medium-file.txt");
+			// Create a file with 1500 lines (medium: 801-2500)
+			const lines = Array.from({ length: 1500 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-medium", { path: testFile });
+			const output = getTextOutput(result);
+
+			expect(output).toContain("1500 lines");
+			expect(output).toContain("medium file");
+			expect(output).toContain("Recommendation: Read specific sections using offset/limit");
+			expect(output).toContain("Showing first 100 lines as preview");
+			expect(output).toContain("Line 1");
+			expect(output).toContain("Line 100");
+			expect(output).not.toContain("Line 101");
+		});
+
+		it("should return policy guidance for large file without offset/limit", async () => {
+			const testFile = join(testDir, "large-file.txt");
+			// Create a file with 5000 lines (large: 2501-7999)
+			const lines = Array.from({ length: 5000 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-large", { path: testFile });
+			const output = getTextOutput(result);
+
+			expect(output).toContain("5000 lines");
+			expect(output).toContain("large file");
+			expect(output).toContain("Full file read not allowed by default");
+			expect(output).toContain("Use targeted reads with offset/limit");
+			// Should NOT contain actual file content
+			expect(output).not.toContain("Line 1");
+		});
+
+		it("should return policy guidance for huge file without offset/limit", async () => {
+			const testFile = join(testDir, "huge-file.txt");
+			// Create a file with 10000 lines (huge: ≥8000)
+			const lines = Array.from({ length: 10000 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-huge", { path: testFile });
+			const output = getTextOutput(result);
+
+			expect(output).toContain("10000 lines");
+			expect(output).toContain("huge file");
+			expect(output).toContain("Manual approval required");
+			expect(output).toContain("Use targeted reads with offset/limit");
+			// Should NOT contain actual file content
+			expect(output).not.toContain("Line 1");
+		});
+
+		it("should allow targeted read of medium file with offset/limit", async () => {
+			const testFile = join(testDir, "medium-targeted.txt");
+			// Create a file with 1500 lines (medium)
+			const lines = Array.from({ length: 1500 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-medium-targeted", {
+				path: testFile,
+				offset: 100,
+				limit: 50,
+			});
+			const output = getTextOutput(result);
+
+			// Should return actual content, not policy guidance
+			expect(output).toContain("Line 100");
+			expect(output).toContain("Line 149");
+			expect(output).not.toContain("medium file");
+			expect(output).not.toContain("policy");
+		});
+
+		it("should allow targeted read of large file with offset/limit", async () => {
+			const testFile = join(testDir, "large-targeted.txt");
+			// Create a file with 5000 lines (large)
+			const lines = Array.from({ length: 5000 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-large-targeted", {
+				path: testFile,
+				offset: 1000,
+				limit: 100,
+			});
+			const output = getTextOutput(result);
+
+			// Should return actual content, not policy guidance
+			expect(output).toContain("Line 1000");
+			expect(output).toContain("Line 1099");
+			expect(output).not.toContain("large file");
+			expect(output).not.toContain("policy");
+		});
+
+		it("should allow targeted read of huge file with offset/limit", async () => {
+			const testFile = join(testDir, "huge-targeted.txt");
+			// Create a file with 10000 lines (huge)
+			const lines = Array.from({ length: 10000 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-huge-targeted", {
+				path: testFile,
+				offset: 5000,
+				limit: 200,
+			});
+			const output = getTextOutput(result);
+
+			// Should return actual content, not policy guidance
+			expect(output).toContain("Line 5000");
+			expect(output).toContain("Line 5199");
+			expect(output).not.toContain("huge file");
+			expect(output).not.toContain("policy");
+		});
+
+		it("should allow full read of small file regardless of policy", async () => {
+			const testFile = join(testDir, "small-file.txt");
+			// Create a file with 500 lines (small: ≤800)
+			const lines = Array.from({ length: 500 }, (_, i) => `Line ${i + 1}`);
+			writeFileSync(testFile, lines.join("\n"));
+
+			const result = await readTool.execute("test-call-small", { path: testFile });
+			const output = getTextOutput(result);
+
+			// Should return full content without policy guidance
+			expect(output).toContain("Line 1");
+			expect(output).toContain("Line 500");
+			expect(output).not.toContain("policy");
+			expect(output).not.toContain("medium file");
+		});
 	});
 
 	describe("write tool", () => {

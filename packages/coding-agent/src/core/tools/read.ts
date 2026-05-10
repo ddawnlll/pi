@@ -12,6 +12,7 @@ import { formatDimensionNote, resizeImage } from "../../utils/image-resize.js";
 import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../../utils/paths.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import { createFilePolicy } from "../file-policy.js";
 import { resolveReadPath } from "./path-utils.js";
 import { getTextOutput, invalidArgText, replaceTabs, shortenPath, str } from "./render-utils.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";
@@ -281,6 +282,56 @@ export function createReadToolDefinition(
 								const textContent = buffer.toString("utf-8");
 								const allLines = textContent.split("\n");
 								const totalFileLines = allLines.length;
+
+								// File policy check - prevent large files from being fully injected
+								const filePolicy = createFilePolicy();
+								const policyCheck = filePolicy.checkPolicy(totalFileLines);
+								const isTargetedRead = offset !== undefined || limit !== undefined;
+
+								// If file is medium/large/huge and no targeted read, return policy guidance
+								if (!isTargetedRead && policyCheck.classification !== "small") {
+									let policyMessage = `[File has ${totalFileLines} lines - ${policyCheck.classification} file]\n`;
+									policyMessage += `[${policyCheck.reason}]\n\n`;
+
+									if (policyCheck.classification === "medium") {
+										policyMessage += `[Recommendation: Read specific sections using offset/limit]\n`;
+										policyMessage += `[Example: read path=${path} offset=1 limit=200]\n\n`;
+										policyMessage += `Showing first 100 lines as preview:\n`;
+										// Show first 100 lines as preview
+										const previewLines = allLines.slice(0, 100);
+										const preview = previewLines.join("\n");
+										const truncation = truncateHead(preview);
+										policyMessage += truncation.content;
+										if (allLines.length > 100) {
+											policyMessage += `\n\n[... ${allLines.length - 100} more lines. Use offset/limit to read specific sections.]`;
+										}
+									} else if (policyCheck.classification === "large") {
+										policyMessage += `[Full file read not allowed by default]\n`;
+										policyMessage += `[Use targeted reads with offset/limit for specific sections]\n`;
+										policyMessage += `[Example: read path=${path} offset=1 limit=200]\n`;
+										policyMessage += `[Example: read path=${path} offset=201 limit=200]\n\n`;
+										policyMessage += `File structure: ${totalFileLines} lines total\n`;
+										policyMessage += `Suggested chunk size: 200 lines\n`;
+										policyMessage += `Available ranges: 1-200, 201-400, 401-600, etc.`;
+									} else if (policyCheck.classification === "huge") {
+										policyMessage += `[Manual approval required for deep inspection]\n`;
+										policyMessage += `[Use targeted reads with offset/limit for specific sections]\n`;
+										policyMessage += `[Example: read path=${path} offset=1 limit=200]\n\n`;
+										policyMessage += `File structure: ${totalFileLines} lines total\n`;
+										policyMessage += `This file is very large. Consider:\n`;
+										policyMessage += `- Reading specific sections you need\n`;
+										policyMessage += `- Using grep to search for specific content\n`;
+										policyMessage += `- Breaking down your task into smaller steps`;
+									}
+
+									content = [{ type: "text", text: policyMessage }];
+									details = undefined;
+									if (aborted) return;
+									signal?.removeEventListener("abort", onAbort);
+									resolve({ content, details });
+									return;
+								}
+
 								// Apply offset if specified. Convert from 1-indexed input to 0-indexed array access.
 								const startLine = offset ? Math.max(0, offset - 1) : 0;
 								const startLineDisplay = startLine + 1;
