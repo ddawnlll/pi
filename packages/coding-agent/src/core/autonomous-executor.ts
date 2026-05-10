@@ -1,13 +1,14 @@
 /**
- * Autonomous Execution Loop - P2 Workstream 7.F
+ * Autonomous Execution Loop - P2 Workstreams 7.F + 7.H
  *
  * Orchestrates autonomous workspace execution with state management,
- * packet generation, and journal logging.
+ * packet generation, journal logging, and retry handling.
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
+import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
@@ -60,13 +61,15 @@ export class AutonomousExecutor {
 	private stateStore: PlanStateStore;
 	private scheduler: WorkspaceScheduler;
 	private packetBuilder: RolePacketBuilder;
+	private retryHandler: RetryHandler;
 	private workspaceRoot: string;
 
-	constructor(workspaceRoot: string, maxWorkers = 3) {
+	constructor(workspaceRoot: string, maxWorkers = 3, retryPolicy?: RetryPolicy) {
 		this.workspaceRoot = workspaceRoot;
 		this.stateStore = new PlanStateStore(workspaceRoot);
 		this.scheduler = new WorkspaceScheduler(maxWorkers);
 		this.packetBuilder = new RolePacketBuilder();
+		this.retryHandler = new RetryHandler(retryPolicy);
 	}
 
 	/**
@@ -92,7 +95,7 @@ export class AutonomousExecutor {
 	 * @param workspace - Workspace to execute
 	 * @returns Execution result
 	 */
-	async executeWorkspace(workspace: Workspace): Promise<WorkspaceExecutionResult> {
+	async executeWorkspace(workspace: Workspace, simulateFailure = false): Promise<WorkspaceExecutionResult> {
 		const state = this.stateStore.getState();
 		if (!state) {
 			throw new Error("State not initialized");
@@ -104,6 +107,10 @@ export class AutonomousExecutor {
 		}
 
 		try {
+			// Increment attempt counter
+			await this.stateStore.incrementRetryAttempt(workspace.id);
+			const updatedState = this.stateStore.getWorkspaceState(workspace.id)!;
+
 			// Transition to active
 			await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Active);
 
@@ -114,24 +121,40 @@ export class AutonomousExecutor {
 			const lockedFiles = this.scheduler.acquireFileLocks(workspace);
 			await this.stateStore.acquireFileLocks(workspace.id, lockedFiles);
 
-			// Generate role packet
-			const packet = this.packetBuilder.buildWorkerPacket(workspace, wsState, "");
+			// Determine retry stage and generate appropriate packet
+			const retryStage = this.retryHandler.getRetryStage(updatedState.attempts);
+			const retryContext = updatedState.error
+				? this.retryHandler.getRetryContext(updatedState, updatedState.error)
+				: "";
+
+			let packet: HashedPacket;
+			if (retryStage === RetryStage.Flash && updatedState.attempts >= 4) {
+				packet = this.packetBuilder.buildFlashPacket(workspace, updatedState, retryContext);
+			} else if (retryStage === RetryStage.Reviewer && updatedState.attempts >= 7) {
+				packet = this.packetBuilder.buildReviewerPacket(workspace, updatedState, retryContext);
+			} else {
+				packet = this.packetBuilder.buildWorkerPacket(workspace, updatedState, retryContext);
+			}
 
 			// Save packet to snapshot
-			await this.savePacketSnapshot(snapshot, packet, wsState.attempts);
+			await this.savePacketSnapshot(snapshot, packet, updatedState.attempts);
 
 			// Simulate execution (actual agent execution would happen here)
-			// For now, we just create a mock result
+			// For testing, allow simulated failures
+			if (simulateFailure) {
+				throw new Error("Simulated test failure");
+			}
+
 			const result: WorkspaceExecutionResult = {
 				workspaceId: workspace.id,
 				success: true,
 				verdict: "COMPLETE",
-				report: `Workspace ${workspace.id} executed successfully`,
+				report: `Workspace ${workspace.id} executed successfully (attempt ${updatedState.attempts})`,
 			};
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
-				...wsState,
+				...updatedState,
 				stage: WorkspaceStage.Complete,
 				completedAt: Date.now(),
 			});
@@ -155,7 +178,35 @@ export class AutonomousExecutor {
 			this.scheduler.releaseFileLocks(workspace);
 			await this.stateStore.releaseFileLocks(workspace.id);
 
-			// Transition to failed
+			// Update state with error
+			await this.stateStore.updateWorkspaceState(workspace.id, {
+				error: errorMessage,
+			});
+
+			// Get updated state for retry decision
+			const updatedState = this.stateStore.getWorkspaceState(workspace.id)!;
+
+			// Classify failure and determine if retry is possible
+			const failureType = this.retryHandler.classifyFailure(errorMessage);
+			const retryDecision = this.retryHandler.shouldRetry(workspace, updatedState, failureType);
+
+			if (retryDecision.shouldRetry) {
+				// Transition back to pending for retry
+				await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Pending, {
+					error: errorMessage,
+					retryStage: retryDecision.stage,
+				});
+
+				return {
+					workspaceId: workspace.id,
+					success: false,
+					verdict: "BLOCKED",
+					error: errorMessage,
+					report: `Retry scheduled: ${retryDecision.reason}`,
+				};
+			}
+
+			// No more retries - mark as failed
 			await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Failed, {
 				error: errorMessage,
 			});
@@ -165,6 +216,7 @@ export class AutonomousExecutor {
 				success: false,
 				verdict: "FAILED",
 				error: errorMessage,
+				report: `Failed after ${updatedState.attempts} attempts: ${retryDecision.reason}`,
 			};
 		}
 	}
@@ -301,6 +353,15 @@ export class AutonomousExecutor {
 	async failPlan(error: string): Promise<void> {
 		await this.stateStore.failPlan(error);
 	}
+
+	/**
+	 * Get retry handler
+	 *
+	 * @returns Retry handler instance
+	 */
+	getRetryHandler(): RetryHandler {
+		return this.retryHandler;
+	}
 }
 
 /**
@@ -310,6 +371,10 @@ export class AutonomousExecutor {
  * @param maxWorkers - Maximum concurrent workers
  * @returns Autonomous executor
  */
-export function createAutonomousExecutor(workspaceRoot: string, maxWorkers = 3): AutonomousExecutor {
-	return new AutonomousExecutor(workspaceRoot, maxWorkers);
+export function createAutonomousExecutor(
+	workspaceRoot: string,
+	maxWorkers = 3,
+	retryPolicy?: RetryPolicy,
+): AutonomousExecutor {
+	return new AutonomousExecutor(workspaceRoot, maxWorkers, retryPolicy);
 }
