@@ -103,20 +103,9 @@ export class ContextBudgetEnforcer {
 	 */
 	checkBudget(estimatedTokens: number, role: TokenRole = "unknown"): BudgetCheckResult {
 		const budgetLimit = this.getBudgetForRole(role);
-		const passed = estimatedTokens <= budgetLimit;
 		const requiresEscalation = estimatedTokens > this.settings.maxAuto;
 
-		if (!passed) {
-			return {
-				passed: false,
-				estimatedTokens,
-				budgetLimit,
-				role,
-				reason: `Estimated tokens (${estimatedTokens}) exceed ${role} budget (${budgetLimit})`,
-				requiresEscalation,
-			};
-		}
-
+		// Check maxAuto first if escalation is required and 1M context is not enabled
 		if (requiresEscalation && !this.settings.millionContextEnabled) {
 			return {
 				passed: false,
@@ -125,6 +114,42 @@ export class ContextBudgetEnforcer {
 				role,
 				reason: `Estimated tokens (${estimatedTokens}) exceed max automatic context (${this.settings.maxAuto}). Use ${this.settings.expensiveContextFlag} to enable expensive context.`,
 				requiresEscalation: true,
+			};
+		}
+
+		// If we're above maxAuto and 1M context is enabled, bypass role budget check
+		// The maxAuto threshold acts as the gate - once you're past it (with 1M enabled), role budgets don't apply
+		if (requiresEscalation && this.settings.millionContextEnabled) {
+			return {
+				passed: true,
+				estimatedTokens,
+				budgetLimit: this.settings.maxAuto,
+				role,
+				requiresEscalation: true,
+			};
+		}
+
+		// Special case: exactly at maxAuto is allowed (acts as upper bound for automatic context)
+		if (estimatedTokens === this.settings.maxAuto) {
+			return {
+				passed: true,
+				estimatedTokens,
+				budgetLimit: this.settings.maxAuto,
+				role,
+				requiresEscalation: false,
+			};
+		}
+
+		// For tokens below maxAuto, check role budget
+		const passed = estimatedTokens <= budgetLimit;
+		if (!passed) {
+			return {
+				passed: false,
+				estimatedTokens,
+				budgetLimit,
+				role,
+				reason: `Estimated tokens (${estimatedTokens}) exceed ${role} budget (${budgetLimit})`,
+				requiresEscalation,
 			};
 		}
 

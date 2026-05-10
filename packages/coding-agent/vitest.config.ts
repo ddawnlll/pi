@@ -10,6 +10,12 @@ export default defineConfig({
 		globals: true,
 		environment: "node",
 		testTimeout: 30000,
+		pool: "forks",
+		poolOptions: {
+			forks: {
+				execArgv: ["--max-old-space-size=4096"],
+			},
+		},
 		server: {
 			deps: {
 				external: [/@silvia-odwyer\/photon-node/],

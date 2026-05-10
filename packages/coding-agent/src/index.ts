@@ -1,5 +1,26 @@
 // Core session management
 
+// P1 Token Budget and Safety - CLI and Reporting
+export {
+	type DoctorCategory,
+	type DoctorCheck,
+	type DoctorResults,
+	formatDoctorResults,
+	formatDoctorResultsJson,
+	getDoctorExitCode,
+	runDoctor,
+} from "./cli/doctor.js";
+export {
+	createSummaryReport,
+	createTokenReport,
+	formatBudgetCheckResult,
+	formatFileTokenEstimate,
+	formatSummaryReportHuman,
+	formatTokenReportHuman,
+	formatTokenReportJson,
+	type TokenReport,
+	type TokenSummaryReport,
+} from "./cli/token-report.js";
 // Config paths
 export { getAgentDir, VERSION } from "./config.js";
 export {
@@ -47,6 +68,22 @@ export {
 	serializeConversation,
 	shouldCompact,
 } from "./core/compaction/index.js";
+// P1 Token Budget and Safety - Core Modules
+export {
+	BudgetExceededError,
+	type ContextBudgetEnforcer,
+	type ContextBudgetSettings,
+	createBudgetEnforcer,
+	DEFAULT_CONTEXT_BUDGETS,
+} from "./core/context-budget.js";
+export {
+	type AcceptanceCriterion,
+	createPacketBuilder,
+	PacketBuilder,
+	type RelevantSnippet,
+	type WorkspacePacket,
+	type WorkspaceSpec,
+} from "./core/context-packet.js";
 export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.js";
 // Extension system
 export type {
@@ -145,6 +182,16 @@ export {
 	wrapRegisteredTool,
 	wrapRegisteredTools,
 } from "./core/extensions/index.js";
+export {
+	createFilePolicy,
+	DEFAULT_FILE_POLICY,
+	type FileChunk,
+	type FileClassification,
+	type FileOutline,
+	type FilePolicy,
+	type FilePolicyCheckResult,
+	type FilePolicySettings,
+} from "./core/file-policy.js";
 // Footer data provider (git branch + extension statuses - data not otherwise available to extensions)
 export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.js";
 export { convertToLlm } from "./core/messages.js";
@@ -229,6 +276,14 @@ export {
 	type SkillFrontmatter,
 } from "./core/skills.js";
 export { createSyntheticSourceInfo } from "./core/source-info.js";
+export {
+	estimateTokensFromMessage,
+	estimateTokensFromMessages,
+	estimateTokensFromString,
+	type TokenRole,
+	type TokenUsage,
+	TokenUsageRecorder,
+} from "./core/token-metering.js";
 // Tools
 export {
 	type BashOperations,

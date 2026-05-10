@@ -183,8 +183,8 @@ describe("Token Metering Core", () => {
 					timestamp: Date.now(),
 				},
 			];
-			// "hello" (5) + "world" (5) = 10 / 4 = 2.5 -> 3
-			expect(estimateTokensFromMessages(messages)).toBe(3);
+			// "hello" (5 chars): ceil(5/4) = 2, "world" (5 chars): ceil(5/4) = 2, total = 4
+			expect(estimateTokensFromMessages(messages)).toBe(4);
 		});
 
 		it("should return 0 for empty array", () => {
