@@ -72,6 +72,18 @@ export interface AfterToolCallResult {
 	terminate?: boolean;
 }
 
+/** Context passed to `beforeProviderCall`. */
+export interface BeforeProviderCallContext {
+	/** Agent messages after context transform. */
+	agentMessages: AgentMessage[];
+	/** LLM-compatible messages ready for provider call. */
+	llmMessages: Message[];
+	/** Model being used for the call. */
+	model: Model<any>;
+	/** Current agent context. */
+	context: AgentContext;
+}
+
 /** Context passed to `beforeToolCall`. */
 export interface BeforeToolCallContext {
 	/** The assistant message that requested the tool call. */
@@ -233,6 +245,16 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * Contract: must not throw or reject. Return [] when no follow-up messages are available.
 	 */
 	getFollowUpMessages?: () => Promise<AgentMessage[]>;
+
+	/**
+	 * Called before the provider call, after messages have been converted to LLM format.
+	 *
+	 * Use this for budget enforcement or other pre-flight checks.
+	 * Throw an error to prevent the provider call.
+	 *
+	 * The hook receives the agent abort signal and is responsible for honoring it.
+	 */
+	beforeProviderCall?: (context: BeforeProviderCallContext, signal?: AbortSignal) => Promise<void> | void;
 
 	/**
 	 * Tool execution mode.

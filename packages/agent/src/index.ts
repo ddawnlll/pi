@@ -2,6 +2,7 @@
 export * from "./agent.js";
 // Loop functions
 export * from "./agent-loop.js";
+export * from "./context-budget.js";
 export * from "./harness/agent-harness.js";
 export {
 	collectEntriesForBranchSummary,
@@ -37,5 +38,7 @@ export * from "./harness/utils/shell-output.js";
 export * from "./harness/utils/truncate.js";
 // Proxy utilities
 export * from "./proxy.js";
+// Token metering and budget enforcement
+export * from "./token-metering.js";
 // Types
 export * from "./types.js";

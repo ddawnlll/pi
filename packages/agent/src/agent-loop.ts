@@ -288,6 +288,19 @@ async function streamAssistantResponse(
 	// Convert to LLM-compatible messages (AgentMessage[] → Message[])
 	const llmMessages = await config.convertToLlm(messages);
 
+	// Budget enforcement before provider call
+	if (config.beforeProviderCall) {
+		await config.beforeProviderCall(
+			{
+				agentMessages: messages,
+				llmMessages,
+				model: config.model,
+				context,
+			},
+			signal,
+		);
+	}
+
 	// Build LLM context
 	const llmContext: Context = {
 		systemPrompt: context.systemPrompt,

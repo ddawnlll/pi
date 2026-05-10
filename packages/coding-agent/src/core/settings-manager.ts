@@ -85,6 +85,7 @@ export interface Settings {
 	compaction?: CompactionSettings;
 	branchSummary?: BranchSummarySettings;
 	retry?: RetrySettings;
+	contextBudgets?: Partial<import("./context-budget.js").ContextBudgetSettings>;
 	hideThinkingBlock?: boolean;
 	shellPath?: string; // Custom shell path (e.g., for Cygwin users on Windows)
 	quietStartup?: boolean;
@@ -723,6 +724,28 @@ export class SettingsManager {
 			enabled: this.getRetryEnabled(),
 			maxRetries: this.settings.retry?.maxRetries ?? 3,
 			baseDelayMs: this.settings.retry?.baseDelayMs ?? 2000,
+		};
+	}
+
+	getContextBudgets(): {
+		flash: number;
+		worker: number;
+		lead: number;
+		reviewer: number;
+		debug: number;
+		maxAuto: number;
+		millionContextEnabled: boolean;
+		expensiveContextFlag: string;
+	} {
+		return {
+			flash: this.settings.contextBudgets?.flash ?? 4000,
+			worker: this.settings.contextBudgets?.worker ?? 12000,
+			lead: this.settings.contextBudgets?.lead ?? 24000,
+			reviewer: this.settings.contextBudgets?.reviewer ?? 16000,
+			debug: this.settings.contextBudgets?.debug ?? 24000,
+			maxAuto: this.settings.contextBudgets?.maxAuto ?? 64000,
+			millionContextEnabled: this.settings.contextBudgets?.millionContextEnabled ?? false,
+			expensiveContextFlag: this.settings.contextBudgets?.expensiveContextFlag ?? "--expensive-context-1m",
 		};
 	}
 
