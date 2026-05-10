@@ -2,12 +2,12 @@
  * Tests for Autonomous Execution Loop - P2 Workstream 7.F
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AutonomousExecutor, createAutonomousExecutor } from "../src/core/autonomous-executor.js";
-import { WorkspaceStage } from "../src/core/workspace-schema.js";
 import type { WorkspaceQueue } from "../src/core/workspace-schema.js";
+import { WorkspaceStage } from "../src/core/workspace-schema.js";
 
 const TEST_DIR = path.join(process.cwd(), ".test-autonomous-executor");
 

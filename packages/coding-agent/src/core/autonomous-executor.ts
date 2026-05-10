@@ -7,11 +7,11 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
+import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
+import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
-import { PlanStateStore, generateWorkspaceReport } from "./plan-state.js";
-import { WorkspaceScheduler } from "./workspace-scheduler.js";
-import { RolePacketBuilder, type HashedPacket } from "./role-packets.js";
 
 /**
  * Workspace snapshot directory structure

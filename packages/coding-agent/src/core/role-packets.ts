@@ -8,9 +8,9 @@
 import * as crypto from "node:crypto";
 import type { TokenRole } from "@earendil-works/pi-agent-core";
 import { estimateTokensFromString } from "@earendil-works/pi-agent-core";
-import type { Workspace } from "./workspace-schema.js";
-import type { WorkspaceState } from "./plan-state.js";
 import { PacketBuilder, type WorkspacePacket } from "./context-packet.js";
+import type { WorkspaceState } from "./plan-state.js";
+import type { Workspace } from "./workspace-schema.js";
 
 /**
  * Role-specific packet configuration
@@ -105,7 +105,7 @@ export class RolePacketBuilder {
 	 * @param priorStateSummary - Brief summary of prior execution state
 	 * @returns Hashed packet
 	 */
-	buildWorkerPacket(workspace: Workspace, state: WorkspaceState, priorStateSummary = ""): HashedPacket {
+	buildWorkerPacket(workspace: Workspace, _state: WorkspaceState, priorStateSummary = ""): HashedPacket {
 		const config = ROLE_CONFIGS.worker;
 
 		const packet = this.packetBuilder.build({
@@ -175,7 +175,7 @@ export class RolePacketBuilder {
 	 * @param workerReport - Report from worker execution
 	 * @returns Hashed packet
 	 */
-	buildReviewerPacket(workspace: Workspace, state: WorkspaceState, workerReport: string): HashedPacket {
+	buildReviewerPacket(workspace: Workspace, _state: WorkspaceState, workerReport: string): HashedPacket {
 		const config = ROLE_CONFIGS.reviewer;
 
 		const packet = this.packetBuilder.build({
@@ -212,7 +212,7 @@ export class RolePacketBuilder {
 	 */
 	buildLeadPacket(
 		workspace: Workspace,
-		state: WorkspaceState,
+		_state: WorkspaceState,
 		dependencyResults: Record<string, string>,
 	): HashedPacket {
 		const config = ROLE_CONFIGS.lead;
@@ -272,7 +272,7 @@ export class RolePacketBuilder {
 
 		// Truncate to approximate character count
 		const maxChars = maxTokens * 4; // Reverse of chars/4 heuristic
-		return summary.slice(0, maxChars) + "... [truncated]";
+		return `${summary.slice(0, maxChars)}... [truncated]`;
 	}
 
 	/**

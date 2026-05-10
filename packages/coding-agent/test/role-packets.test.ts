@@ -2,16 +2,16 @@
  * Tests for Agent Role Packet Builders - P2 Workstream 7.E
  */
 
-import { describe, it, expect } from "vitest";
-import {
-	RolePacketBuilder,
-	createRolePacketBuilder,
-	verifyPacketHash,
-	ROLE_CONFIGS,
-} from "../src/core/role-packets.js";
-import { WorkspaceStage } from "../src/core/workspace-schema.js";
-import type { Workspace } from "../src/core/workspace-schema.js";
+import { describe, expect, it } from "vitest";
 import type { WorkspaceState } from "../src/core/plan-state.js";
+import {
+	createRolePacketBuilder,
+	ROLE_CONFIGS,
+	RolePacketBuilder,
+	verifyPacketHash,
+} from "../src/core/role-packets.js";
+import type { Workspace } from "../src/core/workspace-schema.js";
+import { WorkspaceStage } from "../src/core/workspace-schema.js";
 
 describe("RolePacketBuilder", () => {
 	const builder = new RolePacketBuilder();
@@ -65,9 +65,7 @@ describe("RolePacketBuilder", () => {
 			const result = builder.buildWorkerPacket(mockWorkspace, mockState);
 
 			expect(result.packet.budget.maxInputTokens).toBe(ROLE_CONFIGS.worker.maxInputTokens);
-			expect(result.packet.budget.estimatedInputTokens).toBeLessThanOrEqual(
-				ROLE_CONFIGS.worker.maxInputTokens,
-			);
+			expect(result.packet.budget.estimatedInputTokens).toBeLessThanOrEqual(ROLE_CONFIGS.worker.maxInputTokens);
 		});
 
 		it("should include hash and timestamp", () => {
@@ -163,13 +161,13 @@ describe("RolePacketBuilder", () => {
 	describe("packet hashing", () => {
 		it("should generate different hashes when timestamp differs", () => {
 			const result1 = builder.buildWorkerPacket(mockWorkspace, mockState);
-			
+
 			// Wait a bit to ensure different timestamp
 			const start = Date.now();
 			while (Date.now() === start) {
 				// Busy wait for timestamp to change
 			}
-			
+
 			const result2 = builder.buildWorkerPacket(mockWorkspace, mockState);
 
 			// Hashes should be different because createdAt differs
