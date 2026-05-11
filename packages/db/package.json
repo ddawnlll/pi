@@ -1,0 +1,40 @@
+{
+	"name": "@earendil-works/pi-db",
+	"version": "0.74.0",
+	"description": "PostgreSQL persistence layer for Pi execution engine",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "vitest --run",
+		"check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"kysely": "^0.27.6",
+		"pg": "^8.13.1",
+		"uuid": "^14.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"@types/pg": "^8.11.10",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

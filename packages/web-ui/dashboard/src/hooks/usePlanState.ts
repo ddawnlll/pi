@@ -18,7 +18,8 @@ export function usePlanState() {
 	return useQuery<PlanState | null>({
 		queryKey: ["plan-state"],
 		queryFn: fetchPlanState,
-		refetchInterval: 500,
-		refetchIntervalInBackground: true,
+		refetchInterval: 5000, // Reduced from 500ms to 5s to prevent memory issues
+		refetchIntervalInBackground: false, // Don't poll when tab is not visible
+		staleTime: 2000, // Consider data fresh for 2 seconds
 	});
 }

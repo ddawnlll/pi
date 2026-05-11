@@ -1,3 +1,20 @@
+// State store interface and implementations
+
+export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
+export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
+export {
+	type ControlAction,
+	createStateStore,
+	detectStateStoreBackend,
+	type IStateStore,
+	type PlanControlState,
+	type PlanExecutionSummary,
+	type PlanStatus,
+	type ProjectSummary,
+	type StateStoreBackend,
+	type StateStoreConfig,
+} from "./core/state-store.js";
+
 // Core session management
 
 // P1 Token Budget and Safety - CLI and Reporting

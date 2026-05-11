@@ -1087,4 +1087,70 @@ export class SettingsManager {
 		this.markModified("warnings");
 		this.save();
 	}
+
+	/** Bulk update global settings with deep merge for nested objects */
+	updateGlobalSettings(updates: Partial<Settings>): void {
+		for (const [key, value] of Object.entries(updates)) {
+			if (value === undefined) continue;
+			const k = key as keyof Settings;
+			const existing = this.globalSettings[k];
+			// Handle null as explicit clear (convert to undefined for storage)
+			if (value === null) {
+				(this.globalSettings as Record<string, unknown>)[k] = undefined;
+				this.markModified(k);
+			} else if (
+				typeof value === "object" &&
+				value !== null &&
+				!Array.isArray(value) &&
+				typeof existing === "object" &&
+				existing !== null &&
+				!Array.isArray(existing)
+			) {
+				// Deep merge nested objects, preserving existing keys not in the update
+				(this.globalSettings as Record<string, unknown>)[k] = { ...existing, ...value };
+				// Mark all nested keys that were updated
+				for (const nestedKey of Object.keys(value as Record<string, unknown>)) {
+					this.markModified(k, nestedKey);
+				}
+			} else {
+				(this.globalSettings as Record<string, unknown>)[k] = value;
+				this.markModified(k);
+			}
+		}
+		this.save();
+	}
+
+	/** Bulk update project settings with deep merge for nested objects */
+	updateProjectSettings(updates: Partial<Settings>): void {
+		const projectSettings = structuredClone(this.projectSettings);
+		for (const [key, value] of Object.entries(updates)) {
+			if (value === undefined) continue;
+			const k = key as keyof Settings;
+			const existing = projectSettings[k];
+			// Handle null as explicit clear (convert to undefined for storage)
+			if (value === null) {
+				(projectSettings as Record<string, unknown>)[k] = undefined;
+				this.markProjectModified(k);
+			} else if (
+				typeof value === "object" &&
+				value !== null &&
+				!Array.isArray(value) &&
+				typeof existing === "object" &&
+				existing !== null &&
+				!Array.isArray(existing)
+			) {
+				(projectSettings as Record<string, unknown>)[k] = { ...existing, ...value };
+				this.markProjectModified(k);
+			} else {
+				(projectSettings as Record<string, unknown>)[k] = value;
+				this.markProjectModified(k);
+			}
+		}
+		this.saveProjectSettings(projectSettings);
+	}
+
+	/** Get merged settings (global + project) */
+	getMergedSettings(): Settings {
+		return structuredClone(this.settings);
+	}
 }

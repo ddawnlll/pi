@@ -1,0 +1,367 @@
+❯ npm run check
+
+> pi-monorepo@0.0.3 check
+> biome check --write --error-on-warnings . && tsgo --noEmit && npm run check:browser-smoke && cd packages/web-ui && npm run check
+
+packages/coding-agent/src/core/autonomous-executor.ts:13:26 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    11 │ import * as fs from "node:fs/promises";
+    12 │ import * as path from "node:path";
+  > 13 │ import type { PlanState, WorkspaceState } from "./plan-state.js";
+       │                          ^^^^^^^^^^^^^^
+    14 │ import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
+    15 │ import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    13 │ import·type·{·PlanState,·WorkspaceState·}·from·"./plan-state.js";
+       │                          ---------------                         
+
+packages/coding-agent/src/core/autonomous-executor.ts:14:35 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    12 │ import * as path from "node:path";
+    13 │ import type { PlanState, WorkspaceState } from "./plan-state.js";
+  > 14 │ import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
+       │                                   ^^^^^^^^^^^^^^
+    15 │ import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
+    16 │ import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    14 │ import·{·generateWorkspaceReport,·PlanStateStore·}·from·"./plan-state.js";
+       │                                   ---------------                         
+
+packages/coding-agent/src/core/autonomous-executor.ts:17:46 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    15 │ import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
+    16 │ import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
+  > 17 │ import type { IStateStore, PlanControlState, PlanExecutionSummary } from "./state-store.js";
+       │                                              ^^^^^^^^^^^^^^^^^^^^
+    18 │ import { WorkspaceScheduler } from "./workspace-scheduler.js";
+    19 │ import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    17 │ import·type·{·IStateStore,·PlanControlState,·PlanExecutionSummary·}·from·"./state-store.js";
+       │                                              ---------------------                          
+
+packages/coding-agent/src/core/autonomous-executor.ts:19:26 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    17 │ import type { IStateStore, PlanControlState, PlanExecutionSummary } from "./state-store.js";
+    18 │ import { WorkspaceScheduler } from "./workspace-scheduler.js";
+  > 19 │ import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
+       │                          ^^^^^^^^^^^^^^
+    20 │ import { WorkspaceStage } from "./workspace-schema.js";
+    21 │ 
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    19 │ import·type·{·Workspace,·WorkspaceQueue,·WorkspaceQueue·as·WQ·}·from·"./workspace-schema.js";
+       │                          ----------------                                                    
+
+packages/coding-agent/src/core/database-state-store.ts:18:2 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    16 │        ProjectRepository,
+    17 │        WorkspaceExecutionRepository,
+  > 18 │        withTransaction,
+       │        ^^^^^^^^^^^^^^^
+    19 │ } from "@earendil-works/pi-db";
+    20 │ import type { Kysely } from "kysely";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+     16  16 │           ProjectRepository,
+     17  17 │           WorkspaceExecutionRepository,
+     18     │ - → withTransaction,
+     19  18 │   } from "@earendil-works/pi-db";
+     20  19 │   import type { Kysely } from "kysely";
+  
+
+packages/coding-agent/src/core/database-state-store.ts:30:31 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    28 │        StateStoreBackend,
+    29 │ } from "./state-store.js";
+  > 30 │ import type { WorkspaceQueue, WorkspaceStage } from "./workspace-schema.js";
+       │                               ^^^^^^^^^^^^^^
+    31 │ import { WorkspaceStage as WS } from "./workspace-schema.js";
+    32 │ 
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    30 │ import·type·{·WorkspaceQueue,·WorkspaceStage·}·from·"./workspace-schema.js";
+       │                               ---------------                               
+
+packages/coding-agent/src/core/database-state-store.ts:99:14 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This parameter is unused.
+  
+     97 │       private cache: Map<string, PlanCacheEntry> = new Map();
+     98 │ 
+   > 99 │       constructor(config?: DatabaseStateStoreConfig) {
+        │                   ^^^^^^
+    100 │               this.db = getKysely();
+    101 │               this.projectRepo = new ProjectRepository(this.db);
+  
+  ℹ Unused parameters might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: If this is intentional, prepend config with an underscore.
+  
+     97  97 │           private cache: Map<string, PlanCacheEntry> = new Map();
+     98  98 │   
+     99     │ - → constructor(config?:·DatabaseStateStoreConfig)·{
+         99 │ + → constructor(_config?:·DatabaseStateStoreConfig)·{
+    100 100 │                   this.db = getKysely();
+    101 101 │                   this.projectRepo = new ProjectRepository(this.db);
+  
+
+packages/coding-agent/src/core/database-state-store.ts:259:18 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This parameter is unused.
+  
+    257 │       }
+    258 │ 
+  > 259 │       async saveState(planExecutionId: string): Promise<void> {
+        │                       ^^^^^^^^^^^^^^^
+    260 │               // State is persisted eagerly on every mutation, so this is a no-op
+    261 │               // for the database backend. The cache is kept in sync.
+  
+  ℹ Unused parameters might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: If this is intentional, prepend planExecutionId with an underscore.
+  
+    257 257 │           }
+    258 258 │   
+    259     │ - → async·saveState(planExecutionId:·string):·Promise<void>·{
+        259 │ + → async·saveState(_planExecutionId:·string):·Promise<void>·{
+    260 260 │                   // State is persisted eagerly on every mutation, so this is a no-op
+    261 261 │                   // for the database backend. The cache is kept in sync.
+  
+
+packages/coding-agent/src/core/database-state-store.ts:462:16 lint/correctness/noUnusedVariables  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This variable wsId is unused.
+  
+    460 │               // Mark all active workspaces as cancelled
+    461 │               if (cacheEntry) {
+  > 462 │                       for (const [wsId, ws] of cacheEntry.workspaces) {
+        │                                   ^^^^
+    463 │                               if (ws.stage === WS.Active) {
+    464 │                                       await this.workspaceExecutionRepo.updateStage(ws.id, "failed");
+  
+  ℹ Unused variables are often the result of an incomplete refactoring, typos, or other sources of bugs.
+  
+  ℹ Unsafe fix: If this is intentional, prepend wsId with an underscore.
+  
+    460 460 │                   // Mark all active workspaces as cancelled
+    461 461 │                   if (cacheEntry) {
+    462     │ - → → → for·(const·[wsId,·ws]·of·cacheEntry.workspaces)·{
+        462 │ + → → → for·(const·[_wsId,·ws]·of·cacheEntry.workspaces)·{
+    463 463 │                                   if (ws.stage === WS.Active) {
+    464 464 │                                           await this.workspaceExecutionRepo.updateStage(ws.id, "failed");
+  
+
+packages/coding-agent/src/core/json-state-store.ts:167:18 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This parameter is unused.
+  
+    165 │       }
+    166 │ 
+  > 167 │       async loadState(planExecutionId: string): Promise<PlanState | null> {
+        │                       ^^^^^^^^^^^^^^^
+    168 │               return this.store.loadState();
+    169 │       }
+  
+  ℹ Unused parameters might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: If this is intentional, prepend planExecutionId with an underscore.
+  
+    165 165 │           }
+    166 166 │   
+    167     │ - → async·loadState(planExecutionId:·string):·Promise<PlanState·|·null>·{
+        167 │ + → async·loadState(_planExecutionId:·string):·Promise<PlanState·|·null>·{
+    168 168 │                   return this.store.loadState();
+    169 169 │           }
+  
+
+packages/coding-agent/src/core/json-state-store.ts:171:18 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This parameter is unused.
+  
+    169 │       }
+    170 │ 
+  > 171 │       async saveState(planExecutionId: string): Promise<void> {
+        │                       ^^^^^^^^^^^^^^^
+    172 │               await this.store.saveState();
+    173 │       }
+  
+  ℹ Unused parameters might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: If this is intentional, prepend planExecutionId with an underscore.
+  
+    169 169 │           }
+    170 170 │   
+    171     │ - → async·saveState(planExecutionId:·string):·Promise<void>·{
+        171 │ + → async·saveState(_planExecutionId:·string):·Promise<void>·{
+    172 172 │                   await this.store.saveState();
+    173 173 │           }
+  
+
+packages/coding-agent/test/state-store.test.ts:5:21 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    3 │  */
+    4 │ 
+  > 5 │ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+      │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    6 │ import type { StateStoreBackend } from "../src/core/state-store.js";
+    7 │ import { createStateStore, detectStateStoreBackend } from "../src/core/state-store.js";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    5 │ import·{·afterEach,·beforeEach,·describe,·expect,·it,·vi·}·from·"vitest";
+      │                     ------------                      ---                
+
+packages/db/src/helpers.ts:74:8 lint/correctness/noUnusedVariables  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This variable id is unused.
+  
+    72 │        }
+    73 │        // Lazy import uuid for older Node versions
+  > 74 │        const id = 0;
+       │              ^^
+    75 │        const hex = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+    76 │        return hex.replace(/[xy]/g, (c) => {
+  
+  ℹ Unused variables are often the result of an incomplete refactoring, typos, or other sources of bugs.
+  
+  ℹ Unsafe fix: If this is intentional, prepend id with an underscore.
+  
+    72 72 │     }
+    73 73 │     // Lazy import uuid for older Node versions
+    74    │ - → const·id·=·0;
+       74 │ + → const·_id·=·0;
+    75 75 │     const hex = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+    76 76 │     return hex.replace(/[xy]/g, (c) => {
+  
+
+packages/db/src/migrate-from-json.ts:18:22 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ Several of these imports are unused.
+  
+    17 │ import { createHash, randomUUID } from "node:crypto";
+  > 18 │ import { access, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+       │                      ^^^^^
+    19 │ import { basename, dirname, join, relative, resolve } from "node:path";
+    20 │ import { argv, exit, stdin, stdout } from "node:process";
+  
+  ℹ Unused imports might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: Remove the unused imports.
+  
+    18 │ import·{·access,·cp,·mkdir,·readdir,·readFile,·writeFile·}·from·"node:fs/promises";
+       │                      -------                                                       
+
+packages/db/src/migrate-from-json.ts:327:22 lint/correctness/noUnusedVariables ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This variable now is unused.
+  
+    325 │       );
+    326 │       const { JournalEventRepository } = await import("./repositories/journal.js");
+  > 327 │       const { generateId, now } = await import("./helpers.js");
+        │                           ^^^
+    328 │ 
+    329 │       const db = getKysely();
+  
+  ℹ Unused variables are often the result of an incomplete refactoring, typos, or other sources of bugs.
+  
+
+packages/web-server/src/index.ts:78:10 lint/correctness/noUnusedVariables  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This function getJsonStateStore is unused.
+  
+    76 │ }
+    77 │ 
+  > 78 │ function getJsonStateStore(): JsonStateStore {
+       │          ^^^^^^^^^^^^^^^^^
+    79 │        const store = getStateStore();
+    80 │        if (store instanceof JsonStateStore) {
+  
+  ℹ Unused variables are often the result of an incomplete refactoring, typos, or other sources of bugs.
+  
+  ℹ Unsafe fix: If this is intentional, prepend getJsonStateStore with an underscore.
+  
+     76  76 │   }
+     77  77 │   
+     78     │ - function·getJsonStateStore():·JsonStateStore·{
+         78 │ + function·_getJsonStateStore():·JsonStateStore·{
+     79  79 │           const store = getStateStore();
+     80  80 │           if (store instanceof JsonStateStore) {
+  
+
+packages/web-server/src/index.ts:655:45 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠ This parameter is unused.
+  
+    653 │  * GET /api/health - Health check
+    654 │  */
+  > 655 │ fastify.get("/api/health", async (_request, reply) => {
+        │                                             ^^^^^
+    656 │       const backendType = getStateStore().getBackendType();
+    657 │ 
+  
+  ℹ Unused parameters might be the result of an incomplete refactoring.
+  
+  ℹ Unsafe fix: If this is intentional, prepend reply with an underscore.
+  
+    653 653 │    * GET /api/health - Health check
+    654 654 │    */
+    655     │ - fastify.get("/api/health",·async·(_request,·reply)·=>·{
+        655 │ + fastify.get("/api/health",·async·(_request,·_reply)·=>·{
+    656 656 │           const backendType = getStateStore().getBackendType();
+    657 657 │   
+  
+
+Skipped 16 suggested fixes.
+If you wish to apply the suggested (unsafe) fixes, use the command biome check --write --unsafe
+
+Checked 720 files in 828ms. Fixed 24 files.
+Found 17 warnings.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✖ Some warnings were emitted while running checks.
+  {
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "./src"
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist"]
+}

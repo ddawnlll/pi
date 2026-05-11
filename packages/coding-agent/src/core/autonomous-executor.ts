@@ -3,16 +3,20 @@
  *
  * Orchestrates autonomous workspace execution with state management,
  * packet generation, journal logging, and retry handling.
+ *
+ * Refactored for Phase 1 to use IStateStore instead of PlanStateStore,
+ * enabling both JSON and PostgreSQL persistence backends.
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createPlanControlManager, type PlanControlState } from "./plan-control.js";
-import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
+import type { PlanState } from "./plan-state.js";
+import { generateWorkspaceReport } from "./plan-state.js";
 import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
+import type { IStateStore, PlanControlState } from "./state-store.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
-import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
+import type { Workspace, WorkspaceQueue as WQ } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
 /**
@@ -48,6 +52,22 @@ export interface WorkspaceExecutionResult {
 }
 
 /**
+ * Autonomous executor configuration.
+ */
+export interface AutonomousExecutorConfig {
+	/** Workspace root directory */
+	workspaceRoot: string;
+	/** Maximum concurrent workers (default: 3) */
+	maxWorkers?: number;
+	/** Retry policy */
+	retryPolicy?: RetryPolicy;
+	/** Project ID to associate executions with */
+	projectId?: string;
+	/** Skip project management (for backward compat with single-project mode) */
+	skipProjectManagement?: boolean;
+}
+
+/**
  * Autonomous executor
  *
  * Manages autonomous workspace execution:
@@ -57,22 +77,31 @@ export interface WorkspaceExecutionResult {
  * - Executes workspace stages
  * - Updates journal and state
  * - Creates workspace snapshots
+ *
+ * Uses IStateStore for persistence, supporting both JSON and PostgreSQL backends.
  */
 export class AutonomousExecutor {
-	private stateStore: PlanStateStore;
+	private stateStore: IStateStore;
 	private scheduler: WorkspaceScheduler;
 	private packetBuilder: RolePacketBuilder;
 	private retryHandler: RetryHandler;
-	private controlManager: ReturnType<typeof createPlanControlManager>;
 	private workspaceRoot: string;
+	private projectId: string;
+	private planExecutionId: string | null = null;
+	private currentPlanState: PlanState | null = null;
 
-	constructor(workspaceRoot: string, maxWorkers = 3, retryPolicy?: RetryPolicy) {
-		this.workspaceRoot = workspaceRoot;
-		this.stateStore = new PlanStateStore(workspaceRoot);
-		this.scheduler = new WorkspaceScheduler(maxWorkers);
+	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
+		this.stateStore = stateStore;
+		this.workspaceRoot = config.workspaceRoot;
+		this.scheduler = new WorkspaceScheduler(config.maxWorkers ?? 3);
 		this.packetBuilder = new RolePacketBuilder();
-		this.retryHandler = new RetryHandler(retryPolicy);
-		this.controlManager = createPlanControlManager(workspaceRoot);
+		this.retryHandler = new RetryHandler(config.retryPolicy);
+		this.projectId = config.projectId ?? "default";
+
+		// If skipProjectManagement, use a fixed projectId
+		if (config.skipProjectManagement) {
+			this.projectId = "default";
+		}
 	}
 
 	/**
@@ -80,8 +109,24 @@ export class AutonomousExecutor {
 	 *
 	 * @param queue - Workspace queue
 	 */
-	async initialize(queue: WorkspaceQueue): Promise<void> {
-		await this.stateStore.initializeState(queue);
+	async initialize(queue: WQ): Promise<string> {
+		const planExecutionId = await this.stateStore.initializeState(this.projectId, queue);
+		this.planExecutionId = planExecutionId;
+
+		// Load state into cache
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) {
+			this.currentPlanState = state;
+		}
+
+		return planExecutionId;
+	}
+
+	/**
+	 * Get the current plan execution ID.
+	 */
+	getPlanExecutionId(): string | null {
+		return this.planExecutionId;
 	}
 
 	/**
@@ -99,7 +144,12 @@ export class AutonomousExecutor {
 	 * @returns Execution result
 	 */
 	async executeWorkspace(workspace: Workspace, simulateFailure = false): Promise<WorkspaceExecutionResult> {
-		const state = this.stateStore.getState();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			throw new Error("Execution not initialized. Call initialize() first.");
+		}
+
+		const state = this.currentPlanState;
 		if (!state) {
 			throw new Error("State not initialized");
 		}
@@ -111,36 +161,38 @@ export class AutonomousExecutor {
 
 		try {
 			// Increment attempt counter
-			await this.stateStore.incrementRetryAttempt(workspace.id);
-			const updatedState = this.stateStore.getWorkspaceState(workspace.id)!;
+			await this.stateStore.incrementRetryAttempt(planExecutionId, workspace.id);
+			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
 
 			// Transition to active
-			await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Active);
+			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Active);
 
 			// Create workspace snapshot directory
 			const snapshot = await this.createWorkspaceSnapshot(workspace.id);
 
 			// Acquire file locks
 			const lockedFiles = this.scheduler.acquireFileLocks(workspace);
-			await this.stateStore.acquireFileLocks(workspace.id, lockedFiles);
+			await this.stateStore.acquireFileLocks(planExecutionId, workspace.id, lockedFiles);
+
+			const wsStateForPacket = updatedWsState ?? wsState;
 
 			// Determine retry stage and generate appropriate packet
-			const retryStage = this.retryHandler.getRetryStage(updatedState.attempts);
-			const retryContext = updatedState.error
-				? this.retryHandler.getRetryContext(updatedState, updatedState.error)
+			const retryStage = this.retryHandler.getRetryStage(wsStateForPacket.attempts);
+			const retryContext = wsStateForPacket.error
+				? this.retryHandler.getRetryContext(wsStateForPacket, wsStateForPacket.error)
 				: "";
 
 			let packet: HashedPacket;
-			if (retryStage === RetryStage.Flash && updatedState.attempts >= 4) {
-				packet = this.packetBuilder.buildFlashPacket(workspace, updatedState, retryContext);
-			} else if (retryStage === RetryStage.Reviewer && updatedState.attempts >= 7) {
-				packet = this.packetBuilder.buildReviewerPacket(workspace, updatedState, retryContext);
+			if (retryStage === RetryStage.Flash && wsStateForPacket.attempts >= 4) {
+				packet = this.packetBuilder.buildFlashPacket(workspace, wsStateForPacket, retryContext);
+			} else if (retryStage === RetryStage.Reviewer && wsStateForPacket.attempts >= 7) {
+				packet = this.packetBuilder.buildReviewerPacket(workspace, wsStateForPacket, retryContext);
 			} else {
-				packet = this.packetBuilder.buildWorkerPacket(workspace, updatedState, retryContext);
+				packet = this.packetBuilder.buildWorkerPacket(workspace, wsStateForPacket, retryContext);
 			}
 
 			// Save packet to snapshot
-			await this.savePacketSnapshot(snapshot, packet, updatedState.attempts);
+			await this.savePacketSnapshot(snapshot, packet, wsStateForPacket.attempts);
 
 			// Simulate execution (actual agent execution would happen here)
 			// For testing, allow simulated failures
@@ -152,12 +204,12 @@ export class AutonomousExecutor {
 				workspaceId: workspace.id,
 				success: true,
 				verdict: "COMPLETE",
-				report: `Workspace ${workspace.id} executed successfully (attempt ${updatedState.attempts})`,
+				report: `Workspace ${workspace.id} executed successfully (attempt ${wsStateForPacket.attempts})`,
 			};
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
-				...updatedState,
+				...wsStateForPacket,
 				stage: WorkspaceStage.Complete,
 				completedAt: Date.now(),
 			});
@@ -165,12 +217,18 @@ export class AutonomousExecutor {
 
 			// Release file locks
 			this.scheduler.releaseFileLocks(workspace);
-			await this.stateStore.releaseFileLocks(workspace.id);
+			await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
 
 			// Transition to complete
-			await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Complete, {
+			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 				verdict: result.verdict,
 			});
+
+			// Update local cache
+			const updatedState = await this.stateStore.loadState(planExecutionId);
+			if (updatedState) {
+				this.currentPlanState = updatedState;
+			}
 
 			return result;
 		} catch (error) {
@@ -179,26 +237,33 @@ export class AutonomousExecutor {
 
 			// Release locks on failure
 			this.scheduler.releaseFileLocks(workspace);
-			await this.stateStore.releaseFileLocks(workspace.id);
+			await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
 
 			// Update state with error
-			await this.stateStore.updateWorkspaceState(workspace.id, {
+			await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
 				error: errorMessage,
 			});
 
 			// Get updated state for retry decision
-			const updatedState = this.stateStore.getWorkspaceState(workspace.id)!;
+			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
+			const wsForRetry = updatedWsState ?? wsState;
 
 			// Classify failure and determine if retry is possible
 			const failureType = this.retryHandler.classifyFailure(errorMessage);
-			const retryDecision = this.retryHandler.shouldRetry(workspace, updatedState, failureType);
+			const retryDecision = this.retryHandler.shouldRetry(workspace, wsForRetry, failureType);
 
 			if (retryDecision.shouldRetry) {
 				// Transition back to pending for retry
-				await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Pending, {
+				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Pending, {
 					error: errorMessage,
 					retryStage: retryDecision.stage,
 				});
+
+				// Update local cache
+				const updatedState = await this.stateStore.loadState(planExecutionId);
+				if (updatedState) {
+					this.currentPlanState = updatedState;
+				}
 
 				return {
 					workspaceId: workspace.id,
@@ -210,16 +275,22 @@ export class AutonomousExecutor {
 			}
 
 			// No more retries - mark as failed
-			await this.stateStore.transitionWorkspace(workspace.id, WorkspaceStage.Failed, {
+			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Failed, {
 				error: errorMessage,
 			});
+
+			// Update local cache
+			const updatedState = await this.stateStore.loadState(planExecutionId);
+			if (updatedState) {
+				this.currentPlanState = updatedState;
+			}
 
 			return {
 				workspaceId: workspace.id,
 				success: false,
 				verdict: "FAILED",
 				error: errorMessage,
-				report: `Failed after ${updatedState.attempts} attempts: ${retryDecision.reason}`,
+				report: `Failed after ${wsForRetry.attempts} attempts: ${retryDecision.reason}`,
 			};
 		}
 	}
@@ -230,12 +301,15 @@ export class AutonomousExecutor {
 	 * @returns Control state if a control request is pending, null otherwise
 	 */
 	async checkControlRequest(): Promise<PlanControlState | null> {
-		const control = await this.controlManager.readControlRequest();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) return null;
+
+		const control = await this.stateStore.readControlRequest(planExecutionId);
 		if (!control) {
 			return null;
 		}
 
-		const state = this.stateStore.getState();
+		const state = this.currentPlanState;
 		if (!state) {
 			return null;
 		}
@@ -249,8 +323,8 @@ export class AutonomousExecutor {
 
 					if (activeCount === 0) {
 						// No active workspaces, pause immediately
-						await this.stateStore.pausePlan(control.reason);
-						await this.controlManager.clearControlRequest();
+						await this.stateStore.pausePlan(planExecutionId, control.reason);
+						await this.stateStore.clearControlRequest(planExecutionId);
 					}
 					// Otherwise, keep control request and let active workspaces finish
 				}
@@ -263,8 +337,8 @@ export class AutonomousExecutor {
 
 					if (activeCount === 0) {
 						// No active workspaces, stop immediately
-						await this.stateStore.stopPlan(control.reason);
-						await this.controlManager.clearControlRequest();
+						await this.stateStore.stopPlan(planExecutionId, control.reason);
+						await this.stateStore.clearControlRequest(planExecutionId);
 					}
 					// Otherwise, keep control request and let active workspaces finish
 				}
@@ -276,7 +350,7 @@ export class AutonomousExecutor {
 
 			case "resume":
 				// Resume is handled by the resume command
-				await this.controlManager.clearControlRequest();
+				await this.stateStore.clearControlRequest(planExecutionId);
 				break;
 		}
 
@@ -290,7 +364,12 @@ export class AutonomousExecutor {
 	 * @returns Array of eligible workspaces
 	 */
 	async getNextWorkspaces(workspaces: Workspace[]): Promise<Workspace[]> {
-		const state = this.stateStore.getState();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			return [];
+		}
+
+		const state = this.currentPlanState;
 		if (!state) {
 			return [];
 		}
@@ -319,7 +398,7 @@ export class AutonomousExecutor {
 	 * @returns True if all workspaces are complete or failed
 	 */
 	isExecutionComplete(): boolean {
-		const state = this.stateStore.getState();
+		const state = this.currentPlanState;
 		if (!state) {
 			return false;
 		}
@@ -339,7 +418,12 @@ export class AutonomousExecutor {
 	 * @returns Execution statistics
 	 */
 	getStatistics() {
-		const state = this.stateStore.getState();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			return null;
+		}
+
+		const state = this.currentPlanState;
 		if (!state) {
 			return null;
 		}
@@ -398,27 +482,44 @@ export class AutonomousExecutor {
 	}
 
 	/**
-	 * Load state from disk
+	 * Load state from store
 	 *
 	 * @returns True if state was loaded
 	 */
 	async loadState(): Promise<boolean> {
-		const state = await this.stateStore.loadState();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			return false;
+		}
+
+		const state = await this.stateStore.loadState(planExecutionId);
+		this.currentPlanState = state;
 		return state !== null;
 	}
 
 	/**
 	 * Get current state
 	 */
-	getState() {
-		return this.stateStore.getState();
+	getState(): PlanState | null {
+		return this.currentPlanState;
+	}
+
+	/**
+	 * Get the underlying state store.
+	 */
+	getStateStore(): IStateStore {
+		return this.stateStore;
 	}
 
 	/**
 	 * Complete plan execution
 	 */
 	async completePlan(): Promise<void> {
-		await this.stateStore.completePlan();
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+		await this.stateStore.completePlan(planExecutionId);
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) this.currentPlanState = state;
 	}
 
 	/**
@@ -427,7 +528,11 @@ export class AutonomousExecutor {
 	 * @param error - Error message
 	 */
 	async failPlan(error: string): Promise<void> {
-		await this.stateStore.failPlan(error);
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+		await this.stateStore.failPlan(planExecutionId, error);
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) this.currentPlanState = state;
 	}
 
 	/**
@@ -438,22 +543,17 @@ export class AutonomousExecutor {
 	getRetryHandler(): RetryHandler {
 		return this.retryHandler;
 	}
-
-	/**
-	 * Get control manager
-	 *
-	 * @returns Control manager instance
-	 */
-	getControlManager(): ReturnType<typeof createPlanControlManager> {
-		return this.controlManager;
-	}
 }
 
 /**
- * Create an autonomous executor instance
+ * Create an autonomous executor instance with JSON backend.
+ *
+ * This is a convenience factory that creates a JSON-backed executor,
+ * maintaining backward compatibility with existing code.
  *
  * @param workspaceRoot - Workspace root directory
  * @param maxWorkers - Maximum concurrent workers
+ * @param retryPolicy - Optional retry policy
  * @returns Autonomous executor
  */
 export function createAutonomousExecutor(
@@ -461,5 +561,13 @@ export function createAutonomousExecutor(
 	maxWorkers = 3,
 	retryPolicy?: RetryPolicy,
 ): AutonomousExecutor {
-	return new AutonomousExecutor(workspaceRoot, maxWorkers, retryPolicy);
+	const { JsonStateStore } = require("./json-state-store.js");
+	const stateStore = new JsonStateStore(workspaceRoot);
+	return new AutonomousExecutor(stateStore, {
+		workspaceRoot,
+		maxWorkers,
+		retryPolicy,
+		projectId: "default",
+		skipProjectManagement: true,
+	});
 }
