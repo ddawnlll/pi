@@ -22,6 +22,8 @@
 		"test": "npm run test --workspaces --if-present",
 		"dogfood:doctor": "node packages/coding-agent/dist/cli.js plan doctor docs/dogfood-p2-template-json-plan.md",
 		"dogfood:dry-run": "node packages/coding-agent/dist/cli.js plan dry-run docs/dogfood-p2-template-json-plan.md",
+		"dogfood:run": "node packages/coding-agent/dist/cli.js plan run docs/dogfood-p2-template-json-plan.md",
+		"dogfood:status": "node packages/coding-agent/dist/cli.js plan status docs/dogfood-p2-template-json-plan.md",
 		"version:patch": "npm version patch -ws --no-git-tag-version && node scripts/sync-versions.js && shx rm -rf node_modules packages/*/node_modules package-lock.json && npm install",
 		"version:minor": "npm version minor -ws --no-git-tag-version && node scripts/sync-versions.js && shx rm -rf node_modules packages/*/node_modules package-lock.json && npm install",
 		"version:major": "npm version major -ws --no-git-tag-version && node scripts/sync-versions.js && shx rm -rf node_modules packages/*/node_modules package-lock.json && npm install",

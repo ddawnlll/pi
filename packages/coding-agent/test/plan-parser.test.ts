@@ -268,6 +268,95 @@ Some content without JSON queue.
 		expect(result.queue?.workspaces[0].roleBudget).toBe("worker");
 		expect(result.queue?.workspaces[0].maxRetries).toBe(3);
 	});
+
+	it("should normalize missing optional array fields to prevent undefined.join() errors", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+	 "phase": "P2",
+	 "title": "Test Phase",
+	 "maxParallelWorkspaces": 2,
+	 "workspaces": [
+	   {
+	     "id": "7.A",
+	     "title": "Task A",
+	     "dependencies": [],
+	     "roleBudget": "worker",
+	     "maxRetries": 3,
+	     "capabilities": {
+	       "canEdit": ["docs/dogfood-output.md"],
+	       "canRead": ["docs/**/*.md"],
+	       "canRun": ["echo"]
+	     },
+	     "acceptanceCriteria": [
+	       "docs/dogfood-output.md created",
+	       "Contains header and introduction"
+	     ]
+	   }
+	 ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue).toBeDefined();
+
+		const workspace = result.queue!.workspaces[0];
+
+		// Verify all array fields are normalized
+		expect(Array.isArray(workspace.dependencies)).toBe(true);
+		expect(workspace.dependencies).toEqual([]);
+
+		// Verify capabilities arrays are normalized
+		expect(workspace.capabilities).toBeDefined();
+		expect(Array.isArray(workspace.capabilities!.canEdit)).toBe(true);
+		expect(workspace.capabilities!.canEdit).toEqual(["docs/dogfood-output.md"]);
+		expect(Array.isArray(workspace.capabilities!.cannotEdit)).toBe(true);
+		expect(workspace.capabilities!.cannotEdit).toEqual([]);
+		expect(Array.isArray(workspace.capabilities!.canRun)).toBe(true);
+		expect(workspace.capabilities!.canRun).toEqual(["echo"]);
+		expect(Array.isArray(workspace.capabilities!.cannotRun)).toBe(true);
+		expect(workspace.capabilities!.cannotRun).toEqual([]);
+
+		// Verify acceptanceCriteria is normalized
+		expect(Array.isArray(workspace.acceptanceCriteria)).toBe(true);
+		expect(workspace.acceptanceCriteria).toHaveLength(2);
+	});
+
+	it("should handle completely missing capabilities and acceptanceCriteria", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+	 "phase": "P2",
+	 "title": "Test Phase",
+	 "workspaces": [
+	   {
+	     "id": "7.A",
+	     "title": "Task A"
+	   }
+	 ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+
+		const workspace = result.queue!.workspaces[0];
+
+		// Verify optional fields are undefined when not provided
+		expect(workspace.capabilities).toBeUndefined();
+		expect(workspace.acceptanceCriteria).toBeUndefined();
+
+		// Verify required array fields are still normalized
+		expect(Array.isArray(workspace.dependencies)).toBe(true);
+		expect(workspace.dependencies).toEqual([]);
+	});
 });
 
 describe("formatParseResult", () => {

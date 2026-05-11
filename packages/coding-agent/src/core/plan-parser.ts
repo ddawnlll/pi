@@ -236,8 +236,15 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		roleBudget: (w.roleBudget || "worker") as TokenRole,
 		maxRetries: typeof w.maxRetries === "number" ? w.maxRetries : 3,
 		riskLevel: w.riskLevel,
-		capabilities: w.capabilities,
-		acceptanceCriteria: w.acceptanceCriteria,
+		capabilities: w.capabilities
+			? {
+					canEdit: Array.isArray(w.capabilities.canEdit) ? w.capabilities.canEdit : [],
+					cannotEdit: Array.isArray(w.capabilities.cannotEdit) ? w.capabilities.cannotEdit : [],
+					canRun: Array.isArray(w.capabilities.canRun) ? w.capabilities.canRun : [],
+					cannotRun: Array.isArray(w.capabilities.cannotRun) ? w.capabilities.cannotRun : [],
+				}
+			: undefined,
+		acceptanceCriteria: Array.isArray(w.acceptanceCriteria) ? w.acceptanceCriteria : undefined,
 		targetCommand: w.targetCommand,
 		metadata: w.metadata,
 	}));
