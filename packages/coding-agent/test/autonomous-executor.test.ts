@@ -211,7 +211,7 @@ describe("AutonomousExecutor", () => {
 
 			await executor.initialize(queue);
 
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 
 			// Only 7.A should be eligible (7.B depends on 7.A)
 			expect(eligible).toHaveLength(1);
@@ -247,7 +247,7 @@ describe("AutonomousExecutor", () => {
 			await executor.executeWorkspace(queue.workspaces[0]);
 
 			// Now 7.B should be eligible
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible).toHaveLength(1);
 			expect(eligible[0].id).toBe("7.B");
 		});

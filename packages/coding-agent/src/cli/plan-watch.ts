@@ -12,6 +12,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { matchesKey, parseKey, StdinBuffer } from "@earendil-works/pi-tui";
 import chalk from "chalk";
+import { createPlanControlManager, type PlanControlState } from "../core/plan-control.js";
 import type { PlanState } from "../core/plan-state.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
 
@@ -42,6 +43,7 @@ interface JournalEvent {
  */
 interface DashboardState {
 	plan: PlanState | null;
+	control: PlanControlState | null;
 	recentEvents: JournalEvent[];
 	lastUpdate: number;
 }
@@ -83,6 +85,7 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 
 	const stateFile = path.join(cwd, ".pi", "plan-state.json");
 	const journalFile = path.join(cwd, ".pi", "execution-journal.ndjson");
+	const controlManager = createPlanControlManager(cwd);
 
 	let running = true;
 	const _startTime = Date.now();
@@ -143,7 +146,7 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 
 	try {
 		while (running && !watcherState.shouldExit) {
-			const state = await loadDashboardState(stateFile, journalFile);
+			const state = await loadDashboardState(stateFile, journalFile, controlManager);
 
 			if (stdinSetup) {
 				// Interactive mode: full TUI rendering
@@ -230,9 +233,14 @@ function handleKeyPress(data: string, state: WatcherState): void {
  * @param journalFile - Path to journal file
  * @returns Dashboard state
  */
-async function loadDashboardState(stateFile: string, journalFile: string): Promise<DashboardState> {
+async function loadDashboardState(
+	stateFile: string,
+	journalFile: string,
+	controlManager: ReturnType<typeof createPlanControlManager>,
+): Promise<DashboardState> {
 	const state: DashboardState = {
 		plan: null,
+		control: null,
 		recentEvents: [],
 		lastUpdate: Date.now(),
 	};
@@ -254,6 +262,13 @@ async function loadDashboardState(stateFile: string, journalFile: string): Promi
 		state.plan = planState;
 	} catch (_error) {
 		// State file doesn't exist or is invalid
+	}
+
+	// Load control state
+	try {
+		state.control = await controlManager.readControlRequest();
+	} catch (_error) {
+		// Control file doesn't exist or is invalid
 	}
 
 	// Load recent journal events (last 50 for filtering/scrolling)

@@ -14,6 +14,7 @@
 import * as path from "node:path";
 import chalk from "chalk";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";
+import { createPlanControlManager } from "../core/plan-control.js";
 import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
@@ -40,6 +41,8 @@ export interface PlanCommandOptions {
 	json?: boolean;
 	/** Verbose output */
 	verbose?: boolean;
+	/** Force operation (e.g., resume cancelled plan) */
+	force?: boolean;
 }
 
 /**
@@ -429,6 +432,8 @@ export function parsePlanCommand(args: string[]): {
 			result.options.json = true;
 		} else if (arg === "--verbose" || arg === "-v") {
 			result.options.verbose = true;
+		} else if (arg === "--force" || arg === "-f") {
+			result.options.force = true;
 		} else if (arg === "--cwd" && i + 1 < args.length) {
 			result.options.cwd = args[++i];
 		} else if (!arg.startsWith("-")) {
@@ -519,7 +524,7 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		let failedCount = 0;
 
 		while (!executor.isExecutionComplete()) {
-			const nextWorkspaces = executor.getNextWorkspaces(parseResult.queue.workspaces);
+			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
 
 			if (nextWorkspaces.length === 0) {
 				// No workspaces ready - check if we're blocked
@@ -624,7 +629,7 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
  * @returns Exit code
  */
 export async function planResume(options: PlanCommandOptions = {}): Promise<number> {
-	const { cwd = process.cwd(), json = false } = options;
+	const { cwd = process.cwd(), json = false, force = false } = options;
 
 	try {
 		// Load state
@@ -650,6 +655,26 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 			return PlanExitCode.Success;
 		}
 
+		// Check if plan is cancelled
+		if (state.status === "cancelled" && !force) {
+			if (json) {
+				console.log(
+					JSON.stringify({ success: false, error: "Plan is cancelled. Use --force to resume anyway." }, null, 2),
+				);
+			} else {
+				console.error(chalk.red("✗ Plan is cancelled"));
+				console.error(chalk.dim("Use 'pi plan resume --force' to resume anyway (not recommended)"));
+			}
+			return PlanExitCode.StateError;
+		}
+
+		// Clear any pending control requests
+		const controlManager = createPlanControlManager(cwd);
+		await controlManager.clearControlRequest();
+
+		// Resume the plan
+		await stateStore.resumePlan();
+
 		// Create executor and load state
 		const executor = createAutonomousExecutor(cwd);
 		await executor.loadState();
@@ -668,6 +693,9 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 		if (!json) {
 			console.log(chalk.bold(`Resuming execution: ${state.title}`));
 			console.log(chalk.dim(`Phase: ${state.phase}`));
+			if (force && state.status === "cancelled") {
+				console.log(chalk.yellow("⚠ Resuming cancelled plan (forced)"));
+			}
 			console.log("");
 		}
 
@@ -676,7 +704,7 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 		let failedCount = 0;
 
 		while (!executor.isExecutionComplete()) {
-			const nextWorkspaces = executor.getNextWorkspaces(workspaces);
+			const nextWorkspaces = await executor.getNextWorkspaces(workspaces);
 
 			if (nextWorkspaces.length === 0) {
 				break;
@@ -840,6 +868,225 @@ export async function planOne(workspaceId: string, options: PlanCommandOptions =
 }
 
 /**
+ * Pause command - request graceful pause
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planPause(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		// Check if plan is running
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (state.status !== "running") {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: `Plan is ${state.status}` }, null, 2));
+			} else {
+				console.log(chalk.yellow(`Plan is already ${state.status}`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		// Write control request
+		const controlManager = createPlanControlManager(cwd);
+		await controlManager.writeControlRequest("pause", "User requested pause");
+
+		// Log to journal
+		await stateStore.appendJournal({
+			type: "plan_pause_requested",
+			timestamp: Date.now(),
+			data: { reason: "User requested pause" },
+		});
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "pause" }, null, 2));
+		} else {
+			console.log(chalk.green("✓ Pause request recorded"));
+			console.log(chalk.dim("Executor will pause after active workspaces complete"));
+			console.log(chalk.dim(`Control file: ${controlManager.getControlFilePath()}`));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Stop command - request graceful stop
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planStop(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		// Check if plan is running
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (state.status !== "running" && state.status !== "paused") {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: `Plan is ${state.status}` }, null, 2));
+			} else {
+				console.log(chalk.yellow(`Plan is already ${state.status}`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		// Write control request
+		const controlManager = createPlanControlManager(cwd);
+		await controlManager.writeControlRequest("stop", "User requested stop");
+
+		// Log to journal
+		await stateStore.appendJournal({
+			type: "plan_stop_requested",
+			timestamp: Date.now(),
+			data: { reason: "User requested stop" },
+		});
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "stop" }, null, 2));
+		} else {
+			console.log(chalk.green("✓ Stop request recorded"));
+			console.log(chalk.dim("Executor will stop gracefully after active workspaces complete"));
+			console.log(chalk.dim(`Control file: ${controlManager.getControlFilePath()}`));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Cancel command - hard cancellation
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planCancel(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		// Check if plan is running
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (state.status === "cancelled") {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "Plan already cancelled" }, null, 2));
+			} else {
+				console.log(chalk.yellow("Plan is already cancelled"));
+			}
+			return PlanExitCode.Success;
+		}
+
+		// Write control request
+		const controlManager = createPlanControlManager(cwd);
+		await controlManager.writeControlRequest("cancel", "User requested cancellation");
+
+		// Log to journal
+		await stateStore.appendJournal({
+			type: "plan_cancel_requested",
+			timestamp: Date.now(),
+			data: { reason: "User requested cancellation" },
+		});
+
+		// Immediately cancel the plan
+		await stateStore.cancelPlan("User requested cancellation");
+
+		// Clear control request after cancellation
+		await controlManager.clearControlRequest();
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "cancel" }, null, 2));
+		} else {
+			console.log(chalk.green("✓ Plan cancelled"));
+			console.log(chalk.dim("Active workspaces marked as cancelled"));
+			console.log(chalk.dim("Use 'pi plan resume --force' to resume (not recommended)"));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
  * Watch command - observer-only dashboard
  *
  * Re-exported from plan-watch.ts
@@ -861,6 +1108,9 @@ export function printPlanHelp(): void {
 	console.log("  resume                 Resume from persisted state");
 	console.log("  one <workspace-id>     Execute single workspace");
 	console.log("  watch                  Observer-only dashboard");
+	console.log("  pause                  Pause execution (graceful)");
+	console.log("  stop                   Stop execution (graceful)");
+	console.log("  cancel                 Cancel execution (hard)");
 	console.log("");
 
 	console.log(chalk.bold("Options:"));
@@ -877,4 +1127,7 @@ export function printPlanHelp(): void {
 	console.log("  pi plan resume");
 	console.log("  pi plan one 7.A");
 	console.log("  pi plan watch");
+	console.log("  pi plan pause");
+	console.log("  pi plan stop");
+	console.log("  pi plan cancel");
 }

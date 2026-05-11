@@ -7,6 +7,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createPlanControlManager, type PlanControlState } from "./plan-control.js";
 import { generateWorkspaceReport, PlanStateStore } from "./plan-state.js";
 import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
@@ -62,6 +63,7 @@ export class AutonomousExecutor {
 	private scheduler: WorkspaceScheduler;
 	private packetBuilder: RolePacketBuilder;
 	private retryHandler: RetryHandler;
+	private controlManager: ReturnType<typeof createPlanControlManager>;
 	private workspaceRoot: string;
 
 	constructor(workspaceRoot: string, maxWorkers = 3, retryPolicy?: RetryPolicy) {
@@ -70,6 +72,7 @@ export class AutonomousExecutor {
 		this.scheduler = new WorkspaceScheduler(maxWorkers);
 		this.packetBuilder = new RolePacketBuilder();
 		this.retryHandler = new RetryHandler(retryPolicy);
+		this.controlManager = createPlanControlManager(workspaceRoot);
 	}
 
 	/**
@@ -222,14 +225,87 @@ export class AutonomousExecutor {
 	}
 
 	/**
+	 * Check for control requests and handle them
+	 *
+	 * @returns Control state if a control request is pending, null otherwise
+	 */
+	async checkControlRequest(): Promise<PlanControlState | null> {
+		const control = await this.controlManager.readControlRequest();
+		if (!control) {
+			return null;
+		}
+
+		const state = this.stateStore.getState();
+		if (!state) {
+			return null;
+		}
+
+		// Handle control actions
+		switch (control.action) {
+			case "pause":
+				if (state.status === "running") {
+					// Check if there are active workspaces
+					const activeCount = Array.from(state.workspaces.values()).filter((ws) => ws.stage === "active").length;
+
+					if (activeCount === 0) {
+						// No active workspaces, pause immediately
+						await this.stateStore.pausePlan(control.reason);
+						await this.controlManager.clearControlRequest();
+					}
+					// Otherwise, keep control request and let active workspaces finish
+				}
+				break;
+
+			case "stop":
+				if (state.status === "running" || state.status === "paused") {
+					// Check if there are active workspaces
+					const activeCount = Array.from(state.workspaces.values()).filter((ws) => ws.stage === "active").length;
+
+					if (activeCount === 0) {
+						// No active workspaces, stop immediately
+						await this.stateStore.stopPlan(control.reason);
+						await this.controlManager.clearControlRequest();
+					}
+					// Otherwise, keep control request and let active workspaces finish
+				}
+				break;
+
+			case "cancel":
+				// Cancel is handled immediately by the command itself
+				break;
+
+			case "resume":
+				// Resume is handled by the resume command
+				await this.controlManager.clearControlRequest();
+				break;
+		}
+
+		return control;
+	}
+
+	/**
 	 * Get next eligible workspaces to execute
 	 *
 	 * @param workspaces - All workspaces
 	 * @returns Array of eligible workspaces
 	 */
-	getNextWorkspaces(workspaces: Workspace[]): Workspace[] {
+	async getNextWorkspaces(workspaces: Workspace[]): Promise<Workspace[]> {
 		const state = this.stateStore.getState();
 		if (!state) {
+			return [];
+		}
+
+		// Check for control requests before scheduling
+		const control = await this.checkControlRequest();
+		if (control) {
+			// If pause or stop is requested, don't schedule new workspaces
+			if (control.action === "pause" || control.action === "stop") {
+				return [];
+			}
+		}
+
+		// Check if plan is paused or stopped
+		if (state.status === "paused" || state.status === "stopped" || state.status === "cancelled") {
 			return [];
 		}
 
@@ -361,6 +437,15 @@ export class AutonomousExecutor {
 	 */
 	getRetryHandler(): RetryHandler {
 		return this.retryHandler;
+	}
+
+	/**
+	 * Get control manager
+	 *
+	 * @returns Control manager instance
+	 */
+	getControlManager(): ReturnType<typeof createPlanControlManager> {
+		return this.controlManager;
 	}
 }
 

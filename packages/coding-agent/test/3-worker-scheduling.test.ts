@@ -72,7 +72,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.initialize(queue);
 
 			// Get next workspaces - should return 3
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(3);
 			expect(eligible.map((w) => w.id)).toEqual(["7.A", "7.B", "7.C"]);
 		});
@@ -123,7 +123,7 @@ describe("3-Worker Scheduling", () => {
 			state.workspaces.get("7.C")!.stage = WorkspaceStage.Active;
 
 			// Try to get next workspaces - should return empty
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(0);
 
 			// Check statistics
@@ -177,7 +177,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.executeWorkspace(queue.workspaces[2]);
 
 			// Now 7.D should be eligible
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(1);
 			expect(eligible[0].id).toBe("7.D");
 		});
@@ -285,7 +285,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.initialize(queue);
 
 			// All 3 should be eligible since they edit different files
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(3);
 		});
 
@@ -330,7 +330,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.executeWorkspace(queue.workspaces[0]);
 
 			// Now 7.B should be able to acquire the lock
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(1);
 			expect(eligible[0].id).toBe("7.B");
 		});
@@ -369,7 +369,7 @@ describe("3-Worker Scheduling", () => {
 
 			await executor.initialize(queue);
 
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(2);
 			expect(eligible.map((w) => w.id)).toEqual(["7.A", "7.C"]);
 		});
@@ -403,7 +403,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.executeWorkspace(queue.workspaces[0]);
 
 			// Now 7.B should be eligible
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(1);
 			expect(eligible[0].id).toBe("7.B");
 		});
@@ -441,7 +441,7 @@ describe("3-Worker Scheduling", () => {
 			await executor.initialize(queue);
 
 			// All 3 should be eligible
-			const eligible = executor.getNextWorkspaces(queue.workspaces);
+			const eligible = await executor.getNextWorkspaces(queue.workspaces);
 			expect(eligible.length).toBe(3);
 		});
 	});

@@ -6,12 +6,15 @@
 
 import {
 	parsePlanCommand,
+	planCancel,
 	planDoctor,
 	planDryRun,
 	planOne,
+	planPause,
 	planResume,
 	planRun,
 	planStatus,
+	planStop,
 	planWatch,
 	printPlanHelp,
 } from "./cli/plan-commands.js";
@@ -37,6 +40,7 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 	const cwd = parsed.options.cwd || process.cwd();
 	const json = parsed.options.json || false;
 	const verbose = parsed.options.verbose || false;
+	const force = parsed.options.force || false;
 
 	let exitCode = 0;
 
@@ -74,7 +78,7 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 				break;
 
 			case "resume":
-				exitCode = await planResume({ cwd, json });
+				exitCode = await planResume({ cwd, json, force });
 				break;
 
 			case "one":
@@ -89,6 +93,18 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 			case "watch":
 				await planWatch({ cwd });
 				exitCode = 0;
+				break;
+
+			case "pause":
+				exitCode = await planPause({ cwd, json });
+				break;
+
+			case "stop":
+				exitCode = await planStop({ cwd, json });
+				break;
+
+			case "cancel":
+				exitCode = await planCancel({ cwd, json });
 				break;
 
 			default:

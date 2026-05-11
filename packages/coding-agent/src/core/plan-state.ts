@@ -48,7 +48,7 @@ export interface PlanState {
 	/** Timestamp when execution completed */
 	completedAt?: number;
 	/** Overall execution status */
-	status: "running" | "complete" | "failed" | "paused";
+	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
 	/** Metadata */
 	metadata?: Record<string, unknown>;
 }
@@ -61,6 +61,12 @@ export type JournalEventType =
 	| "plan_complete"
 	| "plan_failed"
 	| "plan_paused"
+	| "plan_stopped"
+	| "plan_cancelled"
+	| "plan_pause_requested"
+	| "plan_stop_requested"
+	| "plan_cancel_requested"
+	| "plan_resumed"
 	| "workspace_start"
 	| "workspace_complete"
 	| "workspace_failed"
@@ -385,6 +391,101 @@ export class PlanStateStore {
 			type: "plan_failed",
 			timestamp: Date.now(),
 			data: { error },
+		});
+	}
+
+	/**
+	 * Pause plan execution
+	 *
+	 * @param reason - Optional reason for pausing
+	 */
+	async pausePlan(reason?: string): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "paused";
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_paused",
+			timestamp: Date.now(),
+			data: { reason },
+		});
+	}
+
+	/**
+	 * Stop plan execution (graceful)
+	 *
+	 * @param reason - Optional reason for stopping
+	 */
+	async stopPlan(reason?: string): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "stopped";
+		this.state.completedAt = Date.now();
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_stopped",
+			timestamp: Date.now(),
+			data: { reason },
+		});
+	}
+
+	/**
+	 * Cancel plan execution (hard cancellation)
+	 *
+	 * @param reason - Optional reason for cancellation
+	 */
+	async cancelPlan(reason?: string): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "cancelled";
+		this.state.completedAt = Date.now();
+
+		// Mark all active workspaces as cancelled
+		for (const [id, ws] of this.state.workspaces.entries()) {
+			if (ws.stage === WorkspaceStage.Active) {
+				this.state.workspaces.set(id, {
+					...ws,
+					stage: WorkspaceStage.Failed,
+					error: "Cancelled by user",
+					completedAt: Date.now(),
+				});
+			}
+		}
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_cancelled",
+			timestamp: Date.now(),
+			data: { reason },
+		});
+	}
+
+	/**
+	 * Resume plan execution
+	 */
+	async resumePlan(): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		if (this.state.status === "cancelled") {
+			throw new Error("Cannot resume cancelled plan without --force");
+		}
+
+		this.state.status = "running";
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_resumed",
+			timestamp: Date.now(),
 		});
 	}
 
