@@ -395,3 +395,73 @@ describe("plan-watch worker-specific events", () => {
 		expect(workerAEvents[0].workspaceId).toBe("7.A");
 	});
 });
+
+describe("plan-watch read-only boundary", () => {
+	it("should not contain write operations to plan-state.json", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check for write operations to plan-state.json
+		const writePatterns = [
+			/writeFile.*plan-state\.json/,
+			/writeFileSync.*plan-state\.json/,
+			/fs\.write.*plan-state\.json/,
+			/appendFile.*plan-state\.json/,
+		];
+
+		for (const pattern of writePatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+
+	it("should not contain write operations to execution-journal.ndjson", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check for write operations to execution-journal.ndjson
+		const writePatterns = [
+			/writeFile.*execution-journal\.ndjson/,
+			/writeFileSync.*execution-journal\.ndjson/,
+			/fs\.write.*execution-journal\.ndjson/,
+			/appendFile.*execution-journal\.ndjson/,
+		];
+
+		for (const pattern of writePatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+
+	it("should only use readFile for state and journal", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Verify readFile is used (read-only operation)
+		expect(planWatchSource).toContain("readFile");
+		expect(planWatchSource).toContain("plan-state.json");
+		expect(planWatchSource).toContain("execution-journal.ndjson");
+
+		// Verify no writeFile, writeFileSync, or appendFile
+		expect(planWatchSource).not.toMatch(/writeFile\(/);
+		expect(planWatchSource).not.toMatch(/writeFileSync\(/);
+		expect(planWatchSource).not.toMatch(/appendFile\(/);
+	});
+
+	it("should not contain execution control keywords", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check for execution control patterns (should not exist)
+		const controlPatterns = [
+			/pauseExecution/,
+			/resumeExecution/,
+			/killExecution/,
+			/terminateExecution/,
+			/retryWorkspace/,
+			/approveWorkspace/,
+		];
+
+		for (const pattern of controlPatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+});
