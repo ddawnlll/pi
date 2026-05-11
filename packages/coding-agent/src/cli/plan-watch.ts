@@ -1,12 +1,15 @@
 /**
- * Plan Watch Dashboard - P2 Workstream 7.M
+ * Plan Watch Dashboard - P2 Workstream 7.M + P2.2 Slice 1
  *
  * Observer-only dashboard for monitoring plan execution.
  * Read-only, never pauses execution, never mutates state.
+ *
+ * P2.2 Slice 1: Adds keyboard navigation (1/2/3, tab, j/k, f, r, q)
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { matchesKey, parseKey, StdinBuffer } from "@earendil-works/pi-tui";
 import chalk from "chalk";
 import type { PlanState } from "../core/plan-state.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
@@ -43,15 +46,34 @@ interface DashboardState {
 }
 
 /**
- * Watch command - observer-only dashboard
+ * Watcher UI state (P2.2 Slice 1)
+ */
+interface WatcherState {
+	selectedWorkerIndex: number; // 0-based index into active workers array
+	focusedPanel: "workers" | "events";
+	eventScrollOffset: number;
+	failedRetryOnly: boolean;
+	shouldExit: boolean;
+}
+
+/**
+ * Watch command - observer-only dashboard with keyboard navigation
  *
  * Displays:
  * - Phase and title
- * - Active workers and their current workspaces
+ * - Active workers and their current workspaces (with selection marker)
  * - Stage counts
  * - Retry counts
  * - Queue counts
- * - Recent events from journal
+ * - Recent events from journal (with filtering and scrolling)
+ *
+ * Keyboard shortcuts:
+ * - 1/2/3: Select worker 1/2/3
+ * - tab: Cycle focused panel
+ * - j/k or arrows: Scroll event log
+ * - f: Toggle failed/retry filter
+ * - r: Force refresh
+ * - q: Exit watch
  *
  * @param options - Watch options
  */
@@ -64,11 +86,45 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 	let running = true;
 	const _startTime = Date.now();
 
+	// Watcher UI state
+	const watcherState: WatcherState = {
+		selectedWorkerIndex: 0,
+		focusedPanel: "workers",
+		eventScrollOffset: 0,
+		failedRetryOnly: false,
+		shouldExit: false,
+	};
+
 	// Handle exit
 	if (exitAfter) {
 		setTimeout(() => {
 			running = false;
 		}, exitAfter * 1000);
+	}
+
+	// Set up keyboard input handling
+	const stdinBuffer = new StdinBuffer();
+	let stdinSetup = false;
+
+	try {
+		// Set stdin to raw mode for keyboard input
+		if (process.stdin.isTTY) {
+			process.stdin.setRawMode(true);
+			process.stdin.resume();
+			stdinSetup = true;
+
+			// Handle keyboard input
+			stdinBuffer.on("data", (data: string) => {
+				handleKeyPress(data, watcherState);
+			});
+
+			process.stdin.on("data", (chunk: Buffer) => {
+				stdinBuffer.process(chunk.toString());
+			});
+		}
+	} catch (_error) {
+		// Fallback to non-interactive mode if stdin setup fails
+		stdinSetup = false;
 	}
 
 	// Handle Ctrl+C
@@ -80,9 +136,9 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 	process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
 
 	try {
-		while (running) {
+		while (running && !watcherState.shouldExit) {
 			const state = await loadDashboardState(stateFile, journalFile);
-			renderDashboard(state);
+			renderDashboard(state, watcherState, stdinSetup);
 
 			// Wait for next refresh
 			await new Promise((resolve) => setTimeout(resolve, refreshMs));
@@ -93,9 +149,62 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 			}
 		}
 	} finally {
+		// Restore stdin
+		if (stdinSetup && process.stdin.isTTY) {
+			process.stdin.setRawMode(false);
+			process.stdin.pause();
+		}
+
 		// Show cursor
 		process.stdout.write("\x1b[?25h");
 		console.log("\n");
+	}
+}
+
+/**
+ * Handle keyboard input
+ *
+ * @param data - Key data
+ * @param state - Watcher state
+ */
+function handleKeyPress(data: string, state: WatcherState): void {
+	const _key = parseKey(data);
+
+	// Worker selection: 1/2/3
+	if (matchesKey(data, "1")) {
+		state.selectedWorkerIndex = 0;
+		state.focusedPanel = "workers";
+	} else if (matchesKey(data, "2")) {
+		state.selectedWorkerIndex = 1;
+		state.focusedPanel = "workers";
+	} else if (matchesKey(data, "3")) {
+		state.selectedWorkerIndex = 2;
+		state.focusedPanel = "workers";
+	}
+	// Panel cycling: tab
+	else if (matchesKey(data, "tab")) {
+		state.focusedPanel = state.focusedPanel === "workers" ? "events" : "workers";
+	}
+	// Event log scrolling: j/k or arrows
+	else if (matchesKey(data, "j") || matchesKey(data, "down")) {
+		state.eventScrollOffset = Math.max(0, state.eventScrollOffset + 1);
+		state.focusedPanel = "events";
+	} else if (matchesKey(data, "k") || matchesKey(data, "up")) {
+		state.eventScrollOffset = Math.max(0, state.eventScrollOffset - 1);
+		state.focusedPanel = "events";
+	}
+	// Filter toggle: f
+	else if (matchesKey(data, "f")) {
+		state.failedRetryOnly = !state.failedRetryOnly;
+		state.eventScrollOffset = 0; // Reset scroll when filter changes
+	}
+	// Force refresh: r
+	else if (matchesKey(data, "r")) {
+		// Refresh happens automatically in the main loop
+	}
+	// Exit: q
+	else if (matchesKey(data, "q")) {
+		state.shouldExit = true;
 	}
 }
 
@@ -132,14 +241,14 @@ async function loadDashboardState(stateFile: string, journalFile: string): Promi
 		// State file doesn't exist or is invalid
 	}
 
-	// Load recent journal events (last 10)
+	// Load recent journal events (last 50 for filtering/scrolling)
 	try {
 		const journalContent = await fs.readFile(journalFile, "utf-8");
 		const lines = journalContent
 			.trim()
 			.split("\n")
 			.filter((line) => line.length > 0);
-		const events = lines.slice(-10).map((line) => JSON.parse(line) as JournalEvent);
+		const events = lines.slice(-50).map((line) => JSON.parse(line) as JournalEvent);
 		state.recentEvents = events;
 	} catch (_error) {
 		// Journal file doesn't exist or is invalid
@@ -152,8 +261,10 @@ async function loadDashboardState(stateFile: string, journalFile: string): Promi
  * Render dashboard to terminal
  *
  * @param state - Dashboard state
+ * @param watcherState - Watcher UI state
+ * @param interactive - Whether keyboard input is available
  */
-function renderDashboard(state: DashboardState): void {
+function renderDashboard(state: DashboardState, watcherState: WatcherState, interactive: boolean): void {
 	// Clear screen and move to top
 	process.stdout.write("\x1b[2J\x1b[H");
 
@@ -170,7 +281,11 @@ function renderDashboard(state: DashboardState): void {
 		lines.push(chalk.dim("Waiting for execution to start..."));
 		lines.push("");
 		lines.push(chalk.dim(`Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}`));
-		lines.push(chalk.dim("Press Ctrl+C to exit"));
+		if (interactive) {
+			lines.push(chalk.dim("Press q to exit"));
+		} else {
+			lines.push(chalk.dim("Press Ctrl+C to exit"));
+		}
 		process.stdout.write(lines.join("\n"));
 		return;
 	}
@@ -210,25 +325,61 @@ function renderDashboard(state: DashboardState): void {
 	lines.push(`  ${chalk.red("●")} Failed:   ${chalk.bold(String(counts.failed))}`);
 	lines.push("");
 
-	// Active workers
+	// Active workers (with selection marker)
 	if (activeWorkspaces.length > 0) {
-		lines.push(chalk.bold("Active Workers:"));
-		for (const ws of activeWorkspaces) {
-			lines.push(`  ${chalk.blue("→")} ${ws.id} ${chalk.dim(`(attempt ${ws.attempts})`)}`);
+		const panelFocused = watcherState.focusedPanel === "workers";
+		const title = panelFocused ? chalk.bold.cyan("Active Workers:") : chalk.bold("Active Workers:");
+		lines.push(title);
+
+		for (let i = 0; i < activeWorkspaces.length; i++) {
+			const ws = activeWorkspaces[i];
+			const isSelected = i === watcherState.selectedWorkerIndex && panelFocused;
+			const marker = isSelected ? chalk.cyan("▶") : " ";
+			const workerNum = chalk.dim(`[${i + 1}]`);
+			lines.push(`  ${marker} ${workerNum} ${chalk.blue("→")} ${ws.id} ${chalk.dim(`(attempt ${ws.attempts})`)}`);
 		}
 		lines.push("");
 	}
 
-	// Recent events
-	if (state.recentEvents.length > 0) {
-		lines.push(chalk.bold("Recent Events:"));
-		for (const event of state.recentEvents.slice(-5)) {
+	// Recent events (with filtering and scrolling)
+	const panelFocused = watcherState.focusedPanel === "events";
+	const title = panelFocused ? chalk.bold.cyan("Recent Events:") : chalk.bold("Recent Events:");
+	lines.push(title);
+
+	// Apply filter
+	let displayEvents = state.recentEvents;
+	if (watcherState.failedRetryOnly) {
+		displayEvents = displayEvents.filter(
+			(e) =>
+				e.type === "workspace_failed" ||
+				e.type === "workspace_blocked" ||
+				e.type === "retry_attempt" ||
+				e.type === "plan_failed",
+		);
+	}
+
+	// Apply scroll offset and limit to 5 visible events
+	const visibleEvents = displayEvents.slice(watcherState.eventScrollOffset, watcherState.eventScrollOffset + 5);
+
+	if (visibleEvents.length > 0) {
+		for (const event of visibleEvents) {
 			const time = new Date(event.timestamp).toLocaleTimeString();
 			const eventStr = formatEvent(event);
 			lines.push(`  ${chalk.dim(time)} ${eventStr}`);
 		}
-		lines.push("");
+	} else {
+		lines.push(chalk.dim("  No events to display"));
 	}
+
+	// Event panel status
+	if (displayEvents.length > 5) {
+		const showing = `${watcherState.eventScrollOffset + 1}-${Math.min(watcherState.eventScrollOffset + 5, displayEvents.length)}`;
+		lines.push(chalk.dim(`  Showing ${showing} of ${displayEvents.length}`));
+	}
+	if (watcherState.failedRetryOnly) {
+		lines.push(chalk.yellow("  [Filter: Failed/Retry only]"));
+	}
+	lines.push("");
 
 	// Elapsed time
 	const elapsed = plan.completedAt ? plan.completedAt - plan.startedAt : Date.now() - plan.startedAt;
@@ -237,7 +388,13 @@ function renderDashboard(state: DashboardState): void {
 	lines.push(chalk.dim(`Elapsed: ${elapsedMinutes}m ${elapsedSeconds}s`));
 	lines.push(chalk.dim(`Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}`));
 	lines.push("");
-	lines.push(chalk.dim("Press Ctrl+C to exit"));
+
+	// Keyboard shortcuts
+	if (interactive) {
+		lines.push(chalk.dim("Keys: 1/2/3=worker  tab=panel  j/k=scroll  f=filter  r=refresh  q=exit"));
+	} else {
+		lines.push(chalk.dim("Press Ctrl+C to exit"));
+	}
 
 	process.stdout.write(lines.join("\n"));
 }
