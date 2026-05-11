@@ -444,6 +444,401 @@ export function parsePlanCommand(args: string[]): {
 }
 
 /**
+ * Run command - start autonomous execution
+ *
+ * @param planFile - Path to plan file
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planRun(planFile: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false, verbose = false } = options;
+
+	try {
+		// Resolve plan file path
+		const planPath = path.resolve(cwd, planFile);
+
+		// Load and parse plan
+		const parseResult = await loadPlan(planPath);
+
+		if (!parseResult.success || !parseResult.queue) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							errors: parseResult.errors,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.error(chalk.red("✗ Plan parsing failed\n"));
+				console.error(formatParseResult(parseResult));
+			}
+			return PlanExitCode.ParseError;
+		}
+
+		// Run safety doctor
+		const doctor = createSafetyDoctor();
+		const safetyReport = doctor.validateQueue(parseResult.queue);
+
+		if (!safetyReport.safe) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							safety: safetyReport,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.error(chalk.red("✗ Plan has safety issues\n"));
+				console.error(doctor.formatReport(safetyReport));
+			}
+			return PlanExitCode.SafetyError;
+		}
+
+		// Initialize executor
+		const executor = createAutonomousExecutor(cwd);
+		await executor.initialize(parseResult.queue);
+
+		if (!json) {
+			console.log(chalk.bold(`Starting autonomous execution: ${parseResult.queue.title}`));
+			console.log(chalk.dim(`Phase: ${parseResult.queue.phase}`));
+			console.log(chalk.dim(`Workspaces: ${parseResult.queue.workspaces.length}`));
+			console.log("");
+		}
+
+		// Execute workspaces autonomously
+		let completedCount = 0;
+		let failedCount = 0;
+
+		while (!executor.isExecutionComplete()) {
+			const nextWorkspaces = executor.getNextWorkspaces(parseResult.queue.workspaces);
+
+			if (nextWorkspaces.length === 0) {
+				// No workspaces ready - check if we're blocked
+				const stats = executor.getStatistics();
+				if (stats && stats.blocked > 0 && stats.active === 0) {
+					if (!json) {
+						console.error(chalk.red("\n✗ Execution blocked - no workspaces can proceed"));
+					}
+					await executor.failPlan("Execution blocked - dependency deadlock");
+					return PlanExitCode.ExecutionError;
+				}
+				break;
+			}
+
+			// Execute next batch
+			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+
+			for (const result of results) {
+				if (result.success) {
+					completedCount++;
+					if (!json) {
+						console.log(chalk.green(`✓ ${result.workspaceId} completed`));
+					}
+				} else if (result.verdict === "FAILED") {
+					failedCount++;
+					if (!json) {
+						console.error(chalk.red(`✗ ${result.workspaceId} failed: ${result.error}`));
+					}
+				} else if (result.verdict === "BLOCKED") {
+					if (verbose && !json) {
+						console.log(chalk.yellow(`⟳ ${result.workspaceId} will retry`));
+					}
+				}
+			}
+		}
+
+		// Complete execution
+		if (failedCount === 0) {
+			await executor.completePlan();
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: true,
+							completed: completedCount,
+							failed: failedCount,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log("");
+				console.log(chalk.green(`✓ Plan execution complete`));
+				console.log(chalk.dim(`Completed: ${completedCount} workspaces`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		await executor.failPlan(`${failedCount} workspace(s) failed`);
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						completed: completedCount,
+						failed: failedCount,
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.log("");
+			console.error(chalk.red(`✗ Plan execution failed`));
+			console.error(chalk.dim(`Completed: ${completedCount}, Failed: ${failedCount}`));
+		}
+		return PlanExitCode.ExecutionError;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Resume command - resume from persisted state
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planResume(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		// Load state
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No state to resume" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No execution state found to resume"));
+				console.error(chalk.dim(`State file: ${path.join(cwd, ".pi", "plan-state.json")}`));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (state.status === "complete") {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "Plan already complete" }, null, 2));
+			} else {
+				console.log(chalk.yellow("Plan execution already complete"));
+			}
+			return PlanExitCode.Success;
+		}
+
+		// Create executor and load state
+		const executor = createAutonomousExecutor(cwd);
+		await executor.loadState();
+
+		// Get workspace definitions from state metadata
+		// Note: In a real implementation, we'd need to store the original queue
+		// For now, we'll reconstruct from state
+		const workspaces = Array.from(state.workspaces.keys()).map((id) => ({
+			id,
+			title: `Workspace ${id}`,
+			dependencies: [],
+			roleBudget: "worker" as const,
+			maxRetries: 3,
+		}));
+
+		if (!json) {
+			console.log(chalk.bold(`Resuming execution: ${state.title}`));
+			console.log(chalk.dim(`Phase: ${state.phase}`));
+			console.log("");
+		}
+
+		// Continue execution
+		let completedCount = 0;
+		let failedCount = 0;
+
+		while (!executor.isExecutionComplete()) {
+			const nextWorkspaces = executor.getNextWorkspaces(workspaces);
+
+			if (nextWorkspaces.length === 0) {
+				break;
+			}
+
+			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+
+			for (const result of results) {
+				if (result.success) {
+					completedCount++;
+					if (!json) {
+						console.log(chalk.green(`✓ ${result.workspaceId} completed`));
+					}
+				} else if (result.verdict === "FAILED") {
+					failedCount++;
+					if (!json) {
+						console.error(chalk.red(`✗ ${result.workspaceId} failed: ${result.error}`));
+					}
+				}
+			}
+		}
+
+		if (failedCount === 0) {
+			await executor.completePlan();
+			if (json) {
+				console.log(JSON.stringify({ success: true, completed: completedCount }, null, 2));
+			} else {
+				console.log("");
+				console.log(chalk.green("✓ Plan execution complete"));
+			}
+			return PlanExitCode.Success;
+		}
+
+		if (json) {
+			console.log(JSON.stringify({ success: false, failed: failedCount }, null, 2));
+		} else {
+			console.log("");
+			console.error(chalk.red("✗ Plan execution failed"));
+		}
+		return PlanExitCode.ExecutionError;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * One command - execute single workspace
+ *
+ * @param workspaceId - Workspace ID to execute
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planOne(workspaceId: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		// Load state
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No state found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No execution state found"));
+				console.error(chalk.dim("Run 'pi plan run <plan-file>' first"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		// Check if workspace exists
+		const wsState = state.workspaces.get(workspaceId);
+		if (!wsState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "Workspace not found" }, null, 2));
+			} else {
+				console.error(chalk.red(`✗ Workspace ${workspaceId} not found in plan`));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		// Create executor and load state
+		const executor = createAutonomousExecutor(cwd);
+		await executor.loadState();
+
+		// Create workspace definition
+		const workspace = {
+			id: workspaceId,
+			title: `Workspace ${workspaceId}`,
+			dependencies: [],
+			roleBudget: "worker" as const,
+			maxRetries: 3,
+		};
+
+		if (!json) {
+			console.log(chalk.bold(`Executing workspace: ${workspaceId}`));
+			console.log(chalk.dim(`Current stage: ${wsState.stage}`));
+			console.log(chalk.dim(`Attempts: ${wsState.attempts}`));
+			console.log("");
+		}
+
+		// Execute workspace
+		const result = await executor.executeWorkspace(workspace);
+
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: result.success,
+						workspaceId: result.workspaceId,
+						verdict: result.verdict,
+						error: result.error,
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			if (result.success) {
+				console.log(chalk.green(`✓ ${result.workspaceId} completed`));
+			} else {
+				console.error(chalk.red(`✗ ${result.workspaceId} ${result.verdict.toLowerCase()}`));
+				if (result.error) {
+					console.error(chalk.dim(`Error: ${result.error}`));
+				}
+			}
+		}
+
+		return result.success ? PlanExitCode.Success : PlanExitCode.ExecutionError;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
  * Print plan command help
  */
 export function printPlanHelp(): void {
