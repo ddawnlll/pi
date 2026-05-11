@@ -1,0 +1,61 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "7.E",
+    "role": "worker",
+    "goal": "Stability & Failure Analysis",
+    "allowedFiles": [
+      "docs/p2-1-stability-report.md"
+    ],
+    "forbiddenFiles": [
+      "src/**",
+      "packages/**/src/**",
+      "package.json",
+      "package-lock.json"
+    ],
+    "acceptanceCriteria": [
+      {
+        "description": "docs/p2-1-stability-report.md created",
+        "verified": false
+      },
+      {
+        "description": "Records token behavior observations",
+        "verified": false
+      },
+      {
+        "description": "Records retry behavior observations",
+        "verified": false
+      },
+      {
+        "description": "Records scheduler behavior observations",
+        "verified": false
+      },
+      {
+        "description": "Records dashboard behavior observations",
+        "verified": false
+      },
+      {
+        "description": "Records usability friction points",
+        "verified": false
+      },
+      {
+        "description": "Identifies remaining architectural risks",
+        "verified": false
+      },
+      {
+        "description": "Identifies P3 prerequisites",
+        "verified": false
+      }
+    ],
+    "targetCommand": null,
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 213
+    }
+  },
+  "hash": "be83c763777e0774c82e6b354d2b8f1ecae52ac0ea443a5bf65a19089b51c0c4",
+  "createdAt": 1778511969170
+}

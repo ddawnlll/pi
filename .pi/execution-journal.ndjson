@@ -1,18 +1,28 @@
-{"type":"plan_start","timestamp":1778508338969,"data":{"phase":"DOGFOOD","title":"P2 Template Validation"}}
-{"type":"plan_start","timestamp":1778508339504,"data":{"phase":"DOGFOOD","title":"P2 Template Validation"}}
-{"type":"retry_attempt","timestamp":1778508339505,"workspaceId":"7.A","data":{"attempt":1}}
-{"type":"workspace_start","timestamp":1778508339506,"workspaceId":"7.A"}
-{"type":"file_lock_acquired","timestamp":1778508339506,"workspaceId":"7.A","data":{"files":["docs/dogfood-output.md"]}}
-{"type":"file_lock_released","timestamp":1778508339508,"workspaceId":"7.A"}
-{"type":"workspace_complete","timestamp":1778508339508,"workspaceId":"7.A","data":{"verdict":"COMPLETE"}}
-{"type":"retry_attempt","timestamp":1778508339508,"workspaceId":"7.B","data":{"attempt":1}}
-{"type":"workspace_start","timestamp":1778508339509,"workspaceId":"7.B"}
-{"type":"file_lock_acquired","timestamp":1778508339509,"workspaceId":"7.B","data":{"files":["docs/dogfood-output.md"]}}
-{"type":"file_lock_released","timestamp":1778508339510,"workspaceId":"7.B"}
-{"type":"workspace_complete","timestamp":1778508339510,"workspaceId":"7.B","data":{"verdict":"COMPLETE"}}
-{"type":"retry_attempt","timestamp":1778508339510,"workspaceId":"7.C","data":{"attempt":1}}
-{"type":"workspace_start","timestamp":1778508339510,"workspaceId":"7.C"}
-{"type":"file_lock_acquired","timestamp":1778508339511,"workspaceId":"7.C","data":{"files":["docs/dogfood-output.md"]}}
-{"type":"file_lock_released","timestamp":1778508339511,"workspaceId":"7.C"}
-{"type":"workspace_complete","timestamp":1778508339511,"workspaceId":"7.C","data":{"verdict":"COMPLETE"}}
-{"type":"plan_complete","timestamp":1778508339512}
+{"type":"plan_start","timestamp":1778511969159,"data":{"phase":"P2.1","title":"Production Hardening & Real Dogfood"}}
+{"type":"retry_attempt","timestamp":1778511969161,"workspaceId":"7.A","data":{"attempt":1}}
+{"type":"file_lock_released","timestamp":1778511969161,"workspaceId":"7.B"}
+{"type":"workspace_start","timestamp":1778511969161,"workspaceId":"7.A"}
+{"type":"file_lock_acquired","timestamp":1778511969162,"workspaceId":"7.A","data":{"files":[".gitignore"]}}
+{"type":"file_lock_released","timestamp":1778511969163,"workspaceId":"7.A"}
+{"type":"workspace_complete","timestamp":1778511969163,"workspaceId":"7.A","data":{"verdict":"COMPLETE"}}
+{"type":"retry_attempt","timestamp":1778511969164,"workspaceId":"7.B","data":{"attempt":2}}
+{"type":"workspace_start","timestamp":1778511969164,"workspaceId":"7.B"}
+{"type":"file_lock_acquired","timestamp":1778511969164,"workspaceId":"7.B","data":{"files":["docs/p2-user-guide.md"]}}
+{"type":"file_lock_released","timestamp":1778511969165,"workspaceId":"7.B"}
+{"type":"workspace_complete","timestamp":1778511969165,"workspaceId":"7.B","data":{"verdict":"COMPLETE"}}
+{"type":"retry_attempt","timestamp":1778511969166,"workspaceId":"7.C","data":{"attempt":1}}
+{"type":"workspace_start","timestamp":1778511969166,"workspaceId":"7.C"}
+{"type":"file_lock_acquired","timestamp":1778511969166,"workspaceId":"7.C","data":{"files":["docs/p2-1-real-dogfood-task.md"]}}
+{"type":"file_lock_released","timestamp":1778511969167,"workspaceId":"7.C"}
+{"type":"workspace_complete","timestamp":1778511969167,"workspaceId":"7.C","data":{"verdict":"COMPLETE"}}
+{"type":"retry_attempt","timestamp":1778511969168,"workspaceId":"7.D","data":{"attempt":1}}
+{"type":"workspace_start","timestamp":1778511969168,"workspaceId":"7.D"}
+{"type":"file_lock_acquired","timestamp":1778511969168,"workspaceId":"7.D","data":{"files":["docs/p2-1-execution-report.md"]}}
+{"type":"file_lock_released","timestamp":1778511969169,"workspaceId":"7.D"}
+{"type":"workspace_complete","timestamp":1778511969169,"workspaceId":"7.D","data":{"verdict":"COMPLETE"}}
+{"type":"retry_attempt","timestamp":1778511969169,"workspaceId":"7.E","data":{"attempt":1}}
+{"type":"workspace_start","timestamp":1778511969170,"workspaceId":"7.E"}
+{"type":"file_lock_acquired","timestamp":1778511969170,"workspaceId":"7.E","data":{"files":["docs/p2-1-stability-report.md"]}}
+{"type":"file_lock_released","timestamp":1778511969170,"workspaceId":"7.E"}
+{"type":"workspace_complete","timestamp":1778511969171,"workspaceId":"7.E","data":{"verdict":"COMPLETE"}}
+{"type":"plan_complete","timestamp":1778511969171}

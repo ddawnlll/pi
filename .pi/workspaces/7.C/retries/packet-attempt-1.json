@@ -3,22 +3,43 @@
     "phaseId": "P2",
     "workspaceId": "7.C",
     "role": "worker",
-    "goal": "Final Verification Report",
+    "goal": "Real Dogfood Plan",
     "allowedFiles": [
-      "docs/dogfood-output.md"
+      "docs/p2-1-real-dogfood-task.md"
     ],
-    "forbiddenFiles": [],
+    "forbiddenFiles": [
+      "src/**",
+      "packages/**/src/**",
+      "package.json",
+      "package-lock.json"
+    ],
     "acceptanceCriteria": [
       {
-        "description": "Verification section added to docs/dogfood-output.md",
+        "description": "docs/p2-1-real-dogfood-task.md created",
         "verified": false
       },
       {
-        "description": "Includes execution summary",
+        "description": "Plan modifies only docs/tests/minor config",
         "verified": false
       },
       {
-        "description": "Document is complete",
+        "description": "Valid Part 3 JSON queue",
+        "verified": false
+      },
+      {
+        "description": "Dependency ordering specified",
+        "verified": false
+      },
+      {
+        "description": "Capability manifests specified",
+        "verified": false
+      },
+      {
+        "description": "Acceptance criteria specified",
+        "verified": false
+      },
+      {
+        "description": "Rollback section included",
         "verified": false
       }
     ],
@@ -28,9 +49,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 147
+      "estimatedInputTokens": 195
     }
   },
-  "hash": "f4995ff0f4b48bdc9e756f0a83248215d54de2698f58c25a9a2079e8f97ff14f",
-  "createdAt": 1778508339511
+  "hash": "4aaab884fe4a1822088342c3acbf8fdc98ead7f66885bbf3c95065ee768cbe79",
+  "createdAt": 1778511969166
 }

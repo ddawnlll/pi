@@ -1,11 +1,11 @@
 {
   "packet": {
     "phaseId": "P2",
-    "workspaceId": "7.C",
+    "workspaceId": "7.D",
     "role": "worker",
-    "goal": "Real Dogfood Plan",
+    "goal": "Real Execution Validation",
     "allowedFiles": [
-      "docs/p2-1-real-dogfood-task.md"
+      "docs/p2-1-execution-report.md"
     ],
     "forbiddenFiles": [
       "src/**",
@@ -15,31 +15,27 @@
     ],
     "acceptanceCriteria": [
       {
-        "description": "docs/p2-1-real-dogfood-task.md created",
+        "description": "docs/p2-1-execution-report.md created",
         "verified": false
       },
       {
-        "description": "Plan modifies only docs/tests/minor config",
+        "description": "Documents doctor results",
         "verified": false
       },
       {
-        "description": "Valid Part 3 JSON queue",
+        "description": "Documents dry-run results",
         "verified": false
       },
       {
-        "description": "Dependency ordering specified",
+        "description": "Documents status results",
         "verified": false
       },
       {
-        "description": "Capability manifests specified",
+        "description": "Documents all validation findings",
         "verified": false
       },
       {
-        "description": "Acceptance criteria specified",
-        "verified": false
-      },
-      {
-        "description": "Rollback section included",
+        "description": "Note: Actual 'pi plan run' execution is manual, not automated in this workspace",
         "verified": false
       }
     ],
@@ -49,9 +45,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 195
+      "estimatedInputTokens": 197
     }
   },
-  "hash": "4aaab884fe4a1822088342c3acbf8fdc98ead7f66885bbf3c95065ee768cbe79",
-  "createdAt": 1778511969166
+  "hash": "b8d40ca3dd516a476e3a20578860dd75397b09881abd0f1b3962cff19200ed68",
+  "createdAt": 1778511969168
 }
