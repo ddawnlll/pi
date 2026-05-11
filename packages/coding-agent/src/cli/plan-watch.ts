@@ -341,6 +341,37 @@ function renderDashboard(state: DashboardState, watcherState: WatcherState, inte
 		lines.push("");
 	}
 
+	// Selected worker detail (P2.2 Slice 2 - minimal version using plan state only)
+	if (activeWorkspaces.length > 0 && watcherState.selectedWorkerIndex < activeWorkspaces.length) {
+		const selectedWorker = activeWorkspaces[watcherState.selectedWorkerIndex];
+		const workspaceState = plan.workspaces.get(selectedWorker.id);
+
+		lines.push(chalk.bold("Selected Worker Detail:"));
+		lines.push(`  ${chalk.cyan("Workspace:")} ${selectedWorker.id}`);
+
+		if (workspaceState) {
+			lines.push(`  ${chalk.cyan("Stage:")} ${formatWorkspaceStage(workspaceState.stage)}`);
+			lines.push(`  ${chalk.cyan("Attempts:")} ${workspaceState.attempts}`);
+
+			// Worker-specific recent events (last 5)
+			const workerEvents = state.recentEvents.filter((e) => e.workspaceId === selectedWorker.id).slice(-5);
+
+			if (workerEvents.length > 0) {
+				lines.push(`  ${chalk.cyan("Recent Events:")}`);
+				for (const event of workerEvents) {
+					const time = new Date(event.timestamp).toLocaleTimeString();
+					const eventStr = formatEvent(event);
+					lines.push(`    ${chalk.dim(time)} ${eventStr}`);
+				}
+			} else {
+				lines.push(`  ${chalk.dim("No recent events for this worker")}`);
+			}
+		} else {
+			lines.push(chalk.dim("  Workspace state unavailable"));
+		}
+		lines.push("");
+	}
+
 	// Recent events (with filtering and scrolling)
 	const panelFocused = watcherState.focusedPanel === "events";
 	const title = panelFocused ? chalk.bold.cyan("Recent Events:") : chalk.bold("Recent Events:");
@@ -397,6 +428,29 @@ function renderDashboard(state: DashboardState, watcherState: WatcherState, inte
 	}
 
 	process.stdout.write(lines.join("\n"));
+}
+
+/**
+ * Format workspace stage with color
+ *
+ * @param stage - Workspace stage
+ * @returns Formatted stage string
+ */
+function formatWorkspaceStage(stage: WorkspaceStage): string {
+	switch (stage) {
+		case WorkspaceStage.Pending:
+			return chalk.yellow("pending");
+		case WorkspaceStage.Active:
+			return chalk.blue("active");
+		case WorkspaceStage.Complete:
+			return chalk.green("complete");
+		case WorkspaceStage.Blocked:
+			return chalk.yellow("blocked");
+		case WorkspaceStage.Failed:
+			return chalk.red("failed");
+		default:
+			return stage;
+	}
 }
 
 /**

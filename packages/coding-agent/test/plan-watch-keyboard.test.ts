@@ -343,3 +343,55 @@ describe("plan-watch event filtering", () => {
 		expect(filtered[0].type).toBe("plan_failed");
 	});
 });
+
+describe("plan-watch worker-specific events", () => {
+	interface JournalEvent {
+		type: string;
+		timestamp: number;
+		workspaceId?: string;
+		data?: Record<string, unknown>;
+	}
+
+	function filterWorkerEvents(events: JournalEvent[], workspaceId: string): JournalEvent[] {
+		return events.filter((e) => e.workspaceId === workspaceId);
+	}
+
+	it("should filter events by workspace id", () => {
+		const events: JournalEvent[] = [
+			{ type: "workspace_start", timestamp: 1000, workspaceId: "7.A" },
+			{ type: "workspace_start", timestamp: 2000, workspaceId: "7.B" },
+			{ type: "workspace_complete", timestamp: 3000, workspaceId: "7.A" },
+			{ type: "workspace_failed", timestamp: 4000, workspaceId: "7.B" },
+		];
+
+		const workerAEvents = filterWorkerEvents(events, "7.A");
+
+		expect(workerAEvents).toHaveLength(2);
+		expect(workerAEvents[0].workspaceId).toBe("7.A");
+		expect(workerAEvents[1].workspaceId).toBe("7.A");
+	});
+
+	it("should return empty array when no events match", () => {
+		const events: JournalEvent[] = [
+			{ type: "workspace_start", timestamp: 1000, workspaceId: "7.A" },
+			{ type: "workspace_complete", timestamp: 2000, workspaceId: "7.A" },
+		];
+
+		const workerBEvents = filterWorkerEvents(events, "7.B");
+
+		expect(workerBEvents).toHaveLength(0);
+	});
+
+	it("should handle events without workspaceId", () => {
+		const events: JournalEvent[] = [
+			{ type: "plan_start", timestamp: 1000 },
+			{ type: "workspace_start", timestamp: 2000, workspaceId: "7.A" },
+			{ type: "plan_complete", timestamp: 3000 },
+		];
+
+		const workerAEvents = filterWorkerEvents(events, "7.A");
+
+		expect(workerAEvents).toHaveLength(1);
+		expect(workerAEvents[0].workspaceId).toBe("7.A");
+	});
+});
