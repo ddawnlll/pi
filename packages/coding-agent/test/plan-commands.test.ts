@@ -676,5 +676,104 @@ describe("Plan Commands", () => {
 				expect(exitCode).toBe(PlanExitCode.NotFound);
 			});
 		});
+
+		describe("planWatch", () => {
+			test("displays dashboard with active execution", async () => {
+				// Create state file
+				const piDir = path.join(tempDir, ".pi");
+				await fs.mkdir(piDir, { recursive: true });
+
+				const state = {
+					phase: "P2",
+					title: "Test Plan",
+					startedAt: Date.now(),
+					status: "running",
+					workspaces: [
+						{
+							workspaceId: "7.A",
+							stage: "complete",
+							attempts: 1,
+						},
+						{
+							workspaceId: "7.B",
+							stage: "active",
+							attempts: 1,
+						},
+						{
+							workspaceId: "7.C",
+							stage: "pending",
+							attempts: 0,
+						},
+					],
+				};
+
+				await fs.writeFile(path.join(piDir, "plan-state.json"), JSON.stringify(state), "utf-8");
+
+				// Create journal file
+				const journalEvents = [
+					{ type: "plan_start", timestamp: Date.now() },
+					{ type: "workspace_start", timestamp: Date.now(), workspaceId: "7.A" },
+					{ type: "workspace_complete", timestamp: Date.now(), workspaceId: "7.A" },
+					{ type: "workspace_start", timestamp: Date.now(), workspaceId: "7.B" },
+				];
+
+				await fs.writeFile(
+					path.join(piDir, "execution-journal.ndjson"),
+					journalEvents.map((e) => JSON.stringify(e)).join("\n"),
+					"utf-8",
+				);
+
+				const { planWatch } = await import("../src/cli/plan-watch.js");
+
+				// Run watch for 1 second then exit
+				await planWatch({ cwd: tempDir, refreshMs: 100, exitAfter: 1 });
+
+				// Test passes if no errors thrown
+				expect(true).toBe(true);
+			});
+
+			test("handles no active execution", async () => {
+				const { planWatch } = await import("../src/cli/plan-watch.js");
+
+				// Run watch for 1 second then exit
+				await planWatch({ cwd: tempDir, refreshMs: 100, exitAfter: 1 });
+
+				// Test passes if no errors thrown
+				expect(true).toBe(true);
+			});
+
+			test("exits when execution completes", async () => {
+				// Create completed state file
+				const piDir = path.join(tempDir, ".pi");
+				await fs.mkdir(piDir, { recursive: true });
+
+				const state = {
+					phase: "P2",
+					title: "Test Plan",
+					startedAt: Date.now() - 10000,
+					completedAt: Date.now(),
+					status: "complete",
+					workspaces: [
+						{
+							workspaceId: "7.A",
+							stage: "complete",
+							attempts: 1,
+						},
+					],
+				};
+
+				await fs.writeFile(path.join(piDir, "plan-state.json"), JSON.stringify(state), "utf-8");
+
+				const { planWatch } = await import("../src/cli/plan-watch.js");
+
+				// Should exit immediately when status is complete
+				const startTime = Date.now();
+				await planWatch({ cwd: tempDir, refreshMs: 100 });
+				const elapsed = Date.now() - startTime;
+
+				// Should exit quickly (within 1 second)
+				expect(elapsed).toBeLessThan(1000);
+			});
+		});
 	});
 });

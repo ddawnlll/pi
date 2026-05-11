@@ -8,6 +8,7 @@
  * - pi plan run <plan-file>     - Start autonomous execution
  * - pi plan resume              - Resume from persisted state
  * - pi plan one <workspace-id>  - Execute single workspace
+ * - pi plan watch               - Observer-only dashboard
  */
 
 import * as path from "node:path";
@@ -837,6 +838,13 @@ export async function planOne(workspaceId: string, options: PlanCommandOptions =
 		return PlanExitCode.ExecutionError;
 	}
 }
+
+/**
+ * Watch command - observer-only dashboard
+ *
+ * Re-exported from plan-watch.ts
+ */
+export { planWatch } from "./plan-watch.js";
 
 /**
  * Print plan command help
