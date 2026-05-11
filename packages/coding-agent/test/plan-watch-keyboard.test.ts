@@ -464,4 +464,83 @@ describe("plan-watch read-only boundary", () => {
 			expect(planWatchSource).not.toMatch(pattern);
 		}
 	});
+
+	it("should not import plan-state write APIs", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check that we don't import write functions from plan-state module
+		// We should only read PlanState type, never call savePlanState or similar
+		const writeImportPatterns = [
+			/import.*savePlanState.*from.*plan-state/,
+			/import.*updatePlanState.*from.*plan-state/,
+			/import.*writePlanState.*from.*plan-state/,
+		];
+
+		for (const pattern of writeImportPatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+
+	it("should not import autonomous-executor APIs", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check that we don't import executor control functions
+		const executorImportPatterns = [/import.*from.*autonomous-executor/, /import.*AutonomousExecutor.*from/];
+
+		for (const pattern of executorImportPatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+
+	it("should not use fs.createWriteStream", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check for stream-based write operations
+		expect(planWatchSource).not.toMatch(/createWriteStream/);
+		expect(planWatchSource).not.toMatch(/fs\.write\(/);
+	});
+
+	it("should not send process signals", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Check that we don't send signals to other processes
+		// We can listen to SIGINT for our own exit, but not send signals
+		const signalPatterns = [/process\.kill\(/, /\.kill\(/, /SIGTERM/, /SIGKILL/];
+
+		for (const pattern of signalPatterns) {
+			expect(planWatchSource).not.toMatch(pattern);
+		}
+	});
+
+	it("should document observer-only contract in comments", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Verify that the file documents its observer-only nature
+		expect(planWatchSource).toMatch(/observer-only/i);
+		expect(planWatchSource).toMatch(/read-only/i);
+		expect(planWatchSource).toMatch(/never.*mutates.*state/i);
+	});
+
+	it("should only exit watcher with q key, not affect execution", async () => {
+		const fs = await import("node:fs/promises");
+		const planWatchSource = await fs.readFile("src/cli/plan-watch.ts", "utf-8");
+
+		// Verify q key only sets shouldExit flag
+		expect(planWatchSource).toContain("shouldExit");
+
+		// Verify we don't have execution control in q handler
+		const qHandlerMatch = planWatchSource.match(/matchesKey\(data, "q"\)[\s\S]{0,200}/);
+		if (qHandlerMatch) {
+			const qHandler = qHandlerMatch[0];
+			expect(qHandler).not.toMatch(/kill/i);
+			expect(qHandler).not.toMatch(/terminate/i);
+			expect(qHandler).not.toMatch(/stop/i);
+			expect(qHandler).not.toMatch(/pause/i);
+		}
+	});
 });

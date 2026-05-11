@@ -27,6 +27,8 @@ The dashboard shows:
 
 ## Keyboard Shortcuts
 
+**Note:** Keyboard shortcuts are only available in interactive mode (TTY terminals). In fallback mode (non-TTY environments), only Ctrl+C is available.
+
 ### Worker Selection
 - `1` - Select worker 1
 - `2` - Select worker 2
@@ -46,7 +48,7 @@ The dashboard shows:
 - `q` - Exit watcher only (execution continues)
 - `Ctrl+C` - Exit watcher only (execution continues)
 
-**Important:** Exiting the watcher does NOT stop execution. The plan continues running in the background.
+**Important:** Exiting the watcher does NOT stop execution. The plan continues running in the background. The `q` key only exits the watcher, it never affects execution.
 
 ## Selected Worker Detail
 
@@ -77,21 +79,30 @@ Event types:
 
 ## Fallback Mode
 
-If the terminal doesn't support interactive mode (non-TTY environment), the dashboard automatically falls back to static status display with periodic updates.
+If the terminal doesn't support interactive mode (non-TTY environment) or TUI initialization fails, the dashboard automatically falls back to static status display with periodic updates.
 
-Fallback triggers:
+**Fallback triggers:**
 - Non-TTY environment (pipes, redirects, CI/CD)
 - Terminal doesn't support raw mode
 - Stdin setup fails
+- TUI rendering fails
 
-In fallback mode:
+**In fallback mode:**
 - No keyboard shortcuts available
 - Static status updates every refresh interval
 - Exit with Ctrl+C only
+- Plain text output (no colors or interactive elements)
+- Still observer-only (no execution control)
+
+**Fallback behavior:**
+- Displays same information as interactive mode
+- Updates at the same refresh interval
+- Remains read-only and observer-only
+- Exit does not affect execution
 
 ## Observer-Only Contract
 
-The watcher is strictly observer-only:
+The watcher is strictly observer-only and never controls or modifies execution.
 
 **Never does:**
 - ❌ Pause execution
@@ -102,12 +113,25 @@ The watcher is strictly observer-only:
 - ❌ Modify `.pi/plan-state.json`
 - ❌ Modify `.pi/execution-journal.ndjson`
 - ❌ Modify any execution state
+- ❌ Send signals to execution process
 
 **Only does:**
-- ✅ Read `.pi/plan-state.json`
-- ✅ Read `.pi/execution-journal.ndjson`
+- ✅ Read `.pi/plan-state.json` (read-only)
+- ✅ Read `.pi/execution-journal.ndjson` (read-only)
 - ✅ Display current state
 - ✅ Exit cleanly without affecting execution
+
+**Read-only guarantee:**
+- All file operations are read-only (`readFile` only)
+- No write operations to state or journal files
+- No mutation of execution state
+- No execution control APIs called
+- `q` key only exits watcher, never affects execution
+
+This contract is enforced by:
+- Code review
+- Static analysis tests
+- Read-only boundary tests
 
 ## Examples
 

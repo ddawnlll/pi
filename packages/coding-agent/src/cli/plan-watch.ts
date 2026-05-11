@@ -1,10 +1,11 @@
 /**
- * Plan Watch Dashboard - P2 Workstream 7.M + P2.2 Slice 1
+ * Plan Watch Dashboard - P2 Workstream 7.M + P2.2 Slices 1-3
  *
  * Observer-only dashboard for monitoring plan execution.
  * Read-only, never pauses execution, never mutates state.
  *
  * P2.2 Slice 1: Adds keyboard navigation (1/2/3, tab, j/k, f, r, q)
+ * P2.2 Slice 3: Adds fallback mode for non-TTY and TUI init failures
  */
 
 import * as fs from "node:fs/promises";
@@ -102,13 +103,16 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 		}, exitAfter * 1000);
 	}
 
-	// Set up keyboard input handling
+	// Detect if we can use interactive mode
+	const canUseInteractive = process.stdin.isTTY && process.stdout.isTTY;
+
+	// Set up keyboard input handling (only if interactive mode is available)
 	const stdinBuffer = new StdinBuffer();
 	let stdinSetup = false;
 
-	try {
-		// Set stdin to raw mode for keyboard input
-		if (process.stdin.isTTY) {
+	if (canUseInteractive) {
+		try {
+			// Set stdin to raw mode for keyboard input
 			process.stdin.setRawMode(true);
 			process.stdin.resume();
 			stdinSetup = true;
@@ -121,10 +125,10 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 			process.stdin.on("data", (chunk: Buffer) => {
 				stdinBuffer.process(chunk.toString());
 			});
+		} catch (_error) {
+			// Fallback to non-interactive mode if stdin setup fails
+			stdinSetup = false;
 		}
-	} catch (_error) {
-		// Fallback to non-interactive mode if stdin setup fails
-		stdinSetup = false;
 	}
 
 	// Handle Ctrl+C
@@ -132,13 +136,22 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 		running = false;
 	});
 
-	// Clear screen and hide cursor
-	process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
+	// Clear screen and hide cursor (only in interactive mode)
+	if (stdinSetup) {
+		process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
+	}
 
 	try {
 		while (running && !watcherState.shouldExit) {
 			const state = await loadDashboardState(stateFile, journalFile);
-			renderDashboard(state, watcherState, stdinSetup);
+
+			if (stdinSetup) {
+				// Interactive mode: full TUI rendering
+				renderDashboard(state, watcherState, true);
+			} else {
+				// Fallback mode: static status output
+				renderFallbackStatus(state);
+			}
 
 			// Wait for next refresh
 			await new Promise((resolve) => setTimeout(resolve, refreshMs));
@@ -155,8 +168,10 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 			process.stdin.pause();
 		}
 
-		// Show cursor
-		process.stdout.write("\x1b[?25h");
+		// Show cursor (only if we hid it)
+		if (stdinSetup) {
+			process.stdout.write("\x1b[?25h");
+		}
 		console.log("\n");
 	}
 }
@@ -502,6 +517,135 @@ function formatEvent(event: JournalEvent): string {
 			return `${chalk.dim("🔒")} ${event.workspaceId} locked files`;
 		case "file_lock_released":
 			return `${chalk.dim("🔓")} ${event.workspaceId} released files`;
+		default:
+			return `${event.type} ${event.workspaceId || ""}`;
+	}
+}
+
+/**
+ * Render fallback status (non-interactive mode)
+ *
+ * Used when:
+ * - Non-TTY environment (pipes, redirects, CI/CD)
+ * - Terminal doesn't support raw mode
+ * - Stdin setup fails
+ *
+ * @param state - Dashboard state
+ */
+function renderFallbackStatus(state: DashboardState): void {
+	const lines: string[] = [];
+
+	lines.push("═══════════════════════════════════════════════════════════════");
+	lines.push("  Pi Plan Execution Dashboard (Observer Mode - Fallback)");
+	lines.push("═══════════════════════════════════════════════════════════════");
+	lines.push("");
+
+	if (!state.plan) {
+		lines.push("No active plan execution found");
+		lines.push("Waiting for execution to start...");
+		lines.push("");
+		lines.push(`Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}`);
+		lines.push("Press Ctrl+C to exit");
+		console.log(lines.join("\n"));
+		return;
+	}
+
+	const plan = state.plan;
+
+	// Plan info
+	lines.push(`Plan: ${plan.title}`);
+	lines.push(`Phase: ${plan.phase}`);
+	lines.push(`Status: ${plan.status}`);
+	lines.push("");
+
+	// Count workspaces by stage
+	const counts = {
+		pending: 0,
+		active: 0,
+		complete: 0,
+		blocked: 0,
+		failed: 0,
+	};
+
+	const activeWorkspaces: Array<{ id: string; attempts: number }> = [];
+
+	for (const [id, ws] of plan.workspaces.entries()) {
+		counts[ws.stage]++;
+		if (ws.stage === WorkspaceStage.Active) {
+			activeWorkspaces.push({ id, attempts: ws.attempts });
+		}
+	}
+
+	// Workspace status
+	lines.push("Workspace Status:");
+	lines.push(`  Complete: ${counts.complete}`);
+	lines.push(`  Active:   ${counts.active}`);
+	lines.push(`  Pending:  ${counts.pending}`);
+	lines.push(`  Blocked:  ${counts.blocked}`);
+	lines.push(`  Failed:   ${counts.failed}`);
+	lines.push("");
+
+	// Active workers
+	if (activeWorkspaces.length > 0) {
+		lines.push("Active Workers:");
+		for (const ws of activeWorkspaces) {
+			lines.push(`  → ${ws.id} (attempt ${ws.attempts})`);
+		}
+		lines.push("");
+	}
+
+	// Recent events (last 5)
+	const recentEvents = state.recentEvents.slice(-5);
+	if (recentEvents.length > 0) {
+		lines.push("Recent Events:");
+		for (const event of recentEvents) {
+			const time = new Date(event.timestamp).toLocaleTimeString();
+			const eventStr = formatEventPlain(event);
+			lines.push(`  ${time} ${eventStr}`);
+		}
+		lines.push("");
+	}
+
+	// Elapsed time
+	const elapsed = plan.completedAt ? plan.completedAt - plan.startedAt : Date.now() - plan.startedAt;
+	const elapsedMinutes = Math.floor(elapsed / 60000);
+	const elapsedSeconds = Math.floor((elapsed % 60000) / 1000);
+	lines.push(`Elapsed: ${elapsedMinutes}m ${elapsedSeconds}s`);
+	lines.push(`Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}`);
+	lines.push("");
+	lines.push("Press Ctrl+C to exit");
+
+	console.log(lines.join("\n"));
+}
+
+/**
+ * Format journal event for plain text display (no colors)
+ *
+ * @param event - Journal event
+ * @returns Formatted event string
+ */
+function formatEventPlain(event: JournalEvent): string {
+	switch (event.type) {
+		case "plan_start":
+			return "▶ Plan started";
+		case "plan_complete":
+			return "✓ Plan completed";
+		case "plan_failed":
+			return "✗ Plan failed";
+		case "workspace_start":
+			return `→ ${event.workspaceId} started`;
+		case "workspace_complete":
+			return `✓ ${event.workspaceId} completed`;
+		case "workspace_failed":
+			return `✗ ${event.workspaceId} failed`;
+		case "workspace_blocked":
+			return `⊘ ${event.workspaceId} blocked`;
+		case "retry_attempt":
+			return `⟳ ${event.workspaceId} retry ${event.data?.attempt || "?"}`;
+		case "file_lock_acquired":
+			return `🔒 ${event.workspaceId} locked files`;
+		case "file_lock_released":
+			return `🔓 ${event.workspaceId} released files`;
 		default:
 			return `${event.type} ${event.workspaceId || ""}`;
 	}
