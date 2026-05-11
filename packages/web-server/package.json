@@ -1,0 +1,26 @@
+{
+	"name": "@earendil-works/pi-web-server",
+	"version": "0.74.0",
+	"description": "Web server for Pi plan dashboard",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx src/index.ts",
+		"check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"fastify": "^5.2.0",
+		"@fastify/static": "^8.0.2",
+		"@fastify/cors": "^10.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.3"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

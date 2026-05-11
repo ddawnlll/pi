@@ -1,0 +1,10 @@
+{
+  "title": "Test Plan",
+  "phase": "execution", 
+  "status": "running",
+  "elapsed": 45000,
+  "queue": {"pending": 12, "active": 3, "blocked": 1, "complete": 44, "failed": 0},
+  "workers": [
+    {"id": "workspace-a", "stage": "active", "attempt": 1, "retries": 0}
+  ]
+}

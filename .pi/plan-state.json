@@ -1,50 +1,31 @@
 {
-  "phase": "P2.1",
-  "title": "Production Hardening & Real Dogfood",
-  "workspaces": [
+  "title": "Test Plan",
+  "phase": "execution",
+  "status": "running",
+  "elapsed": 45000,
+  "queue": {
+    "pending": 12,
+    "active": 3,
+    "blocked": 1,
+    "complete": 44,
+    "failed": 0
+  },
+  "workers": [
     {
-      "workspaceId": "7.A",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778511969161,
-      "ownedFiles": [],
-      "completedAt": 1778511969163
+      "id": "workspace-a",
+      "stage": "active",
+      "attempt": 1,
+      "retries": 0,
+      "snapshotPath": ".pi/workspaces/workspace-a/snapshot.md",
+      "reportPath": ".pi/workspaces/workspace-a/report.md"
     },
     {
-      "workspaceId": "7.B",
-      "stage": "complete",
-      "attempts": 2,
-      "ownedFiles": [],
-      "error": "ENOENT: no such file or directory, rename '/home/erfolg/src/pi/.pi/plan-state.json.tmp' -> '/home/erfolg/src/pi/.pi/plan-state.json'",
-      "startedAt": 1778511969164,
-      "completedAt": 1778511969165
-    },
-    {
-      "workspaceId": "7.C",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778511969166,
-      "ownedFiles": [],
-      "completedAt": 1778511969167
-    },
-    {
-      "workspaceId": "7.D",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778511969168,
-      "ownedFiles": [],
-      "completedAt": 1778511969169
-    },
-    {
-      "workspaceId": "7.E",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778511969169,
-      "ownedFiles": [],
-      "completedAt": 1778511969171
+      "id": "workspace-b",
+      "stage": "active",
+      "attempt": 2,
+      "retries": 1,
+      "snapshotPath": ".pi/workspaces/workspace-b/snapshot.md",
+      "reportPath": ".pi/workspaces/workspace-b/report.md"
     }
-  ],
-  "startedAt": 1778511969159,
-  "status": "complete",
-  "completedAt": 1778511969171
+  ]
 }
