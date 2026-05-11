@@ -1,0 +1,33 @@
+{
+  "phase": "DOGFOOD",
+  "title": "P2 Template Validation",
+  "workspaces": [
+    {
+      "workspaceId": "7.A",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778508339506,
+      "ownedFiles": [],
+      "completedAt": 1778508339508
+    },
+    {
+      "workspaceId": "7.B",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778508339509,
+      "ownedFiles": [],
+      "completedAt": 1778508339510
+    },
+    {
+      "workspaceId": "7.C",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778508339510,
+      "ownedFiles": [],
+      "completedAt": 1778508339511
+    }
+  ],
+  "startedAt": 1778508339503,
+  "status": "complete",
+  "completedAt": 1778508339511
+}

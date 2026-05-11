@@ -1,0 +1,36 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "7.C",
+    "role": "worker",
+    "goal": "Final Verification Report",
+    "allowedFiles": [
+      "docs/dogfood-output.md"
+    ],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "Verification section added to docs/dogfood-output.md",
+        "verified": false
+      },
+      {
+        "description": "Includes execution summary",
+        "verified": false
+      },
+      {
+        "description": "Document is complete",
+        "verified": false
+      }
+    ],
+    "targetCommand": null,
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 147
+    }
+  },
+  "hash": "f4995ff0f4b48bdc9e756f0a83248215d54de2698f58c25a9a2079e8f97ff14f",
+  "createdAt": 1778508339511
+}

@@ -1,0 +1,36 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "7.A",
+    "role": "worker",
+    "goal": "Create Dogfood Output Doc",
+    "allowedFiles": [
+      "docs/dogfood-output.md"
+    ],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "docs/dogfood-output.md created",
+        "verified": false
+      },
+      {
+        "description": "Contains header and introduction",
+        "verified": false
+      },
+      {
+        "description": "Markdown is valid",
+        "verified": false
+      }
+    ],
+    "targetCommand": null,
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 143
+    }
+  },
+  "hash": "5155227ce13d914247466c46ec99fd41529586c19b98cce380a66c5e46192f02",
+  "createdAt": 1778508339507
+}
