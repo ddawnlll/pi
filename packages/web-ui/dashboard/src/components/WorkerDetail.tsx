@@ -30,23 +30,23 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 
   const statusDot = worker.stage === "active" ? "bg-emerald-500"
     : worker.stage === "failed" ? "bg-red-500"
-    : worker.stage === "blocked" ? "bg-amber-500" : "bg-stone-300";
+    : worker.stage === "blocked" ? "bg-amber-500" : "bg-stone-300 dark:bg-stone-600";
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white dark:bg-[#1E1E1E]">
       {/* header + tabs */}
       <div className="shrink-0 px-4 pt-4 pb-0">
-        <h2 className="text-sm font-semibold text-stone-700 tracking-wide mb-2 flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 tracking-wide mb-2 flex items-center gap-2">
           <span className={`inline-block w-2 h-2 rounded-full ${statusDot}`} />
           {worker.id}
         </h2>
-        <div className="flex gap-1 border-b border-[#E8E6E1]">
+        <div className="flex gap-1 border-b border-[#E8E6E1] dark:border-[#333]">
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`px-3 py-1.5 text-xs rounded-t transition-colors ${
                 activeTab === tab.id
-                  ? "bg-[#EBF2FF] text-blue-700 border-b-2 border-blue-500"
-                  : "text-stone-400 hover:text-stone-600 hover:bg-stone-50"
+                  ? "bg-[#EBF2FF] dark:bg-[#1A2A44] text-blue-700 dark:text-blue-300 border-b-2 border-blue-500 dark:border-blue-400"
+                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-[#2A2A2A]"
               }`}
             >{tab.label}</button>
           ))}
@@ -85,8 +85,7 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
 
   return (
     <div className="flex flex-col gap-4 pt-3">
-      {/* metadata */}
-      <div className="text-xs space-y-1 text-stone-500 shrink-0">
+      <div className="text-xs space-y-1 text-stone-500 dark:text-stone-400 shrink-0">
         <Row label="ID" value={worker.id} />
         <Row label="Stage" value={worker.stage} />
         <Row label="Attempts" value={String(worker.attempt)} />
@@ -94,32 +93,31 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
         {worker.snapshotPath && <Row label="Snapshot" value={worker.snapshotPath} />}
         {worker.reportPath && <Row label="Report" value={worker.reportPath} />}
         {idleSeconds != null && <Row label="Last activity" value={`${idleSeconds}s ago`} />}
-        {idleWarning && <div className={`mt-1 text-xs font-medium ${idleMinutes! > 10 ? "text-red-600" : "text-amber-600"}`}>{idleWarning}</div>}
+        {idleWarning && <div className={`mt-1 text-xs font-medium ${idleMinutes! > 10 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>{idleWarning}</div>}
         {worker.error && (
-          <div className="mt-3 pt-3 border-t border-[#E8E6E1]">
-            <div className="text-red-600 font-semibold mb-1">Error:</div>
-            <div className="text-red-700 bg-red-50 p-2 rounded border border-red-200 whitespace-pre-wrap break-words">{worker.error}</div>
+          <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
+            <div className="text-red-600 dark:text-red-400 font-semibold mb-1">Error:</div>
+            <div className="text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-900 whitespace-pre-wrap break-words">{worker.error}</div>
           </div>
         )}
       </div>
 
-      {/* live logs */}
-      <div className="flex flex-col min-h-0 border-t border-[#E8E6E1] pt-3">
-        <div className="flex items-center justify-between mb-2 shrink-0">
-          <h3 className="text-sm font-semibold text-stone-600">Live Logs</h3>
+      <div className="flex flex-col min-h-0 border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+        <div className="flex items-center justify-between mb-2 shrink-0 flex-wrap gap-1">
+          <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400">Live Logs</h3>
           <div className="flex items-center gap-2 shrink-0">
-            {isConnected && <span className="text-xs text-emerald-600 flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />Connected ({lines.length} lines)</span>}
-            {isReconnecting && <span className="text-xs text-amber-600 flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />Reconnecting...</span>}
-            {!isConnected && !isReconnecting && !logError && lines.length === 0 && <span className="text-xs text-stone-400">Connecting...</span>}
-            {!isConnected && !isReconnecting && lines.length > 0 && <span className="text-xs text-stone-400">{lines.length} lines (disconnected)</span>}
-            {logError && !isReconnecting && <span className="text-xs text-red-500">{logError}</span>}
+            {isConnected && <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-pulse" />Connected ({lines.length} lines)</span>}
+            {isReconnecting && <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-pulse" />Reconnecting...</span>}
+            {!isConnected && !isReconnecting && !logError && lines.length === 0 && <span className="text-xs text-stone-400 dark:text-stone-500">Connecting...</span>}
+            {!isConnected && !isReconnecting && lines.length > 0 && <span className="text-xs text-stone-400 dark:text-stone-500">{lines.length} lines (disconnected)</span>}
+            {logError && !isReconnecting && <span className="text-xs text-red-500 dark:text-red-400">{logError}</span>}
           </div>
         </div>
         <div ref={logContainerRef as React.RefObject<HTMLDivElement>}
-          className="bg-stone-50 rounded border border-[#E8E6E1] p-2 overflow-y-auto font-mono text-xs text-stone-700"
+          className="bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] p-2 overflow-y-auto font-mono text-xs text-stone-700 dark:text-stone-300"
           style={{ maxHeight: "50vh", minHeight: "120px" }}
         >
-          {lines.length === 0 && <div className="text-stone-400 italic">No logs yet...</div>}
+          {lines.length === 0 && <div className="text-stone-400 dark:text-stone-500 italic">No logs yet...</div>}
           {lines.map((line, i) => <div key={i} className="whitespace-pre-wrap break-words">{line}</div>)}
         </div>
       </div>
@@ -137,9 +135,9 @@ function TokensTab({ workspace }: { workspace?: WorkspaceSummary }) {
   const bar = pct > 80 ? "bg-red-500" : pct > 60 ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div className="pt-3">
-      <h3 className="text-xs font-semibold text-stone-600 mb-2">Context Window</h3>
-      <div className="text-xs text-stone-500 mb-1">Context: {fmt(ctxUsed)} / {fmt(ctxLimit)} ({pct}%)</div>
-      <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+      <h3 className="text-xs font-semibold text-stone-600 dark:text-stone-400 mb-2">Context Window</h3>
+      <div className="text-xs text-stone-500 dark:text-stone-400 mb-1">Context: {fmt(ctxUsed)} / {fmt(ctxLimit)} ({pct}%)</div>
+      <div className="w-full h-2 bg-stone-100 dark:bg-[#333] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-500 ${bar}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
     </div>
@@ -151,15 +149,15 @@ function TokensTab({ workspace }: { workspace?: WorkspaceSummary }) {
 function GitTab({ workspace }: { workspace?: WorkspaceSummary }) {
   const { gitBranch: branch, gitDirty: dirty, gitCommits: commits } = workspace ?? {};
   if (!branch && dirty === undefined && (!commits || commits.length === 0)) {
-    return <div className="flex items-center justify-center h-32 text-stone-400 text-xs pt-3">Git data unavailable</div>;
+    return <div className="flex items-center justify-center h-32 text-stone-400 dark:text-stone-500 text-xs pt-3">Git data unavailable</div>;
   }
   return (
-    <div className="text-xs space-y-3 text-stone-600 pt-3">
+    <div className="text-xs space-y-3 text-stone-600 dark:text-stone-400 pt-3">
       {branch && <Row label="Branch" value={branch} />}
       {dirty !== undefined && <Row label="Working tree" value={dirty ? "Dirty" : "Clean"} />}
       {commits && commits.length > 0 && (
-        <div><span className="text-stone-400 block mb-1">Recent commits:</span>
-          {commits.map((c, i) => <div key={i} className="font-mono truncate">{c}</div>)}
+        <div><span className="text-stone-400 dark:text-stone-500 block mb-1">Recent commits:</span>
+          {commits.map((c, i) => <div key={i} className="font-mono truncate text-stone-600 dark:text-stone-400">{c}</div>)}
         </div>
       )}
     </div>
@@ -170,9 +168,9 @@ function GitTab({ workspace }: { workspace?: WorkspaceSummary }) {
 
 function CommandsTab({ lines }: { lines: string[] }) {
   const cmdLines = lines.filter(l => l.startsWith("$ ") || l.includes("tool_call") || l.includes("tool_use") || l.includes("<function=") || l.includes("function_call"));
-  if (cmdLines.length === 0) return <div className="flex items-center justify-center h-32 text-stone-400 text-xs pt-3">No commands detected yet</div>;
+  if (cmdLines.length === 0) return <div className="flex items-center justify-center h-32 text-stone-400 dark:text-stone-500 text-xs pt-3">No commands detected yet</div>;
   return (
-    <div className="bg-stone-50 rounded border border-[#E8E6E1] p-2 overflow-y-auto font-mono text-xs text-stone-700 mt-3"
+    <div className="bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] p-2 overflow-y-auto font-mono text-xs text-stone-700 dark:text-stone-300 mt-3"
       style={{ maxHeight: "60vh", minHeight: "120px" }}>
       {cmdLines.map((l, i) => <div key={i} className="whitespace-pre-wrap break-words">{l}</div>)}
     </div>
@@ -182,7 +180,12 @@ function CommandsTab({ lines }: { lines: string[] }) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function Row({ label, value }: { label: string; value: string }) {
-  return <div className="flex"><span className="text-stone-400 w-20 shrink-0">{label}:</span><span className="text-stone-700 truncate">{value}</span></div>;
+  return (
+    <div className="flex">
+      <span className="text-stone-400 dark:text-stone-500 w-20 shrink-0">{label}:</span>
+      <span className="text-stone-700 dark:text-stone-300 truncate">{value}</span>
+    </div>
+  );
 }
 
 function fmt(n: number): string {

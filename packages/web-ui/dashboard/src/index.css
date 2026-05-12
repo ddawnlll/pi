@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+/* Use class-based dark mode (triggered by <html class="dark">) */
+@variant dark (&:where(.dark, .dark *));
+
+/* ── Dark theme variables ── */
+.dark {
+  --color-surface: #1E1E1E;
+  --color-surface-alt: #252525;
+  --color-border: #3A3A3A;
+  --color-text: #E8E6E1;
+  --color-text-muted: #A0A09A;
+  --color-accent-bg: #1E3A5F;
+  --color-accent-text: #6BB5FF;
+}
