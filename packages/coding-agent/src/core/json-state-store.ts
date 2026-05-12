@@ -56,6 +56,10 @@ export class JsonStateStore implements IStateStore {
 	private controlFilePath: string;
 	private store: PlanStateStore;
 
+	// In-memory log buffer: Map<planExecId:workspaceId, string[]>
+	private logBuffers: Map<string, string[]> = new Map();
+	private readonly MAX_BUFFER_LINES = 1000;
+
 	constructor(workspaceRoot: string, config?: JsonStateStoreConfig) {
 		this.workspaceRoot = workspaceRoot;
 		this.piDir = config?.piDir ?? ".pi";
@@ -391,6 +395,60 @@ export class JsonStateStore implements IStateStore {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * Append a log line to workspace-specific logs.
+	 */
+	async appendWorkspaceLog(planExecutionId: string, workspaceId: string, logLine: string): Promise<void> {
+		const key = `${planExecutionId}:${workspaceId}`;
+
+		// Get or create buffer
+		let buffer = this.logBuffers.get(key);
+		if (!buffer) {
+			buffer = [];
+			this.logBuffers.set(key, buffer);
+		}
+
+		// Add line to buffer
+		buffer.push(logLine);
+
+		// Trim buffer if it exceeds max size
+		if (buffer.length > this.MAX_BUFFER_LINES) {
+			buffer.shift();
+		}
+
+		// Persist to file
+		const logFilePath = path.join(this.workspaceRoot, this.piDir, `workspace-${planExecutionId}-${workspaceId}.log`);
+		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
+		await fs.appendFile(logFilePath, `${logLine}\n`, "utf-8");
+	}
+
+	/**
+	 * Load workspace-specific log content.
+	 */
+	async loadWorkspaceLog(planExecutionId: string, workspaceId: string): Promise<string | null> {
+		const logFilePath = path.join(this.workspaceRoot, this.piDir, `workspace-${planExecutionId}-${workspaceId}.log`);
+		try {
+			return await fs.readFile(logFilePath, "utf-8");
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				return null;
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Get recent log lines from buffer (for WebSocket streaming).
+	 */
+	getRecentWorkspaceLogs(planExecutionId: string, workspaceId: string, maxLines = 100): string[] {
+		const key = `${planExecutionId}:${workspaceId}`;
+		const buffer = this.logBuffers.get(key);
+		if (!buffer) {
+			return [];
+		}
+		return buffer.slice(-maxLines);
 	}
 
 	// =========================================================================

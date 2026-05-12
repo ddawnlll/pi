@@ -24,6 +24,8 @@ export function getPool(config?: DbConfig): pg.Pool {
 
 	const cfg = config ?? loadDbConfig();
 
+	console.log(`[db] Connecting to PostgreSQL at ${cfg.host}:${cfg.port}/${cfg.database}`);
+
 	pool = new Pool({
 		host: cfg.host,
 		port: cfg.port,
@@ -39,6 +41,11 @@ export function getPool(config?: DbConfig): pg.Pool {
 	// Log pool errors (don't crash)
 	pool.on("error", (err: Error) => {
 		console.error("[db] Unexpected pool error:", err.message);
+	});
+
+	// Log successful connection on first client acquisition
+	pool.on("connect", () => {
+		console.log("[db] Connected to PostgreSQL");
 	});
 
 	return pool;

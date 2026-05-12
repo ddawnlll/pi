@@ -37,6 +37,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
+import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { getActiveExecution, getActiveExecutions, resumeStrandedExecutions, runPlan } from "./plan-runner.js";
 
@@ -48,6 +49,9 @@ const fastify = Fastify({
 await fastify.register(fastifyCors, {
 	origin: true,
 });
+
+// WebSocket support
+await fastify.register(fastifyWebsocket);
 
 // Serve static dashboard files
 const dashboardDist = resolve(process.cwd(), "../web-ui/dist");
@@ -699,6 +703,138 @@ fastify.get<{
 		fastify.log.error({ error }, "Failed to get workspace");
 		return reply.code(500).send({ error: "Failed to get workspace", message: String(error) });
 	}
+});
+
+/**
+ * GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/logs - Get recent workspace logs
+ */
+fastify.get<{
+	Params: { projectId: string; planExecId: string; workspaceId: string };
+	Querystring: { limit?: string };
+}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/logs", async (request, reply) => {
+	const { planExecId, workspaceId } = request.params;
+	const limit = request.query.limit ? Number.parseInt(request.query.limit, 10) : 100;
+
+	try {
+		const stateStore = getStateStore();
+
+		// Try to get recent logs from buffer (JSON backend only)
+		if ("getRecentWorkspaceLogs" in stateStore) {
+			const fn = (stateStore as any).getRecentWorkspaceLogs;
+			if (typeof fn === "function") {
+				const recentLogs = fn.call(stateStore, planExecId, workspaceId, limit) as string[];
+				if (recentLogs.length > 0) {
+					return { logs: recentLogs };
+				}
+			}
+		}
+
+		// Fallback to loading from file
+		if ("loadWorkspaceLog" in stateStore) {
+			const fn = (stateStore as any).loadWorkspaceLog;
+			if (typeof fn === "function") {
+				const logContent = (await fn.call(stateStore, planExecId, workspaceId)) as string | null;
+				if (!logContent) {
+					return { logs: [] };
+				}
+
+				const lines = logContent.split("\n").filter(Boolean);
+				return { logs: lines.slice(-limit) };
+			}
+		}
+
+		return { logs: [] };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get workspace logs");
+		return reply.code(500).send({ error: "Failed to get workspace logs", message: String(error) });
+	}
+});
+
+/**
+ * WebSocket endpoint for live workspace log streaming
+ * ws://localhost:3000/api/ws/logs/:planExecId/:workspaceId
+ */
+fastify.get<{
+	Params: { planExecId: string; workspaceId: string };
+}>("/api/ws/logs/:planExecId/:workspaceId", { websocket: true }, (socket, request) => {
+	const { planExecId, workspaceId } = request.params;
+
+	fastify.log.info({ planExecId, workspaceId }, "WebSocket log stream connected");
+
+	// Track last sent line count to avoid duplicates
+	let lastSentCount = 0;
+
+	// Send recent logs immediately
+	(async () => {
+		try {
+			const stateStore = getStateStore();
+
+			// Get recent logs from buffer or file
+			let recentLogs: string[] = [];
+			if ("getRecentWorkspaceLogs" in stateStore) {
+				const fn = (stateStore as any).getRecentWorkspaceLogs;
+				if (typeof fn === "function") {
+					recentLogs = fn.call(stateStore, planExecId, workspaceId, 100) as string[];
+				}
+			}
+
+			if (recentLogs.length === 0 && "loadWorkspaceLog" in stateStore) {
+				const fn = (stateStore as any).loadWorkspaceLog;
+				if (typeof fn === "function") {
+					const logContent = (await fn.call(stateStore, planExecId, workspaceId)) as string | null;
+					if (logContent) {
+						recentLogs = logContent.split("\n").filter(Boolean).slice(-100);
+					}
+				}
+			}
+
+			// Send recent logs
+			for (const line of recentLogs) {
+				socket.send(JSON.stringify({ type: "log", data: line }));
+			}
+			lastSentCount = recentLogs.length;
+
+			// Send ready signal
+			socket.send(JSON.stringify({ type: "ready" }));
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to send initial logs");
+			socket.send(JSON.stringify({ type: "error", message: "Failed to load logs" }));
+		}
+	})();
+
+	// Set up polling for new logs (simple implementation)
+	// In production, this could use file watchers or pub/sub
+	const pollInterval = setInterval(async () => {
+		try {
+			const stateStore = getStateStore();
+			if ("getRecentWorkspaceLogs" in stateStore) {
+				const fn = (stateStore as any).getRecentWorkspaceLogs;
+				if (typeof fn === "function") {
+					const recentLogs = fn.call(stateStore, planExecId, workspaceId, 1000) as string[];
+					// Send only new logs since last poll
+					if (recentLogs.length > lastSentCount) {
+						const newLogs = recentLogs.slice(lastSentCount);
+						for (const line of newLogs) {
+							socket.send(JSON.stringify({ type: "log", data: line }));
+						}
+						lastSentCount = recentLogs.length;
+					}
+				}
+			}
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to poll logs");
+		}
+	}, 1000);
+
+	socket.on("close", () => {
+		clearInterval(pollInterval);
+		fastify.log.info({ planExecId, workspaceId }, "WebSocket log stream disconnected");
+	});
+
+	socket.on("error", (error: Error) => {
+		clearInterval(pollInterval);
+		fastify.log.error({ error, planExecId, workspaceId }, "WebSocket log stream error");
+	});
 });
 
 // ---------------------------------------------------------------------------

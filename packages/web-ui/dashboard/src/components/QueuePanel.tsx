@@ -8,12 +8,17 @@ interface QueuePanelProps {
  * TailGrids-style card showing queue breakdown.
  */
 export function QueuePanel({ queue }: QueuePanelProps) {
+	// Handle case where queue is undefined
+	if (!queue) {
+		return null;
+	}
+
 	const items = [
-		{ label: "Pending", value: queue.pending, color: "text-gray-400" },
-		{ label: "Active", value: queue.active, color: "text-green-400" },
-		{ label: "Blocked", value: queue.blocked, color: "text-yellow-400" },
-		{ label: "Complete", value: queue.complete, color: "text-blue-400" },
-		{ label: "Failed", value: queue.failed, color: "text-red-400" },
+		{ label: "Pending", value: queue.pending ?? 0, color: "text-gray-400" },
+		{ label: "Active", value: queue.active ?? 0, color: "text-green-400" },
+		{ label: "Blocked", value: queue.blocked ?? 0, color: "text-yellow-400" },
+		{ label: "Complete", value: queue.complete ?? 0, color: "text-blue-400" },
+		{ label: "Failed", value: queue.failed ?? 0, color: "text-red-400" },
 	];
 
 	return (

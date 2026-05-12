@@ -378,6 +378,17 @@ export interface IStateStore {
 	 * @returns Log content or null if not found
 	 */
 	loadWorkspaceLog?(planExecutionId: string, workspaceId: string): Promise<string | null>;
+
+	/**
+	 * Get recent workspace logs from in-memory buffer.
+	 * Optional method for real-time log streaming (JSON backend only).
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param maxLines - Maximum number of lines to return
+	 * @returns Array of recent log lines
+	 */
+	getRecentWorkspaceLogs?(planExecutionId: string, workspaceId: string, maxLines?: number): string[];
 }
 
 /**

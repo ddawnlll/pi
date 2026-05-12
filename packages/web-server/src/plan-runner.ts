@@ -235,6 +235,47 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Execution Summary Generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a human-readable execution summary.
+ */
+function generateExecutionSummary(
+	queue: WorkspaceQueue,
+	stats: { total: number; pending: number; active: number; complete: number; blocked: number; failed: number } | null,
+	failedCount: number,
+): string {
+	const lines: string[] = [];
+
+	lines.push(`Plan: ${queue.title}`);
+	lines.push(`Phase: ${queue.phase}`);
+	lines.push("");
+
+	if (stats) {
+		lines.push(`Total workspaces: ${stats.total}`);
+		lines.push(`Completed: ${stats.complete}`);
+		lines.push(`Failed: ${stats.failed}`);
+		if (stats.blocked > 0) {
+			lines.push(`Blocked: ${stats.blocked}`);
+		}
+		if (stats.pending > 0) {
+			lines.push(`Pending: ${stats.pending}`);
+		}
+	}
+
+	lines.push("");
+
+	if (failedCount === 0) {
+		lines.push("✓ All workspaces completed successfully");
+	} else {
+		lines.push(`✗ ${failedCount} workspace(s) failed`);
+	}
+
+	return lines.join("\n");
+}
+
 /**
  * Execute a plan in the background, updating the execution status.
  */
@@ -377,15 +418,19 @@ async function executePlanInBackground(
 			return;
 		}
 
+		// Generate execution summary
+		const stats = executor.getStatistics();
+		const summary = generateExecutionSummary(queue, stats, failedCount);
+
 		// Complete execution
 		if (failedCount === 0) {
 			await log(`\n=== Execution Complete ===`);
-			await log(`All workspaces completed successfully`);
+			await log(summary);
 			await executor.completePlan();
 			updateExecutionStatus(planExecId, "complete");
 		} else {
 			await log(`\n=== Execution Failed ===`);
-			await log(`${failedCount} workspace(s) failed`);
+			await log(summary);
 			await executor.failPlan(`${failedCount} workspace(s) failed`);
 			updateExecutionStatus(planExecId, "failed", `${failedCount} workspace(s) failed`);
 		}

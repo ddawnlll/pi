@@ -30,6 +30,7 @@ export interface WorkerInfo {
 	retries: number;
 	snapshotPath?: string;
 	reportPath?: string;
+	error?: string | null;
 }
 
 export interface ExecutionEvent {

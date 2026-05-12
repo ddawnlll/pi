@@ -290,7 +290,7 @@ Hard stop execution only for:
   "executionBackend": "postgres",
   "project": {
     "name": "test-python-webserver",
-    "rootPath": "/tmp/test-python-webserver",
+    "rootPath": "/home/erfolg/src/test2",
     "type": "repo",
     "tags": ["test", "python", "flask", "web-server"]
   },

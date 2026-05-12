@@ -279,9 +279,11 @@ export function App() {
 							<div className="w-64">
 								<PlanSummary planState={legacyPlanState} />
 							</div>
-							<div className="w-48">
-								<QueuePanel queue={legacyPlanState.queue} />
-							</div>
+							{legacyPlanState.queue && (
+								<div className="w-48">
+									<QueuePanel queue={legacyPlanState.queue} />
+								</div>
+							)}
 						</div>
 					)}
 
@@ -383,7 +385,7 @@ export function App() {
 
 					{selectedWorker ? (
 						<>
-							<WorkerDetail worker={selectedWorker} />
+							<WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} />
 							<LogViewer
 								lines={lines}
 								activeStream={activeLogStream}
