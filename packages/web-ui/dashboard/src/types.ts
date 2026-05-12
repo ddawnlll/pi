@@ -8,19 +8,23 @@
 // =============================================================================
 
 export interface PlanState {
-	title: string;
 	phase: string;
+	title: string;
 	status: "running" | "paused" | "stopped" | "completed" | "failed";
-	elapsed: number;
-	queue: {
-		pending: number;
-		active: number;
-		blocked: number;
-		complete: number;
-		failed: number;
-	};
-	workers: WorkerInfo[];
-	startedAt?: string;
+	workspaces: WorkspaceJson[];
+	startedAt?: number;
+	completedAt?: number;
+}
+
+/** Workspace entry as it appears in plan-state.json */
+export interface WorkspaceJson {
+	workspaceId: string;
+	stage: string;
+	attempts: number;
+	startedAt?: number;
+	completedAt?: number;
+	ownedFiles?: string[];
+	error?: string | null;
 }
 
 export interface WorkerInfo {

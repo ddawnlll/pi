@@ -64,10 +64,10 @@ export function ExecutionLogViewer({ planExecId, isOpen, onClose }: ExecutionLog
 					animate={{ scale: 1, opacity: 1 }}
 					exit={{ scale: 0.95, opacity: 0 }}
 					onClick={(e) => e.stopPropagation()}
-					className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col"
+					className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col overflow-hidden"
 				>
 					{/* Header */}
-					<div className="flex items-center justify-between p-4 border-b border-gray-700">
+					<div className="flex items-center justify-between p-4 border-b border-gray-700 shrink-0">
 						<h2 className="text-lg font-semibold text-gray-100">
 							Execution Log
 						</h2>
@@ -80,7 +80,7 @@ export function ExecutionLogViewer({ planExecId, isOpen, onClose }: ExecutionLog
 					</div>
 
 					{/* Content */}
-					<div className="flex-1 overflow-auto p-4">
+					<div className="flex-1 overflow-y-auto p-4 min-h-0">
 						{loading ? (
 							<div className="text-gray-500 text-sm">Loading...</div>
 						) : !exists ? (
