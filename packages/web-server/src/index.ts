@@ -1383,6 +1383,30 @@ fastify.get("/api/ai-models", async (_request, reply) => {
 });
 
 // ---------------------------------------------------------------------------
+// Git Info Endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/git-info - Get git information for the project root
+ */
+fastify.get("/api/git-info", async (_request, reply) => {
+	try {
+		const workspaceRoot = getWorkspaceRoot();
+		const info = getGitInfo(workspaceRoot);
+		const logOutput = execSync("git log --oneline -10", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+		return { ...info, log: logOutput };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get git info");
+		return reply.code(500).send({ error: "Failed to get git info", message: String(error) });
+	}
+});
+
+// ---------------------------------------------------------------------------
 // Project Update Endpoint
 // ---------------------------------------------------------------------------
 

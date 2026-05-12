@@ -116,6 +116,8 @@ export function App() {
   const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showExecutionLog, setShowExecutionLog] = useState(false);
+  const [showGitDialog, setShowGitDialog] = useState(false);
+  const [showCommandsDialog, setShowCommandsDialog] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
@@ -195,6 +197,14 @@ export function App() {
   const filteredEvents = eventFilter === "errors"
     ? activeEvents.filter((e: any) => e.type === "error" || e.level === "error")
     : activeEvents;
+
+  // Derive command lines from all workspace logs for the Commands dialog
+  const allCommandLines = workers.map(w =>
+    activeEvents
+      .filter((e: any) => e.type === "log" && e.workspaceId === w.id && typeof e.message === "string")
+      .map((e: any) => e.message)
+      .filter((msg: string) => msg.startsWith("$ ") || msg.includes("tool_call") || msg.includes("tool_use") || msg.includes("<function=") || msg.includes("function_call"))
+  ).flat();
 
   if (isStartingUp) {
     return (
@@ -308,8 +318,8 @@ export function App() {
           <div className={`shrink-0 ${SURF} border-b ${BORD} flex items-center gap-1.5 px-3 h-11`}>
             <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
             <div className={`w-px h-5 ${BORD} mx-0.5`} />
-            <LabeledBtn icon={GitBranch} label="Git" onClick={() => {}} />
-            <LabeledBtn icon={Terminal} label="Commands" onClick={() => {}} />
+            <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
+            <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -438,6 +448,114 @@ export function App() {
       <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
         project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />
       <ExecutionLogViewer planExecId={selectedPlanExecId} isOpen={showExecutionLog} onClose={() => setShowExecutionLog(false)} />
+
+      {/* ── git dialog ── */}
+      <AnimatePresence>
+        {showGitDialog && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setShowGitDialog(false)}
+          >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Git Status</h2>
+                <button onClick={() => setShowGitDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
+                  <X size={18} />
+                </button>
+              </div>
+              <GitContent />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── commands dialog ── */}
+      <AnimatePresence>
+        {showCommandsDialog && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setShowCommandsDialog(false)}
+          >
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 0.95 }} exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Commands</h2>
+                <button onClick={() => setShowCommandsDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
+                  <X size={18} />
+                </button>
+              </div>
+              <CommandsContent lines={allCommandLines} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── git dialog content ──
+
+function GitContent() {
+  const [gitData, setGitData] = useState<{ branch?: string; dirty?: boolean; log?: string; error?: string }>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchGitData().then(data => { if (!cancelled) { setGitData(data); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500 py-8 justify-center"><Loader2 size={14} className="animate-spin" /> Loading git data...</div>;
+  }
+
+  if (gitData.error) {
+    return <div className="flex items-center justify-center h-32 text-xs text-stone-400 dark:text-stone-500">Git data unavailable: {gitData.error}</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4 text-xs text-stone-600 dark:text-stone-400 overflow-y-auto">
+      <div className="flex gap-4">
+        <div><span className="text-stone-400 dark:text-stone-500">Branch:</span> <span className="font-mono text-stone-800 dark:text-stone-200">{gitData.branch}</span></div>
+        <div><span className="text-stone-400 dark:text-stone-500">Dirty:</span> <span className={gitData.dirty ? "text-amber-600 dark:text-amber-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>{gitData.dirty ? "Yes" : "No"}</span></div>
+      </div>
+      <div>
+        <span className="text-stone-400 dark:text-stone-500 block mb-1">Recent commits:</span>
+        <pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 font-mono text-xs text-stone-700 dark:text-stone-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+          {gitData.log || "No commits"}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+async function fetchGitData(): Promise<{ branch?: string; dirty?: boolean; log?: string; error?: string }> {
+  try {
+    const r = await fetch("/api/git-info");
+    if (!r.ok) return { error: `HTTP ${r.status}` };
+    return await r.json();
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+// ── commands dialog content ──
+
+function CommandsContent({ lines }: { lines: string[] }) {
+  if (lines.length === 0) {
+    return <div className="flex items-center justify-center h-32 text-xs text-stone-400 dark:text-stone-500">No commands found in any workspace logs</div>;
+  }
+  return (
+    <div className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 font-mono text-xs text-stone-700 dark:text-stone-300 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+      {lines.map((line, i) => <div key={i} className="whitespace-pre-wrap break-words py-0.5">{line}</div>)}
     </div>
   );
 }
