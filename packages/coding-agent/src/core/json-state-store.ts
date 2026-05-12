@@ -340,13 +340,18 @@ export class JsonStateStore implements IStateStore {
 		return this.store.getWorkspaceState(workspaceId);
 	}
 
-	async getStatistics(_planExecutionId: string): Promise<{
+	async getStatistics(planExecutionId: string): Promise<{
 		total: number;
 		pending: number;
 		active: number;
 		complete: number;
 		blocked: number;
 		failed: number;
+		total_tokens_in?: number;
+		total_tokens_out?: number;
+		cache_hit_rate?: number;
+		estimated_cost_usd?: number;
+		burn_rate_per_min?: number;
 	} | null> {
 		const state = this.store.getState();
 		if (!state) return null;
@@ -372,7 +377,46 @@ export class JsonStateStore implements IStateStore {
 					break;
 			}
 		}
-		return stats;
+
+		// Compute telemetry from workspace execution logs
+		// Uses the chars/4 token estimation heuristic from token-metering.ts
+		let totalCharsIn = 0;
+		let totalCharsOut = 0;
+		const now = Date.now();
+
+		for (const ws of state.workspaces.values()) {
+			if (ws.startedAt && ws.completedAt) {
+				const logFiles = await this.loadWorkspaceExecutionLogs(planExecutionId, ws.workspaceId);
+				for (const logContent of logFiles) {
+					if (!logContent) continue;
+					const lines = logContent.split("\n").filter((l: string) => l.length > 0);
+					for (const line of lines) {
+						totalCharsIn += line.length;
+					}
+					totalCharsOut += logContent.length * 0.3; // ~30% of log is output (assistant messages)
+				}
+			}
+		}
+
+		const totalTokensIn = Math.ceil(totalCharsIn / 4);
+		const totalTokensOut = Math.ceil(totalCharsOut / 4);
+
+		// Estimate cost using approximate Claude/Haiku pricing ($3/M input, $15/M output)
+		const estimatedCost = (totalTokensIn / 1_000_000) * 3 + (totalTokensOut / 1_000_000) * 15;
+
+		// Burn rate: tokens per minute since execution started
+		const elapsedMs = (state.completedAt ?? now) - state.startedAt;
+		const elapsedMinutes = elapsedMs / 60_000;
+		const burnRate = elapsedMinutes > 0 ? Math.round(totalTokensIn / elapsedMinutes) : 0;
+
+		return {
+			...stats,
+			total_tokens_in: totalTokensIn,
+			total_tokens_out: totalTokensOut,
+			cache_hit_rate: 0, // Not tracked yet
+			estimated_cost_usd: Number.parseFloat(estimatedCost.toFixed(4)),
+			burn_rate_per_min: burnRate,
+		};
 	}
 
 	// =========================================================================
@@ -422,6 +466,31 @@ export class JsonStateStore implements IStateStore {
 		const logFilePath = path.join(this.workspaceRoot, this.piDir, `workspace-${planExecutionId}-${workspaceId}.log`);
 		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
 		await fs.appendFile(logFilePath, `${logLine}\n`, "utf-8");
+	}
+
+	/**
+	 * Load all workspace execution attempt logs for a plan execution.
+	 * Reads from .pi/workspaces/{workspaceId}/execution-{attempt}.log
+	 */
+	private async loadWorkspaceExecutionLogs(_planExecutionId: string, workspaceId: string): Promise<string[]> {
+		const results: string[] = [];
+		const wsDir = path.join(this.workspaceRoot, this.piDir, "workspaces", workspaceId);
+		try {
+			const files = await fs.readdir(wsDir);
+			const logFiles = files.filter((f) => f.startsWith("execution-") && f.endsWith(".log"));
+			logFiles.sort();
+			for (const file of logFiles) {
+				try {
+					const content = await fs.readFile(path.join(wsDir, file), "utf-8");
+					results.push(content);
+				} catch {
+					// Skip unreadable files
+				}
+			}
+		} catch {
+			// Directory doesn't exist or can't be read
+		}
+		return results;
 	}
 
 	/**

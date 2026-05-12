@@ -144,7 +144,6 @@ export interface ExecutionStats {
 	complete: number;
 	blocked: number;
 	failed: number;
-	// Telemetry fields (optional — backend may not have data yet)
 	total_tokens_in?: number;
 	total_tokens_out?: number;
 	cache_hit_rate?: number;

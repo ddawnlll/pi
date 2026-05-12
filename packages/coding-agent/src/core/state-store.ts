@@ -337,6 +337,11 @@ export interface IStateStore {
 		complete: number;
 		blocked: number;
 		failed: number;
+		total_tokens_in?: number;
+		total_tokens_out?: number;
+		cache_hit_rate?: number;
+		estimated_cost_usd?: number;
+		burn_rate_per_min?: number;
 	} | null>;
 
 	// =========================================================================
