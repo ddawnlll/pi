@@ -26,6 +26,7 @@ export interface Migration {
 import * as m001 from "./001_initial.js";
 import * as m002 from "./002_listen_notify.js";
 import * as m003 from "./003_add_execution_log.js";
+import * as m004 from "./004_add_chat_messages.js";
 
 /**
  * All registered migrations in version order.
@@ -34,6 +35,7 @@ const migrations: Migration[] = [
 	{ version: 1, name: "initial", up: m001.up, down: m001.down },
 	{ version: 2, name: "listen_notify", up: m002.up, down: m002.down },
 	{ version: 3, name: "add_execution_log", up: m003.up, down: m003.down },
+	{ version: 4, name: "add_chat_messages", up: m004.up, down: m004.down },
 ];
 
 /**

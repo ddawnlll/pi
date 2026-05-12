@@ -37,10 +37,14 @@ export {
 
 // Types
 export type {
+	ChatMessage,
+	ChatMessageRow,
+	ChatMessageTable,
 	Database,
 	JournalEvent,
 	JournalEventRow,
 	JournalEventTable,
+	NewChatMessage,
 	NewJournalEvent,
 	NewPlanExecution,
 	NewProject,
@@ -49,7 +53,6 @@ export type {
 	PlanExecution,
 	PlanExecutionRow,
 	PlanExecutionTable,
-	PlanExecutionUpdate,
 	Project,
 	ProjectRow,
 	ProjectTable,

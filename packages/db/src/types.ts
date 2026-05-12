@@ -65,6 +65,19 @@ export interface JournalEventRow {
 }
 
 /**
+ * Chat message entry
+ */
+export interface ChatMessageRow {
+	id: string;
+	project_id: string;
+	role: "user" | "assistant";
+	content: string;
+	message_index: number;
+	session_id: string;
+	created_at: string;
+}
+
+/**
  * Workspace log entry
  */
 export interface WorkspaceLogRow {
@@ -89,6 +102,7 @@ export interface Database {
 	workspace_executions: WorkspaceExecutionTable;
 	journal_events: JournalEventTable;
 	workspace_logs: WorkspaceLogTable;
+	chat_messages: ChatMessageTable;
 	_migrations: MigrationsTable;
 }
 
@@ -149,6 +163,16 @@ export interface WorkspaceLogTable {
 	created_at: Generated<string>;
 }
 
+export interface ChatMessageTable {
+	id: Generated<string>;
+	project_id: string;
+	role: string;
+	content: string;
+	message_index: number;
+	session_id: string;
+	created_at: Generated<string>;
+}
+
 export interface MigrationsTable {
 	version: number;
 	name: string;
@@ -173,3 +197,6 @@ export type NewJournalEvent = Insertable<JournalEventTable>;
 
 export type WorkspaceLog = Selectable<WorkspaceLogTable>;
 export type NewWorkspaceLog = Insertable<WorkspaceLogTable>;
+
+export type ChatMessage = Selectable<ChatMessageTable>;
+export type NewChatMessage = Insertable<ChatMessageTable>;

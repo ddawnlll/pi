@@ -22,6 +22,25 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
+
+  // Load chat history from backend when project changes
+  useEffect(() => {
+    if (!projectId) return;
+    sessionIdRef.current = crypto.randomUUID();
+    setMessages([]);
+    setStreamBuffer("");
+    setError(null);
+
+    fetch(`${API_BASE}/api/projects/${projectId}/chat/history`)
+      .then((r) => r.ok ? r.json() : { messages: [] })
+      .then((data) => {
+        if (data.messages?.length) {
+          setMessages(data.messages);
+        }
+      })
+      .catch(() => {/* ignore */});
+  }, [projectId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,11 +60,11 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
     abortRef.current = abort;
 
     try {
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const sessionId = sessionIdRef.current;
       const response = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, message: text, history }),
+        body: JSON.stringify({ projectId, message: text, sessionId }),
         signal: abort.signal,
       });
 
@@ -100,9 +119,6 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
         }
       }
 
-      if (fullText) {
-        setMessages((prev) => [...prev, { role: "assistant", content: fullText }]);
-      }
     } catch (err: any) {
       if (err.name !== "AbortError") {
         setError(String(err));

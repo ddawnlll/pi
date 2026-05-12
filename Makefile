@@ -64,6 +64,7 @@ build:
 	@echo "Building packages in dependency order..."
 	@cd $(DB_DIR) && npm run build
 	@cd $(SERVER_DIR)/../coding-agent && npm run build
+	@cd $(SERVER_DIR) && npm run build
 	@echo "Build complete."
 
 # ── Dashboard deps (not in npm workspace) ────────────────────────────────────

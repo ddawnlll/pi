@@ -200,3 +200,16 @@
 {"type":"file_lock_released","timestamp":1778579540822,"workspaceId":"1.D"}
 {"type":"workspace_complete","timestamp":1778579540822,"workspaceId":"1.D","data":{"verdict":"COMPLETE"}}
 {"type":"plan_complete","timestamp":1778579540824}
+{"type":"plan_resumed","timestamp":1778614989062}
+{"type":"plan_resumed","timestamp":1778614992471}
+{"type":"plan_stopped","timestamp":1778614995586,"data":{"reason":"Stopped by user"}}
+{"type":"plan_resumed","timestamp":1778615164228}
+{"type":"plan_complete","timestamp":1778615164270}
+{"type":"plan_complete","timestamp":1778615164276}
+{"type":"plan_complete","timestamp":1778615164276}
+{"type":"plan_complete","timestamp":1778615164277}
+{"type":"plan_complete","timestamp":1778615164278}
+{"type":"plan_complete","timestamp":1778615164279}
+{"type":"plan_complete","timestamp":1778615164280}
+{"type":"plan_complete","timestamp":1778615164281}
+{"type":"plan_complete","timestamp":1778615164281}
