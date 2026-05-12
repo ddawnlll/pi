@@ -38,7 +38,7 @@ export function LogViewer({
 		if (!userScrolledUpRef.current && scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [lines]);
+	}, [lines.length, activeStream, selectedWorkerId]);
 
 	if (!selectedWorkerId) {
 		return (
@@ -49,8 +49,8 @@ export function LogViewer({
 	}
 
 	return (
-		<div className="flex-1 flex flex-col overflow-hidden p-4">
-			<div className="flex items-center justify-between mb-2">
+		<div className="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
+			<div className="flex items-center justify-between mb-2 shrink-0">
 				<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
 					Worker Logs
 				</h2>
@@ -73,13 +73,13 @@ export function LogViewer({
 			<div
 				ref={scrollRef}
 				onScroll={handleScroll}
-				className="flex-1 overflow-auto bg-black text-green-400 p-3 rounded font-mono text-xs leading-relaxed"
+				className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-black text-green-400 p-3 rounded font-mono text-xs leading-relaxed"
 			>
 				{lines.length === 0 ? (
 					<div className="text-gray-500">No logs yet...</div>
 				) : (
 					lines.map((line, i) => (
-						<div key={i} className="whitespace-pre-wrap break-all">
+						<div key={i} className="whitespace-pre-wrap break-words">
 							{line}
 						</div>
 					))

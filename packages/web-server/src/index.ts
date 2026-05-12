@@ -28,18 +28,16 @@ import { join, resolve } from "node:path";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
 import {
 	createSafetyDoctor,
-	createStateStore,
 	detectStateStoreBackend,
-	FileSettingsStorage,
 	JsonStateStore,
 	parsePlan,
-	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { getActiveExecution, getActiveExecutions, resumeStrandedExecutions, runPlan } from "./plan-runner.js";
+import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 
 const fastify = Fastify({
 	logger: true,
@@ -61,55 +59,8 @@ await fastify.register(fastifyStatic, {
 });
 
 // ---------------------------------------------------------------------------
-// State store initialization
+// State store initialization (delegated to state-store-provider.ts)
 // ---------------------------------------------------------------------------
-
-/**
- * Detect workspace root from environment or cwd.
- */
-function getWorkspaceRoot(): string {
-	return process.env.PI_WORKSPACE_ROOT || resolve(process.cwd(), "../..");
-}
-
-/**
- * Global state store instance. Initialized lazily.
- */
-let globalStateStore: ReturnType<typeof createStateStore> | null = null;
-let globalSettingsManager: SettingsManager | null = null;
-
-function getSettingsManager(): SettingsManager {
-	if (!globalSettingsManager) {
-		const workspaceRoot = getWorkspaceRoot();
-		const storage = new FileSettingsStorage(workspaceRoot, resolve(process.cwd(), "../../.pi"));
-		globalSettingsManager = SettingsManager.fromStorage(storage);
-	}
-	return globalSettingsManager;
-}
-
-function getStateStore() {
-	if (!globalStateStore) {
-		const workspaceRoot = getWorkspaceRoot();
-		const backend = detectStateStoreBackend();
-
-		// Log startup information
-		console.log(`[web-server] State store backend: ${backend}`);
-		console.log(`[web-server] Workspace root: ${workspaceRoot}`);
-		fastify.log.info({ backend, workspaceRoot }, "Initializing state store");
-
-		globalStateStore = createStateStore({
-			backend,
-			workspaceRoot,
-		});
-
-		// Confirm backend after creation
-		const actualBackend = globalStateStore.getBackendType();
-		console.log(`[web-server] State store initialized with backend: ${actualBackend}`);
-		if (actualBackend !== backend) {
-			console.warn(`[web-server] WARNING: Requested ${backend} but got ${actualBackend} (fallback occurred)`);
-		}
-	}
-	return globalStateStore;
-}
 
 function _getJsonStateStore(): JsonStateStore {
 	const store = getStateStore();
@@ -802,24 +753,47 @@ fastify.get<{
 		}
 	})();
 
-	// Set up polling for new logs (simple implementation)
-	// In production, this could use file watchers or pub/sub
+	// Set up polling for new logs
+	// Checks in-memory buffer first, then falls back to persisted log file/DB.
 	const pollInterval = setInterval(async () => {
 		try {
 			const stateStore = getStateStore();
-			if ("getRecentWorkspaceLogs" in stateStore) {
-				const fn = (stateStore as any).getRecentWorkspaceLogs;
-				if (typeof fn === "function") {
-					const recentLogs = fn.call(stateStore, planExecId, workspaceId, 1000) as string[];
-					// Send only new logs since last poll
-					if (recentLogs.length > lastSentCount) {
-						const newLogs = recentLogs.slice(lastSentCount);
-						for (const line of newLogs) {
-							socket.send(JSON.stringify({ type: "log", data: line }));
+
+			// Helper: fetch logs from buffer or persistence
+			const fetchLogs = async (): Promise<string[]> => {
+				// 1. Try in-memory buffer (fast, real-time)
+				if ("getRecentWorkspaceLogs" in stateStore) {
+					const fn = (stateStore as any).getRecentWorkspaceLogs;
+					if (typeof fn === "function") {
+						const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
+						if (bufferLogs.length > 0) {
+							return bufferLogs;
 						}
-						lastSentCount = recentLogs.length;
 					}
 				}
+
+				// 2. Fall back to persisted storage (catches buffer misses from
+				//    state store instance mismatches or process restarts)
+				if ("loadWorkspaceLog" in stateStore) {
+					const fn = (stateStore as any).loadWorkspaceLog;
+					if (typeof fn === "function") {
+						const logContent = (await fn.call(stateStore, planExecId, workspaceId)) as string | null;
+						if (logContent) {
+							return logContent.split("\n").filter(Boolean);
+						}
+					}
+				}
+
+				return [];
+			};
+
+			const allLogs = await fetchLogs();
+			if (allLogs.length > lastSentCount) {
+				const newLogs = allLogs.slice(lastSentCount);
+				for (const line of newLogs) {
+					socket.send(JSON.stringify({ type: "log", data: line }));
+				}
+				lastSentCount = allLogs.length;
 			}
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to poll logs");
@@ -1198,6 +1172,56 @@ fastify.patch<{
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to update project");
 		return reply.code(500).send({ error: "Failed to update project", message: String(error) });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// Plan Execution Control Endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/executions/:planExecId/control - Send control command to a specific execution
+ */
+fastify.post<{
+	Params: { planExecId: string };
+	Body: { action: "pause" | "stop" | "cancel" | "resume" };
+}>("/api/executions/:planExecId/control", async (request, reply) => {
+	const { planExecId } = request.params;
+	const { action } = request.body;
+
+	// Validate action
+	if (!["pause", "stop", "cancel", "resume"].includes(action)) {
+		return reply.code(400).send({ success: false, error: "Invalid action" });
+	}
+
+	try {
+		const stateStore = getStateStore();
+		const state = await stateStore.loadState(planExecId);
+
+		if (!state) {
+			return reply.code(404).send({ success: false, error: "Plan execution not found" });
+		}
+
+		// Execute the control action
+		switch (action) {
+			case "pause":
+				await stateStore.pausePlan(planExecId);
+				break;
+			case "stop":
+				await stateStore.stopPlan(planExecId, "Stopped by user");
+				break;
+			case "cancel":
+				await stateStore.cancelPlan(planExecId);
+				break;
+			case "resume":
+				await stateStore.resumePlan(planExecId);
+				break;
+		}
+
+		return { success: true };
+	} catch (error) {
+		fastify.log.error({ error, planExecId, action }, "Failed to execute control command");
+		return reply.code(500).send({ success: false, error: String(error) });
 	}
 });
 

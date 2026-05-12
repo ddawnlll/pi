@@ -8,21 +8,14 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { join } from "node:path";
-
-const _require = createRequire(import.meta.url);
-
-// Use ESM import path resolution via the package reference (compiled)
 import {
 	AutonomousExecutor,
 	createSafetyDoctor,
-	createStateStore,
-	detectStateStoreBackend,
-	type IStateStore,
 	parsePlan,
 	type WorkspaceQueue,
 } from "@earendil-works/pi-coding-agent";
+import { getStateStore } from "./state-store-provider.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -191,11 +184,9 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const planFilePath = join(plansDir, planFileName || `plan-${Date.now()}.md`);
 	await writeFile(planFilePath, planContent, "utf-8");
 
-	// Create the executor using the state store
-	const stateStore: IStateStore = createStateStore({
-		backend: detectStateStoreBackend(),
-		workspaceRoot,
-	});
+	// Use the shared state store singleton so WebSocket log streaming
+	// sees the same in-memory log buffers as workspace execution.
+	const stateStore = getStateStore();
 
 	const executor = new AutonomousExecutor(stateStore, {
 		workspaceRoot,
@@ -539,11 +530,8 @@ export async function resumeStrandedExecutions(
 async function recoverSingleExecution(workspaceRoot: string, projectId: string, planExecId: string): Promise<boolean> {
 	const piDir = join(workspaceRoot, ".pi");
 
-	// Create a state store to check the plan state
-	const stateStore: IStateStore = createStateStore({
-		backend: detectStateStoreBackend(),
-		workspaceRoot,
-	});
+	// Use the shared state store singleton
+	const stateStore = getStateStore();
 
 	// Load the plan state to check if it's terminal
 	const planState = await stateStore.loadState(planExecId);

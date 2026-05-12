@@ -30,16 +30,28 @@ const API_BASE = "";
 
 async function sendControlCommand(
 	action: "pause" | "stop" | "cancel" | "resume",
+	planExecId: string | null,
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const response = await fetch(`${API_BASE}/api/control`, {
+		// If no planExecId, use legacy endpoint
+		if (!planExecId) {
+			const response = await fetch(`${API_BASE}/api/control`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					action,
+					requestedAt: new Date().toISOString(),
+					requestedBy: "dashboard",
+				}),
+			});
+			return await response.json();
+		}
+
+		// Use new execution-specific endpoint
+		const response = await fetch(`${API_BASE}/api/executions/${planExecId}/control`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				action,
-				requestedAt: new Date().toISOString(),
-				requestedBy: "dashboard",
-			}),
+			body: JSON.stringify({ action }),
 		});
 		return await response.json();
 	} catch (error) {
@@ -169,12 +181,12 @@ export function App() {
 
 	const handleControl = useCallback(
 		async (action: "pause" | "stop" | "cancel" | "resume") => {
-			const result = await sendControlCommand(action);
+			const result = await sendControlCommand(action, selectedPlanExecId);
 			if (!result.success) {
 				showError(result.error || `Failed to ${action}`);
 			}
 		},
-		[showError],
+		[showError, selectedPlanExecId],
 	);
 
 	const handleSelectWorker = useCallback((workerId: string) => {
@@ -384,7 +396,7 @@ export function App() {
 					/>
 
 					{selectedWorker ? (
-						<>
+						<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 							<WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} />
 							<LogViewer
 								lines={lines}
@@ -392,7 +404,7 @@ export function App() {
 								onSwitchStream={handleSwitchStream}
 								selectedWorkerId={selectedWorkerId}
 							/>
-						</>
+						</div>
 					) : (
 						<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
 							Select a worker to view details and logs

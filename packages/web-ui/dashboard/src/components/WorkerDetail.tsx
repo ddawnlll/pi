@@ -22,11 +22,11 @@ export function WorkerDetail({ worker, planExecId }: WorkerDetailProps) {
 	}, [lines]);
 
 	return (
-		<div className="border-b border-gray-700 p-4 flex flex-col h-full">
-			<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-2">
+		<div className="border-b border-gray-700 p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+			<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-2 shrink-0">
 				Selected Workspace Detail
 			</h2>
-			<div className="text-xs space-y-1 text-gray-400 mb-4">
+			<div className="text-xs space-y-1 text-gray-400 mb-4 shrink-0">
 				<DetailRow label="ID" value={worker.id} />
 				<DetailRow label="Stage" value={worker.stage} />
 				<DetailRow label="Attempts" value={String(worker.attempt)} />
@@ -49,7 +49,7 @@ export function WorkerDetail({ worker, planExecId }: WorkerDetailProps) {
 
 			{/* Live Logs Section */}
 			<div className="flex-1 flex flex-col min-h-0 mt-4 border-t border-gray-700 pt-4">
-				<div className="flex items-center justify-between mb-2">
+				<div className="flex items-center justify-between mb-2 shrink-0">
 					<h3 className="text-sm font-semibold text-gray-300">Live Logs</h3>
 					<div className="flex items-center gap-2">
 						{isConnected && (
