@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { WorkerInfo } from "../types";
+import { ActivityDot, stageToPulseState } from "./ActivityDot";
 
 interface WorkerListProps {
 	workers: WorkerInfo[];
@@ -82,7 +83,9 @@ export function WorkerList({
 										: "text-gray-300 hover:bg-gray-700"
 								}`}
 							>
-								<span className="mr-2">{getStageIcon(worker.stage)}</span>
+								<span className="mr-2">
+									<ActivityDot state={stageToPulseState(worker.stage)} />
+								</span>
 								<span className="font-medium">{worker.id}</span>
 								<span className={`ml-2 ${getStageColor(worker.stage)}`}>
 									{worker.stage}

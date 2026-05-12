@@ -103,6 +103,14 @@ export interface WorkspaceSummary {
 	error: string | null;
 	startedAt: number | null;
 	completedAt: number | null;
+	// Context / pulse fields (optional — backend may enrich workspace detail)
+	contextUsed?: number;
+	contextLimit?: number;
+	updatedAt?: number;
+	// Git metadata (optional)
+	gitBranch?: string;
+	gitDirty?: boolean;
+	gitCommits?: string[];
 }
 
 /** Workspace detail with owned files */
@@ -132,6 +140,12 @@ export interface ExecutionStats {
 	complete: number;
 	blocked: number;
 	failed: number;
+	// Telemetry fields (optional — backend may not have data yet)
+	total_tokens_in?: number;
+	total_tokens_out?: number;
+	cache_hit_rate?: number;
+	estimated_cost_usd?: number;
+	burn_rate_per_min?: number;
 }
 
 /** Paginated journal response */

@@ -12,6 +12,8 @@ import { useLogStream } from "./hooks/useLogStream";
 import { useProjects } from "./hooks/useProjects";
 import { usePlanExecutions, usePlanExecutionDetail } from "./hooks/usePlanExecutions";
 import { usePlanEvents } from "./hooks/usePlanEvents";
+import { usePlanStats } from "./hooks/usePlanExecutions";
+import { useSettings } from "./hooks/useSettings";
 import { Header } from "./components/Header";
 import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
@@ -25,6 +27,8 @@ import { OpenProjectDialog } from "./components/OpenProjectDialog";
 import { PlanUploadDialog } from "./components/PlanUploadDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
+import { formatTokens, formatCost, formatPercent } from "./utils/format";
+import { WarningBanner } from "./components/WarningBanner";
 
 const API_BASE = "";
 
@@ -91,6 +95,11 @@ export function App() {
 		selectedProjectId,
 		selectedPlanExecId,
 	);
+	const { data: planStats } = usePlanStats(
+		selectedProjectId,
+		selectedPlanExecId,
+	);
+	const { budgets: contextBudgets } = useSettings();
 	const { events: planEvents } = usePlanEvents({
 		projectId: selectedProjectId,
 		planExecId: selectedPlanExecId,
@@ -158,6 +167,9 @@ export function App() {
 
 	const selectedWorker = workers.find(
 		(w: WorkerInfo) => w.id === selectedWorkerId,
+	);
+	const selectedWorkspace = activeWorkspaces.find(
+		(w) => w.id === selectedWorkerId,
 	);
 	const logWorkspaceId = selectedWorkerId;
 	const logAttempt = selectedWorker?.attempt ?? null;
@@ -329,6 +341,17 @@ export function App() {
 						</div>
 					)}
 
+					{/* Warning banner */}
+					{!isLegacyMode && (
+						<WarningBanner
+							executionDetail={executionDetail}
+							workers={activeWorkspaces}
+							events={activeEvents}
+							burnRatePerMin={planStats?.burn_rate_per_min}
+							contextBudgets={contextBudgets}
+						/>
+					)}
+
 					{/* Execution info for new mode */}
 					{!isLegacyMode && executionDetail && (
 						<div className="flex gap-4 px-4 pb-4 bg-gray-900">
@@ -372,6 +395,20 @@ export function App() {
 									))}
 								</div>
 							</div>
+
+							{/* Telemetry panel */}
+							<div className="bg-gray-800 border border-gray-700 rounded-lg p-4 w-56">
+								<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
+									Telemetry
+								</h2>
+								<div className="space-y-2">
+									<TelRow label="Tokens In" value={formatTokens(planStats?.total_tokens_in)} />
+									<TelRow label="Tokens Out" value={formatTokens(planStats?.total_tokens_out)} />
+									<TelRow label="Cache Hit" value={formatPercent(planStats?.cache_hit_rate)} />
+									<TelRow label="Est. Cost" value={formatCost(planStats?.estimated_cost_usd)} />
+									<TelRow label="Burn Rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/min` : "\u2014"} />
+								</div>
+							</div>
 						</div>
 					)}
 
@@ -397,7 +434,11 @@ export function App() {
 
 					{selectedWorker ? (
 						<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-							<WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} />
+							<WorkerDetail
+								worker={selectedWorker}
+								planExecId={selectedPlanExecId}
+								workspace={selectedWorkspace}
+							/>
 							<LogViewer
 								lines={lines}
 								activeStream={activeLogStream}
@@ -497,4 +538,13 @@ function queueItems(queue: {
 		{ label: "Complete", value: queue.complete, color: "text-blue-400" },
 		{ label: "Failed", value: queue.failed, color: "text-red-400" },
 	];
+}
+
+function TelRow({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="flex justify-between text-xs">
+			<span className="text-gray-400">{label}</span>
+			<span className="text-gray-200 font-medium">{value}</span>
+		</div>
+	);
 }
