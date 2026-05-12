@@ -1480,6 +1480,160 @@ fastify.post<{
 });
 
 // ---------------------------------------------------------------------------
+// Chat / Ad-hoc Workspace Endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/chat - Send a chat message to the LLM and stream the response
+ *
+ * Accepts a message and uses the project's default provider/model to
+ * generate a streaming response. The response may include structured
+ * commands to create and execute workspaces.
+ *
+ * Body: { projectId, message, history? }
+ * Response: SSE stream of text/tool_call events
+ */
+fastify.post<{
+	Body: {
+		projectId: string;
+		message: string;
+		history?: Array<{ role: "user" | "assistant"; content: string }>;
+	};
+}>("/api/chat", async (request, reply) => {
+	const { projectId, message, history = [] } = request.body;
+
+	if (!projectId || !message) {
+		return reply.code(400).send({ error: "projectId and message are required" });
+	}
+
+	reply.raw.writeHead(200, {
+		"Content-Type": "text/event-stream",
+		"Cache-Control": "no-cache",
+		Connection: "keep-alive",
+		"X-Accel-Buffering": "no",
+	});
+
+	try {
+		// Get project info for context
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			reply.raw.write(`data: ${JSON.stringify({ type: "error", message: "Project not found" })}\n\n`);
+			reply.raw.end();
+			return;
+		}
+
+		// Get the default provider and model from settings
+		const settingsManager = getSettingsManager();
+		const settings = settingsManager.getMergedSettings();
+		const defaultProvider = (settings as any).defaultProvider ?? "opencode-go";
+		const defaultModel = (settings as any).defaultModel ?? "deepseek-v4-flash";
+
+		// Build context with project info
+		// Get recent git info for context
+		let gitContext = "";
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+				cwd: workspaceRoot,
+				encoding: "utf-8",
+				timeout: 2000,
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+			const status = execSync("git status --short", {
+				cwd: workspaceRoot,
+				encoding: "utf-8",
+				timeout: 2000,
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+			gitContext = `Current branch: ${branch}\nGit status:\n${status || "(clean)"}`;
+		} catch {
+			gitContext = "Git not available";
+		}
+
+		// Get recent execution context
+		const recentExecutions = await stateStore.listPlanExecutions(projectId);
+		const lastExec = recentExecutions[recentExecutions.length - 1];
+		let execContext = "";
+		if (lastExec) {
+			execContext = `Last execution: ${lastExec.title} (${lastExec.status}) at ${lastExec.startedAt}`;
+		}
+
+		const systemPrompt = `You are Pi, an AI coding assistant integrated into a plan execution dashboard.
+You help users understand and fix issues with their plan executions.
+
+Current project: ${project.name}
+Project root: ${project.rootPath || "unknown"}
+${gitContext}
+${execContext}
+
+You can:
+1. Answer questions about the project, git state, and execution results
+2. Suggest fixes for failed workspaces
+3. If the user asks you to make changes, describe what workspaces would be needed
+
+Keep responses concise and technical.`;
+
+		// Build message array
+		// Stream the AI response
+		const { stream } = await import("@earendil-works/pi-ai");
+
+		const model = {
+			api: defaultProvider as any,
+			id: defaultModel,
+			name: defaultModel,
+			provider: defaultProvider,
+			contextWindow: 128000,
+		} as const;
+
+		// Build chat-style context with history
+		const chatMessages = [
+			...history.map((h) => ({ role: h.role as any, content: h.content })),
+			{ role: "user" as const, content: message },
+		];
+
+		const context = {
+			systemPrompt,
+			messages: chatMessages,
+		};
+
+		let _responseText = "";
+
+		try {
+			const eventStream = stream(model as any, context as any);
+
+			for await (const event of eventStream) {
+				if (request.raw.destroyed) break;
+
+				if (event.type === "text_delta") {
+					_responseText += event.delta;
+					reply.raw.write(`data: ${JSON.stringify({ type: "text", text: event.delta })}\n\n`);
+				} else if (event.type === "toolcall_end") {
+					reply.raw.write(`data: ${JSON.stringify({ type: "tool_call", tool: event.toolCall })}\n\n`);
+				} else if (event.type === "error") {
+					const errMsg = (event as any).error?.message || (event as any).error || "Unknown error";
+					reply.raw.write(`data: ${JSON.stringify({ type: "error", message: String(errMsg) })}\n\n`);
+				}
+			}
+		} catch (streamError) {
+			fastify.log.error({ streamError }, "Chat stream error");
+			reply.raw.write(
+				`data: ${JSON.stringify({ type: "error", message: `Stream error: ${String(streamError)}` })}\n\n`,
+			);
+		}
+
+		// Signal completion
+		reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+		reply.raw.end();
+	} catch (error) {
+		fastify.log.error({ error }, "Chat error");
+		reply.raw.write(`data: ${JSON.stringify({ type: "error", message: String(error) })}\n\n`);
+		reply.raw.end();
+	}
+});
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 
