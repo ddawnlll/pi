@@ -243,8 +243,6 @@ export function App() {
           <LabeledBtn icon={Play} label="Resume" onClick={() => handleControl("resume")} accent />
           <LabeledBtn icon={Pause} label="Pause" onClick={() => handleControl("pause")} />
           <LabeledBtn icon={Square} label="Stop" onClick={() => handleControl("stop")} danger />
-          <div className={`w-px h-5 ${BORD} mx-1 hidden sm:block`} />
-          <IconBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} variant={showChat ? "accent" : "ghost"} />
           <IconBtn icon={Settings} label="Settings" onClick={() => setShowSettingsDialog(true)} variant="ghost" />
         </div>
         <button className={`hidden md:flex items-center justify-center h-8 w-8 rounded-lg ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
@@ -323,6 +321,7 @@ export function App() {
             <div className={`w-px h-5 ${BORD} mx-0.5`} />
             <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
             <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
+            <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
