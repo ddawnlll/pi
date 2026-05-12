@@ -1207,12 +1207,6 @@ fastify.get<{
 	const { planExecId } = request.params;
 
 	try {
-		const execution = getActiveExecution(planExecId);
-		if (!execution) {
-			return reply.code(404).send({ error: "Execution not found" });
-		}
-
-		// Get state store to load persisted log
 		const stateStore = getStateStore();
 		const content = await stateStore.loadExecutionLog(planExecId);
 
