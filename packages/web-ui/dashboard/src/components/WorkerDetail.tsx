@@ -130,7 +130,9 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
 function TokensTab({ workspace }: { workspace?: WorkspaceSummary }) {
   const ctxUsed = workspace?.contextUsed;
   const ctxLimit = workspace?.contextLimit;
-  if (ctxUsed === undefined || ctxLimit === undefined || ctxLimit === 0) return null;
+  if (ctxUsed === undefined || ctxLimit === undefined || ctxLimit === 0) {
+    return <div className="pt-3 text-xs text-stone-400 dark:text-stone-500">No token data available</div>;
+  }
   const pct = Math.round((ctxUsed / ctxLimit) * 100);
   const bar = pct > 80 ? "bg-red-500" : pct > 60 ? "bg-amber-500" : "bg-emerald-500";
   return (

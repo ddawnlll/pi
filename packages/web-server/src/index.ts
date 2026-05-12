@@ -21,6 +21,7 @@
  *   GET    /api/projects/:projectId/active          Get active execution info
  */
 
+import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import { readFile, watch, writeFile } from "node:fs/promises";
@@ -38,6 +39,82 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { getActiveExecution, getActiveExecutions, resumeStrandedExecutions, runPlan } from "./plan-runner.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
+
+// ── helpers for enriching workspace data ────────────────────────────────────
+
+const DEFAULT_CONTEXT_LIMIT = 128_000;
+
+/**
+ * Parse a workspace execution log to extract token usage and metadata.
+ */
+function parseWorkspaceLog(logContent: string): {
+	promptLength?: number;
+	messages?: number;
+	provider?: string;
+	model?: string;
+} {
+	const result: { promptLength?: number; messages?: number; provider?: string; model?: string } = {};
+	for (const line of logContent.split("\n")) {
+		const promptMatch = line.match(/Prompt length: (\d+) characters/);
+		if (promptMatch) result.promptLength = Number(promptMatch[1]);
+		const msgMatch = line.match(/Total messages in session: (\d+)/);
+		if (msgMatch) result.messages = Number(msgMatch[1]);
+		const provMatch = line.match(/Provider: (.+)/);
+		if (provMatch) result.provider = provMatch[1].trim();
+		const modelMatch = line.match(/Model: (.+)/);
+		if (modelMatch) result.model = modelMatch[1].trim();
+	}
+	return result;
+}
+
+/**
+ * Estimate context used based on prompt length.
+ * Uses the chars/4 heuristic from token-metering.ts.
+ */
+function estimateContextUsed(logContent: string): number {
+	const parsed = parseWorkspaceLog(logContent);
+	if (parsed.promptLength) {
+		return Math.ceil(parsed.promptLength / 4);
+	}
+	// Fallback: total log characters / 4
+	return Math.ceil(logContent.length / 4);
+}
+
+/**
+ * Get git info for a workspace by checking its working directory.
+ */
+function getGitInfo(workspaceRoot: string): { branch?: string; dirty?: boolean; recentCommits?: string[] } {
+	try {
+		const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const status = execSync("git status --porcelain", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const dirty = status.length > 0;
+
+		const logOutput = execSync("git log --oneline -5", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const recentCommits = logOutput ? logOutput.split("\n") : [];
+
+		return { branch, dirty, recentCommits };
+	} catch {
+		return {};
+	}
+}
 
 const fastify = Fastify({
 	logger: true,
@@ -426,6 +503,8 @@ fastify.get<{
 			return reply.code(404).send({ error: "Plan execution not found" });
 		}
 
+		const piDir = getPiDir();
+		const workspaceRoot = getWorkspaceRoot();
 		const workspacesArr: Array<{
 			id: string;
 			stage: string;
@@ -433,9 +512,34 @@ fastify.get<{
 			error: string | null;
 			startedAt: number | null;
 			completedAt: number | null;
+			contextUsed?: number;
+			contextLimit?: number;
+			gitBranch?: string;
+			gitDirty?: boolean;
+			gitCommits?: string[];
 		}> = [];
 
 		for (const [id, ws] of state.workspaces) {
+			// Load workspace execution log for token/git enrichment
+			let contextUsed: number | undefined;
+			try {
+				for (let a = ws.attempts; a >= 1; a--) {
+					const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
+					if (existsSync(logFile)) {
+						const content = await readFile(logFile, "utf-8");
+						contextUsed = estimateContextUsed(content);
+						break;
+					}
+				}
+			} catch {
+				// Log not available
+			}
+
+			const _gi = getGitInfo(workspaceRoot);
+			const gitBranch = _gi.branch;
+			const gitDirty = _gi.dirty;
+			const gitCommits = _gi.recentCommits;
+
 			workspacesArr.push({
 				id,
 				stage: ws.stage,
@@ -443,6 +547,11 @@ fastify.get<{
 				error: (ws as any).error ?? null,
 				startedAt: (ws as any).startedAt ?? null,
 				completedAt: (ws as any).completedAt ?? null,
+				contextUsed,
+				contextLimit: DEFAULT_CONTEXT_LIMIT,
+				gitBranch,
+				gitDirty,
+				gitCommits,
 			});
 		}
 
@@ -634,6 +743,8 @@ fastify.get<{
 			return reply.code(404).send({ error: "Plan execution not found" });
 		}
 
+		const piDir = getPiDir();
+		const workspaceRoot = getWorkspaceRoot();
 		const workspacesArr: Array<{
 			id: string;
 			stage: string;
@@ -642,9 +753,34 @@ fastify.get<{
 			startedAt: number | null;
 			completedAt: number | null;
 			ownedFiles: string[];
+			contextUsed?: number;
+			contextLimit?: number;
+			gitBranch?: string;
+			gitDirty?: boolean;
+			gitCommits?: string[];
 		}> = [];
 
 		for (const [id, ws] of state.workspaces) {
+			let contextUsed: number | undefined;
+
+			try {
+				for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
+					const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
+					if (existsSync(logFile)) {
+						const content = await readFile(logFile, "utf-8");
+						contextUsed = estimateContextUsed(content);
+						break;
+					}
+				}
+			} catch {
+				// Log not available
+			}
+
+			const _gi = getGitInfo(workspaceRoot);
+			const gitBranch = _gi.branch;
+			const gitDirty = _gi.dirty;
+			const gitCommits = _gi.recentCommits;
+
 			workspacesArr.push({
 				id,
 				stage: ws.stage,
@@ -653,6 +789,11 @@ fastify.get<{
 				startedAt: (ws as any).startedAt ?? null,
 				completedAt: (ws as any).completedAt ?? null,
 				ownedFiles: (ws as any).ownedFiles ?? [],
+				contextUsed,
+				contextLimit: DEFAULT_CONTEXT_LIMIT,
+				gitBranch,
+				gitDirty,
+				gitCommits,
 			});
 		}
 
@@ -679,7 +820,26 @@ fastify.get<{
 			return reply.code(404).send({ error: "Workspace not found" });
 		}
 
-		return ws;
+		// Enrich with context + git data
+		let contextUsed: number | undefined;
+		const piDir = getPiDir();
+		for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
+			const logFile = join(piDir, "workspaces", workspaceId, `execution-${a}.log`);
+			if (existsSync(logFile)) {
+				const content = await readFile(logFile, "utf-8");
+				contextUsed = estimateContextUsed(content);
+				break;
+			}
+		}
+		const gitInfo = getGitInfo(getWorkspaceRoot());
+		return {
+			...ws,
+			contextUsed,
+			contextLimit: DEFAULT_CONTEXT_LIMIT,
+			gitBranch: gitInfo.branch,
+			gitDirty: gitInfo.dirty,
+			gitCommits: gitInfo.recentCommits,
+		};
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to get workspace");
 		return reply.code(500).send({ error: "Failed to get workspace", message: String(error) });
