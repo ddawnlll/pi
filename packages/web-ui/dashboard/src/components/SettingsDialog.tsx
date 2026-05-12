@@ -71,11 +71,8 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const [enableSkillCommands, setEnableSkillCommands] = useState(true);
 
 	// Load settings into form state + snapshot originals
-	useEffect(() => {
-		if (!isOpen) return;
-		refetch();
-	}, [isOpen, refetch]);
-
+	// Note: no auto-refetch on open — TanStack Query keeps settings fresh
+	// via staleTime. The second effect handles populating the form.
 	useEffect(() => {
 		// Skip updating form state if we just saved (prevents refetch from overwriting)
 		if (justSaved) {

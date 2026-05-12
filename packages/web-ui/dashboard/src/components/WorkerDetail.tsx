@@ -31,7 +31,7 @@ const TABS: { id: TabId; label: string }[] = [
  */
 export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProps) {
 	const [activeTab, setActiveTab] = useState<TabId>("overview");
-	const { lines, isConnected, error: logError } = useWorkspaceLogStream(planExecId, worker.id);
+	const { lines, isConnected, isReconnecting, error: logError } = useWorkspaceLogStream(planExecId, worker.id);
 	const logContainerRef = useRef<HTMLDivElement>(null);
 
 	// Auto-scroll to bottom when new logs arrive
@@ -42,7 +42,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 	}, [lines]);
 
 	return (
-		<div className="border-b border-gray-700 p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+		<div className="border-b border-gray-700 p-4 flex flex-col flex-1 min-h-0">
 			{/* Header with activity dot + title */}
 			<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-2 shrink-0 flex items-center gap-2">
 				<ActivityDot state={stageToPulseState(worker.stage)} />
@@ -74,7 +74,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: -4 }}
 					transition={{ duration: 0.15 }}
-					className="flex-1 flex flex-col min-h-0 overflow-hidden"
+					className="flex-1 flex flex-col min-h-0"
 				>
 					{activeTab === "overview" && (
 						<OverviewTab
@@ -82,6 +82,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 							workspace={workspace}
 							lines={lines}
 							isConnected={isConnected}
+							isReconnecting={isReconnecting}
 							logError={logError}
 							logContainerRef={logContainerRef}
 						/>
@@ -110,6 +111,7 @@ interface OverviewTabProps {
 	workspace?: WorkspaceSummary;
 	lines: string[];
 	isConnected: boolean;
+	isReconnecting: boolean;
 	logError: string | null;
 	logContainerRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -119,6 +121,7 @@ function OverviewTab({
 	workspace,
 	lines,
 	isConnected,
+	isReconnecting,
 	logError,
 	logContainerRef,
 }: OverviewTabProps) {
@@ -139,7 +142,7 @@ function OverviewTab({
 	}
 
 	return (
-		<div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+		<div className="flex flex-col flex-1 min-h-0">
 			{/* Metadata */}
 			<div className="text-xs space-y-1 text-gray-400 mb-3 shrink-0">
 				<DetailRow label="ID" value={worker.id} />
@@ -196,10 +199,19 @@ function OverviewTab({
 								Connected
 							</span>
 						)}
-						{!isConnected && !logError && (
+						{isReconnecting && (
+							<span className="text-xs text-amber-400 flex items-center gap-1">
+								<span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+								Reconnecting...
+							</span>
+						)}
+						{!isConnected && !isReconnecting && !logError && lines.length > 0 && (
+							<span className="text-xs text-gray-500">Disconnected</span>
+						)}
+						{!isConnected && !isReconnecting && !logError && lines.length === 0 && (
 							<span className="text-xs text-yellow-400">Connecting...</span>
 						)}
-						{logError && (
+						{logError && !isReconnecting && (
 							<span className="text-xs text-red-400">{logError}</span>
 						)}
 					</div>

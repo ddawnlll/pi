@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API_BASE = "";
 
@@ -8,11 +8,18 @@ interface LogMessage {
 	message?: string;
 }
 
+const MAX_RECONNECT_DELAY_MS = 30_000;
+const INITIAL_RECONNECT_DELAY_MS = 1_000;
+
 /**
  * WebSocket-based log streaming hook for workspace logs.
  *
- * Connects to ws://localhost:3000/api/ws/logs/:planExecId/:workspaceId
+ * Connects to ws://<host>/api/ws/logs/:planExecId/:workspaceId
  * and receives real-time log updates.
+ *
+ * Auto-reconnects with exponential backoff when the connection
+ * drops unexpectedly. Lines accumulated so far are preserved
+ * across reconnections.
  */
 export function useWorkspaceLogStream(
 	planExecId: string | null,
@@ -20,18 +27,39 @@ export function useWorkspaceLogStream(
 ) {
 	const [lines, setLines] = useState<string[]>([]);
 	const [isConnected, setIsConnected] = useState(false);
+	const [isReconnecting, setIsReconnecting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const socketRef = useRef<WebSocket | null>(null);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY_MS);
+	// Track which workspace we're connected to so reconnects preserve lines
+	const connectedWsRef = useRef<string | null>(null);
 
-	useEffect(() => {
+	const connect = useCallback(() => {
 		if (!planExecId || !workspaceId) {
 			return;
 		}
 
-		// Clear lines and error when switching to a new workspace
-		setLines([]);
-		setError(null);
-		setIsConnected(false);
+		// Close any existing socket before creating a new one
+		const existing = socketRef.current;
+		if (existing) {
+			socketRef.current = null;
+			// Only close if it was open, to avoid "closed before connection established" noise
+			if (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING) {
+				try {
+					existing.close();
+				} catch {
+					// Ignore close errors on stale sockets
+				}
+			}
+		}
+
+		// Only clear lines on first connect to a NEW workspace (not on reconnect)
+		if (connectedWsRef.current !== workspaceId) {
+			setLines([]);
+			setError(null);
+			connectedWsRef.current = workspaceId;
+		}
 
 		// Convert http/https to ws/wss
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -41,13 +69,16 @@ export function useWorkspaceLogStream(
 		let socket: WebSocket | null = null;
 
 		try {
-			socket = new WebSocket(wsUrl);
+				socket = new WebSocket(wsUrl);
 			socketRef.current = socket;
 
 			socket.onopen = () => {
 				if (socketRef.current !== socket) return;
 				setIsConnected(true);
+				setIsReconnecting(false);
 				setError(null);
+				// Reset backoff on successful connect
+				reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
 			};
 
 			socket.onmessage = (event) => {
@@ -67,41 +98,89 @@ export function useWorkspaceLogStream(
 				}
 			};
 
-			socket.onerror = (event) => {
-				console.error("WebSocket error:", event);
+			socket.onerror = () => {
 				if (socketRef.current !== socket) return;
-				setError("Connection error");
 				setIsConnected(false);
+				// Don't set error here — onclose will fire with more detail
 			};
 
 			socket.onclose = (event) => {
 				if (socketRef.current !== socket) return;
-				// Log diagnostics: close code, reason, wasClean
 				console.debug(
 					`WebSocket closed: code=${event.code} reason="${event.reason}" wasClean=${event.wasClean} planExecId=${planExecId} workspaceId=${workspaceId}`,
 				);
 				setIsConnected(false);
-				// Only surface an error if the close was unexpected (not a normal cleanup)
-				if (event.code !== 1000 && event.code !== 1001) {
-					setError(`Connection closed (code: ${event.code})`);
+				setIsReconnecting(false);
+
+				// Normal close (cleanup initiated by us) — do not reconnect
+				if (event.code === 1000 || event.code === 1001) {
+					return;
 				}
+
+				// Unexpected close — surface error and schedule reconnect
+				const msg =
+					event.code === 1006
+						? "Connection lost"
+						: `Connection closed (code: ${event.code})`;
+				setError(msg);
+
+				// Schedule reconnect with exponential backoff
+				setIsReconnecting(true);
+				reconnectTimerRef.current = setTimeout(() => {
+					reconnectTimerRef.current = null;
+					reconnectDelayRef.current = Math.min(
+						reconnectDelayRef.current * 2,
+						MAX_RECONNECT_DELAY_MS,
+					);
+					connect();
+				}, reconnectDelayRef.current);
 			};
 		} catch (err) {
 			console.error("Failed to create WebSocket:", err);
 			setError("Failed to connect");
-		}
 
-		return () => {
-			// Null out the ref so no callbacks from this socket fire after cleanup
-			if (socketRef.current === socket) {
-				socketRef.current = null;
-			}
-			// Close the socket (this will fire onclose, but our ref check prevents state updates)
-			if (socket && socket.readyState !== WebSocket.CLOSED) {
-				socket.close();
-			}
-		};
+			// Schedule reconnect for construction failure too
+			setIsReconnecting(true);
+			reconnectTimerRef.current = setTimeout(() => {
+				reconnectTimerRef.current = null;
+				reconnectDelayRef.current = Math.min(
+					reconnectDelayRef.current * 2,
+					MAX_RECONNECT_DELAY_MS,
+				);
+				connect();
+			}, reconnectDelayRef.current);
+		}
 	}, [planExecId, workspaceId]);
 
-	return { lines, isConnected, error };
+	useEffect(() => {
+		// Reset reconnect state when switching workspaces
+		reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
+		connectedWsRef.current = null;
+
+		// Clear any pending reconnect
+		if (reconnectTimerRef.current) {
+			clearTimeout(reconnectTimerRef.current);
+			reconnectTimerRef.current = null;
+		}
+
+		connect();
+
+		return () => {
+			// Prevent reconnect after unmount
+			if (reconnectTimerRef.current) {
+				clearTimeout(reconnectTimerRef.current);
+				reconnectTimerRef.current = null;
+			}
+			// Null out ref so no stale callbacks fire
+			const current = socketRef.current;
+			socketRef.current = null;
+			// Only close fully-open sockets during cleanup to avoid
+			// "WebSocket is closed before the connection is established" warnings.
+			if (current && current.readyState === WebSocket.OPEN) {
+				current.close(1000, "Component unmount");
+			}
+		};
+	}, [connect]);
+
+	return { lines, isConnected, isReconnecting, error };
 }

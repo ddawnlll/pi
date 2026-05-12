@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { LogStream, WorkerInfo } from "./types";
+import type { WorkerInfo } from "./types";
 import type {
 	PlanExecutionDetail,
 	PlanExecution,
@@ -8,7 +8,6 @@ import type {
 } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
 import { useJournalStream } from "./hooks/useJournalStream";
-import { useLogStream } from "./hooks/useLogStream";
 import { useProjects } from "./hooks/useProjects";
 import { usePlanExecutions, usePlanExecutionDetail } from "./hooks/usePlanExecutions";
 import { usePlanEvents } from "./hooks/usePlanEvents";
@@ -19,7 +18,6 @@ import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
 import { WorkerList } from "./components/WorkerList";
 import { WorkerDetail } from "./components/WorkerDetail";
-import { LogViewer } from "./components/LogViewer";
 import { EventFeed } from "./components/EventFeed";
 import { ProjectList } from "./components/ProjectList";
 import { PlanHistory } from "./components/PlanHistory";
@@ -159,7 +157,6 @@ export function App() {
 	// Worker selection & log stream
 	// ---------------------------------------------------------------------------
 	const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
-	const [activeLogStream, setActiveLogStream] = useState<LogStream>("stdout");
 	const [eventFilter, setEventFilter] = useState<"all" | "errors">("all");
 	const [errorBanner, setErrorBanner] = useState<string | null>(null);
 	const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,11 +168,7 @@ export function App() {
 	const selectedWorkspace = activeWorkspaces.find(
 		(w) => w.id === selectedWorkerId,
 	);
-	const logWorkspaceId = selectedWorkerId;
-	const logAttempt = selectedWorker?.attempt ?? null;
-	const logStream = selectedWorkerId ? activeLogStream : null;
 
-	const { lines } = useLogStream(logWorkspaceId, logAttempt, logStream);
 
 	const showError = useCallback((message: string) => {
 		setErrorBanner(message);
@@ -203,10 +196,6 @@ export function App() {
 
 	const handleSelectWorker = useCallback((workerId: string) => {
 		setSelectedWorkerId(workerId);
-	}, []);
-
-	const handleSwitchStream = useCallback((stream: LogStream) => {
-		setActiveLogStream(stream);
 	}, []);
 
 	const handleFilterChange = useCallback((filter: "all" | "errors") => {
@@ -438,12 +427,6 @@ export function App() {
 								worker={selectedWorker}
 								planExecId={selectedPlanExecId}
 								workspace={selectedWorkspace}
-							/>
-							<LogViewer
-								lines={lines}
-								activeStream={activeLogStream}
-								onSwitchStream={handleSwitchStream}
-								selectedWorkerId={selectedWorkerId}
 							/>
 						</div>
 					) : (

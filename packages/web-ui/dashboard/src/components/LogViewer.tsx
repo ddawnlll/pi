@@ -3,6 +3,8 @@ import type { LogStream } from "../types";
 
 interface LogViewerProps {
 	lines: string[];
+	isConnected: boolean;
+	hasData?: boolean;
 	activeStream: LogStream;
 	onSwitchStream: (stream: LogStream) => void;
 	selectedWorkerId: string | null;
@@ -17,6 +19,8 @@ const LOG_STREAMS: LogStream[] = ["stdout", "stderr", "error"];
  */
 export function LogViewer({
 	lines,
+	isConnected,
+	hasData,
 	activeStream,
 	onSwitchStream,
 	selectedWorkerId,
@@ -75,7 +79,11 @@ export function LogViewer({
 				onScroll={handleScroll}
 				className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-black text-green-400 p-3 rounded font-mono text-xs leading-relaxed"
 			>
-				{lines.length === 0 ? (
+				{lines.length === 0 && !isConnected && hasData !== false ? (
+					<div className="text-gray-500">Connecting...</div>
+				) : lines.length === 0 && hasData === false ? (
+					<div className="text-gray-500">No logs available</div>
+				) : lines.length === 0 ? (
 					<div className="text-gray-500">No logs yet...</div>
 				) : (
 					lines.map((line, i) => (

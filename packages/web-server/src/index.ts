@@ -196,11 +196,16 @@ fastify.get("/api/events", async (request, reply) => {
 
 /**
  * GET /api/logs/:workspaceId/:attempt/:stream - SSE stream of worker logs (legacy)
+ *
+ * First tries the legacy file path (workspaces/:workspaceId/attempts/:attempt/:stream.log).
+ * Falls back to the state store if a `planExecId` query param is provided.
  */
 fastify.get<{
 	Params: { workspaceId: string; attempt: string; stream: string };
+	Querystring: { planExecId?: string };
 }>("/api/logs/:workspaceId/:attempt/:stream", async (request, reply) => {
 	const { workspaceId, attempt, stream } = request.params;
+	const { planExecId } = request.query;
 	const logFile = join(getPiDir(), "workspaces", workspaceId, "attempts", attempt, `${stream}.log`);
 
 	reply.raw.writeHead(200, {
@@ -209,46 +214,71 @@ fastify.get<{
 		Connection: "keep-alive",
 	});
 
-	// Send existing log content
+	let hasLogs = false;
+
+	// 1. Try legacy file path
 	if (existsSync(logFile)) {
 		try {
 			const content = await readFile(logFile, "utf-8");
 			const lines = content.split("\n").filter(Boolean);
-
 			for (const line of lines) {
 				reply.raw.write(`data: ${line}\n\n`);
 			}
-		} catch (_error) {
+			if (lines.length > 0) hasLogs = true;
+		} catch {
 			// Ignore read errors
 		}
 	}
 
-	// Watch for new log lines
-	const abortController = new AbortController();
+	// 2. Fallback: state store (new execution path)
+	if (!hasLogs && planExecId) {
+		try {
+			const stateStore = getStateStore();
+			if (typeof (stateStore as any).loadWorkspaceLog === "function") {
+				const content = (await (stateStore as any).loadWorkspaceLog(planExecId, workspaceId)) as string | null;
+				if (content) {
+					const lines = content.split("\n").filter(Boolean);
+					for (const line of lines) {
+						reply.raw.write(`data: ${line}\n\n`);
+					}
+					if (lines.length > 0) hasLogs = true;
+				}
+			}
+		} catch {
+			// Ignore fallback errors
+		}
+	}
 
-	request.raw.on("close", () => {
-		abortController.abort();
-	});
+	// If no logs were found and no file to watch, close the response immediately.
+	// This lets the EventSource detect the end and fire onopen/onerror gracefully.
+	if (!hasLogs) {
+		// Signal the end of stream — no logs available
+		reply.raw.write(`data: __NO_LOGS__\n\n`);
+		reply.raw.end();
+		return;
+	}
+
+	// Watch for new log lines on the legacy file (live updates)
+	const abortController = new AbortController();
+	request.raw.on("close", () => abortController.abort());
 
 	try {
 		const watcher = watch(logFile, { signal: abortController.signal });
-
 		for await (const event of watcher) {
 			if (event.eventType === "change") {
 				try {
 					const content = await readFile(logFile, "utf-8");
 					const lines = content.split("\n").filter(Boolean);
 					const lastLine = lines[lines.length - 1];
-
 					if (lastLine) {
 						reply.raw.write(`data: ${lastLine}\n\n`);
 					}
-				} catch (_error) {
+				} catch {
 					// Ignore read errors
 				}
 			}
 		}
-	} catch (_error) {
+	} catch {
 		// Watcher aborted or file doesn't exist
 	}
 });
@@ -739,6 +769,26 @@ fastify.get<{
 				}
 			}
 
+			// 3. Fallback: read from workspace execution log file
+			if (recentLogs.length === 0) {
+				try {
+					// Try attempt 1, then 2, etc.
+					for (let a = 1; a <= 10; a++) {
+						const wsLogFile = join(getPiDir(), "workspaces", workspaceId, `execution-${a}.log`);
+						if (existsSync(wsLogFile)) {
+							const content = await readFile(wsLogFile, "utf-8");
+							const lines = content.split("\n").filter(Boolean);
+							if (lines.length > 0) {
+								recentLogs = lines.slice(-100);
+								break;
+							}
+						}
+					}
+				} catch {
+					// Ignore fallback errors
+				}
+			}
+
 			// Send recent logs
 			for (const line of recentLogs) {
 				socket.send(JSON.stringify({ type: "log", data: line }));
@@ -749,7 +799,11 @@ fastify.get<{
 			socket.send(JSON.stringify({ type: "ready" }));
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to send initial logs");
-			socket.send(JSON.stringify({ type: "error", message: "Failed to load logs" }));
+			try {
+				socket.send(JSON.stringify({ type: "error", message: "Failed to load logs" }));
+			} catch {
+				// Socket may already be closed — ignore
+			}
 		}
 	})();
 
@@ -784,6 +838,22 @@ fastify.get<{
 					}
 				}
 
+				// 3. Fallback: read from workspace execution log file
+				try {
+					for (let a = 1; a <= 10; a++) {
+						const wsLogFile = join(getPiDir(), "workspaces", workspaceId, `execution-${a}.log`);
+						if (existsSync(wsLogFile)) {
+							const content = await readFile(wsLogFile, "utf-8");
+							const lines = content.split("\n").filter(Boolean);
+							if (lines.length > 0) {
+								return lines;
+							}
+						}
+					}
+				} catch {
+					// Ignore fallback errors
+				}
+
 				return [];
 			};
 
@@ -808,6 +878,12 @@ fastify.get<{
 	socket.on("error", (error: Error) => {
 		clearInterval(pollInterval);
 		fastify.log.error({ error, planExecId, workspaceId }, "WebSocket log stream error");
+		// End the socket to propagate a clean close to the client
+		try {
+			socket.close(1011, "Internal error");
+		} catch {
+			// Ignore close errors
+		}
 	});
 });
 

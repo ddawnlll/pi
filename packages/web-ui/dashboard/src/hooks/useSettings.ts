@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 const API_BASE = "";
 
@@ -138,21 +138,33 @@ export function useSettings() {
 		[updateProjectMutation],
 	);
 
+	// Stable refetch reference — avoids triggering effects that depend on it
+	const refetchRef = useRef<() => void>();
+	if (!refetchRef.current) {
+		refetchRef.current = () => {
+			settingsQuery.refetch();
+			budgetsQuery.refetch();
+			modelsQuery.refetch();
+		};
+	}
+	const refetch = refetchRef.current;
+
+	// Stable object references to avoid infinite re-render loops
+	const settings = useMemo(() => settingsQuery.data ?? {}, [settingsQuery.data]);
+	const budgets = useMemo(() => budgetsQuery.data ?? null, [budgetsQuery.data]);
+	const aiModels = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
+
 	return {
-		settings: settingsQuery.data ?? {},
-		budgets: budgetsQuery.data ?? null,
-		aiModels: modelsQuery.data ?? [],
+		settings,
+		budgets,
+		aiModels,
 		modelsLoading: modelsQuery.isLoading,
 		isLoading: settingsQuery.isLoading || budgetsQuery.isLoading,
 		isSaving: updateMutation.isPending || updateProjectMutation.isPending,
 		error: settingsQuery.error || budgetsQuery.error,
 		updateSettings,
 		updateProject,
-		refetch: () => {
-			settingsQuery.refetch();
-			budgetsQuery.refetch();
-			modelsQuery.refetch();
-		},
+		refetch,
 	};
 }
 
