@@ -1026,6 +1026,31 @@ fastify.get<{
 	}
 });
 
+/**
+ * GET /api/logs/:planExecId/:workspaceId/recent - Get recent workspace logs
+ */
+fastify.get<{
+	Params: { planExecId: string; workspaceId: string };
+}>("/api/logs/:planExecId/:workspaceId/recent", async (request, reply) => {
+	const { planExecId, workspaceId } = request.params;
+
+	try {
+		const stateStore = getStateStore();
+
+		// Try to get recent logs from state store
+		if (typeof (stateStore as any).getRecentWorkspaceLogs === "function") {
+			const logs = await (stateStore as any).getRecentWorkspaceLogs(planExecId, workspaceId, 100);
+			return { logs, count: logs.length };
+		}
+
+		// Fallback: return empty if method not available
+		return { logs: [], count: 0 };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get workspace logs");
+		return reply.code(500).send({ error: "Failed to get workspace logs", message: String(error) });
+	}
+});
+
 // ---------------------------------------------------------------------------
 // Settings Endpoints
 // ---------------------------------------------------------------------------

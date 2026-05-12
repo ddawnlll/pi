@@ -32,6 +32,7 @@ export {
 	PlanExecutionRepository,
 	ProjectRepository,
 	WorkspaceExecutionRepository,
+	WorkspaceLogRepository,
 } from "./repositories/index.js";
 
 // Types

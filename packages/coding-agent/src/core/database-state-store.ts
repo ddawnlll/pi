@@ -15,6 +15,7 @@ import {
 	PlanExecutionRepository,
 	ProjectRepository,
 	WorkspaceExecutionRepository,
+	WorkspaceLogRepository,
 } from "@earendil-works/pi-db";
 import type { Kysely } from "kysely";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
@@ -93,7 +94,12 @@ export class DatabaseStateStore implements IStateStore {
 	private planExecutionRepo: PlanExecutionRepository;
 	private workspaceExecutionRepo: WorkspaceExecutionRepository;
 	private journalEventRepo: JournalEventRepository;
+	private workspaceLogRepo: WorkspaceLogRepository;
 	private cache: Map<string, PlanCacheEntry> = new Map();
+
+	// In-memory log buffer for recent logs (for WebSocket streaming)
+	private logBuffers: Map<string, string[]> = new Map();
+	private readonly MAX_BUFFER_LINES = 1000;
 
 	constructor(_config?: DatabaseStateStoreConfig) {
 		this.db = getKysely();
@@ -101,6 +107,7 @@ export class DatabaseStateStore implements IStateStore {
 		this.planExecutionRepo = new PlanExecutionRepository(this.db);
 		this.workspaceExecutionRepo = new WorkspaceExecutionRepository(this.db);
 		this.journalEventRepo = new JournalEventRepository(this.db);
+		this.workspaceLogRepo = new WorkspaceLogRepository(this.db);
 	}
 
 	getBackendType(): StateStoreBackend {
@@ -653,5 +660,65 @@ export class DatabaseStateStore implements IStateStore {
 			.executeTakeFirst();
 
 		return (result as any)?.execution_log ?? null;
+	}
+
+	/**
+	 * Append a log line to workspace-specific logs.
+	 */
+	async appendWorkspaceLog(planExecutionId: string, workspaceId: string, logLine: string): Promise<void> {
+		const entry = this.getWsEntry(planExecutionId, workspaceId);
+		const key = `${planExecutionId}:${workspaceId}`;
+
+		// Get or create buffer
+		let buffer = this.logBuffers.get(key);
+		if (!buffer) {
+			buffer = [];
+			this.logBuffers.set(key, buffer);
+		}
+
+		// Add line to buffer
+		buffer.push(logLine);
+
+		// Trim buffer if it exceeds max size
+		if (buffer.length > this.MAX_BUFFER_LINES) {
+			buffer.shift();
+		}
+
+		// Get current line number
+		const lineNumber = await this.workspaceLogRepo.getMaxLineNumber(entry.id);
+
+		// Persist to database
+		await this.workspaceLogRepo.create({
+			workspace_execution_id: entry.id,
+			stream: "stdout",
+			line_number: lineNumber + 1,
+			content: logLine,
+			timestamp: new Date().toISOString(),
+		});
+	}
+
+	/**
+	 * Load workspace-specific log content.
+	 */
+	async loadWorkspaceLog(planExecutionId: string, workspaceId: string): Promise<string | null> {
+		const entry = this.cache.get(planExecutionId)?.workspaces.get(workspaceId);
+		if (!entry) return null;
+
+		const logs = await this.workspaceLogRepo.getByWorkspaceExecution(entry.id);
+		if (logs.length === 0) return null;
+
+		return logs.map((log) => log.content).join("\n");
+	}
+
+	/**
+	 * Get recent workspace logs from in-memory buffer.
+	 */
+	getRecentWorkspaceLogs(planExecutionId: string, workspaceId: string, maxLines = 100): string[] {
+		const key = `${planExecutionId}:${workspaceId}`;
+		const buffer = this.logBuffers.get(key);
+		if (!buffer) {
+			return [];
+		}
+		return buffer.slice(-maxLines);
 	}
 }
