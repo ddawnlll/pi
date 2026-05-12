@@ -22,6 +22,7 @@
  */
 
 import { existsSync } from "node:fs";
+import * as fs from "node:fs/promises";
 import { readFile, watch, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
@@ -37,7 +38,7 @@ import {
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
-import { getActiveExecution, getActiveExecutions, runPlan } from "./plan-runner.js";
+import { getActiveExecution, getActiveExecutions, resumeStrandedExecutions, runPlan } from "./plan-runner.js";
 
 const fastify = Fastify({
 	logger: true,
@@ -317,7 +318,31 @@ fastify.post<{ Body: LegacyControlRequest }>("/api/control", async (request, rep
 		}
 	}
 
-	// Write control file
+	// For cancel on a stopped/paused plan with no active loop, execute immediately
+	if (action === "cancel") {
+		try {
+			const stateStore = getStateStore();
+			const jsonStore = _getJsonStateStore();
+			const planState = jsonStore.getPlanStateStore().getState();
+
+			if (planState && (planState.status === "stopped" || planState.status === "paused")) {
+				// No active loop, execute cancel immediately
+				await stateStore.cancelPlan("current-exec-id");
+				// Clear the control file since we processed it
+				try {
+					await fs.unlink(controlFile);
+				} catch {
+					// Ignore if file doesn't exist
+				}
+				return { success: true, immediate: true };
+			}
+		} catch (error) {
+			// Fall through to write control file
+			fastify.log.warn({ error }, "Failed to execute immediate cancel");
+		}
+	}
+
+	// Write control file for active loop to process
 	try {
 		const controlData = { action, requestedAt, requestedBy };
 		await writeFile(controlFile, JSON.stringify(controlData, null, 2));
@@ -811,6 +836,44 @@ fastify.get<{
 	}
 });
 
+/**
+ * GET /api/executions/:planExecId/log - Get execution log file
+ */
+fastify.get<{
+	Params: { planExecId: string };
+}>("/api/executions/:planExecId/log", async (request, reply) => {
+	const { planExecId } = request.params;
+
+	try {
+		const execution = getActiveExecution(planExecId);
+		if (!execution) {
+			return reply.code(404).send({ error: "Execution not found" });
+		}
+
+		// Get state store to load persisted log
+		const stateStore = getStateStore();
+		const content = await stateStore.loadExecutionLog(planExecId);
+
+		if (content === null) {
+			// Fallback to temp file for backward compatibility
+			const workspaceRoot = getWorkspaceRoot();
+			const logFile = join(workspaceRoot, ".pi", `execution-${planExecId}.log`);
+
+			if (!existsSync(logFile)) {
+				return { content: "", exists: false };
+			}
+
+			const fileContent = await readFile(logFile, "utf-8");
+			return { content: fileContent, exists: true };
+		}
+
+		return { content, exists: true };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get execution log");
+		return reply.code(500).send({ error: "Failed to get execution log", message: String(error) });
+	}
+});
+
 // ---------------------------------------------------------------------------
 // Settings Endpoints
 // ---------------------------------------------------------------------------
@@ -986,6 +1049,15 @@ fastify.get("/api/health", async (_request, _reply) => {
 const start = async () => {
 	try {
 		const port = Number(process.env.PORT) || 3000;
+
+		// Resume stranded executions from a previous server crash
+		const workspaceRoot = getWorkspaceRoot();
+		const projectName = process.env.PI_PROJECT_NAME || "hello";
+		const recovered = await resumeStrandedExecutions(workspaceRoot, projectName, projectName);
+		if (recovered > 0) {
+			console.log(`[server] Recovered ${recovered} stranded plan execution(s)`);
+		}
+
 		await fastify.listen({ port, host: "127.0.0.1" });
 		console.log(`Dashboard server running at http://127.0.0.1:${port}`);
 	} catch (err) {

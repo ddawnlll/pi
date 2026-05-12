@@ -128,6 +128,21 @@ export class JsonStateStore implements IStateStore {
 		};
 	}
 
+	async updateProject(projectId: string, updates: Partial<Pick<ProjectSummary, "name" | "rootPath">>): Promise<void> {
+		const projects = await this.readProjectsFile();
+		const index = projects.findIndex((p) => p.id === projectId);
+		if (index === -1) {
+			throw new Error(`Project not found: ${projectId}`);
+		}
+		if (updates.name !== undefined) {
+			projects[index].name = updates.name;
+		}
+		if (updates.rootPath !== undefined) {
+			projects[index].rootPath = updates.rootPath;
+		}
+		await this.writeProjectsFile(projects);
+	}
+
 	// =========================================================================
 	// Plan Execution
 	// =========================================================================
@@ -354,6 +369,28 @@ export class JsonStateStore implements IStateStore {
 			}
 		}
 		return stats;
+	}
+
+	// =========================================================================
+	// Execution Logs
+	// =========================================================================
+
+	async saveExecutionLog(planExecutionId: string, logContent: string): Promise<void> {
+		const logFilePath = path.join(this.workspaceRoot, this.piDir, `execution-${planExecutionId}.log`);
+		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
+		await fs.writeFile(logFilePath, logContent, "utf-8");
+	}
+
+	async loadExecutionLog(planExecutionId: string): Promise<string | null> {
+		const logFilePath = path.join(this.workspaceRoot, this.piDir, `execution-${planExecutionId}.log`);
+		try {
+			return await fs.readFile(logFilePath, "utf-8");
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				return null;
+			}
+			throw error;
+		}
 	}
 
 	// =========================================================================

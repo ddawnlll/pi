@@ -1,7 +1,25 @@
 // State store interface and implementations
 
+// P2 Plan execution
+export {
+	AutonomousExecutor,
+	type AutonomousExecutorConfig,
+	createAutonomousExecutor,
+	type WorkspaceExecutionResult,
+} from "./core/autonomous-executor.js";
 export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
+export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
+export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
+export { PlanStateStore } from "./core/plan-state.js";
+export {
+	createSafetyDoctor,
+	SafetyDoctor,
+	type SafetyIssue,
+	SafetyIssueSeverity,
+	SafetyIssueType,
+	type SafetyReport,
+} from "./core/safety-doctor.js";
 export {
 	type ControlAction,
 	createStateStore,
@@ -14,6 +32,18 @@ export {
 	type StateStoreBackend,
 	type StateStoreConfig,
 } from "./core/state-store.js";
+export {
+	type AgentExecutionResult,
+	WorkspaceAgentExecutor,
+	type WorkspaceAgentExecutorConfig,
+} from "./core/workspace-agent-executor.js";
+export {
+	validateWorkspaceQueue,
+	type Workspace,
+	type WorkspaceCapabilityManifest,
+	type WorkspaceQueue,
+	WorkspaceStage,
+} from "./core/workspace-schema.js";
 
 // Core session management
 
@@ -276,11 +306,24 @@ export {
 	type ThinkingLevelChangeEntry,
 } from "./core/session-manager.js";
 export {
+	type BranchSummarySettings,
 	type CompactionSettings,
+	FileSettingsStorage,
 	type ImageSettings,
+	InMemorySettingsStorage,
+	type MarkdownSettings,
 	type PackageSource,
+	type ProviderRetrySettings,
 	type RetrySettings,
+	type Settings,
+	type SettingsError,
 	SettingsManager,
+	type SettingsScope,
+	type SettingsStorage,
+	type TerminalSettings,
+	type ThinkingBudgetsSettings,
+	type TransportSetting,
+	type WarningSettings,
 } from "./core/settings-manager.js";
 // Skills
 export {

@@ -5,6 +5,8 @@
  * Follows the Phase 1 architecture plan §7.B.
  */
 
+import { DatabaseStateStore } from "./database-state-store.js";
+import { JsonStateStore } from "./json-state-store.js";
 import type { JournalEvent } from "./plan-state.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 
@@ -102,6 +104,14 @@ export interface IStateStore {
 	 * @returns Project summary
 	 */
 	findOrCreateProject(name: string, rootPath?: string): Promise<ProjectSummary>;
+
+	/**
+	 * Update project properties (name, rootPath, etc).
+	 *
+	 * @param projectId - Project ID
+	 * @param updates - Fields to update
+	 */
+	updateProject(projectId: string, updates: Partial<Pick<ProjectSummary, "name" | "rootPath">>): Promise<void>;
 
 	// =========================================================================
 	// Plan Execution
@@ -328,6 +338,26 @@ export interface IStateStore {
 		blocked: number;
 		failed: number;
 	} | null>;
+
+	// =========================================================================
+	// Execution Logs
+	// =========================================================================
+
+	/**
+	 * Save execution log content.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param logContent - Log content to save
+	 */
+	saveExecutionLog(planExecutionId: string, logContent: string): Promise<void>;
+
+	/**
+	 * Load execution log content.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @returns Log content or null if not found
+	 */
+	loadExecutionLog(planExecutionId: string): Promise<string | null>;
 }
 
 /**
@@ -346,13 +376,12 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
 		if (!workspaceRoot) {
 			throw new Error("workspaceRoot is required for JSON state store backend");
 		}
-		return new (require("./json-state-store.js").JsonStateStore)(workspaceRoot, jsonConfig);
+		return new JsonStateStore(workspaceRoot, jsonConfig);
 	}
 
 	if (backend === "postgres") {
 		// Attempt to create a DatabaseStateStore; if DB is unavailable, fall back to JSON
 		try {
-			const { DatabaseStateStore } = require("./database-state-store.js");
 			return new DatabaseStateStore(dbConfig);
 		} catch (error) {
 			console.warn(
@@ -367,7 +396,6 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
 						'Set state_store_backend = "json" or provide a workspace root.',
 				);
 			}
-			const { JsonStateStore } = require("./json-state-store.js");
 			return new JsonStateStore(workspaceRoot, jsonConfig);
 		}
 	}

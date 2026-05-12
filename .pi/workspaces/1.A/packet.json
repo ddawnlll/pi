@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "1.A",
+    "role": "worker",
+    "goal": "Setup Python Environment and Project Structure",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "Project directory structure created",
+        "verified": false
+      },
+      {
+        "description": "Python virtual environment created in backend/venv",
+        "verified": false
+      },
+      {
+        "description": "requirements.txt created with Flask and flask-cors",
+        "verified": false
+      },
+      {
+        "description": "Virtual environment activated and dependencies installed",
+        "verified": false
+      },
+      {
+        "description": "README.md created with setup instructions",
+        "verified": false
+      }
+    ],
+    "targetCommand": "test -d /tmp/test-python-webserver/backend/venv && test -f /tmp/test-python-webserver/backend/requirements.txt",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 181
+    }
+  },
+  "hash": "a6eb32c00b12a275c2679ad6523583ec8ab877cf6f3d41d19faa38415ff56723",
+  "createdAt": 1778579368129
+}

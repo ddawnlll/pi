@@ -10,13 +10,16 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { Model } from "@earendil-works/pi-ai";
+import { JsonStateStore } from "./json-state-store.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
 import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
+import { WorkspaceAgentExecutor } from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
-import type { Workspace, WorkspaceQueue as WQ } from "./workspace-schema.js";
+import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
 /**
@@ -65,6 +68,10 @@ export interface AutonomousExecutorConfig {
 	projectId?: string;
 	/** Skip project management (for backward compat with single-project mode) */
 	skipProjectManagement?: boolean;
+	/** Model to use for agent execution */
+	model?: Model<any>;
+	/** Enable real agent execution (default: false for backward compat) */
+	enableRealExecution?: boolean;
 }
 
 /**
@@ -89,6 +96,9 @@ export class AutonomousExecutor {
 	private projectId: string;
 	private planExecutionId: string | null = null;
 	private currentPlanState: PlanState | null = null;
+	private workspaceQueue: WorkspaceQueue | null = null;
+	private agentExecutor: WorkspaceAgentExecutor | null = null;
+	private enableRealExecution: boolean;
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
@@ -97,10 +107,20 @@ export class AutonomousExecutor {
 		this.packetBuilder = new RolePacketBuilder();
 		this.retryHandler = new RetryHandler(config.retryPolicy);
 		this.projectId = config.projectId ?? "default";
+		this.enableRealExecution = config.enableRealExecution ?? false;
 
 		// If skipProjectManagement, use a fixed projectId
 		if (config.skipProjectManagement) {
 			this.projectId = "default";
+		}
+
+		// Create agent executor if real execution is enabled
+		if (this.enableRealExecution) {
+			this.agentExecutor = new WorkspaceAgentExecutor({
+				workspaceRoot: config.workspaceRoot,
+				model: config.model,
+				maxTurns: 50,
+			});
 		}
 	}
 
@@ -112,6 +132,7 @@ export class AutonomousExecutor {
 	async initialize(queue: WQ): Promise<string> {
 		const planExecutionId = await this.stateStore.initializeState(this.projectId, queue);
 		this.planExecutionId = planExecutionId;
+		this.workspaceQueue = queue;
 
 		// Load state into cache
 		const state = await this.stateStore.loadState(planExecutionId);
@@ -120,6 +141,53 @@ export class AutonomousExecutor {
 		}
 
 		return planExecutionId;
+	}
+
+	/**
+	 * Adopt an existing execution for crash recovery.
+	 *
+	 * Loads persisted state and workspace queue, then resets any stranded
+	 * active/pending workspaces so the background loop can resume them.
+	 *
+	 * @param planExecutionId - Existing execution ID
+	 * @param queue - The original workspace queue (used for scheduling)
+	 */
+	async adoptExistingExecution(planExecutionId: string, queue: WorkspaceQueue): Promise<boolean> {
+		this.planExecutionId = planExecutionId;
+		this.workspaceQueue = queue;
+
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (!state) {
+			return false;
+		}
+		this.currentPlanState = state;
+
+		// If the plan is already terminal, nothing to recover
+		if (state.status === "complete" || state.status === "failed" || state.status === "cancelled") {
+			return false;
+		}
+
+		// Reset any stranded active workspaces back to pending so they get re-scheduled
+		let recovered = 0;
+		for (const [wsId, ws] of state.workspaces) {
+			if (ws.stage === WorkspaceStage.Active) {
+				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+					reason: "crash-recovery",
+				});
+				recovered++;
+			}
+		}
+
+		// If plan was paused/resumed, reset to running so the loop picks it up
+		if (state.status === "paused" || state.status === "stopped") {
+			await this.stateStore.resumePlan(planExecutionId);
+		}
+
+		console.log(
+			`[executor] Adopted execution ${planExecutionId}, recovered ${recovered} stranded workspace(s), status=${state.status}`,
+		);
+
+		return true;
 	}
 
 	/**
@@ -194,18 +262,37 @@ export class AutonomousExecutor {
 			// Save packet to snapshot
 			await this.savePacketSnapshot(snapshot, packet, wsStateForPacket.attempts);
 
-			// Simulate execution (actual agent execution would happen here)
-			// For testing, allow simulated failures
-			if (simulateFailure) {
-				throw new Error("Simulated test failure");
-			}
+			// Execute workspace with real agent or simulate
+			let result: WorkspaceExecutionResult;
 
-			const result: WorkspaceExecutionResult = {
-				workspaceId: workspace.id,
-				success: true,
-				verdict: "COMPLETE",
-				report: `Workspace ${workspace.id} executed successfully (attempt ${wsStateForPacket.attempts})`,
-			};
+			if (this.enableRealExecution && this.agentExecutor) {
+				// Real agent execution
+				const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
+				const agentResult = await this.agentExecutor.execute(packet, workspace.id);
+
+				// Write execution logs
+				await fs.writeFile(logPath, agentResult.logs.join("\n"), "utf-8");
+
+				result = {
+					workspaceId: workspace.id,
+					success: agentResult.success,
+					verdict: agentResult.verdict,
+					report: agentResult.report,
+					error: agentResult.error,
+				};
+			} else {
+				// Simulate execution (for testing/backward compat)
+				if (simulateFailure) {
+					throw new Error("Simulated test failure");
+				}
+
+				result = {
+					workspaceId: workspace.id,
+					success: true,
+					verdict: "COMPLETE",
+					report: `Workspace ${workspace.id} executed successfully (attempt ${wsStateForPacket.attempts}) [SIMULATED]`,
+				};
+			}
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
@@ -543,6 +630,13 @@ export class AutonomousExecutor {
 	getRetryHandler(): RetryHandler {
 		return this.retryHandler;
 	}
+
+	/**
+	 * Get the stored workspace queue (used for recovery).
+	 */
+	getWorkspaceQueue(): WorkspaceQueue | null {
+		return this.workspaceQueue;
+	}
 }
 
 /**
@@ -561,7 +655,6 @@ export function createAutonomousExecutor(
 	maxWorkers = 3,
 	retryPolicy?: RetryPolicy,
 ): AutonomousExecutor {
-	const { JsonStateStore } = require("./json-state-store.js");
 	const stateStore = new JsonStateStore(workspaceRoot);
 	return new AutonomousExecutor(stateStore, {
 		workspaceRoot,

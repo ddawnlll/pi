@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "1.A",
+    "role": "worker",
+    "goal": "Setup Python Environment and Project Structure",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "Project directory structure created",
+        "verified": false
+      },
+      {
+        "description": "Python virtual environment created in backend/venv",
+        "verified": false
+      },
+      {
+        "description": "requirements.txt created with Flask and flask-cors",
+        "verified": false
+      },
+      {
+        "description": "Virtual environment activated and dependencies installed",
+        "verified": false
+      },
+      {
+        "description": "README.md created with setup instructions",
+        "verified": false
+      }
+    ],
+    "targetCommand": "test -d /tmp/test-python-webserver/backend/venv && test -f /tmp/test-python-webserver/backend/requirements.txt",
+    "stateSummary": "Previous attempt 2 failed: unknown\nError: ENOENT: no such file or directory, rename '/home/erfolg/src/pi/.pi/plan-state.json.tmp' -> '/home/erfolg/src/pi/.pi/plan-state.json'\nNext retry strategy: worker",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 232
+    }
+  },
+  "hash": "439735274ed6832124873c1ec3ec317372b7dfb2c15020300d584f00f9dcc904",
+  "createdAt": 1778531549236
+}

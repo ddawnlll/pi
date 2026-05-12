@@ -22,6 +22,9 @@ import { EventFeed } from "./components/EventFeed";
 import { ProjectList } from "./components/ProjectList";
 import { PlanHistory } from "./components/PlanHistory";
 import { OpenProjectDialog } from "./components/OpenProjectDialog";
+import { PlanUploadDialog } from "./components/PlanUploadDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
 
 const API_BASE = "";
 
@@ -56,6 +59,9 @@ export function App() {
 	const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 	const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
 	const [showProjectDialog, setShowProjectDialog] = useState(false);
+	const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
+	const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+	const [showExecutionLog, setShowExecutionLog] = useState(false);
 
 	// Auto-select first project if none selected
 	useEffect(() => {
@@ -189,6 +195,11 @@ export function App() {
 		setSelectedWorkerId(null);
 	}, [selectedPlanExecId]);
 
+	const handleExecutionStarted = useCallback((planExecId: string) => {
+		setSelectedPlanExecId(planExecId);
+		setShowPlanUploadDialog(false);
+	}, []);
+
 	const isLoading = projectsLoading || (isLegacyMode && legacyLoading);
 
 	if (isLoading && !isLegacyMode) {
@@ -274,9 +285,39 @@ export function App() {
 						</div>
 					)}
 
+					{/* Project action bar — always visible when a project is selected */}
+					{!isLegacyMode && (
+						<div className="flex items-center gap-3 p-3 border-b border-gray-700 bg-gray-900">
+							<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mr-2">
+								Actions
+							</h2>
+							<button
+								onClick={() => setShowPlanUploadDialog(true)}
+								className="px-3 py-1.5 text-xs rounded bg-indigo-700 hover:bg-indigo-600 text-white transition-colors whitespace-nowrap"
+							>
+								+ Upload Plan
+							</button>
+							<div className="flex-1" />
+							<button
+								onClick={() => setShowSettingsDialog(true)}
+								className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors whitespace-nowrap"
+							>
+								Settings
+							</button>
+							{selectedPlanExecId && (
+								<button
+									onClick={() => setShowExecutionLog(true)}
+									className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors whitespace-nowrap"
+								>
+									📋 View Execution Log
+								</button>
+							)}
+						</div>
+					)}
+
 					{/* Execution info for new mode */}
 					{!isLegacyMode && executionDetail && (
-						<div className="flex gap-4 p-4 border-b border-gray-700 bg-gray-900">
+						<div className="flex gap-4 px-4 pb-4 bg-gray-900">
 							<div className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex-1">
 								<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
 									Execution
@@ -320,12 +361,22 @@ export function App() {
 						</div>
 					)}
 
+					{/* No execution placeholder */}
+					{!isLegacyMode && !executionDetail && (
+						<div className="flex flex-col items-center justify-center py-12 text-gray-500 border-b border-gray-700">
+							<div className="text-sm mb-2">No plan execution selected</div>
+							<button
+								onClick={() => setShowPlanUploadDialog(true)}
+								className="px-4 py-2 text-xs rounded bg-indigo-700 hover:bg-indigo-600 text-white transition-colors"
+							>
+								Upload a Plan to get started
+							</button>
+						</div>
+					)}
+
 					{/* Worker list */}
 					<WorkerList
-						workers={workers.filter(
-							(w: WorkerInfo) =>
-								w.stage === "active" || w.stage === "pending",
-						)}
+						workers={workers}
 						selectedWorkerId={selectedWorkerId}
 						onSelectWorker={handleSelectWorker}
 					/>
@@ -366,6 +417,34 @@ export function App() {
 					setSelectedProjectId(id);
 					setSelectedPlanExecId(null);
 				}}
+			/>
+
+			{/* Plan upload dialog */}
+			{selectedProjectId && (
+				<PlanUploadDialog
+					isOpen={showPlanUploadDialog}
+					onClose={() => setShowPlanUploadDialog(false)}
+					projectId={selectedProjectId}
+					onExecutionStarted={handleExecutionStarted}
+				/>
+			)}
+
+			{/* Settings dialog */}
+			<SettingsDialog
+				isOpen={showSettingsDialog}
+				onClose={() => setShowSettingsDialog(false)}
+				project={
+					selectedProjectId
+						? projects.find((p) => p.id === selectedProjectId) ?? null
+						: null
+				}
+			/>
+
+			{/* Execution log viewer */}
+			<ExecutionLogViewer
+				planExecId={selectedPlanExecId}
+				isOpen={showExecutionLog}
+				onClose={() => setShowExecutionLog(false)}
 			/>
 		</div>
 	);

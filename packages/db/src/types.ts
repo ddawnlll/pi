@@ -28,6 +28,7 @@ export interface PlanExecutionRow {
 	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
 	started_at: string;
 	completed_at: string | null;
+	execution_log: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -88,6 +89,7 @@ export interface Database {
 	workspace_executions: WorkspaceExecutionTable;
 	journal_events: JournalEventTable;
 	workspace_logs: WorkspaceLogTable;
+	_migrations: MigrationsTable;
 }
 
 export interface ProjectTable {
@@ -107,6 +109,7 @@ export interface PlanExecutionTable {
 	status: string;
 	started_at: ColumnType<string, string, string | undefined>;
 	completed_at: string | null;
+	execution_log: string | null;
 	created_at: Generated<string>;
 	updated_at: Generated<string>;
 }
@@ -144,6 +147,12 @@ export interface WorkspaceLogTable {
 	content: string;
 	timestamp: string;
 	created_at: Generated<string>;
+}
+
+export interface MigrationsTable {
+	version: number;
+	name: string;
+	applied_at: Generated<string>;
 }
 
 // Helper types for Kysely

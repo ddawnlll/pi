@@ -3,31 +3,22 @@
     "phaseId": "P2",
     "workspaceId": "7.A",
     "role": "worker",
-    "goal": "Runtime Output Hygiene",
+    "goal": "Create Dogfood Output Doc",
     "allowedFiles": [
-      ".gitignore"
+      "docs/dogfood-output.md"
     ],
-    "forbiddenFiles": [
-      "src/**",
-      "packages/**/src/**",
-      "package.json",
-      "package-lock.json"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [
       {
-        "description": ".pi/plan-state.json in .gitignore",
+        "description": "docs/dogfood-output.md created",
         "verified": false
       },
       {
-        "description": ".pi/execution-journal.ndjson in .gitignore",
+        "description": "Contains header and introduction",
         "verified": false
       },
       {
-        "description": ".pi/workspaces/ in .gitignore",
-        "verified": false
-      },
-      {
-        "description": "git status clean after adding entries",
+        "description": "Markdown is valid",
         "verified": false
       }
     ],
@@ -37,9 +28,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 171
+      "estimatedInputTokens": 143
     }
   },
-  "hash": "2261160e240db0cd692f3a3851d8492e255475731bbbd59b20e30082a0f67929",
-  "createdAt": 1778511969163
+  "hash": "5155227ce13d914247466c46ec99fd41529586c19b98cce380a66c5e46192f02",
+  "createdAt": 1778523661387
 }

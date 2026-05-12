@@ -1,0 +1,50 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "1.D",
+    "role": "worker",
+    "goal": "Integration Testing and Verification",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "Backend starts successfully on port 5000",
+        "verified": false
+      },
+      {
+        "description": "Health check endpoint returns 200",
+        "verified": false
+      },
+      {
+        "description": "GET /api/items returns valid JSON",
+        "verified": false
+      },
+      {
+        "description": "POST /api/items successfully adds items",
+        "verified": false
+      },
+      {
+        "description": "CORS headers present in responses",
+        "verified": false
+      },
+      {
+        "description": "Frontend files are accessible",
+        "verified": false
+      },
+      {
+        "description": "Integration test script created and passes",
+        "verified": false
+      }
+    ],
+    "targetCommand": "bash /tmp/test-python-webserver/test_integration.sh",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 184
+    }
+  },
+  "hash": "f6797bae2c18ce867cd01fa73a9565674a9ba2b43c8ec9425ea0ff1efb965081",
+  "createdAt": 1778579448260
+}

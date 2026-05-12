@@ -133,6 +133,14 @@ export class DatabaseStateStore implements IStateStore {
 		};
 	}
 
+	async updateProject(projectId: string, updates: Partial<Pick<ProjectSummary, "name" | "rootPath">>): Promise<void> {
+		const dbUpdate: Record<string, unknown> = {};
+		if (updates.name !== undefined) dbUpdate.name = updates.name;
+		if (updates.rootPath !== undefined) dbUpdate.root_path = updates.rootPath;
+		if (Object.keys(dbUpdate).length === 0) return;
+		await this.projectRepo.update(projectId, dbUpdate as any);
+	}
+
 	// =========================================================================
 	// Plan Execution
 	// =========================================================================
@@ -621,5 +629,29 @@ export class DatabaseStateStore implements IStateStore {
 			default:
 				return null;
 		}
+	}
+
+	// =========================================================================
+	// Execution Logs
+	// =========================================================================
+
+	async saveExecutionLog(planExecutionId: string, logContent: string): Promise<void> {
+		await this.db
+			.updateTable("plan_executions")
+			.set({
+				execution_log: logContent,
+			} as any)
+			.where("id", "=", planExecutionId)
+			.execute();
+	}
+
+	async loadExecutionLog(planExecutionId: string): Promise<string | null> {
+		const result = await this.db
+			.selectFrom("plan_executions")
+			.select(["execution_log"] as any)
+			.where("id", "=", planExecutionId)
+			.executeTakeFirst();
+
+		return (result as any)?.execution_log ?? null;
 	}
 }

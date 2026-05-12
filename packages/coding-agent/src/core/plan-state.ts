@@ -99,6 +99,9 @@ export class PlanStateStore {
 	private stateFilePath: string;
 	private journalFilePath: string;
 
+	/** Mutex to serialize concurrent saveState() calls (race: #1) */
+	private saveMutex: Promise<void> = Promise.resolve();
+
 	constructor(workspaceRoot: string, piDir = ".pi") {
 		this.stateFilePath = path.join(workspaceRoot, piDir, "plan-state.json");
 		this.journalFilePath = path.join(workspaceRoot, piDir, "execution-journal.ndjson");
@@ -184,20 +187,31 @@ export class PlanStateStore {
 			throw new Error("No state to save");
 		}
 
-		// Ensure .pi directory exists
-		const piDir = path.dirname(this.stateFilePath);
-		await fs.mkdir(piDir, { recursive: true });
+		// Serialize concurrent saves via promise-chain mutex
+		await this.saveMutex;
+		let release!: () => void;
+		this.saveMutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
 
-		// Convert Map to array for JSON serialization
-		const serializable = {
-			...this.state,
-			workspaces: Array.from(this.state.workspaces.values()),
-		};
+		try {
+			// Ensure .pi directory exists
+			const piDir = path.dirname(this.stateFilePath);
+			await fs.mkdir(piDir, { recursive: true });
 
-		// Atomic write: write to temp file, then rename
-		const tempPath = `${this.stateFilePath}.tmp`;
-		await fs.writeFile(tempPath, JSON.stringify(serializable, null, 2), "utf-8");
-		await fs.rename(tempPath, this.stateFilePath);
+			// Convert Map to array for JSON serialization
+			const serializable = {
+				...this.state,
+				workspaces: Array.from(this.state.workspaces.values()),
+			};
+
+			// Atomic write: write to unique temp file, then rename
+			const tempPath = `${this.stateFilePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+			await fs.writeFile(tempPath, JSON.stringify(serializable, null, 2), "utf-8");
+			await fs.rename(tempPath, this.stateFilePath);
+		} finally {
+			release();
+		}
 	}
 
 	/**
@@ -277,6 +291,9 @@ export class PlanStateStore {
 		// Update timestamps
 		if (newStage === WorkspaceStage.Active && !current.startedAt) {
 			updates.startedAt = Date.now();
+		}
+		if (newStage === WorkspaceStage.Active && current.error) {
+			updates.error = undefined; // Clear previous error on retry
 		}
 		if ((newStage === WorkspaceStage.Complete || newStage === WorkspaceStage.Failed) && !current.completedAt) {
 			updates.completedAt = Date.now();

@@ -1,31 +1,41 @@
 {
-  "title": "Test Plan",
-  "phase": "execution",
-  "status": "running",
-  "elapsed": 45000,
-  "queue": {
-    "pending": 12,
-    "active": 3,
-    "blocked": 1,
-    "complete": 44,
-    "failed": 0
-  },
-  "workers": [
+  "phase": "P2",
+  "title": "Untitled Phase",
+  "workspaces": [
     {
-      "id": "workspace-a",
-      "stage": "active",
-      "attempt": 1,
-      "retries": 0,
-      "snapshotPath": ".pi/workspaces/workspace-a/snapshot.md",
-      "reportPath": ".pi/workspaces/workspace-a/report.md"
+      "workspaceId": "1.A",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778579368127,
+      "ownedFiles": [],
+      "completedAt": 1778579385573
     },
     {
-      "id": "workspace-b",
-      "stage": "active",
-      "attempt": 2,
-      "retries": 1,
-      "snapshotPath": ".pi/workspaces/workspace-b/snapshot.md",
-      "reportPath": ".pi/workspaces/workspace-b/report.md"
+      "workspaceId": "1.B",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778579388295,
+      "ownedFiles": [],
+      "completedAt": 1778579448257
+    },
+    {
+      "workspaceId": "1.C",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778579368127,
+      "ownedFiles": [],
+      "completedAt": 1778579388291
+    },
+    {
+      "workspaceId": "1.D",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1778579448259,
+      "ownedFiles": [],
+      "completedAt": 1778579540822
     }
-  ]
+  ],
+  "startedAt": 1778579368122,
+  "status": "complete",
+  "completedAt": 1778579540824
 }

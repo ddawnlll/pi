@@ -1,0 +1,23 @@
+[
+  {
+    "id": "bc7a845a-876a-47b8-97b1-9ec8cadfd583",
+    "name": "test-project",
+    "description": null,
+    "rootPath": "/home/src/test2",
+    "createdAt": "2026-05-11T17:55:25.983Z"
+  },
+  {
+    "id": "700b129f-cd93-4f49-8c52-15880535f16a",
+    "name": "hello",
+    "description": null,
+    "rootPath": "test",
+    "createdAt": "2026-05-11T17:56:27.246Z"
+  },
+  {
+    "id": "8281d399-99f5-4d17-8693-cca342b5f8c2",
+    "name": "test-project",
+    "description": null,
+    "rootPath": null,
+    "createdAt": "2026-05-11T18:20:17.020Z"
+  }
+]
