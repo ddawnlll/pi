@@ -322,11 +322,12 @@ export function App() {
           {/* stats */}
           {!isLegacyMode && executionDetail && (
             <>
-              <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 ${BG} border-b ${BORD}`}>
+              <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-3 p-3 ${BG} border-b ${BORD}`}>
                 <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
                 <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
-                <StatCard icon={Activity} label="Cache hit" value={formatPercent(planStats?.cache_hit_rate)} />
+                <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
                 <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "\u2014"} />
+                <StatCard icon={Activity} label="Cache hit" value={formatPercent(planStats?.cache_hit_rate)} />
               </div>
               <QueueStrip queue={queue} />
             </>
