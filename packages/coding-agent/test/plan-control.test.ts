@@ -238,7 +238,8 @@ describe("Autonomous executor control integration", () => {
 		await executor.initialize(queue);
 
 		// Write pause control request
-		const controlManager = executor.getControlManager();
+		const { createPlanControlManager } = await import("../src/core/plan-control.js");
+		const controlManager = createPlanControlManager(tempDir);
 		await controlManager.writeControlRequest("pause", "Test pause");
 
 		// Check control request
@@ -270,7 +271,8 @@ describe("Autonomous executor control integration", () => {
 		await executor.initialize(queue);
 
 		// Write pause control request
-		const controlManager = executor.getControlManager();
+		const { createPlanControlManager } = await import("../src/core/plan-control.js");
+		const controlManager = createPlanControlManager(tempDir);
 		await controlManager.writeControlRequest("pause");
 
 		// Try to get next workspaces
@@ -301,7 +303,8 @@ describe("Autonomous executor control integration", () => {
 		await executor.initialize(queue);
 
 		// Write stop control request
-		const controlManager = executor.getControlManager();
+		const { createPlanControlManager } = await import("../src/core/plan-control.js");
+		const controlManager = createPlanControlManager(tempDir);
 		await controlManager.writeControlRequest("stop");
 
 		// Try to get next workspaces

@@ -16,7 +16,7 @@ describe("AutonomousExecutor", () => {
 
 	beforeEach(async () => {
 		await fs.mkdir(TEST_DIR, { recursive: true });
-		executor = new AutonomousExecutor(TEST_DIR, 3);
+		executor = createAutonomousExecutor(TEST_DIR, 3);
 	});
 
 	afterEach(async () => {
@@ -359,7 +359,7 @@ describe("AutonomousExecutor", () => {
 			await executor.executeWorkspace(queue.workspaces[0]);
 
 			// Create new executor and load state
-			const newExecutor = new AutonomousExecutor(TEST_DIR, 3);
+			const newExecutor = createAutonomousExecutor(TEST_DIR, 3);
 			const loaded = await newExecutor.loadState();
 
 			expect(loaded).toBe(true);

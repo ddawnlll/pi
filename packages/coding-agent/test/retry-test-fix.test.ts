@@ -7,7 +7,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AutonomousExecutor } from "../src/core/autonomous-executor.js";
+import { type AutonomousExecutor, createAutonomousExecutor } from "../src/core/autonomous-executor.js";
 import { FailureType, RetryStage } from "../src/core/retry-handler.js";
 import type { WorkspaceQueue } from "../src/core/workspace-schema.js";
 import { WorkspaceStage } from "../src/core/workspace-schema.js";
@@ -19,7 +19,7 @@ describe("Retry/Test/Fix Behavior", () => {
 
 	beforeEach(async () => {
 		await fs.mkdir(TEST_DIR, { recursive: true });
-		executor = new AutonomousExecutor(TEST_DIR, 3);
+		executor = createAutonomousExecutor(TEST_DIR, 3);
 	});
 
 	afterEach(async () => {

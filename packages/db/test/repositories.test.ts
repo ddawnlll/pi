@@ -107,7 +107,6 @@ describe("PlanExecutionRepository", { skip: !isIntegration }, () => {
 			status: "running",
 			started_at: now(),
 			completed_at: null,
-			metadata: null,
 		});
 
 		const found = await planExecRepo.findById(id);
@@ -126,7 +125,6 @@ describe("PlanExecutionRepository", { skip: !isIntegration }, () => {
 			status: "running",
 			started_at: now(),
 			completed_at: null,
-			metadata: null,
 		});
 
 		await planExecRepo.updateStatus(id, "complete");
@@ -173,7 +171,6 @@ describe("WorkspaceExecutionRepository", { skip: !isIntegration }, () => {
 			status: "running",
 			started_at: now(),
 			completed_at: null,
-			metadata: null,
 		});
 	});
 
@@ -276,7 +273,6 @@ describe("JournalEventRepository", { skip: !isIntegration }, () => {
 			status: "running",
 			started_at: now(),
 			completed_at: null,
-			metadata: null,
 		});
 	});
 

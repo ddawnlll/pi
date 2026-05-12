@@ -353,7 +353,6 @@ async function migrateFromJson(
 				status,
 				started_at: exec.startedAt,
 				completed_at: exec.completedAt,
-				metadata: null,
 			});
 			result.executionId = exec.id;
 			console.log(`[migrate] Migrated execution: ${exec.title} (${exec.id})`);
@@ -370,7 +369,6 @@ async function migrateFromJson(
 				status: planState.status,
 				started_at: planState.startedAt ?? nowISO(),
 				completed_at: null,
-				metadata: null,
 			});
 			result.executionId = execId;
 			console.log(`[migrate] Created execution from plan-state: ${execId}`);
