@@ -120,6 +120,25 @@ export class AutonomousExecutor {
 				workspaceRoot: config.workspaceRoot,
 				model: config.model,
 				maxTurns: 50,
+				stateStore: this.stateStore,
+				planExecutionId: this.planExecutionId ?? undefined,
+			});
+		}
+	}
+
+	/**
+	 * Update agent executor with current plan execution ID after initialization.
+	 * Called after initialize() to ensure the executor has the correct context.
+	 */
+	private updateAgentExecutorContext(): void {
+		if (this.agentExecutor && this.planExecutionId) {
+			// Recreate with updated context
+			this.agentExecutor = new WorkspaceAgentExecutor({
+				workspaceRoot: this.workspaceRoot,
+				model: (this.agentExecutor as any).model,
+				maxTurns: (this.agentExecutor as any).maxTurns,
+				stateStore: this.stateStore,
+				planExecutionId: this.planExecutionId,
 			});
 		}
 	}
@@ -139,6 +158,9 @@ export class AutonomousExecutor {
 		if (state) {
 			this.currentPlanState = state;
 		}
+
+		// Update agent executor with the new plan execution ID
+		this.updateAgentExecutorContext();
 
 		return planExecutionId;
 	}

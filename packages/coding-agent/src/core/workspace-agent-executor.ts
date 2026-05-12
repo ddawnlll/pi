@@ -44,6 +44,10 @@ export interface WorkspaceAgentExecutorConfig {
 	maxTurns?: number;
 	/** Log file path */
 	logPath?: string;
+	/** State store for persisting logs */
+	stateStore?: import("./state-store.js").IStateStore;
+	/** Plan execution ID for log persistence */
+	planExecutionId?: string;
 }
 
 /**
@@ -56,11 +60,15 @@ export class WorkspaceAgentExecutor {
 	private model: Model<any>;
 	private maxTurns: number;
 	private logPath?: string;
+	private stateStore?: import("./state-store.js").IStateStore;
+	private planExecutionId?: string;
 
 	constructor(config: WorkspaceAgentExecutorConfig) {
 		this.workspaceRoot = config.workspaceRoot;
 		this.maxTurns = config.maxTurns ?? 50;
 		this.logPath = config.logPath;
+		this.stateStore = config.stateStore;
+		this.planExecutionId = config.planExecutionId;
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -106,18 +114,31 @@ export class WorkspaceAgentExecutor {
 	 */
 	async execute(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
 		const logs: string[] = [];
-		const log = (message: string) => {
+		const log = async (message: string) => {
 			const timestamp = new Date().toISOString();
 			const logLine = `[${timestamp}] ${message}`;
 			logs.push(logLine);
 			console.log(`[workspace-agent-executor] ${logLine}`);
+
+			// Persist to state store if available
+			if (this.stateStore && this.planExecutionId) {
+				try {
+					await this.stateStore.appendWorkspaceLog?.(this.planExecutionId, workspaceId, logLine);
+				} catch (error) {
+					// Don't fail execution if log persistence fails
+					console.error(`[workspace-agent-executor] Failed to persist log:`, error);
+				}
+			}
 		};
 
 		try {
 			log(`Starting execution for workspace ${workspaceId}`);
-			log(`Model: ${this.model.provider}/${this.model.id}`);
+			log(`Provider: ${this.model.provider}`);
+			log(`Model: ${this.model.id}`);
 			log(`Role: ${packet.packet.role}`);
+			log(`Goal: ${packet.packet.goal}`);
 			log(`Max turns: ${this.maxTurns}`);
+			log(`Workspace root: ${this.workspaceRoot}`);
 
 			// Create session directory for this workspace
 			const sessionDir = path.join(this.workspaceRoot, ".pi", "sessions", workspaceId);
@@ -182,7 +203,8 @@ export class WorkspaceAgentExecutor {
 			const messageSummary = messages
 				.map((m, i) => {
 					if (m.role === "assistant") {
-						const toolCalls = (m as any).toolCalls || [];
+						// Tool calls are in the content array with type "tool_call"
+						const toolCalls = m.content.filter((c: any) => c.type === "tool_call");
 						return `${i}: assistant (${toolCalls.length} tool calls)`;
 					}
 					return `${i}: ${m.role}`;
@@ -300,7 +322,7 @@ You are a ${p.role} agent executing a specific workspace task.
 ${p.goal}
 
 ## Acceptance Criteria
-${p.acceptanceCriteria.map((ac, i) => `${i + 1}. ${ac}`).join("\n")}
+${p.acceptanceCriteria.map((ac, i) => `${i + 1}. ${typeof ac === "string" ? ac : ac.description}`).join("\n")}
 
 ## File Permissions
 `;

@@ -358,6 +358,26 @@ export interface IStateStore {
 	 * @returns Log content or null if not found
 	 */
 	loadExecutionLog(planExecutionId: string): Promise<string | null>;
+
+	/**
+	 * Append a log line to workspace-specific logs.
+	 * Optional method for workspace-level log streaming.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param logLine - Log line to append
+	 */
+	appendWorkspaceLog?(planExecutionId: string, workspaceId: string, logLine: string): Promise<void>;
+
+	/**
+	 * Load workspace-specific log content.
+	 * Optional method for workspace-level log retrieval.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @returns Log content or null if not found
+	 */
+	loadWorkspaceLog?(planExecutionId: string, workspaceId: string): Promise<string | null>;
 }
 
 /**
@@ -406,25 +426,29 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
 /**
  * Determine state store backend from environment / config.
  *
- * Checks PI_STATE_STORE_BACKEND env var, then config file, then defaults to "json".
+ * Checks PI_STATE_STORE_BACKEND env var, then PostgreSQL connection env vars,
+ * then defaults to "json". Reads environment at call time, not at module load.
  *
  * @returns Backend identifier
  */
 export function detectStateStoreBackend(): StateStoreBackend {
-	// Check environment variable first
+	// Check environment variable first (read at call time)
 	const envBackend = process.env.PI_STATE_STORE_BACKEND;
 	if (envBackend === "postgres" || envBackend === "json") {
+		console.log(`[state-store] Backend explicitly set via PI_STATE_STORE_BACKEND: ${envBackend}`);
 		return envBackend;
 	}
 
-	// Check for PostgreSQL availability via env vars as a heuristic
-	// (only if PI_PG_AUTO_DETECT is explicitly set)
-	if (process.env.PI_PG_AUTO_DETECT === "1") {
-		const hasPgEnv = process.env.PGHOST || process.env.PGDATABASE || process.env.PGUSER;
-		if (hasPgEnv) {
-			return "postgres";
-		}
+	// Check for PostgreSQL availability via DATABASE_URL or standard PG env vars
+	const hasDatabaseUrl = !!process.env.DATABASE_URL;
+	const hasPgEnv = !!(process.env.PGHOST || process.env.PGDATABASE || process.env.PGUSER);
+
+	if (hasDatabaseUrl || hasPgEnv) {
+		console.log(`[state-store] PostgreSQL env vars detected, using postgres backend`);
+		return "postgres";
 	}
 
+	// Default to JSON only if no PostgreSQL env vars are present
+	console.log(`[state-store] No PostgreSQL env vars found, defaulting to json backend`);
 	return "json";
 }

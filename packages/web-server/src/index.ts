@@ -86,12 +86,23 @@ function getStateStore() {
 	if (!globalStateStore) {
 		const workspaceRoot = getWorkspaceRoot();
 		const backend = detectStateStoreBackend();
+
+		// Log startup information
+		console.log(`[web-server] State store backend: ${backend}`);
+		console.log(`[web-server] Workspace root: ${workspaceRoot}`);
 		fastify.log.info({ backend, workspaceRoot }, "Initializing state store");
 
 		globalStateStore = createStateStore({
 			backend,
 			workspaceRoot,
 		});
+
+		// Confirm backend after creation
+		const actualBackend = globalStateStore.getBackendType();
+		console.log(`[web-server] State store initialized with backend: ${actualBackend}`);
+		if (actualBackend !== backend) {
+			console.warn(`[web-server] WARNING: Requested ${backend} but got ${actualBackend} (fallback occurred)`);
+		}
 	}
 	return globalStateStore;
 }
@@ -763,13 +774,18 @@ fastify.post<{
 	}
 
 	try {
-		// Get the project name from the state store
+		// Get the project from the state store
 		const stateStore = getStateStore();
 		const projects = await stateStore.listProjects();
 		const project = projects.find((p) => p.id === projectId);
-		const projectName = project?.name ?? projectId;
 
-		const workspaceRoot = getWorkspaceRoot();
+		if (!project) {
+			return reply.code(404).send({ error: "Project not found" });
+		}
+
+		const projectName = project.name;
+		// Use project's root_path if set, otherwise fall back to global workspace root
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
 
 		const result = await runPlan({
 			planContent,
@@ -1049,6 +1065,26 @@ fastify.get("/api/health", async (_request, _reply) => {
 const start = async () => {
 	try {
 		const port = Number(process.env.PORT) || 3000;
+
+		// Check database connection if using PostgreSQL backend
+		const backend = detectStateStoreBackend();
+		if (backend === "postgres") {
+			console.log("[server] Verifying PostgreSQL connection...");
+			const { healthCheck, getKysely, runMigrations } = await import("@earendil-works/pi-db");
+			const healthy = await healthCheck();
+			if (!healthy) {
+				console.error("[server] Failed to connect to PostgreSQL. Check your database configuration.");
+				console.error("[server] Required env vars: PGHOST, PGDATABASE, PGUSER, PGPASSWORD");
+				process.exit(1);
+			}
+			console.log("[server] PostgreSQL connection verified");
+
+			// Run migrations
+			console.log("[server] Running database migrations...");
+			const db = getKysely();
+			await runMigrations(db);
+			console.log("[server] Database migrations complete");
+		}
 
 		// Resume stranded executions from a previous server crash
 		const workspaceRoot = getWorkspaceRoot();

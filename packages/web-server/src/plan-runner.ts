@@ -61,6 +61,12 @@ export interface RunPlanResult {
 
 const activeExecutions = new Map<string, ActiveExecution>();
 
+// TTL for completed executions (30 minutes)
+const EXECUTION_TTL_MS = 30 * 60 * 1000;
+
+// Map to track cleanup timers
+const cleanupTimers = new Map<string, NodeJS.Timeout>();
+
 /**
  * Get all active executions for a project.
  */
@@ -90,11 +96,34 @@ function updateExecutionStatus(planExecId: string, status: ActiveExecution["stat
 		exec.status = status;
 		if (status === "complete" || status === "failed" || status === "stopped" || status === "cancelled") {
 			exec.completedAt = Date.now();
+
+			// Schedule cleanup after TTL
+			scheduleExecutionCleanup(planExecId);
 		}
 		if (error) {
 			exec.error = error;
 		}
 	}
+}
+
+/**
+ * Schedule cleanup of a completed execution after TTL expires.
+ */
+function scheduleExecutionCleanup(planExecId: string): void {
+	// Clear any existing timer
+	const existingTimer = cleanupTimers.get(planExecId);
+	if (existingTimer) {
+		clearTimeout(existingTimer);
+	}
+
+	// Schedule new cleanup
+	const timer = setTimeout(() => {
+		console.log(`[plan-runner] Cleaning up completed execution ${planExecId} after TTL`);
+		activeExecutions.delete(planExecId);
+		cleanupTimers.delete(planExecId);
+	}, EXECUTION_TTL_MS);
+
+	cleanupTimers.set(planExecId, timer);
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +138,26 @@ function updateExecutionStatus(planExecId: string, status: ActiveExecution["stat
  */
 export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const { planContent, projectId, workspaceRoot, planFileName } = options;
+
+	// Validate workspaceRoot before any filesystem operations
+	if (!workspaceRoot || workspaceRoot.trim() === "") {
+		return {
+			success: false,
+			errors: ["workspaceRoot is required but was not provided"],
+		};
+	}
+
+	// Ensure workspaceRoot is an absolute path
+	const path = await import("node:path");
+	if (!path.isAbsolute(workspaceRoot)) {
+		return {
+			success: false,
+			errors: [`workspaceRoot must be an absolute path, got: ${workspaceRoot}`],
+		};
+	}
+
+	console.log(`[plan-runner] Starting plan execution for project ${projectId}`);
+	console.log(`[plan-runner] Workspace root: ${workspaceRoot}`);
 
 	// Parse the plan
 	const parseResult = parsePlan(planContent);
@@ -219,8 +268,30 @@ async function executePlanInBackground(
 	};
 
 	try {
+		// Verify workspace directory exists or create it
+		try {
+			await mkdir(workspaceRoot, { recursive: true });
+			await log(`Workspace directory verified: ${workspaceRoot}`);
+		} catch (error) {
+			await log(`ERROR: Failed to create workspace directory: ${workspaceRoot}`);
+			await log(`Error: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Cannot create workspace directory: ${workspaceRoot}`);
+		}
+
+		// Log comprehensive execution metadata
 		await log(`Starting execution for plan ${planExecId} (${queue.title})`);
+		await log(`Phase: ${queue.phase}`);
+		await log(`Workspace root: ${workspaceRoot}`);
 		await log(`Total workspaces: ${queue.workspaces.length}, Max parallel: ${queue.maxParallelWorkspaces || 3}`);
+
+		// Log model information
+		const state = executor.getState();
+		if (state) {
+			await log(`Execution backend: ${state.metadata?.backend || "json"}`);
+		}
+
+		// Log workspace details
+		await log(`Workspaces: ${queue.workspaces.map((w) => w.id).join(", ")}`);
 
 		let _completedCount = 0;
 		let failedCount = 0;
@@ -367,9 +438,8 @@ async function loadWorkspaceQueue(workspaceRoot: string, planExecId: string): Pr
 /**
  * Scan for stranded (in-flight) plan executions and resume them.
  *
- * Called once during server startup.  For every execution whose status
- * file still exists, we create an executor, initialise the scheduler
- * from the persisted queue, and kick off the background loop.
+ * Called once during server startup. Scans for all workspace queue snapshots
+ * and attempts to recover each one, not just the most recent.
  */
 export async function resumeStrandedExecutions(
 	workspaceRoot: string,
@@ -378,21 +448,51 @@ export async function resumeStrandedExecutions(
 ): Promise<number> {
 	const piDir = join(workspaceRoot, ".pi");
 
-	// Read the current execution pointer written by JsonStateStore
-	let planExecId: string | undefined;
+	console.log(`[plan-runner] Scanning for stranded executions in ${piDir}`);
+
+	// Scan for all workspace queue snapshots
+	let queueFiles: string[] = [];
 	try {
-		const execRef = join(piDir, "current-execution.json");
-		const content = await readFile(execRef, "utf-8");
-		const parsed = JSON.parse(content) as { planExecutionId: string };
-		planExecId = parsed.planExecutionId;
+		const files = await readdir(piDir);
+		queueFiles = files.filter((f) => f.endsWith(`.${QUEUE_SNAPSHOT_FILE}`));
 	} catch {
-		return 0; // nothing to recover
+		console.log(`[plan-runner] No .pi directory found, skipping recovery`);
+		return 0;
 	}
 
-	if (!planExecId) return 0;
+	if (queueFiles.length === 0) {
+		console.log(`[plan-runner] No queue snapshots found, nothing to recover`);
+		return 0;
+	}
 
-	// Check if this execution is already tracked as active/running
-	if (activeExecutions.has(planExecId)) return 0;
+	console.log(`[plan-runner] Found ${queueFiles.length} queue snapshot(s), attempting recovery`);
+
+	let recovered = 0;
+	for (const queueFile of queueFiles) {
+		// Extract plan execution ID from filename: <planExecId>.workspace-queue.json
+		const planExecId = queueFile.replace(`.${QUEUE_SNAPSHOT_FILE}`, "");
+
+		// Check if this execution is already tracked as active/running
+		if (activeExecutions.has(planExecId)) {
+			console.log(`[plan-runner] Execution ${planExecId} already active, skipping`);
+			continue;
+		}
+
+		const result = await recoverSingleExecution(workspaceRoot, projectId, planExecId);
+		if (result) {
+			recovered++;
+		}
+	}
+
+	console.log(`[plan-runner] Recovery complete: ${recovered} execution(s) resumed`);
+	return recovered;
+}
+
+/**
+ * Recover a single stranded execution.
+ */
+async function recoverSingleExecution(workspaceRoot: string, projectId: string, planExecId: string): Promise<boolean> {
+	const piDir = join(workspaceRoot, ".pi");
 
 	// Create a state store to check the plan state
 	const stateStore: IStateStore = createStateStore({
@@ -402,11 +502,15 @@ export async function resumeStrandedExecutions(
 
 	// Load the plan state to check if it's terminal
 	const planState = await stateStore.loadState(planExecId);
-	if (!planState) return 0;
+	if (!planState) {
+		console.log(`[plan-runner] No state found for ${planExecId}, skipping recovery`);
+		return false;
+	}
 
 	// If already terminal, nothing to recover
 	if (planState.status === "complete" || planState.status === "failed" || planState.status === "cancelled") {
-		return 0;
+		console.log(`[plan-runner] Execution ${planExecId} already ${planState.status}, skipping recovery`);
+		return false;
 	}
 
 	// Try to load the persisted workspace queue
@@ -431,14 +535,14 @@ export async function resumeStrandedExecutions(
 
 		if (!planContent) {
 			console.error(`[plan-runner] Cannot recover ${planExecId}: no queue snapshot and no plan file found`);
-			return 0;
+			return false;
 		}
 
 		// Parse the plan
 		const parseResult = parsePlan(planContent);
 		if (!parseResult.success || !parseResult.queue) {
 			console.error(`[plan-runner] Cannot recover ${planExecId}: failed to parse plan file`);
-			return 0;
+			return false;
 		}
 
 		queue = parseResult.queue;
@@ -453,13 +557,15 @@ export async function resumeStrandedExecutions(
 		projectId,
 		maxWorkers,
 		skipProjectManagement: false,
+		enableRealExecution: true,
 	});
 
 	// Adopt the existing execution (resets stranded active → pending)
 	const adopted = await executor.adoptExistingExecution(planExecId, queue);
 	if (!adopted) {
 		// Already terminal or no state — nothing to do
-		return 0;
+		console.log(`[plan-runner] Failed to adopt execution ${planExecId}`);
+		return false;
 	}
 
 	// Create the execution tracking object
@@ -483,5 +589,5 @@ export async function resumeStrandedExecutions(
 	});
 
 	console.log(`[plan-runner] Recovered stranded execution ${planExecId} (${queue.title})`);
-	return 1;
+	return true;
 }
