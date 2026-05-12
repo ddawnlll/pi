@@ -1531,17 +1531,17 @@ fastify.get<{
 });
 
 // ---------------------------------------------------------------------------
-// Chat / Ad-hoc Workspace Endpoint
+// Chat / Ad-hoc Workspace Endpoint (Agent Worker Mode)
 // ---------------------------------------------------------------------------
 
 /**
- * POST /api/chat - Send a chat message to the LLM and stream the response
+ * POST /api/chat - Send a chat message to the agent and stream the response
  *
- * Accepts a message and uses the project's default provider/model to
- * generate a streaming response. The response may include structured
- * commands to create and execute workspaces.
+ * This endpoint now uses AgentSession with full tool access (read, bash, edit,
+ * write, grep, find, ls), enabling the chat to act as an agent worker that can
+ * read files, edit code, run commands, and commit changes.
  *
- * Body: { projectId, message, history? }
+ * Body: { projectId, message, sessionId? }
  * Response: SSE stream of text/tool_call events
  */
 fastify.post<{
@@ -1578,44 +1578,47 @@ fastify.post<{
 			return;
 		}
 
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+
 		// Get the default provider and model from settings
 		const settingsManager = getSettingsManager();
 		const settings = settingsManager.getMergedSettings();
 		const defaultProvider = (settings as any).defaultProvider ?? "opencode-go";
-		const defaultModel = (settings as any).defaultModel ?? "deepseek-v4-flash";
+		const defaultModelId = (settings as any).defaultModel ?? "deepseek-v4-flash";
 
-		// Load API key from centralized AuthStorage (global ~/.pi/agent/auth.json)
-		// But chat operates within the project context
-		const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
-		const authStorage = AuthStorage.create(); // Uses global ~/.pi/agent/auth.json
-		const apiKey = await authStorage.getApiKey(defaultProvider);
+		fastify.log.info({ defaultProvider, defaultModelId }, "Chat model");
 
-		if (!apiKey) {
-			reply.raw.write(
-				`data: ${JSON.stringify({ type: "error", message: `No API key configured for provider: ${defaultProvider}. Run 'pi login' or configure in ~/.pi/agent/auth.json` })}\n\n`,
-			);
-			reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
-			reply.raw.end();
-			return;
+		// Build agent session imports
+		const piAgent = await import("@earendil-works/pi-coding-agent");
+		const ai = await import("@earendil-works/pi-ai");
+
+		// Resolve the model
+		let model: any;
+		const allModels = ai.getModels(defaultProvider as any);
+		const found = allModels.find((m: any) => m.id === defaultModelId);
+		if (found) {
+			model = found;
+		} else {
+			// Fall back to first available model for this provider
+			for (const m of allModels) {
+				if (m.provider === defaultProvider) {
+					model = m;
+					break;
+				}
+			}
+			if (!model) {
+				reply.raw.write(
+					`data: ${JSON.stringify({ type: "error", message: `No model found for provider: ${defaultProvider}` })}\n\n`,
+				);
+				reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+				reply.raw.end();
+				return;
+			}
 		}
 
-		// Map provider to the correct API type for @earendil-works/pi-ai
-		// Provider names (opencode-go) differ from API types (openai-completions)
-		let apiType = defaultProvider;
-		try {
-			const { getModels } = await import("@earendil-works/pi-ai");
-			const models = getModels(defaultProvider as any);
-			const found = models.find((m: any) => m.id === defaultModel);
-			if (found?.api) apiType = found.api;
-		} catch {
-			// Fall back to provider name
-		}
-
-		// Build context with project info
 		// Get recent git info for context
 		let gitContext = "";
 		try {
-			const workspaceRoot = getWorkspaceRoot();
 			const branch = execSync("git rev-parse --abbrev-ref HEAD", {
 				cwd: workspaceRoot,
 				encoding: "utf-8",
@@ -1645,156 +1648,137 @@ fastify.post<{
 You help users understand and fix issues with their plan executions.
 
 Current project: ${project.name}
-Project root: ${project.rootPath || "unknown"}
+Project root: ${workspaceRoot}
 ${gitContext}
 ${execContext}
 
+You have full access to tools: read files, edit code, write new files, run bash commands, search with grep/find, list directories.
+
 You can:
 1. Answer questions about the project, git state, and execution results
-2. Suggest fixes for failed workspaces
-3. If the user asks you to make changes, describe what workspaces would be needed
+2. Read, edit, and write code
+3. Run bash commands (git, build tools, etc.)
+4. Suggest and implement fixes for failed workspaces
+5. Commit and push changes using git commands
 
-Keep responses concise and technical.`;
+Keep responses concise and technical.
+Always confirm with the user before making destructive changes.`;
 
-		// Build message array
-		// Stream the AI response
-		const ai = await import("@earendil-works/pi-ai");
+		// Create the agent session with tool access
+		const { createAgentSession, SessionManager, SettingsManager, AuthStorage, ModelRegistry } = piAgent;
 
-		// Get the full model definition from pi-ai models
-		let model = { api: apiType as any, id: defaultModel, name: defaultModel, provider: defaultProvider } as any;
-		try {
-			const allModels = ai.getModels(defaultProvider as any);
-			const found = allModels.find((m: any) => m.id === defaultModel);
-			if (found) model = found;
-		} catch {
-			// Use minimal model definition
-		}
-
-		const { streamSimple } = ai;
-
-		fastify.log.info({ defaultProvider, defaultModel, apiType, modelId: model.id }, "Chat model");
-
-		// Load chat history from DB for this session
-		const dbBackend = detectStateStoreBackend();
-		let persistedHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
-
-		if (dbBackend === "postgres") {
-			try {
-				const { getKysely } = await import("@earendil-works/pi-db");
-				const db = getKysely();
-				const rows = await db
-					.selectFrom("chat_messages")
-					.selectAll()
-					.where("project_id", "=", projectId)
-					.where("session_id", "=", sessionId)
-					.orderBy("message_index", "asc")
-					.execute();
-
-				persistedHistory = rows.map((r) => ({
-					role: r.role as "user" | "assistant",
-					content: r.content,
-				}));
-			} catch {
-				fastify.log.warn("Failed to load chat history from DB, proceeding without history");
-			}
-		}
-
-		// Save user message to DB
-		if (dbBackend === "postgres") {
-			try {
-				const { getKysely } = await import("@earendil-works/pi-db");
-				const db = getKysely();
-				const nextIndex = persistedHistory.length;
-				await db
-					.insertInto("chat_messages")
-					.values({
-						project_id: projectId,
-						role: "user",
-						content: message,
-						message_index: nextIndex,
-						session_id: sessionId,
-					})
-					.execute();
-			} catch {
-				fastify.log.warn("Failed to save user chat message to DB");
-			}
-		}
-
-		// Build context with full history (user + assistant messages)
-		const now = Date.now();
-		const chatMessages: Array<
-			| { role: "user"; content: string; timestamp: number }
-			| { role: "assistant"; content: { type: "text"; text: string }[]; timestamp: number }
-		> = [];
-
-		for (const h of persistedHistory) {
-			if (h.role === "user") {
-				chatMessages.push({ role: "user", content: h.content, timestamp: now });
-			} else {
-				chatMessages.push({ role: "assistant", content: [{ type: "text", text: h.content }], timestamp: now });
-			}
-		}
-		chatMessages.push({ role: "user", content: message, timestamp: now });
-
-		const context = {
-			systemPrompt,
-			messages: chatMessages,
-		};
+		const authStorage = AuthStorage.create();
+		const modelRegistry = ModelRegistry.create(authStorage);
+		const projectSettingsManager = SettingsManager.create(workspaceRoot);
+		const sessionManager = SessionManager.inMemory(workspaceRoot);
 
 		let _responseText = "";
+		let session: any = null;
 
 		try {
-			const eventStream = streamSimple(model as any, context as any, { apiKey });
+			const result = await createAgentSession({
+				cwd: workspaceRoot,
+				model,
+				authStorage,
+				modelRegistry,
+				settingsManager: projectSettingsManager,
+				sessionManager,
+				// Enable all built-in tools: read, bash, edit, write, grep, find, ls
+				tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+			});
 
-			for await (const event of eventStream) {
-				if (reply.raw.writableEnded) break;
+			session = result.session;
 
-				if (event.type === "text_delta") {
-					_responseText += event.delta;
-					reply.raw.write(`data: ${JSON.stringify({ type: "text", text: event.delta })}\n\n`);
-				} else if (event.type === "toolcall_end") {
-					reply.raw.write(`data: ${JSON.stringify({ type: "tool_call", tool: event.toolCall })}\n\n`);
+			// Override system prompt
+			session.agent.state.systemPrompt = systemPrompt;
+
+			// Subscribe to agent events for SSE streaming
+			const unsubscribe = session.subscribe((event: any) => {
+				if (reply.raw.writableEnded) return;
+
+				if (event.type === "message_update") {
+					// Stream text deltas from assistant messages
+					const msg = event.assistantMessageEvent;
+					if (msg?.type === "text_delta" && msg.delta) {
+						_responseText += msg.delta;
+						reply.raw.write(`data: ${JSON.stringify({ type: "text", text: msg.delta })}\n\n`);
+					}
+				} else if (event.type === "tool_execution_start") {
+					// Notify frontend about tool execution
+					reply.raw.write(
+						`data: ${JSON.stringify({
+							type: "tool_call",
+							tool: { name: event.toolName, args: event.args, toolCallId: event.toolCallId },
+						})}\n\n`,
+					);
+				} else if (event.type === "tool_execution_update") {
+					// Stream partial results from tool execution
+					const partial = event.partialResult;
+					if (partial) {
+						const text = typeof partial === "string" ? partial : JSON.stringify(partial);
+						if (text) {
+							reply.raw.write(`data: ${JSON.stringify({ type: "text", text })}\n\n`);
+						}
+					}
+				} else if (event.type === "tool_execution_end") {
+					// Show tool execution result
+					const resultStr = event.isError
+						? `[Tool ${event.toolName} failed: ${String(event.result)}]`
+						: `[Tool ${event.toolName} completed]`;
+					reply.raw.write(`data: ${JSON.stringify({ type: "text", text: resultStr })}\n\n`);
 				} else if (event.type === "error") {
-					const errObj = (event as any).error;
-					const errMsg = errObj?.errorMessage || JSON.stringify(errObj) || "Unknown error";
-					fastify.log.error({ errMsg }, "Chat stream error");
-					reply.raw.write(`data: ${JSON.stringify({ type: "error", message: String(errMsg) })}\n\n`);
+					// Only forward agent errors, not internal events like "auto_retry"
+					const ev = event as any;
+					if (ev.errorMessage) {
+						reply.raw.write(`data: ${JSON.stringify({ type: "error", message: ev.errorMessage })}\n\n`);
+					}
+				}
+			});
+
+			// Send the user message to the agent
+			await session.sendUserMessage(message);
+
+			// Wait for agent to finish processing
+			await session.agent.waitForIdle();
+
+			unsubscribe();
+
+			// Save assistant response to DB
+			const dbBackend = detectStateStoreBackend();
+			if (dbBackend === "postgres" && _responseText) {
+				try {
+					const { getKysely } = await import("@earendil-works/pi-db");
+					const db = getKysely();
+					await db
+						.insertInto("chat_messages")
+						.values({
+							project_id: projectId,
+							role: "assistant",
+							content: _responseText,
+							message_index: 0,
+							session_id: sessionId,
+						})
+						.execute();
+				} catch {
+					fastify.log.warn("Failed to save assistant chat message to DB");
 				}
 			}
-		} catch (streamError) {
-			fastify.log.error({ streamError }, "Chat stream error");
-			reply.raw.write(
-				`data: ${JSON.stringify({ type: "error", message: `Stream error: ${String(streamError)}` })}\n\n`,
-			);
-		}
 
-		// Save assistant response to DB
-		if (dbBackend === "postgres" && _responseText) {
-			try {
-				const { getKysely } = await import("@earendil-works/pi-db");
-				const db = getKysely();
-				const nextIndex = persistedHistory.length + 1;
-				await db
-					.insertInto("chat_messages")
-					.values({
-						project_id: projectId,
-						role: "assistant",
-						content: _responseText,
-						message_index: nextIndex,
-						session_id: sessionId,
-					})
-					.execute();
-			} catch {
-				fastify.log.warn("Failed to save assistant chat message to DB");
+			// Signal completion
+			reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+		} catch (agentError: any) {
+			fastify.log.error({ agentError }, "Chat agent error");
+			reply.raw.write(`data: ${JSON.stringify({ type: "error", message: String(agentError) })}\n\n`);
+			reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+		} finally {
+			if (!reply.raw.writableEnded) {
+				reply.raw.end();
 			}
 		}
-
-		// Signal completion
-		reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
-		reply.raw.end();
 	} catch (error) {
 		fastify.log.error({ error }, "Chat error");
 		reply.raw.write(`data: ${JSON.stringify({ type: "error", message: String(error) })}\n\n`);
+		reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
 		reply.raw.end();
 	}
 });

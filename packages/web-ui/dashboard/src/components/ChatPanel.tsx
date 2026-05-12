@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, Loader2, Bot, User, X, AlertCircle } from "lucide-react";
+import { Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code, CheckCircle2, XCircle } from "lucide-react";
 
 const API_BASE = "";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  toolCalls?: ToolCallEvent[];
+}
+
+interface ToolCallEvent {
+  name: string;
+  args: Record<string, unknown>;
+  toolCallId?: string;
+  status?: "running" | "success" | "error";
+  result?: string;
 }
 
 interface ChatPanelProps {
@@ -18,6 +27,7 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamBuffer, setStreamBuffer] = useState("");
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCallEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -55,6 +65,9 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setStreaming(true);
     setStreamBuffer("");
+    setActiveToolCalls([]);
+
+    const toolCallMap = new Map<string, ToolCallEvent>();
 
     const abort = new AbortController();
     abortRef.current = abort;
@@ -105,11 +118,31 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
             } else if (event.type === "error") {
               setError(event.message);
             } else if (event.type === "done") {
-              setMessages((prev) => [...prev, { role: "assistant", content: fullText }]);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: fullText,
+                  toolCalls: Array.from(toolCallMap.values()),
+                },
+              ]);
               setStreamBuffer("");
+              setActiveToolCalls([]);
               setStreaming(false);
             } else if (event.type === "tool_call") {
-              // For now, just log tool calls
+              const toolId = event.tool.toolCallId || event.tool.name;
+              const existing = toolCallMap.get(toolId);
+              if (existing) {
+                existing.status = "success";
+              } else {
+                toolCallMap.set(toolId, {
+                  name: event.tool.name,
+                  args: event.tool.args,
+                  toolCallId: event.tool.toolCallId,
+                  status: "running",
+                });
+              }
+              setActiveToolCalls(Array.from(toolCallMap.values()));
               fullText += `\n[Executing: ${event.tool.name}]\n`;
               setStreamBuffer(fullText);
             }
@@ -164,18 +197,74 @@ export function ChatPanel({ projectId, onClose }: ChatPanelProps) {
             {msg.role === "assistant" && (
               <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
             )}
-            <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
-              msg.role === "user"
-                ? "bg-blue-600 text-white"
-                : "bg-stone-100 dark:bg-[#2A2A2A] text-stone-700 dark:text-stone-300"
-            }`}>
-              <pre className="whitespace-pre-wrap break-words font-sans">{msg.content}</pre>
+            <div className="max-w-[85%] space-y-1.5">
+              {/* Message content */}
+              <div className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                msg.role === "user"
+                  ? "bg-blue-600 text-white"
+                  : "bg-stone-100 dark:bg-[#2A2A2A] text-stone-700 dark:text-stone-300"
+              }`}>
+                <pre className="whitespace-pre-wrap break-words font-sans">{msg.content}</pre>
+              </div>
+              {/* Tool calls */}
+              {msg.toolCalls && msg.toolCalls.length > 0 && (
+                <div className="space-y-1">
+                  {msg.toolCalls.map((tc, j) => (
+                    <div key={j} className="flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-[#252525] rounded px-2 py-1">
+                      {tc.name === "bash" ? (
+                        <Terminal size={10} className="shrink-0" />
+                      ) : tc.name === "edit" || tc.name === "write" ? (
+                        <Code size={10} className="shrink-0" />
+                      ) : (
+                        <Bot size={10} className="shrink-0" />
+                      )}
+                      <span className="font-medium">{tc.name}</span>
+                      <span className="text-stone-400 dark:text-stone-500 truncate">
+                        {typeof tc.args === "object" && tc.args !== null
+                          ? JSON.stringify(tc.args).slice(0, 60)
+                          : ""}
+                      </span>
+                      {tc.status === "success" && <CheckCircle2 size={10} className="ml-auto shrink-0 text-green-500" />}
+                      {tc.status === "error" && <XCircle size={10} className="ml-auto shrink-0 text-red-500" />}
+                      {tc.status === "running" && <Loader2 size={10} className="ml-auto shrink-0 text-blue-500 animate-spin" />}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {msg.role === "user" && (
               <User size={14} className="shrink-0 mt-1 text-stone-400" />
             )}
           </div>
         ))}
+
+        {activeToolCalls.length > 0 && (
+          <div className="flex gap-2 justify-start">
+            <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
+            <div className="space-y-1">
+              {activeToolCalls.map((tc, j) => (
+                <div key={j} className="flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-[#252525] rounded px-2 py-1">
+                  {tc.name === "bash" ? (
+                    <Terminal size={10} className="shrink-0" />
+                  ) : tc.name === "edit" || tc.name === "write" ? (
+                    <Code size={10} className="shrink-0" />
+                  ) : (
+                    <Bot size={10} className="shrink-0" />
+                  )}
+                  <span className="font-medium">{tc.name}</span>
+                  <span className="text-stone-400 dark:text-stone-500 truncate">
+                    {typeof tc.args === "object" && tc.args !== null
+                      ? JSON.stringify(tc.args).slice(0, 60)
+                      : ""}
+                  </span>
+                  {tc.status === "running" && <Loader2 size={10} className="ml-auto shrink-0 text-blue-500 animate-spin" />}
+                  {tc.status === "success" && <CheckCircle2 size={10} className="ml-auto shrink-0 text-green-500" />}
+                  {tc.status === "error" && <XCircle size={10} className="ml-auto shrink-0 text-red-500" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {streamBuffer && (
           <div className="flex gap-2 justify-start">
