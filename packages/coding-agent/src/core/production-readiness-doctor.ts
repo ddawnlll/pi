@@ -32,7 +32,7 @@ export type ProductionReadinessVerdict = "PASS" | "WARN" | "FAIL";
 /**
  * Category of a production readiness check.
  */
-export type ProductionReadinessCategory = "safety" | "skills" | "file_scope" | "git_tree" | "schema";
+export type ProductionReadinessCategory = "safety" | "skills" | "file_scope" | "git_tree" | "schema" | "plan_metadata";
 
 /**
  * A single production readiness check result.
@@ -189,6 +189,12 @@ export class ProductionReadinessDoctor {
 			skillPaths?: string[];
 			includeDefaultSkills?: boolean;
 			skipGitCheck?: boolean;
+			/** P4.6.2: Optional parse metadata for workstream/workspace count checks */
+			parseMetadata?: {
+				parsedSource: string;
+				markdownWorkstreamCount: number | null;
+				missingWorkspaceLabels: string[];
+			};
 		},
 	): ProductionReadinessReport {
 		const checks: ProductionReadinessCheck[] = [];
@@ -209,6 +215,11 @@ export class ProductionReadinessDoctor {
 
 		// 5. Schema / structure sanity
 		checks.push(...this.checkSchema(queue));
+
+		// 6. P4.6.2: Plan metadata consistency
+		if (options?.parseMetadata) {
+			checks.push(...this.checkPlanMetadata(queue, options.parseMetadata));
+		}
 
 		return this.buildReport(checks);
 	}
@@ -487,7 +498,14 @@ export class ProductionReadinessDoctor {
 		}
 
 		// Group by category
-		const categories: ProductionReadinessCategory[] = ["safety", "skills", "file_scope", "git_tree", "schema"];
+		const categories: ProductionReadinessCategory[] = [
+			"safety",
+			"skills",
+			"file_scope",
+			"git_tree",
+			"schema",
+			"plan_metadata",
+		];
 		const byCategory = {} as Record<ProductionReadinessCategory, ProductionReadinessCheck[]>;
 		for (const cat of categories) {
 			byCategory[cat] = checks.filter((c) => c.category === cat);
@@ -507,6 +525,70 @@ export class ProductionReadinessDoctor {
 			autoRunReady,
 			timestamp: new Date().toISOString(),
 		};
+	}
+
+	/**
+	 * P4.6.2: Check plan metadata consistency.
+	 *
+	 * Warns when Part 1 markdown defines a different number of workstreams
+	 * than Part 3 JSON defines executable workspaces.
+	 * Also reports missing workspace labels.
+	 *
+	 * @param queue - Workspace queue
+	 * @param metadata - Parse metadata from plan parser
+	 * @returns Production readiness checks for plan metadata consistency
+	 */
+	checkPlanMetadata(
+		queue: WorkspaceQueue,
+		metadata: { parsedSource: string; markdownWorkstreamCount: number | null; missingWorkspaceLabels: string[] },
+	): ProductionReadinessCheck[] {
+		const checks: ProductionReadinessCheck[] = [];
+
+		// Check parsed source
+		checks.push({
+			name: "Plan Parsed Source",
+			category: "plan_metadata",
+			status: "PASS",
+			message: `Plan metadata parsed from: ${metadata.parsedSource}`,
+		});
+
+		// Check workstream/workspace count consistency
+		if (metadata.markdownWorkstreamCount !== null && metadata.markdownWorkstreamCount !== queue.workspaces.length) {
+			checks.push({
+				name: "Workstream/Workspace Count Consistency",
+				category: "plan_metadata",
+				status: "WARN",
+				message:
+					`Part 1 defines ${metadata.markdownWorkstreamCount} workstream(s) but Part 3 JSON defines ${queue.workspaces.length} executable workspace(s). ` +
+					`Pi will execute only the ${queue.workspaces.length} JSON workspace(s).`,
+			});
+		} else {
+			checks.push({
+				name: "Workstream/Workspace Count Consistency",
+				category: "plan_metadata",
+				status: "PASS",
+				message: "Markdown workstream count matches JSON workspace count",
+			});
+		}
+
+		// Check for missing workspace labels
+		if (metadata.missingWorkspaceLabels.length > 0) {
+			checks.push({
+				name: "Missing Workspace Entries",
+				category: "plan_metadata",
+				status: "WARN",
+				message: `Markdown workstream(s) without JSON workspace entry: ${metadata.missingWorkspaceLabels.join(", ")}`,
+			});
+		} else {
+			checks.push({
+				name: "Missing Workspace Entries",
+				category: "plan_metadata",
+				status: "PASS",
+				message: "All markdown workstreams have JSON workspace entries",
+			});
+		}
+
+		return checks;
 	}
 
 	/**

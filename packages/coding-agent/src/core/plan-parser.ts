@@ -10,6 +10,11 @@ import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { validateWorkspaceQueue } from "./workspace-schema.js";
 
 /**
+ * Source of the parsed workspace queue metadata.
+ */
+export type ParsedSource = "part3_json" | "markdown_fallback";
+
+/**
  * Parse result
  */
 export interface ParseResult {
@@ -23,6 +28,12 @@ export interface ParseResult {
 	warnings: string[];
 	/** Unresolved placeholders found */
 	unresolvedPlaceholders: string[];
+	/** P4.6.2: Which source provided the queue metadata. */
+	parsedSource: ParsedSource;
+	/** P4.6.2: Count of workstream headings in Part 1 markdown, or null. */
+	markdownWorkstreamCount: number | null;
+	/** P4.6.2: Markdown workstream labels without corresponding JSON workspace entry. */
+	missingWorkspaceLabels: string[];
 }
 
 /**
@@ -35,6 +46,93 @@ export interface ParseOptions {
 	validate?: boolean;
 	/** Whether to use Markdown fallback if JSON not found (default: true) */
 	markdownFallback?: boolean;
+	/** P4.6.2: Fail instead of warn on workstream/workspace count mismatch. Default: false. */
+	failOnWorkspaceCountMismatch?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Markdown workstream heading extraction (P4.6.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of scanning Part 1 markdown for workstream headings.
+ */
+interface MarkdownWorkstreamScan {
+	/** Number of workstream headings found */
+	count: number;
+	/** Labels extracted from headings (e.g., ["A", "B", ..., "N"]) */
+	labels: string[];
+}
+
+/**
+ * Scan Part 1 markdown for workstream headings.
+ *
+ * Supports heading patterns like:
+ * - ### 7.A — Title
+ * - ### 19.A — Title
+ * - ### Workstream A — Title
+ *
+ * @param planContent - Full plan content
+ * @returns Scan result with count and labels
+ */
+export function scanMarkdownWorkstreamHeadings(planContent: string): MarkdownWorkstreamScan {
+	const labels: string[] = [];
+
+	// Try to find a workstreams section (## 7. Workstreams, ## N. Workstreams, etc.)
+	const workstreamSectionMatch = planContent.match(/## [0-9]+[. ]*Workstreams?([\s\S]*?)(?=\n## [0-9]+[. ]|$)/im);
+
+	const sectionContent = workstreamSectionMatch ? (workstreamSectionMatch[1] ?? "") : "";
+
+	// If no section found, scan whole content as fallback
+	const searchContent = sectionContent || planContent;
+
+	// Pattern: "### X.Y[Z] — Title" — extract the letter after the dot
+	const headingPattern = /### [0-9]+[.]([A-Z])[^\n]*—/g;
+	let match: RegExpExecArray | null = headingPattern.exec(searchContent);
+
+	while (match !== null) {
+		const label = match[1];
+		if (label && !labels.includes(label)) {
+			labels.push(label);
+		}
+		match = headingPattern.exec(searchContent);
+	}
+
+	// If no ## N.Workstreams section was found and no labels yet, try "Workstream A" format
+	if (labels.length === 0) {
+		const workstreamNamedPattern = /### Workstream ([A-Z])[—\s]/gi;
+		match = workstreamNamedPattern.exec(searchContent);
+		while (match !== null) {
+			const label = match[1];
+			if (label && !labels.includes(label)) {
+				labels.push(label);
+			}
+			match = workstreamNamedPattern.exec(searchContent);
+		}
+	}
+
+	return { count: labels.length, labels };
+}
+
+/**
+ * Compare markdown workstream labels to workspace IDs and find missing ones.
+ *
+ * @param markdownLabels - Labels from markdown headings (e.g., ["A", "B", "C"])
+ * @param workspaceIds - Workspace IDs from queue (e.g., ["7.A", "7.B", "19.C"])
+ * @returns Array of missing labels that have no corresponding workspace
+ */
+export function findMissingWorkspaceLabels(markdownLabels: string[], workspaceIds: string[]): string[] {
+	// Extract the letter suffix from workspace IDs (e.g., "7.A" -> "A", "19.N" -> "N")
+	const workspaceLetters = new Set<string>();
+	for (const id of workspaceIds) {
+		const letterMatch = id.match(/[.]([A-Z])$/);
+		if (letterMatch) {
+			workspaceLetters.add(letterMatch[1]);
+		}
+	}
+
+	// Find markdown labels that don't have a matching workspace entry
+	return markdownLabels.filter((label) => !workspaceLetters.has(label));
 }
 
 /**
@@ -43,40 +141,61 @@ export interface ParseOptions {
  * Primary: Extracts Part 3 JSON queue from plan
  * Fallback: Parses Markdown headings if JSON not found
  *
+ * P4.6.2: Always tracks parsedSource and performs workstream count
+ * consistency checks between Part 1 markdown and Part 3 JSON.
+ *
  * @param planContent - Plan file content
  * @param options - Parse options
  * @returns Parse result
  */
 export function parsePlan(planContent: string, options: ParseOptions = {}): ParseResult {
-	const { allowPlaceholders = false, validate = true, markdownFallback = true } = options;
+	const {
+		allowPlaceholders = false,
+		validate = true,
+		markdownFallback = true,
+		failOnWorkspaceCountMismatch = false,
+	} = options;
 
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const unresolvedPlaceholders: string[] = [];
 
+	// P4.6.2: Always scan markdown workstream headings (even when Part 3 JSON is primary)
+	const markdownScan = scanMarkdownWorkstreamHeadings(planContent);
+
 	// Try to extract Part 3 JSON queue
 	const jsonQueue = extractJsonQueue(planContent);
 
 	let queue: WorkspaceQueue | undefined;
+	let parsedSource: ParsedSource = "markdown_fallback";
 
 	if (jsonQueue) {
 		// Parse JSON queue
 		try {
 			const parsed = JSON.parse(jsonQueue);
 			queue = normalizeQueue(parsed);
+			parsedSource = "part3_json";
 		} catch (error) {
 			errors.push(`Failed to parse JSON queue: ${error instanceof Error ? error.message : String(error)}`);
 		}
-	} else if (markdownFallback) {
+	}
+
+	if (!queue && markdownFallback) {
 		// Fallback to Markdown heading parser
 		warnings.push("Part 3 JSON queue not found, using Markdown heading fallback");
 		const markdownResult = parseMarkdownHeadings(planContent);
 		if (markdownResult.queue) {
 			queue = markdownResult.queue;
+			parsedSource = "markdown_fallback";
+			// JSON parse error becomes a warning since markdown resolved the queue
+			const jsonErrorIdx = errors.findIndex((e) => e.includes("Failed to parse JSON queue"));
+			if (jsonErrorIdx >= 0) {
+				warnings.push(errors.splice(jsonErrorIdx, 1)[0]);
+			}
 		} else {
 			errors.push(...markdownResult.errors);
 		}
-	} else {
+	} else if (!queue && !markdownFallback) {
 		errors.push("Part 3 JSON queue not found and Markdown fallback disabled");
 	}
 
@@ -87,6 +206,34 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 
 		if (placeholders.length > 0 && !allowPlaceholders) {
 			errors.push(`Found ${placeholders.length} unresolved placeholder(s): ${placeholders.join(", ")}`);
+		}
+	}
+
+	// P4.6.2: Workspace count consistency check
+	let missingWorkspaceLabels: string[] = [];
+	if (queue && markdownScan.count > 0) {
+		const jsonWorkspaceCount = queue.workspaces.length;
+
+		if (markdownScan.count !== jsonWorkspaceCount) {
+			const mismatchMsg =
+				`Part 1 defines ${markdownScan.count} workstream(s) but Part 3 JSON defines ${jsonWorkspaceCount} executable workspace(s). ` +
+				`Pi will execute only the ${jsonWorkspaceCount} JSON workspace(s).`;
+
+			if (failOnWorkspaceCountMismatch) {
+				errors.push(mismatchMsg);
+			} else {
+				warnings.push(mismatchMsg);
+			}
+		}
+
+		// Check for missing workspace label mappings
+		missingWorkspaceLabels = findMissingWorkspaceLabels(
+			markdownScan.labels,
+			queue.workspaces.map((w) => w.id),
+		);
+
+		if (missingWorkspaceLabels.length > 0) {
+			warnings.push(`Markdown workstream(s) without JSON workspace entry: ${missingWorkspaceLabels.join(", ")}`);
 		}
 	}
 
@@ -105,6 +252,9 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 		errors,
 		warnings,
 		unresolvedPlaceholders,
+		parsedSource,
+		markdownWorkstreamCount: markdownScan.count > 0 ? markdownScan.count : null,
+		missingWorkspaceLabels,
 	};
 }
 
@@ -250,9 +400,16 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		metadata: w.metadata,
 	}));
 
+	// P4.6.2: Use phase and title from Part 3 JSON as-is when present.
+	// Only fall back to defaults when the field is missing/empty.
+	// This ensures "19" and "V6.2 Mode-Routed Scalp Expansion" are preserved.
+	const phase = typeof parsed.phase === "string" && parsed.phase.trim() !== "" ? parsed.phase.trim() : "P2";
+	const title =
+		typeof parsed.title === "string" && parsed.title.trim() !== "" ? parsed.title.trim() : "Untitled Phase";
+
 	return {
-		phase: parsed.phase || "P2",
-		title: parsed.title || "Untitled Phase",
+		phase,
+		title,
 		maxParallelWorkspaces: typeof parsed.maxParallelWorkspaces === "number" ? parsed.maxParallelWorkspaces : 3,
 		workspaces,
 	};
@@ -297,6 +454,9 @@ export async function loadPlan(filePath: string, options: ParseOptions = {}): Pr
 			errors: [`Failed to load plan file: ${error instanceof Error ? error.message : String(error)}`],
 			warnings: [],
 			unresolvedPlaceholders: [],
+			parsedSource: "markdown_fallback",
+			markdownWorkstreamCount: null,
+			missingWorkspaceLabels: [],
 		};
 	}
 }
@@ -317,6 +477,7 @@ export function formatParseResult(result: ParseResult): string {
 			lines.push(`  Title: ${result.queue.title}`);
 			lines.push(`  Workspaces: ${result.queue.workspaces.length}`);
 			lines.push(`  Max Parallel: ${result.queue.maxParallelWorkspaces}`);
+			lines.push(`  Source: ${result.parsedSource}`);
 		}
 	} else {
 		lines.push("✗ Plan parsing failed");

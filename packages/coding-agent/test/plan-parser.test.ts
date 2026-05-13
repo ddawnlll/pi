@@ -3,7 +3,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { formatParseResult, parsePlan } from "../src/core/plan-parser.js";
+import {
+	findMissingWorkspaceLabels,
+	formatParseResult,
+	parsePlan,
+	scanMarkdownWorkstreamHeadings,
+} from "../src/core/plan-parser.js";
 
 describe("parsePlan", () => {
 	it("should parse valid Part 3 JSON queue", () => {
@@ -380,6 +385,9 @@ describe("formatParseResult", () => {
 			errors: [],
 			warnings: [],
 			unresolvedPlaceholders: [],
+			parsedSource: "part3_json" as const,
+			markdownWorkstreamCount: null,
+			missingWorkspaceLabels: [],
 		};
 
 		const formatted = formatParseResult(result);
@@ -394,6 +402,9 @@ describe("formatParseResult", () => {
 			errors: ["Error 1", "Error 2"],
 			warnings: ["Warning 1"],
 			unresolvedPlaceholders: ["PLACEHOLDER"],
+			parsedSource: "markdown_fallback" as const,
+			markdownWorkstreamCount: null,
+			missingWorkspaceLabels: [],
 		};
 
 		const formatted = formatParseResult(result);
@@ -404,5 +415,429 @@ describe("formatParseResult", () => {
 		expect(formatted).toContain("Warning 1");
 		expect(formatted).toContain("Unresolved Placeholders:");
 		expect(formatted).toContain("{{ PLACEHOLDER }}");
+	});
+});
+
+// ===========================================================================
+// P4.6.2 Tests — Plan Parser Metadata & Workspace Count Consistency
+// ===========================================================================
+
+describe("P4.6.2: parsedSource tracking", () => {
+	it("reports parsedSource as part3_json when Part 3 JSON is valid", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.parsedSource).toBe("part3_json");
+	});
+
+	it("reports parsedSource as markdown_fallback when no Part 3 JSON", () => {
+		const planContent = `
+# Phase P2 — Test Phase
+Title: Test Phase
+
+## 7. Workstreams
+
+### 7.A — Task A
+
+Dependencies: None
+
+Role: worker
+`;
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.parsedSource).toBe("markdown_fallback");
+	});
+});
+
+describe("P4.6.2: metadata from Part 3 JSON overrides defaults", () => {
+	const phase19Plan = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.B", "title": "Task B", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.C", "title": "Task C", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+	it("uses phase from Part 3 JSON (e.g., '19') instead of default 'P2'", () => {
+		const result = parsePlan(phase19Plan);
+		expect(result.success).toBe(true);
+		expect(result.queue?.phase).toBe("19");
+		expect(result.queue?.phase).not.toBe("P2");
+	});
+
+	it("uses title from Part 3 JSON instead of 'Untitled Phase'", () => {
+		const result = parsePlan(phase19Plan);
+		expect(result.success).toBe(true);
+		expect(result.queue?.title).toBe("V6.2 Mode-Routed Scalp Expansion");
+		expect(result.queue?.title).not.toBe("Untitled Phase");
+	});
+
+	it("uses maxParallelWorkspaces from Part 3 JSON", () => {
+		const result = parsePlan(phase19Plan);
+		expect(result.success).toBe(true);
+		expect(result.queue?.maxParallelWorkspaces).toBe(3);
+	});
+
+	it("uses workspace count from Part 3 JSON workspaces.length", () => {
+		const result = parsePlan(phase19Plan);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces.length).toBe(3);
+	});
+
+	it("parsedSource is part3_json for this plan", () => {
+		const result = parsePlan(phase19Plan);
+		expect(result.parsedSource).toBe("part3_json");
+	});
+
+	it("formatParseResult shows phase 19, not P2", () => {
+		const result = parsePlan(phase19Plan);
+		const formatted = formatParseResult(result);
+		expect(formatted).toContain("Phase: 19");
+		expect(formatted).not.toContain("Phase: P2");
+		expect(formatted).toContain("V6.2 Mode-Routed Scalp Expansion");
+		expect(formatted).not.toContain("Untitled Phase");
+	});
+});
+
+describe("P4.6.2: missing Part 3 still uses markdown fallback", () => {
+	it("falls back to markdown when Part 3 JSON is absent", () => {
+		const planContent = `
+# Phase P2 — Test Phase
+Title: Fallback Title
+
+## 7. Workstreams
+
+### 7.A — Task A
+
+Dependencies: None
+
+Role: worker
+`;
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.parsedSource).toBe("markdown_fallback");
+		expect(result.warnings.some((w) => w.includes("Markdown heading fallback"))).toBe(true);
+	});
+});
+
+describe("P4.6.2: invalid Part 3 falls back or fails", () => {
+	it("malformed JSON in Part 3 produces error", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{ invalid json }
+\`\`\`
+`;
+		const result = parsePlan(planContent, { markdownFallback: false });
+		expect(result.success).toBe(false);
+		expect(result.errors.some((e) => e.includes("Failed to parse JSON"))).toBe(true);
+	});
+
+	it("malformed JSON with markdown fallback still works", () => {
+		const planContent = `
+# Phase P2 — Test Phase
+Title: Fallback Title
+
+## 7. Workstreams
+
+### 7.A — Task A
+
+Dependencies: None
+
+Role: worker
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{ invalid json }
+\`\`\`
+`;
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.parsedSource).toBe("markdown_fallback");
+	});
+});
+
+describe("P4.6.2: workstream/workspace count consistency", () => {
+	it("warns when markdown has 14 workstreams but JSON has 3 workspaces", () => {
+		// Build a plan with 14 markdown workstreams A-N and 3 JSON workspaces
+		const workstreamHeadings = Array.from(
+			{ length: 14 },
+			(_, i) => `### 7.${String.fromCharCode(65 + i)} — Workstream ${String.fromCharCode(65 + i)}`,
+		).join("\n\nDependencies: None\n\nRole: worker\n\n");
+
+		const planContent = `
+## 7. Workstreams
+
+${workstreamHeadings}
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.B", "title": "Scale logic", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.C", "title": "Integration tests", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.markdownWorkstreamCount).toBe(14);
+		expect(result.warnings.some((w) => w.includes("14 workstream") && w.includes("3 executable"))).toBe(true);
+	});
+
+	it("doctor remains SAFE/VALID when mismatch is warning only", () => {
+		const workstreamHeadings = Array.from(
+			{ length: 14 },
+			(_, i) => `### 7.${String.fromCharCode(65 + i)} — Workstream ${String.fromCharCode(65 + i)}`,
+		).join("\n\nDependencies: None\n\nRole: worker\n\n");
+
+		const planContent = `
+## 7. Workstreams
+
+${workstreamHeadings}
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.B", "title": "Scale logic", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.C", "title": "Integration tests", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		// Mismatch warning should NOT cause success to be false
+		expect(result.success).toBe(true);
+	});
+
+	it("fails when failOnWorkspaceCountMismatch is true", () => {
+		const workstreamHeadings = Array.from(
+			{ length: 14 },
+			(_, i) => `### 7.${String.fromCharCode(65 + i)} — Workstream ${String.fromCharCode(65 + i)}`,
+		).join("\n\nDependencies: None\n\nRole: worker\n\n");
+
+		const planContent = `
+## 7. Workstreams
+
+${workstreamHeadings}
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent, { failOnWorkspaceCountMismatch: true });
+		expect(result.success).toBe(false);
+		expect(result.errors.some((e) => e.includes("14 workstream") && e.includes("1 executable"))).toBe(true);
+	});
+
+	it("no warning when counts match", () => {
+		const planContent = `
+## 7. Workstreams
+
+### 7.A — Task A
+
+Dependencies: None
+
+Role: worker
+
+### 7.B — Task B
+
+Dependencies: 7.A
+
+Role: worker
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "7",
+  "title": "Match Test",
+  "maxParallelWorkspaces": 2,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Task B", "dependencies": ["7.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.markdownWorkstreamCount).toBe(2);
+		expect(result.warnings.some((w) => w.includes("workstream") && w.includes("executable"))).toBe(false);
+	});
+});
+
+describe("P4.6.2: workspace ID mismatch warnings", () => {
+	it("reports missing markdown workstream labels", () => {
+		const workstreamHeadings = Array.from(
+			{ length: 14 },
+			(_, i) => `### 7.${String.fromCharCode(65 + i)} — Workstream ${String.fromCharCode(65 + i)}`,
+		).join("\n\nDependencies: None\n\nRole: worker\n\n");
+
+		const planContent = `
+## 7. Workstreams
+
+${workstreamHeadings}
+
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Scale logic", "dependencies": ["7.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.C", "title": "Integration tests", "dependencies": ["7.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.missingWorkspaceLabels.length).toBeGreaterThan(0);
+		expect(result.missingWorkspaceLabels).toContain("D");
+		expect(result.missingWorkspaceLabels).toContain("N");
+		expect(result.warnings.some((w) => w.includes("without JSON workspace entry"))).toBe(true);
+	});
+});
+
+describe("P4.6.2: scanMarkdownWorkstreamHeadings", () => {
+	it("extracts workstream labels from ### X.Y[Z] headings", () => {
+		const content = `
+## 7. Workstreams
+
+### 7.A — Auth Module
+
+### 7.B — Data Layer
+
+### 7.N — Final Review
+`;
+		const result = scanMarkdownWorkstreamHeadings(content);
+		expect(result.count).toBe(3);
+		expect(result.labels).toEqual(["A", "B", "N"]);
+	});
+
+	it("returns empty when no workstream headings exist", () => {
+		const result = scanMarkdownWorkstreamHeadings("No headings here");
+		expect(result.count).toBe(0);
+		expect(result.labels).toEqual([]);
+	});
+});
+
+describe("P4.6.2: findMissingWorkspaceLabels", () => {
+	it("finds labels in markdown that have no JSON workspace", () => {
+		const labels = ["A", "B", "C", "D", "E"];
+		const ids = ["7.A", "7.B", "7.C"];
+		const missing = findMissingWorkspaceLabels(labels, ids);
+		expect(missing).toEqual(["D", "E"]);
+	});
+
+	it("returns empty when all labels have workspaces", () => {
+		const labels = ["A", "B"];
+		const ids = ["7.A", "7.B"];
+		const missing = findMissingWorkspaceLabels(labels, ids);
+		expect(missing).toEqual([]);
+	});
+});
+
+describe("P4.6.2: dashboard validation payload includes parsedSource and mismatch metadata", () => {
+	it("ParseResult includes parsedSource, markdownWorkstreamCount, and missingWorkspaceLabels", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.B", "title": "Scale logic", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.C", "title": "Integration tests", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+		const result = parsePlan(planContent);
+		expect(result.parsedSource).toBe("part3_json");
+		expect(result).toHaveProperty("markdownWorkstreamCount");
+		expect(result).toHaveProperty("missingWorkspaceLabels");
+	});
+});
+
+describe("P4.6.2: plan run/start log uses phase/title from Part 3 JSON", () => {
+	it("formatParseResult shows Phase: 19 and title from JSON, not defaults", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "19",
+  "title": "V6.2 Mode-Routed Scalp Expansion",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "19.A", "title": "Create routes", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.B", "title": "Scale logic", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "19.C", "title": "Integration tests", "dependencies": ["19.A"], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+		const result = parsePlan(planContent);
+		const formatted = formatParseResult(result);
+		expect(formatted).toContain("Phase: 19");
+		expect(formatted).not.toContain("Phase: P2");
+		expect(formatted).toContain("V6.2 Mode-Routed Scalp Expansion");
+		expect(formatted).not.toContain("Untitled Phase");
 	});
 });

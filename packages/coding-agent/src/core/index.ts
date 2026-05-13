@@ -95,6 +95,11 @@ export {
 	recordExitCodeFailure,
 	scanLogLines,
 } from "./log-failure-detector.js";
+export {
+	findMissingWorkspaceLabels,
+	type ParsedSource,
+	scanMarkdownWorkstreamHeadings,
+} from "./plan-parser.js";
 // Safety profiles
 export {
 	BALANCED_PROFILE,
