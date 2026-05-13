@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.F",
+    "role": "worker",
+    "goal": "Queue snapshot cleanup",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "workspace-queue.json deleted on completePlan, failPlan, stop, cancel",
+        "verified": false
+      },
+      {
+        "description": "meta.json deleted alongside queue snapshot",
+        "verified": false
+      },
+      {
+        "description": "Deletion is best-effort — warning logged on failure, no throw",
+        "verified": false
+      },
+      {
+        "description": "No snapshot files remain after clean completion",
+        "verified": false
+      },
+      {
+        "description": "In-flight crash still recovers correctly",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 181
+    }
+  },
+  "hash": "10adcb341c6d55ff5d6d2ce4aae5f481571de08529351068f291e8dbe2b45ecf",
+  "createdAt": 1778663381191
+}

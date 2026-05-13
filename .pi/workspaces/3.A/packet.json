@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.A",
+    "role": "worker",
+    "goal": "Pause race fix + deadlock guard",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "Control check fires at top of while loop before getNextWorkspaces",
+        "verified": false
+      },
+      {
+        "description": "Paused status enters 500ms poll-wait loop",
+        "verified": false
+      },
+      {
+        "description": "Deadlock check gated on exec.status === running",
+        "verified": false
+      },
+      {
+        "description": "Stop while paused exits cleanly",
+        "verified": false
+      },
+      {
+        "description": "Resume within 1 poll interval",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 173
+    }
+  },
+  "hash": "e593943b8a292da81d707ab640b75e8062e9e03375c03390d874c9623826630c",
+  "createdAt": 1778662805853
+}

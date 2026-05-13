@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.C",
+    "role": "worker",
+    "goal": "Log batching",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "logContent accumulation string removed",
+        "verified": false
+      },
+      {
+        "description": "saveExecutionLog called at most every 50 lines or 5 seconds",
+        "verified": false
+      },
+      {
+        "description": "Flush forced on every terminal state transition",
+        "verified": false
+      },
+      {
+        "description": "Batch timer cleared on function return",
+        "verified": false
+      },
+      {
+        "description": "Log file on disk remains append-only and complete",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 172
+    }
+  },
+  "hash": "4509354fe187dce0bbe8f1d8163ea2a550a2522a2c9db64a0f7fb202a4d0a49a",
+  "createdAt": 1778663210548
+}

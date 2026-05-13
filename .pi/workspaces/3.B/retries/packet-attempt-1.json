@@ -1,0 +1,38 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.B",
+    "role": "worker",
+    "goal": "Recovery meta file",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "planExecId.meta.json written at plan start with planFile, title, phase, startedAt",
+        "verified": false
+      },
+      {
+        "description": "recoverSingleExecution reads meta file before falling back to newest .md",
+        "verified": false
+      },
+      {
+        "description": "Meta file deleted on terminal state",
+        "verified": false
+      },
+      {
+        "description": "Two sequential plans recover to their own plan files",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 175
+    }
+  },
+  "hash": "d83bbde8d6875be95eab4ab8b455b202a277f2721942a60fb9bd728422817d2f",
+  "createdAt": 1778663101163
+}

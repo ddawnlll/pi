@@ -4,7 +4,7 @@ import type { ExecutionEvent } from "../types";
 const API_BASE = "";
 const MAX_EVENTS = 50;
 
-export function useJournalStream() {
+export function useJournalStream(enabled: boolean = true) {
 	const [events, setEvents] = useState<ExecutionEvent[]>([]);
 	const sourceRef = useRef<EventSource | null>(null);
 
@@ -38,14 +38,18 @@ export function useJournalStream() {
 	}, []);
 
 	useEffect(() => {
-		connect();
+		if (enabled) {
+			connect();
+		} else {
+			setEvents([]);
+		}
 		return () => {
 			if (sourceRef.current) {
 				sourceRef.current.close();
 				sourceRef.current = null;
 			}
 		};
-	}, [connect]);
+	}, [connect, enabled]);
 
 	return { events };
 }

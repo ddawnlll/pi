@@ -106,6 +106,15 @@ export class WorkspaceAgentExecutor {
 	}
 
 	/**
+	 * Set the plan execution ID for log persistence context.
+	 * Used by AutonomousExecutor to update context after initialization
+	 * without needing to recreate the entire executor.
+	 */
+	setPlanExecutionId(id: string): void {
+		this.planExecutionId = id;
+	}
+
+	/**
 	 * Execute a workspace using the provided packet
 	 *
 	 * @param packet - Hashed workspace packet

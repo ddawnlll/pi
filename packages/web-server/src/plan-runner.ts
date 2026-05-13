@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	AutonomousExecutor,
@@ -20,6 +20,13 @@ import { getStateStore } from "./state-store-provider.js";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface ExecutionMeta {
+	planFile: string;
+	title: string;
+	phase: string;
+	startedAt: number;
+}
 
 export interface ActiveExecution {
 	projectId: string;
@@ -54,11 +61,85 @@ export interface RunPlanResult {
 
 const activeExecutions = new Map<string, ActiveExecution>();
 
+// Map planExecId to workspaceRoot so we can clean up meta files
+const executionWorkspaceRoots = new Map<string, string>();
+
+/**
+ * File suffix for plan execution meta files.
+ */
+const META_FILE_SUFFIX = ".meta.json";
+
 // TTL for completed executions (30 minutes)
 const EXECUTION_TTL_MS = 30 * 60 * 1000;
 
 // Map to track cleanup timers
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Set of projectIds that currently have an in-flight runPlan() call.
+ * Guards against concurrent initialization of the same project.
+ */
+const inFlightProjects = new Set<string>();
+
+/**
+ * Delete snapshot files (meta file + workspace queue) for a plan execution.
+ *
+ * Best-effort — warnings are logged on failure, but errors are never thrown.
+ */
+async function deleteExecutionSnapshots(planExecId: string): Promise<void> {
+	const workspaceRoot = executionWorkspaceRoots.get(planExecId);
+	if (!workspaceRoot) {
+		return;
+	}
+
+	const piDir = join(workspaceRoot, ".pi");
+
+	// Delete the meta file
+	try {
+		const metaPath = join(piDir, `${planExecId}${META_FILE_SUFFIX}`);
+		await unlink(metaPath);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+			console.warn(`[plan-runner] Failed to delete meta file for ${planExecId}: ${error}`);
+		}
+	}
+
+	// Delete the workspace queue snapshot
+	try {
+		const queuePath = join(piDir, `${planExecId}.${QUEUE_SNAPSHOT_FILE}`);
+		await unlink(queuePath);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+			console.warn(`[plan-runner] Failed to delete queue snapshot for ${planExecId}: ${error}`);
+		}
+	}
+
+	executionWorkspaceRoots.delete(planExecId);
+}
+
+/**
+ * Write the meta file for a plan execution.
+ */
+async function writeExecutionMeta(workspaceRoot: string, planExecId: string, meta: ExecutionMeta): Promise<void> {
+	const piDir = join(workspaceRoot, ".pi");
+	await mkdir(piDir, { recursive: true });
+	const metaPath = join(piDir, `${planExecId}${META_FILE_SUFFIX}`);
+	await writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+	executionWorkspaceRoots.set(planExecId, workspaceRoot);
+}
+
+/**
+ * Load the meta file for a plan execution.
+ */
+async function loadExecutionMeta(workspaceRoot: string, planExecId: string): Promise<ExecutionMeta | null> {
+	try {
+		const metaPath = join(workspaceRoot, ".pi", `${planExecId}${META_FILE_SUFFIX}`);
+		const content = await readFile(metaPath, "utf-8");
+		return JSON.parse(content) as ExecutionMeta;
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Get all active executions for a project.
@@ -89,6 +170,9 @@ function updateExecutionStatus(planExecId: string, status: ActiveExecution["stat
 		exec.status = status;
 		if (status === "complete" || status === "failed" || status === "stopped" || status === "cancelled") {
 			exec.completedAt = Date.now();
+
+			// Delete snapshot files (meta + workspace queue)
+			deleteExecutionSnapshots(planExecId);
 
 			// Schedule cleanup after TTL
 			scheduleExecutionCleanup(planExecId);
@@ -132,98 +216,135 @@ function scheduleExecutionCleanup(planExecId: string): void {
 export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const { planContent, projectId, workspaceRoot, planFileName } = options;
 
-	// Validate workspaceRoot before any filesystem operations
-	if (!workspaceRoot || workspaceRoot.trim() === "") {
+	// AC #5: If there's already a running execution for this project, return it
+	const existingRunning = getActiveExecutions(projectId).find((e) => e.status === "running");
+	if (existingRunning) {
+		console.log(`[plan-runner] Project ${projectId} already has a running execution, returning existing`);
 		return {
-			success: false,
-			errors: ["workspaceRoot is required but was not provided"],
+			success: true,
+			planExecId: existingRunning.planExecId,
+			execution: existingRunning,
 		};
 	}
 
-	// Ensure workspaceRoot is an absolute path
-	const path = await import("node:path");
-	if (!path.isAbsolute(workspaceRoot)) {
+	// AC #1 & AC #2: Guard against concurrent runPlan calls per projectId
+	if (inFlightProjects.has(projectId)) {
+		console.log(`[plan-runner] Project ${projectId} is already being initialized, rejecting duplicate`);
 		return {
 			success: false,
-			errors: [`workspaceRoot must be an absolute path, got: ${workspaceRoot}`],
+			errors: [
+				`A plan is already being initialized for project "${projectId}". Wait for initialization to complete before starting a new one.`,
+			],
 		};
 	}
+	inFlightProjects.add(projectId);
 
-	console.log(`[plan-runner] Starting plan execution for project ${projectId}`);
-	console.log(`[plan-runner] Workspace root: ${workspaceRoot}`);
+	try {
+		// Validate workspaceRoot before any filesystem operations
+		if (!workspaceRoot || workspaceRoot.trim() === "") {
+			return {
+				success: false,
+				errors: ["workspaceRoot is required but was not provided"],
+			};
+		}
 
-	// Parse the plan
-	const parseResult = parsePlan(planContent);
+		// Ensure workspaceRoot is an absolute path
+		const path = await import("node:path");
+		if (!path.isAbsolute(workspaceRoot)) {
+			return {
+				success: false,
+				errors: [`workspaceRoot must be an absolute path, got: ${workspaceRoot}`],
+			};
+		}
 
-	if (!parseResult.success || !parseResult.queue) {
+		console.log(`[plan-runner] Starting plan execution for project ${projectId}`);
+		console.log(`[plan-runner] Workspace root: ${workspaceRoot}`);
+
+		// Parse the plan
+		const parseResult = parsePlan(planContent);
+
+		if (!parseResult.success || !parseResult.queue) {
+			return {
+				success: false,
+				errors: parseResult.errors.length > 0 ? parseResult.errors : ["Failed to parse plan"],
+				warnings: parseResult.warnings,
+			};
+		}
+
+		// Run safety doctor
+		const doctor = createSafetyDoctor();
+		const safetyReport = doctor.validateQueue(parseResult.queue);
+
+		if (!safetyReport.safe) {
+			return {
+				success: false,
+				errors: safetyReport.critical.map((i) => `[${i.type}] ${i.message}`),
+				warnings: [...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`), ...parseResult.warnings],
+			};
+		}
+
+		// Save the plan file to the project directory
+		const piDir = join(workspaceRoot, ".pi");
+		const plansDir = join(piDir, "plans");
+		if (!existsSync(plansDir)) {
+			await mkdir(plansDir, { recursive: true });
+		}
+		const planFilePath = join(plansDir, planFileName || `plan-${Date.now()}.md`);
+		await writeFile(planFilePath, planContent, "utf-8");
+
+		// Use the shared state store singleton so WebSocket log streaming
+		// sees the same in-memory log buffers as workspace execution.
+		const stateStore = getStateStore();
+
+		const executor = new AutonomousExecutor(stateStore, {
+			workspaceRoot,
+			projectId,
+			maxWorkers: parseResult.queue.maxParallelWorkspaces || 3,
+			skipProjectManagement: false,
+			enableRealExecution: true, // Enable real agent execution
+		});
+
+		// AC #3: Guard released on initialize() success or failure
+		const planExecutionId = await executor.initialize(parseResult.queue);
+
+		// Create the execution tracking object
+		const execution: ActiveExecution = {
+			projectId,
+			planExecId: planExecutionId,
+			title: parseResult.queue.title,
+			phase: parseResult.queue.phase,
+			status: "running",
+			startedAt: Date.now(),
+			completedAt: null,
+		};
+
+		activeExecutions.set(planExecutionId, execution);
+
+		// Write the meta file so recovery can find the correct plan file
+		const planFileNameOnly = planFileName || path.basename(planFilePath);
+		await writeExecutionMeta(workspaceRoot, planExecutionId, {
+			planFile: planFileNameOnly,
+			title: parseResult.queue.title,
+			phase: parseResult.queue.phase,
+			startedAt: execution.startedAt,
+		});
+
+		// Start execution in background (do not await)
+		executePlanInBackground(executor, parseResult.queue, planExecutionId, workspaceRoot).catch((error) => {
+			console.error(`[plan-runner] Background execution failed:`, error);
+			updateExecutionStatus(planExecutionId, "failed", String(error));
+		});
+
 		return {
-			success: false,
-			errors: parseResult.errors.length > 0 ? parseResult.errors : ["Failed to parse plan"],
+			success: true,
+			planExecId: planExecutionId,
+			execution,
 			warnings: parseResult.warnings,
 		};
+	} finally {
+		// AC #3: Always release the guard, regardless of success or failure
+		inFlightProjects.delete(projectId);
 	}
-
-	// Run safety doctor
-	const doctor = createSafetyDoctor();
-	const safetyReport = doctor.validateQueue(parseResult.queue);
-
-	if (!safetyReport.safe) {
-		return {
-			success: false,
-			errors: safetyReport.critical.map((i) => `[${i.type}] ${i.message}`),
-			warnings: [...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`), ...parseResult.warnings],
-		};
-	}
-
-	// Save the plan file to the project directory
-	const piDir = join(workspaceRoot, ".pi");
-	const plansDir = join(piDir, "plans");
-	if (!existsSync(plansDir)) {
-		await mkdir(plansDir, { recursive: true });
-	}
-	const planFilePath = join(plansDir, planFileName || `plan-${Date.now()}.md`);
-	await writeFile(planFilePath, planContent, "utf-8");
-
-	// Use the shared state store singleton so WebSocket log streaming
-	// sees the same in-memory log buffers as workspace execution.
-	const stateStore = getStateStore();
-
-	const executor = new AutonomousExecutor(stateStore, {
-		workspaceRoot,
-		projectId,
-		maxWorkers: parseResult.queue.maxParallelWorkspaces || 3,
-		skipProjectManagement: false,
-		enableRealExecution: true, // Enable real agent execution
-	});
-
-	// Initialize the execution
-	const planExecutionId = await executor.initialize(parseResult.queue);
-
-	// Create the execution tracking object
-	const execution: ActiveExecution = {
-		projectId,
-		planExecId: planExecutionId,
-		title: parseResult.queue.title,
-		phase: parseResult.queue.phase,
-		status: "running",
-		startedAt: Date.now(),
-		completedAt: null,
-	};
-
-	activeExecutions.set(planExecutionId, execution);
-
-	// Start execution in background (do not await)
-	executePlanInBackground(executor, parseResult.queue, planExecutionId, workspaceRoot).catch((error) => {
-		console.error(`[plan-runner] Background execution failed:`, error);
-		updateExecutionStatus(planExecutionId, "failed", String(error));
-	});
-
-	return {
-		success: true,
-		planExecId: planExecutionId,
-		execution,
-		warnings: parseResult.warnings,
-	};
 }
 
 // ---------------------------------------------------------------------------
@@ -277,25 +398,62 @@ async function executePlanInBackground(
 	workspaceRoot: string,
 ): Promise<void> {
 	const logFile = join(workspaceRoot, ".pi", `execution-${planExecId}.log`);
-	let logContent = "";
+
+	// Batched log buffer: lines since last flush to state store
+	const logLines: string[] = [];
+	let linesSinceLastFlush = 0;
+	let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const cancelFlushTimer = () => {
+		if (flushTimer !== null) {
+			clearTimeout(flushTimer);
+			flushTimer = null;
+		}
+	};
+
+	const flushLogBuffer = async () => {
+		if (logLines.length === 0) return;
+		const batch = logLines.join("");
+		logLines.length = 0;
+		linesSinceLastFlush = 0;
+
+		try {
+			const stateStore = executor.getStateStore();
+			await stateStore.saveExecutionLog(planExecId, batch);
+		} catch {
+			// Ignore write errors
+		}
+	};
+
+	const scheduleFlush = () => {
+		if (flushTimer !== null) return;
+		flushTimer = setTimeout(async () => {
+			flushTimer = null;
+			await flushLogBuffer();
+		}, 5000);
+	};
 
 	const log = async (message: string) => {
 		const timestamp = new Date().toISOString();
 		const logLine = `[${timestamp}] ${message}\n`;
 		console.log(`[plan-runner] ${message}`);
 
-		// Append to in-memory log content
-		logContent += logLine;
-
 		try {
-			// Write to temp file for backward compatibility
+			// Write to log file (append-only)
 			await writeFile(logFile, logLine, { flag: "a" });
-
-			// Persist to state store
-			const stateStore = executor.getStateStore();
-			await stateStore.saveExecutionLog(planExecId, logContent);
 		} catch {
 			// Ignore write errors
+		}
+
+		// Buffer for batched state store persistence
+		logLines.push(logLine);
+		linesSinceLastFlush++;
+
+		if (linesSinceLastFlush >= 50) {
+			cancelFlushTimer();
+			await flushLogBuffer();
+		} else {
+			scheduleFlush();
 		}
 	};
 
@@ -344,6 +502,50 @@ async function executePlanInBackground(
 				return;
 			}
 
+			// 1. Control check at top of while loop before getNextWorkspaces
+			const control = await executor.checkControlRequest();
+			if (control) {
+				await log(`Control request: ${control.action}`);
+				if (control.action === "pause") {
+					const planState = executor.getState();
+					if (planState && planState.status === "paused") {
+						updateExecutionStatus(planExecId, "paused");
+						// 2. Paused status enters 500ms poll-wait loop
+						await log(`Plan paused, entering poll-wait loop (500ms interval)...`);
+						while (true) {
+							await new Promise((resolve) => setTimeout(resolve, 500));
+							await executor.loadState();
+							const currentExec = activeExecutions.get(planExecId);
+							if (!currentExec || currentExec.status === "stopped" || currentExec.status === "cancelled") {
+								break;
+							}
+							if (currentExec.status === "running" || currentExec.status === "complete") {
+								// 5. Resume within 1 poll interval
+								break;
+							}
+						}
+						const finalState = executor.getState();
+						if (finalState && (finalState.status === "stopped" || finalState.status === "cancelled")) {
+							// 4. Stop while paused exits cleanly
+							await log(`Execution stopped while paused`);
+							return;
+						}
+						await log(`Plan resumed, continuing execution...`);
+						continue;
+					}
+					// Still running (active workspaces finishing), let the loop continue
+				}
+				if (control.action === "stop") {
+					const planState = executor.getState();
+					if (planState && planState.status === "stopped") {
+						await log(`Stopping execution: ${control.reason || "no reason"}`);
+						updateExecutionStatus(planExecId, "stopped", control.reason);
+						return;
+					}
+					// Still running (active workspaces finishing), let the loop continue
+				}
+			}
+
 			const stats = executor.getStatistics();
 			await log(
 				`Stats: pending=${stats?.pending}, active=${stats?.active}, blocked=${stats?.blocked}, complete=${stats?.complete}, failed=${stats?.failed}`,
@@ -355,7 +557,8 @@ async function executePlanInBackground(
 			);
 
 			if (nextWorkspaces.length === 0) {
-				if (stats && stats.blocked > 0 && stats.active === 0) {
+				// 3. Deadlock check gated on exec.status === running
+				if (stats && stats.blocked > 0 && stats.active === 0 && exec.status === "running") {
 					await log(`ERROR: Execution blocked - dependency deadlock`);
 					await executor.failPlan("Execution blocked - dependency deadlock");
 					updateExecutionStatus(planExecId, "failed", "Execution blocked - dependency deadlock");
@@ -384,20 +587,6 @@ async function executePlanInBackground(
 					_completedCount++;
 				} else if (result.verdict === "FAILED") {
 					failedCount++;
-				}
-			}
-
-			// Check for control requests (pause/stop)
-			const control = await executor.checkControlRequest();
-			if (control) {
-				await log(`Control request: ${control.action}`);
-				if (control.action === "pause") {
-					updateExecutionStatus(planExecId, "paused");
-				}
-				if (control.action === "stop") {
-					await log(`Stopping execution: ${control.reason || "no reason"}`);
-					updateExecutionStatus(planExecId, "stopped", control.reason);
-					return;
 				}
 			}
 		}
@@ -430,6 +619,9 @@ async function executePlanInBackground(
 		await log(`\n=== Execution Error ===`);
 		await log(`Fatal error: ${errorMsg}`);
 		updateExecutionStatus(planExecId, "failed", errorMsg);
+	} finally {
+		cancelFlushTimer();
+		await flushLogBuffer().catch(() => {});
 	}
 }
 
@@ -540,9 +732,10 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		return false;
 	}
 
-	// If already terminal, nothing to recover
+	// If already terminal, nothing to recover — clean up orphaned snapshot files
 	if (planState.status === "complete" || planState.status === "failed" || planState.status === "cancelled") {
-		console.log(`[plan-runner] Execution ${planExecId} already ${planState.status}, skipping recovery`);
+		console.log(`[plan-runner] Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`);
+		await deleteExecutionSnapshots(planExecId);
 		return false;
 	}
 
@@ -553,16 +746,31 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	if (!queue) {
 		console.log(`[plan-runner] No queue snapshot found for ${planExecId}, attempting to parse plan file`);
 		const plansDir = join(piDir, "plans");
-		const planFiles = await readdir(plansDir).catch(() => [] as string[]);
 
-		// Try to find the most recent plan file
+		// Check meta file first for the exact plan file to use
+		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
 		let planContent: string | null = null;
-		for (const file of planFiles.reverse()) {
-			if (file.endsWith(".md")) {
-				try {
-					planContent = await readFile(join(plansDir, file), "utf-8");
-					break;
-				} catch {}
+
+		if (meta?.planFile) {
+			// Use the plan file referenced in the meta file
+			try {
+				planContent = await readFile(join(plansDir, meta.planFile), "utf-8");
+				console.log(`[plan-runner] Found plan file from meta: ${meta.planFile}`);
+			} catch {
+				console.log(`[plan-runner] Meta referenced ${meta.planFile} but file not found, falling back to scan`);
+			}
+		}
+
+		// Fallback: scan .md files for the most recent
+		if (!planContent) {
+			const planFiles = await readdir(plansDir).catch(() => [] as string[]);
+			for (const file of planFiles.reverse()) {
+				if (file.endsWith(".md")) {
+					try {
+						planContent = await readFile(join(plansDir, file), "utf-8");
+						break;
+					} catch {}
+				}
 			}
 		}
 
@@ -614,6 +822,9 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	};
 
 	activeExecutions.set(planExecId, execution);
+
+	// Register the workspace root for meta file cleanup
+	executionWorkspaceRoots.set(planExecId, workspaceRoot);
 
 	// Start execution in background
 	executePlanInBackground(executor, queue, planExecId, workspaceRoot).catch((error) => {

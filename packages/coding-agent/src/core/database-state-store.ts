@@ -18,6 +18,7 @@ import {
 	WorkspaceLogRepository,
 } from "@earendil-works/pi-db";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
 import type {
 	ControlAction,
@@ -692,7 +693,7 @@ export class DatabaseStateStore implements IStateStore {
 		await this.db
 			.updateTable("plan_executions")
 			.set({
-				execution_log: logContent,
+				execution_log: sql`execution_log || ${logContent}`,
 			} as any)
 			.where("id", "=", planExecutionId)
 			.execute();

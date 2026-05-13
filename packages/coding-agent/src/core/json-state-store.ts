@@ -426,7 +426,7 @@ export class JsonStateStore implements IStateStore {
 	async saveExecutionLog(planExecutionId: string, logContent: string): Promise<void> {
 		const logFilePath = path.join(this.workspaceRoot, this.piDir, `execution-${planExecutionId}.log`);
 		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
-		await fs.writeFile(logFilePath, logContent, "utf-8");
+		await fs.appendFile(logFilePath, logContent, "utf-8");
 	}
 
 	async loadExecutionLog(planExecutionId: string): Promise<string | null> {

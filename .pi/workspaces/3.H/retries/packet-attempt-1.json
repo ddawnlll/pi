@@ -1,0 +1,38 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.H",
+    "role": "worker",
+    "goal": "agentExecutor context setter",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "WorkspaceAgentExecutor has setPlanExecutionId(id: string): void",
+        "verified": false
+      },
+      {
+        "description": "updateAgentExecutorContext calls setter, not constructor",
+        "verified": false
+      },
+      {
+        "description": "Zero as-any casts remain in autonomous-executor.ts",
+        "verified": false
+      },
+      {
+        "description": "TypeScript compiles cleanly",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 166
+    }
+  },
+  "hash": "ca57f873f9730a6ab7beb4e6133dbb243f9c9d23a119d49760af096a46b44293",
+  "createdAt": 1778662412937
+}

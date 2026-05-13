@@ -1,0 +1,38 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.I",
+    "role": "worker",
+    "goal": "currentPlanState cache guard",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "AsyncMutex or equivalent guards cache read/write in executeWorkspace",
+        "verified": false
+      },
+      {
+        "description": "Mutex released on throw",
+        "verified": false
+      },
+      {
+        "description": "No deadlock under 3 concurrent executeWorkspace calls",
+        "verified": false
+      },
+      {
+        "description": "TypeScript compiles cleanly",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck && npm test -- autonomous-executor",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 160
+    }
+  },
+  "hash": "224a23e706c0026131c3fb00c84985ef8e95f013d5b075e1f907b66c51829b48",
+  "createdAt": 1778662514710
+}

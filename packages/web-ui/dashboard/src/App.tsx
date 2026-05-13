@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
@@ -141,16 +141,20 @@ export function App() {
     }
   }, [executions, selectedPlanExecId]);
 
-  const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState();
-  const { events: legacyEvents } = useJournalStream();
-
   const hasProjects = projects.length > 0;
+  const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState(!hasProjects);
+  const { events: legacyEvents } = useJournalStream(!hasProjects);
   const isLegacyMode = !hasProjects && !selectedProjectId;
   const isStartingUp = projectsLoading && !hasProjects;
 
   const activePlanStatus = isLegacyMode
     ? (legacyPlanState?.status ?? "unknown")
     : (executionDetail?.status ?? "unknown");
+
+  const canResume = activePlanStatus === "paused";
+  const canPause = activePlanStatus === "running";
+  const canStop = activePlanStatus === "running" || activePlanStatus === "paused";
+  const controlDisabled = selectedPlanExecId === null;
 
   const activeWorkspaces: WorkspaceSummary[] = isLegacyMode
     ? (legacyPlanState?.workspaces?.map(ws => ({ id: ws.workspaceId, stage: ws.stage, attempts: ws.attempts, error: ws.error ?? null, startedAt: ws.startedAt ?? null, completedAt: ws.completedAt ?? null })) ?? [])
@@ -201,12 +205,15 @@ export function App() {
     : activeEvents;
 
   // Derive command lines from all workspace logs for the Commands dialog
-  const allCommandLines = workers.map(w =>
-    activeEvents
-      .filter((e: any) => e.type === "log" && e.workspaceId === w.id && typeof e.message === "string")
-      .map((e: any) => e.message)
-      .filter((msg: string) => msg.startsWith("$ ") || msg.includes("tool_call") || msg.includes("tool_use") || msg.includes("<function=") || msg.includes("function_call"))
-  ).flat();
+  const allCommandLines = useMemo(() =>
+    workers.map(w =>
+      activeEvents
+        .filter((e: any) => e.type === "log" && e.workspaceId === w.id && typeof e.message === "string")
+        .map((e: any) => e.message)
+        .filter((msg: string) => msg.startsWith("$ ") || msg.includes("tool_call") || msg.includes("tool_use") || msg.includes("<function=") || msg.includes("function_call"))
+    ).flat(),
+    [workers, activeEvents]
+  );
 
   if (isStartingUp) {
     return (
@@ -240,9 +247,9 @@ export function App() {
         </div>
         <div className="flex-1 min-w-0" />
         <div className="flex items-center gap-1">
-          <LabeledBtn icon={Play} label="Resume" onClick={() => handleControl("resume")} accent />
-          <LabeledBtn icon={Pause} label="Pause" onClick={() => handleControl("pause")} />
-          <LabeledBtn icon={Square} label="Stop" onClick={() => handleControl("stop")} danger />
+          <LabeledBtn icon={Play} label="Resume" onClick={() => handleControl("resume")} accent disabled={controlDisabled || !canResume} />
+          <LabeledBtn icon={Pause} label="Pause" onClick={() => handleControl("pause")} disabled={controlDisabled || !canPause} />
+          <LabeledBtn icon={Square} label="Stop" onClick={() => handleControl("stop")} danger disabled={controlDisabled || !canStop} />
           <IconBtn icon={Settings} label="Settings" onClick={() => setShowSettingsDialog(true)} variant="ghost" />
         </div>
         <button className={`hidden md:flex items-center justify-center h-8 w-8 rounded-lg ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}

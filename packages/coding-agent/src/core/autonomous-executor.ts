@@ -23,6 +23,31 @@ import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspac
 import { WorkspaceStage } from "./workspace-schema.js";
 
 /**
+ * Simple promise-chain based async mutex.
+ * Serializes access to shared resources without risk of deadlock.
+ */
+class AsyncMutex {
+	private current: Promise<void> = Promise.resolve();
+
+	/**
+	 * Execute a function exclusively under this mutex.
+	 * The mutex is released in a finally block after the function completes or throws.
+	 */
+	async runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+		await this.current;
+		let release: () => void;
+		this.current = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		try {
+			return await fn();
+		} finally {
+			release!();
+		}
+	}
+}
+
+/**
  * Workspace snapshot directory structure
  */
 export interface WorkspaceSnapshot {
@@ -92,6 +117,7 @@ export class AutonomousExecutor {
 	private scheduler: WorkspaceScheduler;
 	private packetBuilder: RolePacketBuilder;
 	private retryHandler: RetryHandler;
+	private stateCacheMutex = new AsyncMutex();
 	private workspaceRoot: string;
 	private projectId: string;
 	private planExecutionId: string | null = null;
@@ -132,14 +158,7 @@ export class AutonomousExecutor {
 	 */
 	private updateAgentExecutorContext(): void {
 		if (this.agentExecutor && this.planExecutionId) {
-			// Recreate with updated context
-			this.agentExecutor = new WorkspaceAgentExecutor({
-				workspaceRoot: this.workspaceRoot,
-				model: (this.agentExecutor as any).model,
-				maxTurns: (this.agentExecutor as any).maxTurns,
-				stateStore: this.stateStore,
-				planExecutionId: this.planExecutionId,
-			});
+			this.agentExecutor.setPlanExecutionId(this.planExecutionId);
 		}
 	}
 
@@ -234,20 +253,24 @@ export class AutonomousExecutor {
 	 * @returns Execution result
 	 */
 	async executeWorkspace(workspace: Workspace, simulateFailure = false): Promise<WorkspaceExecutionResult> {
-		const planExecutionId = this.planExecutionId;
-		if (!planExecutionId) {
-			throw new Error("Execution not initialized. Call initialize() first.");
-		}
+		const { planExecutionId, wsState } = await this.stateCacheMutex.runExclusive(async () => {
+			const planExecutionId = this.planExecutionId;
+			if (!planExecutionId) {
+				throw new Error("Execution not initialized. Call initialize() first.");
+			}
 
-		const state = this.currentPlanState;
-		if (!state) {
-			throw new Error("State not initialized");
-		}
+			const state = this.currentPlanState;
+			if (!state) {
+				throw new Error("State not initialized");
+			}
 
-		const wsState = state.workspaces.get(workspace.id);
-		if (!wsState) {
-			throw new Error(`Workspace ${workspace.id} not found in state`);
-		}
+			const wsState = state.workspaces.get(workspace.id);
+			if (!wsState) {
+				throw new Error(`Workspace ${workspace.id} not found in state`);
+			}
+
+			return { planExecutionId, wsState } as const;
+		});
 
 		try {
 			// Increment attempt counter
@@ -334,10 +357,12 @@ export class AutonomousExecutor {
 			});
 
 			// Update local cache
-			const updatedState = await this.stateStore.loadState(planExecutionId);
-			if (updatedState) {
-				this.currentPlanState = updatedState;
-			}
+			await this.stateCacheMutex.runExclusive(async () => {
+				const updatedState = await this.stateStore.loadState(planExecutionId);
+				if (updatedState) {
+					this.currentPlanState = updatedState;
+				}
+			});
 
 			return result;
 		} catch (error) {
@@ -369,10 +394,12 @@ export class AutonomousExecutor {
 				});
 
 				// Update local cache
-				const updatedState = await this.stateStore.loadState(planExecutionId);
-				if (updatedState) {
-					this.currentPlanState = updatedState;
-				}
+				await this.stateCacheMutex.runExclusive(async () => {
+					const updatedState = await this.stateStore.loadState(planExecutionId);
+					if (updatedState) {
+						this.currentPlanState = updatedState;
+					}
+				});
 
 				return {
 					workspaceId: workspace.id,
@@ -389,10 +416,12 @@ export class AutonomousExecutor {
 			});
 
 			// Update local cache
-			const updatedState = await this.stateStore.loadState(planExecutionId);
-			if (updatedState) {
-				this.currentPlanState = updatedState;
-			}
+			await this.stateCacheMutex.runExclusive(async () => {
+				const updatedState = await this.stateStore.loadState(planExecutionId);
+				if (updatedState) {
+					this.currentPlanState = updatedState;
+				}
+			});
 
 			return {
 				workspaceId: workspace.id,

@@ -1,0 +1,46 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.G",
+    "role": "worker",
+    "goal": "App.tsx control button state + hook fixes",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "canResume, canPause, canStop derived from activePlanStatus",
+        "verified": false
+      },
+      {
+        "description": "All buttons disabled when selectedPlanExecId is null",
+        "verified": false
+      },
+      {
+        "description": "LabeledBtn accepts and applies disabled prop",
+        "verified": false
+      },
+      {
+        "description": "Legacy hooks suspended with enabled: !hasProjects",
+        "verified": false
+      },
+      {
+        "description": "allCommandLines wrapped in useMemo",
+        "verified": false
+      },
+      {
+        "description": "TypeScript compiles cleanly",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 188
+    }
+  },
+  "hash": "ec4bf22d64d1e044a458d779835acb8bd2bee87e3ee77b3d7c9740566a9e1aca",
+  "createdAt": 1778662413066
+}

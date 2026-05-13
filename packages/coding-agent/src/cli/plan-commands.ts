@@ -524,12 +524,56 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		let failedCount = 0;
 
 		while (!executor.isExecutionComplete()) {
+			// 1. Control check at top of while loop before getNextWorkspaces
+			const control = await executor.checkControlRequest();
+			if (control) {
+				const state = executor.getState();
+				if (control.action === "pause" && state?.status === "paused") {
+					if (!json) {
+						console.log(chalk.yellow("\n⏸ Plan paused, waiting for resume..."));
+					}
+					// 2. Paused status enters 500ms poll-wait loop
+					while (true) {
+						await new Promise((resolve) => setTimeout(resolve, 500));
+						await executor.loadState();
+						const s = executor.getState();
+						if (!s || s.status === "stopped" || s.status === "cancelled") {
+							break;
+						}
+						if (s.status === "running") {
+							// 5. Resume within 1 poll interval
+							break;
+						}
+					}
+					const finalState = executor.getState();
+					if (finalState && (finalState.status === "stopped" || finalState.status === "cancelled")) {
+						// 4. Stop while paused exits cleanly
+						if (!json) {
+							console.log(chalk.yellow("⏹ Plan stopped while paused"));
+						}
+						break;
+					}
+					if (!json) {
+						console.log(chalk.green("▶ Plan resumed"));
+					}
+					continue;
+				}
+				if (control.action === "stop" && state?.status === "stopped") {
+					if (!json) {
+						console.log(chalk.yellow("⏹ Plan stopped"));
+					}
+					break;
+				}
+			}
+
 			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
 
 			if (nextWorkspaces.length === 0) {
 				// No workspaces ready - check if we're blocked
 				const stats = executor.getStatistics();
-				if (stats && stats.blocked > 0 && stats.active === 0) {
+				const state = executor.getState();
+				// 3. Deadlock check gated on state.status === running
+				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
 					if (!json) {
 						console.error(chalk.red("\n✗ Execution blocked - no workspaces can proceed"));
 					}
@@ -704,6 +748,48 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 		let failedCount = 0;
 
 		while (!executor.isExecutionComplete()) {
+			// 1. Control check at top of while loop before getNextWorkspaces
+			const control = await executor.checkControlRequest();
+			if (control) {
+				const state = executor.getState();
+				if (control.action === "pause" && state?.status === "paused") {
+					if (!json) {
+						console.log(chalk.yellow("\n⏸ Plan paused, waiting for resume..."));
+					}
+					// 2. Paused status enters 500ms poll-wait loop
+					while (true) {
+						await new Promise((resolve) => setTimeout(resolve, 500));
+						await executor.loadState();
+						const s = executor.getState();
+						if (!s || s.status === "stopped" || s.status === "cancelled") {
+							break;
+						}
+						if (s.status === "running") {
+							// 5. Resume within 1 poll interval
+							break;
+						}
+					}
+					const finalState = executor.getState();
+					if (finalState && (finalState.status === "stopped" || finalState.status === "cancelled")) {
+						// 4. Stop while paused exits cleanly
+						if (!json) {
+							console.log(chalk.yellow("⏹ Plan stopped while paused"));
+						}
+						break;
+					}
+					if (!json) {
+						console.log(chalk.green("▶ Plan resumed"));
+					}
+					continue;
+				}
+				if (control.action === "stop" && state?.status === "stopped") {
+					if (!json) {
+						console.log(chalk.yellow("⏹ Plan stopped"));
+					}
+					break;
+				}
+			}
+
 			const nextWorkspaces = await executor.getNextWorkspaces(workspaces);
 
 			if (nextWorkspaces.length === 0) {

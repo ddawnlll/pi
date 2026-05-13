@@ -1,0 +1,42 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "3.E",
+    "role": "worker",
+    "goal": "Duplicate run guard",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [
+      {
+        "description": "inFlightProjects Set guards concurrent runPlan calls per projectId",
+        "verified": false
+      },
+      {
+        "description": "Second simultaneous call returns success:false with clear error",
+        "verified": false
+      },
+      {
+        "description": "Guard released on initialize() success or failure",
+        "verified": false
+      },
+      {
+        "description": "Sequential runs for same project work normally",
+        "verified": false
+      },
+      {
+        "description": "Existing running execution returns existing planExecId instead of starting new",
+        "verified": false
+      }
+    ],
+    "targetCommand": "npm run typecheck",
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 192
+    }
+  },
+  "hash": "dfe91e8f0bc7405642e684d7190eb613390afda0f1b8b284d34351766e609c1c",
+  "createdAt": 1778663629152
+}

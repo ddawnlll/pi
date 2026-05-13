@@ -61,10 +61,11 @@ function deriveQueue(state: PlanState | null | undefined): {
 	};
 }
 
-export function usePlanState() {
+export function usePlanState(enabled: boolean = true) {
 	const query = useQuery<PlanState | null>({
 		queryKey: ["plan-state"],
 		queryFn: fetchPlanState,
+		enabled,
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
 		staleTime: 2000,
