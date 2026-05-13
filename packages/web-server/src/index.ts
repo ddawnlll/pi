@@ -131,10 +131,14 @@ await fastify.register(fastifyWebsocket);
 
 // Serve static dashboard files (built from packages/web-ui/dashboard)
 const dashboardDist = resolve(process.cwd(), "../web-ui/dashboard/dist");
-await fastify.register(fastifyStatic, {
-	root: dashboardDist,
-	prefix: "/",
-});
+if (existsSync(dashboardDist)) {
+	await fastify.register(fastifyStatic, {
+		root: dashboardDist,
+		prefix: "/",
+	});
+} else {
+	fastify.log.warn(`Dashboard dist not found at ${dashboardDist}, API-only mode`);
+}
 
 // ---------------------------------------------------------------------------
 // State store initialization (delegated to state-store-provider.ts)
@@ -1838,7 +1842,9 @@ const start = async () => {
 		}
 
 		await fastify.listen({ port, host: "127.0.0.1" });
-		console.log(`Dashboard server running at http://127.0.0.1:${port}`);
+		const dashboardUrl = process.env.DASHBOARD_URL || `http://127.0.0.1:5176`;
+		console.log(`API server listening at http://127.0.0.1:${port}`);
+		console.log(`Dashboard should be opened at ${dashboardUrl}`);
 	} catch (err) {
 		fastify.log.error(err);
 		process.exit(1);
