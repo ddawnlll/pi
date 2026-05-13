@@ -27,6 +27,19 @@ export {
 } from "./agent-session-services.js";
 export { type BashExecutorOptions, type BashResult, executeBashWithOperations } from "./bash-executor.js";
 export type { CompactionResult } from "./compaction/index.js";
+export {
+	CompletionGateRegistry,
+	createWorkspaceValidationState,
+	evaluatePlanCompletion,
+	evaluateWorkspaceCompletion,
+	isWorkspaceLegitimatelyComplete,
+	mergeFailureSignals,
+	type PlanCompletionResult,
+	recordCommandCompletion,
+	recordValidationCommand,
+	type WorkspaceCompletionResult,
+	type WorkspaceValidationState,
+} from "./completion-gate.js";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.js";
 // Extensions system
 export {
@@ -74,6 +87,14 @@ export {
 	type TurnStartEvent,
 	type WorkingIndicatorOptions,
 } from "./extensions/index.js";
+export {
+	detectFailureSignals,
+	type FailureSignal,
+	FailureSignalCategory,
+	type LogScanResult,
+	recordExitCodeFailure,
+	scanLogLines,
+} from "./log-failure-detector.js";
 // Safety profiles
 export {
 	BALANCED_PROFILE,
@@ -109,3 +130,18 @@ export {
 	type ValidationLockEventPayload,
 	withValidationLock,
 } from "./validation-lock.js";
+export {
+	buildPlanValidationResult,
+	buildWorkspaceValidationResult,
+	type PlanValidationResult,
+	type ValidationCriterionResult,
+	ValidationStatus,
+	type WorkspaceValidationResult,
+} from "./validation-result.js";
+export {
+	type CommandValidationResult,
+	isValidationLikeCommand,
+	isWatchModeCommand,
+	rewriteToNonWatch,
+	validateCommand,
+} from "./watch-mode-guard.js";

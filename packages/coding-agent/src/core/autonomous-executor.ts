@@ -13,6 +13,7 @@ import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
 import { AutoCommit } from "./auto-commit.js";
+import { CompletionGateRegistry, evaluatePlanCompletion, evaluateWorkspaceCompletion } from "./completion-gate.js";
 import { JsonStateStore } from "./json-state-store.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -158,6 +159,8 @@ export class AutonomousExecutor {
 	private autoCommitEnabled: boolean;
 	private postPlanHandoffEnabled: boolean;
 	private handoffTimeoutMs: number;
+	/** Completion gate registry for tracking validation state per workspace (P4.6.1) */
+	private completionGate = new CompletionGateRegistry();
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
@@ -407,10 +410,25 @@ export class AutonomousExecutor {
 			this.scheduler.releaseFileLocks(workspace);
 			await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
 
-			// Transition to complete
-			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
-				verdict: result.verdict,
-			});
+			// Transition to complete — but check the completion gate first (P4.6.1)
+			const wsValidationState = this.completionGate.getOrCreate(planExecutionId, workspace.id);
+			const gateResult = evaluateWorkspaceCompletion(wsValidationState, workspace);
+			if (gateResult.canComplete) {
+				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+					verdict: result.verdict,
+				});
+			} else {
+				// Completion gate blocked — transition to the recommended state instead
+				console.warn(
+					`[completion-gate] Workspace ${workspace.id} cannot be marked complete: ${gateResult.blockReasons.join("; ")}`,
+				);
+				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, gateResult.recommendedState, {
+					verdict: "FAILED",
+					gateBlockReasons: gateResult.blockReasons,
+				});
+				result.success = false;
+				result.verdict = gateResult.recommendedState === WorkspaceStage.Blocked ? "BLOCKED" : "FAILED";
+			}
 
 			// Update local cache
 			await this.stateCacheMutex.runExclusive(async () => {
@@ -794,6 +812,17 @@ export class AutonomousExecutor {
 		const planExecutionId = this.planExecutionId;
 		if (!planExecutionId) throw new Error("No active execution");
 
+		// P4.6.1: Check plan completion gate — verify all workspaces are terminal healthy
+		if (this.currentPlanState) {
+			const planResult = evaluatePlanCompletion(this.currentPlanState.workspaces);
+			if (!planResult.canComplete) {
+				const errorMsg = `Plan cannot be marked complete: ${planResult.blockReasons.join("; ")}`;
+				console.warn(`[completion-gate] ${errorMsg}`);
+				await this.failPlan(errorMsg);
+				return;
+			}
+		}
+
 		if (this.postPlanHandoffEnabled) {
 			// Enter awaiting_handoff state — plan_handoff journal event is emitted inside setAwaitingHandoff
 			await this.stateStore.setAwaitingHandoff(planExecutionId, this.workspaceQueue?.title ?? "Plan execution");
@@ -974,6 +1003,15 @@ export class AutonomousExecutor {
 	 */
 	getWorkspaceQueue(): WorkspaceQueue | null {
 		return this.workspaceQueue;
+	}
+
+	/**
+	 * Get the completion gate registry for direct validation state manipulation.
+	 * Used by callers that need to feed log signals or command results into
+	 * the completion gate before calling completePlan().
+	 */
+	getCompletionGate(): CompletionGateRegistry {
+		return this.completionGate;
 	}
 }
 
