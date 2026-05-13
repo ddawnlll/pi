@@ -394,19 +394,24 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		maxRetries: typeof w.maxRetries === "number" ? w.maxRetries : 3,
 		retryPolicy: w.retryPolicy,
 		riskLevel: w.riskLevel,
-		capabilities: w.capabilities
-			? {
-					canEdit: Array.isArray(w.capabilities.canEdit) ? w.capabilities.canEdit : [],
-					cannotEdit: Array.isArray(w.capabilities.cannotEdit) ? w.capabilities.cannotEdit : [],
-					canRun: Array.isArray(w.capabilities.canRun) ? w.capabilities.canRun : [],
-					cannotRun: Array.isArray(w.capabilities.cannotRun) ? w.capabilities.cannotRun : [],
-				}
-			: undefined,
+		capabilities:
+			w.capabilities || w.capabilityManifest
+				? (() => {
+						const src = w.capabilities || w.capabilityManifest;
+						return {
+							canEdit: Array.isArray(src.canEdit) ? src.canEdit : [],
+							cannotEdit: Array.isArray(src.cannotEdit) ? src.cannotEdit : [],
+							canRun: Array.isArray(src.canRun) ? src.canRun : [],
+							cannotRun: Array.isArray(src.cannotRun) ? src.cannotRun : [],
+						};
+					})()
+				: undefined,
 		acceptanceCriteria: Array.isArray(w.acceptanceCriteria) ? w.acceptanceCriteria : undefined,
 		targetCommand: w.targetCommand,
 		metadata: w.metadata,
 		// v2.2.0: parallelGroup
 		parallelGroup: typeof w.parallelGroup === "string" ? w.parallelGroup : undefined,
+
 		// v2.2.0: dependencyReason
 		dependencyReason:
 			w.dependencyReason && typeof w.dependencyReason === "object" && !Array.isArray(w.dependencyReason)
