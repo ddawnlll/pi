@@ -49,7 +49,8 @@ help:
 	@echo "  make stop          Stop background processes"
 	@echo "  make logs          Tail log files"
 	@echo "  make stack-up      Full stack: env + install + db + dev"
-	@echo "  make stack-down    Stack teardown: stop + db-drop"
+	@echo "  make stack-down      Stack teardown (stop processes only)"
+	@echo "  make stack-down-hard  Destructive tear-down (stop + drop database)"
 	@echo "  make clean         Remove all node_modules"
 	@echo ""
 
@@ -223,12 +224,18 @@ logs:
 stack-up: env install build dashboard-install db dev
 
 # ── Stack: full tear-down ─────────────────────────────────────────────────────
-# Stops processes and drops the database. Leaves node_modules and .env intact
+# Stops processes. Leaves database, node_modules, and .env intact
 # so a subsequent stack-up is fast.
 
-stack-down: stop db-drop
+stack-down: stop
 	@echo "Stack torn down."
 	@echo "Run 'make stack-up' to rebuild."
+
+# ── Stack: full tear-down including database drop ────────────────────────────
+# Stops processes AND drops the database. Use carefully.
+
+stack-down-hard: stop db-drop
+	@echo "Full stack tear-down with database drop complete."
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
