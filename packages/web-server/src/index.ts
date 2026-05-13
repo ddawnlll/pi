@@ -129,8 +129,8 @@ await fastify.register(fastifyCors, {
 // WebSocket support
 await fastify.register(fastifyWebsocket);
 
-// Serve static dashboard files
-const dashboardDist = resolve(process.cwd(), "../web-ui/dist");
+// Serve static dashboard files (built from packages/web-ui/dashboard)
+const dashboardDist = resolve(process.cwd(), "../web-ui/dashboard/dist");
 await fastify.register(fastifyStatic, {
 	root: dashboardDist,
 	prefix: "/",
