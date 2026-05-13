@@ -133,10 +133,23 @@ export interface WorkspaceSummary {
 	contextUsed?: number;
 	contextLimit?: number;
 	updatedAt?: number;
+	/** Timestamp of last meaningful workspace activity (journal/tool/log/edit/validation/transcript event). */
+	lastActivityAt?: number;
+	/** Human-readable description of what caused the last activity (e.g. "journal", "tool_call", "edit", "validation", "transcript"). */
+	lastActivitySource?: string;
 	// Git metadata (optional)
 	gitBranch?: string;
 	gitDirty?: boolean;
 	gitCommits?: string[];
+	// Edit strategy audit summary (P4.5)
+	editAuditSummary?: {
+		editModeUsed?: string;
+		blockedRewrites: number;
+		truncationEvents: number;
+		exactMatchFailures: number;
+		handoffs: number;
+		estimatedWastePrevented: number;
+	};
 }
 
 /** Workspace detail with owned files */

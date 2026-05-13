@@ -3,6 +3,7 @@ import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogS
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
 import { useWorkerTranscript } from "../hooks/useWorkerTranscript";
 import { DiffViewer } from "./DiffViewer";
+import { EditStrategyWarnings, type EditStrategyWarningData } from "./EditStrategyWarnings";
 
 type TabId = "overview" | "tokens" | "git" | "commands" | "logs" | "transcript";
 
@@ -105,12 +106,17 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
   attemptsLoading: boolean;
 }) {
   const now = Date.now();
-  const lastActivityTs = workspace?.updatedAt ?? workspace?.startedAt ?? null;
+  const isTerminal = workspace?.stage === "complete" || workspace?.stage === "failed";
+  const lastActivityTs = workspace?.lastActivityAt ?? workspace?.updatedAt ?? workspace?.startedAt ?? null;
   const idleSeconds = lastActivityTs != null ? Math.floor((now - lastActivityTs) / 1000) : null;
   const idleMinutes = idleSeconds != null ? Math.floor(idleSeconds / 60) : null;
-  const idleWarning = idleMinutes != null && idleMinutes > 3
+  // Terminal workspaces are never considered hung
+  const idleWarning = !isTerminal && idleMinutes != null && idleMinutes > 3
     ? (idleMinutes > 10 ? "Worker may be hung" : `No output for ${idleMinutes}m`)
     : null;
+  const lastActivityLabel = workspace?.lastActivitySource
+    ? `${idleSeconds != null ? `${idleSeconds}s ago` : ""} (${workspace.lastActivitySource})`
+    : (idleSeconds != null ? `${idleSeconds}s ago` : null);
 
   return (
     <div className="flex flex-col gap-4 pt-3">
@@ -121,7 +127,7 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
         <Row label="Retries" value={String(worker.retries)} />
         {worker.snapshotPath && <Row label="Snapshot" value={worker.snapshotPath} />}
         {worker.reportPath && <Row label="Report" value={worker.reportPath} />}
-        {idleSeconds != null && <Row label="Last activity" value={`${idleSeconds}s ago`} />}
+        {lastActivityLabel != null && <Row label="Last activity" value={lastActivityLabel} />}
         {idleWarning && <div className={`mt-1 text-xs font-medium ${idleMinutes! > 10 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>{idleWarning}</div>}
         {worker.error && (
           <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
@@ -133,6 +139,31 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
 
       {/* Attempt History */}
       <AttemptHistoryTable attempts={attempts} loading={attemptsLoading} />
+
+      {/* Edit Strategy Warnings (P4.5) */}
+      {workspace?.editAuditSummary && (
+        <EditStrategyWarnings data={{
+          editMode: workspace.editAuditSummary.editModeUsed ?? "unknown",
+          blockedRewrites: workspace.editAuditSummary.blockedRewrites,
+          truncationEvents: workspace.editAuditSummary.truncationEvents,
+          exactMatchFailures: workspace.editAuditSummary.exactMatchFailures,
+          handoffTriggered: worker.stage === "blocked",
+          failedFiles: [],
+        }} />
+      )}
+
+      {/* Patch-first warning for blocked workers */}
+      {worker.stage === "blocked" && !workspace?.editAuditSummary && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded p-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-amber-500 rounded-full shrink-0" />
+            <span className="font-semibold text-amber-700 dark:text-amber-400">Patch-first mode active</span>
+          </div>
+          <div className="text-amber-700 dark:text-amber-300 mt-1">
+            This worker is blocked. Full rewrites are restricted — use targeted edits (patches) to modify existing files.
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col min-h-0 border-t border-[#E8E6E1] dark:border-[#333] pt-3">
         <div className="flex items-center justify-between mb-2 shrink-0 flex-wrap gap-1">

@@ -902,6 +902,27 @@ export function generateWorkspaceReport(workspace: Workspace, state: WorkspaceSt
 		lines.push("```");
 	}
 
+	if (state.editAuditSummary) {
+		const audit = state.editAuditSummary;
+		lines.push("");
+		lines.push("## Token Waste Prevention");
+		if (audit.editModeUsed) {
+			lines.push(`- **Edit Mode:** ${audit.editModeUsed.replace(/_/g, " ")}`);
+		}
+		lines.push(`- **Blocked Rewrites:** ${audit.blockedRewrites}`);
+		lines.push(`- **Truncation Events:** ${audit.truncationEvents}`);
+		lines.push(`- **Exact-Match Failures:** ${audit.exactMatchFailures}`);
+		lines.push(`- **Edit Failure Handoffs:** ${audit.handoffs}`);
+		lines.push(`- **Estimated Waste Prevented:** ${audit.estimatedWastePrevented} event(s)`);
+
+		if (audit.estimatedWastePrevented > 0) {
+			lines.push("");
+			lines.push(
+				"> The edit strategy policy prevented unnecessary token usage by blocking full rewrites and forcing targeted edits. Use `pi plan doctor` to review edit strategy settings.",
+			);
+		}
+	}
+
 	lines.push("");
 	lines.push("## Workspace Details");
 	lines.push(`- **Role Budget:** ${workspace.roleBudget}`);

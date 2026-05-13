@@ -22,6 +22,11 @@ vi.mock("../src/hooks/useWorkspaceLogStream", () => ({
 	useWorkspaceLogStream: (...args: unknown[]) => mockUseWorkspaceLogStream(...args),
 }));
 
+const mockUseWorkerTranscript = vi.fn();
+vi.mock("../src/hooks/useWorkerTranscript", () => ({
+	useWorkerTranscript: (...args: unknown[]) => mockUseWorkerTranscript(...args),
+}));
+
 describe("WorkerDetail Live Logs status", () => {
 	const baseWorker: WorkerInfo = {
 		id: "ws-1",
@@ -135,5 +140,97 @@ describe("WorkerDetail Live Logs status", () => {
 
 		expect(screen.getByText("line 1")).toBeInTheDocument();
 		expect(screen.getByText("line 2")).toBeInTheDocument();
+	});
+});
+
+describe("WorkerDetail patch-first warning", () => {
+	const baseWorker: WorkerInfo = {
+		id: "ws-1",
+		stage: "blocked",
+		attempt: 2,
+		retries: 1,
+	};
+
+	const baseWorkspace: WorkspaceSummary = {
+		id: "ws-1",
+		stage: "blocked",
+		attempts: 2,
+		error: null,
+		startedAt: null,
+		completedAt: null,
+	};
+
+	beforeEach(() => {
+		mockUseWorkspaceLogStream.mockReturnValue({
+			lines: [],
+			isConnected: true,
+			isReconnecting: false,
+			error: null,
+		});
+		mockUseWorkerTranscript.mockReturnValue({
+			events: [],
+			isConnected: true,
+			isReconnecting: false,
+			error: null,
+		});
+	});
+
+	it('shows "Patch-first mode active" warning for blocked workers without edit audit summary', () => {
+		render(
+			<WorkerDetail
+				worker={baseWorker}
+				planExecId="exec-1"
+				workspace={baseWorkspace}
+			/>,
+		);
+
+		expect(screen.getByText("Patch-first mode active")).toBeInTheDocument();
+		expect(screen.getByText(/Full rewrites are restricted/)).toBeInTheDocument();
+	});
+
+	it('shows EditStrategyWarnings for blocked workers with edit audit summary', () => {
+		const workspaceWithAudit: WorkspaceSummary = {
+			...baseWorkspace,
+			editAuditSummary: {
+				editModeUsed: "token_saving",
+				blockedRewrites: 2,
+				truncationEvents: 1,
+				exactMatchFailures: 0,
+				handoffs: 0,
+				estimatedWastePrevented: 2,
+			},
+		};
+
+		render(
+			<WorkerDetail
+				worker={baseWorker}
+				planExecId="exec-1"
+				workspace={workspaceWithAudit}
+			/>,
+		);
+
+		// Show audit-based warnings from EditStrategyWarnings component
+		expect(screen.getByText(/token saving/)).toBeInTheDocument();
+		expect(screen.getByText(/2 blocked rewrite/)).toBeInTheDocument();
+		expect(screen.getByText(/1 truncation/)).toBeInTheDocument();
+	});
+
+	it("does not show patch-first warning for active workers", () => {
+		const activeWorker: WorkerInfo = {
+			id: "ws-1",
+			stage: "active",
+			attempt: 1,
+			retries: 0,
+		};
+
+		render(
+			<WorkerDetail
+				worker={activeWorker}
+				planExecId="exec-1"
+				workspace={{ ...baseWorkspace, stage: "active" }}
+			/>,
+		);
+
+		expect(screen.queryByText("Patch-first mode active")).not.toBeInTheDocument();
 	});
 });

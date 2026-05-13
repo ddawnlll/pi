@@ -22,6 +22,9 @@ const STALL_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 const IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 const RETRY_ATTEMPT_THRESHOLD = 2;
 
+/** Stages that represent a terminal workspace state — never considered hung. */
+const TERMINAL_STAGES = new Set(["complete", "failed"]);
+
 export function WarningBanner({
 	executionDetail,
 	workers,
@@ -65,27 +68,22 @@ export function WarningBanner({
 			}
 		}
 
-		// --- Worker may be hung (idle > 3 min) ---
+		// --- Worker may be hung (idle > 3 min, only for non-terminal workspaces) ---
 		const now = Date.now();
 		for (const w of workers) {
-			if (!w.updatedAt && w.startedAt) {
-				// Fallback to startedAt if updatedAt is not available
-				const lastActivity = w.updatedAt ?? w.startedAt;
-				const idleMs = now - lastActivity;
-				if (idleMs > IDLE_THRESHOLD_MS) {
-					result.push({
-						id: `hang-${w.id}`,
-						message: `⚠ Worker ${w.id} may be hung (no activity for ${Math.round(idleMs / 1000 / 60)}m)`,
-					});
-				}
-			} else if (w.updatedAt) {
-				const idleMs = now - w.updatedAt;
-				if (idleMs > IDLE_THRESHOLD_MS) {
-					result.push({
-						id: `hang-${w.id}`,
-						message: `⚠ Worker ${w.id} may be hung (no activity for ${Math.round(idleMs / 1000 / 60)}m)`,
-					});
-				}
+			// Terminal workspaces are never considered hung
+			if (TERMINAL_STAGES.has(w.stage)) continue;
+
+			const lastActivityTime = w.lastActivityAt ?? w.updatedAt ?? w.startedAt;
+			if (lastActivityTime == null) continue;
+
+			const idleMs = now - lastActivityTime;
+			if (idleMs > IDLE_THRESHOLD_MS) {
+				const sourceInfo = w.lastActivitySource ? ` (last: ${w.lastActivitySource})` : "";
+				result.push({
+					id: `hang-${w.id}`,
+					message: `⚠ Worker ${w.id} may be hung (no activity for ${Math.round(idleMs / 1000 / 60)}m)${sourceInfo}`,
+				});
 			}
 		}
 

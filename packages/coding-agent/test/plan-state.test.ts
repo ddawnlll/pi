@@ -368,6 +368,59 @@ describe("generateWorkspaceReport", () => {
 		expect(report).toContain("## Error");
 		expect(report).toContain("Test failed");
 	});
+
+	it("should include token waste prevention section when editAuditSummary is present", () => {
+		const workspace = {
+			id: "7.A",
+			title: "Task A",
+			dependencies: [],
+			roleBudget: "worker" as const,
+			maxRetries: 3,
+		};
+
+		const state = {
+			workspaceId: "7.A",
+			stage: WorkspaceStage.Complete,
+			attempts: 1,
+			editAuditSummary: {
+				editModeUsed: "token_saving" as const,
+				blockedRewrites: 3,
+				truncationEvents: 1,
+				exactMatchFailures: 2,
+				handoffs: 1,
+				estimatedWastePrevented: 4,
+			},
+		};
+
+		const report = generateWorkspaceReport(workspace, state);
+		expect(report).toContain("## Token Waste Prevention");
+		expect(report).toContain("**Edit Mode:** token saving");
+		expect(report).toContain("**Blocked Rewrites:** 3");
+		expect(report).toContain("**Truncation Events:** 1");
+		expect(report).toContain("**Exact-Match Failures:** 2");
+		expect(report).toContain("**Edit Failure Handoffs:** 1");
+		expect(report).toContain("**Estimated Waste Prevented:** 4 event(s)");
+		expect(report).toContain("pi plan doctor");
+	});
+
+	it("should not include token waste prevention section when editAuditSummary is absent", () => {
+		const workspace = {
+			id: "7.A",
+			title: "Task A",
+			dependencies: [],
+			roleBudget: "worker" as const,
+			maxRetries: 3,
+		};
+
+		const state = {
+			workspaceId: "7.A",
+			stage: WorkspaceStage.Complete,
+			attempts: 1,
+		};
+
+		const report = generateWorkspaceReport(workspace, state);
+		expect(report).not.toContain("## Token Waste Prevention");
+	});
 });
 
 describe("formatPlanState", () => {
