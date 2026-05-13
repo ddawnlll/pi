@@ -5,6 +5,8 @@ import type { Project } from "../types";
 
 type TabId = "general" | "budgets" | "project" | "advanced";
 
+const DASHBOARD_THEME_KEY = "pi-dashboard-theme";
+
 interface SettingsDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -19,6 +21,18 @@ function isEqual(a: unknown, b: unknown): boolean {
 		return JSON.stringify(a) === JSON.stringify(b);
 	}
 	return false;
+}
+
+/** Read dashboard theme from localStorage (never touches pi agent) */
+const STORAGE = typeof window !== "undefined" ? window.localStorage : null;
+function readDashboardTheme(): string {
+	try { return STORAGE?.getItem(DASHBOARD_THEME_KEY) ?? ""; } catch { return ""; }
+}
+function writeDashboardTheme(value: string): void {
+	try {
+		if (value) { STORAGE?.setItem(DASHBOARD_THEME_KEY, value); }
+		else { STORAGE?.removeItem(DASHBOARD_THEME_KEY); }
+	} catch { /* ignore */ }
 }
 
 export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps) {
@@ -42,12 +56,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	// Original values (snapshot when dialog opens)
 	const [orig, setOrig] = useState<Record<string, unknown>>({});
 	const [origBudgets, setOrigBudgets] = useState<Record<string, unknown>>({});
+	const [origProject, setOrigProject] = useState<Record<string, unknown>>({});
 
-	// Form state: General
-	const [defaultProvider, setDefaultProvider] = useState("");
-	const [defaultModel, setDefaultModel] = useState("");
+	// Form state: General (steering + follow-up only — provider/model moved to Project tab)
 	const [steeringMode, setSteeringMode] = useState<"all" | "one-at-a-time">("one-at-a-time");
 	const [followUpMode, setFollowUpMode] = useState<"all" | "one-at-a-time">("one-at-a-time");
+	// Dashboard visual theme — localStorage only, never sent to pi agent API
 	const [theme, setTheme] = useState("");
 
 	// Form state: Budgets
@@ -59,9 +73,11 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const [budgetMaxAuto, setBudgetMaxAuto] = useState(64000);
 	const [millionContextEnabled, setMillionContextEnabled] = useState(false);
 
-	// Form state: Project
+	// Form state: Project (includes per-project provider/model)
 	const [projectName, setProjectName] = useState("");
 	const [projectRootPath, setProjectRootPath] = useState("");
+	const [projectProvider, setProjectProvider] = useState("");
+	const [projectModel, setProjectModel] = useState("");
 
 	// Form state: Advanced
 	const [shellPath, setShellPath] = useState("");
@@ -80,21 +96,23 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			return;
 		}
 
-		const sp = settings.defaultProvider as string | undefined ?? "";
-		const sm = settings.defaultModel as string | undefined ?? "";
+		const pp = (settings.defaultProvider as string | undefined) ?? "";
+		const pm = (settings.defaultModel as string | undefined) ?? "";
 
-		setDefaultProvider(sp);
-		setDefaultModel(sm);
+		setProjectProvider(pp);
+		setProjectModel(pm);
 		setSteeringMode((settings.steeringMode as "all" | "one-at-a-time") ?? "one-at-a-time");
 		setFollowUpMode((settings.followUpMode as "all" | "one-at-a-time") ?? "one-at-a-time");
-		setTheme((settings.theme as string) ?? "");
+		setTheme(readDashboardTheme());
 
 		setOrig({
-			defaultProvider: sp,
-			defaultModel: sm,
 			steeringMode: settings.steeringMode ?? "one-at-a-time",
 			followUpMode: settings.followUpMode ?? "one-at-a-time",
-			theme: settings.theme ?? "",
+			shellPath: (settings.shellPath as string) ?? "",
+			quietStartup: (settings.quietStartup as boolean) ?? false,
+			collapseChangelog: (settings.collapseChangelog as boolean) ?? false,
+			enableInstallTelemetry: (settings.enableInstallTelemetry as boolean) ?? true,
+			enableSkillCommands: (settings.enableSkillCommands as boolean) ?? true,
 		});
 
 		if (budgets) {
@@ -121,6 +139,13 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			setProjectRootPath(project.rootPath ?? "");
 		}
 
+		setOrigProject({
+			projectName: project?.name ?? "",
+			projectRootPath: project?.rootPath ?? "",
+			projectProvider: pp,
+			projectModel: pm,
+		});
+
 		setShellPath((settings.shellPath as string) ?? "");
 		setQuietStartup((settings.quietStartup as boolean) ?? false);
 		setCollapseChangelog((settings.collapseChangelog as boolean) ?? false);
@@ -132,12 +157,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 
 	const generalDirty = useMemo(
 		() =>
-			!isEqual(defaultProvider, orig.defaultProvider) ||
-			!isEqual(defaultModel, orig.defaultModel) ||
 			!isEqual(steeringMode, orig.steeringMode) ||
-			!isEqual(followUpMode, orig.followUpMode) ||
-			!isEqual(theme, orig.theme),
-		[defaultProvider, defaultModel, steeringMode, followUpMode, theme, orig],
+			!isEqual(followUpMode, orig.followUpMode),
+		[steeringMode, followUpMode, orig],
 	);
 
 	const budgetsDirty = useMemo(
@@ -155,12 +177,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const projectDirty = useMemo(() => {
 		if (!project) return false;
 		return (
-			projectName !== project.name ||
-			projectRootPath !== project.rootPath ||
-			!isEqual(shellPath, orig.shellPath) ||
-			!isEqual(quietStartup, orig.quietStartup)
+			projectName !== (origProject.projectName as string) ||
+			projectRootPath !== (origProject.projectRootPath as string) ||
+			!isEqual(projectProvider, origProject.projectProvider) ||
+			!isEqual(projectModel, origProject.projectModel)
 		);
-	}, [projectName, projectRootPath, shellPath, quietStartup, project, orig]);
+	}, [projectName, projectRootPath, projectProvider, projectModel, project, origProject]);
 
 	const advancedDirty = useMemo(
 		() =>
@@ -175,13 +197,10 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	// Compute change counts per tab
 	const generalChanges = useMemo(() => {
 		let count = 0;
-		if (!isEqual(defaultProvider, orig.defaultProvider)) count++;
-		if (!isEqual(defaultModel, orig.defaultModel)) count++;
 		if (!isEqual(steeringMode, orig.steeringMode)) count++;
 		if (!isEqual(followUpMode, orig.followUpMode)) count++;
-		if (!isEqual(theme, orig.theme)) count++;
 		return count;
-	}, [defaultProvider, defaultModel, steeringMode, followUpMode, theme, orig]);
+	}, [steeringMode, followUpMode, orig]);
 
 	const budgetsChanges = useMemo(() => {
 		let count = 0;
@@ -195,7 +214,17 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		return count;
 	}, [budgetFlash, budgetWorker, budgetLead, budgetReviewer, budgetDebug, budgetMaxAuto, millionContextEnabled, origBudgets]);
 
-	const totalChanges = generalChanges + budgetsChanges;
+	const projectChanges = useMemo(() => {
+		if (!project) return 0;
+		let count = 0;
+		if (projectName !== (origProject.projectName as string)) count++;
+		if (projectRootPath !== (origProject.projectRootPath as string)) count++;
+		if (!isEqual(projectProvider, origProject.projectProvider)) count++;
+		if (!isEqual(projectModel, origProject.projectModel)) count++;
+		return count;
+	}, [projectName, projectRootPath, projectProvider, projectModel, project, origProject]);
+
+	const totalChanges = generalChanges + budgetsChanges + projectChanges;
 
 	const handleClose = useCallback(() => {
 		setSaved(false);
@@ -205,18 +234,13 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const handleSaveGeneral = async () => {
 		setJustSaved(true);
 		await updateSettings({
-			defaultProvider: defaultProvider || null,
-			defaultModel: defaultModel || null,
 			steeringMode,
 			followUpMode,
-			theme: theme || null,
 		});
 		setOrig({
-			defaultProvider,
-			defaultModel,
+			...orig,
 			steeringMode,
 			followUpMode,
-			theme,
 		});
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
@@ -255,9 +279,16 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 				rootPath: projectRootPath || undefined,
 			});
 		}
+		// Provider and model are per-project settings
 		await updateProjectSettings({
-			shellPath: shellPath || null,
-			quietStartup,
+			defaultProvider: projectProvider || null,
+			defaultModel: projectModel || null,
+		});
+		setOrigProject({
+			projectName,
+			projectRootPath,
+			projectProvider,
+			projectModel,
 		});
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
@@ -275,28 +306,35 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setTimeout(() => setSaved(false), 2000);
 	};
 
-	// ---- Provider / Model helpers ----
+	// ---- Theme helper (localStorage only) ----
+	const handleThemeChange = (newTheme: string) => {
+		setTheme(newTheme);
+		writeDashboardTheme(newTheme);
+		try { document.documentElement.setAttribute("data-theme", newTheme || "dark"); } catch { /* ignore */ }
+	};
+
+	// ---- Provider / Model helpers (per-project) ----
 
 	const modelsForProvider = useMemo(() => {
-		if (!defaultProvider) return [];
-		const entry = aiModels.find((a) => a.provider === defaultProvider);
+		if (!projectProvider) return [];
+		const entry = aiModels.find((a) => a.provider === projectProvider);
 		return entry?.models ?? [];
-	}, [defaultProvider, aiModels]);
+	}, [projectProvider, aiModels]);
 
 	// Reset model if current model isn't valid for the selected provider
 	const handleProviderChange = (provider: string) => {
-		setDefaultProvider(provider);
+		setProjectProvider(provider);
 		// If the current model isn't from the new provider, reset it
 		const entry = aiModels.find((a) => a.provider === provider);
-		if (entry && !entry.models.some((m) => m.id === defaultModel)) {
-			setDefaultModel("");
+		if (entry && !entry.models.some((m) => m.id === projectModel)) {
+			setProjectModel("");
 		}
 	};
 
 	const tabs: { id: TabId; label: string; changes?: number }[] = [
 		{ id: "general", label: "General", changes: generalChanges },
 		{ id: "budgets", label: "Context Budgets", changes: budgetsChanges },
-		{ id: "project", label: "Project" },
+		{ id: "project", label: "Project", changes: projectChanges },
 		{ id: "advanced", label: "Advanced" },
 	];
 
@@ -376,69 +414,8 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{activeTab === "general" && (
 										<div className="space-y-4">
 											<p className="text-xs text-gray-500 mb-3">
-												These settings apply globally to all projects.
+												General agent behavior settings. Provider and model are per-project (see Project tab).
 											</p>
-
-											{/* Default Provider */}
-											<div>
-												<label className={labelClass}>Default Provider</label>
-												{modelsLoading ? (
-													<div className="text-xs text-gray-500 py-2">Loading providers...</div>
-												) : (
-													<select
-														value={defaultProvider}
-														onChange={(e) => handleProviderChange(e.target.value)}
-														className={inputClass}
-													>
-														<option value="">-- None --</option>
-														{aiModels.map((p) => (
-															<option key={p.provider} value={p.provider}>
-																{p.provider}
-															</option>
-														))}
-													</select>
-												)}
-											</div>
-
-											{/* Default Model */}
-											<div>
-												<label className={labelClass}>Default Model</label>
-												{modelsLoading ? (
-													<div className="text-xs text-gray-500 py-2">Loading models...</div>
-												) : (
-													<select
-														value={defaultModel}
-														onChange={(e) => setDefaultModel(e.target.value)}
-														className={inputClass}
-														disabled={!defaultProvider}
-													>
-														<option value="">-- None --</option>
-														{modelsForProvider.map((m) => (
-															<option key={m.id} value={m.id}>
-																{m.name ?? m.id}
-															</option>
-														))}
-													</select>
-												)}
-												{!defaultProvider && (
-													<p className="text-xs text-gray-600 mt-1">
-														Select a provider first to see available models.
-													</p>
-												)}
-											</div>
-
-											<div>
-												<label className={labelClass}>Theme</label>
-												<select
-													value={theme}
-													onChange={(e) => setTheme(e.target.value)}
-													className={inputClass}
-												>
-													<option value="">Default</option>
-													<option value="dark">Dark</option>
-													<option value="light">Light</option>
-												</select>
-											</div>
 											<div>
 												<label className={labelClass}>Steering Mode</label>
 												<select
@@ -463,6 +440,20 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 												>
 													<option value="one-at-a-time">One at a time</option>
 													<option value="all">All</option>
+												</select>
+											</div>
+											<hr className="border-gray-700 my-3" />
+											<p className="text-xs text-gray-500 mb-1">Dashboard appearance (does not affect agent settings)</p>
+											<div>
+												<label className={labelClass}>Theme</label>
+												<select
+													value={theme}
+													onChange={(e) => handleThemeChange(e.target.value)}
+													className={inputClass}
+												>
+													<option value="">Default</option>
+													<option value="dark">Dark</option>
+													<option value="light">Light</option>
 												</select>
 											</div>
 											<div className="pt-2 flex items-center justify-between">
@@ -618,8 +609,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{activeTab === "project" && (
 										<div className="space-y-4">
 											<p className="text-xs text-gray-500 mb-3">
-												Project-specific settings. Changes apply to the current project
-												only.
+												Project-specific settings. Provider and model apply to this project only.
 											</p>
 											<div>
 												<label className={labelClass}>Project Name</label>
@@ -641,34 +631,55 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={inputClass}
 												/>
 											</div>
+
+											{/* Per-project Provider */}
 											<div>
-												<label className={labelClass}>Project Shell Path</label>
-												<input
-													type="text"
-													value={shellPath}
-													onChange={(e) => setShellPath(e.target.value)}
-													placeholder="/bin/bash"
-													className={inputClass}
-												/>
+												<label className={labelClass}>Provider</label>
+												{modelsLoading ? (
+													<div className="text-xs text-gray-500 py-2">Loading providers...</div>
+												) : (
+													<select
+														value={projectProvider}
+														onChange={(e) => handleProviderChange(e.target.value)}
+														className={inputClass}
+													>
+														<option value="">-- None --</option>
+														{aiModels.map((p) => (
+															<option key={p.provider} value={p.provider}>
+																{p.provider}
+															</option>
+														))}
+													</select>
+												)}
 											</div>
-											<div className="flex items-center gap-3">
-												<button
-													type="button"
-													onClick={() => setQuietStartup(!quietStartup)}
-													className={`${toggleClass} ${
-														quietStartup ? toggleActiveClass : toggleInactiveClass
-													}`}
-												>
-													<span
-														className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-															quietStartup ? "translate-x-[18px]" : "translate-x-[2px]"
-														}`}
-													/>
-												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
-													Quiet Startup (skip greeting)
-												</label>
+
+											{/* Per-project Model */}
+											<div>
+												<label className={labelClass}>Model</label>
+												{modelsLoading ? (
+													<div className="text-xs text-gray-500 py-2">Loading models...</div>
+												) : (
+													<select
+														value={projectModel}
+														onChange={(e) => setProjectModel(e.target.value)}
+														className={inputClass}
+														disabled={!projectProvider}
+													>
+														<option value="">-- None --</option>
+														{modelsForProvider.map((m) => (
+															<option key={m.id} value={m.id}>
+																{m.name ?? m.id}
+															</option>
+														))}
+													</select>
+												)}
+												{!projectProvider && (
+													<p className="text-xs text-gray-600 mt-1">
+														Select a provider first to see available models.
+													</p>
+												)}
 											</div>
+
 											<div className="pt-2 flex justify-end">
 												<button
 													onClick={handleSaveProject}

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// Track first mount for debug logging
+let _appMounted = false;
 import { AnimatePresence, motion } from "framer-motion";
 import {
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
@@ -113,7 +116,9 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
 
 export function App() {
   const { theme, setTheme } = useTheme();
+  console.log("[App] useTheme resolved, theme=", theme);
   const { projects, isLoading: projectsLoading, createProject } = useProjects();
+  console.log("[App] useProjects resolved, loading=", projectsLoading, "count=", projects.length);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
@@ -176,6 +181,13 @@ export function App() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<"all" | "errors">("all");
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!_appMounted) {
+      _appMounted = true;
+      console.log("[App] First mount — all hooks initialized, rendering UI");
+    }
+  }, []);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedWorker = workers.find(w => w.id === selectedWorkerId);
   const selectedWorkspace = activeWorkspaces.find(w => w.id === selectedWorkerId);
