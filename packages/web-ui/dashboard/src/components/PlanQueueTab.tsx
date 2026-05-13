@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import {
 	Play, Pause, Square, SkipForward, Trash2, ArrowUpToLine,
 	GripVertical, Loader2, Upload, Clock, AlertCircle, CheckCircle2,
-	ChevronUp, ChevronDown, Ban,
+	ChevronUp, ChevronDown, Ban, FileUp,
 } from "lucide-react";
 import { usePlanQueue, type PlanQueueEntry } from "../hooks/usePlanQueue";
 import { StatusBadge } from "./StatusBadge";
@@ -201,6 +201,9 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 		{ content: "", fileName: "plan-1.md" },
 	]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const multiFileInputRef = useRef<HTMLInputElement>(null);
+	const [isReadingFiles, setIsReadingFiles] = useState(false);
+	const [isFileDragOver, setIsFileDragOver] = useState(false);
 
 	const addPlanSlot = () => {
 		setPlans((prev) => [
@@ -243,6 +246,122 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 		input.click();
 	};
 
+	const handleMultiFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const files = e.target.files;
+		if (!files || files.length === 0) return;
+
+		setIsReadingFiles(true);
+		const readers: Promise<{ content: string; fileName: string }>[] = [];
+
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			readers.push(
+				new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = (evt) => {
+						resolve({
+							content: evt.target?.result as string,
+							fileName: file.name,
+						});
+					};
+					reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+					reader.readAsText(file);
+				}),
+			);
+		}
+
+		Promise.all(readers)
+			.then((results) => {
+				// Preserve any existing content the user already typed/pasted
+				const existingWithContent = plans.filter((p) => p.content.trim().length > 0);
+				const newPlans = results.map((r, i) => ({
+					content: r.content,
+					fileName: r.fileName,
+				}));
+				setPlans([
+					...(existingWithContent.length > 0 ? existingWithContent : []),
+					...newPlans,
+				]);
+			})
+			.catch((err) => {
+				console.error("Failed to read files:", err);
+			})
+			.finally(() => {
+				setIsReadingFiles(false);
+				// Reset the input so the same files can be re-selected
+				if (multiFileInputRef.current) {
+					multiFileInputRef.current.value = "";
+				}
+			});
+	};
+
+	const processDroppedFiles = (fileList: FileList) => {
+		if (fileList.length === 0) return;
+
+		setIsReadingFiles(true);
+		const readers: Promise<{ content: string; fileName: string }>[] = [];
+
+		for (let i = 0; i < fileList.length; i++) {
+			const file = fileList[i];
+			// Only accept plan file types
+			const ext = file.name.split(".").pop()?.toLowerCase();
+			if (ext && !["md", "json", "txt"].includes(ext)) continue;
+
+			readers.push(
+				new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = (evt) => {
+						resolve({
+							content: evt.target?.result as string,
+							fileName: file.name,
+						});
+					};
+					reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+					reader.readAsText(file);
+				}),
+			);
+		}
+
+		Promise.all(readers)
+			.then((results) => {
+				if (results.length === 0) return;
+				const existingWithContent = plans.filter((p) => p.content.trim().length > 0);
+				setPlans([
+					...(existingWithContent.length > 0 ? existingWithContent : []),
+					...results,
+				]);
+			})
+			.catch((err) => {
+				console.error("Failed to read dropped files:", err);
+			})
+			.finally(() => {
+				setIsReadingFiles(false);
+			});
+	};
+
+	const handleFileDragOver = (e: React.DragEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		if (e.dataTransfer.types.includes("Files")) {
+			setIsFileDragOver(true);
+		}
+	};
+
+	const handleFileDragLeave = (e: React.DragEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsFileDragOver(false);
+	};
+
+	const handleFileDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setIsFileDragOver(false);
+		if (e.dataTransfer.files.length > 0) {
+			processDroppedFiles(e.dataTransfer.files);
+		}
+	};
+
 	const handleEnqueue = () => {
 		const validPlans = plans
 			.filter((p) => p.content.trim().length > 0)
@@ -256,7 +375,22 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 	const totalChars = plans.reduce((sum, p) => sum + p.content.length, 0);
 
 	return (
-		<div className={`${SURF} border ${BORD} rounded-lg p-3 space-y-3`}>
+		<div
+			onDragOver={handleFileDragOver}
+			onDragLeave={handleFileDragLeave}
+			onDrop={handleFileDrop}
+			className={`${SURF} border ${BORD} rounded-lg p-3 space-y-3 relative transition-all duration-200 ${isFileDragOver ? "border-blue-400 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 ring-2 ring-blue-300/50 dark:ring-blue-600/30" : ""}`}
+		>
+			{/* Drop zone overlay */}
+			{isFileDragOver && (
+				<div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+					<div className={`flex flex-col items-center gap-1 px-4 py-3 rounded-lg ${SURF} border-2 border-dashed border-blue-400 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 shadow-lg`}>
+						<FileUp size={20} className="text-blue-500 dark:text-blue-400" />
+						<span className="text-xs font-medium text-blue-600 dark:text-blue-400">Drop plan files here</span>
+						<span className="text-[10px] text-blue-400 dark:text-blue-500">.md, .json, .txt</span>
+					</div>
+				</div>
+			)}
 			<div className="flex items-center justify-between">
 				<span className={`text-xs font-semibold ${TXT}`}>Add Plans to Queue</span>
 				<span className={`text-[10px] ${MUT}`}>{plans.length} plan{plans.length !== 1 ? "s" : ""} · {totalChars} chars</span>
@@ -297,7 +431,28 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 				</div>
 			))}
 
+			{/* Hidden multi-file input */}
+			<input
+				ref={multiFileInputRef}
+				type="file"
+				multiple
+				accept=".md,.json,.txt"
+				className="hidden"
+				onChange={handleMultiFileUpload}
+			/>
+
 			<div className="flex items-center gap-2">
+				<button
+					onClick={() => multiFileInputRef.current?.click()}
+					disabled={isReadingFiles}
+					className={`text-xs px-2.5 py-1.5 rounded border ${BORD} ${MUT} hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-colors disabled:opacity-50`}
+				>
+					{isReadingFiles ? (
+						<><Loader2 size={10} className="animate-spin inline mr-1" /> Reading...</>
+					) : (
+						<><FileUp size={10} className="inline mr-1" /> Upload Files</>
+					)}
+				</button>
 				<button
 					onClick={addPlanSlot}
 					className={`text-xs px-2.5 py-1.5 rounded border ${BORD} ${MUT} hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-colors`}
@@ -307,17 +462,13 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 				<div className="flex-1" />
 				<button
 					onClick={handleEnqueue}
-					disabled={isEnqueueing || plans.every((p) => !p.content.trim())}
+					disabled={isEnqueueing || isReadingFiles || plans.every((p) => !p.content.trim())}
 					className={`text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
 				>
 					{isEnqueueing ? (
-						<>
-							<Loader2 size={10} className="animate-spin inline mr-1" /> Adding...
-						</>
+						<><Loader2 size={10} className="animate-spin inline mr-1" /> Adding...</>
 					) : (
-						<>
-							<Upload size={10} className="inline mr-1" /> Enqueue {plans.filter((p) => p.content.trim()).length} plan{plans.filter((p) => p.content.trim()).length !== 1 ? "s" : ""}
-						</>
+						<><Upload size={10} className="inline mr-1" /> Enqueue {plans.filter((p) => p.content.trim()).length} plan{plans.filter((p) => p.content.trim()).length !== 1 ? "s" : ""}</>
 					)}
 				</button>
 			</div>
