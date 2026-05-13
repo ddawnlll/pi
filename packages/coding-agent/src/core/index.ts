@@ -99,3 +99,13 @@ export {
 	STRICT_PROFILE,
 } from "./safety-profile.js";
 export { createSyntheticSourceInfo } from "./source-info.js";
+export {
+	getGlobalValidationLock,
+	isValidationCommand,
+	resetGlobalValidationLock,
+	VALIDATION_LOCK_ACQUIRED,
+	VALIDATION_LOCK_RELEASED,
+	VALIDATION_LOCK_WAITING,
+	type ValidationLockEventPayload,
+	withValidationLock,
+} from "./validation-lock.js";

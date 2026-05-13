@@ -39,6 +39,8 @@ import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent } from "./utils/format";
 import { PlanQueueTab } from "./components/PlanQueueTab";
+import { LiveLogTerminal } from "./components/LiveLogTerminal";
+import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 
 const API_BASE = "";
 
@@ -416,20 +418,25 @@ export function App() {
           {/* warning banner */}
           {!isLegacyMode && (
             <WarningBanner executionDetail={executionDetail ?? null} workers={activeWorkspaces}
-              events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} />
+              events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} executionStats={planStats ?? null} />
           )}
 
           {/* stats */}
           {!isLegacyMode && executionDetail && (
             <>
-              <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-3 p-3 ${BG} border-b ${BORD}`}>
+              <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-7 gap-3 p-3 ${BG} border-b ${BORD}`}>
                 <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
                 <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
                 <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
-                <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} />
-                <StatCard icon={Activity} label="Cache hit" value={formatPercent(planStats?.cache_hit_rate)} />
+                <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
+                <StatCard icon={Activity} label="Cache hit" value={planStats?.cache_hit_rate_known ? formatPercent(planStats?.cache_hit_rate) : "unknown"} />
+                <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
+                <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
               </div>
               <QueueStrip queue={queue} />
+              <div className={`shrink-0 p-3 border-b ${BORD}`}>
+                <SchedulerStatusPanel stats={planStats ?? null} />
+              </div>
             </>
           )}
           {isLegacyMode && legacyPlanState && (
@@ -484,10 +491,7 @@ export function App() {
             {selectedWorker ? (
               <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
             ) : workers.length > 0 ? (
-              <div className={`h-full flex flex-col items-center justify-center gap-2 ${MUT}`}>
-                <Cpu size={28} strokeWidth={1.2} />
-                <p className="text-xs">Select a workspace to view logs</p>
-              </div>
+              <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
             ) : null}
           </div>
         </div>

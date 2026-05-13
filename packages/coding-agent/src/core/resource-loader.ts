@@ -27,6 +27,8 @@ export interface ResourceExtensionPaths {
 }
 
 export interface ResourceLoader {
+	/** Event bus used for internal events (validation lock, etc.) */
+	readonly eventBus?: EventBus;
 	getExtensions(): LoadExtensionsResult;
 	getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
 	getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] };
@@ -154,7 +156,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private cwd: string;
 	private agentDir: string;
 	private settingsManager: SettingsManager;
-	private eventBus: EventBus;
+	private _eventBus: EventBus;
 	private packageManager: DefaultPackageManager;
 	private additionalExtensionPaths: string[];
 	private additionalSkillPaths: string[];
@@ -208,7 +210,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.cwd = options.cwd;
 		this.agentDir = options.agentDir;
 		this.settingsManager = options.settingsManager ?? SettingsManager.create(this.cwd, this.agentDir);
-		this.eventBus = options.eventBus ?? createEventBus();
+		this._eventBus = options.eventBus ?? createEventBus();
 		this.packageManager = new DefaultPackageManager({
 			cwd: this.cwd,
 			agentDir: this.agentDir,
@@ -249,6 +251,11 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionThemeSourceInfos = new Map();
 		this.lastPromptPaths = [];
 		this.lastThemePaths = [];
+	}
+
+	/** Expose the event bus for validation lock integration. */
+	get eventBus(): EventBus {
+		return this._eventBus;
 	}
 
 	getExtensions(): LoadExtensionsResult {
@@ -396,7 +403,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 			? cliEnabledExtensions
 			: this.mergePaths(cliEnabledExtensions, enabledExtensions);
 
-		const extensionsResult = await loadExtensions(extensionPaths, this.cwd, this.eventBus);
+		const extensionsResult = await loadExtensions(extensionPaths, this.cwd, this._eventBus);
 		const inlineExtensions = await this.loadExtensionFactories(extensionsResult.runtime);
 		extensionsResult.extensions.push(...inlineExtensions.extensions);
 		extensionsResult.errors.push(...inlineExtensions.errors);
@@ -777,7 +784,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		for (const [index, factory] of this.extensionFactories.entries()) {
 			const extensionPath = `<inline:${index + 1}>`;
 			try {
-				const extension = await loadExtensionFromFactory(factory, this.cwd, this.eventBus, runtime, extensionPath);
+				const extension = await loadExtensionFromFactory(factory, this.cwd, this._eventBus, runtime, extensionPath);
 				extensions.push(extension);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : "failed to load extension";

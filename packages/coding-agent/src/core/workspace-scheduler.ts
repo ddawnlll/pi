@@ -11,6 +11,76 @@ import type { Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
 
 /**
+ * Reason a workspace was skipped (not selected for scheduling)
+ */
+export interface SkipReason {
+	/** Workspace ID that was skipped */
+	workspaceId: string;
+	/** Category of skip */
+	category: "dependency" | "file_lock" | "capacity" | "not_pending";
+	/** Human-readable reason */
+	reason: string;
+	/** For dependency skips: list of missing/incomplete dependency IDs */
+	missingDependencyIds?: string[];
+	/** For file-lock skips: conflicting workspace ID */
+	conflictingWorkspaceId?: string;
+	/** For file-lock skips: conflicting file path or glob pattern */
+	conflictingPath?: string;
+}
+
+/**
+ * Explanation for why the scheduler is idle (no work started)
+ */
+export interface IdleExplanation {
+	/** True when scheduler is idle */
+	isIdle: boolean;
+	/** Reasons the scheduler produced no selected workspaces */
+	reasons: string[];
+}
+
+/**
+ * Scheduler capacity diagnostics
+ */
+export interface SchedulerDiagnostics {
+	/** Workspaces selected for scheduling */
+	selected: string[];
+	/** Workspaces skipped with detailed reasons */
+	skipped: SkipReason[];
+	/** Idle explanation (when no work was started) */
+	idle: IdleExplanation;
+	/** Capacity snapshot */
+	capacity: SchedulerCapacitySnapshot;
+}
+
+/**
+ * Snapshot of scheduler capacity for dashboard display
+ */
+export interface SchedulerCapacitySnapshot {
+	/** Maximum concurrent workers */
+	maxWorkers: number;
+	/** Currently active workers */
+	activeWorkers: number;
+	/** Available worker slots */
+	availableSlots: number;
+	/** Total workspaces tracked */
+	totalWorkspaces: number;
+	/** Workspaces in pending state */
+	pending: number;
+	/** Workspaces in active state */
+	active: number;
+	/** Workspaces in complete state */
+	complete: number;
+	/** Workspaces in blocked state */
+	blocked: number;
+	/** Workspaces in failed state */
+	failed: number;
+	/** Number of file locks currently held */
+	fileLocks: number;
+	/** Utilization ratio (0-1) */
+	utilization: number;
+}
+
+/**
  * Scheduling decision
  */
 export interface SchedulingDecision {
@@ -20,6 +90,8 @@ export interface SchedulingDecision {
 	blocked: Workspace[];
 	/** Reason for blocking (workspace ID -> reason) */
 	blockReasons: Map<string, string>;
+	/** Diagnostics (selected/skipped/idle detail) */
+	diagnostics: SchedulerDiagnostics;
 }
 
 /**
@@ -66,12 +138,13 @@ export class WorkspaceScheduler {
 	 *
 	 * @param workspaces - All workspaces
 	 * @param state - Current plan state
-	 * @returns Scheduling decision
+	 * @returns Scheduling decision (includes diagnostics)
 	 */
 	getNextWorkspaces(workspaces: Workspace[], state: PlanState): SchedulingDecision {
 		const ready: Workspace[] = [];
 		const blocked: Workspace[] = [];
 		const blockReasons = new Map<string, string>();
+		const skipped: SkipReason[] = [];
 
 		// Get currently active workspaces
 		const activeCount = Array.from(state.workspaces.values()).filter(
@@ -87,23 +160,46 @@ export class WorkspaceScheduler {
 				if (wsState?.stage === WorkspaceStage.Pending) {
 					blocked.push(workspace);
 					blockReasons.set(workspace.id, `Worker limit reached (max ${this.maxWorkers})`);
+					skipped.push({
+						workspaceId: workspace.id,
+						category: "capacity",
+						reason: `Worker limit reached (max ${this.maxWorkers})`,
+					});
 				}
 			}
-			return { ready, blocked, blockReasons };
+
+			const diag = this.buildDiagnostics(ready, skipped, state);
+			return { ready, blocked, blockReasons, diagnostics: diag };
 		}
+
+		const capacityReached = { value: false };
 
 		// Check each pending workspace
 		for (const workspace of workspaces) {
 			const wsState = state.workspaces.get(workspace.id);
 			if (wsState?.stage !== WorkspaceStage.Pending) {
-				continue; // Not pending
+				// Not pending — skip with "not_pending" category
+				if (wsState) {
+					skipped.push({
+						workspaceId: workspace.id,
+						category: "not_pending",
+						reason: `Workspace not pending (stage: ${wsState.stage})`,
+					});
+				}
+				continue;
 			}
 
 			// Check dependencies
-			const depsComplete = this.areDependenciesComplete(workspace, state);
-			if (!depsComplete.complete) {
+			const depsResult = this.areDependenciesCompleteDetailed(workspace, state);
+			if (!depsResult.complete) {
 				blocked.push(workspace);
-				blockReasons.set(workspace.id, depsComplete.reason || "Dependencies not complete");
+				blockReasons.set(workspace.id, depsResult.reason || "Dependencies not complete");
+				skipped.push({
+					workspaceId: workspace.id,
+					category: "dependency",
+					reason: depsResult.reason || "Dependencies not complete",
+					missingDependencyIds: depsResult.missingIds,
+				});
 				continue;
 			}
 
@@ -112,28 +208,165 @@ export class WorkspaceScheduler {
 			if (lockConflict) {
 				blocked.push(workspace);
 				blockReasons.set(workspace.id, `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`);
+				skipped.push({
+					workspaceId: workspace.id,
+					category: "file_lock",
+					reason: `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`,
+					conflictingWorkspaceId: lockConflict.owner,
+					conflictingPath: lockConflict.file,
+				});
+				continue;
+			}
+
+			// Check capacity
+			if (ready.length >= availableSlots) {
+				capacityReached.value = true;
+				blocked.push(workspace);
+				blockReasons.set(workspace.id, "Waiting for available slot");
+				skipped.push({
+					workspaceId: workspace.id,
+					category: "capacity",
+					reason: "No available worker slot",
+				});
 				continue;
 			}
 
 			// Workspace is ready
 			ready.push(workspace);
-
-			// Stop if we've filled available slots
-			if (ready.length >= availableSlots) {
-				break;
-			}
 		}
 
-		// Mark remaining pending workspaces as blocked
+		// Also track remaining pending workspaces that weren't visited
+		const readyIds = new Set(ready.map((w) => w.id));
+		const blockedIds = new Set(blocked.map((w) => w.id));
 		for (const workspace of workspaces) {
 			const wsState = state.workspaces.get(workspace.id);
-			if (wsState?.stage === WorkspaceStage.Pending && !ready.includes(workspace) && !blocked.includes(workspace)) {
+			if (
+				wsState?.stage === WorkspaceStage.Pending &&
+				!readyIds.has(workspace.id) &&
+				!blockedIds.has(workspace.id)
+			) {
 				blocked.push(workspace);
 				blockReasons.set(workspace.id, "Waiting for available slot");
+				skipped.push({
+					workspaceId: workspace.id,
+					category: "capacity",
+					reason: "Waiting for available slot",
+				});
 			}
 		}
 
-		return { ready, blocked, blockReasons };
+		const diag = this.buildDiagnostics(ready, skipped, state);
+		return { ready, blocked, blockReasons, diagnostics: diag };
+	}
+
+	/**
+	 * Check if workspace dependencies are complete (detailed version)
+	 *
+	 * Returns missing dependency IDs for diagnostics.
+	 *
+	 * @param workspace - Workspace to check
+	 * @param state - Current plan state
+	 * @returns Dependency check result with missing IDs
+	 */
+	private areDependenciesCompleteDetailed(
+		workspace: Workspace,
+		state: PlanState,
+	): { complete: boolean; reason?: string; missingIds: string[] } {
+		const missingIds: string[] = [];
+		let firstReason: string | undefined;
+
+		for (const depId of workspace.dependencies) {
+			const depState = state.workspaces.get(depId);
+			if (!depState) {
+				missingIds.push(depId);
+				if (!firstReason) firstReason = `Dependency ${depId} not found`;
+				continue;
+			}
+
+			if (depState.stage === WorkspaceStage.Failed) {
+				missingIds.push(depId);
+				if (!firstReason) firstReason = `Dependency ${depId} failed`;
+				continue;
+			}
+
+			if (depState.stage === WorkspaceStage.Blocked) {
+				missingIds.push(depId);
+				if (!firstReason) firstReason = `Dependency ${depId} is blocked`;
+				continue;
+			}
+
+			if (depState.stage !== WorkspaceStage.Complete) {
+				missingIds.push(depId);
+				if (!firstReason) firstReason = `Dependency ${depId} not complete (${depState.stage})`;
+			}
+		}
+
+		if (missingIds.length > 0) {
+			return { complete: false, reason: firstReason, missingIds };
+		}
+
+		return { complete: true, missingIds: [] };
+	}
+
+	/**
+	 * Build diagnostics from scheduling results.
+	 *
+	 * @param ready - Selected workspaces
+	 * @param skipped - Skipped reasons
+	 * @param state - Current plan state
+	 * @returns Scheduler diagnostics
+	 */
+	private buildDiagnostics(ready: Workspace[], skipped: SkipReason[], state: PlanState): SchedulerDiagnostics {
+		const capacity = this.getCapacitySnapshot(state);
+		const selected = ready.map((w) => w.id);
+
+		// Determine idle explanation
+		const idle: IdleExplanation = { isIdle: selected.length === 0, reasons: [] };
+		if (idle.isIdle) {
+			if (capacity.activeWorkers >= capacity.maxWorkers) {
+				idle.reasons.push(`All ${capacity.maxWorkers} worker slots occupied`);
+			}
+			const depSkips = skipped.filter((s) => s.category === "dependency");
+			if (depSkips.length > 0) {
+				idle.reasons.push(
+					`${depSkips.length} workspace(s) blocked by dependencies: ${depSkips.map((s) => s.workspaceId).join(", ")}`,
+				);
+			}
+			const lockSkips = skipped.filter((s) => s.category === "file_lock");
+			if (lockSkips.length > 0) {
+				idle.reasons.push(
+					`${lockSkips.length} workspace(s) blocked by file locks: ${lockSkips.map((s) => s.workspaceId).join(", ")}`,
+				);
+			}
+			if (capacity.pending === 0 && capacity.activeWorkers < capacity.maxWorkers) {
+				idle.reasons.push("No pending workspaces available");
+			}
+		}
+
+		return { selected, skipped, idle, capacity };
+	}
+
+	/**
+	 * Get a capacity snapshot for dashboard display.
+	 *
+	 * @param state - Current plan state
+	 * @returns Capacity snapshot
+	 */
+	private getCapacitySnapshot(state: PlanState): SchedulerCapacitySnapshot {
+		const stats = this.getStatistics(state);
+		return {
+			maxWorkers: this.maxWorkers,
+			activeWorkers: stats.active,
+			availableSlots: stats.availableSlots,
+			totalWorkspaces: stats.total,
+			pending: stats.pending,
+			active: stats.active,
+			complete: stats.complete,
+			blocked: stats.blocked,
+			failed: stats.failed,
+			fileLocks: this.fileLocks.size,
+			utilization: this.maxWorkers > 0 ? stats.active / this.maxWorkers : 0,
+		};
 	}
 
 	/**
@@ -526,6 +759,81 @@ export function formatSchedulingDecision(decision: SchedulingDecision): string {
 		for (const ws of decision.blocked) {
 			const reason = decision.blockReasons.get(ws.id) || "Unknown reason";
 			lines.push(`  • ${ws.id} — ${reason}`);
+		}
+	}
+
+	return lines.join("\n");
+}
+
+/**
+ * Format scheduler capacity summary for dashboard display
+ *
+ * Shows a dashboard-friendly summary of current scheduler capacity,
+ * including worker utilization, file locks, and per-category skip counts.
+ *
+ * @param diagnostics - Scheduler diagnostics
+ * @returns Formatted capacity summary string
+ */
+export function formatCapacitySummary(diagnostics: SchedulerDiagnostics): string {
+	const { capacity, selected, skipped, idle } = diagnostics;
+	const lines: string[] = [];
+
+	lines.push("=== Scheduler Capacity Summary ===");
+	lines.push("");
+	lines.push(
+		`Workers:    ${capacity.activeWorkers}/${capacity.maxWorkers} active (${capacity.availableSlots} available)`,
+	);
+	lines.push(`Utilization: ${Math.round(capacity.utilization * 100)}%`);
+	lines.push(`File Locks:  ${capacity.fileLocks} held`);
+	lines.push("");
+	lines.push(`Workspaces:  ${capacity.totalWorkspaces} total`);
+	lines.push(`  Pending:   ${capacity.pending}`);
+	lines.push(`  Active:    ${capacity.active}`);
+	lines.push(`  Complete:  ${capacity.complete}`);
+	lines.push(`  Blocked:   ${capacity.blocked}`);
+	lines.push(`  Failed:    ${capacity.failed}`);
+	lines.push("");
+
+	if (selected.length > 0) {
+		lines.push(`Selected:    ${selected.join(", ")}`);
+	} else {
+		lines.push("Selected:    (none)");
+	}
+
+	const depSkips = skipped.filter((s) => s.category === "dependency");
+	const lockSkips = skipped.filter((s) => s.category === "file_lock");
+	const capSkips = skipped.filter((s) => s.category === "capacity");
+
+	if (depSkips.length > 0) {
+		lines.push("");
+		lines.push(`Dependency skips: ${depSkips.length}`);
+		for (const s of depSkips) {
+			const ids = s.missingDependencyIds?.join(", ") ?? "unknown";
+			lines.push(`  • ${s.workspaceId} — missing deps: ${ids}`);
+		}
+	}
+
+	if (lockSkips.length > 0) {
+		lines.push("");
+		lines.push(`File-lock skips: ${lockSkips.length}`);
+		for (const s of lockSkips) {
+			lines.push(`  • ${s.workspaceId} — conflict with ${s.conflictingWorkspaceId} on ${s.conflictingPath}`);
+		}
+	}
+
+	if (capSkips.length > 0) {
+		lines.push("");
+		lines.push(`Capacity skips: ${capSkips.length}`);
+		for (const s of capSkips) {
+			lines.push(`  • ${s.workspaceId} — ${s.reason}`);
+		}
+	}
+
+	if (idle.isIdle) {
+		lines.push("");
+		lines.push("IDLE — no work started:");
+		for (const r of idle.reasons) {
+			lines.push(`  • ${r}`);
 		}
 	}
 

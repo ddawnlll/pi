@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { PlanExecutionDetail, WorkspaceSummary, JournalEvent } from "../types";
+import type { PlanExecutionDetail, WorkspaceSummary, JournalEvent, ExecutionStats } from "../types";
 import type { ContextBudgets } from "../hooks/useSettings";
 
 interface WarningBannerProps {
@@ -11,6 +11,8 @@ interface WarningBannerProps {
 	burnRatePerMin?: number;
 	/** Optional — wired in when context budgets step is complete */
 	contextBudgets?: ContextBudgets | null;
+	/** Optional — execution stats for cache hit warnings */
+	executionStats?: ExecutionStats | null;
 }
 
 interface Warning {
@@ -22,6 +24,9 @@ const STALL_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 const IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 const RETRY_ATTEMPT_THRESHOLD = 2;
 
+/** Threshold for total_tokens_in above which a 0% cache hit rate is concerning. */
+const HIGH_TOKENS_IN_THRESHOLD = 100_000;
+
 /** Stages that represent a terminal workspace state — never considered hung. */
 const TERMINAL_STAGES = new Set(["complete", "failed"]);
 
@@ -31,6 +36,7 @@ export function WarningBanner({
 	events,
 	burnRatePerMin,
 	contextBudgets,
+	executionStats,
 }: WarningBannerProps) {
 	const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -98,6 +104,21 @@ export function WarningBanner({
 			}
 		}
 
+		// --- Cache hit rate is exactly 0% with high token input ---
+		// Only warn when cache_hit_rate is known to be 0 (not unknown/null)
+		// and total_tokens_in exceeds a threshold indicating significant API usage
+		if (
+			executionStats &&
+			executionStats.cache_hit_rate_known &&
+			executionStats.cache_hit_rate === 0 &&
+			(executionStats.total_tokens_in ?? 0) > HIGH_TOKENS_IN_THRESHOLD
+		) {
+			result.push({
+				id: "cache-hit-zero",
+				message: `⚠ Cache hit rate is 0% despite ${(executionStats.total_tokens_in ?? 0).toLocaleString()} input tokens — prompt caching may not be active`,
+			});
+		}
+
 		// --- Execution stalled ---
 		if (events.length > 0) {
 			const newest = events[0];
@@ -115,7 +136,7 @@ export function WarningBanner({
 		}
 
 		return result;
-	}, [executionDetail, workers, events, burnRatePerMin, contextBudgets]);
+	}, [executionDetail, workers, events, burnRatePerMin, contextBudgets, executionStats]);
 
 	// Re-check every 30 seconds
 	const [warnings, setWarnings] = useState<Warning[]>([]);

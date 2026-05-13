@@ -90,12 +90,15 @@ export {
 
 // P1 Token Budget and Safety - CLI and Reporting
 export {
+	checkLargeEditableFiles,
 	type DoctorCategory,
 	type DoctorCheck,
 	type DoctorResults,
+	type EditableFileInfo,
 	formatDoctorResults,
 	formatDoctorResultsJson,
 	getDoctorExitCode,
+	getModeThresholds,
 	runDoctor,
 } from "./cli/doctor.js";
 export {

@@ -448,8 +448,14 @@ export interface IStateStore {
 		total_tokens_in?: number;
 		total_tokens_out?: number;
 		cache_hit_rate?: number;
+		/** Whether cache_hit_rate is known; false means the backend hasn't tracked it yet. */
+		cache_hit_rate_known?: boolean;
 		estimated_cost_usd?: number;
 		burn_rate_per_min?: number;
+		/** Tokens per completed workspace (total_tokens_in / complete count). */
+		tokens_per_workspace?: number;
+		/** Tokens per percent progress (total_tokens_in / (complete/total*100)). Undefined when total === 0. */
+		tokens_per_percent?: number;
 	} | null>;
 
 	// =========================================================================

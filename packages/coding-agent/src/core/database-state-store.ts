@@ -716,8 +716,11 @@ export class DatabaseStateStore implements IStateStore {
 		total_tokens_in?: number;
 		total_tokens_out?: number;
 		cache_hit_rate?: number;
+		cache_hit_rate_known?: boolean;
 		estimated_cost_usd?: number;
 		burn_rate_per_min?: number;
+		tokens_per_workspace?: number;
+		tokens_per_percent?: number;
 	} | null> {
 		const cacheEntry = this.cache.get(planExecutionId);
 		if (!cacheEntry) return null;
@@ -750,15 +753,12 @@ export class DatabaseStateStore implements IStateStore {
 		let totalCharsOut = 0;
 		const now = Date.now();
 
-		// Estimate tokens from workspace durations — each second of execution
-		// represents roughly 1 token of input (conservative heuristic based on
-		// observed agent behavior)
+		// Estimate tokens from workspace durations
 		for (const ws of cacheEntry.workspaces.values()) {
 			const start = ws.startedAt;
 			const end = ws.completedAt;
 			if (start && end) {
 				const durationMs = end - start;
-				// ~100 chars/sec is typical for agent message processing
 				const estChars = durationMs * 0.1;
 				totalCharsIn += estChars;
 				totalCharsOut += estChars * 0.3;
@@ -768,22 +768,30 @@ export class DatabaseStateStore implements IStateStore {
 		const totalTokensIn = Math.ceil(totalCharsIn / 4);
 		const totalTokensOut = Math.ceil(totalCharsOut / 4);
 
-		// Estimate cost using approximate Claude/Haiku pricing ($3/M input, $15/M output)
 		const estimatedCost = (totalTokensIn / 1_000_000) * 3 + (totalTokensOut / 1_000_000) * 15;
 
-		// Burn rate: tokens per minute since execution started
 		const startTime = cacheEntry.startedAt;
 		const endTime = cacheEntry.completedAt ?? now;
 		const elapsedMinutes = (endTime - startTime) / 60_000;
 		const burnRate = elapsedMinutes > 0 ? Math.round(totalTokensIn / elapsedMinutes) : 0;
+
+		// Tokens per completed workspace
+		const tokensPerWorkspace = stats.complete > 0 ? Math.round(totalTokensIn / stats.complete) : undefined;
+
+		// Tokens per percent progress (only defined when total > 0)
+		const progressPct = stats.total > 0 ? (stats.complete / stats.total) * 100 : 0;
+		const tokensPerPercent = progressPct > 0 ? Math.round(totalTokensIn / progressPct) : undefined;
 
 		return {
 			...stats,
 			total_tokens_in: totalTokensIn,
 			total_tokens_out: totalTokensOut,
 			cache_hit_rate: 0,
+			cache_hit_rate_known: false, // cache_hit_rate is a placeholder, not from real data
 			estimated_cost_usd: Number.parseFloat(estimatedCost.toFixed(4)),
 			burn_rate_per_min: burnRate,
+			tokens_per_workspace: tokensPerWorkspace,
+			tokens_per_percent: tokensPerPercent,
 		};
 	}
 

@@ -184,6 +184,12 @@ export interface ExecutionStats {
 	cache_hit_rate?: number;
 	estimated_cost_usd?: number;
 	burn_rate_per_min?: number;
+	/** Whether cache_hit_rate is known; false means the backend hasn't tracked it yet. */
+	cache_hit_rate_known?: boolean;
+	/** Tokens per completed workspace (total_tokens / complete count). */
+	tokens_per_workspace?: number;
+	/** Tokens per percent progress (total_tokens / (complete/total*100)). Undefined when total === 0. */
+	tokens_per_percent?: number;
 }
 
 /** Paginated journal response */

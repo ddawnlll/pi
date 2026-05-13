@@ -30,6 +30,20 @@ export interface DoctorCheck {
 export type DoctorCategory = "budget" | "policy" | "config" | "models" | "edit_strategy";
 
 /**
+ * Information about an editable file for doctor checks.
+ */
+export interface EditableFileInfo {
+	/** Relative file path */
+	filePath: string;
+	/** Number of lines in the file (0 if unknown/new) */
+	lineCount: number;
+	/** Byte size of the file (0 if unknown/new) */
+	byteSize: number;
+	/** Whether the file is a TSX/JSX component */
+	isTsx: boolean;
+}
+
+/**
  * Categorized doctor results
  */
 export interface DoctorResults {
@@ -52,11 +66,13 @@ export interface DoctorResults {
  *
  * @param settingsManager - Settings manager instance
  * @param modelRegistry - Model registry instance
+ * @param editableFiles - Optional list of editable files with size info for large-file warnings
  * @returns Doctor results
  */
 export async function runDoctor(
 	settingsManager: SettingsManager,
 	modelRegistry: ModelRegistry,
+	editableFiles?: EditableFileInfo[],
 ): Promise<DoctorResults> {
 	const checks: DoctorCheck[] = [];
 
@@ -71,6 +87,11 @@ export async function runDoctor(
 
 	// Edit strategy checks (P4.5)
 	checks.push(...checkEditStrategy(settingsManager));
+
+	// Large editable file checks (P4.5.F)
+	if (editableFiles && editableFiles.length > 0) {
+		checks.push(...checkLargeEditableFiles(settingsManager, editableFiles));
+	}
 
 	// Model checks
 	checks.push(...(await checkModels(modelRegistry)));
@@ -249,6 +270,98 @@ function checkEditStrategy(settingsManager: SettingsManager): DoctorCheck[] {
 	});
 
 	return checks;
+}
+
+/**
+ * Check for large existing editable files that may need patch-first instruction.
+ *
+ * Warns when the plan includes canEdit files that exceed the selected mode's
+ * thresholds, because these files will force the agent to use targeted patches
+ * or risk truncation/rejection.
+ *
+ * @param settingsManager - Settings manager instance
+ * @param editableFiles - List of editable files with size info
+ * @returns Array of doctor checks
+ */
+export function checkLargeEditableFiles(
+	settingsManager: SettingsManager,
+	editableFiles: EditableFileInfo[],
+): DoctorCheck[] {
+	const checks: DoctorCheck[] = [];
+
+	// Get current edit strategy mode from settings
+	const allSettings = settingsManager.getGlobalSettings();
+	const editMode =
+		(allSettings.editStrategyMode as EditStrategyMode | undefined) ?? DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.mode;
+
+	// Determine thresholds based on mode
+	const thresholds = getModeThresholds(editMode);
+
+	// Scan editable files for those exceeding thresholds
+	const largeFiles: EditableFileInfo[] = [];
+	for (const file of editableFiles) {
+		if (file.lineCount > thresholds.maxLines || file.byteSize > thresholds.maxBytes) {
+			largeFiles.push(file);
+		} else if (file.isTsx && file.lineCount > thresholds.tsxPatchRequiredLines) {
+			largeFiles.push(file);
+		}
+	}
+
+	if (largeFiles.length === 0) {
+		checks.push({
+			name: "Edit Strategy Large Editable Files",
+			status: "pass",
+			message: "No editable files exceed mode thresholds",
+		});
+	} else {
+		const fileList = largeFiles
+			.map((f) => `${f.filePath} (${f.lineCount}L, ${f.byteSize}B${f.isTsx ? ", TSX" : ""})`)
+			.join(", ");
+
+		checks.push({
+			name: "Edit Strategy Large Editable Files",
+			status: "warn",
+			message: `${largeFiles.length} editable file(s) exceed ${editMode} mode thresholds and require patch-first approach`,
+			details:
+				`Files: ${fileList}. Agent will be forced to use targeted edits for these files. ` +
+				`Consider restructuring large files or using Hybrid/Speed mode for more flexibility.`,
+		});
+	}
+
+	return checks;
+}
+
+/**
+ * Get the threshold limits for a given edit strategy mode.
+ *
+ * @param mode - Edit strategy mode
+ * @returns Threshold values for the mode
+ */
+export function getModeThresholds(mode: EditStrategyMode): {
+	maxLines: number;
+	maxBytes: number;
+	tsxPatchRequiredLines: number;
+} {
+	switch (mode) {
+		case "token_saving":
+			return {
+				maxLines: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.tokenSavingMaxLines,
+				maxBytes: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.tokenSavingMaxBytes,
+				tsxPatchRequiredLines: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.tokenSavingTsxPatchRequiredLines,
+			};
+		case "hybrid":
+			return {
+				maxLines: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.hybridBudgetMaxLines,
+				maxBytes: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.hybridBudgetMaxBytes,
+				tsxPatchRequiredLines: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.hybridTsxPatchRequiredLines,
+			};
+		case "speed":
+			return {
+				maxLines: DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.speedMaxLines,
+				maxBytes: Number.MAX_SAFE_INTEGER, // Speed mode doesn't enforce byte limits for rewrites
+				tsxPatchRequiredLines: Number.MAX_SAFE_INTEGER, // Speed mode doesn't require TSX patch
+			};
+	}
 }
 
 /**

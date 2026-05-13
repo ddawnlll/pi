@@ -131,8 +131,36 @@ Generated files (e.g., build artifacts) can only be full-rewritten if they are m
 - Warnings for Token Saving mode (may block useful rewrites)
 - Warnings for Speed mode (may cause token spikes)
 - Handoff threshold validation
+- **Large editable file warnings**: When a plan's `canEdit` files exceed the selected mode's thresholds, the doctor warns that these files will require a patch-first approach
 
-## Recovery Flow
+### Large Editable File Detection
+
+When you provide editable file information to the doctor, it checks each file against the current mode's thresholds:
+
+| Mode | Lines Threshold | Bytes Threshold | TSX Patch Required |
+|------|----------------|----------------|--------------------|
+| Token Saving | 200 lines | 8 KB | 300 lines |
+| Hybrid | 1000 lines | 40 KB | 1000 lines |
+| Speed | 1000 lines (hard gate) | No byte limit | No TSX limit |
+
+If any `canEdit` file exceeds these thresholds, the doctor emits a warning:
+- Lists which files are affected
+- Explains the agent will be forced to use targeted edits
+- Suggests restructuring large files or using a more permissive mode
+
+This helps you anticipate and plan for files that will force patch-first behavior, avoiding unexpected truncation loops during execution.
+
+### Threshold Overrides
+
+You can override the default thresholds by changing the edit strategy mode in settings:
+
+1. **Switch mode**: Change `editStrategyMode` from `token_saving` to `hybrid` or `speed` for more permissive thresholds
+2. **Handoff threshold**: The default handoff threshold (2) stops after 2 same-file edit failures. You can increase this to allow more retries
+3. **Force patch mode**: Truncation automatically forces patch mode for the affected file. You cannot override this safety mechanism
+4. **Generated file manifest**: Mark generated files as `rewriteAllowed: true` to bypass size-based rewrite restrictions
+5. **Environment override**: Set `PI_EDIT_STRATEGY_ENFORCEMENT=warn` to downgrade all blocks to warnings
+
+### Recovery Flow
 
 After an edit failure handoff:
 

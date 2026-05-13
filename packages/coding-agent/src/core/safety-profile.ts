@@ -692,7 +692,7 @@ function matchGlob(path: string, pattern: string): boolean {
 			regexStr += "[^/]";
 			i++;
 		} else if (isRegexSpecial(ch)) {
-			regexStr += "\\" + ch;
+			regexStr += `\\${ch}`;
 			i++;
 		} else {
 			regexStr += ch;

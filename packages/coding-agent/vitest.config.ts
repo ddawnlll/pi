@@ -17,6 +17,7 @@ export default defineConfig({
 				execArgv: ["--max-old-space-size=4096"],
 			},
 		},
+		passWithNoTests: true,
 		server: {
 			deps: {
 				external: [/@silvia-odwyer\/photon-node/],

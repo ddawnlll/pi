@@ -54,6 +54,8 @@ export interface PlanState {
 	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled" | "awaiting_handoff";
 	/** Timestamp when handoff state was entered (if awaiting_handoff) */
 	handoffStartedAt?: number;
+	/** Timestamp when plan was most recently resumed (from paused/stopped) */
+	resumedAt?: number;
 	/** Metadata */
 	metadata?: Record<string, unknown>;
 }
@@ -753,6 +755,7 @@ export class PlanStateStore {
 		}
 
 		this.state.status = "running";
+		this.state.resumedAt = Date.now();
 
 		await this.saveState();
 		await this.appendJournal({

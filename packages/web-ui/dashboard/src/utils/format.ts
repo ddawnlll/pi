@@ -48,8 +48,19 @@ export function formatCost(usd: number | undefined | null): string {
 
 /**
  * Format a percentage (e.g., 0.753 → "75.3%").
+ * Returns "—" for null/undefined.
  */
 export function formatPercent(value: number | undefined | null): string {
 	if (value === undefined || value === null) return "\u2014";
+	return `${(value * 100).toFixed(1)}%`;
+}
+
+/**
+ * Format a percentage distinguishing "unknown" from 0%.
+ * Returns "unknown" for null/undefined, "0.0%" for exactly 0.
+ * This avoids conflating "we don't know the cache hit rate" with "we know it's 0%".
+ */
+export function formatPercentOrUnknown(value: number | undefined | null): string {
+	if (value === undefined || value === null) return "unknown";
 	return `${(value * 100).toFixed(1)}%`;
 }

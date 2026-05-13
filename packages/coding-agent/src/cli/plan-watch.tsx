@@ -18,6 +18,12 @@ import { Box, Text, render, useInput } from "ink";
 import chalk from "chalk";
 import { createPlanControlManager, type PlanControlState } from "../core/plan-control.js";
 import type { PlanState, JournalEvent } from "../core/plan-state.js";
+import {
+	DEFAULT_RESUME_CONFIDENCE_CONFIG,
+	evaluateResumeConfidence,
+	formatResumeConfidenceIndicator,
+	type ResumeConfidenceResult,
+} from "../core/resume-confidence.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
 
 /**
@@ -45,6 +51,7 @@ interface DashboardState {
 	control: PlanControlState | null;
 	recentEvents: JournalEvent[];
 	lastUpdate: number;
+	resumeConfidence: ResumeConfidenceResult | null;
 }
 
 /**
@@ -249,6 +256,7 @@ async function loadDashboardState(
 		control: null,
 		recentEvents: [],
 		lastUpdate: Date.now(),
+		resumeConfidence: null,
 	};
 
 	// Load plan state
@@ -278,6 +286,14 @@ async function loadDashboardState(
 		state.recentEvents = events;
 	} catch (_error) {
 		// Journal file doesn't exist or is invalid
+	}
+
+	// Evaluate resume confidence indicators
+	if (state.plan && state.recentEvents.length > 0) {
+		state.resumeConfidence = evaluateResumeConfidence(
+			state.plan,
+			state.recentEvents,
+		);
 	}
 
 	return state;
@@ -544,6 +560,47 @@ function KeyHints(): React.JSX.Element {
 }
 
 /**
+ * Resume confidence indicator component — displays resume status and warnings.
+ *
+ * Shows:
+ * - Resume timestamp and new event count
+ * - Stall warning if no events after threshold
+ * - Rerun warning if completed workspace appears to re-execute
+ */
+function ResumeConfidenceIndicator({
+	result,
+}: {
+	result: ResumeConfidenceResult | null;
+}): React.JSX.Element {
+	if (!result || result.resumedAt === 0) {
+		return <Box />;
+	}
+
+	const resumeTime = new Date(result.resumedAt).toLocaleTimeString();
+
+	return (
+		<Box flexDirection="column">
+			<Text bold>Resume Confidence:</Text>
+			<Text>
+				  {chalk.cyan("Resumed at:")} {resumeTime} {chalk.dim(`(${result.newEventCount} new events)`)}
+			</Text>
+			{result.hasStallWarning && (
+				<Text color="yellow">
+					  {chalk.yellow("\u26A0 STALLED")}: No new events after resume — execution may be stuck
+				</Text>
+			)}
+			{result.hasRerunWarning && (
+				<Text color="red">
+					  {chalk.red("\u26A0 RERUN")}: Completed workspace(s) re-executing: {result.rerunWorkspaceIds.join(", ")}
+				</Text>
+			)}
+			<Text dimColor>  {result.summary}</Text>
+			<Text> </Text>
+		</Box>
+	);
+}
+
+/**
  * Main Ink App component
  */
 function App({
@@ -566,6 +623,7 @@ function App({
 		control: null,
 		recentEvents: [],
 		lastUpdate: Date.now(),
+		resumeConfidence: null,
 	});
 	const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 	const [focusedPanel, setFocusedPanel] = useState<"workers" | "events">("workers");
@@ -772,6 +830,9 @@ function App({
 				<WorkerDetail worker={selectedWorker} plan={state.plan} events={state.recentEvents} />
 			)}
 
+			{/* Resume confidence indicators */}
+			{!isHandoff && <ResumeConfidenceIndicator result={state.resumeConfidence} />}
+
 			{/* Recent events */}
 			<EventPanel
 				events={filteredEvents}
@@ -904,6 +965,19 @@ function renderFallbackStatus(state: DashboardState): void {
 	const elapsedSeconds = Math.floor((elapsed % 60000) / 1000);
 	lines.push(`Elapsed: ${elapsedMinutes}m ${elapsedSeconds}s`);
 	lines.push(`Last update: ${new Date(state.lastUpdate).toLocaleTimeString()}`);
+
+	// Resume confidence indicators
+	if (state.resumeConfidence && state.resumeConfidence.resumedAt > 0) {
+		const rcLines = formatResumeConfidenceIndicator(state.resumeConfidence, false);
+		if (rcLines.length > 0) {
+			lines.push("");
+			lines.push("Resume Confidence:");
+			for (const line of rcLines) {
+				lines.push(line);
+			}
+		}
+	}
+
 	lines.push("");
 	lines.push("Press Ctrl+C to exit");
 

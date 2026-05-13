@@ -54,6 +54,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
+import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import {
 	getActiveExecution,
 	getActiveExecutions,
@@ -394,6 +395,43 @@ if (existsSync(dashboardDist)) {
 // ---------------------------------------------------------------------------
 // State store initialization (delegated to state-store-provider.ts)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// State store initialization (delegated to state-store-provider.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sanitize a journal event before sending over SSE.
+ *
+ * Removes large payloads (file contents, full tool input/output) to keep
+ * the SSE stream lightweight. Only tool_name and a truncated preview
+ * are preserved for tool_call events.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sanitizeSseEvent(event: any): any {
+	const type = String(event.type ?? event.event_type ?? "");
+
+	// Only tool_call events have massive payloads
+	if (type === "tool_call") {
+		const data = event.data as Record<string, unknown> | undefined;
+		if (data && typeof data === "object") {
+			const sanitized: Record<string, any> = {};
+			// Keep toolName
+			if (data.toolName) sanitized.toolName = data.toolName;
+			// Truncate input to 200 chars
+			if (typeof data.input === "string") {
+				sanitized.input = data.input.length > 200 ? `${data.input.slice(0, 200)}...` : data.input;
+			} else if (data.input !== undefined) {
+				const json = JSON.stringify(data.input);
+				sanitized.input = json.length > 200 ? `${json.slice(0, 200)}...` : json;
+			}
+			// Drop result entirely (can be huge file contents)
+			return { ...event, data: sanitized };
+		}
+	}
+
+	return event;
+}
 
 function _getJsonStateStore(): JsonStateStore {
 	const store = getStateStore();
@@ -847,13 +885,13 @@ fastify.get<{
 	// Send initial connection event
 	reply.raw.write(`data: ${JSON.stringify({ type: "connected", planExecutionId: planExecId })}\n\n`);
 
-	// Send existing journal events
+	// Send existing journal events (lightweight — truncate large tool_call payloads)
 	try {
 		const stateStore = getStateStore();
 		const journal = await stateStore.readJournal(planExecId);
 		const recentEvents = journal.slice(-100);
 		for (const event of recentEvents) {
-			reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+			reply.raw.write(`data: ${JSON.stringify(sanitizeSseEvent(event))}\n\n`);
 		}
 	} catch (_error) {
 		// Ignore read errors
@@ -899,7 +937,7 @@ fastify.get<{
 			(notifyClient as any).on("plan_events", (payload: string) => {
 				try {
 					const event = JSON.parse(payload);
-					reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+					reply.raw.write(`data: ${JSON.stringify(sanitizeSseEvent(event))}\n\n`);
 				} catch (_error) {
 					// Ignore parse errors
 				}
@@ -2819,6 +2857,12 @@ Always confirm with the user before making destructive changes.`;
 // ---------------------------------------------------------------------------
 
 await registerArtifactRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Log Stream Routes (P4.6.D)
+// ---------------------------------------------------------------------------
+
+registerLogStreamRoutes(fastify, getWorkspaceRoot, getStateStore);
 
 // ---------------------------------------------------------------------------
 // Health Check

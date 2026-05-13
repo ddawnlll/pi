@@ -600,8 +600,11 @@ export class JsonStateStore implements IStateStore {
 		total_tokens_in?: number;
 		total_tokens_out?: number;
 		cache_hit_rate?: number;
+		cache_hit_rate_known?: boolean;
 		estimated_cost_usd?: number;
 		burn_rate_per_min?: number;
+		tokens_per_workspace?: number;
+		tokens_per_percent?: number;
 	} | null> {
 		const state = this.store.getState();
 		if (!state) return null;
@@ -659,13 +662,23 @@ export class JsonStateStore implements IStateStore {
 		const elapsedMinutes = elapsedMs / 60_000;
 		const burnRate = elapsedMinutes > 0 ? Math.round(totalTokensIn / elapsedMinutes) : 0;
 
+		// Tokens per completed workspace
+		const tokensPerWorkspace = stats.complete > 0 ? Math.round(totalTokensIn / stats.complete) : undefined;
+
+		// Tokens per percent progress (only defined when total > 0)
+		const progressPct = stats.total > 0 ? (stats.complete / stats.total) * 100 : 0;
+		const tokensPerPercent = progressPct > 0 ? Math.round(totalTokensIn / progressPct) : undefined;
+
 		return {
 			...stats,
 			total_tokens_in: totalTokensIn,
 			total_tokens_out: totalTokensOut,
 			cache_hit_rate: 0, // Not tracked yet
+			cache_hit_rate_known: false, // cache_hit_rate is a placeholder, not from real data
 			estimated_cost_usd: Number.parseFloat(estimatedCost.toFixed(4)),
 			burn_rate_per_min: burnRate,
+			tokens_per_workspace: tokensPerWorkspace,
+			tokens_per_percent: tokensPerPercent,
 		};
 	}
 

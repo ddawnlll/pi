@@ -2576,6 +2576,7 @@ export class AgentSession {
 				{
 					onChunk,
 					signal: this._bashAbortController.signal,
+					eventBus: this._resourceLoader.eventBus ?? undefined,
 				},
 			);
 

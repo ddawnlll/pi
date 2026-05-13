@@ -480,6 +480,31 @@ describe("formatSchedulingDecision", () => {
 				},
 			],
 			blockReasons: new Map([["7.B", "Dependencies not complete"]]),
+			diagnostics: {
+				selected: ["7.A"],
+				skipped: [
+					{
+						workspaceId: "7.B",
+						category: "dependency" as const,
+						reason: "Dependencies not complete",
+						missingDependencyIds: ["7.A"],
+					},
+				],
+				idle: { isIdle: false, reasons: [] },
+				capacity: {
+					maxWorkers: 3,
+					activeWorkers: 0,
+					availableSlots: 3,
+					totalWorkspaces: 2,
+					pending: 1,
+					active: 0,
+					complete: 0,
+					blocked: 1,
+					failed: 0,
+					fileLocks: 0,
+					utilization: 0,
+				},
+			},
 		};
 
 		const formatted = formatSchedulingDecision(decision);
