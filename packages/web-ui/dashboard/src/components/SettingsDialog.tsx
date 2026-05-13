@@ -249,6 +249,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			...orig,
 			steeringMode,
 			followUpMode,
+			editStrategyMode,
 		});
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
@@ -449,6 +450,20 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													<option value="one-at-a-time">One at a time</option>
 													<option value="all">All</option>
 												</select>
+											</div>
+											{/* P4.5: Edit Strategy Mode */}
+											<div>
+												<label className={labelClass}>Edit Strategy</label>
+												<select
+													value={editStrategyMode}
+													onChange={(e) => setEditStrategyMode(e.target.value as "token_saving" | "hybrid" | "speed")}
+													className={inputClass}
+												>
+													<option value="hybrid">Hybrid (default)</option>
+													<option value="token_saving">Token Saving</option>
+													<option value="speed">Speed</option>
+												</select>
+												<p className="text-xs text-gray-600 mt-1">Controls full-file rewrites vs targeted patches. Hybrid allows rewrites for manageable files; Token Saving prefers patches; Speed disables token restrictions.</p>
 											</div>
 											<hr className="border-gray-700 my-3" />
 											<p className="text-xs text-gray-500 mb-1">Dashboard appearance (does not affect agent settings)</p>

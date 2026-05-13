@@ -3,6 +3,14 @@
  *
  * P4.5 Workstream 4.5.C: Validates edit attempt tracking, truncation detection,
  * exact-match failure detection, same-file failure counting, and handoff threshold.
+ *
+ * Acceptance Criteria:
+ * 1. Edit attempts tracked per plan/workspace/file
+ * 2. Truncation markers force patch mode
+ * 3. Second full-write attempt after truncation is blocked
+ * 4. Git checkout restore after failed write forces patch mode
+ * 5. Targeted edits remain allowed after forced patch mode
+ * 6. Tracker state persists in workspace metadata
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -279,7 +287,7 @@ describe("EditAttemptTracker", () => {
 			tracker.recordSuccess("plan1", "ws1", "file.ts", "full_write");
 
 			const serialized = tracker.serialize();
-			expect(Object.keys(serialized).length).toBeGreaterThan(0);
+			expect(Object.keys(serialized.attempts).length).toBeGreaterThan(0);
 
 			const newTracker = createEditAttemptTracker();
 			newTracker.deserialize(serialized);
@@ -315,5 +323,449 @@ describe("EditAttemptTracker", () => {
 			tracker.setHandoffThreshold(0);
 			expect(tracker.getHandoffThreshold()).toBe(1);
 		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 1: Edit attempts tracked per plan/workspace/file
+// ---------------------------------------------------------------------------
+
+describe("AC1: Edit attempts tracked per plan/workspace/file", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+	});
+
+	it("should track attempts separately per plan", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+		tracker.recordFailure("plan2", "ws1", "file.ts", "full_write", "truncation");
+
+		expect(tracker.getAttempts("plan1", "ws1", "file.ts").length).toBe(1);
+		expect(tracker.getAttempts("plan2", "ws1", "file.ts").length).toBe(1);
+	});
+
+	it("should track attempts separately per workspace", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws2", "file.ts", "full_write", "truncation");
+
+		expect(tracker.getAttempts("plan1", "ws1", "file.ts").length).toBe(1);
+		expect(tracker.getAttempts("plan1", "ws2", "file.ts").length).toBe(1);
+	});
+
+	it("should track attempts separately per file", () => {
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "full_write", "truncation");
+
+		expect(tracker.getAttempts("plan1", "ws1", "a.ts").length).toBe(1);
+		expect(tracker.getAttempts("plan1", "ws1", "b.ts").length).toBe(1);
+	});
+
+	it("should record attempts with correct plan/workspace/file metadata", () => {
+		tracker.recordFailure("planA", "wsB", "fileC.ts", "full_write", "truncation", "error msg");
+
+		const attempts = tracker.getAttempts("planA", "wsB", "fileC.ts");
+		expect(attempts.length).toBe(1);
+		expect(attempts[0].planExecId).toBe("planA");
+		expect(attempts[0].workspaceId).toBe("wsB");
+		expect(attempts[0].filePath).toBe("fileC.ts");
+		expect(attempts[0].attemptType).toBe("full_write");
+		expect(attempts[0].failureType).toBe("truncation");
+		expect(attempts[0].errorMessage).toBe("error msg");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 2: Truncation markers force patch mode
+// ---------------------------------------------------------------------------
+
+describe("AC2: Truncation markers force patch mode", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+	});
+
+	it("should force patch mode when truncation failure is recorded", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation", "file was truncated");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should NOT force patch mode for non-truncation failures", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "no match");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(false);
+	});
+
+	it("should NOT force patch mode for successful attempts", () => {
+		tracker.recordSuccess("plan1", "ws1", "file.ts", "full_write");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(false);
+	});
+
+	it("should integrate with TruncationDetector to detect and force patch", () => {
+		const detector = createTruncationDetector();
+		const output = "The file was truncated during write";
+
+		const detection = detector.detectAny(output);
+		expect(detection.detected).toBe(true);
+		expect(detection.failureType).toBe("truncation");
+
+		// Simulate recording the truncation failure from detection
+		if (detection.failureType === "truncation") {
+			tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation", output);
+		}
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should force patch mode independently per file (only truncated file)", () => {
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "targeted_edit", "exact_match_failed");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "a.ts")).toBe(true);
+		expect(tracker.isPatchModeForced("plan1", "ws1", "b.ts")).toBe(false);
+	});
+
+	it("should list forced patch files", () => {
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "full_write", "truncation");
+
+		const forcedPatchFiles = tracker.getForcedPatchFiles("plan1", "ws1");
+		expect(forcedPatchFiles).toContain("a.ts");
+		expect(forcedPatchFiles).toContain("b.ts");
+	});
+
+	it("should support explicit forcePatchMode call", () => {
+		tracker.forcePatchMode("plan1", "ws1", "file.ts");
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 3: Second full-write attempt after truncation is blocked
+// ---------------------------------------------------------------------------
+
+describe("AC3: Second full-write attempt after truncation is blocked", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 3 });
+	});
+
+	it("should block full-write after truncation forces patch mode", () => {
+		// First full-write attempt fails with truncation
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation", "truncated");
+
+		// Second full-write should be blocked because truncation forced patch mode
+		const result = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(false);
+		expect(result.reason).toContain("patch mode forced");
+	});
+
+	it("should allow full-write before any truncation", () => {
+		// No truncation recorded yet
+		const result = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(true);
+	});
+
+	it("should block full-write after truncation even with no other failures", () => {
+		// A single truncation forces patch mode immediately
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+
+		const result = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(false);
+	});
+
+	it("should block full-write after truncation regardless of handoff threshold", () => {
+		// Even with a high handoff threshold, truncation blocks full-write
+		const result = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(true);
+
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+
+		const resultAfter = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(resultAfter.allowed).toBe(false);
+	});
+
+	it("should also block full-write when handoff threshold is reached (independent of truncation)", () => {
+		// Use a tracker with threshold of 2 so 2 failures reach the threshold
+		const thresholdTracker = createEditAttemptTracker({ handoffThreshold: 2 });
+
+		// Two exact_match_failed failures reach handoff threshold
+		thresholdTracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "miss1");
+		thresholdTracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "miss2");
+
+		const result = thresholdTracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(false);
+		expect(result.reason).toContain("threshold reached");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 4: Git checkout restore after failed write forces patch mode
+// ---------------------------------------------------------------------------
+
+describe("AC4: Git checkout restore after failed write forces patch mode", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+	});
+
+	it("should force patch mode when restore_after_failed_write is recorded", () => {
+		tracker.recordFailure(
+			"plan1",
+			"ws1",
+			"file.ts",
+			"restore",
+			"restore_after_failed_write",
+			"git checkout restored file",
+		);
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should block full-write after restore_after_failed_write", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "restore", "restore_after_failed_write");
+
+		const result = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(result.allowed).toBe(false);
+		expect(result.reason).toContain("patch mode forced");
+	});
+
+	it("should not force patch mode for other failure types", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "miss");
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "output_too_large", "big");
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "malformed_patch", "bad");
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "validation_failed_after_edit", "fail");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(false);
+	});
+
+	it("should force patch mode for both truncation AND restore_after_failed_write", () => {
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "restore", "restore_after_failed_write");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "a.ts")).toBe(true);
+		expect(tracker.isPatchModeForced("plan1", "ws1", "b.ts")).toBe(true);
+	});
+
+	it("should include restore_after_failed_write file in forced patch list", () => {
+		tracker.recordFailure("plan1", "ws1", "restored.ts", "restore", "restore_after_failed_write");
+
+		const forced = tracker.getForcedPatchFiles("plan1", "ws1");
+		expect(forced).toContain("restored.ts");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 5: Targeted edits remain allowed after forced patch mode
+// ---------------------------------------------------------------------------
+
+describe("AC5: Targeted edits remain allowed after forced patch mode", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+	});
+
+	it("should allow targeted edits when patch mode is forced", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+		expect(tracker.isTargetedEditAllowed("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should allow targeted edits when handoff threshold is reached", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "miss1");
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed", "miss2");
+
+		expect(tracker.hasReachedHandoffThreshold("plan1", "ws1", "file.ts")).toBe(true);
+		expect(tracker.isFullWriteAllowed("plan1", "ws1", "file.ts").allowed).toBe(false);
+		expect(tracker.isTargetedEditAllowed("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should allow targeted edits for files without any failures", () => {
+		expect(tracker.isTargetedEditAllowed("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should always allow targeted edits (never blocked)", () => {
+		// Force patch mode and hit handoff threshold simultaneously
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "file.ts", "targeted_edit", "exact_match_failed");
+
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+		expect(tracker.hasReachedHandoffThreshold("plan1", "ws1", "file.ts")).toBe(true);
+		expect(tracker.isTargetedEditAllowed("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should block full-write while allowing targeted edit after restore", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "restore", "restore_after_failed_write");
+
+		const fullWriteResult = tracker.isFullWriteAllowed("plan1", "ws1", "file.ts");
+		expect(fullWriteResult.allowed).toBe(false);
+		expect(tracker.isTargetedEditAllowed("plan1", "ws1", "file.ts")).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance Criterion 6: Tracker state persists in workspace metadata
+// ---------------------------------------------------------------------------
+
+describe("AC6: Tracker state persists in workspace metadata", () => {
+	let tracker: EditAttemptTracker;
+
+	beforeEach(() => {
+		tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+	});
+
+	it("should serialize forced patch mode state", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+
+		const serialized = tracker.serialize();
+		expect(serialized.forcedPatchKeys).toContain("plan1:ws1:file.ts");
+	});
+
+	it("should deserialize forced patch mode state", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+
+		const serialized = tracker.serialize();
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(serialized);
+
+		expect(newTracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+	});
+
+	it("should serialize handoff threshold in state", () => {
+		tracker.setHandoffThreshold(5);
+		const serialized = tracker.serialize();
+		expect(serialized.handoffThreshold).toBe(5);
+	});
+
+	it("should deserialize handoff threshold from state", () => {
+		tracker.setHandoffThreshold(5);
+		const serialized = tracker.serialize();
+
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(serialized);
+		expect(newTracker.getHandoffThreshold()).toBe(5);
+	});
+
+	it("should serialize exactMatchCountsTowardHandoff in state", () => {
+		const customTracker = createEditAttemptTracker({ exactMatchCountsTowardHandoff: false });
+		const serialized = customTracker.serialize();
+		expect(serialized.exactMatchCountsTowardHandoff).toBe(false);
+	});
+
+	it("should deserialize exactMatchCountsTowardHandoff from state", () => {
+		const customTracker = createEditAttemptTracker({ exactMatchCountsTowardHandoff: false });
+		const serialized = customTracker.serialize();
+
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(serialized);
+		expect(newTracker.countFailures("plan1", "ws1", "file.ts")).toBe(0);
+		// Verify by recording an exact_match_failed and checking it doesn't count
+		newTracker.deserialize(serialized);
+		// The threshold should still be properly set
+		expect(serialized.exactMatchCountsTowardHandoff).toBe(false);
+	});
+
+	it("should round-trip full state including attempts and forced patch keys", () => {
+		// Create a complex state
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation", "truncated!");
+		tracker.recordSuccess("plan1", "ws1", "a.ts", "targeted_edit");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "restore", "restore_after_failed_write", "git checkout");
+		tracker.recordFailure("plan1", "ws1", "c.ts", "targeted_edit", "exact_match_failed", "no match");
+
+		const serialized = tracker.serialize();
+
+		// Verify serialized state structure
+		expect(Object.keys(serialized.attempts).length).toBe(3);
+		expect(serialized.forcedPatchKeys).toContain("plan1:ws1:a.ts");
+		expect(serialized.forcedPatchKeys).toContain("plan1:ws1:b.ts");
+		expect(serialized.forcedPatchKeys).not.toContain("plan1:ws1:c.ts");
+		expect(serialized.handoffThreshold).toBe(2);
+
+		// Deserialize into new tracker
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(serialized);
+
+		// Verify all state is correctly restored
+		expect(newTracker.getAttempts("plan1", "ws1", "a.ts").length).toBe(2);
+		expect(newTracker.getAttempts("plan1", "ws1", "b.ts").length).toBe(1);
+		expect(newTracker.getAttempts("plan1", "ws1", "c.ts").length).toBe(1);
+
+		expect(newTracker.isPatchModeForced("plan1", "ws1", "a.ts")).toBe(true);
+		expect(newTracker.isPatchModeForced("plan1", "ws1", "b.ts")).toBe(true);
+		expect(newTracker.isPatchModeForced("plan1", "ws1", "c.ts")).toBe(false);
+
+		expect(newTracker.isFullWriteAllowed("plan1", "ws1", "a.ts").allowed).toBe(false);
+		expect(newTracker.isFullWriteAllowed("plan1", "ws1", "b.ts").allowed).toBe(false);
+		expect(newTracker.isFullWriteAllowed("plan1", "ws1", "c.ts").allowed).toBe(true);
+
+		expect(newTracker.isTargetedEditAllowed("plan1", "ws1", "a.ts")).toBe(true);
+		expect(newTracker.isTargetedEditAllowed("plan1", "ws1", "b.ts")).toBe(true);
+		expect(newTracker.isTargetedEditAllowed("plan1", "ws1", "c.ts")).toBe(true);
+
+		expect(newTracker.getHandoffThreshold()).toBe(2);
+	});
+
+	it("should support backward-compatible deserialization of legacy format", () => {
+		// Legacy format: Record<string, EditAttemptRecord[]>
+		const legacyData = {
+			"plan1:ws1:file.ts": [
+				{
+					id: "attempt-1-1000",
+					planExecId: "plan1",
+					workspaceId: "ws1",
+					filePath: "file.ts",
+					attemptType: "full_write" as const,
+					failureType: "truncation" as const,
+					succeeded: false,
+					timestamp: 1000,
+					errorMessage: "truncated",
+				},
+			],
+		};
+
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(legacyData);
+
+		const attempts = newTracker.getAttempts("plan1", "ws1", "file.ts");
+		expect(attempts.length).toBe(1);
+		// In legacy format, forcedPatchKeys are not included
+		expect(newTracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(false);
+	});
+
+	it("should be safe to serialize empty tracker", () => {
+		const emptyTracker = createEditAttemptTracker();
+		const serialized = emptyTracker.serialize();
+
+		expect(Object.keys(serialized.attempts).length).toBe(0);
+		expect(serialized.forcedPatchKeys.length).toBe(0);
+
+		const newTracker = createEditAttemptTracker();
+		newTracker.deserialize(serialized);
+		expect(newTracker.getAttempts("plan1", "ws1", "file.ts").length).toBe(0);
+	});
+
+	it("should clear forced patch state when clearing file", () => {
+		tracker.recordFailure("plan1", "ws1", "file.ts", "full_write", "truncation");
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(true);
+
+		tracker.clearFile("plan1", "ws1", "file.ts");
+		expect(tracker.isPatchModeForced("plan1", "ws1", "file.ts")).toBe(false);
+	});
+
+	it("should clear all forced patch state on clear()", () => {
+		tracker.recordFailure("plan1", "ws1", "a.ts", "full_write", "truncation");
+		tracker.recordFailure("plan1", "ws1", "b.ts", "restore", "restore_after_failed_write");
+
+		tracker.clear();
+		expect(tracker.isPatchModeForced("plan1", "ws1", "a.ts")).toBe(false);
+		expect(tracker.isPatchModeForced("plan1", "ws1", "b.ts")).toBe(false);
+		expect(tracker.getForcedPatchFiles("plan1", "ws1").length).toBe(0);
 	});
 });

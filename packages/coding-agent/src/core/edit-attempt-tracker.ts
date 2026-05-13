@@ -25,6 +25,24 @@ function buildKey(planExecId: string, workspaceId: string, filePath: string): st
 }
 
 // ---------------------------------------------------------------------------
+// Serialization Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialized state of the EditAttemptTracker for workspace metadata persistence.
+ */
+export interface EditAttemptTrackerSerializedState {
+	/** Serialized attempt records keyed by composite key. */
+	attempts: Record<string, EditAttemptRecord[]>;
+	/** Set of composite keys where patch mode is forced. */
+	forcedPatchKeys: string[];
+	/** Current handoff threshold. */
+	handoffThreshold: number;
+	/** Whether exact-match failures count toward handoff. */
+	exactMatchCountsTowardHandoff: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // EditAttemptTracker
 // ---------------------------------------------------------------------------
 
@@ -35,10 +53,19 @@ function buildKey(planExecId: string, workspaceId: string, filePath: string): st
  * Detects when the same-file edit failure threshold is reached and signals that
  * a handoff should occur.
  *
+ * P4.5 Workstream 4.5.C enhancements:
+ * - Truncation markers force patch mode for the file
+ * - Second full-write attempt after truncation is blocked
+ * - Git checkout restore after failed write forces patch mode
+ * - Targeted edits remain allowed after forced patch mode
+ * - Tracker state persists in workspace metadata via serialize/deserialize
+ *
  * State can be serialized to/deserialized from workspace metadata for persistence.
  */
 export class EditAttemptTracker {
 	private attempts: Map<string, EditAttemptRecord[]> = new Map();
+	/** Tracks files that have been forced into patch mode. */
+	private forcedPatchKeys: Set<string> = new Set();
 	private handoffThreshold: number;
 	private exactMatchCountsTowardHandoff: boolean;
 
@@ -74,6 +101,9 @@ export class EditAttemptTracker {
 	/**
 	 * Record a failed edit attempt.
 	 *
+	 * When the failure is a truncation or a restore_after_failed_write,
+	 * automatically forces patch mode for the file.
+	 *
 	 * @param planExecId - Plan execution ID
 	 * @param workspaceId - Workspace ID
 	 * @param filePath - Relative file path
@@ -99,7 +129,19 @@ export class EditAttemptTracker {
 			failureType,
 			errorMessage,
 		);
-		this.addRecord(buildKey(planExecId, workspaceId, filePath), record);
+		const key = buildKey(planExecId, workspaceId, filePath);
+		this.addRecord(key, record);
+
+		// P4.5 Workstream 4.5.C: Truncation markers force patch mode
+		if (failureType === "truncation") {
+			this.forcePatchMode(planExecId, workspaceId, filePath);
+		}
+
+		// P4.5 Workstream 4.5.C: git checkout restore after failed write forces patch mode
+		if (failureType === "restore_after_failed_write") {
+			this.forcePatchMode(planExecId, workspaceId, filePath);
+		}
+
 		return record;
 	}
 
@@ -226,45 +268,176 @@ export class EditAttemptTracker {
 	}
 
 	/**
-	 * Clear all tracked attempts.
+	 * Force patch mode for a specific file.
+	 *
+	 * Once patch mode is forced, full_writes are blocked for that file,
+	 * but targeted_edit attempts remain allowed.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param filePath - Relative file path
 	 */
-	clear(): void {
-		this.attempts.clear();
+	forcePatchMode(planExecId: string, workspaceId: string, filePath: string): void {
+		const key = buildKey(planExecId, workspaceId, filePath);
+		this.forcedPatchKeys.add(key);
 	}
 
 	/**
-	 * Clear tracked attempts for a specific file.
+	 * Check whether patch mode has been forced for a specific file.
+	 *
+	 * Returns true if the file has a truncation or restore_after_failed_write
+	 * failure recorded, which forces patch mode.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param filePath - Relative file path
+	 * @returns True if patch mode is forced for this file
+	 */
+	isPatchModeForced(planExecId: string, workspaceId: string, filePath: string): boolean {
+		const key = buildKey(planExecId, workspaceId, filePath);
+		return this.forcedPatchKeys.has(key);
+	}
+
+	/**
+	 * Check whether a full write is allowed for a specific file.
+	 *
+	 * A full write is blocked if:
+	 * - Patch mode has been forced for the file (due to truncation or restore)
+	 * - The handoff threshold has been reached for the file
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param filePath - Relative file path
+	 * @returns Object indicating whether full write is allowed and why
+	 */
+	isFullWriteAllowed(planExecId: string, workspaceId: string, filePath: string): { allowed: boolean; reason: string } {
+		if (this.isPatchModeForced(planExecId, workspaceId, filePath)) {
+			return {
+				allowed: false,
+				reason: `Full write blocked for "${filePath}": patch mode forced due to previous truncation or restore failure. Use targeted edits instead.`,
+			};
+		}
+
+		if (this.hasReachedHandoffThreshold(planExecId, workspaceId, filePath)) {
+			return {
+				allowed: false,
+				reason: `Full write blocked for "${filePath}": same-file edit failure threshold reached. Manual intervention required.`,
+			};
+		}
+
+		return { allowed: true, reason: "" };
+	}
+
+	/**
+	 * Check whether a targeted edit is allowed for a specific file.
+	 *
+	 * Targeted edits remain allowed even when patch mode is forced
+	 * or the handoff threshold is reached, since targeted edits are
+	 * the recommended fallback strategy.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param filePath - Relative file path
+	 * @returns True - targeted edits are always allowed
+	 */
+	isTargetedEditAllowed(_planExecId: string, _workspaceId: string, _filePath: string): boolean {
+		return true;
+	}
+
+	/**
+	 * Get all file paths that have patch mode forced within a plan/workspace.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @returns Array of file paths with forced patch mode
+	 */
+	getForcedPatchFiles(planExecId: string, workspaceId: string): string[] {
+		const prefix = `${planExecId}:${workspaceId}:`;
+		const result: string[] = [];
+
+		for (const key of this.forcedPatchKeys) {
+			if (key.startsWith(prefix)) {
+				result.push(key.slice(prefix.length));
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Clear all tracked attempts and forced patch state.
+	 */
+	clear(): void {
+		this.attempts.clear();
+		this.forcedPatchKeys.clear();
+	}
+
+	/**
+	 * Clear tracked attempts and forced patch state for a specific file.
 	 *
 	 * @param planExecId - Plan execution ID
 	 * @param workspaceId - Workspace ID
 	 * @param filePath - Relative file path
 	 */
 	clearFile(planExecId: string, workspaceId: string, filePath: string): void {
-		this.attempts.delete(buildKey(planExecId, workspaceId, filePath));
+		const key = buildKey(planExecId, workspaceId, filePath);
+		this.attempts.delete(key);
+		this.forcedPatchKeys.delete(key);
 	}
 
 	/**
-	 * Serialize the tracker state to a JSON-compatible object.
+	 * Serialize the tracker state to a JSON-compatible object for workspace metadata.
 	 *
-	 * @returns Serialized state
+	 * Includes both attempt records and forced patch mode state.
+	 *
+	 * @returns Serialized state suitable for storing in workspace metadata
 	 */
-	serialize(): Record<string, EditAttemptRecord[]> {
-		const result: Record<string, EditAttemptRecord[]> = {};
+	serialize(): EditAttemptTrackerSerializedState {
+		const attempts: Record<string, EditAttemptRecord[]> = {};
 		for (const [key, records] of this.attempts) {
-			result[key] = records;
+			attempts[key] = records;
 		}
-		return result;
+		return {
+			attempts,
+			forcedPatchKeys: Array.from(this.forcedPatchKeys),
+			handoffThreshold: this.handoffThreshold,
+			exactMatchCountsTowardHandoff: this.exactMatchCountsTowardHandoff,
+		};
 	}
 
 	/**
 	 * Restore tracker state from a serialized object.
 	 *
+	 * Supports both the new EditAttemptTrackerSerializedState format and
+	 * the legacy Record<string, EditAttemptRecord[]> format for backward compat.
+	 *
 	 * @param data - Previously serialized state
 	 */
-	deserialize(data: Record<string, EditAttemptRecord[]>): void {
+	deserialize(data: EditAttemptTrackerSerializedState | Record<string, EditAttemptRecord[]>): void {
 		this.attempts.clear();
-		for (const [key, records] of Object.entries(data)) {
-			this.attempts.set(key, records);
+		this.forcedPatchKeys.clear();
+
+		// Support legacy format: Record<string, EditAttemptRecord[]>
+		if ("attempts" in data && typeof data.attempts === "object" && !Array.isArray(data.attempts)) {
+			const typedData = data as EditAttemptTrackerSerializedState;
+			for (const [key, records] of Object.entries(typedData.attempts)) {
+				this.attempts.set(key, records);
+			}
+			for (const key of typedData.forcedPatchKeys ?? []) {
+				this.forcedPatchKeys.add(key);
+			}
+			if (typedData.handoffThreshold !== undefined) {
+				this.handoffThreshold = typedData.handoffThreshold;
+			}
+			if (typedData.exactMatchCountsTowardHandoff !== undefined) {
+				this.exactMatchCountsTowardHandoff = typedData.exactMatchCountsTowardHandoff;
+			}
+		} else {
+			// Legacy format: direct Record<string, EditAttemptRecord[]>
+			const legacyData = data as Record<string, EditAttemptRecord[]>;
+			for (const [key, records] of Object.entries(legacyData)) {
+				this.attempts.set(key, records);
+			}
 		}
 	}
 
