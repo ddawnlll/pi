@@ -160,6 +160,54 @@ describe("WriteGate - AC2: Full write to existing large file is blocked", () => 
 });
 
 // ---------------------------------------------------------------------------
+// WriteGate - AC3: Targeted patch/edit to same file is allowed
+// ---------------------------------------------------------------------------
+
+describe("WriteGate - AC3: Targeted patch/edit to same file is allowed", () => {
+	it("should return editInstead=true in policyResult when write is blocked, indicating targeted edit path", async () => {
+		const policy = createEditStrategyPolicy({ mode: "token_saving" });
+		const gate = createWriteGate({
+			policy,
+			stat: mockStat(10000),
+			readFile: async () => Buffer.from("x".repeat(300 * 40)),
+		});
+
+		const result = await gate.check("/test/large.ts", "large.ts");
+		// Full write is blocked
+		expect(result.allowed).toBe(false);
+		// But the reason indicates targeted edit should be used instead
+		expect(result.reason).toContain("patch");
+	});
+
+	it("should allow targeted edit via processEditResult for the same file", async () => {
+		const policy = createEditStrategyPolicy({ mode: "token_saving" });
+		const tracker = createEditAttemptTracker({ handoffThreshold: 2 });
+		const detector = createTruncationDetector();
+
+		const gate = createWriteGate({
+			policy,
+			attemptTracker: tracker,
+			truncationDetector: detector,
+			planExecId: "plan1",
+			workspaceId: "ws1",
+			stat: mockStat(10000),
+			readFile: async () => Buffer.from("x".repeat(300 * 40)),
+		});
+
+		// Full write is blocked for this file
+		const checkResult = await gate.check("/test/large.ts", "large.ts");
+		expect(checkResult.allowed).toBe(false);
+
+		// But targeted edit path works - processEditResult succeeds
+		gate.processEditResult("large.ts", "Edit applied successfully", true);
+		const summary = tracker.getSummary("plan1", "ws1", "large.ts");
+		expect(summary.totalAttempts).toBe(1);
+		expect(summary.attempts[0].succeeded).toBe(true);
+		expect(summary.attempts[0].attemptType).toBe("targeted_edit");
+	});
+});
+
+// ---------------------------------------------------------------------------
 // WriteGate - AC4: New file write remains allowed
 // ---------------------------------------------------------------------------
 
