@@ -5,6 +5,8 @@
  */
 
 import { DEFAULT_CONTEXT_BUDGETS } from "@earendil-works/pi-agent-core";
+import { DEFAULT_EDIT_STRATEGY_POLICY_CONFIG } from "../core/edit-strategy-policy.js";
+import type { EditStrategyMode } from "../core/edit-strategy-types.js";
 import type { ModelRegistry } from "../core/model-registry.js";
 import type { SettingsManager } from "../core/settings-manager.js";
 
@@ -25,7 +27,7 @@ export interface DoctorCheck {
 /**
  * Doctor check category
  */
-export type DoctorCategory = "budget" | "policy" | "config" | "models";
+export type DoctorCategory = "budget" | "policy" | "config" | "models" | "edit_strategy";
 
 /**
  * Categorized doctor results
@@ -67,6 +69,9 @@ export async function runDoctor(
 	// Configuration checks
 	checks.push(...checkConfiguration(settingsManager));
 
+	// Edit strategy checks (P4.5)
+	checks.push(...checkEditStrategy(settingsManager));
+
 	// Model checks
 	checks.push(...(await checkModels(modelRegistry)));
 
@@ -76,6 +81,7 @@ export async function runDoctor(
 		policy: checks.filter((c) => c.name.includes("File") || c.name.includes("Policy")),
 		config: checks.filter((c) => c.name.includes("Config") || c.name.includes("Setting")),
 		models: checks.filter((c) => c.name.includes("Model")),
+		edit_strategy: checks.filter((c) => c.name.includes("Edit Strategy") || c.name.includes("Threshold")),
 	};
 
 	// Calculate overall status
@@ -184,6 +190,62 @@ function checkConfiguration(settingsManager: SettingsManager): DoctorCheck[] {
 		status: compaction.reserveTokens >= 8000 ? "pass" : "warn",
 		message: `Reserve tokens: ${compaction.reserveTokens.toLocaleString()}`,
 		details: compaction.reserveTokens < 8000 ? "Consider increasing to ≥8K for safety margin" : undefined,
+	});
+
+	return checks;
+}
+
+/**
+ * Check edit strategy configuration (P4.5).
+ */
+function checkEditStrategy(settingsManager: SettingsManager): DoctorCheck[] {
+	const checks: DoctorCheck[] = [];
+
+	// Get current edit strategy mode from settings
+	const allSettings = settingsManager.getGlobalSettings();
+	const editMode =
+		(allSettings.editStrategyMode as EditStrategyMode | undefined) ?? DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.mode;
+
+	// Report selected edit strategy mode
+	const modeDescriptions: Record<EditStrategyMode, string> = {
+		token_saving: "Token Saving (strict patch-first, 200L/8KB limits)",
+		hybrid: "Hybrid (default, allows rewrites under 1000L/40KB)",
+		speed: "Speed (full rewrites under 1000L, hard safety gates active)",
+	};
+
+	checks.push({
+		name: "Edit Strategy Mode",
+		status: "pass",
+		message: `Selected mode: ${editMode} — ${modeDescriptions[editMode]}`,
+	});
+
+	// Warn when in token_saving mode (may block useful full rewrites)
+	if (editMode === "token_saving") {
+		checks.push({
+			name: "Edit Strategy Threshold Warning",
+			status: "warn",
+			message: "Token Saving mode blocks full rewrites above 200 lines / 8KB",
+			details: "Consider switching to Hybrid for more flexibility with larger files",
+		});
+	}
+
+	// Warn when in speed mode (may cause token spikes)
+	if (editMode === "speed") {
+		checks.push({
+			name: "Edit Strategy Speed Warning",
+			status: "warn",
+			message: "Speed mode disables token-saving edit restrictions",
+			details: "Hard safety gates remain active, but large file rewrites may consume more tokens",
+		});
+	}
+
+	// Warn about handoff threshold
+	const handoffThreshold = DEFAULT_EDIT_STRATEGY_POLICY_CONFIG.sameFileEditFailureHandoffThreshold;
+	checks.push({
+		name: "Edit Strategy Handoff Threshold",
+		status: handoffThreshold >= 2 ? "pass" : "warn",
+		message: `Same-file edit failure handoff threshold: ${handoffThreshold}`,
+		details: handoffThreshold < 2 ? "Threshold below 2 may trigger handoff too early" : undefined,
 	});
 
 	return checks;

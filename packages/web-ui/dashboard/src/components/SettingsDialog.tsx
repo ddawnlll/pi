@@ -86,6 +86,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const [enableInstallTelemetry, setEnableInstallTelemetry] = useState(true);
 	const [enableSkillCommands, setEnableSkillCommands] = useState(true);
 
+	// P4.5: Edit strategy mode
+	const [editStrategyMode, setEditStrategyMode] = useState<"token_saving" | "hybrid" | "speed">("hybrid");
+
 	// Load settings into form state + snapshot originals
 	// Note: no auto-refetch on open — TanStack Query keeps settings fresh
 	// via staleTime. The second effect handles populating the form.
@@ -105,9 +108,13 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setFollowUpMode((settings.followUpMode as "all" | "one-at-a-time") ?? "one-at-a-time");
 		setTheme(readDashboardTheme());
 
+		// P4.5: Load edit strategy mode
+		setEditStrategyMode((settings.editStrategyMode as "token_saving" | "hybrid" | "speed") ?? "hybrid");
+
 		setOrig({
 			steeringMode: settings.steeringMode ?? "one-at-a-time",
 			followUpMode: settings.followUpMode ?? "one-at-a-time",
+			editStrategyMode: (settings.editStrategyMode as string) ?? "hybrid",
 			shellPath: (settings.shellPath as string) ?? "",
 			quietStartup: (settings.quietStartup as boolean) ?? false,
 			collapseChangelog: (settings.collapseChangelog as boolean) ?? false,
@@ -158,8 +165,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const generalDirty = useMemo(
 		() =>
 			!isEqual(steeringMode, orig.steeringMode) ||
-			!isEqual(followUpMode, orig.followUpMode),
-		[steeringMode, followUpMode, orig],
+			!isEqual(followUpMode, orig.followUpMode) ||
+			!isEqual(editStrategyMode, orig.editStrategyMode),
+		[steeringMode, followUpMode, editStrategyMode, orig],
 	);
 
 	const budgetsDirty = useMemo(
@@ -235,7 +243,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setJustSaved(true);
 		await updateSettings({
 			steeringMode,
-			followUpMode,
+			followUpMode, editStrategyMode,
 		});
 		setOrig({
 			...orig,

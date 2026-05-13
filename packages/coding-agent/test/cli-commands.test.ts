@@ -65,6 +65,7 @@ describe("CLI Commands - P1 Milestone 4", () => {
 					policy: [],
 					config: [],
 					models: [],
+					edit_strategy: [],
 				},
 				overallStatus: "pass",
 				passCount: 1,
@@ -92,6 +93,7 @@ describe("CLI Commands - P1 Milestone 4", () => {
 					policy: [],
 					config: [],
 					models: [],
+					edit_strategy: [],
 				},
 				overallStatus: "pass",
 				passCount: 1,
@@ -110,7 +112,7 @@ describe("CLI Commands - P1 Milestone 4", () => {
 		it("should return 0 for pass status", () => {
 			const results: DoctorResults = {
 				checks: [],
-				byCategory: { budget: [], policy: [], config: [], models: [] },
+				byCategory: { budget: [], policy: [], config: [], models: [], edit_strategy: [] },
 				overallStatus: "pass",
 				passCount: 1,
 				warnCount: 0,
@@ -122,7 +124,7 @@ describe("CLI Commands - P1 Milestone 4", () => {
 		it("should return 1 for warn status", () => {
 			const results: DoctorResults = {
 				checks: [],
-				byCategory: { budget: [], policy: [], config: [], models: [] },
+				byCategory: { budget: [], policy: [], config: [], models: [], edit_strategy: [] },
 				overallStatus: "warn",
 				passCount: 0,
 				warnCount: 1,
@@ -134,7 +136,7 @@ describe("CLI Commands - P1 Milestone 4", () => {
 		it("should return 2 for fail status", () => {
 			const results: DoctorResults = {
 				checks: [],
-				byCategory: { budget: [], policy: [], config: [], models: [] },
+				byCategory: { budget: [], policy: [], config: [], models: [], edit_strategy: [] },
 				overallStatus: "fail",
 				passCount: 0,
 				warnCount: 0,
