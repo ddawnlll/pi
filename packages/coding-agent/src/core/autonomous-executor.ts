@@ -11,6 +11,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
+import { PiLogger } from "../utils/logger.js";
+import { AutoCommit } from "./auto-commit.js";
 import { JsonStateStore } from "./json-state-store.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -97,6 +99,27 @@ export interface AutonomousExecutorConfig {
 	model?: Model<any>;
 	/** Enable real agent execution (default: false for backward compat) */
 	enableRealExecution?: boolean;
+	/**
+	 * Enable automatic git commits after workspace completion.
+	 * When false, no commits are made.
+	 * Defaults to true.
+	 */
+	autoCommit?: boolean;
+	/**
+	 * Enable post-plan handoff dialog.
+	 * When true (default), plan enters awaiting_handoff state after all workspaces complete
+	 * and waits for user to commit, keep editing, or discard.
+	 * When false, plan auto-commits without handoff dialog.
+	 * Defaults to true.
+	 */
+	postPlanHandoff?: boolean;
+	/**
+	 * Handoff timeout in milliseconds.
+	 * If the plan is awaiting_handoff for longer than this duration,
+	 * it auto-commits with a warning log.
+	 * Defaults to 30 minutes (1800000 ms).
+	 */
+	handoffTimeoutMs?: number;
 }
 
 /**
@@ -125,6 +148,9 @@ export class AutonomousExecutor {
 	private workspaceQueue: WorkspaceQueue | null = null;
 	private agentExecutor: WorkspaceAgentExecutor | null = null;
 	private enableRealExecution: boolean;
+	private autoCommitEnabled: boolean;
+	private postPlanHandoffEnabled: boolean;
+	private handoffTimeoutMs: number;
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
@@ -134,6 +160,9 @@ export class AutonomousExecutor {
 		this.retryHandler = new RetryHandler(config.retryPolicy);
 		this.projectId = config.projectId ?? "default";
 		this.enableRealExecution = config.enableRealExecution ?? false;
+		this.autoCommitEnabled = config.autoCommit ?? true;
+		this.postPlanHandoffEnabled = config.postPlanHandoff ?? true;
+		this.handoffTimeoutMs = config.handoffTimeoutMs ?? 30 * 60 * 1000; // 30 minutes
 
 		// If skipProjectManagement, use a fixed projectId
 		if (config.skipProjectManagement) {
@@ -172,6 +201,11 @@ export class AutonomousExecutor {
 		this.planExecutionId = planExecutionId;
 		this.workspaceQueue = queue;
 
+		// Apply queue-level postPlanHandoff setting
+		if (queue.postPlanHandoff !== undefined) {
+			this.postPlanHandoffEnabled = queue.postPlanHandoff;
+		}
+
 		// Load state into cache
 		const state = await this.stateStore.loadState(planExecutionId);
 		if (state) {
@@ -196,6 +230,11 @@ export class AutonomousExecutor {
 	async adoptExistingExecution(planExecutionId: string, queue: WorkspaceQueue): Promise<boolean> {
 		this.planExecutionId = planExecutionId;
 		this.workspaceQueue = queue;
+
+		// Apply queue-level postPlanHandoff setting
+		if (queue.postPlanHandoff !== undefined) {
+			this.postPlanHandoffEnabled = queue.postPlanHandoff;
+		}
 
 		const state = await this.stateStore.loadState(planExecutionId);
 		if (!state) {
@@ -224,8 +263,9 @@ export class AutonomousExecutor {
 			await this.stateStore.resumePlan(planExecutionId);
 		}
 
-		console.log(
-			`[executor] Adopted execution ${planExecutionId}, recovered ${recovered} stranded workspace(s), status=${state.status}`,
+		const log = new PiLogger({ planExecId: planExecutionId });
+		log.info(
+			`Adopted execution ${planExecutionId}, recovered ${recovered} stranded workspace(s), status=${state.status}`,
 		);
 
 		return true;
@@ -295,10 +335,13 @@ export class AutonomousExecutor {
 				? this.retryHandler.getRetryContext(wsStateForPacket, wsStateForPacket.error)
 				: "";
 
+			const policy = this.retryHandler.getPolicy();
+			const flashThreshold = policy.escalationThresholds.flash;
+			const reviewerThreshold = policy.escalationThresholds.reviewer;
 			let packet: HashedPacket;
-			if (retryStage === RetryStage.Flash && wsStateForPacket.attempts >= 4) {
+			if (retryStage === RetryStage.Flash && wsStateForPacket.attempts >= flashThreshold) {
 				packet = this.packetBuilder.buildFlashPacket(workspace, wsStateForPacket, retryContext);
-			} else if (retryStage === RetryStage.Reviewer && wsStateForPacket.attempts >= 7) {
+			} else if (retryStage === RetryStage.Reviewer && wsStateForPacket.attempts >= reviewerThreshold) {
 				packet = this.packetBuilder.buildReviewerPacket(workspace, wsStateForPacket, retryContext);
 			} else {
 				packet = this.packetBuilder.buildWorkerPacket(workspace, wsStateForPacket, retryContext);
@@ -363,6 +406,17 @@ export class AutonomousExecutor {
 					this.currentPlanState = updatedState;
 				}
 			});
+
+			// Auto-commit on success
+			if (result.success && workspace.autoCommit !== false) {
+				try {
+					await this.commitWorkspace(workspace);
+				} catch (commitError) {
+					// Commit failure logs warning, does not fail workspace
+					const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+					console.warn(`[auto-commit] Warning: commit failed for workspace ${workspace.id}: ${commitMsg}`);
+				}
+			}
 
 			return result;
 		} catch (error) {
@@ -650,14 +704,234 @@ export class AutonomousExecutor {
 	}
 
 	/**
-	 * Complete plan execution
+	 * Commit workspace changes to git.
+	 *
+	 * Stages only files matching the workspace capability manifest (canEdit)
+	 * that are actually modified, then creates a commit with the format:
+	 * `feat(p{phase}): complete workspace {id} — {title}`
+	 *
+	 * Skips if autoCommit is globally disabled or if the workspace has
+	 * autoCommit set to false.
+	 *
+	 * Never pushes, never merges.
+	 * Commit failures are logged as warnings and do not fail execution.
+	 *
+	 * @param workspace - Workspace to commit
+	 */
+	async commitWorkspace(workspace: Workspace): Promise<void> {
+		// Check global auto-commit flag
+		if (!this.autoCommitEnabled) {
+			return;
+		}
+
+		// Check per-workspace autoCommit flag
+		if (workspace.autoCommit === false) {
+			return;
+		}
+
+		const state = this.currentPlanState;
+		if (!state) {
+			return;
+		}
+
+		const wsState = state.workspaces.get(workspace.id);
+		if (!wsState) {
+			return;
+		}
+
+		// Only commit if workspace is complete
+		if (wsState.stage !== WorkspaceStage.Complete) {
+			return;
+		}
+
+		try {
+			const autoCommit = new AutoCommit(this.workspaceRoot);
+			const phase = this.workspaceQueue?.phase ?? "2";
+			const result = await autoCommit.commit(workspace, wsState, phase);
+
+			if (!result.success) {
+				// Log warnings for skip reasons (not errors)
+				if (result.reason && !result.reason.includes("failed")) {
+					console.warn(`[auto-commit] ${workspace.id}: ${result.reason}`);
+				} else if (result.reason) {
+					console.warn(`[auto-commit] Warning: ${workspace.id}: ${result.reason}`);
+				}
+			} else if (result.commitHash) {
+				console.log(`[auto-commit] Committed workspace ${workspace.id} (${result.commitHash})`);
+			}
+		} catch (error) {
+			// Log warning, don't fail
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			console.warn(`[auto-commit] Warning: commit failed for workspace ${workspace.id}: ${errorMsg}`);
+		}
+	}
+
+	/**
+	 * Complete plan execution with optional rollup commit.
+	 *
+	 * If postPlanHandoff is enabled, instead of completing immediately,
+	 * the plan enters awaiting_handoff state. The caller should then
+	 * call handleHandoffCommit(), handleHandoffKeepEditing(), or handleHandoffDiscard().
+	 *
+	 * If postPlanHandoff is disabled, marks the plan as complete and,
+	 * if autoCommit is enabled, creates a rollup commit via commitPlan().
+	 * Rollup commit failures are logged as warnings and do not fail execution.
 	 */
 	async completePlan(): Promise<void> {
 		const planExecutionId = this.planExecutionId;
 		if (!planExecutionId) throw new Error("No active execution");
+
+		if (this.postPlanHandoffEnabled) {
+			// Enter awaiting_handoff state — plan_handoff journal event is emitted inside setAwaitingHandoff
+			await this.stateStore.setAwaitingHandoff(planExecutionId, this.workspaceQueue?.title ?? "Plan execution");
+			const state = await this.stateStore.loadState(planExecutionId);
+			if (state) this.currentPlanState = state;
+			return;
+		}
+
+		// Skip handoff — complete immediately
 		await this.stateStore.completePlan(planExecutionId);
 		const state = await this.stateStore.loadState(planExecutionId);
 		if (state) this.currentPlanState = state;
+
+		// Auto-commit rollup if enabled
+		if (this.autoCommitEnabled) {
+			try {
+				await this.commitPlan();
+			} catch (commitError) {
+				// Rollup commit failure logs warning, doesn't fail plan completion
+				const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+				console.warn(`[auto-commit] Warning: rollup commit failed: ${commitMsg}`);
+			}
+		}
+	}
+
+	/**
+	 * Handle handoff commit: trigger rollup commit and mark plan complete.
+	 * Called when user chooses "Commit & finish" in the handoff dialog.
+	 */
+	async handleHandoffCommit(): Promise<void> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+
+		// Rollup commit first
+		if (this.autoCommitEnabled) {
+			try {
+				await this.commitPlan();
+			} catch (commitError) {
+				const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+				console.warn(`[auto-commit] Warning: rollup commit failed: ${commitMsg}`);
+			}
+		}
+
+		// Mark plan complete
+		await this.stateStore.handoffCommit(planExecutionId);
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) this.currentPlanState = state;
+	}
+
+	/**
+	 * Handle handoff keep editing: return plan to running status.
+	 * Called when user chooses "Keep editing" in the handoff dialog.
+	 */
+	async handleHandoffKeepEditing(): Promise<void> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+
+		await this.stateStore.handoffKeepEditing(planExecutionId);
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) this.currentPlanState = state;
+	}
+
+	/**
+	 * Handle handoff discard: revert uncommitted workspace files and fail the plan.
+	 * Called when user chooses "Discard" in the handoff dialog.
+	 */
+	async handleHandoffDiscard(): Promise<void> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+
+		await this.stateStore.handoffDiscard(planExecutionId, this.workspaceRoot);
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (state) this.currentPlanState = state;
+	}
+
+	/**
+	 * Check if the plan is currently awaiting handoff and if the handoff timeout
+	 * has elapsed. If so, auto-commit with a warning log.
+	 *
+	 * Call this periodically (e.g., during polling) when awaiting_handoff.
+	 */
+	async checkHandoffTimeout(): Promise<boolean> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) return false;
+
+		const isAwaiting = await this.stateStore.isAwaitingHandoff(planExecutionId);
+		if (!isAwaiting) return false;
+
+		const handoffStartedAt = await this.stateStore.getHandoffStartedAt(planExecutionId);
+		if (handoffStartedAt === 0) return false;
+
+		const elapsed = Date.now() - handoffStartedAt;
+		if (elapsed >= this.handoffTimeoutMs) {
+			console.warn(
+				`[handoff] Auto-committing plan after ${this.handoffTimeoutMs / 60000} minute timeout (elapsed: ${Math.round(elapsed / 60000)} min)`,
+			);
+
+			// Auto-commit: rollup + complete
+			if (this.autoCommitEnabled) {
+				try {
+					await this.commitPlan();
+				} catch (commitError) {
+					const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+					console.warn(`[auto-commit] Warning: rollup commit failed: ${commitMsg}`);
+				}
+			}
+
+			await this.stateStore.handoffCommit(planExecutionId);
+			const state = await this.stateStore.loadState(planExecutionId);
+			if (state) this.currentPlanState = state;
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Commit a rollup of all remaining changes from the entire plan.
+	 *
+	 * Stages all modified files into a single plan-level commit with format:
+	 * `feat(p{phase}): complete plan — {title}`
+	 *
+	 * Skips if autoCommit is globally disabled.
+	 * Never pushes, never merges.
+	 *
+	 * @returns Commit result
+	 */
+	async commitPlan(): Promise<void> {
+		if (!this.autoCommitEnabled) {
+			return;
+		}
+
+		try {
+			const autoCommit = new AutoCommit(this.workspaceRoot);
+			const phase = this.workspaceQueue?.phase ?? "2";
+			const planTitle = this.workspaceQueue?.title ?? "Plan execution complete";
+			const result = await autoCommit.commitPlan(phase, planTitle);
+
+			if (!result.success) {
+				if (result.reason && !result.reason.includes("failed")) {
+					console.warn(`[auto-commit] Rollup: ${result.reason}`);
+				} else if (result.reason) {
+					console.warn(`[auto-commit] Warning: rollup commit: ${result.reason}`);
+				}
+			} else if (result.commitHash) {
+				console.log(`[auto-commit] Rollup commit (${result.commitHash})`);
+			}
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			console.warn(`[auto-commit] Warning: rollup commit failed: ${errorMsg}`);
+		}
 	}
 
 	/**

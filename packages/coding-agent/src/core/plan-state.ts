@@ -48,7 +48,9 @@ export interface PlanState {
 	/** Timestamp when execution completed */
 	completedAt?: number;
 	/** Overall execution status */
-	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
+	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled" | "awaiting_handoff";
+	/** Timestamp when handoff state was entered (if awaiting_handoff) */
+	handoffStartedAt?: number;
 	/** Metadata */
 	metadata?: Record<string, unknown>;
 }
@@ -67,6 +69,11 @@ export type JournalEventType =
 	| "plan_stop_requested"
 	| "plan_cancel_requested"
 	| "plan_resumed"
+	| "plan_handoff"
+	| "plan_handoff_committed"
+	| "plan_handoff_keep"
+	| "plan_handoff_discard"
+	| "tool_call"
 	| "workspace_start"
 	| "workspace_complete"
 	| "workspace_failed"
@@ -387,6 +394,90 @@ export class PlanStateStore {
 		await this.appendJournal({
 			type: "plan_complete",
 			timestamp: Date.now(),
+		});
+	}
+
+	/**
+	 * Set plan to awaiting_handoff state.
+	 * Emits plan_handoff journal event before the plan is finalized.
+	 *
+	 * @param planTitle - Plan title for handoff summary
+	 */
+	async setAwaitingHandoff(planTitle: string): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		// Emit plan_handoff journal event before transitioning state
+		await this.appendJournal({
+			type: "plan_handoff",
+			timestamp: Date.now(),
+			data: { title: planTitle },
+		});
+
+		this.state.status = "awaiting_handoff";
+		this.state.handoffStartedAt = Date.now();
+
+		await this.saveState();
+	}
+
+	/**
+	 * Finalize handoff: commit and mark plan complete.
+	 * Called when user chooses "Commit & finish".
+	 */
+	async handoffCommitPlan(): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "complete";
+		this.state.completedAt = Date.now();
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_handoff_committed",
+			timestamp: Date.now(),
+		});
+	}
+
+	/**
+	 * Keep editing: return plan to running status.
+	 * Called when user chooses "Keep editing".
+	 */
+	async handoffKeepEditingPlan(): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "running";
+		this.state.handoffStartedAt = undefined;
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_handoff_keep",
+			timestamp: Date.now(),
+		});
+	}
+
+	/**
+	 * Discard changes and fail the plan.
+	 * Called when user chooses "Discard".
+	 *
+	 * @param error - Error message describing the discard
+	 */
+	async revertAndFailPlan(error: string): Promise<void> {
+		if (!this.state) {
+			throw new Error("State not initialized");
+		}
+
+		this.state.status = "failed";
+		this.state.completedAt = Date.now();
+
+		await this.saveState();
+		await this.appendJournal({
+			type: "plan_handoff_discard",
+			timestamp: Date.now(),
+			data: { error },
 		});
 	}
 

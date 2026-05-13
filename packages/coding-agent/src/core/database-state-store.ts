@@ -75,9 +75,10 @@ interface PlanCacheEntry {
 	projectId: string;
 	phase: string;
 	title: string;
-	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
+	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled" | "awaiting_handoff";
 	startedAt: number;
 	completedAt?: number;
+	handoffStartedAt?: number;
 	workspaces: Map<string, WorkspaceEntry>;
 	metadata?: Record<string, unknown>;
 }
@@ -412,6 +413,54 @@ export class DatabaseStateStore implements IStateStore {
 		});
 	}
 
+	async appendJournalEvent(
+		planExecutionId: string,
+		toolName: string,
+		input: Record<string, unknown>,
+		options?: {
+			isMcp?: boolean;
+			mcpServer?: string;
+			isError?: boolean;
+			errorMessage?: string;
+			result?: unknown;
+		},
+	): Promise<void> {
+		// Prefix MCP tool names with mcp:{server}:{tool}
+		let formattedName = toolName;
+		if (options?.isMcp && options?.mcpServer) {
+			formattedName = `mcp:${options.mcpServer}:${toolName}`;
+		}
+
+		// Serialize input and truncate to 2KB
+		const inputStr = JSON.stringify(input);
+		const truncatedInput = inputStr.length > 2048 ? `${inputStr.substring(0, 2048)}...(truncated)` : inputStr;
+
+		// Build event data
+		const data: Record<string, unknown> = {
+			toolName: formattedName,
+			input: truncatedInput,
+		};
+
+		// Include error info if present
+		if (options?.isError) {
+			data.result = "error";
+			if (options?.errorMessage) {
+				data.errorMessage = options.errorMessage;
+			}
+		}
+
+		// Include result if provided
+		if (options?.result !== undefined) {
+			data.result = data.result ?? options.result;
+		}
+
+		await this.appendJournal(planExecutionId, {
+			type: "tool_call",
+			timestamp: Date.now(),
+			data,
+		});
+	}
+
 	async readJournal(planExecutionId: string): Promise<JournalEvent[]> {
 		const events = await this.journalEventRepo.query({
 			planExecutionId,
@@ -502,6 +551,64 @@ export class DatabaseStateStore implements IStateStore {
 		});
 	}
 
+	async setAwaitingHandoff(planExecutionId: string, planTitle: string): Promise<void> {
+		await this.planExecutionRepo.updateStatus(planExecutionId, "awaiting_handoff");
+		this.updateCacheStatus(planExecutionId, "awaiting_handoff");
+		await this.appendJournal(planExecutionId, {
+			type: "plan_handoff",
+			timestamp: Date.now(),
+			data: { title: planTitle },
+		});
+	}
+
+	async handoffCommit(planExecutionId: string): Promise<void> {
+		await this.planExecutionRepo.updateStatus(planExecutionId, "complete");
+		this.updateCacheStatus(planExecutionId, "complete");
+		await this.appendJournal(planExecutionId, {
+			type: "plan_handoff_committed",
+			timestamp: Date.now(),
+		});
+	}
+
+	async handoffKeepEditing(planExecutionId: string): Promise<void> {
+		await this.planExecutionRepo.updateStatus(planExecutionId, "running");
+		this.updateCacheStatus(planExecutionId, "running");
+		await this.appendJournal(planExecutionId, {
+			type: "plan_handoff_keep",
+			timestamp: Date.now(),
+		});
+	}
+
+	async handoffDiscard(planExecutionId: string, workspaceRoot: string): Promise<void> {
+		// Revert uncommitted workspace files via git
+		try {
+			const { exec } = await import("node:child_process");
+			const { promisify } = await import("node:util");
+			const execAsync = promisify(exec);
+			await execAsync("git checkout -- .", { cwd: workspaceRoot }).catch(() => {});
+		} catch {
+			// Ignore errors during revert
+		}
+
+		await this.planExecutionRepo.updateStatus(planExecutionId, "failed");
+		this.updateCacheStatus(planExecutionId, "failed");
+		await this.appendJournal(planExecutionId, {
+			type: "plan_handoff_discard",
+			timestamp: Date.now(),
+			data: { error: "User discarded changes during handoff" },
+		});
+	}
+
+	async isAwaitingHandoff(planExecutionId: string): Promise<boolean> {
+		const entry = this.cache.get(planExecutionId);
+		return entry?.status === "awaiting_handoff";
+	}
+
+	async getHandoffStartedAt(planExecutionId: string): Promise<number> {
+		const entry = this.cache.get(planExecutionId);
+		return entry?.handoffStartedAt ?? 0;
+	}
+
 	// =========================================================================
 	// Control
 	// =========================================================================
@@ -552,6 +659,51 @@ export class DatabaseStateStore implements IStateStore {
 			error: entry.error,
 			ownedFiles: entry.ownedFiles,
 		};
+	}
+
+	async getWorkspaceAttempts(
+		planExecutionId: string,
+		workspaceId: string,
+	): Promise<import("./state-store.js").WorkspaceAttempt[]> {
+		const entry = this.cache.get(planExecutionId)?.workspaces.get(workspaceId);
+		if (!entry) return [];
+
+		const getRole = (attempt: number): "worker" | "flash" | "reviewer" | "final" => {
+			if (attempt <= 3) return "worker";
+			if (attempt <= 6) return "flash";
+			if (attempt <= 9) return "reviewer";
+			return "final";
+		};
+
+		const total = entry.attempts;
+		const attempts: import("./state-store.js").WorkspaceAttempt[] = [];
+
+		for (let a = 1; a <= total; a++) {
+			const isLast = a === total;
+			const verdict = isLast
+				? entry.stage === "complete"
+					? ("complete" as const)
+					: entry.stage === "failed"
+						? ("failed" as const)
+						: ("running" as const)
+				: ("failed" as const);
+
+			const startedAt = entry.startedAt ?? null;
+			const completedAt = entry.completedAt ?? null;
+			const duration = startedAt && completedAt ? completedAt - startedAt : null;
+
+			attempts.push({
+				attempt: a,
+				role: getRole(a),
+				startedAt,
+				completedAt,
+				duration,
+				verdict,
+				error: isLast ? (entry.error?.slice(0, 200) ?? null) : null,
+			});
+		}
+
+		return attempts.reverse();
 	}
 
 	async getStatistics(planExecutionId: string): Promise<{
@@ -663,6 +815,9 @@ export class DatabaseStateStore implements IStateStore {
 			entry.status = status;
 			if (status === "complete" || status === "failed" || status === "stopped" || status === "cancelled") {
 				entry.completedAt = Date.now();
+			}
+			if (status === "awaiting_handoff") {
+				entry.handoffStartedAt = Date.now();
 			}
 		}
 	}

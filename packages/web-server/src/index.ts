@@ -38,7 +38,13 @@ import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
-import { getActiveExecution, getActiveExecutions, resumeStrandedExecutions, runPlan } from "./plan-runner.js";
+import {
+	getActiveExecution,
+	getActiveExecutions,
+	resumeStrandedExecutions,
+	runPlan,
+	signalExecutionEvent,
+} from "./plan-runner.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
@@ -114,6 +120,235 @@ function getGitInfo(workspaceRoot: string): { branch?: string; dirty?: boolean; 
 		return { branch, dirty, recentCommits };
 	} catch {
 		return {};
+	}
+}
+
+interface GitFileChange {
+	path: string;
+	status: "added" | "modified" | "deleted" | "renamed" | "copied" | "unmerged";
+	additions: number;
+	deletions: number;
+}
+
+interface GitFilePatch {
+	path: string;
+	status: GitFileChange["status"];
+	patch: string;
+	truncated: boolean;
+	truncatedLines: number;
+}
+
+const MAX_DIFF_LINES_PER_FILE = 500;
+
+/**
+ * Get git diff patches for a workspace, returning unified diff content per file.
+ * Caps at MAX_DIFF_LINES_PER_FILE lines per file.
+ */
+function getGitDiffPatches(workspaceRoot: string): { patches: GitFilePatch[]; error?: string } {
+	try {
+		// Check if git is available and the directory is a git repo
+		execSync("git rev-parse --git-dir", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+
+		// Get name-status first so we know file statuses
+		const nameStatus = execSync("git diff --name-status HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const stagedNameStatus = execSync("git diff --cached --name-status HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const statusMap = new Map<string, string>();
+		for (const line of [...nameStatus.split("\n"), ...stagedNameStatus.split("\n")]) {
+			if (!line.trim()) continue;
+			const match = line.match(/^(\S+)\t(.+)$/);
+			if (match) {
+				const [, statusChar, filePath] = match;
+				if (!statusMap.has(filePath)) {
+					statusMap.set(filePath, statusChar);
+				}
+			}
+		}
+
+		// Get unified diff (unstaged + staged combined)
+		const diffOutput = execSync("git diff HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 10000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		if (!diffOutput) {
+			return { patches: [] };
+		}
+
+		const statusCharToLabel: Record<string, GitFileChange["status"]> = {
+			A: "added",
+			M: "modified",
+			D: "deleted",
+			R: "renamed",
+			C: "copied",
+			U: "unmerged",
+		};
+
+		// Parse unified diff into per-file patches
+		const patches: GitFilePatch[] = [];
+		const fileSections = diffOutput.split(/\ndiff --git /);
+
+		for (let i = 0; i < fileSections.length; i++) {
+			let section = fileSections[i];
+			if (i > 0) {
+				section = `diff --git ${section}`;
+			}
+			if (!section.trim()) continue;
+
+			// Extract file path from "diff --git a/path b/path"
+			const pathMatch = section.match(/^diff --git a\/(.+?) b\/(.+?)$/m);
+			if (!pathMatch) continue;
+			const filePath = pathMatch[2];
+
+			const statusChar = statusMap.get(filePath) || "M";
+			const status = statusCharToLabel[statusChar] || "modified";
+
+			// Count lines and cap
+			const lines = section.split("\n");
+			let truncated = false;
+			let truncatedLines = 0;
+			let patchContent: string;
+
+			if (lines.length > MAX_DIFF_LINES_PER_FILE) {
+				patchContent = lines.slice(0, MAX_DIFF_LINES_PER_FILE).join("\n");
+				truncated = true;
+				truncatedLines = lines.length - MAX_DIFF_LINES_PER_FILE;
+			} else {
+				patchContent = section;
+			}
+
+			patches.push({ path: filePath, status, patch: patchContent, truncated, truncatedLines });
+		}
+
+		// Sort by path
+		patches.sort((a, b) => a.path.localeCompare(b.path));
+
+		return { patches };
+	} catch (error) {
+		return { patches: [], error: String(error) };
+	}
+}
+
+/**
+ * Get git diff for a workspace, returning a list of changed files.
+ * Runs git diff --numstat against HEAD to get additions/deletions per file.
+ */
+function getGitDiff(workspaceRoot: string): { filesChanged: GitFileChange[]; error?: string } {
+	try {
+		// Check if git is available and the directory is a git repo
+		execSync("git rev-parse --git-dir", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 2000,
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+
+		// Get numstat output: additions, deletions, path (tab-separated)
+		const numstat = execSync("git diff --numstat HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		// Also get diff --name-status to determine file status (M/A/D/R/C/U)
+		const nameStatus = execSync("git diff --name-status HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		// Include staged changes too
+		const stagedNumstat = execSync("git diff --cached --numstat HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		const stagedNameStatus = execSync("git diff --cached --name-status HEAD", {
+			cwd: workspaceRoot,
+			encoding: "utf-8",
+			timeout: 5000,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+
+		// Parse name-status lines: "M\tpath/to/file"
+		const statusMap = new Map<string, string>();
+		for (const line of [...nameStatus.split("\n"), ...stagedNameStatus.split("\n")]) {
+			if (!line.trim()) continue;
+			const match = line.match(/^(\S+)\t(.+)$/);
+			if (match) {
+				const [, statusChar, filePath] = match;
+				// Prefer the first status we see for each file
+				if (!statusMap.has(filePath)) {
+					statusMap.set(filePath, statusChar);
+				}
+			}
+		}
+
+		// Merge numstat results, handling duplicates (unstaged + staged)
+		const fileMap = new Map<string, { additions: number; deletions: number }>();
+		for (const numstatLines of [numstat, stagedNumstat]) {
+			for (const line of numstatLines.split("\n")) {
+				if (!line.trim()) continue;
+				const parts = line.split("\t");
+				if (parts.length < 3) continue;
+				const [addStr, delStr, ...pathParts] = parts;
+				const filePath = pathParts.join("\t");
+				const additions = Number(addStr) || 0;
+				const deletions = Number(delStr) || 0;
+				const existing = fileMap.get(filePath);
+				if (existing) {
+					existing.additions += additions;
+					existing.deletions += deletions;
+				} else {
+					fileMap.set(filePath, { additions, deletions });
+				}
+			}
+		}
+
+		const statusCharToLabel: Record<string, GitFileChange["status"]> = {
+			A: "added",
+			M: "modified",
+			D: "deleted",
+			R: "renamed",
+			C: "copied",
+			U: "unmerged",
+		};
+
+		const filesChanged: GitFileChange[] = [];
+		for (const [filePath, { additions, deletions }] of fileMap) {
+			const statusChar = statusMap.get(filePath) || "M";
+			const status = statusCharToLabel[statusChar] || "modified";
+			filesChanged.push({ path: filePath, status, additions, deletions });
+		}
+
+		// Sort by path for deterministic output
+		filesChanged.sort((a, b) => a.path.localeCompare(b.path));
+
+		return { filesChanged };
+	} catch (error) {
+		return { filesChanged: [], error: String(error) };
 	}
 }
 
@@ -852,6 +1087,73 @@ fastify.get<{
 });
 
 /**
+ * GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/attempts - Get workspace attempt history
+ */
+fastify.get<{
+	Params: { projectId: string; planExecId: string; workspaceId: string };
+}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/attempts", async (request, reply) => {
+	const { planExecId, workspaceId } = request.params;
+
+	try {
+		const stateStore = getStateStore();
+		const attempts = await stateStore.getWorkspaceAttempts(planExecId, workspaceId);
+
+		return { attempts };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get workspace attempts");
+		return reply.code(500).send({ error: "Failed to get workspace attempts", message: String(error) });
+	}
+});
+
+/**
+ * GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/git-diff - Get git diff for workspace
+ *
+ * When ?format=patch, returns per-file unified diff content (capped at 500 lines/file).
+ * Otherwise returns files changed (unstaged + staged) with per-file stats.
+ * Gracefully handles git not being initialized.
+ */
+fastify.get<{
+	Params: { projectId: string; planExecId: string; workspaceId: string };
+	Querystring: { format?: string };
+}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/git-diff", async (request, reply) => {
+	const { planExecId, workspaceId } = request.params;
+	const { format } = request.query;
+
+	try {
+		const stateStore = getStateStore();
+		const ws = await stateStore.getWorkspaceState(planExecId, workspaceId);
+
+		if (!ws) {
+			return reply.code(404).send({ error: "Workspace not found" });
+		}
+
+		const workspaceRoot = getWorkspaceRoot();
+
+		if (format === "patch") {
+			const patchResult = getGitDiffPatches(workspaceRoot);
+
+			if (patchResult.error && !patchResult.patches.length) {
+				return { patches: [], error: "Git not initialized or not available" };
+			}
+
+			return { patches: patchResult.patches };
+		}
+
+		const diff = getGitDiff(workspaceRoot);
+
+		if (diff.error && !diff.filesChanged.length) {
+			// Graceful: git not initialized or other issue
+			return { filesChanged: [], error: "Git not initialized or not available" };
+		}
+
+		return { filesChanged: diff.filesChanged };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get git diff for workspace");
+		return reply.code(500).send({ error: "Failed to get git diff", message: String(error) });
+	}
+});
+
+/**
  * GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/logs - Get recent workspace logs
  */
 fastify.get<{
@@ -1468,12 +1770,15 @@ fastify.post<{
 				break;
 			case "stop":
 				await stateStore.stopPlan(planExecId, "Stopped by user");
+				signalExecutionEvent(planExecId, "stop");
 				break;
 			case "cancel":
 				await stateStore.cancelPlan(planExecId);
+				signalExecutionEvent(planExecId, "stop");
 				break;
 			case "resume":
 				await stateStore.resumePlan(planExecId);
+				signalExecutionEvent(planExecId, "complete");
 				break;
 		}
 

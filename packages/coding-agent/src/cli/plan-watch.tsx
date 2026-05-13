@@ -10,6 +10,7 @@
  * Refactored to use Ink for proper TUI rendering with no flicker.
  */
 
+import { execSync } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import React, { useEffect, useState } from "react";
@@ -109,6 +110,56 @@ function deriveDashboardData(plan: PlanState): DerivedDashboardData {
 }
 
 /**
+ * Handoff dialog component — shown when plan enters awaiting_handoff state.
+ * Displays a summary with three action buttons.
+ */
+function HandoffDialog({
+	plan,
+}: {
+	plan: PlanState;
+}): React.JSX.Element {
+	const commitsCount = Array.from(plan.workspaces.values()).filter(
+		(w) => w.stage === WorkspaceStage.Complete,
+	).length;
+
+	return (
+		<Box flexDirection="column" marginY={1}>
+			<Text> </Text>
+			<Text bold color="yellow">
+				═══════════════════════════════════════════════════════════════
+			</Text>
+			<Text bold color="yellow">
+				  Plan Handoff — Awaiting User Decision
+			</Text>
+			<Text bold color="yellow">
+				═══════════════════════════════════════════════════════════════
+			</Text>
+			<Text> </Text>
+			<Text>Plan: {plan.title}</Text>
+			<Text>Phase: {plan.phase}</Text>
+			<Text>
+				Workspaces completed: {commitsCount}/{plan.workspaces.size}
+			</Text>
+			<Text>Status: {chalk.yellow("awaiting handoff")}</Text>
+			<Text> </Text>
+			<Text bold>Actions:</Text>
+			<Text>
+				  [{chalk.cyan("1")}] {chalk.green("Commit & finish")} — Rollup commit all changes & complete plan
+			</Text>
+			<Text>
+				  [{chalk.cyan("2")}] {chalk.yellow("Keep editing")} — Return plan to running status
+			</Text>
+			<Text>
+				  [{chalk.cyan("3")}] {chalk.red("Discard")} — Revert uncommitted workspace files & fail plan
+			</Text>
+			<Text> </Text>
+			<Text dimColor>Plan will auto-commit after 30 minutes of inactivity</Text>
+			<Text> </Text>
+		</Box>
+	);
+}
+
+/**
  * Format journal event for display
  *
  * @param event - Journal event
@@ -123,8 +174,30 @@ function formatEvent(event: JournalEvent, options: { color: boolean }): string {
 			return color ? chalk.green("▶ Plan started") : "▶ Plan started";
 		case "plan_complete":
 			return color ? chalk.green("✓ Plan completed") : "✓ Plan completed";
+		case "plan_handoff":
+			return color ? chalk.yellow("⟳ Plan awaiting handoff") : "⟳ Plan awaiting handoff";
+		case "plan_handoff_committed":
+			return color ? chalk.green("✓ Handoff committed") : "✓ Handoff committed";
+		case "plan_handoff_keep":
+			return color ? chalk.yellow("⟳ Handoff keep editing") : "⟳ Handoff keep editing";
+		case "plan_handoff_discard":
+			return color ? chalk.red("✗ Handoff discarded") : "✗ Handoff discarded";
 		case "plan_failed":
 			return color ? chalk.red("✗ Plan failed") : "✗ Plan failed";
+		case "plan_paused":
+			return color ? chalk.yellow("⏸ Plan paused") : "⏸ Plan paused";
+		case "plan_stopped":
+			return color ? chalk.yellow("⏹ Plan stopped") : "⏹ Plan stopped";
+		case "plan_cancelled":
+			return color ? chalk.red("✗ Plan cancelled") : "✗ Plan cancelled";
+		case "plan_pause_requested":
+			return color ? chalk.yellow("⏸ Pause requested") : "⏸ Pause requested";
+		case "plan_stop_requested":
+			return color ? chalk.yellow("⏹ Stop requested") : "⏹ Stop requested";
+		case "plan_cancel_requested":
+			return color ? chalk.red("✗ Cancel requested") : "✗ Cancel requested";
+		case "plan_resumed":
+			return color ? chalk.green("▶ Plan resumed") : "▶ Plan resumed";
 		case "workspace_start":
 			return color
 				? `${chalk.blue("→")} ${event.workspaceId} started`
@@ -230,9 +303,7 @@ function Header({ plan }: { plan: PlanState | null }): React.JSX.Element {
 				<>
 					<Text bold>Plan: {plan.title}</Text>
 					<Text dimColor>Phase: {plan.phase}</Text>
-					<Text dimColor>
-						Status: {formatStatus(plan.status)}
-					</Text>
+					<Text dimColor>Status: {formatStatus(plan.status)}</Text>
 					<Text> </Text>
 				</>
 			)}
@@ -252,6 +323,8 @@ function formatStatus(status: string): string {
 		case "failed":
 			return chalk.red(status);
 		case "paused":
+			return chalk.yellow(status);
+		case "awaiting_handoff":
 			return chalk.yellow(status);
 		default:
 			return status;
@@ -479,12 +552,14 @@ function App({
 	controlManager,
 	refreshMs,
 	onExit,
+	cwd,
 }: {
 	stateFile: string;
 	journalFile: string;
 	controlManager: ReturnType<typeof createPlanControlManager>;
 	refreshMs: number;
 	onExit: () => void;
+	cwd: string;
 }): React.JSX.Element {
 	const [state, setState] = useState<DashboardState>({
 		plan: null,
@@ -509,7 +584,11 @@ function App({
 				setState(newState);
 
 				// If plan completed/failed, exit after showing final state
-				if (newState.plan && newState.plan.status !== "running") {
+				if (
+					newState.plan &&
+					newState.plan.status !== "running" &&
+					newState.plan.status !== "awaiting_handoff"
+				) {
 					setTimeout(() => {
 						if (mounted) {
 							onExit();
@@ -533,8 +612,51 @@ function App({
 	useInput((input, key) => {
 		const now = Date.now();
 
-		// Worker selection: 1-9
-		if (input >= "1" && input <= "9") {
+		// Handoff dialog actions (only when awaiting_handoff)
+		if (state.plan?.status === "awaiting_handoff") {
+			if (input === "1") {
+				// Commit & finish
+				try {
+					execSync("npx tsx ../../src/plan-command-cli.ts plan handoff-commit", {
+						cwd: cwd,
+						stdio: "inherit",
+					});
+				} catch {
+					// Fall through
+				}
+				onExit();
+				return;
+			}
+			if (input === "2") {
+				// Keep editing
+				try {
+					execSync("npx tsx ../../src/plan-command-cli.ts plan handoff-keep", {
+						cwd: cwd,
+						stdio: "inherit",
+					});
+				} catch {
+					// Fall through
+				}
+				onExit();
+				return;
+			}
+			if (input === "3") {
+				// Discard
+				try {
+					execSync("npx tsx ../../src/plan-command-cli.ts plan handoff-discard", {
+						cwd: cwd,
+						stdio: "inherit",
+					});
+				} catch {
+					// Fall through
+				}
+				onExit();
+				return;
+			}
+		}
+
+		// Worker selection: 1-9 (only if not awaiting_handoff, since 1/2/3 are used for handoff)
+		if (state.plan?.status !== "awaiting_handoff" && input >= "1" && input <= "9") {
 			const index = Number.parseInt(input, 10) - 1;
 			if (state.plan) {
 				const data = deriveDashboardData(state.plan);
@@ -604,33 +726,40 @@ function App({
 			? data.activeWorkspaces.find((w) => w.id === selectedWorkerId)!
 			: data.activeWorkspaces[0] ?? null;
 
+	const isHandoff = state.plan.status === "awaiting_handoff";
+
 	return (
 		<Box flexDirection="column">
 			<Header plan={state.plan} />
 
-			{/* Workspace status */}
-			<Box flexDirection="column">
-				<Text bold>Workspace Status:</Text>
-				<Text>
-					  {chalk.green("●")} Complete: {chalk.bold(String(data.counts.complete))}
-				</Text>
-				<Text>
-					  {chalk.blue("●")} Active:   {chalk.bold(String(data.counts.active))}
-				</Text>
-				<Text>
-					  {chalk.yellow("●")} Pending:  {chalk.bold(String(data.counts.pending))}
-				</Text>
-				<Text>
-					  {chalk.yellow("●")} Blocked:  {chalk.bold(String(data.counts.blocked))}
-				</Text>
-				<Text>
-					  {chalk.red("●")} Failed:   {chalk.bold(String(data.counts.failed))}
-				</Text>
-				<Text> </Text>
-			</Box>
+			{/* Handoff dialog (shown when plan is awaiting_handoff) */}
+			{isHandoff && <HandoffDialog plan={state.plan} />}
+
+			{/* Workspace status (hide detailed status during handoff, show summary instead) */}
+			{!isHandoff && (
+				<Box flexDirection="column">
+					<Text bold>Workspace Status:</Text>
+					<Text>
+						  {chalk.green("●")} Complete: {chalk.bold(String(data.counts.complete))}
+					</Text>
+					<Text>
+						  {chalk.blue("●")} Active:   {chalk.bold(String(data.counts.active))}
+					</Text>
+					<Text>
+						  {chalk.yellow("●")} Pending:  {chalk.bold(String(data.counts.pending))}
+					</Text>
+					<Text>
+						  {chalk.yellow("●")} Blocked:  {chalk.bold(String(data.counts.blocked))}
+					</Text>
+					<Text>
+						  {chalk.red("●")} Failed:   {chalk.bold(String(data.counts.failed))}
+					</Text>
+					<Text> </Text>
+				</Box>
+			)}
 
 			{/* Active workers */}
-			{data.activeWorkspaces.length > 0 && (
+			{!isHandoff && data.activeWorkspaces.length > 0 && (
 				<WorkerPanel
 					workers={data.activeWorkspaces}
 					selectedId={selectedWorker?.id ?? null}
@@ -639,7 +768,7 @@ function App({
 			)}
 
 			{/* Selected worker detail */}
-			{selectedWorker && (
+			{!isHandoff && selectedWorker && (
 				<WorkerDetail worker={selectedWorker} plan={state.plan} events={state.recentEvents} />
 			)}
 
@@ -656,7 +785,14 @@ function App({
 			<StatusBar plan={state.plan} lastUpdate={state.lastUpdate} />
 
 			{/* Keyboard hints */}
-			<KeyHints />
+			{isHandoff ? (
+				<Box flexDirection="column">
+					<Text> </Text>
+					<Text dimColor>Handoff Keys: 1=Commit  2=Keep editing  3=Discard  q=Exit</Text>
+				</Box>
+			) : (
+				<KeyHints />
+			)}
 		</Box>
 	);
 }
@@ -715,6 +851,22 @@ function renderFallbackStatus(state: DashboardState): void {
 	lines.push(`Phase: ${plan.phase}`);
 	lines.push(`Status: ${plan.status}`);
 	lines.push("");
+
+	// Show handoff options in fallback mode
+	if (plan.status === "awaiting_handoff") {
+		lines.push("───────────────────────────────────────────────────────────");
+		lines.push("  Plan Handoff — Awaiting User Decision");
+		lines.push("───────────────────────────────────────────────────────────");
+		lines.push("");
+		lines.push("Actions:");
+		lines.push("  [1] Commit & finish — Rollup commit all changes & complete plan");
+		lines.push("  [2] Keep editing — Return plan to running status");
+		lines.push("  [3] Discard — Revert uncommitted workspace files & fail plan");
+		lines.push("");
+		lines.push("Run: pi plan handoff-commit | handoff-keep | handoff-discard");
+		lines.push("Plan will auto-commit after 30 minutes of inactivity");
+		lines.push("");
+	}
 
 	// Workspace status
 	lines.push("Workspace Status:");
@@ -818,6 +970,7 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 					controlManager={controlManager}
 					refreshMs={refreshMs}
 					onExit={handleExit}
+					cwd={cwd}
 				/>,
 			);
 			unmount = unmountFn;
@@ -860,7 +1013,7 @@ export async function planWatch(options: WatchOptions = {}): Promise<void> {
 				await new Promise((resolve) => setTimeout(resolve, refreshMs));
 
 				// Check if execution is complete
-				if (state.plan && state.plan.status !== "running") {
+				if (state.plan && state.plan.status !== "running" && state.plan.status !== "awaiting_handoff") {
 					running = false;
 				}
 			}

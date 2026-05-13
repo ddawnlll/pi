@@ -5,6 +5,7 @@
  * Detects placeholders, forbidden files, destructive commands, and security issues.
  */
 
+import type { RetryPolicy } from "./retry-handler.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { validateWorkspaceQueue } from "./workspace-schema.js";
@@ -297,6 +298,11 @@ export class SafetyDoctor {
 			}
 		}
 
+		// Validate retry policy if present
+		if (workspace.retryPolicy) {
+			issues.push(...this.validateRetryPolicy(workspace.retryPolicy, workspace.id));
+		}
+
 		return issues;
 	}
 
@@ -318,6 +324,44 @@ export class SafetyDoctor {
 			info,
 			totalIssues: issues.length,
 		};
+	}
+
+	/**
+	 * Validate retry policy thresholds
+	 *
+	 * Checks that flash escalation threshold is less than reviewer threshold.
+	 *
+	 * @param policy - Retry policy to validate
+	 * @param workspaceId - Workspace ID for context
+	 * @returns Array of safety issues
+	 */
+	private validateRetryPolicy(policy: RetryPolicy, workspaceId?: string): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+
+		const flash = policy.escalationThresholds.flash;
+		const reviewer = policy.escalationThresholds.reviewer;
+
+		if (flash >= reviewer) {
+			issues.push({
+				type: SafetyIssueType.InvalidConfig,
+				severity: SafetyIssueSeverity.Critical,
+				message: `Retry policy: flashEscalationAttempt (${flash}) must be less than reviewerEscalationAttempt (${reviewer})`,
+				workspaceId,
+				context: { flashEscalationAttempt: flash, reviewerEscalationAttempt: reviewer },
+			});
+		}
+
+		if (policy.escalationThresholds.final <= reviewer) {
+			issues.push({
+				type: SafetyIssueType.InvalidConfig,
+				severity: SafetyIssueSeverity.Warning,
+				message: `Retry policy: finalEscalationAttempt (${policy.escalationThresholds.final}) should be greater than reviewerEscalationAttempt (${reviewer})`,
+				workspaceId,
+				context: policy.escalationThresholds,
+			});
+		}
+
+		return issues;
 	}
 
 	/**

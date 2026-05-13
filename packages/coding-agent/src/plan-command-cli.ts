@@ -9,6 +9,9 @@ import {
 	planCancel,
 	planDoctor,
 	planDryRun,
+	planHandoffCommit,
+	planHandoffDiscard,
+	planHandoffKeep,
 	planOne,
 	planPause,
 	planResume,
@@ -105,6 +108,18 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 
 			case "cancel":
 				exitCode = await planCancel({ cwd, json });
+				break;
+
+			case "handoff-commit":
+				exitCode = await planHandoffCommit({ cwd, json });
+				break;
+
+			case "handoff-keep":
+				exitCode = await planHandoffKeep({ cwd, json });
+				break;
+
+			case "handoff-discard":
+				exitCode = await planHandoffDiscard({ cwd, json });
 				break;
 
 			default:

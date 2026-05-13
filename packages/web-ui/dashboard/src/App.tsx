@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
@@ -6,17 +6,19 @@ import {
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot,
 } from "lucide-react";
-import type { WorkerInfo, WorkspaceSummary } from "./types";
+import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
 import { useJournalStream } from "./hooks/useJournalStream";
 import { useProjects } from "./hooks/useProjects";
 import { usePlanExecutions, usePlanExecutionDetail, usePlanStats } from "./hooks/usePlanExecutions";
 import { usePlanEvents } from "./hooks/usePlanEvents";
+import { useToolCallEvents } from "./hooks/useToolCallEvents";
 import { useSettings } from "./hooks/useSettings";
 import { useTheme } from "./hooks/useTheme";
 import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
 import { WorkerDetail } from "./components/WorkerDetail";
+import { DiffViewer } from "./components/DiffViewer";
 import { OpenProjectDialog } from "./components/OpenProjectDialog";
 import { PlanUploadDialog } from "./components/PlanUploadDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -30,6 +32,7 @@ import { HistoryItem } from "./components/HistoryItem";
 import { StatCard } from "./components/StatCard";
 import { EventLine } from "./components/EventLine";
 import { ChatPanel } from "./components/ChatPanel";
+import { CommandsPanel } from "./components/CommandsPanel";
 import { formatTokens, formatCost, formatPercent } from "./utils/format";
 
 const API_BASE = "";
@@ -133,6 +136,7 @@ export function App() {
   const { data: planStats } = usePlanStats(selectedProjectId, selectedPlanExecId);
   const { budgets: contextBudgets } = useSettings();
   const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
+  const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
 
   useEffect(() => {
     if (!selectedPlanExecId && executions.length > 0) {
@@ -204,16 +208,7 @@ export function App() {
     ? activeEvents.filter((e: any) => e.type === "error" || e.level === "error")
     : activeEvents;
 
-  // Derive command lines from all workspace logs for the Commands dialog
-  const allCommandLines = useMemo(() =>
-    workers.map(w =>
-      activeEvents
-        .filter((e: any) => e.type === "log" && e.workspaceId === w.id && typeof e.message === "string")
-        .map((e: any) => e.message)
-        .filter((msg: string) => msg.startsWith("$ ") || msg.includes("tool_call") || msg.includes("tool_use") || msg.includes("<function=") || msg.includes("function_call"))
-    ).flat(),
-    [workers, activeEvents]
-  );
+
 
   if (isStartingUp) {
     return (
@@ -480,16 +475,16 @@ export function App() {
           >
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
-              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col`}
+              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 shrink-0">
                 <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Git Status</h2>
                 <button onClick={() => setShowGitDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
                   <X size={18} />
                 </button>
               </div>
-              <GitContent />
+              <GitContent workspaces={activeWorkspaces} planExecId={selectedPlanExecId} />
             </motion.div>
           </motion.div>
         )}
@@ -513,7 +508,7 @@ export function App() {
                   <X size={18} />
                 </button>
               </div>
-              <CommandsContent lines={allCommandLines} />
+              <CommandsPanel toolCalls={toolCalls} workspaceIds={activeWorkspaces.map(w => w.id)} />
             </motion.div>
           </motion.div>
         )}
@@ -524,9 +519,15 @@ export function App() {
 
 // ── git dialog content ──
 
-function GitContent() {
+type GitTabId = "overview" | "workspaces";
+
+function GitContent({ workspaces, planExecId }: { workspaces: WorkspaceSummary[]; planExecId: string | null }) {
+  const [activeTab, setActiveTab] = useState<GitTabId>("overview");
   const [gitData, setGitData] = useState<{ branch?: string; dirty?: boolean; log?: string; error?: string }>({});
   const [loading, setLoading] = useState(true);
+  // Per-workspace git diff cache
+  const [wsDiffs, setWsDiffs] = useState<Record<string, GitFilePatch[]>>({});
+  const [wsDiffsLoading, setWsDiffsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -535,26 +536,111 @@ function GitContent() {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch git diff patches for completed workspaces
+  useEffect(() => {
+    if (activeTab !== "workspaces" || !planExecId) return;
+    const completedWorkspaces = workspaces.filter(w => w.stage === "complete");
+    if (completedWorkspaces.length === 0) return;
+
+    setWsDiffsLoading(true);
+    const fetchPromises = completedWorkspaces.map(async ws => {
+      try {
+        const r = await fetch(`/api/projects/_/plans/${planExecId}/workspaces/${ws.id}/git-diff?format=patch`);
+        const data = await r.json();
+        return { wsId: ws.id, patches: data.patches ?? [] };
+      } catch {
+        return { wsId: ws.id, patches: [] };
+      }
+    });
+
+    Promise.all(fetchPromises).then(results => {
+      const diffMap: Record<string, GitFilePatch[]> = {};
+      for (const r of results) {
+        diffMap[r.wsId] = r.patches;
+      }
+      setWsDiffs(diffMap);
+      setWsDiffsLoading(false);
+    });
+  }, [activeTab, planExecId, workspaces]);
+
   if (loading) {
     return <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500 py-8 justify-center"><Loader2 size={14} className="animate-spin" /> Loading git data...</div>;
   }
 
-  if (gitData.error) {
-    return <div className="flex items-center justify-center h-32 text-xs text-stone-400 dark:text-stone-500">Git data unavailable: {gitData.error}</div>;
-  }
+  const tabs: { id: GitTabId; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "workspaces", label: "Workspace commits" },
+  ];
 
   return (
-    <div className="flex flex-col gap-4 text-xs text-stone-600 dark:text-stone-400 overflow-y-auto">
-      <div className="flex gap-4">
-        <div><span className="text-stone-400 dark:text-stone-500">Branch:</span> <span className="font-mono text-stone-800 dark:text-stone-200">{gitData.branch}</span></div>
-        <div><span className="text-stone-400 dark:text-stone-500">Dirty:</span> <span className={gitData.dirty ? "text-amber-600 dark:text-amber-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>{gitData.dirty ? "Yes" : "No"}</span></div>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-[#E8E6E1] dark:border-[#333] mb-4 shrink-0">
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`px-3 py-1.5 text-xs rounded-t transition-colors ${
+              activeTab === tab.id
+                ? "bg-[#EBF2FF] dark:bg-[#1A2A44] text-blue-700 dark:text-blue-300 border-b-2 border-blue-500 dark:border-blue-400"
+                : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-[#2A2A2A]"
+            }`}
+          >{tab.label}</button>
+        ))}
       </div>
-      <div>
-        <span className="text-stone-400 dark:text-stone-500 block mb-1">Recent commits:</span>
-        <pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 font-mono text-xs text-stone-700 dark:text-stone-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
-          {gitData.log || "No commits"}
-        </pre>
-      </div>
+
+      {/* Tab content */}
+      {activeTab === "overview" && (
+        <div className="flex flex-col gap-4 text-xs text-stone-600 dark:text-stone-400 overflow-y-auto">
+          {gitData.error ? (
+            <div className="flex items-center justify-center h-16 text-xs text-stone-400 dark:text-stone-500">
+              Git data unavailable: {gitData.error}
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-4">
+                <div><span className="text-stone-400 dark:text-stone-500">Branch:</span> <span className="font-mono text-stone-800 dark:text-stone-200">{gitData.branch}</span></div>
+                <div><span className="text-stone-400 dark:text-stone-500">Dirty:</span> <span className={gitData.dirty ? "text-amber-600 dark:text-amber-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>{gitData.dirty ? "Yes" : "No"}</span></div>
+              </div>
+              <div>
+                <span className="text-stone-400 dark:text-stone-500 block mb-1">Recent commits:</span>
+                <pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 font-mono text-xs text-stone-700 dark:text-stone-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {gitData.log || "No commits"}
+                </pre>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === "workspaces" && (
+        <div className="flex flex-col gap-3 text-xs overflow-y-auto">
+          {wsDiffsLoading && (
+            <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500 py-4 justify-center">
+              <Loader2 size={14} className="animate-spin" /> Loading workspace diffs...
+            </div>
+          )}
+          {!wsDiffsLoading && workspaces.filter(w => w.stage === "complete").length === 0 && (
+            <div className="flex items-center justify-center h-16 text-stone-400 dark:text-stone-500">
+              No completed workspaces yet
+            </div>
+          )}
+          {!wsDiffsLoading && workspaces.filter(w => w.stage === "complete").map(ws => {
+            const changes = wsDiffs[ws.id] ?? [];
+            return (
+              <div key={ws.id} className="border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
+                <div className="bg-stone-100 dark:bg-[#222] px-3 py-2 font-semibold text-stone-600 dark:text-stone-400 flex items-center gap-2">
+                  <span>{ws.id}</span>
+                  <span className="text-stone-400 dark:text-stone-500 font-normal">({changes.length} file{changes.length !== 1 ? "s" : ""} changed)</span>
+                </div>
+                {changes.length > 0 ? (
+                  <DiffViewer patches={changes} />
+                ) : (
+                  <div className="px-3 py-3 text-stone-400 dark:text-stone-500 italic">No uncommitted changes</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -569,15 +655,4 @@ async function fetchGitData(): Promise<{ branch?: string; dirty?: boolean; log?:
   }
 }
 
-// ── commands dialog content ──
 
-function CommandsContent({ lines }: { lines: string[] }) {
-  if (lines.length === 0) {
-    return <div className="flex items-center justify-center h-32 text-xs text-stone-400 dark:text-stone-500">No commands found in any workspace logs</div>;
-  }
-  return (
-    <div className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 font-mono text-xs text-stone-700 dark:text-stone-300 overflow-y-auto" style={{ maxHeight: "60vh" }}>
-      {lines.map((line, i) => <div key={i} className="whitespace-pre-wrap break-words py-0.5">{line}</div>)}
-    </div>
-  );
-}

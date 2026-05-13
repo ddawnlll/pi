@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { WorkerInfo, WorkspaceSummary } from "../types";
+import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt } from "../types";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
+import { DiffViewer } from "./DiffViewer";
 
 type TabId = "overview" | "tokens" | "git" | "commands";
 
@@ -19,6 +20,24 @@ const TABS: { id: TabId; label: string }[] = [
 
 export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [attempts, setAttempts] = useState<WorkspaceAttempt[]>([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+
+  // Fetch attempt history when workspace detail is available
+  useEffect(() => {
+    if (planExecId) {
+      setAttemptsLoading(true);
+      fetch(`/api/projects/_/plans/${planExecId}/workspaces/${worker.id}/attempts`)
+        .then(r => r.json())
+        .then(data => {
+          setAttempts(data.attempts ?? []);
+        })
+        .catch(() => {
+          setAttempts([]);
+        })
+        .finally(() => setAttemptsLoading(false));
+    }
+  }, [planExecId, worker.id]);
   const { lines, isConnected, isReconnecting, error: logError } = useWorkspaceLogStream(planExecId, worker.id);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -58,10 +77,11 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
         {activeTab === "overview" && (
           <OverviewTab worker={worker} workspace={workspace}
             lines={lines} isConnected={isConnected} isReconnecting={isReconnecting} logError={logError}
-            logContainerRef={logContainerRef} />
+            logContainerRef={logContainerRef} planExecId={planExecId}
+            attempts={attempts} attemptsLoading={attemptsLoading} />
         )}
         {activeTab === "tokens" && <TokensTab workspace={workspace} />}
-        {activeTab === "git" && <GitTab workspace={workspace} />}
+        {activeTab === "git" && <GitTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
         {activeTab === "commands" && <CommandsTab lines={lines} />}
       </div>
     </div>
@@ -70,10 +90,13 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, logError, logContainerRef }: {
+function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, logError, logContainerRef, planExecId, attempts, attemptsLoading }: {
   worker: WorkerInfo; workspace?: WorkspaceSummary; lines: string[];
   isConnected: boolean; isReconnecting: boolean; logError: string | null;
   logContainerRef: React.RefObject<HTMLDivElement | null>;
+  planExecId: string | null;
+  attempts: WorkspaceAttempt[];
+  attemptsLoading: boolean;
 }) {
   const now = Date.now();
   const lastActivityTs = workspace?.updatedAt ?? workspace?.startedAt ?? null;
@@ -101,6 +124,9 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
           </div>
         )}
       </div>
+
+      {/* Attempt History */}
+      <AttemptHistoryTable attempts={attempts} loading={attemptsLoading} />
 
       <div className="flex flex-col min-h-0 border-t border-[#E8E6E1] dark:border-[#333] pt-3">
         <div className="flex items-center justify-between mb-2 shrink-0 flex-wrap gap-1">
@@ -148,11 +174,42 @@ function TokensTab({ workspace }: { workspace?: WorkspaceSummary }) {
 
 // ── Git Tab ───────────────────────────────────────────────────────────────────
 
-function GitTab({ workspace }: { workspace?: WorkspaceSummary }) {
-  const { gitBranch: branch, gitDirty: dirty, gitCommits: commits } = workspace ?? {};
-  if (!branch && dirty === undefined && (!commits || commits.length === 0)) {
+function GitTab({ workspace, planExecId, workerId }: { workspace?: WorkspaceSummary; planExecId: string | null; workerId: string }) {
+  const { gitBranch: branch, gitDirty: dirty, gitCommits: commits, stage } = workspace ?? {};
+  const [patches, setPatches] = useState<GitFilePatch[]>([]);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [useTableView, setUseTableView] = useState(false);
+
+  // Fetch git diff patches for completed workspaces
+  useEffect(() => {
+    if (stage === "complete" && planExecId) {
+      setDiffLoading(true);
+      setDiffError(null);
+      fetch(`/api/projects/_/plans/${planExecId}/workspaces/${workerId}/git-diff?format=patch`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error && !data.patches?.length) {
+            setDiffError(data.error);
+            setPatches([]);
+          } else {
+            setPatches(data.patches ?? []);
+          }
+        })
+        .catch(err => {
+          setDiffError(String(err));
+          setPatches([]);
+        })
+        .finally(() => setDiffLoading(false));
+    }
+  }, [stage, planExecId, workerId]);
+
+  if (!branch && dirty === undefined && (!commits || commits.length === 0) && patches.length === 0 && !diffLoading && !diffError) {
     return <div className="flex items-center justify-center h-32 text-stone-400 dark:text-stone-500 text-xs pt-3">Git data unavailable</div>;
   }
+
+  const isPending = stage !== "complete" && stage !== "failed";
+
   return (
     <div className="text-xs space-y-3 text-stone-600 dark:text-stone-400 pt-3">
       {branch && <Row label="Branch" value={branch} />}
@@ -162,6 +219,80 @@ function GitTab({ workspace }: { workspace?: WorkspaceSummary }) {
           {commits.map((c, i) => <div key={i} className="font-mono truncate text-stone-600 dark:text-stone-400">{c}</div>)}
         </div>
       )}
+
+      {/* Diff section */}
+      <div className="pt-2 border-t border-[#E8E6E1] dark:border-[#333]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-stone-400 dark:text-stone-500 font-semibold">File changes:</span>
+          {!isPending && patches.length > 0 && (
+            <button
+              onClick={() => setUseTableView(!useTableView)}
+              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {useTableView ? "Show diff view" : "Show table view"}
+            </button>
+          )}
+        </div>
+
+        {diffLoading && <div className="text-stone-400 dark:text-stone-500 italic">Loading...</div>}
+        {diffError && !diffLoading && <div className="text-amber-600 dark:text-amber-400 italic">{diffError}</div>}
+
+        {!diffLoading && !diffError && isPending && (
+          <DiffViewer patches={[]} pending={true} />
+        )}
+
+        {!diffLoading && !diffError && !isPending && patches.length === 0 && (
+          <div className="text-stone-400 dark:text-stone-500 italic">No uncommitted changes</div>
+        )}
+
+        {!diffLoading && !diffError && !isPending && patches.length > 0 && !useTableView && (
+          <DiffViewer patches={patches} />
+        )}
+
+        {!diffLoading && !diffError && !isPending && patches.length > 0 && useTableView && (
+          <TableView patches={patches} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TableView({ patches }: { patches: GitFilePatch[] }) {
+  return (
+    <div className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-stone-100 dark:bg-[#222] text-stone-500 dark:text-stone-400">
+            <th className="text-left px-2 py-1 font-medium">File</th>
+            <th className="text-center px-2 py-1 font-medium w-16">Status</th>
+            <th className="text-right px-2 py-1 font-medium w-12">+</th>
+            <th className="text-right px-2 py-1 font-medium w-12">-</th>
+          </tr>
+        </thead>
+        <tbody>
+          {patches.map(fc => {
+            const addCount = (fc.patch.match(/^\+/gm) || []).length;
+            const delCount = (fc.patch.match(/^-/gm) || []).length;
+            return (
+              <tr key={fc.path} className="border-t border-[#E8E6E1] dark:border-[#333]">
+                <td className="px-2 py-1 font-mono text-stone-700 dark:text-stone-300 truncate max-w-[200px]" title={fc.path}>{fc.path}</td>
+                <td className="px-2 py-1 text-center">
+                  <span className={{
+                    added: "text-emerald-600 dark:text-emerald-400",
+                    modified: "text-amber-600 dark:text-amber-400",
+                    deleted: "text-red-600 dark:text-red-400",
+                    renamed: "text-blue-600 dark:text-blue-400",
+                    copied: "text-violet-600 dark:text-violet-400",
+                    unmerged: "text-orange-600 dark:text-orange-400",
+                  }[fc.status] ?? "text-stone-500"}>{fc.status}</span>
+                </td>
+                <td className="px-2 py-1 text-right text-emerald-600 dark:text-emerald-400 font-mono">{addCount > 0 ? `+${addCount}` : ""}</td>
+                <td className="px-2 py-1 text-right text-red-600 dark:text-red-400 font-mono">{delCount > 0 ? `-${delCount}` : ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -177,6 +308,114 @@ function CommandsTab({ lines }: { lines: string[] }) {
       {cmdLines.map((l, i) => <div key={i} className="whitespace-pre-wrap break-words">{l}</div>)}
     </div>
   );
+}
+
+// ── Attempt History Table ──────────────────────────────────────────────────────
+
+function AttemptHistoryTable({ attempts, loading }: { attempts: WorkspaceAttempt[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+        <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400 mb-2">Attempt History</h3>
+        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
+          <span className="w-3 h-3 border-2 border-stone-400 dark:border-stone-500 border-t-transparent rounded-full animate-spin" />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  if (attempts.length === 0) {
+    return null;
+  }
+
+  // Single-attempt success: show compact without expanded history
+  const isSingleSuccess = attempts.length === 1 && attempts[0].verdict === "complete";
+
+  if (isSingleSuccess) {
+    const a = attempts[0];
+    return (
+      <div className="border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+        <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400 mb-2">Attempt History</h3>
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <RoleBadge role={a.role} />
+          <span>{formatDuration(a.duration)}</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Complete</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+      <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400 mb-2">Attempt History</h3>
+      <div className="space-y-1.5">
+        {attempts.map((a) => (
+          <AttemptRow key={a.attempt} attempt={a} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AttemptRow({ attempt: a }: { attempt: WorkspaceAttempt }) {
+  const isRunning = a.verdict === "running";
+
+  return (
+    <div className="flex items-start gap-2 py-1.5 px-2 rounded bg-stone-50 dark:bg-[#1A1A1A] border border-[#E8E6E1] dark:border-[#333]">
+      <RoleBadge role={a.role} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <span>Attempt {a.attempt}</span>
+          {a.duration != null && <span>{formatDuration(a.duration)}</span>}
+          <VerdictBadge verdict={a.verdict} />
+        </div>
+        {isRunning && (
+          <div className="flex items-center gap-1 mt-1">
+            <span className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-amber-600 dark:text-amber-400">In progress...</span>
+          </div>
+        )}
+        {a.error && !isRunning && (
+          <div className="mt-1 text-xs text-red-600 dark:text-red-400 truncate max-w-full" title={a.error}>
+            {a.error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RoleBadge({ role }: { role: WorkspaceAttempt["role"] }) {
+  const colors: Record<string, string> = {
+    worker: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+    flash: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+    reviewer: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+    final: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+  };
+  return (
+    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide shrink-0 ${colors[role] || colors.worker}`}>
+      {role}
+    </span>
+  );
+}
+
+function VerdictBadge({ verdict }: { verdict: WorkspaceAttempt["verdict"] }) {
+  const colors: Record<string, string> = {
+    complete: "text-emerald-600 dark:text-emerald-400",
+    failed: "text-red-600 dark:text-red-400",
+    running: "text-amber-600 dark:text-amber-400",
+  };
+  return <span className={`font-medium ${colors[verdict] || "text-stone-500"}`}>{verdict}</span>;
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms == null) return "--";
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}m ${secs}s`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -195,6 +195,35 @@ export class WorkspaceAgentExecutor {
 				});
 			});
 
+			// Track tool calls for journal events
+			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
+			session.subscribe((event) => {
+				if (event.type === "tool_execution_start") {
+					pendingToolCalls.set(event.toolCallId, {
+						toolName: event.toolName,
+						args: event.args,
+					});
+				} else if (event.type === "tool_execution_end") {
+					const pending = pendingToolCalls.get(event.toolCallId);
+					if (pending && this.stateStore && this.planExecutionId) {
+						const input =
+							typeof pending.args === "object" && pending.args !== null
+								? (pending.args as Record<string, unknown>)
+								: { value: String(pending.args) };
+						this.stateStore
+							.appendJournalEvent(this.planExecutionId, pending.toolName, input, {
+								isError: event.isError,
+								errorMessage: event.isError ? JSON.stringify(event.result) : undefined,
+								result: event.isError ? undefined : event.result,
+							})
+							.catch((err: unknown) => {
+								console.error("[workspace-agent-executor] Failed to emit tool_call journal event:", err);
+							});
+						pendingToolCalls.delete(event.toolCallId);
+					}
+				}
+			});
+
 			// Run the agent with the prompt
 			log("Starting agent execution...");
 			await session.prompt(prompt);

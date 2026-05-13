@@ -96,20 +96,11 @@ export class AutoCommit {
 
 		// Check if workspace has capability manifest
 		if (workspace.capabilities) {
-			// Check for forbidden file modifications
+			// Check for explicitly forbidden file modifications (cannotEdit)
 			const forbiddenFilesDirty: string[] = [];
 
 			for (const file of changedFiles) {
-				// Check if file is in cannotEdit list
 				if (workspace.capabilities.cannotEdit.some((pattern) => this.matchesPattern(file, pattern))) {
-					forbiddenFilesDirty.push(file);
-				}
-
-				// Check if file is NOT in canEdit list (when canEdit is specified)
-				if (
-					workspace.capabilities.canEdit.length > 0 &&
-					!workspace.capabilities.canEdit.some((pattern) => this.matchesPattern(file, pattern))
-				) {
 					forbiddenFilesDirty.push(file);
 				}
 			}
@@ -122,7 +113,9 @@ export class AutoCommit {
 				};
 			}
 
-			// Filter files to only those allowed by capability manifest
+			// Filter files to only those allowed by capability manifest.
+			// Files outside canEdit are simply excluded (not forbidden) —
+			// they will remain uncommitted rather than blocking the commit.
 			const filesToCommit = changedFiles.filter((file) => {
 				// If canEdit is empty, allow all files not in cannotEdit
 				if (workspace.capabilities!.canEdit.length === 0) {
@@ -149,11 +142,16 @@ export class AutoCommit {
 	/**
 	 * Commit workspace changes
 	 *
+	 * Stages only files matching the workspace capability manifest (canEdit)
+	 * and creates a single commit with a descriptive message.
+	 * Never pushes, never merges.
+	 *
 	 * @param workspace - Workspace specification
 	 * @param state - Workspace state
+	 * @param phase - Phase identifier (e.g. "2") for commit message
 	 * @returns Commit result
 	 */
-	async commit(workspace: Workspace, state: WorkspaceState): Promise<CommitResult> {
+	async commit(workspace: Workspace, state: WorkspaceState, phase?: string): Promise<CommitResult> {
 		// Validate commit
 		const validation = await this.validateCommit(workspace, state);
 
@@ -178,8 +176,9 @@ export class AutoCommit {
 			}
 
 			// Generate commit message
+			const phaseStr = phase ?? "2";
 			const shortTitle = workspace.title.slice(0, 50);
-			const commitMessage = `feat(p2): complete workspace ${workspace.id} ${shortTitle}`;
+			const commitMessage = `feat(p${phaseStr}): complete workspace ${workspace.id} — ${shortTitle}`;
 
 			// Commit
 			const { stdout } = await execAsync(`git commit -m "${commitMessage}"`, { cwd: this.workspaceRoot });
@@ -212,6 +211,68 @@ export class AutoCommit {
 	}
 
 	/**
+	 * Commit a rollup of all staged files from the entire plan.
+	 *
+	 * Stages all modified files (regardless of individual workspace canEdit
+	 * boundaries) into a single plan-level commit. This is called after
+	 * all workspaces are complete.
+	 * Never pushes, never merges.
+	 *
+	 * @param phase - Phase identifier (e.g. "2") for commit message
+	 * @param planTitle - Plan title for commit message
+	 * @returns Commit result
+	 */
+	async commitPlan(phase?: string, planTitle?: string): Promise<CommitResult> {
+		try {
+			// Get git status to find all changes
+			const status = await this.getGitStatus();
+			const allChanges = [...status.modified, ...status.added, ...status.deleted];
+
+			if (allChanges.length === 0) {
+				return {
+					success: false,
+					reason: "No changes to commit",
+				};
+			}
+
+			// Stage all changes
+			await execAsync("git add -A", { cwd: this.workspaceRoot });
+
+			// Generate commit message
+			const phaseStr = phase ?? "2";
+			const title = planTitle ?? "Plan execution complete";
+			const commitMessage = `feat(p${phaseStr}): complete plan — ${title}`;
+
+			// Commit
+			const { stdout } = await execAsync(`git commit -m "${commitMessage}"`, { cwd: this.workspaceRoot });
+
+			// Extract commit hash
+			const hashMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
+			const commitHash = hashMatch ? hashMatch[1] : undefined;
+
+			return {
+				success: true,
+				commitHash,
+				committedFiles: allChanges,
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			if (errorMessage.includes("nothing to commit")) {
+				return {
+					success: false,
+					reason: "No changes to commit (git reported nothing to commit)",
+				};
+			}
+
+			return {
+				success: false,
+				reason: `Git rollup commit failed: ${errorMessage}`,
+			};
+		}
+	}
+
+	/**
 	 * Get git status
 	 *
 	 * @returns Git status with modified, added, and deleted files
@@ -222,7 +283,9 @@ export class AutoCommit {
 		deleted: string[];
 	}> {
 		try {
-			const { stdout } = await execAsync("git status --porcelain", { cwd: this.workspaceRoot });
+			const { stdout } = await execAsync("git status --porcelain --untracked-files=all", {
+				cwd: this.workspaceRoot,
+			});
 
 			const modified: string[] = [];
 			const added: string[] = [];

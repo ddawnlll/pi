@@ -6,15 +6,18 @@
  * through the web API.
  */
 
+import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	AutonomousExecutor,
 	createSafetyDoctor,
+	PiLogger,
 	parsePlan,
 	type WorkspaceQueue,
 } from "@earendil-works/pi-coding-agent";
+import { initializePlanMarkdown, updatePlanMarkdown } from "./plan-markdown.js";
 import { getStateStore } from "./state-store-provider.js";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +78,96 @@ const EXECUTION_TTL_MS = 30 * 60 * 1000;
 // Map to track cleanup timers
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
+// ---------------------------------------------------------------------------
+// WorkspaceCompletionBus - Event-driven workspace completion signaling
+// ---------------------------------------------------------------------------
+
+/**
+ * An EventEmitter-based bus that signals when a workspace completes or
+ * the execution is stopped/resumed. Replaces all setTimeout polling in
+ * the execution loop with await-based event waiting.
+ *
+ * Stores the last signal so it is not lost if sent before nextCompletion()
+ * is called (handles race between API handler and loop wait).
+ */
+class WorkspaceCompletionBus extends EventEmitter {
+	private pendingNext: { resolve: (value: boolean) => void } | null = null;
+	private lastSignal: boolean | null = null;
+
+	/**
+	 * Wait for the next completion or stop signal.
+	 * @returns true if a normal completion/resume occurred, false if stopped/cancelled
+	 */
+	async nextCompletion(): Promise<boolean> {
+		// If a signal was previously sent, consume it immediately
+		if (this.lastSignal !== null) {
+			const signal = this.lastSignal;
+			this.lastSignal = null;
+			return signal;
+		}
+		return new Promise<boolean>((resolve) => {
+			this.pendingNext = { resolve };
+		});
+	}
+
+	/** Signal that a workspace completed */
+	signalCompletion(): void {
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(true);
+		} else {
+			this.lastSignal = true;
+		}
+	}
+
+	/** Signal stop - resolves any pending nextCompletion with false */
+	signalStop(): void {
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(false);
+		} else {
+			this.lastSignal = false;
+		}
+	}
+}
+
+/**
+ * Per-execution completion bus instances.
+ */
+const completionBuses = new Map<string, WorkspaceCompletionBus>();
+
+/**
+ * Get or create a WorkspaceCompletionBus for the given execution.
+ */
+function getCompletionBus(planExecId: string): WorkspaceCompletionBus {
+	let bus = completionBuses.get(planExecId);
+	if (!bus) {
+		bus = new WorkspaceCompletionBus();
+		completionBuses.set(planExecId, bus);
+	}
+	return bus;
+}
+
+/**
+ * Signal an event on the execution's completion bus from outside
+ * the execution loop (e.g., from the API control handler).
+ *
+ * @param planExecId - Plan execution ID
+ * @param event - Event type: "complete" signals workspace completion/resume,
+ *                "stop" signals stop/cancel to break out of any pending wait
+ */
+export function signalExecutionEvent(planExecId: string, event: "complete" | "stop"): void {
+	const bus = completionBuses.get(planExecId);
+	if (!bus) return;
+	if (event === "stop") {
+		bus.signalStop();
+	} else {
+		bus.signalCompletion();
+	}
+}
+
 /**
  * Set of projectIds that currently have an in-flight runPlan() call.
  * Guards against concurrent initialization of the same project.
@@ -100,7 +193,7 @@ async function deleteExecutionSnapshots(planExecId: string): Promise<void> {
 		await unlink(metaPath);
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-			console.warn(`[plan-runner] Failed to delete meta file for ${planExecId}: ${error}`);
+			new PiLogger({ planExecId }).warn(`Failed to delete meta file for ${planExecId}: ${error}`);
 		}
 	}
 
@@ -110,7 +203,7 @@ async function deleteExecutionSnapshots(planExecId: string): Promise<void> {
 		await unlink(queuePath);
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-			console.warn(`[plan-runner] Failed to delete queue snapshot for ${planExecId}: ${error}`);
+			new PiLogger({ planExecId }).warn(`Failed to delete queue snapshot for ${planExecId}: ${error}`);
 		}
 	}
 
@@ -195,7 +288,7 @@ function scheduleExecutionCleanup(planExecId: string): void {
 
 	// Schedule new cleanup
 	const timer = setTimeout(() => {
-		console.log(`[plan-runner] Cleaning up completed execution ${planExecId} after TTL`);
+		new PiLogger({ planExecId }).info(`Cleaning up completed execution ${planExecId} after TTL`);
 		activeExecutions.delete(planExecId);
 		cleanupTimers.delete(planExecId);
 	}, EXECUTION_TTL_MS);
@@ -219,7 +312,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	// AC #5: If there's already a running execution for this project, return it
 	const existingRunning = getActiveExecutions(projectId).find((e) => e.status === "running");
 	if (existingRunning) {
-		console.log(`[plan-runner] Project ${projectId} already has a running execution, returning existing`);
+		new PiLogger().info(`Project ${projectId} already has a running execution, returning existing`);
 		return {
 			success: true,
 			planExecId: existingRunning.planExecId,
@@ -229,7 +322,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 
 	// AC #1 & AC #2: Guard against concurrent runPlan calls per projectId
 	if (inFlightProjects.has(projectId)) {
-		console.log(`[plan-runner] Project ${projectId} is already being initialized, rejecting duplicate`);
+		new PiLogger().info(`Project ${projectId} is already being initialized, rejecting duplicate`);
 		return {
 			success: false,
 			errors: [
@@ -257,8 +350,8 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			};
 		}
 
-		console.log(`[plan-runner] Starting plan execution for project ${projectId}`);
-		console.log(`[plan-runner] Workspace root: ${workspaceRoot}`);
+		new PiLogger().info(`Starting plan execution for project ${projectId}`);
+		new PiLogger().info(`Workspace root: ${workspaceRoot}`);
 
 		// Parse the plan
 		const parseResult = parsePlan(planContent);
@@ -331,7 +424,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 
 		// Start execution in background (do not await)
 		executePlanInBackground(executor, parseResult.queue, planExecutionId, workspaceRoot).catch((error) => {
-			console.error(`[plan-runner] Background execution failed:`, error);
+			new PiLogger({ planExecId: planExecutionId }).error(`Background execution failed: ${error}`);
 			updateExecutionStatus(planExecutionId, "failed", String(error));
 		});
 
@@ -436,7 +529,7 @@ async function executePlanInBackground(
 	const log = async (message: string) => {
 		const timestamp = new Date().toISOString();
 		const logLine = `[${timestamp}] ${message}\n`;
-		console.log(`[plan-runner] ${message}`);
+		new PiLogger({ planExecId }).info(message);
 
 		try {
 			// Write to log file (append-only)
@@ -456,6 +549,9 @@ async function executePlanInBackground(
 			scheduleFlush();
 		}
 	};
+
+	// Create event bus for this execution
+	const completionBus = getCompletionBus(planExecId);
 
 	try {
 		// Verify workspace directory exists or create it
@@ -490,6 +586,27 @@ async function executePlanInBackground(
 		// Persist the workspace queue for crash recovery
 		await persistWorkspaceQueue(workspaceRoot, planExecId, queue);
 
+		// Initialize the living plan markdown (clone plan file with status header)
+		try {
+			const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+			if (meta) {
+				const plansDir = join(workspaceRoot, ".pi", "plans");
+				const planFilePath = join(plansDir, meta.planFile);
+				const planContent = await readFile(planFilePath, "utf-8");
+				await initializePlanMarkdown(
+					join(workspaceRoot, ".pi"),
+					planExecId,
+					planContent,
+					new Date(meta.startedAt).toISOString(),
+				);
+				await log(`Living plan markdown initialized: ${planExecId}.md`);
+			}
+		} catch (error) {
+			await log(
+				`WARNING: Failed to initialize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+
 		while (!executor.isExecutionComplete()) {
 			iteration++;
 			await log(`\n=== Iteration ${iteration} ===`);
@@ -510,22 +627,17 @@ async function executePlanInBackground(
 					const planState = executor.getState();
 					if (planState && planState.status === "paused") {
 						updateExecutionStatus(planExecId, "paused");
-						// 2. Paused status enters 500ms poll-wait loop
-						await log(`Plan paused, entering poll-wait loop (500ms interval)...`);
-						while (true) {
-							await new Promise((resolve) => setTimeout(resolve, 500));
-							await executor.loadState();
-							const currentExec = activeExecutions.get(planExecId);
-							if (!currentExec || currentExec.status === "stopped" || currentExec.status === "cancelled") {
-								break;
-							}
-							if (currentExec.status === "running" || currentExec.status === "complete") {
-								// 5. Resume within 1 poll interval
-								break;
-							}
-						}
+						// 2. Paused status awaits resumed/stopped event instead of polling
+						await log(`Plan paused, waiting for resume or stop event...`);
+						const shouldContinue = await completionBus.nextCompletion();
+						await executor.loadState();
 						const finalState = executor.getState();
-						if (finalState && (finalState.status === "stopped" || finalState.status === "cancelled")) {
+						if (
+							!shouldContinue ||
+							!finalState ||
+							finalState.status === "stopped" ||
+							finalState.status === "cancelled"
+						) {
 							// 4. Stop while paused exits cleanly
 							await log(`Execution stopped while paused`);
 							return;
@@ -567,7 +679,11 @@ async function executePlanInBackground(
 				// If there are active workspaces, wait for them to complete
 				if (stats && stats.active > 0) {
 					await log(`Waiting for ${stats.active} active workspace(s) to complete...`);
-					await new Promise((resolve) => setTimeout(resolve, 100));
+					const shouldContinue = await completionBus.nextCompletion();
+					if (!shouldContinue) {
+						await log(`Execution stopped while waiting for active workspaces`);
+						return;
+					}
 					continue;
 				}
 				// No workspaces to schedule and none active - execution is complete
@@ -588,8 +704,30 @@ async function executePlanInBackground(
 				} else if (result.verdict === "FAILED") {
 					failedCount++;
 				}
+
+				// Update living plan markdown with workspace result
+				try {
+					const attempts = executor.getState()?.workspaces.get(result.workspaceId)?.attempts ?? 1;
+					const eventType = result.success
+						? "workspace-complete"
+						: result.verdict === "BLOCKED"
+							? "workspace-blocked"
+							: "workspace-failed";
+					await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, {
+						type: eventType,
+						workspaceId: result.workspaceId,
+						attempts,
+					});
+				} catch (error) {
+					await log(
+						`WARNING: Failed to update plan markdown: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				}
 			}
 		}
+
+		// Signal completion so any pending nextCompletion() resolves
+		completionBus.signalCompletion();
 
 		// Check final state before completing
 		const finalState = executor.getState();
@@ -606,11 +744,27 @@ async function executePlanInBackground(
 		if (failedCount === 0) {
 			await log(`\n=== Execution Complete ===`);
 			await log(summary);
+			// Update living plan markdown to complete state before plan completion
+			try {
+				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-complete" });
+			} catch (error) {
+				await log(
+					`WARNING: Failed to finalize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
 			await executor.completePlan();
 			updateExecutionStatus(planExecId, "complete");
 		} else {
 			await log(`\n=== Execution Failed ===`);
 			await log(summary);
+			// Update living plan markdown to failed state before plan failure
+			try {
+				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-failed" });
+			} catch (error) {
+				await log(
+					`WARNING: Failed to finalize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
 			await executor.failPlan(`${failedCount} workspace(s) failed`);
 			updateExecutionStatus(planExecId, "failed", `${failedCount} workspace(s) failed`);
 		}
@@ -618,10 +772,19 @@ async function executePlanInBackground(
 		const errorMsg = error instanceof Error ? error.message : String(error);
 		await log(`\n=== Execution Error ===`);
 		await log(`Fatal error: ${errorMsg}`);
+		// Update living plan markdown to failed state on unexpected error
+		try {
+			await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-failed" });
+		} catch (mdError) {
+			await log(
+				`WARNING: Failed to update plan markdown after error: ${mdError instanceof Error ? mdError.message : String(mdError)}`,
+			);
+		}
 		updateExecutionStatus(planExecId, "failed", errorMsg);
 	} finally {
 		cancelFlushTimer();
 		await flushLogBuffer().catch(() => {});
+		completionBuses.delete(planExecId);
 	}
 }
 
@@ -676,7 +839,7 @@ export async function resumeStrandedExecutions(
 ): Promise<number> {
 	const piDir = join(workspaceRoot, ".pi");
 
-	console.log(`[plan-runner] Scanning for stranded executions in ${piDir}`);
+	new PiLogger().info(`Scanning for stranded executions in ${piDir}`);
 
 	// Scan for all workspace queue snapshots
 	let queueFiles: string[] = [];
@@ -684,16 +847,16 @@ export async function resumeStrandedExecutions(
 		const files = await readdir(piDir);
 		queueFiles = files.filter((f) => f.endsWith(`.${QUEUE_SNAPSHOT_FILE}`));
 	} catch {
-		console.log(`[plan-runner] No .pi directory found, skipping recovery`);
+		new PiLogger().info(`No .pi directory found, skipping recovery`);
 		return 0;
 	}
 
 	if (queueFiles.length === 0) {
-		console.log(`[plan-runner] No queue snapshots found, nothing to recover`);
+		new PiLogger().info(`No queue snapshots found, nothing to recover`);
 		return 0;
 	}
 
-	console.log(`[plan-runner] Found ${queueFiles.length} queue snapshot(s), attempting recovery`);
+	new PiLogger().info(`Found ${queueFiles.length} queue snapshot(s), attempting recovery`);
 
 	let recovered = 0;
 	for (const queueFile of queueFiles) {
@@ -702,7 +865,7 @@ export async function resumeStrandedExecutions(
 
 		// Check if this execution is already tracked as active/running
 		if (activeExecutions.has(planExecId)) {
-			console.log(`[plan-runner] Execution ${planExecId} already active, skipping`);
+			new PiLogger({ planExecId }).info(`Execution ${planExecId} already active, skipping`);
 			continue;
 		}
 
@@ -712,7 +875,7 @@ export async function resumeStrandedExecutions(
 		}
 	}
 
-	console.log(`[plan-runner] Recovery complete: ${recovered} execution(s) resumed`);
+	new PiLogger().info(`Recovery complete: ${recovered} execution(s) resumed`);
 	return recovered;
 }
 
@@ -728,13 +891,15 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	// Load the plan state to check if it's terminal
 	const planState = await stateStore.loadState(planExecId);
 	if (!planState) {
-		console.log(`[plan-runner] No state found for ${planExecId}, skipping recovery`);
+		new PiLogger({ planExecId }).info(`No state found for ${planExecId}, skipping recovery`);
 		return false;
 	}
 
 	// If already terminal, nothing to recover — clean up orphaned snapshot files
 	if (planState.status === "complete" || planState.status === "failed" || planState.status === "cancelled") {
-		console.log(`[plan-runner] Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`);
+		new PiLogger({ planExecId }).info(
+			`Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`,
+		);
 		await deleteExecutionSnapshots(planExecId);
 		return false;
 	}
@@ -744,7 +909,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 
 	// If no queue snapshot, try to reconstruct from the plan file
 	if (!queue) {
-		console.log(`[plan-runner] No queue snapshot found for ${planExecId}, attempting to parse plan file`);
+		new PiLogger({ planExecId }).info(`No queue snapshot found for ${planExecId}, attempting to parse plan file`);
 		const plansDir = join(piDir, "plans");
 
 		// Check meta file first for the exact plan file to use
@@ -755,9 +920,11 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 			// Use the plan file referenced in the meta file
 			try {
 				planContent = await readFile(join(plansDir, meta.planFile), "utf-8");
-				console.log(`[plan-runner] Found plan file from meta: ${meta.planFile}`);
+				new PiLogger({ planExecId }).info(`Found plan file from meta: ${meta.planFile}`);
 			} catch {
-				console.log(`[plan-runner] Meta referenced ${meta.planFile} but file not found, falling back to scan`);
+				new PiLogger({ planExecId }).info(
+					`Meta referenced ${meta.planFile} but file not found, falling back to scan`,
+				);
 			}
 		}
 
@@ -775,19 +942,19 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		}
 
 		if (!planContent) {
-			console.error(`[plan-runner] Cannot recover ${planExecId}: no queue snapshot and no plan file found`);
+			new PiLogger({ planExecId }).error(`Cannot recover ${planExecId}: no queue snapshot and no plan file found`);
 			return false;
 		}
 
 		// Parse the plan
 		const parseResult = parsePlan(planContent);
 		if (!parseResult.success || !parseResult.queue) {
-			console.error(`[plan-runner] Cannot recover ${planExecId}: failed to parse plan file`);
+			new PiLogger({ planExecId }).error(`Cannot recover ${planExecId}: failed to parse plan file`);
 			return false;
 		}
 
 		queue = parseResult.queue;
-		console.log(`[plan-runner] Reconstructed queue from plan file for ${planExecId}`);
+		new PiLogger({ planExecId }).info(`Reconstructed queue from plan file for ${planExecId}`);
 	}
 
 	// Re-use the same max-workers from the original plan
@@ -805,7 +972,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	const adopted = await executor.adoptExistingExecution(planExecId, queue);
 	if (!adopted) {
 		// Already terminal or no state — nothing to do
-		console.log(`[plan-runner] Failed to adopt execution ${planExecId}`);
+		new PiLogger({ planExecId }).info(`Failed to adopt execution ${planExecId}`);
 		return false;
 	}
 
@@ -828,10 +995,10 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 
 	// Start execution in background
 	executePlanInBackground(executor, queue, planExecId, workspaceRoot).catch((error) => {
-		console.error(`[plan-runner] Background execution (recovered) failed:`, error);
+		new PiLogger({ planExecId }).error(`Background execution (recovered) failed: ${error}`);
 		updateExecutionStatus(planExecId, "failed", String(error));
 	});
 
-	console.log(`[plan-runner] Recovered stranded execution ${planExecId} (${queue.title})`);
+	new PiLogger({ planExecId }).info(`Recovered stranded execution ${planExecId} (${queue.title})`);
 	return true;
 }

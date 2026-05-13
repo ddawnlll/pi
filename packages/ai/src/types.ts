@@ -41,6 +41,7 @@ export type KnownProvider =
 	| "minimax-cn"
 	| "moonshotai"
 	| "moonshotai-cn"
+	| "neotokens"
 	| "huggingface"
 	| "fireworks"
 	| "together"

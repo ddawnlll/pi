@@ -1,5 +1,11 @@
 // State store interface and implementations
 
+export {
+	AutoCommit,
+	type CommitResult,
+	type CommitValidation,
+	createAutoCommit,
+} from "./core/auto-commit.js";
 // P2 Plan execution
 export {
 	AutonomousExecutor,
@@ -31,6 +37,7 @@ export {
 	type ProjectSummary,
 	type StateStoreBackend,
 	type StateStoreConfig,
+	type WorkspaceAttempt,
 } from "./core/state-store.js";
 export {
 	type AgentExecutionResult,
@@ -464,5 +471,6 @@ export {
 // Clipboard utilities
 export { copyToClipboard } from "./utils/clipboard.js";
 export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
+export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
 // Shell utilities
 export { getShellConfig } from "./utils/shell.js";

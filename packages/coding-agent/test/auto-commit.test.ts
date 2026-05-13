@@ -114,14 +114,15 @@ describe("AutoCommit", () => {
 			expect(validation.forbiddenFilesDirty).toContain(".env");
 		});
 
-		it("should block commit for files not in canEdit list", async () => {
+		it("should exclude files not in canEdit list from commit", async () => {
 			// Create a file outside allowed scope
 			await fs.writeFile(path.join(TEST_DIR, "config.json"), "{}", "utf-8");
 
 			const validation = await autoCommit.validateCommit(mockWorkspace, mockCompleteState);
 
-			expect(validation.allowed).toBe(false);
-			expect(validation.forbiddenFilesDirty).toContain("config.json");
+			// Files outside canEdit are not blocked; they are just excluded
+			expect(validation.allowed).toBe(true);
+			expect(validation.filesToCommit).not.toContain("config.json");
 		});
 
 		it("should allow all files when canEdit is empty", async () => {
@@ -186,6 +187,7 @@ describe("AutoCommit", () => {
 			// Check commit message
 			const { stdout } = await execAsync("git log -1 --pretty=%B", { cwd: TEST_DIR });
 			expect(stdout.trim()).toContain("feat(p2): complete workspace 7.A");
+			expect(stdout.trim()).toContain("\u2014");
 			expect(stdout.trim()).toContain("Test Workspace");
 		});
 
@@ -226,7 +228,6 @@ describe("AutoCommit", () => {
 		});
 
 		it("should only commit files matching capability manifest", async () => {
-			// Create multiple files
 			await fs.mkdir(path.join(TEST_DIR, "src"), { recursive: true });
 			await fs.writeFile(path.join(TEST_DIR, "src", "app.ts"), "test", "utf-8");
 			await fs.writeFile(path.join(TEST_DIR, "other.txt"), "test", "utf-8");
@@ -237,7 +238,6 @@ describe("AutoCommit", () => {
 			expect(result.committedFiles).toContain("src/app.ts");
 			expect(result.committedFiles).not.toContain("other.txt");
 
-			// Verify other.txt is still uncommitted
 			const { stdout } = await execAsync("git status --porcelain", { cwd: TEST_DIR });
 			expect(stdout).toContain("other.txt");
 		});
@@ -318,6 +318,49 @@ describe("AutoCommit", () => {
 
 			expect(validation.allowed).toBe(true);
 			expect(validation.filesToCommit).toContain("README.md");
+		});
+	});
+
+	describe("commitPlan", () => {
+		it("should create a rollup commit with plan message format", async () => {
+			// Create some changes
+			await fs.mkdir(path.join(TEST_DIR, "src"), { recursive: true });
+			await fs.writeFile(path.join(TEST_DIR, "src", "a.ts"), "// A", "utf-8");
+			await fs.writeFile(path.join(TEST_DIR, "src", "b.ts"), "// B", "utf-8");
+			await execAsync("git add src/a.ts", { cwd: TEST_DIR });
+			await execAsync('git commit -m "WIP"', { cwd: TEST_DIR });
+			await fs.writeFile(path.join(TEST_DIR, "src", "b.ts"), "// B updated", "utf-8");
+			await fs.writeFile(path.join(TEST_DIR, "src", "c.ts"), "// C", "utf-8");
+
+			const result = await autoCommit.commitPlan("2", "My Plan");
+
+			expect(result.success).toBe(true);
+			expect(result.commitHash).toBeDefined();
+			expect(result.committedFiles).toContain("src/b.ts");
+			expect(result.committedFiles).toContain("src/c.ts");
+
+			const { stdout } = await execAsync("git log -1 --pretty=%B", { cwd: TEST_DIR });
+			expect(stdout.trim()).toContain("feat(p2): complete plan");
+			expect(stdout.trim()).toContain("\u2014");
+			expect(stdout.trim()).toContain("My Plan");
+		});
+
+		it("should return failure when no changes exist", async () => {
+			const result = await autoCommit.commitPlan("2", "Empty Plan");
+
+			expect(result.success).toBe(false);
+			expect(result.reason).toContain("No changes");
+		});
+
+		it("should accept optional phase parameter", async () => {
+			await fs.writeFile(path.join(TEST_DIR, "phase-test.txt"), "phase", "utf-8");
+
+			const result = await autoCommit.commitPlan("99", "Phase 99");
+
+			expect(result.success).toBe(true);
+
+			const { stdout } = await execAsync("git log -1 --pretty=%B", { cwd: TEST_DIR });
+			expect(stdout.trim()).toContain("feat(p99): complete plan");
 		});
 	});
 });

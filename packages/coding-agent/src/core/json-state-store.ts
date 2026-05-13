@@ -79,6 +79,13 @@ export class JsonStateStore implements IStateStore {
 		return this.store;
 	}
 
+	/**
+	 * Get the current plan execution ID (set during initializeState).
+	 */
+	getCurrentPlanExecutionId(): string | null {
+		return this.currentPlanExecutionId;
+	}
+
 	// =========================================================================
 	// Project Management
 	// =========================================================================
@@ -253,6 +260,54 @@ export class JsonStateStore implements IStateStore {
 		await this.store.appendJournal(event);
 	}
 
+	async appendJournalEvent(
+		_planExecutionId: string,
+		toolName: string,
+		input: Record<string, unknown>,
+		options?: {
+			isMcp?: boolean;
+			mcpServer?: string;
+			isError?: boolean;
+			errorMessage?: string;
+			result?: unknown;
+		},
+	): Promise<void> {
+		// Prefix MCP tool names with mcp:{server}:{tool}
+		let formattedName = toolName;
+		if (options?.isMcp && options?.mcpServer) {
+			formattedName = `mcp:${options.mcpServer}:${toolName}`;
+		}
+
+		// Serialize input and truncate to 2KB
+		const inputStr = JSON.stringify(input);
+		const truncatedInput = inputStr.length > 2048 ? `${inputStr.substring(0, 2048)}...(truncated)` : inputStr;
+
+		// Build event data
+		const data: Record<string, unknown> = {
+			toolName: formattedName,
+			input: truncatedInput,
+		};
+
+		// Include error info if present
+		if (options?.isError) {
+			data.result = "error";
+			if (options?.errorMessage) {
+				data.errorMessage = options.errorMessage;
+			}
+		}
+
+		// Include result if provided
+		if (options?.result !== undefined) {
+			data.result = data.result ?? options.result;
+		}
+
+		await this.appendJournal(_planExecutionId, {
+			type: "tool_call",
+			timestamp: Date.now(),
+			data,
+		});
+	}
+
 	async readJournal(_planExecutionId: string): Promise<JournalEvent[]> {
 		return this.store.readJournal();
 	}
@@ -289,6 +344,49 @@ export class JsonStateStore implements IStateStore {
 	async resumePlan(planExecutionId: string): Promise<void> {
 		await this.store.resumePlan();
 		await this.updateExecutionStatus(planExecutionId, "running");
+	}
+
+	async setAwaitingHandoff(planExecutionId: string, planTitle: string): Promise<void> {
+		await this.store.setAwaitingHandoff(planTitle);
+		await this.updateExecutionStatus(planExecutionId, "awaiting_handoff");
+	}
+
+	async handoffCommit(planExecutionId: string): Promise<void> {
+		await this.store.handoffCommitPlan();
+		await this.updateExecutionStatus(planExecutionId, "complete");
+	}
+
+	async handoffKeepEditing(planExecutionId: string): Promise<void> {
+		await this.store.handoffKeepEditingPlan();
+		await this.updateExecutionStatus(planExecutionId, "running");
+	}
+
+	async handoffDiscard(planExecutionId: string, workspaceRoot: string): Promise<void> {
+		// Revert uncommitted workspace files via git
+		try {
+			const { exec } = await import("node:child_process");
+			const { promisify } = await import("node:util");
+			const execAsync = promisify(exec);
+			// Checkout all modified tracked files to revert uncommitted changes
+			await execAsync("git checkout -- .", { cwd: workspaceRoot }).catch(() => {
+				// Ignore errors (e.g., not a git repo, no changes)
+			});
+		} catch {
+			// Ignore errors during revert
+		}
+
+		await this.store.revertAndFailPlan("User discarded changes during handoff");
+		await this.updateExecutionStatus(planExecutionId, "failed");
+	}
+
+	async isAwaitingHandoff(_planExecutionId: string): Promise<boolean> {
+		const state = await this.store.loadState();
+		return state?.status === "awaiting_handoff";
+	}
+
+	async getHandoffStartedAt(_planExecutionId: string): Promise<number> {
+		const state = await this.store.loadState();
+		return state?.handoffStartedAt ?? 0;
 	}
 
 	// =========================================================================
@@ -338,6 +436,153 @@ export class JsonStateStore implements IStateStore {
 
 	async getWorkspaceState(_planExecutionId: string, workspaceId: string): Promise<WorkspaceState | undefined> {
 		return this.store.getWorkspaceState(workspaceId);
+	}
+
+	async getWorkspaceAttempts(
+		_planExecutionId: string,
+		workspaceId: string,
+	): Promise<import("./state-store.js").WorkspaceAttempt[]> {
+		const ws = this.store.getWorkspaceState(workspaceId);
+		const workspacesDir = path.join(this.workspaceRoot, this.piDir, "workspaces", workspaceId);
+		const attempts: import("./state-store.js").WorkspaceAttempt[] = [];
+
+		// Determine total attempts from the workspace state
+		const totalAttempts = ws?.attempts ?? 0;
+		if (totalAttempts === 0) {
+			return [];
+		}
+
+		// Map attempt number to retry role (matches DEFAULT_RETRY_POLICY in retry-handler.ts)
+		const getRole = (attempt: number): "worker" | "flash" | "reviewer" | "final" => {
+			if (attempt <= 3) return "worker";
+			if (attempt <= 6) return "flash";
+			if (attempt <= 9) return "reviewer";
+			return "final";
+		};
+
+		// Check if a log file exists for a given attempt
+		const hasLogFile = async (attempt: number): Promise<boolean> => {
+			const logPath = path.join(workspacesDir, `execution-${attempt}.log`);
+			try {
+				await fs.stat(logPath);
+				return true;
+			} catch {
+				return false;
+			}
+		};
+
+		// Read log file for error excerpt
+		const getLogError = async (attempt: number): Promise<string | null> => {
+			const logPath = path.join(workspacesDir, `execution-${attempt}.log`);
+			try {
+				const content = await fs.readFile(logPath, "utf-8");
+				const lines = content.split("\n");
+				for (const line of lines) {
+					if (line.toLowerCase().includes("error") || line.includes("FAILED") || line.includes("failed")) {
+						return line.slice(0, 200);
+					}
+				}
+				return null;
+			} catch {
+				return null;
+			}
+		};
+
+		// Read journal events for this workspace to get attempt-level timing
+		const journal = await this.store.readJournal();
+		const wsJournalEvents = journal.filter(
+			(e) =>
+				e.workspaceId === workspaceId &&
+				(e.type === "workspace_start" ||
+					e.type === "workspace_complete" ||
+					e.type === "workspace_failed" ||
+					e.type === "retry_attempt"),
+		);
+
+		// Build attempt history
+		for (let a = 1; a <= totalAttempts; a++) {
+			const hasLog = await hasLogFile(a);
+			const role = getRole(a);
+
+			// Determine timing from journal events
+			let startedAt: number | null = null;
+			let completedAt: number | null = null;
+
+			// Find matching retry_attempt event for this attempt
+			const retryEvents = wsJournalEvents.filter(
+				(e: import("./plan-state.js").JournalEvent) => e.type === "retry_attempt" && e.data?.attempt === a + 1,
+			);
+			const retryEvent = retryEvents[retryEvents.length - 1];
+
+			// For the first attempt (a=1), use workspace_start
+			if (a === 1) {
+				const startEvent = wsJournalEvents.find((e) => e.type === "workspace_start");
+				if (startEvent) {
+					startedAt = startEvent.timestamp;
+				}
+			} else if (retryEvent) {
+				startedAt = retryEvent.timestamp;
+			}
+
+			// Fall back to workspace state timestamps if journal doesn't have events
+			if (!startedAt) {
+				startedAt = ws?.startedAt ?? null;
+			}
+
+			// Determine verdict and timing
+			let verdict: "running" | "complete" | "failed";
+			let error: string | null = null;
+
+			if (a < totalAttempts) {
+				// Previous attempts always ended in failure
+				verdict = "failed";
+				// Try to get error from log file
+				error = ws?.error && a === totalAttempts - 1 ? ws.error.slice(0, 200) : null;
+				if (!error && hasLog) {
+					error = await getLogError(a);
+				}
+
+				// Use retry_attempt event time as completion for this attempt
+				if (retryEvent) {
+					completedAt = retryEvent.timestamp;
+				} else {
+					// Estimate: each retry attempt takes roughly 1/3 of total duration
+					completedAt = ws?.completedAt ?? Date.now();
+				}
+			} else {
+				// Current/last attempt
+				if (ws?.stage === "complete" /* WorkspaceStage.Complete */) {
+					verdict = "complete";
+					completedAt = ws?.completedAt ?? null;
+				} else if (ws?.stage === "failed" /* WorkspaceStage.Failed */) {
+					verdict = "failed";
+					error = ws?.error?.slice(0, 200) ?? (hasLog ? await getLogError(a) : null);
+					completedAt = ws?.completedAt ?? null;
+				} else {
+					verdict = "running";
+					completedAt = null;
+				}
+			}
+
+			// Calculate duration
+			let duration: number | null = null;
+			if (startedAt && completedAt) {
+				duration = completedAt - startedAt;
+			}
+
+			attempts.push({
+				attempt: a,
+				role,
+				startedAt,
+				completedAt,
+				duration,
+				verdict,
+				error,
+			});
+		}
+
+		// Return newest first
+		return attempts.reverse();
 	}
 
 	async getStatistics(planExecutionId: string): Promise<{

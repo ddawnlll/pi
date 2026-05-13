@@ -250,6 +250,73 @@ describe("JsonStateStore", () => {
 			expect(journal.length).toBeGreaterThan(0);
 			expect(journal.some((e) => e.type === "plan_start")).toBe(true);
 		});
+
+		it("appends tool_call events via appendJournalEvent", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "test",
+				title: "Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [],
+			};
+
+			const execId = await store.initializeState("p1", queue);
+
+			// Normal tool call
+			await store.appendJournalEvent(execId, "read", { path: "/tmp/test.txt" });
+
+			// MCP tool call
+			await store.appendJournalEvent(
+				execId,
+				"list_tools",
+				{},
+				{
+					isMcp: true,
+					mcpServer: "filesystem",
+				},
+			);
+
+			// Tool call with error
+			await store.appendJournalEvent(
+				execId,
+				"write",
+				{ path: "/root/forbidden" },
+				{
+					isError: true,
+					errorMessage: "Permission denied",
+				},
+			);
+
+			// Tool call with large input (truncation)
+			const largeInput: Record<string, unknown> = {
+				data: "x".repeat(3000),
+			};
+			await store.appendJournalEvent(execId, "bash", largeInput);
+
+			const journal = await store.readJournal(execId);
+			const toolCallEvents = journal.filter((e) => e.type === "tool_call");
+			expect(toolCallEvents.length).toBe(4);
+
+			// Verify normal tool call
+			const readEvent = toolCallEvents.find((e) => (e.data as any)?.toolName === "read");
+			expect(readEvent).toBeDefined();
+			expect((readEvent!.data as any).input).toContain("/tmp/test.txt");
+
+			// Verify MCP prefix
+			const mcpEvent = toolCallEvents.find((e) => (e.data as any)?.toolName === "mcp:filesystem:list_tools");
+			expect(mcpEvent).toBeDefined();
+
+			// Verify error result
+			const errorEvent = toolCallEvents.find((e) => (e.data as any)?.toolName === "write");
+			expect(errorEvent).toBeDefined();
+			expect((errorEvent!.data as any).result).toBe("error");
+			expect((errorEvent!.data as any).errorMessage).toBe("Permission denied");
+
+			// Verify truncation
+			const bashEvent = toolCallEvents.find((e) => (e.data as any)?.toolName === "bash");
+			expect(bashEvent).toBeDefined();
+			expect((bashEvent!.data as any).input).toContain("...(truncated)");
+			expect((bashEvent!.data as any).input.length).toBeLessThan(3000); // should be truncated from 3000-char value
+		});
 	});
 
 	describe("plan lifecycle", () => {

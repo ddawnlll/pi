@@ -158,3 +158,31 @@ export interface JournalPage {
 	limit: number;
 	offset: number;
 }
+
+/** A single attempt in a workspace's retry history */
+export interface WorkspaceAttempt {
+	attempt: number;
+	role: "worker" | "flash" | "reviewer" | "final";
+	startedAt: number | null;
+	completedAt: number | null;
+	duration: number | null;
+	verdict: "running" | "complete" | "failed";
+	error: string | null;
+}
+
+/** Git file change from /git-diff endpoint */
+export interface GitFileChange {
+	path: string;
+	status: "added" | "modified" | "deleted" | "renamed" | "copied" | "unmerged";
+	additions: number;
+	deletions: number;
+}
+
+/** Git file patch from /git-diff?format=patch endpoint */
+export interface GitFilePatch {
+	path: string;
+	status: GitFileChange["status"];
+	patch: string;
+	truncated: boolean;
+	truncatedLines: number;
+}

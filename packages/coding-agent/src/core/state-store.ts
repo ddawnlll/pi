@@ -13,7 +13,7 @@ import type { WorkspaceQueue } from "./workspace-schema.js";
 /**
  * Plan execution status values.
  */
-export type PlanStatus = "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
+export type PlanStatus = "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled" | "awaiting_handoff";
 
 /**
  * Control action types.
@@ -45,6 +45,26 @@ export interface PlanExecutionSummary {
 	status: PlanStatus;
 	startedAt: string;
 	completedAt: string | null;
+}
+
+/**
+ * A single attempt in a workspace's retry history.
+ */
+export interface WorkspaceAttempt {
+	/** Attempt number (1-based) */
+	attempt: number;
+	/** Role stage for this attempt */
+	role: "worker" | "flash" | "reviewer" | "final";
+	/** Start timestamp */
+	startedAt: number | null;
+	/** Completion timestamp */
+	completedAt: number | null;
+	/** Duration in milliseconds (null if still running) */
+	duration: number | null;
+	/** Verdict for this attempt */
+	verdict: "running" | "complete" | "failed";
+	/** Error excerpt (truncated to 200 chars) */
+	error: string | null;
 }
 
 /**
@@ -215,12 +235,82 @@ export interface IStateStore {
 	// =========================================================================
 
 	/**
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 */
+	setAwaitingHandoff(planExecutionId: string, planTitle: string): Promise<void>;
+
+	/**
+	 * Finalize handoff: commit rollup, mark plan complete.
+	 * Called when user chooses "Commit & finish".
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 */
+	handoffCommit(planExecutionId: string): Promise<void>;
+
+	/**
+	 * Keep editing: return plan to running status.
+	 * Called when user chooses "Keep editing".
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 */
+	handoffKeepEditing(planExecutionId: string): Promise<void>;
+
+	/**
+	 * Discard: revert uncommitted workspace files and fail the plan.
+	 * Called when user chooses "Discard".
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceRoot - Root directory for git revert operations
+	 */
+	handoffDiscard(planExecutionId: string, workspaceRoot: string): Promise<void>;
+
+	/**
+	 * Check if plan is currently awaiting handoff.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 */
+	isAwaitingHandoff(planExecutionId: string): Promise<boolean>;
+
+	/**
+	 * Get the timestamp when the plan entered awaiting_handoff state.
+	 * Returns 0 if not in that state.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 */
+	getHandoffStartedAt(planExecutionId: string): Promise<number>;
+
+	/**
 	 * Append event to execution journal.
 	 *
 	 * @param planExecutionId - Plan execution ID
 	 * @param event - Journal event
 	 */
 	appendJournal(planExecutionId: string, event: JournalEvent): Promise<void>;
+
+	/**
+	 * Append a tool_call journal event.
+	 *
+	 * Handles MCP tool name prefixing, input truncation at 2KB,
+	 * and error result mapping.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param toolName - Tool name (MCP tools get mcp:{server}:{tool} prefix)
+	 * @param input - Tool input arguments (truncated to 2KB)
+	 * @param options - Additional options
+	 */
+	appendJournalEvent(
+		planExecutionId: string,
+		toolName: string,
+		input: Record<string, unknown>,
+		options?: {
+			isMcp?: boolean;
+			mcpServer?: string;
+			isError?: boolean;
+			errorMessage?: string;
+			result?: unknown;
+		},
+	): Promise<void>;
 
 	/**
 	 * Read execution journal.
@@ -323,6 +413,24 @@ export interface IStateStore {
 		planExecutionId: string,
 		workspaceId: string,
 	): Promise<import("./plan-state.js").WorkspaceState | undefined>;
+
+	/**
+	 * Get execution statistics.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @returns Statistics or null
+	 */
+	/**
+	 * Get workspace retry attempt history.
+	 *
+	 * Reads execution log files and journal events to reconstruct
+	 * the timeline of attempts for a given workspace.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @returns Array of attempt records, newest first
+	 */
+	getWorkspaceAttempts(planExecutionId: string, workspaceId: string): Promise<WorkspaceAttempt[]>;
 
 	/**
 	 * Get execution statistics.

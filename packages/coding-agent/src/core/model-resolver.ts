@@ -32,6 +32,7 @@ export const defaultModelPerProvider: Record<KnownProvider, string> = {
 	"minimax-cn": "MiniMax-M2.7",
 	moonshotai: "kimi-k2.6",
 	"moonshotai-cn": "kimi-k2.6",
+	neotokens: "claude-opus-4-7-thinking",
 	huggingface: "moonshotai/Kimi-K2.6",
 	fireworks: "accounts/fireworks/models/kimi-k2p6",
 	together: "moonshotai/Kimi-K2.6",

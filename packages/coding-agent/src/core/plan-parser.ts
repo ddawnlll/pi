@@ -235,6 +235,7 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		dependencies: Array.isArray(w.dependencies) ? w.dependencies : [],
 		roleBudget: (w.roleBudget || "worker") as TokenRole,
 		maxRetries: typeof w.maxRetries === "number" ? w.maxRetries : 3,
+		retryPolicy: w.retryPolicy,
 		riskLevel: w.riskLevel,
 		capabilities: w.capabilities
 			? {

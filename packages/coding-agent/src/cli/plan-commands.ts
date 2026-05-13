@@ -13,7 +13,9 @@
 
 import * as path from "node:path";
 import chalk from "chalk";
+import { AutoCommit } from "../core/auto-commit.js";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";
+import { JsonStateStore } from "../core/json-state-store.js";
 import { createPlanControlManager } from "../core/plan-control.js";
 import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
@@ -608,6 +610,39 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		// Complete execution
 		if (failedCount === 0) {
 			await executor.completePlan();
+
+			// Check if plan entered awaiting_handoff state (postPlanHandoff enabled)
+			const handoffState = await executor.getState();
+			if (handoffState?.status === "awaiting_handoff") {
+				if (json) {
+					console.log(
+						JSON.stringify(
+							{
+								success: true,
+								status: "awaiting_handoff",
+								completed: completedCount,
+								failed: failedCount,
+								handoffOptions: ["handoff-commit", "handoff-keep", "handoff-discard"],
+							},
+							null,
+							2,
+						),
+					);
+				} else {
+					console.log("");
+					console.log(chalk.green(`✓ All workspaces complete — awaiting handoff`));
+					console.log(chalk.dim(`Completed: ${completedCount} workspaces`));
+					console.log("");
+					console.log(chalk.bold("Handoff Options:"));
+					console.log(`  ${chalk.cyan("pi plan handoff-commit")}   Commit all changes & finish`);
+					console.log(`  ${chalk.cyan("pi plan handoff-keep")}     Return to editing (plan stays running)`);
+					console.log(`  ${chalk.cyan("pi plan handoff-discard")}  Discard uncommitted changes & fail plan`);
+					console.log("");
+					console.log(chalk.dim("Plan will auto-commit after 30 minutes of inactivity"));
+				}
+				return PlanExitCode.Success;
+			}
+
 			if (json) {
 				console.log(
 					JSON.stringify(
@@ -1173,6 +1208,228 @@ export async function planCancel(options: PlanCommandOptions = {}): Promise<numb
 }
 
 /**
+ * Handoff-commit command: finalize plan with rollup commit.
+ *
+ * Can only be used when plan is in awaiting_handoff state.
+ * Triggers rollup commit with all remaining changes, then marks plan complete.
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planHandoffCommit(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		const stateStore = new JsonStateStore(cwd);
+		const planStateStore = stateStore.getPlanStateStore();
+		const currentState = await planStateStore.loadState();
+
+		if (!currentState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (currentState.status !== "awaiting_handoff") {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{ success: false, error: `Plan is ${currentState.status}, not awaiting handoff` },
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log(chalk.yellow(`Plan is ${currentState.status}, not awaiting handoff`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		// Perform rollup commit
+		const autoCommit = new AutoCommit(cwd);
+		await autoCommit.commitPlan(currentState.phase, currentState.title);
+
+		// Mark plan complete in state store
+		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+		if (planExecutionId) {
+			await stateStore.handoffCommit(planExecutionId);
+		}
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "handoff-commit" }, null, 2));
+		} else {
+			console.log(chalk.green("✓ Handoff committed — plan complete"));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Handoff-keep command: return plan to running status for further editing.
+ *
+ * Can only be used when plan is in awaiting_handoff state.
+ * The plan transitions back to running status without committing or discarding.
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planHandoffKeep(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		const stateStore = new JsonStateStore(cwd);
+		const planStateStore = stateStore.getPlanStateStore();
+		const currentState = await planStateStore.loadState();
+
+		if (!currentState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (currentState.status !== "awaiting_handoff") {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{ success: false, error: `Plan is ${currentState.status}, not awaiting handoff` },
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log(chalk.yellow(`Plan is ${currentState.status}, not awaiting handoff`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+		if (planExecutionId) {
+			await stateStore.handoffKeepEditing(planExecutionId);
+		}
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "handoff-keep" }, null, 2));
+		} else {
+			console.log(chalk.green("✓ Handoff keep editing — plan returned to running status"));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Handoff-discard command: revert uncommitted workspace files and fail the plan.
+ *
+ * Can only be used when plan is in awaiting_handoff state.
+ * Reverts all uncommitted git changes and marks the plan as failed.
+ *
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planHandoffDiscard(options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		const stateStore = new JsonStateStore(cwd);
+		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+
+		const planStateStore = stateStore.getPlanStateStore();
+		const currentState = await planStateStore.loadState();
+
+		if (!currentState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		if (currentState.status !== "awaiting_handoff") {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{ success: false, error: `Plan is ${currentState.status}, not awaiting handoff` },
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log(chalk.yellow(`Plan is ${currentState.status}, not awaiting handoff`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		if (planExecutionId) {
+			await stateStore.handoffDiscard(planExecutionId, cwd);
+		}
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, action: "handoff-discard" }, null, 2));
+		} else {
+			console.log(chalk.red("✗ Handoff discard — changes reverted, plan failed"));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
  * Watch command - observer-only dashboard
  *
  * Re-exported from plan-watch.ts
@@ -1187,16 +1444,19 @@ export function printPlanHelp(): void {
 	console.log("Autonomous multi-agent plan execution\n");
 
 	console.log(chalk.bold("Commands:"));
-	console.log("  doctor <plan-file>     Validate plan safety");
-	console.log("  status                 Show execution status");
-	console.log("  dry-run <plan-file>    Validate without execution");
-	console.log("  run <plan-file>        Start autonomous execution");
-	console.log("  resume                 Resume from persisted state");
-	console.log("  one <workspace-id>     Execute single workspace");
-	console.log("  watch                  Observer-only dashboard");
-	console.log("  pause                  Pause execution (graceful)");
-	console.log("  stop                   Stop execution (graceful)");
-	console.log("  cancel                 Cancel execution (hard)");
+	console.log("  doctor <plan-file>        Validate plan safety");
+	console.log("  status                    Show execution status");
+	console.log("  dry-run <plan-file>       Validate without execution");
+	console.log("  run <plan-file>           Start autonomous execution");
+	console.log("  resume                    Resume from persisted state");
+	console.log("  one <workspace-id>        Execute single workspace");
+	console.log("  watch                     Observer-only dashboard");
+	console.log("  pause                     Pause execution (graceful)");
+	console.log("  stop                      Stop execution (graceful)");
+	console.log("  cancel                    Cancel execution (hard)");
+	console.log("  handoff-commit            Commit handoff and finalize plan");
+	console.log("  handoff-keep              Return plan to running status");
+	console.log("  handoff-discard           Discard changes and fail plan");
 	console.log("");
 
 	console.log(chalk.bold("Options:"));
@@ -1216,4 +1476,7 @@ export function printPlanHelp(): void {
 	console.log("  pi plan pause");
 	console.log("  pi plan stop");
 	console.log("  pi plan cancel");
+	console.log("  pi plan handoff-commit");
+	console.log("  pi plan handoff-keep");
+	console.log("  pi plan handoff-discard");
 }

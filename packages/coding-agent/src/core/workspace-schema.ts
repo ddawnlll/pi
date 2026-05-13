@@ -5,6 +5,7 @@
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
+import type { RetryPolicy } from "./retry-handler.js";
 
 /**
  * Workspace execution stage (state machine)
@@ -55,6 +56,8 @@ export interface Workspace {
 	roleBudget: TokenRole;
 	/** Maximum retry attempts for failures */
 	maxRetries: number;
+	/** Retry policy with escalation thresholds (overrides defaults) */
+	retryPolicy?: RetryPolicy;
 	/** Risk level (affects parallelism decisions) */
 	riskLevel?: "low" | "medium" | "high";
 	/** Capability manifest (file/command boundaries) */
@@ -65,6 +68,12 @@ export interface Workspace {
 	targetCommand?: string;
 	/** Additional metadata */
 	metadata?: Record<string, unknown>;
+	/**
+	 * Auto-commit on completion.
+	 * If false, no git commits are made for this workspace.
+	 * Defaults to true if unspecified.
+	 */
+	autoCommit?: boolean;
 }
 
 /**
@@ -79,6 +88,13 @@ export interface WorkspaceQueue {
 	maxParallelWorkspaces: number;
 	/** Workspaces in execution order */
 	workspaces: Workspace[];
+	/**
+	 * Enable post-plan handoff dialog.
+	 * When true (default), plan enters awaiting_handoff state after all workspaces complete
+	 * and waits for user to commit, keep editing, or discard.
+	 * When false, plan auto-commits without handoff dialog.
+	 */
+	postPlanHandoff?: boolean;
 }
 
 /**
