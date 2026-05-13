@@ -6,7 +6,7 @@
 SHELL := /bin/bash
 .PHONY: help install build dashboard-install env db db-create db-migrate db-drop \
         server dashboard dev dev-server dev-dashboard stop logs clean \
-        stack-up stack-down
+        stack-up stack-down stack-down-hard
 
 # ── Load environment ──────────────────────────────────────────────────────────
 # Sources .env at the repo root for PG* and PORT vars.
@@ -32,7 +32,7 @@ ENV_EXAMPLE   := .env.example
 help:
 	@echo ""
 	@echo "  Pi Development Targets"
-	@echo "  ──────────────────────────────────────────────────────"
+	@echo "  ──────────────────────────────────────────────────────────────"
 	@echo "  make install       Install all npm dependencies"
 	@echo "  make build         Build db + coding-agent (required before server)"
 	@echo "  make dashboard-install  Install dashboard dependencies separately"
@@ -41,16 +41,16 @@ help:
 	@echo "  make db-create     Create the PostgreSQL database only"
 	@echo "  make db-migrate    Run pending migrations only"
 	@echo "  make db-drop       Drop the database (destructive)"
-	@echo "  make server        Web server (foreground)"
-	@echo "  make dashboard     Vite dev server (foreground)"
-	@echo "  make dev           Both server + dashboard (foreground)"
-	@echo "  make dev-server    Server in background (tail logs)"
-	@echo "  make dev-dashboard Dashboard in background (tail logs)"
-	@echo "  make stop          Stop background processes"
-	@echo "  make logs          Tail log files"
-	@echo "  make stack-up      Full stack: env + install + db + dev"
-	@echo "  make stack-down      Stack teardown (stop processes only)"
-	@echo "  make stack-down-hard  Destructive tear-down (stop + drop database)"
+	@echo "  make server        API server (foreground)"
+	@echo "  make dashboard     Dashboard Vite dev server (foreground)"
+	@echo "  make dev           Start both server + dashboard in background"
+	@echo "  make dev-server    Start API server in background"
+	@echo "  make dev-dashboard  Start dashboard in background"
+	@echo "  make stop          Stop background services (by PID file)"
+	@echo "  make logs          Tail service logs"
+	@echo "  make stack-up      Full bootstrap: env + install + build + db + dev"
+	@echo "  make stack-down    Stop services (preserves data)"
+	@echo "  make stack-down-hard  Stop services + drop database"
 	@echo "  make clean         Remove all node_modules"
 	@echo ""
 
@@ -95,6 +95,7 @@ env:
 		"PI_PROJECT_NAME=default" \
 		> $(ENV_FILE)
 	@echo "Wrote $(ENV_FILE) with detected user '$(shell whoami)'."
+
 # ── Database ──────────────────────────────────────────────────────────────────
 # NOTE: These targets deliberately DO NOT inherit PG* from .env.
 # The .env file is for the application at runtime. For bootstrap we
@@ -137,105 +138,136 @@ db-drop:
 		"DROP DATABASE IF EXISTS \"$(PGDATABASE_BOOT)\""
 	@echo "Database dropped."
 
-# ── Server (backend) ──────────────────────────────────────────────────────────
+# ── Server (foreground) ───────────────────────────────────────────────────────
 
 server:
-	@echo "Starting web server (http://localhost:$(or $(PORT),3000))..."
+	@echo "Starting API server (http://localhost:$(or $(PORT),3000))..."
 	@cd $(SERVER_DIR) && npm run dev
 
-# ── Dashboard (frontend) ──────────────────────────────────────────────────────
+# ── Dashboard (foreground) ────────────────────────────────────────────────────
 
 dashboard:
-	@echo "Starting dashboard (http://localhost:5176)..."
+	@echo "Starting dashboard dev server (http://localhost:5176)..."
 	@cd $(DASHBOARD_DIR) && npm run dev
 
-# ── Dev: both foreground ──────────────────────────────────────────────────────
-
-DEV_SERVER_PORT ?= $(or $(PORT),3000)
-
-dev:
-	@echo "Starting server on :$(DEV_SERVER_PORT) and dashboard on :5176..."
-	@echo ""
-	@echo "  Server    -> http://localhost:$(DEV_SERVER_PORT)"
-	@echo "  Dashboard -> http://localhost:5176"
-	@echo "  Ctrl-C to stop both"
-	@echo ""
-	@trap 'kill 0 2>/dev/null; exit' EXIT INT TERM; \
-		cd $(SERVER_DIR) && npm run dev & \
-		sleep 2; \
-		cd $(DASHBOARD_DIR) && npm run dev
-
-# ── Background daemon mode ────────────────────────────────────────────────────
+# ── Log directory ─────────────────────────────────────────────────────────────
 
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
 
+# ── Background daemon mode (PID files + log files) ────────────────────────────
+# Use these when you want services running in the background.
+# PIDs are saved to $(LOG_DIR)/*.pid so 'make stop' can kill them.
+# Logs go to $(LOG_DIR)/*.log, tail them with 'make logs'.
+
+SERVER_PORT ?= $(or $(PORT),3000)
+
 dev-server: | $(LOG_DIR)
-	@echo "Starting server in background (log: $(SERVER_LOG))..."
-	@cd $(SERVER_DIR) && nohup npm run dev > $(SERVER_LOG) 2>&1 & echo $$! > $(SERVER_PID)
-	@sleep 2
-	@echo "Server started (PID: $$(cat $(SERVER_PID)))."
-	@echo "  Tail: make logs"
-	@echo "  Stop: make stop"
+	@PID=$$(nohup sh -c 'cd $(SERVER_DIR) && exec npx tsx --env-file=../../.env src/index.ts' \
+		> $(abspath $(LOG_DIR))/server.log 2>&1 & echo $$!); \
+	echo "$$PID" > $(abspath $(LOG_DIR))/server.pid; \
+	echo "Starting API server in background (PID $$PID)..."; \
+	sleep 4; \
+	if kill -0 "$$PID" 2>/dev/null; then \
+		echo "  API server running at http://localhost:$(SERVER_PORT)"; \
+		echo "  Log: $(SERVER_LOG)"; \
+	else \
+		echo "  ERROR: API server failed to start. Check $(SERVER_LOG)"; \
+	fi
 
 dev-dashboard: | $(LOG_DIR)
-	@echo "Starting dashboard in background (log: $(DASHBOARD_LOG))..."
-	@cd $(DASHBOARD_DIR) && nohup npm run dev > $(DASHBOARD_LOG) 2>&1 & echo $$! > $(DASHBOARD_PID)
-	@sleep 2
-	@echo "Dashboard started (PID: $$(cat $(DASHBOARD_PID)))."
-	@echo "  Tail: make logs"
-	@echo "  Stop: make stop"
+	@PID=$$(nohup sh -c 'cd $(DASHBOARD_DIR) && exec npx vite --port 5176' \
+		> $(abspath $(LOG_DIR))/dashboard.log 2>&1 & echo $$!); \
+	echo "$$PID" > $(abspath $(LOG_DIR))/dashboard.pid; \
+	echo "Starting dashboard dev server in background (PID $$PID)..."; \
+	sleep 4; \
+	if kill -0 "$$PID" 2>/dev/null; then \
+		echo "  Dashboard running at http://localhost:5176"; \
+		echo "  Log: $(DASHBOARD_LOG)"; \
+	else \
+		echo "  ERROR: Dashboard failed to start. Check $(DASHBOARD_LOG)"; \
+	fi
+
+# ── Dev: start both in background ─────────────────────────────────────────────
+# This creates .logs/server.pid, .logs/dashboard.pid and corresponding .log files.
+# Use 'make stop' to shut down, 'make logs' to tail output.
+
+dev: | $(LOG_DIR) dev-server dev-dashboard
+	@echo ""
+	@echo "  ──────────────────────────────────────────"
+	@echo "    API server    http://localhost:$(SERVER_PORT)"
+	@echo "    Dashboard     http://localhost:5176"
+	@echo "    Logs          $(LOG_DIR)/"
+	@echo "  ──────────────────────────────────────────"
+	@echo "  Stop:  make stop"
+	@echo "  Logs:  make logs"
+
+# ── Stop: kill by PID file ───────────────────────────────────────────────────
 
 stop:
-	@echo "Stopping background processes..."
-	@for f in $(SERVER_PID) $(DASHBOARD_PID); do \
+	@echo "Stopping services..."
+	@found=0; \
+	for f in $(SERVER_PID) $(DASHBOARD_PID); do \
+		name=$$(basename $$f .pid); \
 		if [ -f "$$f" ]; then \
-			kill "$$(cat $$f)" 2>/dev/null && echo "Killed $$f (PID $$(cat $$f))" || true; \
+			PID=$$(cat $$f); \
+			if kill -0 $$PID 2>/dev/null; then \
+				kill $$PID 2>/dev/null && echo "  Stopped $$name (PID $$PID)" || true; \
+			else \
+				echo "  $$name (PID $$PID) already exited"; \
+			fi; \
 			rm -f "$$f"; \
+			found=1; \
+		else \
+			echo "  $$name not running (no PID file)"; \
 		fi; \
-	done
-	@echo "Stopped."
+	done; \
+	if [ $$found -eq 1 ] || [ -f $(SERVER_PID) ] || [ -f $(DASHBOARD_PID) ]; then \
+		: ; \
+	fi
+	@echo "Done."
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
+# ── Logs: tail live output ────────────────────────────────────────────────────
 
 logs:
 	@if [ ! -d $(LOG_DIR) ]; then \
-		echo "No logs directory. Start services with 'make dev-server' or 'make dev-dashboard' first."; \
+		echo "No logs directory. Start services with 'make dev' first."; \
 		exit 1; \
 	fi
 	@echo "Tailing logs (Ctrl-C to stop)..."
-	@if [ -f $(SERVER_LOG) ] && [ -f $(DASHBOARD_LOG) ]; then \
-		echo ""; \
-		tail -f $(SERVER_LOG) $(DASHBOARD_LOG); \
-	elif [ -f $(SERVER_LOG) ]; then \
-		echo ""; \
-		echo "=== Server ===" && tail -f $(SERVER_LOG); \
-	elif [ -f $(DASHBOARD_LOG) ]; then \
-		echo ""; \
-		echo "=== Dashboard ===" && tail -f $(DASHBOARD_LOG); \
-	else \
-		echo "No log files found."; \
+	@FILES=(); \
+	[ -f $(SERVER_LOG) ]    && FILES+=("$(SERVER_LOG)"); \
+	[ -f $(DASHBOARD_LOG) ] && FILES+=("$(DASHBOARD_LOG)"); \
+	if [ $${#FILES[@]} -eq 0 ]; then \
+		echo "No log files found in $(LOG_DIR)/."; \
 		exit 1; \
-	fi
+	fi; \
+	tail -f "$${FILES[@]}"
 
-# ── Stack: full bring-up ──────────────────────────────────────────────────────
+# ── Stack: full bring-up (background) ────────────────────────────────────────
 # Runs everything needed to go from a fresh clone to a running system.
+# Starts services in background with PID tracking and log files.
 
 stack-up: env install build dashboard-install db dev
+	@echo ""
+	@echo "  Stack is up. Open http://localhost:5176 in your browser."
+	@echo "  Stop:  make stack-down"
+	@echo "  Logs:  make logs"
 
-# ── Stack: full tear-down ─────────────────────────────────────────────────────
-# Stops processes. Leaves database, node_modules, and .env intact
-# so a subsequent stack-up is fast.
+# ── Stack: full tear-down (stops processes, keeps data) ──────────────────────
+# Stops services. Leaves database, node_modules, and .env intact.
 
 stack-down: stop
-	@echo "Stack torn down."
-	@echo "Run 'make stack-up' to rebuild."
+	@echo ""
+	@echo "  Stack torn down. Data preserved in database."
+	@echo "  Restart with: make stack-up"
 
 # ── Stack: full tear-down including database drop ────────────────────────────
-# Stops processes AND drops the database. Use carefully.
+# Stops processes AND drops all data.
 
 stack-down-hard: stop db-drop
-	@echo "Full stack tear-down with database drop complete."
+	@echo ""
+	@echo "  Full stack tear-down with database drop complete."
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
