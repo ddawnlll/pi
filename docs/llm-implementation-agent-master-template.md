@@ -1,38 +1,57 @@
 # LLM Implementation Agent — Master Template v2
 
-**Version:** 2.1.0
-**Last Updated:** 2026-05-11
-**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support
+**Version:** 2.2.0  
+**Last Updated:** 2026-05-13  
+**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support and interactive parallelism review
 
 ---
 
 ## Overview
 
-This template provides a structured format for creating implementation plans that can be:
-1. **Read by humans** for reasoning, risk assessment, and decision-making
-2. **Parsed by Pi** for autonomous multi-agent execution
+This template provides a structured format for implementation plans that can be:
 
-The template balances human authority (markdown prose) with machine executability (JSON workspace queues).
+1. **Read by humans** for reasoning, risk assessment, dependency review, and decision-making
+2. **Parsed by Pi** for autonomous multi-agent execution
+3. **Previewed interactively** before execution so authors can see the real dependency graph, effective parallelism, and batch plan
+
+The template balances human authority in Markdown with machine executability in the JSON execution contract.
+
+---
+
+## What Changed in v2.2.0
+
+v2.2.0 adds explicit support for **interactive parallelism review**.
+
+The key lesson is:
+
+```text
+maxParallelWorkspaces = capacity limit
+workspace dependency graph = actual parallelism
+```
+
+A plan can request three workers but still execute one workspace at a time if every workspace depends on the previous workspace. Therefore, v2.2.0 adds a required preflight review option that lets Pi compute, display, edit, validate, approve, and persist the actual graph before run.
 
 ---
 
 ## How to Use This Template
 
-1. **Fill Part 1 — Phase Plan**: Define goals, risks, workstreams, and implementation order
-2. **Fill Part 2 — Agent Brief**: Provide mission, hard requirements, and execution policies
-3. **Fill Part 3 — Machine-Readable Execution Contract**: Define the executable contract with project, plan execution, and workspace details in valid JSON
-4. **Fill Part 4 — Machine-Readable Summary**: Provide phase-level execution metadata
-5. **Review validation rules**: Ensure JSON is valid and all placeholders are resolved
+1. **Fill Part 1 — Phase Plan**: Define goals, risks, workstreams, and implementation order.
+2. **Fill Part 2 — Agent Brief**: Provide mission, hard requirements, and execution policies.
+3. **Fill Part 3 — Machine-Readable Execution Contract**: Define the executable contract with project, plan execution, controls, safety, parallelism review, and workspace details in valid JSON.
+4. **Fill Part 4 — Machine-Readable Summary**: Provide phase-level execution metadata.
+5. **Review validation rules**: Ensure JSON is valid and all placeholders are resolved.
+6. **Run preflight review** when enabled: inspect the DAG, batches, effective parallelism, blocked reasons, and dependency warnings before execution.
 
 ### Critical Requirements
 
-- **Every executable plan MUST include valid JSON in Part 3**
-- **Markdown remains human authority**; Part 3 JSON is the execution contract
-- **For autonomous execution, Part 3 JSON is mandatory**
-- **Unresolved `{{ placeholders }}` make the plan non-executable**
-- Pi will parse Part 3 JSON first; markdown heading fallback is recovery mode only
-- **PostgreSQL backend uses project/plan/workspace hierarchy** for multi-project execution
-- **Dashboard enabled by default** for real-time monitoring via web UI
+- **Every executable plan MUST include valid JSON in Part 3.**
+- **Markdown remains human authority** for purpose, risks, rollback, and reasoning.
+- **Part 3 JSON is the execution contract.**
+- **Unresolved `{{ placeholders }}` make the plan non-executable.**
+- Pi parses Part 3 JSON first; Markdown heading fallback is recovery mode only.
+- PostgreSQL backend uses project/plan/workspace hierarchy for multi-project execution.
+- Dashboard is enabled by default for real-time monitoring.
+- When `interactiveParallelismReview.preflightRequired` is true, execution must not begin until the dependency graph is reviewed and approved.
 
 ---
 
@@ -123,19 +142,9 @@ List all known blockers and unimplemented components:
 * `{{ Criterion 1 }}`
 * `{{ Criterion 2 }}`
 
----
-
-### 7.B — `{{ Workstream Title }}`
-
-**Goal:** `{{ What this workstream accomplishes }}`
-
-**Requirements:**
-* `{{ Requirement 1 }}`
-* `{{ Requirement 2 }}`
-
-**Acceptance Criteria:**
-* `{{ Criterion 1 }}`
-* `{{ Criterion 2 }}`
+**Parallelism Notes:**
+* `{{ Why this workspace depends on its dependencies, or why it can run independently }}`
+* `{{ Expected parallel batch/group, if known }}`
 
 ---
 
@@ -146,10 +155,12 @@ List all known blockers and unimplemented components:
 ## 8. Combined Implementation Order
 
 ```text
-{{ A → B → C → D → ... }}
+{{ Batch 1: A }}
+{{ Batch 2: B + C + D }}
+{{ Batch 3: E + F }}
 ```
 
-`{{ Explain the dependency chain and why this order is required }}`
+`{{ Explain the dependency graph and why each batch can run in parallel. Do not list a linear chain unless the work truly must be serialized. }}`
 
 ---
 
@@ -170,9 +181,9 @@ List all known blockers and unimplemented components:
 * `{{ Condition that triggers rollback }}`
 
 **Rollback procedure:**
-1. `{{ Step 1 }}`
-2. `{{ Step 2 }}`
-3. `{{ Step 3 }}`
+1. `{{ Step 1 }} `
+2. `{{ Step 2 }} `
+3. `{{ Step 3 }} `
 
 ---
 
@@ -198,17 +209,13 @@ List all known blockers and unimplemented components:
 
 ## Hard Requirements
 
-1. `{{ Non-negotiable requirement 1 }}`
-2. `{{ Non-negotiable requirement 2 }}`
-3. `{{ Non-negotiable requirement 3 }}`
+1. `{{ Non-negotiable requirement 1 }} `
+2. `{{ Non-negotiable requirement 2 }} `
+3. `{{ Non-negotiable requirement 3 }} `
 
 ---
 
 ## Execution Policies
-
-`{{ Define any execution-specific policies, such as parallelism rules, retry policies, safety stops, etc. }}`
-
-Example:
 
 ```yaml
 default_workers: 3
@@ -216,6 +223,12 @@ hard_cap_workers: 3
 same_file_parallelism: false
 auto_commit: true
 auto_push: false
+preflight_required: true
+interactive_dependency_review: true
+show_effective_parallelism: true
+show_batch_preview: true
+allow_dependency_editing: true
+persist_approved_graph: true
 ```
 
 ---
@@ -226,6 +239,9 @@ Hard stop execution only for:
 * `{{ Safety condition 1 }}`
 * `{{ Safety condition 2 }}`
 * `{{ Safety condition 3 }}`
+* Dependency cycles
+* Invalid dependency patches
+* Required preflight review not approved
 
 ---
 
@@ -233,11 +249,11 @@ Hard stop execution only for:
 
 **Purpose:** This JSON structure is the authoritative execution contract for Pi's PostgreSQL-backed multi-project autonomous execution system. Pi parses this section first to build the execution plan.
 
-**Validation:** This JSON must be valid and complete before execution begins. Use `pi plan doctor` to validate.
+**Validation:** This JSON must be valid and complete before execution begins. Use `pi plan doctor` to validate. If interactive review is required, use the dashboard preflight editor or equivalent CLI approval before running.
 
 ```json
 {
-  "contractVersion": "2.1.0",
+  "contractVersion": "2.2.0",
   "executionBackend": "postgres",
   "project": {
     "name": "{{ project_name }}",
@@ -246,7 +262,7 @@ Hard stop execution only for:
     "tags": []
   },
   "planExecution": {
-    "phase": "{{ N }}",
+    "phase": "{{ Phase ID }}",
     "title": "{{ Short Title }}",
     "mode": "autonomous",
     "maxParallelWorkspaces": 3,
@@ -254,7 +270,18 @@ Hard stop execution only for:
     "jsonFallbackEnabled": true,
     "dashboardEnabled": true,
     "autoCommit": true,
-    "autoPush": false
+    "autoPush": false,
+    "interactiveParallelismReview": {
+      "enabled": true,
+      "preflightRequired": true,
+      "approvalRequiredBeforeRun": true,
+      "allowDependencyEditing": true,
+      "showEffectiveParallelism": true,
+      "showBatchPreview": true,
+      "showCriticalPath": true,
+      "warnWhenEffectiveParallelismBelowRequested": true,
+      "persistApprovedGraph": true
+    }
   },
   "controls": {
     "allowPause": true,
@@ -268,7 +295,9 @@ Hard stop execution only for:
       "destructive_ops",
       "forbidden_files",
       "budget_violations",
-      "dependency_cycles"
+      "dependency_cycles",
+      "unapproved_parallelism_review",
+      "invalid_dependency_patch"
     ],
     "forbiddenCommands": [
       "git push",
@@ -289,11 +318,44 @@ Hard stop execution only for:
       "**/secrets/**"
     ]
   },
+  "parallelismReview": {
+    "requestedMaxParallelWorkspaces": 3,
+    "expectedEffectiveParallelismMin": 2,
+    "preflightStatus": "required",
+    "approvalState": "pending",
+    "batchingStrategy": "dag_topological_batches",
+    "batchPreview": {
+      "batches": [],
+      "overallEffectiveParallelism": null,
+      "criticalPath": [],
+      "criticalPathLength": 0,
+      "serializedTailLength": 0
+    },
+    "editableFields": [
+      "workspaces[].dependencies",
+      "workspaces[].parallelGroup",
+      "workspaces[].dependencyReason"
+    ],
+    "doctorWarnings": [
+      "effective_parallelism_below_requested",
+      "fully_serialized_graph",
+      "long_serialized_tail",
+      "file_overlap_blocks_parallelism"
+    ],
+    "persistedArtifacts": [
+      "dependency_graph",
+      "batch_preview",
+      "critical_path",
+      "approved_dependency_patch"
+    ]
+  },
   "workspaces": [
     {
       "id": "7.A",
       "title": "{{ Workstream title }}",
       "dependencies": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "{{ Why this workspace has no dependencies or why these dependencies are required }}",
       "allowedFiles": [],
       "forbiddenFiles": [],
       "acceptanceCriteria": [],
@@ -327,65 +389,50 @@ Hard stop execution only for:
 }
 ```
 
+---
+
 ## Field Definitions
 
 ### Contract Metadata
 
-- **`contractVersion`** (string, required): Version of the execution contract schema. Must be `"2.1.0"` for PostgreSQL multi-project execution.
-- **`executionBackend`** (string, required): Backend system for execution. Must be `"postgres"` or `"json"`.
+- **`contractVersion`**: Must be `"2.2.0"` for interactive parallelism review. v2.1.0 remains supported for plans that do not use these fields.
+- **`executionBackend`**: Must be `"postgres"` or `"json"`.
 
-### Project Configuration
+### Plan Execution Parallelism Fields
 
-- **`project.name`** (string, required): Project name for database identification
-- **`project.rootPath`** (string, required): Absolute or repository-relative path to project root
-- **`project.type`** (string, required): Project type, must be `"repo"`
-- **`project.tags`** (array of strings, optional): Tags for categorization
+- **`planExecution.maxParallelWorkspaces`**: Maximum concurrent workspace count. This is a hard cap only; it does not guarantee concurrency.
+- **`planExecution.interactiveParallelismReview.enabled`**: Enables graph and batch preview behavior.
+- **`preflightRequired`**: Blocks execution until the plan has been reviewed.
+- **`approvalRequiredBeforeRun`**: Requires explicit user approval before run.
+- **`allowDependencyEditing`**: Allows safe dependency patching before approval.
+- **`showEffectiveParallelism`**: Displays computed effective parallelism.
+- **`showBatchPreview`**: Displays topological batches.
+- **`showCriticalPath`**: Displays longest dependency path.
+- **`warnWhenEffectiveParallelismBelowRequested`**: Emits warnings when requested capacity exceeds usable graph width.
+- **`persistApprovedGraph`**: Stores the approved graph/hash and requires executor to use it.
 
-### Plan Execution Configuration
+### Parallelism Review Object
 
-- **`planExecution.phase`** (string, required): Phase identifier matching Part 1
-- **`planExecution.title`** (string, required): Phase title matching Part 1
-- **`planExecution.mode`** (string, required): Must be `"autonomous"`
-- **`planExecution.maxParallelWorkspaces`** (number, required): Maximum concurrent workspaces (1-3)
-- **`planExecution.stateBackend`** (string, required): Must be `"postgres"` or `"json"`
-- **`planExecution.jsonFallbackEnabled`** (boolean, required): Enable JSON fallback if PostgreSQL unavailable
-- **`planExecution.dashboardEnabled`** (boolean, required): Enable real-time dashboard monitoring
-- **`planExecution.autoCommit`** (boolean, required): Auto-commit completed workspaces
-- **`planExecution.autoPush`** (boolean, required): Auto-push commits (must default `false`)
+- **`requestedMaxParallelWorkspaces`**: Mirrors the requested capacity.
+- **`expectedEffectiveParallelismMin`**: Author expectation for the minimum useful effective parallelism.
+- **`preflightStatus`**: One of `required`, `approved`, `not_required`, `failed`.
+- **`approvalState`**: One of `pending`, `approved`, `rejected`, `stale`.
+- **`batchingStrategy`**: Usually `dag_topological_batches`.
+- **`batchPreview`**: Computed preview of topological batches before execution. Contains:
+  - **`batches`**: Array of `{ batch, workspaceIds[], effectiveParallelism }` objects, one per topological level.
+  - **`overallEffectiveParallelism`**: Weighted average parallelism across all batches (total workspaces / total batches).
+  - **`criticalPath`**: Longest dependency chain through the DAG.
+  - **`criticalPathLength`**: Number of workspaces on the critical path (also the minimum number of sequential batches).
+  - **`serializedTailLength`**: Number of trailing batches that contain only one workspace, indicating a serialization bottleneck at the end of the plan.
+- **`editableFields`**: Fields the interactive editor may patch.
+- **`doctorWarnings`**: Warning categories the doctor should surface.
+- **`persistedArtifacts`**: Artifacts stored for audit and reproducibility.
 
-### Control Configuration
+### Workspace Parallelism Fields
 
-- **`controls.allowPause`** (boolean, required): Allow execution pause
-- **`controls.allowStop`** (boolean, required): Allow execution stop
-- **`controls.allowCancel`** (boolean, required): Allow execution cancel
-- **`controls.resumePolicy`** (string, required): Must be `"paused_or_stopped_only"`
-
-### Safety Configuration
-
-- **`safety.hardStops`** (array, required): Must include `"secrets"`, `"destructive_ops"`, `"forbidden_files"`, `"budget_violations"`, `"dependency_cycles"`
-- **`safety.forbiddenCommands`** (array, required): Must include `"git push"`, `"rm -rf"`, `"npm publish"`, etc.
-- **`safety.forbiddenFiles`** (array, required): Must include `".env*"`, `"**/*.pem"`, `"**/*.key"`, credential paths
-
-### Workspace Fields
-
-- **`id`** (string, required): Unique workspace identifier
-- **`title`** (string, required): Short descriptive title
-- **`dependencies`** (array, required): Workspace IDs that must complete first
-- **`allowedFiles`** (array, optional): Glob patterns for allowed file modifications
-- **`forbiddenFiles`** (array, optional): Glob patterns for forbidden files
-- **`acceptanceCriteria`** (array, required): Completion criteria
-- **`targetCommand`** (string or null): Validation command
-- **`roleBudget`** (string, required): One of `"flash"`, `"worker"`, `"lead"`, `"reviewer"`, `"debug"`
-- **`maxRetries`** (number, required): Maximum retry attempts
-- **`riskLevel`** (string, required): One of `"low"`, `"medium"`, `"high"`
-- **`capabilityManifest`** (object, required): Defines permissions
-  - **`canEdit`**: Allowed file patterns
-  - **`cannotEdit`**: Forbidden file patterns
-  - **`canRun`**: Allowed commands
-  - **`cannotRun`**: Forbidden commands
-- **`telemetry`** (object, required): Telemetry configuration
-  - **`expectedEvents`**: Expected event types
-  - **`logLevel`**: One of `"debug"`, `"info"`, `"warn"`, `"error"`
+- **`dependencies`**: Workspace IDs that must complete before this workspace can start.
+- **`parallelGroup`**: Optional human-authored expected batch/group label. It is advisory; the DAG remains authoritative.
+- **`dependencyReason`**: Human-readable explanation for why the listed dependencies are required.
 
 ---
 
@@ -393,373 +440,213 @@ Hard stop execution only for:
 
 Pi's `doctor` command validates the execution contract against these rules:
 
-1. **JSON validity**: The JSON must be syntactically valid
-2. **Contract version required**: `contractVersion` must be present and valid (currently `"2.1.0"`)
-3. **Project name required**: `project.name` must be a non-empty string
-4. **Project root path required**: `project.rootPath` must be a valid path
-5. **Execution backend valid**: `executionBackend` must be `"postgres"` or `"json"`
-6. **State backend valid**: `planExecution.stateBackend` must be `"postgres"` or `"json"`
-7. **Unique workspace IDs**: All workspace `id` fields must be unique within the phase
-8. **Valid dependencies**: All workspace IDs referenced in `dependencies` arrays must exist in the workspace list
-9. **No dependency cycles**: The dependency graph must be acyclic (no circular dependencies)
-10. **File pattern conflicts**: `allowedFiles` and `forbiddenFiles` must not have overlapping patterns
-11. **Parallel workspace limit**: `maxParallelWorkspaces` must be between 1 and 3
-12. **Valid role budgets**: `roleBudget` must be one of: `flash`, `worker`, `lead`, `reviewer`, `debug`
-13. **Valid risk levels**: `riskLevel` must be one of: `low`, `medium`, `high`
-14. **Auto-push must default false**: `planExecution.autoPush` must be `false` for safety
-15. **Forbidden commands required**: `safety.forbiddenCommands` must include:
-    - `git push` and `git push --force`
-    - `rm -rf`
-    - `npm publish`
-    - Any production-modifying commands
-16. **Forbidden files required**: `safety.forbiddenFiles` must include:
-    - `.env*` patterns
-    - `**/*.pem`, `**/*.key`, `**/*.p12`, `**/*.pfx`
-    - Credential and secret directories
-17. **No unresolved placeholders**: All `{{ placeholder }}` syntax must be replaced with actual values
-
-**Validation failure**: If any validation rule fails, `pi plan doctor` will report the error and prevent execution.
+1. JSON must be syntactically valid.
+2. `contractVersion` must be present and valid.
+3. `project.name` must be non-empty.
+4. `project.rootPath` must be valid.
+5. `executionBackend` must be `postgres` or `json`.
+6. `planExecution.stateBackend` must be `postgres` or `json`.
+7. All workspace IDs must be unique.
+8. All dependency references must point to existing workspaces.
+9. Dependency graph must be acyclic.
+10. `maxParallelWorkspaces` must be between 1 and 3.
+11. `autoPush` must be false by default.
+12. Forbidden commands and files must include required safety patterns.
+13. No unresolved placeholders may remain.
+14. If `preflightRequired` is true, execution is blocked until approval.
+15. If approval graph hash is stale, execution is blocked.
+16. If effective parallelism is below requested parallelism, doctor must warn.
+17. If effective parallelism is 1 while requested max is greater than 1, doctor must emit a strong serialization warning.
+18. Dependency patch previews must reject cycles, missing workspaces, and invalid file-overlap claims.
+19. If `batchPreview` is present, `batches` must be a non-empty array where each element contains `batch` (1-indexed), `workspaceIds` (non-empty), and `effectiveParallelism` (positive integer).
+20. If `preflightStatus` is `approved`, the accompanying `batchPreview` must not contain empty `batches`.
 
 ---
 
 ## Persistence Mapping
 
-Markdown plans map to the PostgreSQL database hierarchy for multi-project execution:
+Markdown plans map to the PostgreSQL database hierarchy:
 
-**Database Hierarchy:**
-```
+```text
 Project → Plan Execution → Workspace Execution → Journal Events / Workspace Logs
 ```
 
-**Mapping Details:**
+v2.2.0 additionally persists:
 
-- **`project`** creates or reuses a `projects` table row identified by `project.name`
-- **`planExecution`** creates a `plan_executions` table row linked to the project
-- Each **`workspace`** creates `workspace_executions` table rows linked to the plan execution
-- Execution **events** are persisted to `journal_events` table with timestamps and metadata
-- Workspace **logs** (stdout/stderr) are persisted to `workspace_logs` table
-- **Dashboard** reads execution state via web-server REST APIs and Server-Sent Events (SSE)
-- **JSON fallback** uses `.pi/` directory files only when PostgreSQL is unavailable
+```text
+Plan Execution → Parallelism Review → Dependency Graph → Batch Preview → Approved Patch / Graph Hash
+```
 
-**State Transitions:**
-
-All state mutations are performed exclusively by the autonomous executor. The dashboard and control UI are read-only except for control requests (pause/stop/cancel), which are written to a control request table and processed by the executor.
+The `batchPreview` object is persisted with the plan execution so that audit trails show the exact batch decomposition that was reviewed and approved. The executor must use the approved graph and batch preview when one exists. If the approved graph hash does not match the plan being executed, execution must stop before any workspace starts.
 
 ---
 
 ## Control Model
 
-**Important:** Pause/stop/cancel are not direct state mutations by the UI.
+Pause, stop, cancel, and resume remain executor-mediated. The dashboard may request control actions, but the executor remains the only component that mutates execution state.
 
-**Control Flow:**
-
-1. **Dashboard/CLI writes control requests** to the control system (file or database)
-2. **Executor polls control requests** and processes them
-3. **Executor is the only component** that mutates execution state
-4. **Dashboard reads state** via APIs/SSE for real-time monitoring
-
-**Control Request Types:**
-
-- **Pause**: Executor completes current workspace, then pauses before starting next
-- **Stop**: Executor completes current workspace, then stops execution
-- **Cancel**: Executor immediately cancels current workspace and stops
-- **Resume**: Executor resumes from paused or stopped state (only if `resumePolicy` allows)
-
-**Safety:**
-
-- Control requests are advisory, not immediate
-- Executor validates control requests before applying
-- Invalid control requests are logged and ignored
-- Resume is only allowed from `paused` or `stopped` states per `resumePolicy`
+Interactive parallelism approval is also executor-validated. The UI can submit approval, but execution starts only after the executor verifies that the approved graph is current, acyclic, and within safety limits.
 
 ---
 
 ## Parser Priority
 
-Pi's plan parser follows this priority:
-
-1. **Part 3 JSON first**: Pi attempts to parse the JSON execution contract in Part 3
-2. **Markdown heading fallback**: If Part 3 JSON is missing or invalid, Pi falls back to parsing markdown headings (recovery mode only)
-3. **Doctor validation**: Before execution, Pi runs validation checks on the parsed contract
-4. **Execution gate**: For PostgreSQL multi-project execution, Part 3 JSON is mandatory. If missing, `doctor` fails and execution is blocked.
-
-**Note:** Markdown sections (Part 1 and Part 2) remain required for human reasoning, risk assessment, rollback procedures, and authority. JSON is the execution contract, not a replacement for the plan.
+1. Part 3 JSON first.
+2. Markdown heading fallback only as recovery mode.
+3. Doctor validation.
+4. Parallelism preflight if required.
+5. Approval gate if required.
+6. Execution gate.
 
 ---
 
 # Part 4 — Machine-Readable Summary
 
-**Purpose:** Phase-level execution metadata for Pi's autonomous executor.
-
 ```json
 {
-  "contractVersion": "2.1.0",
+  "contractVersion": "2.2.0",
   "phase": "{{ Phase ID }}",
   "title": "{{ Phase Title }}",
   "primaryGoal": "{{ One sentence summary of the phase goal }}",
   "projectName": "{{ project_name }}",
   "stateBackend": "postgres",
   "notInScope": [
-    "{{ Thing explicitly not in scope }}",
     "{{ Thing explicitly not in scope }}"
   ],
   "hardStops": [
     "secrets",
     "destructive_ops",
     "forbidden_files",
-    "budget_violations"
+    "budget_violations",
+    "dependency_cycles",
+    "unapproved_parallelism_review",
+    "invalid_dependency_patch"
   ],
   "completionGate": "{{ Definition of done summary }}",
   "nextPhase": "{{ Next Phase ID or null }}"
 }
 ```
 
-### Summary Fields
-
-- **`contractVersion`** (string, required): Contract version, must be `"2.1.0"`
-- **`phase`** (string, required): Phase identifier
-- **`title`** (string, required): Phase title
-- **`projectName`** (string, required): Project name matching Part 3
-- **`stateBackend`** (string, required): Must be `"postgres"` or `"json"`
-- **`primaryGoal`** (string, required): One-sentence summary of what this phase accomplishes
-- **`notInScope`** (array of strings, optional): Explicit list of things NOT included in this phase
-- **`hardStops`** (array of strings, required): Conditions that immediately halt execution
-- **`completionGate`** (string, required): Summary of completion criteria
-- **`nextPhase`** (string or null, required): ID of the next phase, or `null` if this is the final phase
-
 ---
 
-# Annex — Worked Example
+# Annex — v2.2.0 Worked Example: Three-Wide Parallel Batches
 
-This section provides a complete worked example of a Master Template v2 plan.
+```text
+Batch 1: 7.A
+Batch 2: 7.B, 7.C, 7.D
+Batch 3: 7.E, 7.F
+Batch 4: 7.G
+```
 
-## Example: Phase P2 — Pi Autonomous Multiagent Plan Executor
+The following workspace snippets encode actual DAG dependencies that permit the batch plan above:
 
-### Part 1 — Phase Plan
+```json
+[
+  { "id": "7.A", "dependencies": [], "parallelGroup": "batch_1", "dependencyReason": {} },
+  { "id": "7.B", "dependencies": ["7.A"], "parallelGroup": "batch_2", "dependencyReason": { "7.A": "7.B builds on the foundation 7.A provides" } },
+  { "id": "7.C", "dependencies": ["7.A"], "parallelGroup": "batch_2", "dependencyReason": { "7.A": "7.C requires 7.A output as input" } },
+  { "id": "7.D", "dependencies": ["7.A"], "parallelGroup": "batch_2", "dependencyReason": { "7.A": "7.D extends the scaffolding from 7.A" } },
+  { "id": "7.E", "dependencies": ["7.B", "7.C"], "parallelGroup": "batch_3", "dependencyReason": { "7.B": "7.E needs 7.B artifacts", "7.C": "7.E needs 7.C artifacts" } },
+  { "id": "7.F", "dependencies": ["7.C", "7.D"], "parallelGroup": "batch_3", "dependencyReason": { "7.C": "7.F needs 7.C artifacts", "7.D": "7.F needs 7.D artifacts" } },
+  { "id": "7.G", "dependencies": ["7.E", "7.F"], "parallelGroup": "batch_4", "dependencyReason": { "7.E": "7.G integrates 7.E output", "7.F": "7.G integrates 7.F output" } }
+]
+```
 
-#### 0. TL;DR
-
-**Phase:** P2  
-**One-line goal:** Transform Pi into a fully autonomous bounded multi-agent implementation executor  
-**Why now:** P1 established token safety; P2 enables autonomous multi-agent execution  
-**Blast radius:** Pi runtime/execution/scheduler/state/report/CLI layers only  
-**Rollback path:** Disable autonomous execution, revert to P1 single-agent behavior  
-**Done when:** Pi can parse plans, schedule workspaces, execute autonomously, retry failures, commit completed work
-
-#### 1. Header
-
-| Field | Value |
-|---|---|
-| Phase | P2 |
-| Title | Pi Autonomous Multiagent Plan Executor |
-| Status | In Progress |
-| Last updated | 2026-05-11 |
-| Delivery status | In progress |
-| Target environment | Local Pi runtime |
-| Primary focus | Autonomous execution + bounded multi-agent scheduling |
-| Product-code changes | Forbidden in P2 implementation phase |
-
-#### 2. Purpose
-
-P2 upgrades Pi into a fully autonomous multi-agent coding executor. Pi should be able to read a plan, analyze it, create a workspace queue, schedule workers, implement code, test, retry/fix automatically, review, commit, and continue until plan completion.
-
-P2 MUST remain bounded and budget-safe using the P1 gateway.
-
-#### 6. Risk Register
-
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| Worker conflicts | med | high | file ownership locks |
-| Retry loops spiral | med | med | retry counters + reviewer escalation |
-| Parallel edits corrupt files | low | high | no same-file parallelism |
-
-#### 7. Workstreams
-
-##### 7.A — Plan Parser + JSON Queue
-
-**Goal:** Parse Master Template v2 plans
-
-**Requirements:**
-* Part 3 JSON queue first
-* Markdown heading fallback only
-* Placeholder detection
-
-**Acceptance Criteria:**
-* Parses valid Part 3 JSON queue
-* Fallback heading parser works
-* Unresolved placeholders fail doctor
-
-### Part 2 — Agent Brief
-
-#### Mission
-
-Implement P2 — Pi Autonomous Multiagent Plan Executor. You are building a bounded autonomous multi-agent coding runtime using P1 token safety guarantees.
-
-#### Hard Requirements
-
-1. P1 budget gateway mandatory
-2. No bypass around provider enforcement
-3. No full repo injection
-4. No same-file parallel edits
-5. Auto commit after approved workspace
-
-### Part 3 — Machine-Readable Execution Contract
+The corresponding `parallelismReview` object with batch preview metadata for this plan:
 
 ```json
 {
-  "contractVersion": "2.1.0",
-  "executionBackend": "postgres",
-  "project": {
-    "name": "pi-mono",
-    "rootPath": "/home/user/projects/pi-mono",
-    "type": "repo",
-    "tags": ["autonomous-execution", "multi-agent"]
-  },
-  "planExecution": {
-    "phase": "P2",
-    "title": "Pi Autonomous Multiagent Plan Executor",
-    "mode": "autonomous",
-    "maxParallelWorkspaces": 3,
-    "stateBackend": "postgres",
-    "jsonFallbackEnabled": true,
-    "dashboardEnabled": true,
-    "autoCommit": true,
-    "autoPush": false
-  },
-  "controls": {
-    "allowPause": true,
-    "allowStop": true,
-    "allowCancel": true,
-    "resumePolicy": "paused_or_stopped_only"
-  },
-  "safety": {
-    "hardStops": [
-      "secrets",
-      "destructive_ops",
-      "forbidden_files",
-      "budget_violations",
-      "dependency_cycles"
-    ],
-    "forbiddenCommands": [
-      "git push",
-      "git push --force",
-      "rm -rf",
-      "npm publish"
-    ],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key",
-      "**/credentials/**"
-    ]
-  },
-  "workspaces": [
-    {
-      "id": "7.A",
-      "title": "Plan Parser + JSON Queue",
-      "dependencies": [],
-      "allowedFiles": ["packages/coding-agent/src/core/plan-parser.ts"],
-      "forbiddenFiles": [".env*", "**/*.pem"],
-      "acceptanceCriteria": [
-        "Parses valid Part 3 JSON queue",
-        "Fallback heading parser works",
-        "Unresolved placeholders fail doctor"
+  "parallelismReview": {
+    "requestedMaxParallelWorkspaces": 3,
+    "expectedEffectiveParallelismMin": 2,
+    "preflightStatus": "required",
+    "approvalState": "pending",
+    "batchingStrategy": "dag_topological_batches",
+    "batchPreview": {
+      "batches": [
+        { "batch": 1, "workspaceIds": ["7.A"], "effectiveParallelism": 1 },
+        { "batch": 2, "workspaceIds": ["7.B", "7.C", "7.D"], "effectiveParallelism": 3 },
+        { "batch": 3, "workspaceIds": ["7.E", "7.F"], "effectiveParallelism": 2 },
+        { "batch": 4, "workspaceIds": ["7.G"], "effectiveParallelism": 1 }
       ],
-      "targetCommand": "npm test -- plan-parser.test.ts",
-      "roleBudget": "worker",
-      "maxRetries": 3,
-      "riskLevel": "low",
-      "capabilityManifest": {
-        "canEdit": ["packages/coding-agent/src/core/*.ts"],
-        "cannotEdit": [".env*", "**/*.pem", "**/*.key"],
-        "canRun": ["npm test", "npm run check"],
-        "cannotRun": ["git push", "rm -rf", "npm publish"]
-      }
+      "overallEffectiveParallelism": 1.75,
+      "criticalPath": ["7.A", "7.C", "7.E", "7.G"],
+      "criticalPathLength": 4,
+      "serializedTailLength": 1
     },
-    {
-      "id": "7.B",
-      "title": "Workspace Schema + Validation",
-      "dependencies": ["7.A"],
-      "allowedFiles": ["packages/coding-agent/src/core/workspace-schema.ts"],
-      "forbiddenFiles": [".env*", "**/*.pem"],
-      "acceptanceCriteria": [
-        "Schema validation exists",
-        "Dependency validation exists",
-        "Duplicate workspace IDs fail"
-      ],
-      "targetCommand": "npm test -- workspace-schema.test.ts",
-      "roleBudget": "worker",
-      "maxRetries": 3,
-      "riskLevel": "low",
-      "capabilityManifest": {
-        "canEdit": ["packages/coding-agent/src/core/*.ts"],
-        "cannotEdit": [".env*", "**/*.pem", "**/*.key"],
-        "canRun": ["npm test", "npm run check"],
-        "cannotRun": ["git push", "rm -rf", "npm publish"]
-      }
-    }
-  ]
+    "editableFields": [
+      "workspaces[].dependencies",
+      "workspaces[].parallelGroup",
+      "workspaces[].dependencyReason"
+    ],
+    "doctorWarnings": [
+      "effective_parallelism_below_requested"
+    ],
+    "persistedArtifacts": [
+      "dependency_graph",
+      "batch_preview",
+      "critical_path",
+      "approved_dependency_patch"
+    ]
+  }
 }
 ```
 
-### Part 4 — Machine-Readable Summary
+Key observations from this batch preview:
+- **Batch 2 achieves full 3-wide parallelism**, using all `maxParallelWorkspaces` capacity.
+- **Batch 3 is 2-wide** because only 7.E and 7.F are simultaneously ready.
+- **Batches 1 and 4 are 1-wide** (single workspace) — no parallelism opportunity exists.
+- **Overall effective parallelism is 1.75** (7 workspaces / 4 batches), which is below the requested max of 3. The `doctorWarnings` array flags this.
+- **Critical path** runs through the longest chain (7.A → 7.C → 7.E → 7.G), spanning all 4 batches.
+- **preflightStatus** is `required` because `interactiveParallelismReview.preflightRequired` is true; execution is blocked until the batch preview is reviewed and `approvalState` transitions to `approved`.
+
+Do **not** encode this as a chain unless each workspace truly depends on the previous one:
 
 ```json
-{
-  "contractVersion": "2.1.0",
-  "phase": "P2",
-  "title": "Pi Autonomous Multiagent Plan Executor",
-  "primaryGoal": "Transform Pi into a fully autonomous bounded multi-agent implementation runtime",
-  "projectName": "pi-mono",
-  "stateBackend": "postgres",
-  "notInScope": [
-    "Semantic retrieval",
-    "Vector indexing",
-    "Advanced reasoning"
-  ],
-  "hardStops": [
-    "secrets",
-    "destructive_ops",
-    "forbidden_files",
-    "budget_violations"
-  ],
-  "completionGate": "Pi can parse plans, schedule workspaces, execute autonomously, retry failures, and commit completed work",
-  "nextPhase": "P3"
-}
+[
+  { "id": "7.A", "dependencies": [] },
+  { "id": "7.B", "dependencies": ["7.A"] },
+  { "id": "7.C", "dependencies": ["7.B"] },
+  { "id": "7.D", "dependencies": ["7.C"] }
+]
 ```
+
+That second graph has effective parallelism 1 even if `maxParallelWorkspaces` is 3.
 
 ---
 
 ## Template Changelog
 
+### v2.2.0 (2026-05-13)
+- Added interactive parallelism review.
+- Added `planExecution.interactiveParallelismReview`.
+- Added top-level `parallelismReview` metadata with `batchPreview` sub-object.
+- Added workspace-level `parallelGroup` and `dependencyReason` fields.
+- Added validation rules for effective parallelism, approval gates, stale graph hashes, and dependency patches.
+- Added persistence mapping for dependency graph, batch preview, approved patch, and graph hash.
+- Added worked example showing actual 3-wide batches versus accidental serialization with full `parallelismReview.batchPreview` metadata.
+
 ### v2.1.0 (2026-05-11)
-- **PostgreSQL-backed multi-project execution contract added**
-- Renamed Part 3 to "Machine-Readable Execution Contract"
-- Added `contractVersion`, `executionBackend`, `project`, `planExecution`, `controls`, and `safety` top-level fields
-- Added `telemetry` field to workspace configuration
-- Added persistence mapping section explaining database hierarchy
-- Added control model section explaining executor-only state mutations
-- Updated validation rules for PostgreSQL execution
-- Updated parser priority to mandate Part 3 JSON for PostgreSQL execution
-- Updated Part 4 with `contractVersion`, `projectName`, and `stateBackend` fields
-- Updated worked example with full PostgreSQL contract structure
+- PostgreSQL-backed multi-project execution contract added.
+- Renamed Part 3 to Machine-Readable Execution Contract.
+- Added `contractVersion`, `executionBackend`, `project`, `planExecution`, `controls`, and `safety` top-level fields.
+- Added `telemetry` field to workspace configuration.
+- Added persistence mapping section explaining database hierarchy.
+- Added control model section explaining executor-only state mutations.
+- Updated validation rules for PostgreSQL execution.
+- Updated parser priority to mandate Part 3 JSON for PostgreSQL execution.
+- Updated Part 4 with `contractVersion`, `projectName`, and `stateBackend` fields.
 
 ### v2.0 (2026-05-11)
-- Added Part 3 — Machine-Readable Workspace Queue
-- Added Part 4 — Machine-Readable Summary
-- Added comprehensive field definitions and validation rules
-- Added parser priority rules
-- Moved worked example to Annex
-- Established JSON as machine execution source while preserving markdown as human authority
+- Added Part 3 — Machine-Readable Workspace Queue.
+- Added Part 4 — Machine-Readable Summary.
+- Added comprehensive field definitions and validation rules.
+- Added parser priority rules.
+- Moved worked example to Annex.
+- Established JSON as machine execution source while preserving Markdown as human authority.
 
 ### v1.0 (2026-05-10)
-- Initial Master Template structure
-- Part 1 — Phase Plan
-- Part 2 — Agent Brief
-- Markdown-only format
-
----
-
-## License
-
-This template is part of the Pi project and follows the project's license terms.
+- Initial Master Template structure.
+- Part 1 — Phase Plan.
+- Part 2 — Agent Brief.
+- Markdown-only format.

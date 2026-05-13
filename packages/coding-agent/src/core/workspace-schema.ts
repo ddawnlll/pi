@@ -2,10 +2,88 @@
  * Workspace Schema & Validation - P2 Workstream 7.B
  *
  * Defines normalized workspace schema, validation logic, and state machine.
+ * Contract Schema v2.2.0: adds parallelGroup, dependencyReason on Workspace;
+ *   planExecution.interactiveParallelismReview and parallelismReview on WorkspaceQueue.
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
 import type { RetryPolicy } from "./retry-handler.js";
+
+// ---------------------------------------------------------------------------
+// Contract Schema Version
+// ---------------------------------------------------------------------------
+
+/**
+ * Supported contract schema versions.
+ *
+ * - 2.0.0: Original schema (phase, title, workspaces, maxParallelWorkspaces)
+ * - 2.1.0: Added postPlanHandoff, workspace retryPolicy, riskLevel, capabilities
+ * - 2.2.0: Added parallelGroup, dependencyReason on Workspace;
+ *          planExecution.interactiveParallelismReview on WorkspaceQueue;
+ *          parallelismReview on WorkspaceQueue
+ */
+export const CONTRACT_SCHEMA_VERSION = "2.2.0" as const;
+
+/**
+ * Set of all contract schema versions that this parser accepts.
+ * Plans declaring any of these versions will be accepted.
+ */
+export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0"]);
+
+/**
+ * Check whether a given version string is an accepted contract schema version.
+ *
+ * @param version - Version string to check (e.g., "2.2.0")
+ * @returns True if the version is accepted
+ */
+export function isAcceptedSchemaVersion(version: string): boolean {
+	return ACCEPTED_SCHEMA_VERSIONS.has(version);
+}
+
+// ---------------------------------------------------------------------------
+// Parallelism Review
+// ---------------------------------------------------------------------------
+
+/**
+ * Configuration for the parallelism review gate.
+ *
+ * When present in planExecution, the execution engine pauses before
+ * launching parallel workspaces so that a human (or automated reviewer)
+ * can review and approve/reject the proposed parallelism grouping.
+ */
+export interface ParallelismReview {
+	/** Whether the parallelism review gate is enabled */
+	enabled: boolean;
+	/**
+	 * Maximum number of workspaces that can run in parallel without review.
+	 * If null or undefined, any parallelism triggers review.
+	 */
+	threshold?: number | null;
+	/**
+	 * Human-readable description of what the reviewer should check.
+	 */
+	description?: string;
+	/**
+	 * Additional metadata for the review gate.
+	 */
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Plan execution configuration.
+ *
+ * Top-level execution controls that govern how the plan is run.
+ */
+export interface PlanExecutionConfig {
+	/**
+	 * Whether to require an interactive parallelism review before
+	 * launching workspaces that share a parallelGroup.
+	 *
+	 * When true, the execution engine presents the proposed parallel
+	 * workspace schedule and asks for explicit approval before proceeding.
+	 */
+	interactiveParallelismReview?: boolean;
+}
 
 /**
  * Workspace execution stage (state machine)
@@ -74,6 +152,78 @@ export interface Workspace {
 	 * Defaults to true if unspecified.
 	 */
 	autoCommit?: boolean;
+
+	/**
+	 * Parallel group identifier.
+	 *
+	 * Workspaces sharing the same parallelGroup value may be executed
+	 * concurrently by the scheduler. Workspaces with no parallelGroup
+	 * follow the default dependency-based scheduling.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	parallelGroup?: string;
+
+	/**
+	 * Human-readable reason explaining why this workspace depends on
+	 * its listed dependencies.
+	 *
+	 * Useful for parallelism review and execution traceability.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	dependencyReason?: Record<string, string>;
+
+	/**
+	 * Whether this workspace requires pre-flight review approval
+	 * before execution can proceed.
+	 *
+	 * When true, the execution engine blocks this workspace in
+	 * Pending state until a human or automated reviewer explicitly
+	 * approves it. Used for high-risk or security-sensitive workspaces.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	preflightRequired?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Topological Batch & Approved Preview Metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * A topological batch of workspaces that can execute in parallel.
+ *
+ * Batches are computed from the approved dependency graph via Kahn's algorithm.
+ * Workspaces in the same batch have all dependencies satisfied by earlier batches.
+ */
+export interface TopologicalBatch {
+	/** 1-based batch index */
+	batchIndex: number;
+	/** Workspace IDs in this batch */
+	workspaceIds: string[];
+	/** Number of workspaces in this batch */
+	width: number;
+}
+
+/**
+ * Approved preview metadata persisted alongside execution.
+ *
+ * Records the dependency graph and batch plan that were approved
+ * before execution started, ensuring the executor uses the approved
+ * dependency graph rather than stale parser output.
+ */
+export interface ApprovedPreviewMetadata {
+	/** Batch assignments (workspace ID -> 1-based batch index) */
+	batchAssignment: Record<string, number>;
+	/** Topological batches */
+	batches: TopologicalBatch[];
+	/** Effective parallelism from approved graph */
+	effectiveParallelism: number;
+	/** Whether dependency patches were applied during preview */
+	patchesApplied: boolean;
+	/** Timestamp when preview was approved */
+	approvedAt: number;
 }
 
 /**
@@ -95,6 +245,36 @@ export interface WorkspaceQueue {
 	 * When false, plan auto-commits without handoff dialog.
 	 */
 	postPlanHandoff?: boolean;
+
+	/**
+	 * Contract schema version.
+	 *
+	 * Identifies which version of the plan contract schema this queue
+	 * adheres to. When absent, defaults to the latest accepted version.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	contractVersion?: string;
+
+	/**
+	 * Plan execution configuration.
+	 *
+	 * Top-level controls for how the plan is executed, including
+	 * parallelism review gates.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	planExecution?: PlanExecutionConfig;
+
+	/**
+	 * Parallelism review configuration.
+	 *
+	 * When present, the execution engine may pause before launching
+	 * parallel workspaces so that a reviewer can approve the grouping.
+	 *
+	 * Contract Schema v2.2.0 field.
+	 */
+	parallelismReview?: ParallelismReview;
 }
 
 /**
@@ -102,7 +282,15 @@ export interface WorkspaceQueue {
  */
 export interface ValidationError {
 	/** Error type */
-	type: "duplicate_id" | "invalid_dependency" | "cycle" | "invalid_role" | "missing_field";
+	type:
+		| "duplicate_id"
+		| "invalid_dependency"
+		| "cycle"
+		| "invalid_role"
+		| "missing_field"
+		| "invalid_contract_version"
+		| "invalid_parallelism_review"
+		| "invalid_dependency_reason";
 	/** Error message */
 	message: string;
 	/** Workspace ID (if applicable) */
@@ -216,6 +404,60 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 				message: `High-risk workspace ${workspace.id} has no dependencies (may want to serialize)`,
 				workspaceId: workspace.id,
 			});
+		}
+	}
+
+	// v2.2.0: Validate contract version if declared
+	if (queue.contractVersion !== undefined && !isAcceptedSchemaVersion(queue.contractVersion)) {
+		errors.push({
+			type: "invalid_contract_version",
+			message: `Unsupported contract version: ${queue.contractVersion}. Accepted versions: ${Array.from(ACCEPTED_SCHEMA_VERSIONS).join(", ")}`,
+			context: { contractVersion: queue.contractVersion },
+		});
+	}
+
+	// v2.2.0: Validate parallelismReview if declared
+	if (queue.parallelismReview !== undefined) {
+		if (typeof queue.parallelismReview.enabled !== "boolean") {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: "parallelismReview.enabled must be a boolean",
+				context: { parallelismReview: queue.parallelismReview },
+			});
+		}
+		if (
+			queue.parallelismReview.threshold !== undefined &&
+			queue.parallelismReview.threshold !== null &&
+			typeof queue.parallelismReview.threshold !== "number"
+		) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: "parallelismReview.threshold must be a number or null",
+				context: { parallelismReview: queue.parallelismReview },
+			});
+		}
+		if (typeof queue.parallelismReview.threshold === "number" && queue.parallelismReview.threshold < 0) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: "parallelismReview.threshold must be non-negative",
+				context: { parallelismReview: queue.parallelismReview },
+			});
+		}
+	}
+
+	// v2.2.0: Validate dependencyReason keys reference valid dependencies
+	for (const workspace of queue.workspaces) {
+		if (workspace.dependencyReason) {
+			for (const depId of Object.keys(workspace.dependencyReason)) {
+				if (!workspace.dependencies.includes(depId)) {
+					warnings.push({
+						type: "invalid_dependency_reason",
+						message: `Workspace ${workspace.id} has dependencyReason for "${depId}" which is not listed in dependencies`,
+						workspaceId: workspace.id,
+						context: { dependencyReason: workspace.dependencyReason, invalidKey: depId },
+					});
+				}
+			}
 		}
 	}
 

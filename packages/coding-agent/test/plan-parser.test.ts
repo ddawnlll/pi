@@ -841,3 +841,445 @@ describe("P4.6.2: plan run/start log uses phase/title from Part 3 JSON", () => {
 		expect(formatted).not.toContain("Untitled Phase");
 	});
 });
+
+// ===========================================================================
+// v2.2.0 Tests — Contract Schema Parallelism Fields in Plan Parser
+// ===========================================================================
+
+describe("v2.2.0: contract version parsing", () => {
+	it("should parse contractVersion from Part 3 JSON", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.2.0");
+	});
+
+	it("should reject unsupported contract version", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "99.0.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(false);
+		expect(result.errors.some((e) => e.includes("not supported"))).toBe(true);
+	});
+
+	it("should accept v2.1.0 contract version", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.1.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.1.0");
+	});
+
+	it("should default to undefined contractVersion when not specified", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBeUndefined();
+	});
+});
+
+describe("v2.2.0: planExecution.interactiveParallelismReview parsing", () => {
+	it("should parse planExecution.interactiveParallelismReview true", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "planExecution": {
+    "interactiveParallelismReview": true
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.planExecution?.interactiveParallelismReview).toBe(true);
+	});
+
+	it("should parse planExecution.interactiveParallelismReview false", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "planExecution": {
+    "interactiveParallelismReview": false
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.planExecution?.interactiveParallelismReview).toBe(false);
+	});
+
+	it("should parse planExecution without interactiveParallelismReview", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "planExecution": {},
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.planExecution?.interactiveParallelismReview).toBeUndefined();
+	});
+
+	it("should not break v2.1.0 plans without planExecution", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.1.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.planExecution).toBeUndefined();
+	});
+});
+
+describe("v2.2.0: parallelismReview parsing", () => {
+	it("should parse parallelismReview with all fields", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "parallelismReview": {
+    "enabled": true,
+    "threshold": 4,
+    "description": "Review above 4 parallel workspaces",
+    "metadata": { "reviewer": "team-lead" }
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.parallelismReview?.enabled).toBe(true);
+		expect(result.queue?.parallelismReview?.threshold).toBe(4);
+		expect(result.queue?.parallelismReview?.description).toBe("Review above 4 parallel workspaces");
+		expect(result.queue?.parallelismReview?.metadata).toEqual({ reviewer: "team-lead" });
+	});
+
+	it("should parse parallelismReview with minimal fields", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "parallelismReview": {
+    "enabled": false
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.parallelismReview?.enabled).toBe(false);
+		expect(result.queue?.parallelismReview?.threshold).toBeUndefined();
+		expect(result.queue?.parallelismReview?.description).toBeUndefined();
+	});
+
+	it("should parse parallelismReview with threshold null", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "parallelismReview": {
+    "enabled": true,
+    "threshold": null
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.parallelismReview?.threshold).toBeNull();
+	});
+
+	it("should not break v2.1.0 plans without parallelismReview", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.1.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.parallelismReview).toBeUndefined();
+	});
+
+	it("should ignore parallelismReview when enabled is not boolean", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "parallelismReview": {
+    "enabled": "yes"
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		// Should not crash — parallelismReview is ignored when invalid shape
+		expect(result.success).toBe(true);
+		expect(result.queue?.parallelismReview).toBeUndefined();
+	});
+});
+
+describe("v2.2.0: workspace parallelGroup and dependencyReason parsing", () => {
+	it("should parse workspace parallelGroup", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3, "parallelGroup": "backend" },
+    { "id": "7.B", "title": "Task B", "dependencies": [], "roleBudget": "worker", "maxRetries": 3, "parallelGroup": "backend" },
+    { "id": "7.C", "title": "Task C", "dependencies": [], "roleBudget": "worker", "maxRetries": 3, "parallelGroup": "frontend" }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces[0].parallelGroup).toBe("backend");
+		expect(result.queue?.workspaces[1].parallelGroup).toBe("backend");
+		expect(result.queue?.workspaces[2].parallelGroup).toBe("frontend");
+	});
+
+	it("should parse workspace dependencyReason", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Task B", "dependencies": ["7.A"], "roleBudget": "worker", "maxRetries": 3, "dependencyReason": { "7.A": "Auth setup required" } }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces[1].dependencyReason).toEqual({ "7.A": "Auth setup required" });
+	});
+
+	it("should not break v2.1.0 plans without parallelGroup or dependencyReason", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.1.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces[0].parallelGroup).toBeUndefined();
+		expect(result.queue?.workspaces[0].dependencyReason).toBeUndefined();
+	});
+
+	it("should ignore non-string parallelGroup", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3, "parallelGroup": 42 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces[0].parallelGroup).toBeUndefined();
+	});
+
+	it("should ignore non-object dependencyReason", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.2.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3, "dependencyReason": "wrong type" }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.workspaces[0].dependencyReason).toBeUndefined();
+	});
+});

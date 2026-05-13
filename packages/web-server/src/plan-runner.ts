@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+	type ApprovedPreviewMetadata,
 	AutonomousExecutor,
 	createSafetyDoctor,
 	PiLogger,
@@ -25,6 +26,7 @@ import {
 	appendStructuredEntry,
 } from "./execution-archive.js";
 import { initializePlanMarkdown, updatePlanMarkdown } from "./plan-markdown.js";
+import { computeBatchPlan } from "./plan-preview.js";
 import { getStateStore } from "./state-store-provider.js";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +38,8 @@ export interface ExecutionMeta {
 	title: string;
 	phase: string;
 	startedAt: number;
+	/** Approved preview metadata persisted for crash recovery (AC2). */
+	approvedPreview?: ApprovedPreviewMetadata;
 }
 
 export interface ActiveExecution {
@@ -406,12 +410,33 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		// sees the same in-memory log buffers as workspace execution.
 		const stateStore = getStateStore();
 
+		// AC1: Compute approved dependency graph (batch plan) from the parsed queue.
+		// This ensures the executor uses the approved dependency graph, not stale
+		// parser output.
+		const batchPlan = computeBatchPlan(parseResult.queue);
+		const approvedPreviewMetadata: ApprovedPreviewMetadata = {
+			batchAssignment: {},
+			batches: batchPlan.batches.map((b) => ({
+				batchIndex: b.batchIndex,
+				workspaceIds: b.workspaceIds,
+				width: b.width,
+			})),
+			effectiveParallelism: batchPlan.effectiveParallelism,
+			patchesApplied: false,
+			approvedAt: Date.now(),
+		};
+		// Map batch assignments from the dependency graph
+		for (const node of batchPlan.dependencyGraph) {
+			approvedPreviewMetadata.batchAssignment[node.id] = node.batchIndex;
+		}
+
 		const executor = new AutonomousExecutor(stateStore, {
 			workspaceRoot,
 			projectId,
 			maxWorkers: parseResult.queue.maxParallelWorkspaces || 3,
 			skipProjectManagement: false,
 			enableRealExecution: true, // Enable real agent execution
+			approvedPreview: approvedPreviewMetadata,
 		});
 
 		// AC #3: Guard released on initialize() success or failure
@@ -437,6 +462,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			title: parseResult.queue.title,
 			phase: parseResult.queue.phase,
 			startedAt: execution.startedAt,
+			approvedPreview: approvedPreviewMetadata, // AC2: persist approved preview metadata
 		});
 
 		// Start execution in background (do not await)
@@ -1116,12 +1142,37 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	// Re-use the same max-workers from the original plan
 	const maxWorkers = queue.maxParallelWorkspaces || 3;
 
+	// AC1 + AC2: Restore approved preview metadata from the persisted meta file
+	const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+	const approvedPreviewFromMeta = meta?.approvedPreview;
+
+	// If no persisted metadata, compute fresh from queue (fallback)
+	let approvedPreviewForRecovery = approvedPreviewFromMeta;
+	if (!approvedPreviewForRecovery) {
+		const batchPlan = computeBatchPlan(queue);
+		approvedPreviewForRecovery = {
+			batchAssignment: {},
+			batches: batchPlan.batches.map((b) => ({
+				batchIndex: b.batchIndex,
+				workspaceIds: b.workspaceIds,
+				width: b.width,
+			})),
+			effectiveParallelism: batchPlan.effectiveParallelism,
+			patchesApplied: false,
+			approvedAt: Date.now(),
+		};
+		for (const node of batchPlan.dependencyGraph) {
+			approvedPreviewForRecovery.batchAssignment[node.id] = node.batchIndex;
+		}
+	}
+
 	const executor = new AutonomousExecutor(stateStore, {
 		workspaceRoot,
 		projectId,
 		maxWorkers,
 		skipProjectManagement: false,
 		enableRealExecution: true,
+		approvedPreview: approvedPreviewForRecovery,
 	});
 
 	// Adopt the existing execution (resets stranded active → pending)

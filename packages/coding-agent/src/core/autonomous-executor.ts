@@ -23,7 +23,7 @@ import type { IStateStore, PlanControlState } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceAgentExecutor } from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
-import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
+import type { ApprovedPreviewMetadata, Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
 /**
@@ -128,6 +128,13 @@ export interface AutonomousExecutorConfig {
 	 * Defaults to 30 minutes (1800000 ms).
 	 */
 	handoffTimeoutMs?: number;
+	/**
+	 * Approved preview metadata from the plan preview flow.
+	 *
+	 * When provided, the executor uses the approved dependency graph for
+	 * scheduling (AC1) and persists the preview metadata (AC2).
+	 */
+	approvedPreview?: ApprovedPreviewMetadata;
 }
 
 /**
@@ -154,6 +161,8 @@ export class AutonomousExecutor {
 	private planExecutionId: string | null = null;
 	private currentPlanState: PlanState | null = null;
 	private workspaceQueue: WorkspaceQueue | null = null;
+	/** Approved preview metadata from the dependency graph (AC1 + AC2). */
+	private approvedPreview: ApprovedPreviewMetadata | null = null;
 	private agentExecutor: WorkspaceAgentExecutor | null = null;
 	private enableRealExecution: boolean;
 	private autoCommitEnabled: boolean;
@@ -180,6 +189,11 @@ export class AutonomousExecutor {
 		this.postPlanHandoffEnabled = config.postPlanHandoff ?? true;
 		this.handoffTimeoutMs = config.handoffTimeoutMs ?? 30 * 60 * 1000; // 30 minutes
 
+		// AC1 + AC2: Apply approved preview metadata if provided in config
+		if (config.approvedPreview) {
+			this.setApprovedPreviewMetadata(config.approvedPreview);
+		}
+
 		// If skipProjectManagement, use a fixed projectId
 		if (config.skipProjectManagement) {
 			this.projectId = "default";
@@ -205,6 +219,35 @@ export class AutonomousExecutor {
 		if (this.agentExecutor && this.planExecutionId) {
 			this.agentExecutor.setPlanExecutionId(this.planExecutionId);
 		}
+	}
+
+	/**
+	 * Set the approved preview metadata from the plan preview approval flow.
+	 *
+	 * AC1: Ensures the executor uses the approved dependency graph, not stale
+	 * parser output. The batch assignments and topological batches are transferred
+	 * to the scheduler for batch-aware scheduling and logging.
+	 *
+	 * AC2: The approved preview metadata is persisted alongside execution state
+	 * for audit and crash recovery.
+	 *
+	 * @param metadata - Approved preview metadata (batch assignments, batches, etc.)
+	 */
+	setApprovedPreviewMetadata(metadata: ApprovedPreviewMetadata): void {
+		this.approvedPreview = metadata;
+
+		// Transfer batch assignments to scheduler for AC4 (batch ID logging)
+		const batchAssignment = new Map<string, number>(Object.entries(metadata.batchAssignment));
+		this.scheduler.setBatchAssignment(batchAssignment, metadata.batches);
+	}
+
+	/**
+	 * Get the approved preview metadata.
+	 *
+	 * @returns Approved preview metadata or null if not set
+	 */
+	getApprovedPreviewMetadata(): ApprovedPreviewMetadata | null {
+		return this.approvedPreview;
 	}
 
 	/**
@@ -581,7 +624,14 @@ export class AutonomousExecutor {
 	}
 
 	/**
-	 * Get next eligible workspaces to execute
+	 * Get next eligible workspaces to execute.
+	 *
+	 * AC1: Uses approved dependency graph (not stale parser output) when
+	 * approvedPreviewMetadata has been set. The scheduler uses the approved
+	 * batch assignments for dependency resolution.
+	 *
+	 * AC4: The scheduling decision includes batch IDs for each ready workspace,
+	 * logged via the scheduler's diagnostic output.
 	 *
 	 * @param workspaces - All workspaces
 	 * @returns Array of eligible workspaces
@@ -612,6 +662,20 @@ export class AutonomousExecutor {
 		}
 
 		const decision = this.scheduler.getNextWorkspaces(workspaces, state);
+
+		// AC4: Log planned batch IDs for each scheduled workspace
+		if (decision.ready.length > 0) {
+			const log = new PiLogger({ planExecId: planExecutionId });
+			for (const ws of decision.ready) {
+				const batchId = decision.readyBatchIds.get(ws.id);
+				if (batchId !== undefined) {
+					log.info(`Scheduled workspace ${ws.id} in batch ${batchId}`);
+				} else {
+					log.info(`Scheduled workspace ${ws.id} (no batch assignment)`);
+				}
+			}
+		}
+
 		return decision.ready;
 	}
 
@@ -1003,6 +1067,26 @@ export class AutonomousExecutor {
 	 */
 	getWorkspaceQueue(): WorkspaceQueue | null {
 		return this.workspaceQueue;
+	}
+
+	/**
+	 * Get the maximum parallel workspaces limit (AC3 verification).
+	 *
+	 * The scheduler enforces this limit — it will never schedule more than
+	 * this many concurrent workspaces.
+	 *
+	 * @returns Maximum concurrent workers
+	 */
+	getMaxParallelWorkspaces(): number {
+		return this.scheduler.getMaxWorkers();
+	}
+
+	/**
+	 * Get the underlying workspace scheduler.
+	 * Exposed for testing and diagnostic purposes.
+	 */
+	getScheduler(): WorkspaceScheduler {
+		return this.scheduler;
 	}
 
 	/**

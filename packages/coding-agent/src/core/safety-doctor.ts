@@ -5,6 +5,7 @@
  * Detects placeholders, forbidden files, destructive commands, and security issues.
  */
 
+import { computeBatchPlan } from "./dag-analyzer.js";
 import type { RetryPolicy } from "./retry-handler.js";
 import { checkCommand, getEffectivePermissions, type SafetyProfileName } from "./safety-profile.js";
 import { SkillRegistry } from "./skill-registry.js";
@@ -53,6 +54,10 @@ export enum SafetyIssueType {
 	ProfileConflict = "profile_conflict",
 	/** Experimental worker mode enabled (4-6 workers) */
 	ExperimentalWorkers = "experimental_workers",
+	/** Preflight review required before execution */
+	PreflightRequired = "preflight_required",
+	/** Effective parallelism is below requested parallelism */
+	LowEffectiveParallelism = "low_effective_parallelism",
 }
 
 /**
@@ -72,6 +77,22 @@ export interface SafetyIssue {
 }
 
 /**
+ * Parallelism diagnostics reported by the safety doctor.
+ */
+export interface ParallelismDiagnostics {
+	/** Effective parallelism (max width across topological batches) */
+	effectiveParallelism: number;
+	/** Critical path length (number of topological batches) */
+	criticalPathLength: number;
+	/** Number of consecutive single-width batches at the end */
+	serializedTailLength: number;
+	/** Requested parallelism (from queue maxParallelWorkspaces) */
+	requestedParallelism: number;
+	/** Delta between requested and effective parallelism */
+	parallelismDelta: number;
+}
+
+/**
  * Safety report
  */
 export interface SafetyReport {
@@ -85,6 +106,8 @@ export interface SafetyReport {
 	info: SafetyIssue[];
 	/** Total issue count */
 	totalIssues: number;
+	/** Parallelism diagnostics (computed from DAG analysis) */
+	parallelism?: ParallelismDiagnostics;
 }
 
 /**
@@ -229,6 +252,140 @@ export class SafetyDoctor {
 		}
 
 		return this.buildReport(issues);
+	}
+
+	/**
+	 * Validate workspace queue for safety issues with parallelism diagnostics.
+	 *
+	 * Extends validateQueue with DAG-based parallelism analysis:
+	 * - Computes effectiveParallelism, criticalPathLength, serializedTailLength
+	 * - Warns when effective parallelism < requested parallelism
+	 * - Checks for preflightRequired workspaces
+	 * - Fails dependency cycles and invalid workspace references
+	 *
+	 * @param queue - Workspace queue to validate
+	 * @param profileName - Optional safety profile to check against for profile conflicts
+	 * @returns Safety report with parallelism diagnostics
+	 */
+	validateQueueWithParallelism(queue: WorkspaceQueue, profileName?: SafetyProfileName): SafetyReport {
+		const issues: SafetyIssue[] = [];
+
+		// Validate workspace schema
+		const schemaValidation = validateWorkspaceQueue(queue);
+		if (!schemaValidation.valid) {
+			for (const error of schemaValidation.errors) {
+				issues.push({
+					type: SafetyIssueType.InvalidConfig,
+					severity: SafetyIssueSeverity.Critical,
+					message: error.message,
+					workspaceId: error.workspaceId,
+					context: error.context,
+				});
+			}
+		}
+
+		// Check for dependency cycles (already caught by schema validation, but double-check)
+		const schedulingValidation = this.scheduler.validateScheduling(queue.workspaces);
+		if (!schedulingValidation.valid) {
+			for (const error of schedulingValidation.errors) {
+				if (error.includes("cycle")) {
+					issues.push({
+						type: SafetyIssueType.DependencyCycle,
+						severity: SafetyIssueSeverity.Critical,
+						message: error,
+					});
+				} else if (error.includes("deadlock")) {
+					issues.push({
+						type: SafetyIssueType.FileConflict,
+						severity: SafetyIssueSeverity.Critical,
+						message: error,
+					});
+				}
+			}
+		}
+
+		// Validate each workspace
+		for (const workspace of queue.workspaces) {
+			issues.push(...this.validateWorkspace(workspace));
+		}
+
+		// Check for profile conflicts if a profile is specified
+		if (profileName) {
+			issues.push(...this.detectProfileConflicts(queue, profileName));
+		}
+
+		// Check for experimental worker mode warnings
+		if (this.workerConcurrency) {
+			issues.push(...this.detectExperimentalWorkerIssues(this.workerConcurrency));
+		}
+
+		// Check for preflightRequired workspaces
+		for (const workspace of queue.workspaces) {
+			if (workspace.preflightRequired) {
+				issues.push({
+					type: SafetyIssueType.PreflightRequired,
+					severity: SafetyIssueSeverity.Critical,
+					message: `Workspace ${workspace.id} requires preflight review approval before execution`,
+					workspaceId: workspace.id,
+				});
+			}
+		}
+
+		// Compute parallelism diagnostics from DAG analysis
+		let parallelism: ParallelismDiagnostics | undefined;
+		const batchPlanResult = computeBatchPlan(queue);
+		if (batchPlanResult.errors.length === 0) {
+			parallelism = {
+				effectiveParallelism: batchPlanResult.effectiveParallelism,
+				criticalPathLength: batchPlanResult.criticalPathLength,
+				serializedTailLength: batchPlanResult.serializedTailLength,
+				requestedParallelism: batchPlanResult.requestedParallelism,
+				parallelismDelta: batchPlanResult.parallelismDelta,
+			};
+
+			// Warn when effective parallelism is below requested parallelism
+			if (
+				batchPlanResult.effectiveParallelism < batchPlanResult.requestedParallelism &&
+				batchPlanResult.effectiveParallelism > 0
+			) {
+				issues.push({
+					type: SafetyIssueType.LowEffectiveParallelism,
+					severity: SafetyIssueSeverity.Warning,
+					message: `Effective parallelism (${batchPlanResult.effectiveParallelism}) is below requested (${batchPlanResult.requestedParallelism}). Some worker capacity will be unused.`,
+					context: {
+						effectiveParallelism: batchPlanResult.effectiveParallelism,
+						requestedParallelism: batchPlanResult.requestedParallelism,
+						parallelismDelta: batchPlanResult.parallelismDelta,
+					},
+				});
+			}
+		} else {
+			// Report batch plan errors as critical issues (dependency cycles, missing deps)
+			for (const error of batchPlanResult.errors) {
+				if (error.type === "cycle") {
+					// Only add if not already present from schema validation
+					const alreadyHasCycle = issues.some((i) => i.type === SafetyIssueType.DependencyCycle);
+					if (!alreadyHasCycle) {
+						issues.push({
+							type: SafetyIssueType.DependencyCycle,
+							severity: SafetyIssueSeverity.Critical,
+							message: error.message,
+							workspaceId: error.workspaceIds?.[0],
+						});
+					}
+				}
+				if (error.type === "missing_dependency") {
+					issues.push({
+						type: SafetyIssueType.InvalidConfig,
+						severity: SafetyIssueSeverity.Critical,
+						message: error.message,
+						workspaceId: error.workspaceIds?.[0],
+					});
+				}
+			}
+		}
+
+		return this.buildReport(issues, parallelism);
 	}
 
 	/**
@@ -480,7 +637,7 @@ export class SafetyDoctor {
 	 * @param issues - Array of safety issues
 	 * @returns Safety report
 	 */
-	private buildReport(issues: SafetyIssue[]): SafetyReport {
+	private buildReport(issues: SafetyIssue[], parallelism?: ParallelismDiagnostics): SafetyReport {
 		const critical = issues.filter((i) => i.severity === SafetyIssueSeverity.Critical);
 		const warnings = issues.filter((i) => i.severity === SafetyIssueSeverity.Warning);
 		const info = issues.filter((i) => i.severity === SafetyIssueSeverity.Info);
@@ -491,6 +648,7 @@ export class SafetyDoctor {
 			warnings,
 			info,
 			totalIssues: issues.length,
+			parallelism,
 		};
 	}
 
@@ -639,6 +797,17 @@ export class SafetyDoctor {
 			for (const issue of report.info) {
 				lines.push(`  ℹ️  [${issue.type}] ${issue.message}`);
 			}
+		}
+
+		if (report.parallelism) {
+			lines.push("");
+			lines.push("PARALLELISM DIAGNOSTICS:");
+			lines.push(`  Effective parallelism: ${report.parallelism.effectiveParallelism}`);
+			lines.push(`  Requested parallelism: ${report.parallelism.requestedParallelism}`);
+			lines.push(`  Critical path length:  ${report.parallelism.criticalPathLength}`);
+			lines.push(`  Serialized tail length: ${report.parallelism.serializedTailLength}`);
+			const delta = report.parallelism.parallelismDelta;
+			lines.push(`  Parallelism delta:     ${delta > 0 ? `+${delta}` : String(delta)}`);
 		}
 
 		return lines.join("\n");

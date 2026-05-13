@@ -7,7 +7,7 @@
 
 import type { PlanState } from "./plan-state.js";
 import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "./worker-concurrency.js";
-import type { Workspace } from "./workspace-schema.js";
+import type { TopologicalBatch, Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
 
 /**
@@ -26,6 +26,8 @@ export interface SkipReason {
 	conflictingWorkspaceId?: string;
 	/** For file-lock skips: conflicting file path or glob pattern */
 	conflictingPath?: string;
+	/** Planned batch ID for the workspace (1-based, from approved dependency graph) */
+	batchId?: number;
 }
 
 /**
@@ -50,6 +52,8 @@ export interface SchedulerDiagnostics {
 	idle: IdleExplanation;
 	/** Capacity snapshot */
 	capacity: SchedulerCapacitySnapshot;
+	/** Batch IDs for scheduled workspaces (workspace ID -> 1-based batch index) */
+	batchIds: Map<string, number>;
 }
 
 /**
@@ -92,6 +96,8 @@ export interface SchedulingDecision {
 	blockReasons: Map<string, string>;
 	/** Diagnostics (selected/skipped/idle detail) */
 	diagnostics: SchedulerDiagnostics;
+	/** Batch IDs for ready workspaces (workspace ID -> 1-based batch index) */
+	readyBatchIds: Map<string, number>;
 }
 
 /**
@@ -119,12 +125,18 @@ export interface FileLockConflict {
 export class WorkspaceScheduler {
 	private maxWorkers: number;
 	private fileLocks: Map<string, string>; // file path -> workspace ID
+	/** Batch assignment for each workspace (workspace ID -> batch index). */
+	private batchAssignment: Map<string, number>;
+	/** Computed topological batches. */
+	private batches: TopologicalBatch[];
 
 	constructor(maxWorkers = DEFAULT_WORKERS) {
 		// Clamp worker count to valid range
 		const clamped = Math.max(MIN_STABLE_WORKERS, Math.min(MAX_EXPERIMENTAL_WORKERS, maxWorkers));
 		this.maxWorkers = clamped;
 		this.fileLocks = new Map();
+		this.batchAssignment = new Map();
+		this.batches = [];
 	}
 
 	/**
@@ -144,12 +156,34 @@ export class WorkspaceScheduler {
 		const ready: Workspace[] = [];
 		const blocked: Workspace[] = [];
 		const blockReasons = new Map<string, string>();
+		const readyBatchIds = new Map<string, number>();
 		const skipped: SkipReason[] = [];
 
 		// Get currently active workspaces
 		const activeCount = Array.from(state.workspaces.values()).filter(
 			(ws) => ws.stage === WorkspaceStage.Active,
 		).length;
+
+		// AC3: Enforce maxParallelWorkspaces — never exceed maxWorkers
+		if (activeCount > this.maxWorkers) {
+			// Defensive: this should never happen, but if it does, refuse to schedule more
+			for (const workspace of workspaces) {
+				const wsState = state.workspaces.get(workspace.id);
+				if (wsState?.stage === WorkspaceStage.Pending) {
+					blocked.push(workspace);
+					blockReasons.set(workspace.id, `Worker limit exceeded (active ${activeCount} > max ${this.maxWorkers})`);
+					skipped.push({
+						workspaceId: workspace.id,
+						category: "capacity",
+						reason: `Worker limit exceeded (active ${activeCount} > max ${this.maxWorkers})`,
+						batchId: this.batchAssignment.get(workspace.id),
+					});
+				}
+			}
+
+			const diag = this.buildDiagnostics(ready, skipped, state);
+			return { ready, blocked, blockReasons, diagnostics: diag, readyBatchIds };
+		}
 
 		// Check worker limit
 		const availableSlots = this.maxWorkers - activeCount;
@@ -164,12 +198,13 @@ export class WorkspaceScheduler {
 						workspaceId: workspace.id,
 						category: "capacity",
 						reason: `Worker limit reached (max ${this.maxWorkers})`,
+						batchId: this.batchAssignment.get(workspace.id),
 					});
 				}
 			}
 
 			const diag = this.buildDiagnostics(ready, skipped, state);
-			return { ready, blocked, blockReasons, diagnostics: diag };
+			return { ready, blocked, blockReasons, diagnostics: diag, readyBatchIds };
 		}
 
 		const capacityReached = { value: false };
@@ -184,6 +219,7 @@ export class WorkspaceScheduler {
 						workspaceId: workspace.id,
 						category: "not_pending",
 						reason: `Workspace not pending (stage: ${wsState.stage})`,
+						batchId: this.batchAssignment.get(workspace.id),
 					});
 				}
 				continue;
@@ -199,6 +235,7 @@ export class WorkspaceScheduler {
 					category: "dependency",
 					reason: depsResult.reason || "Dependencies not complete",
 					missingDependencyIds: depsResult.missingIds,
+					batchId: this.batchAssignment.get(workspace.id),
 				});
 				continue;
 			}
@@ -214,6 +251,7 @@ export class WorkspaceScheduler {
 					reason: `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`,
 					conflictingWorkspaceId: lockConflict.owner,
 					conflictingPath: lockConflict.file,
+					batchId: this.batchAssignment.get(workspace.id),
 				});
 				continue;
 			}
@@ -227,11 +265,16 @@ export class WorkspaceScheduler {
 					workspaceId: workspace.id,
 					category: "capacity",
 					reason: "No available worker slot",
+					batchId: this.batchAssignment.get(workspace.id),
 				});
 				continue;
 			}
 
-			// Workspace is ready
+			// Workspace is ready — record batch ID (AC4: scheduler logs planned batch id)
+			const batchId = this.batchAssignment.get(workspace.id);
+			if (batchId !== undefined) {
+				readyBatchIds.set(workspace.id, batchId);
+			}
 			ready.push(workspace);
 		}
 
@@ -251,12 +294,13 @@ export class WorkspaceScheduler {
 					workspaceId: workspace.id,
 					category: "capacity",
 					reason: "Waiting for available slot",
+					batchId: this.batchAssignment.get(workspace.id),
 				});
 			}
 		}
 
 		const diag = this.buildDiagnostics(ready, skipped, state);
-		return { ready, blocked, blockReasons, diagnostics: diag };
+		return { ready, blocked, blockReasons, diagnostics: diag, readyBatchIds };
 	}
 
 	/**
@@ -319,6 +363,13 @@ export class WorkspaceScheduler {
 	private buildDiagnostics(ready: Workspace[], skipped: SkipReason[], state: PlanState): SchedulerDiagnostics {
 		const capacity = this.getCapacitySnapshot(state);
 		const selected = ready.map((w) => w.id);
+		const batchIds = new Map<string, number>();
+		for (const ws of ready) {
+			const batchId = this.batchAssignment.get(ws.id);
+			if (batchId !== undefined) {
+				batchIds.set(ws.id, batchId);
+			}
+		}
 
 		// Determine idle explanation
 		const idle: IdleExplanation = { isIdle: selected.length === 0, reasons: [] };
@@ -343,7 +394,7 @@ export class WorkspaceScheduler {
 			}
 		}
 
-		return { selected, skipped, idle, capacity };
+		return { selected, skipped, idle, capacity, batchIds };
 	}
 
 	/**
@@ -671,6 +722,60 @@ export class WorkspaceScheduler {
 	 */
 	reset(): void {
 		this.fileLocks.clear();
+		this.batchAssignment.clear();
+		this.batches = [];
+	}
+
+	/**
+	 * Set batch assignments for workspaces from the approved plan preview.
+	 *
+	 * This must be called before scheduling to enable batch ID logging.
+	 * The batch assignments come from the approved dependency graph (plan preview),
+	 * not from stale parser output.
+	 *
+	 * @param batchAssignment - Map of workspace ID to 1-based batch index
+	 * @param batches - Computed topological batches
+	 */
+	setBatchAssignment(batchAssignment: Map<string, number>, batches: TopologicalBatch[]): void {
+		this.batchAssignment = new Map(batchAssignment);
+		this.batches = batches;
+	}
+
+	/**
+	 * Get the batch index for a workspace from the approved plan preview.
+	 *
+	 * @param workspaceId - Workspace ID
+	 * @returns 1-based batch index, or 0 if not assigned
+	 */
+	getBatchId(workspaceId: string): number {
+		return this.batchAssignment.get(workspaceId) ?? 0;
+	}
+
+	/**
+	 * Get all batch assignments.
+	 *
+	 * @returns Map of workspace ID to batch index
+	 */
+	getBatchAssignments(): Map<string, number> {
+		return new Map(this.batchAssignment);
+	}
+
+	/**
+	 * Get the configured topological batches.
+	 *
+	 * @returns Array of topological batches
+	 */
+	getBatches(): TopologicalBatch[] {
+		return [...this.batches];
+	}
+
+	/**
+	 * Get the maximum parallel workspaces limit.
+	 *
+	 * @returns Maximum number of concurrent workers
+	 */
+	getMaxWorkers(): number {
+		return this.maxWorkers;
 	}
 }
 
@@ -749,7 +854,9 @@ export function formatSchedulingDecision(decision: SchedulingDecision): string {
 	lines.push(`Ready to schedule: ${decision.ready.length}`);
 	if (decision.ready.length > 0) {
 		for (const ws of decision.ready) {
-			lines.push(`  • ${ws.id} — ${ws.title}`);
+			const batchId = decision.readyBatchIds.get(ws.id);
+			const batchInfo = batchId !== undefined ? ` [batch ${batchId}]` : "";
+			lines.push(`  • ${ws.id} — ${ws.title}${batchInfo}`);
 		}
 	}
 

@@ -79,6 +79,13 @@ export {
 	type WorkspaceAgentExecutorConfig,
 } from "./core/workspace-agent-executor.js";
 export {
+	ACCEPTED_SCHEMA_VERSIONS,
+	type ApprovedPreviewMetadata,
+	CONTRACT_SCHEMA_VERSION,
+	isAcceptedSchemaVersion,
+	type ParallelismReview,
+	type PlanExecutionConfig,
+	type TopologicalBatch,
 	validateWorkspaceQueue,
 	type Workspace,
 	type WorkspaceCapabilityManifest,

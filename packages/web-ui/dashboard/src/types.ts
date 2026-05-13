@@ -227,3 +227,132 @@ export interface GitFilePatch {
 	truncated: boolean;
 	truncatedLines: number;
 }
+
+// =============================================================================
+// Parallelism Preview Types (workspace 7.F)
+// =============================================================================
+
+/** A node in the dependency graph, as returned by the validate endpoint. */
+export interface DependencyGraphNode {
+	/** Workspace ID */
+	id: string;
+	/** Workspace title */
+	title: string;
+	/** IDs of workspaces this workspace depends on */
+	dependencies: string[];
+	/** IDs of workspaces that depend on this workspace */
+	dependents: string[];
+	/** Batch index (1-based) from topological sort */
+	batchIndex: number;
+}
+
+/** A topological batch of workspaces from the parallelism preview. */
+export interface TopologicalBatch {
+	/** 1-based batch index */
+	batchIndex: number;
+	/** Workspace IDs in this batch */
+	workspaceIds: string[];
+	/** Number of workspaces in this batch */
+	width: number;
+}
+
+/** A dependency patch operation for the preview PATCH endpoint. */
+export interface DependencyPatch {
+	/** Workspace ID to modify */
+	workspaceId: string;
+	/** Type of patch operation */
+	action: "add_dependency" | "remove_dependency";
+	/** Dependency ID to add or remove */
+	dependencyId: string;
+}
+
+/** A suggested fix for a plan issue. */
+export interface SuggestedFix {
+	/** Fix identifier */
+	id: string;
+	/** Category of the fix */
+	category: "remove_dependency" | "add_dependency" | "reorder_workspace" | "adjust_parallelism" | "resolve_cycle";
+	/** Human-readable description */
+	description: string;
+	/** Workspace IDs affected */
+	workspaceIds: string[];
+	/** The patch to apply (if applicable) */
+	patch?: DependencyPatch;
+}
+
+/** Warning about the batch plan from parallelism preview. */
+export interface BatchPlanWarning {
+	type: "over_serialized" | "low_effective_parallelism" | "single_width_batch";
+	message: string;
+	workspaceIds?: string[];
+	batchIndex?: number;
+}
+
+/** Error that prevented batch computation. */
+export interface BatchPlanError {
+	type: "cycle" | "missing_dependency" | "empty_queue";
+	message: string;
+	workspaceIds?: string[];
+}
+
+/** Result of the batch plan computation from the validate endpoint. */
+export interface BatchPlanResult {
+	/** Dependency graph nodes */
+	dependencyGraph: DependencyGraphNode[];
+	/** Topological batches */
+	batches: TopologicalBatch[];
+	/** Total number of batches */
+	totalBatches: number;
+	/** Maximum width across all batches */
+	effectiveParallelism: number;
+	/** The maxParallelWorkspaces from the queue */
+	requestedParallelism: number;
+	/** Delta between requested and effective */
+	parallelismDelta: number;
+	/** Whether plan is over-serialized (requested > 1 but effective = 1) */
+	isOverSerialized: boolean;
+	/** Warnings about the batch plan */
+	warnings: BatchPlanWarning[];
+	/** Errors that prevented computation */
+	errors: BatchPlanError[];
+}
+
+/** Result of applying dependency patches (preview PATCH endpoint response). */
+export interface PreviewResult {
+	/** Whether the preview was successfully computed */
+	success: boolean;
+	/** Updated batch plan result after patches */
+	batchPlan?: BatchPlanResult;
+	/** Validation errors from the patched queue */
+	errors: string[];
+	/** Warnings from the patched queue */
+	warnings: string[];
+	/** Patches that were applied */
+	appliedPatches: DependencyPatch[];
+	/** Patches that could not be applied */
+	rejectedPatches: Array<{ patch: DependencyPatch; reason: string }>;
+}
+
+/** Full response from POST /plans/validate with parallelism preview data. */
+export interface ValidateWithPreviewResponse {
+	success: boolean;
+	parseResult?: {
+		title: string;
+		phase: string;
+		workspaceCount: number;
+		maxParallel: number;
+	};
+	safety?: {
+		safe: boolean;
+		critical: Array<{ type: string; message: string }>;
+		warnings: Array<{ type: string; message: string }>;
+	};
+	errors?: string[];
+	warnings?: string[];
+	/** Parallelism preview batch analysis */
+	batchPlan?: BatchPlanResult;
+	/** Suggested fixes for dependency issues */
+	suggestedFixes?: SuggestedFix[];
+	/** Whether the plan requires interactive approval before running */
+	requiresApproval?: boolean;
+}

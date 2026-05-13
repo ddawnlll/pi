@@ -20,8 +20,9 @@
  *   GET    /api/projects/:projectId/plans/:planExecId  Get plan execution detail
  *   GET    /api/projects/:projectId/plans/:planExecId/events  SSE: plan events
  *
- *   POST   /api/projects/:projectId/plans/validate  Validate plan content
- *   POST   /api/projects/:projectId/plans/run       Upload and run a plan
+ *   POST   /api/projects/:projectId/plans/validate  Validate plan content (returns dependency graph, batches, warnings, suggested fixes)
+ *   PATCH  /api/projects/:projectId/plans/preview   Apply dependency patches without starting execution
+ *   POST   /api/projects/:projectId/plans/run       Upload and run a plan (refuses unapproved interactive plans)
  *   GET    /api/projects/:projectId/active          Get active execution info
  *
  *   GET    /api/projects/:projectId/queue           Get plan queue for project
@@ -55,6 +56,13 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
+import {
+	applyDependencyPatches,
+	computeBatchPlan,
+	type DependencyPatch,
+	generateSuggestedFixes,
+	requiresInteractiveApproval,
+} from "./plan-preview.js";
 import {
 	getActiveExecution,
 	getActiveExecutions,
@@ -1630,7 +1638,9 @@ fastify.get<{
  * POST /api/projects/:projectId/plans/validate - Validate plan content
  *
  * Parses and validates plan content without executing it.
+ * Returns dependency graph, batches, warnings, safety report, and suggested fixes.
  * Accepts plan content as a JSON body or multipart file upload.
+ * Backward compatible: still returns parseResult, safety, and warnings.
  */
 fastify.post<{
 	Params: { projectId: string };
@@ -1660,6 +1670,12 @@ fastify.post<{
 		const doctor = createSafetyDoctor();
 		const safetyReport = doctor.validateQueue(queue);
 
+		// Compute batch plan (dependency graph, batches, parallelism)
+		const batchPlan = computeBatchPlan(queue);
+
+		// Generate suggested fixes
+		const suggestedFixes = generateSuggestedFixes(queue, batchPlan);
+
 		return {
 			success: true,
 			parseResult: {
@@ -1669,6 +1685,15 @@ fastify.post<{
 				maxParallel: queue.maxParallelWorkspaces,
 			},
 			safety: safetyReport,
+			dependencyGraph: batchPlan.dependencyGraph,
+			batches: batchPlan.batches,
+			totalBatches: batchPlan.totalBatches,
+			effectiveParallelism: batchPlan.effectiveParallelism,
+			requestedParallelism: batchPlan.requestedParallelism,
+			isOverSerialized: batchPlan.isOverSerialized,
+			batchWarnings: batchPlan.warnings,
+			batchErrors: batchPlan.errors,
+			suggestedFixes,
 			warnings: parseResult.warnings,
 		};
 	} catch (error) {
@@ -1678,23 +1703,112 @@ fastify.post<{
 });
 
 /**
+ * PATCH /api/projects/:projectId/plans/preview - Apply dependency patches without execution
+ *
+ * Accepts plan content and an array of dependency patches, applies them
+ * to a copy of the workspace queue, and returns the preview without
+ * starting execution. Useful for "what-if" analysis.
+ */
+fastify.patch<{
+	Params: { projectId: string };
+	Body: { planContent: string; patches: DependencyPatch[] };
+}>("/api/projects/:projectId/plans/preview", async (request, reply) => {
+	const { planContent, patches } = request.body;
+
+	if (!planContent) {
+		return reply.code(400).send({ error: "Plan content is required" });
+	}
+
+	if (!Array.isArray(patches)) {
+		return reply.code(400).send({ error: "patches must be an array" });
+	}
+
+	try {
+		const parseResult = parsePlan(planContent);
+
+		if (!parseResult.success || !parseResult.queue) {
+			return reply.code(400).send({
+				success: false,
+				errors: parseResult.errors.length > 0 ? parseResult.errors : ["Failed to parse plan"],
+				warnings: parseResult.warnings,
+			});
+		}
+
+		const queue = parseResult.queue;
+		const previewResult = applyDependencyPatches(queue, patches);
+
+		if (!previewResult.success) {
+			return reply.code(422).send({
+				success: false,
+				errors: previewResult.errors,
+				warnings: previewResult.warnings,
+				appliedPatches: previewResult.appliedPatches,
+				rejectedPatches: previewResult.rejectedPatches,
+			});
+		}
+
+		return {
+			success: true,
+			previewQueue: {
+				phase: previewResult.previewQueue!.phase,
+				title: previewResult.previewQueue!.title,
+				maxParallelWorkspaces: previewResult.previewQueue!.maxParallelWorkspaces,
+				workspaces: previewResult.previewQueue!.workspaces.map((ws) => ({
+					id: ws.id,
+					title: ws.title,
+					dependencies: ws.dependencies,
+				})),
+			},
+			dependencyGraph: previewResult.batchPlan!.dependencyGraph,
+			batches: previewResult.batchPlan!.batches,
+			totalBatches: previewResult.batchPlan!.totalBatches,
+			effectiveParallelism: previewResult.batchPlan!.effectiveParallelism,
+			warnings: previewResult.warnings,
+			appliedPatches: previewResult.appliedPatches,
+			rejectedPatches: previewResult.rejectedPatches,
+		};
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to preview plan patches");
+		return reply.code(500).send({ error: "Failed to preview plan patches", message: String(error) });
+	}
+});
+
+/**
  * POST /api/projects/:projectId/plans/run - Upload and run a plan
  *
  * Accepts plan content as a JSON body, parses it, and starts
  * background execution. Returns the execution ID.
+ * Refuses unapproved interactive plans (plans with interactiveParallelismReview
+ * or parallelismReview enabled).
  */
 fastify.post<{
 	Params: { projectId: string };
-	Body: { planContent: string; planFileName?: string };
+	Body: { planContent: string; planFileName?: string; approved?: boolean };
 }>("/api/projects/:projectId/plans/run", async (request, reply) => {
 	const { projectId } = request.params;
-	const { planContent, planFileName } = request.body;
+	const { planContent, planFileName, approved } = request.body;
 
 	if (!planContent) {
 		return reply.code(400).send({ error: "Plan content is required" });
 	}
 
 	try {
+		// Check if plan requires interactive approval before proceeding
+		const parseCheck = parsePlan(planContent);
+		if (parseCheck.success && parseCheck.queue) {
+			if (requiresInteractiveApproval(parseCheck.queue) && !approved) {
+				return reply.code(403).send({
+					success: false,
+					error: "Plan requires interactive approval before execution. Set 'approved: true' in the request body to confirm.",
+					requiresApproval: true,
+					interactiveParallelismReview: parseCheck.queue.planExecution?.interactiveParallelismReview,
+					parallelismReview: parseCheck.queue.parallelismReview
+						? { enabled: parseCheck.queue.parallelismReview.enabled }
+						: undefined,
+				});
+			}
+		}
+
 		// Get the project from the state store
 		const stateStore = getStateStore();
 		const projects = await stateStore.listProjects();

@@ -6,8 +6,8 @@
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
-import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
-import { validateWorkspaceQueue } from "./workspace-schema.js";
+import type { ParallelismReview, PlanExecutionConfig, Workspace, WorkspaceQueue } from "./workspace-schema.js";
+import { isAcceptedSchemaVersion, validateWorkspaceQueue } from "./workspace-schema.js";
 
 /**
  * Source of the parsed workspace queue metadata.
@@ -239,6 +239,13 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 
 	// Validate queue
 	if (queue && validate) {
+		// v2.2.0: Early contract version check for clear error messages
+		if (queue.contractVersion && !isAcceptedSchemaVersion(queue.contractVersion)) {
+			errors.push(
+				`Contract version ${queue.contractVersion} is not supported. Accepted versions: 2.0.0, 2.1.0, 2.2.0`,
+			);
+		}
+
 		const validationResult = validateWorkspaceQueue(queue);
 		if (!validationResult.valid) {
 			errors.push(...validationResult.errors.map((e) => e.message));
@@ -398,6 +405,13 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		acceptanceCriteria: Array.isArray(w.acceptanceCriteria) ? w.acceptanceCriteria : undefined,
 		targetCommand: w.targetCommand,
 		metadata: w.metadata,
+		// v2.2.0: parallelGroup
+		parallelGroup: typeof w.parallelGroup === "string" ? w.parallelGroup : undefined,
+		// v2.2.0: dependencyReason
+		dependencyReason:
+			w.dependencyReason && typeof w.dependencyReason === "object" && !Array.isArray(w.dependencyReason)
+				? (w.dependencyReason as Record<string, string>)
+				: undefined,
 	}));
 
 	// P4.6.2: Use phase and title from Part 3 JSON as-is when present.
@@ -407,11 +421,50 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 	const title =
 		typeof parsed.title === "string" && parsed.title.trim() !== "" ? parsed.title.trim() : "Untitled Phase";
 
+	// v2.2.0: contractVersion
+	const contractVersion: string | undefined =
+		typeof parsed.contractVersion === "string" ? parsed.contractVersion : undefined;
+
+	// v2.2.0: planExecution
+	let planExecution: PlanExecutionConfig | undefined;
+	if (parsed.planExecution && typeof parsed.planExecution === "object" && !Array.isArray(parsed.planExecution)) {
+		planExecution = {
+			interactiveParallelismReview:
+				typeof parsed.planExecution.interactiveParallelismReview === "boolean"
+					? parsed.planExecution.interactiveParallelismReview
+					: undefined,
+		};
+	}
+
+	// v2.2.0: parallelismReview
+	let parallelismReview: ParallelismReview | undefined;
+	if (
+		parsed.parallelismReview &&
+		typeof parsed.parallelismReview === "object" &&
+		!Array.isArray(parsed.parallelismReview)
+	) {
+		const pr = parsed.parallelismReview;
+		if (typeof pr.enabled === "boolean") {
+			parallelismReview = {
+				enabled: pr.enabled,
+				threshold: typeof pr.threshold === "number" ? pr.threshold : pr.threshold === null ? null : undefined,
+				description: typeof pr.description === "string" ? pr.description : undefined,
+				metadata:
+					pr.metadata && typeof pr.metadata === "object" && !Array.isArray(pr.metadata)
+						? (pr.metadata as Record<string, unknown>)
+						: undefined,
+			};
+		}
+	}
+
 	return {
 		phase,
 		title,
 		maxParallelWorkspaces: typeof parsed.maxParallelWorkspaces === "number" ? parsed.maxParallelWorkspaces : 3,
 		workspaces,
+		contractVersion,
+		planExecution,
+		parallelismReview,
 	};
 }
 
