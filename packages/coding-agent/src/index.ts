@@ -17,7 +17,28 @@ export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/databa
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
-export { PlanStateStore } from "./core/plan-state.js";
+export {
+	buildTranscriptSummary,
+	createWorkerTranscriptEvent,
+	generateWorkspaceReport,
+	type JournalEventType,
+	PlanStateStore,
+	sanitizeTranscriptData,
+	type WorkerTranscriptEvent,
+	type WorkerTranscriptEventType,
+} from "./core/plan-state.js";
+export {
+	createProductionReadinessDoctor,
+	formatProductionReadinessReport,
+	isBroadScope,
+	isGitDirty,
+	isGitRepo,
+	type ProductionReadinessCategory,
+	type ProductionReadinessCheck,
+	ProductionReadinessDoctor,
+	type ProductionReadinessReport,
+	type ProductionReadinessVerdict,
+} from "./core/production-readiness-doctor.js";
 export {
 	createSafetyDoctor,
 	SafetyDoctor,
@@ -39,6 +60,19 @@ export {
 	type StateStoreConfig,
 	type WorkspaceAttempt,
 } from "./core/state-store.js";
+export {
+	DEFAULT_WORKERS,
+	isExperimentalWorkerCount,
+	isStableWorkerCount,
+	MAX_EXPERIMENTAL_WORKERS,
+	MAX_STABLE_WORKERS,
+	MIN_STABLE_WORKERS,
+	requiresExperimentalMode,
+	resolveEffectiveWorkerCount,
+	validateWorkerConcurrency,
+	type WorkerConcurrencySettings,
+	type WorkerConcurrencyValidationResult,
+} from "./core/worker-concurrency.js";
 export {
 	type AgentExecutionResult,
 	WorkspaceAgentExecutor,

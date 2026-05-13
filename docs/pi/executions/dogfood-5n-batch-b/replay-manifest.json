@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "planExecutionId": "dogfood-5n-batch-b",
+  "phase": "P5-DOGFOOD",
+  "title": "P5 Dogfood Batch B — Skill, Safety & Retry Validation",
+  "status": "complete",
+  "generatedAt": 1778684893445,
+  "startedAt": 1778684893000,
+  "completedAt": 1778684893400,
+  "workspaces": [
+    {
+      "workspaceId": "5N.D",
+      "title": "Validate skill resolver with local dummy skill",
+      "stage": "complete",
+      "attempts": 1,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-b/5N.D/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    },
+    {
+      "workspaceId": "5N.E",
+      "title": "Validate safety profiles (strict, balanced, full_auto)",
+      "stage": "complete",
+      "attempts": 1,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-b/5N.E/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    },
+    {
+      "workspaceId": "5N.F",
+      "title": "Validate failed workspace retry path",
+      "stage": "complete",
+      "attempts": 2,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-b/5N.F/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    }
+  ],
+  "planFile": "docs/pi/plans/dogfood-5n-batch-b.json"
+}

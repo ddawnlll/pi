@@ -10,7 +10,7 @@ interface LogViewerProps {
 	selectedWorkerId: string | null;
 }
 
-const LOG_STREAMS: LogStream[] = ["stdout", "stderr", "error"];
+const LOG_STREAMS: LogStream[] = ["raw", "structured", "narrative", "audit", "decision", "stdout", "stderr", "error"];
 
 /**
  * Monospace terminal-style log viewer with auto-scroll.

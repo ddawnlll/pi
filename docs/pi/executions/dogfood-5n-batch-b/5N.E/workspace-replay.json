@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "5N.E",
+  "title": "Validate safety profiles (strict, balanced, full_auto)",
+  "stage": "complete",
+  "totalAttempts": 1,
+  "maxRetries": 2,
+  "attempts": [{ "attempt": 1, "stage": "worker", "verdict": "complete" }],
+  "retryEligible": false,
+  "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried",
+  "roleBudget": "worker",
+  "ownedFiles": [],
+  "generatedAt": 1778684893445
+}

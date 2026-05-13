@@ -74,4 +74,28 @@ export {
 	type TurnStartEvent,
 	type WorkingIndicatorOptions,
 } from "./extensions/index.js";
+// Safety profiles
+export {
+	BALANCED_PROFILE,
+	type CommandCheckResult,
+	checkCommand,
+	checkFileOperation,
+	DEFAULT_SAFETY_PROFILE,
+	describePermissions,
+	type EffectivePermissions,
+	type FileCheckResult,
+	type FilePermissionRule,
+	FULL_AUTO_PROFILE,
+	fullAutoRequiresConfirmation,
+	getAvailableProfiles,
+	getEffectivePermissions,
+	getProfileDescription,
+	isGitPushBlocked,
+	isRmRfBlocked,
+	type PermissionLevel,
+	type PermissionRule,
+	requiresExplicitConfirmation,
+	type SafetyProfileName,
+	STRICT_PROFILE,
+} from "./safety-profile.js";
 export { createSyntheticSourceInfo } from "./source-info.js";

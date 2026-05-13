@@ -923,4 +923,108 @@ export class DatabaseStateStore implements IStateStore {
 		}
 		return buffer.slice(-maxLines);
 	}
+
+	// =========================================================================
+	// Worker Transcript
+	// =========================================================================
+
+	async appendWorkerTranscriptEvent(
+		planExecutionId: string,
+		workspaceId: string,
+		event: import("./plan-state.js").WorkerTranscriptEvent,
+	): Promise<void> {
+		// For DB backend, store transcript in the in-memory log buffer
+		const logContent = JSON.stringify(event);
+		const key = `${planExecutionId}:${workspaceId}`;
+		const buffer = this.logBuffers.get(key);
+		if (buffer) {
+			buffer.push(logContent);
+			if (buffer.length > this.MAX_BUFFER_LINES) {
+				buffer.splice(0, buffer.length - this.MAX_BUFFER_LINES);
+			}
+		} else {
+			this.logBuffers.set(key, [logContent]);
+		}
+	}
+
+	async readWorkerTranscriptEvents(
+		planExecutionId: string,
+		workspaceId: string,
+	): Promise<import("./plan-state.js").WorkerTranscriptEvent[]> {
+		// Read from log buffer for DB backend
+		const key = `${planExecutionId}:${workspaceId}`;
+		const buffer = this.logBuffers.get(key);
+		if (!buffer) return [];
+		return buffer
+			.filter((line) => {
+				try {
+					const parsed = JSON.parse(line);
+					return parsed.type && parsed.summary && parsed.workspaceId;
+				} catch {
+					return false;
+				}
+			})
+			.map((line) => JSON.parse(line));
+	}
+
+	async emitWorkerStatus(
+		planExecutionId: string,
+		workspaceId: string,
+		status: string,
+		message?: string,
+	): Promise<void> {
+		const event: import("./plan-state.js").JournalEvent = {
+			type: "worker_status",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { status, message: message ?? undefined },
+		};
+		await this.appendJournal(planExecutionId, event);
+	}
+
+	async emitWorkerDecisionSummary(
+		planExecutionId: string,
+		workspaceId: string,
+		summary: string,
+		verdict: string,
+	): Promise<void> {
+		const event: import("./plan-state.js").JournalEvent = {
+			type: "worker_decision_summary",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { summary, verdict },
+		};
+		await this.appendJournal(planExecutionId, event);
+	}
+
+	async emitValidation(
+		planExecutionId: string,
+		workspaceId: string,
+		criterion: string,
+		passed: boolean,
+		details?: string,
+	): Promise<void> {
+		const event: import("./plan-state.js").JournalEvent = {
+			type: "validation",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { criterion, passed, details: details ?? undefined },
+		};
+		await this.appendJournal(planExecutionId, event);
+	}
+
+	async emitBlocker(
+		planExecutionId: string,
+		workspaceId: string,
+		reason: string,
+		dependencies?: string[],
+	): Promise<void> {
+		const event: import("./plan-state.js").JournalEvent = {
+			type: "blocker",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { reason, dependencies: dependencies ?? undefined },
+		};
+		await this.appendJournal(planExecutionId, event);
+	}
 }

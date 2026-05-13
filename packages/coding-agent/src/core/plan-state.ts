@@ -8,6 +8,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { EditStrategyAuditSummary } from "./edit-audit-events.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
@@ -31,6 +32,8 @@ export interface WorkspaceState {
 	reportPath?: string;
 	/** Files currently owned by this workspace (for locking) */
 	ownedFiles?: string[];
+	/** Edit strategy audit summary (P4.5) */
+	editAuditSummary?: EditStrategyAuditSummary;
 }
 
 /**
@@ -80,7 +83,11 @@ export type JournalEventType =
 	| "workspace_blocked"
 	| "retry_attempt"
 	| "file_lock_acquired"
-	| "file_lock_released";
+	| "file_lock_released"
+	| "worker_status"
+	| "worker_decision_summary"
+	| "validation"
+	| "blocker";
 
 /**
  * Execution journal event
@@ -94,6 +101,129 @@ export interface JournalEvent {
 	workspaceId?: string;
 	/** Event data */
 	data?: Record<string, unknown>;
+}
+
+/**
+ * Worker transcript event — a sanitized, UI-safe event emitted by the worker
+ * during execution. Unlike raw chain-of-thought (which is never emitted),
+ * these events are safe for dashboard rendering and archival.
+ *
+ * Transcript events are archived to .pi/executions/{planExecId}/workspaces/{workspaceId}/transcript.ndjson
+ */
+export type WorkerTranscriptEventType =
+	| "worker_status"
+	| "worker_decision_summary"
+	| "validation"
+	| "blocker"
+	| "tool_call"
+	| "workspace_start"
+	| "workspace_complete"
+	| "workspace_failed"
+	| "workspace_blocked"
+	| "retry_attempt";
+
+export interface WorkerTranscriptEvent {
+	/** Event type */
+	type: WorkerTranscriptEventType;
+	/** Timestamp */
+	timestamp: number;
+	/** Workspace ID */
+	workspaceId: string;
+	/** Human-readable summary (no private chain-of-thought) */
+	summary: string;
+	/** Event data (sanitized — no raw thinking/chain-of-thought content) */
+	data?: Record<string, unknown>;
+}
+
+/** Keys that are stripped from transcript event data to prevent leaking private chain-of-thought */
+const PRIVATE_DATA_KEYS: ReadonlySet<string> = new Set([
+	"thinking",
+	"thinkingContent",
+	"chainOfThought",
+	"rawThinking",
+	"privateReasoning",
+	"internalMonologue",
+	"reasoning",
+]);
+
+/**
+ * Sanitize event data for safe emission — strips private chain-of-thought fields.
+ *
+ * @param data - Raw event data
+ * @returns Sanitized data safe for transcript archival and UI rendering
+ */
+export function sanitizeTranscriptData(data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+	if (!data) return undefined;
+	const sanitized: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(data)) {
+		if (PRIVATE_DATA_KEYS.has(key)) continue;
+		// Recursively sanitize nested objects
+		if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+			sanitized[key] = sanitizeTranscriptData(value as Record<string, unknown>);
+		} else {
+			sanitized[key] = value;
+		}
+	}
+	return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+/**
+ * Create a worker transcript event from a journal event, adding sanitization and summary.
+ *
+ * @param event - Source journal event
+ * @param summary - Human-readable summary of the event
+ * @returns Sanitized transcript event, or null if the event should not be recorded
+ */
+export function createWorkerTranscriptEvent(event: JournalEvent, summary: string): WorkerTranscriptEvent | null {
+	if (!event.workspaceId) return null;
+	// Never turn private-thinking events into transcript events
+	if (event.type === ("thinking" as JournalEventType) || event.type === ("chain_of_thought" as JournalEventType)) {
+		return null;
+	}
+	return {
+		type: event.type as WorkerTranscriptEventType,
+		timestamp: event.timestamp,
+		workspaceId: event.workspaceId,
+		summary,
+		data: sanitizeTranscriptData(event.data),
+	};
+}
+
+/**
+ * Build a human-readable summary for a worker transcript event.
+ *
+ * @param event - Journal event
+ * @returns Readable summary string
+ */
+export function buildTranscriptSummary(event: JournalEvent): string {
+	const ws = event.workspaceId ?? "unknown";
+	switch (event.type) {
+		case "worker_status":
+			return `Worker ${ws}: ${(event.data?.status as string) ?? "unknown"}${event.data?.message ? ` — ${event.data.message}` : ""}`;
+		case "worker_decision_summary":
+			return `Worker ${ws} decision: ${(event.data?.summary as string) ?? "no summary"}`;
+		case "validation": {
+			const passed = event.data?.passed as boolean | undefined;
+			const criterion = (event.data?.criterion as string) ?? "unknown";
+			return `Worker ${ws} validation ${passed ? "passed" : "failed"}: ${criterion}`;
+		}
+		case "blocker":
+			return `Worker ${ws} blocker: ${(event.data?.reason as string) ?? "unknown blocker"}`;
+		case "tool_call":
+			return `Worker ${ws} tool call: ${(event.data?.toolName as string) ?? "unknown"}`;
+		case "workspace_start":
+			return `Worker ${ws} started`;
+		case "workspace_complete":
+			return `Worker ${ws} completed`;
+		case "workspace_failed":
+			return `Worker ${ws} failed: ${(event.data?.error as string) ?? "unknown error"}`;
+		case "workspace_blocked":
+			return `Worker ${ws} blocked: ${(event.data?.reason as string) ?? "unknown"}`;
+		case "retry_attempt":
+			return `Worker ${ws} retry attempt ${(event.data?.attempt as number) ?? "?"}`;
+		default:
+			return `Worker ${ws} ${event.type}`;
+	}
 }
 
 /**
@@ -224,6 +354,10 @@ export class PlanStateStore {
 	/**
 	 * Append event to execution journal (crash-safe)
 	 *
+	 * Also archives a sanitized transcript event to the workspace transcript ndjson
+	 * if the event has a workspaceId and is a transcript-worthy type.
+	 * Private chain-of-thought fields are never emitted to the transcript.
+	 *
 	 * @param event - Journal event
 	 */
 	async appendJournal(event: JournalEvent): Promise<void> {
@@ -234,7 +368,37 @@ export class PlanStateStore {
 		// Append as NDJSON (one JSON object per line)
 		const line = `${JSON.stringify(event)}\n`;
 		await fs.appendFile(this.journalFilePath, line, "utf-8");
+
+		// Archive transcript event for workspace-level timeline
+		// Requires planExecutionId — infer from the journal path structure
+		if (event.workspaceId) {
+			const summary = buildTranscriptSummary(event);
+			const transcriptEvent = createWorkerTranscriptEvent(event, summary);
+			if (transcriptEvent) {
+				const planExecId = this.inferPlanExecutionId();
+				if (planExecId) {
+					await this.appendWorkerTranscriptEvent(planExecId, event.workspaceId, transcriptEvent).catch(() => {
+						// Transcript archiving failure must not break the journal
+					});
+				}
+			}
+		}
 	}
+
+	/**
+	 * Try to infer the current plan execution ID from the running execution context.
+	 * Falls back to reading the most recent execution directory under .pi/executions/.
+	 */
+	private inferPlanExecutionId(): string | null {
+		return this._currentPlanExecutionId;
+	}
+
+	/** Set the current plan execution ID for transcript archiving */
+	setCurrentPlanExecutionId(id: string): void {
+		this._currentPlanExecutionId = id;
+	}
+
+	private _currentPlanExecutionId: string | null = null;
 
 	/**
 	 * Read execution journal
@@ -645,6 +809,62 @@ export class PlanStateStore {
 				return "workspace_blocked";
 			default:
 				return null;
+		}
+	}
+
+	/**
+	 * Append a worker transcript event to the workspace transcript ndjson file.
+	 *
+	 * Writes to .pi/executions/{planExecId}/workspaces/{workspaceId}/transcript.ndjson
+	 * Only sanitized events (no private chain-of-thought) are archived.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param event - Worker transcript event
+	 */
+	async appendWorkerTranscriptEvent(
+		planExecutionId: string,
+		workspaceId: string,
+		event: WorkerTranscriptEvent,
+	): Promise<void> {
+		const transcriptDir = path.join(
+			path.dirname(this.journalFilePath),
+			"executions",
+			planExecutionId,
+			"workspaces",
+			workspaceId,
+		);
+		await fs.mkdir(transcriptDir, { recursive: true });
+		const transcriptFilePath = path.join(transcriptDir, "transcript.ndjson");
+		const line = `${JSON.stringify(event)}\n`;
+		await fs.appendFile(transcriptFilePath, line, "utf-8");
+	}
+
+	/**
+	 * Read worker transcript events from the workspace transcript ndjson file.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @returns Array of worker transcript events
+	 */
+	async readWorkerTranscriptEvents(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]> {
+		const transcriptFilePath = path.join(
+			path.dirname(this.journalFilePath),
+			"executions",
+			planExecutionId,
+			"workspaces",
+			workspaceId,
+			"transcript.ndjson",
+		);
+		try {
+			const content = await fs.readFile(transcriptFilePath, "utf-8");
+			const lines = content.trim().split("\n");
+			return lines.filter((line) => line.trim()).map((line) => JSON.parse(line));
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				return [];
+			}
+			throw error;
 		}
 	}
 }

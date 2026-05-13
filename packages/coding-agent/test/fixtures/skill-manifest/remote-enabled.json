@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "remote-skill",
+      "source": "remote",
+      "url": "https://example.com/skills/remote-skill",
+      "required": true
+    }
+  ],
+  "remoteFetchEnabled": true
+}

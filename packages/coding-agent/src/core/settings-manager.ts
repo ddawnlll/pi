@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { dirname, join } from "path";
 import lockfile from "proper-lockfile";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.js";
+import type { SafetyProfileName } from "./safety-profile.js";
 
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
@@ -50,6 +51,13 @@ export interface ThinkingBudgetsSettings {
 
 export interface MarkdownSettings {
 	codeBlockIndent?: string; // default: "  "
+}
+
+export interface WorkerConcurrencySettings {
+	/** Maximum concurrent workers (1-6, default: 3) */
+	maxWorkers?: number;
+	/** Whether experimental mode (4-6 workers) is enabled. Requires explicit confirmation. Default: false */
+	experimentalModeEnabled?: boolean;
 }
 
 export interface WarningSettings {
@@ -112,6 +120,8 @@ export interface Settings {
 	markdown?: MarkdownSettings;
 	warnings?: WarningSettings;
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
+	safetyProfile?: SafetyProfileName; // Safety profile: "strict" | "balanced" | "full_auto" (default: "strict")
+	workerConcurrency?: WorkerConcurrencySettings; // Worker concurrency settings (1-3 stable, 4-6 experimental)
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -587,6 +597,56 @@ export class SettingsManager {
 			return join(homedir(), sessionDir.slice(2));
 		}
 		return sessionDir;
+	}
+
+	/** Get the current safety profile name (defaults to "strict") */
+	getSafetyProfile(): SafetyProfileName {
+		return this.settings.safetyProfile ?? "strict";
+	}
+
+	/** Set the safety profile */
+	setSafetyProfile(profile: SafetyProfileName): void {
+		this.globalSettings.safetyProfile = profile;
+		this.markModified("safetyProfile");
+		this.save();
+	}
+
+	/** Get worker concurrency settings */
+	getWorkerConcurrency(): WorkerConcurrencySettings {
+		return {
+			maxWorkers: this.settings.workerConcurrency?.maxWorkers,
+			experimentalModeEnabled: this.settings.workerConcurrency?.experimentalModeEnabled ?? false,
+		};
+	}
+
+	/** Set worker concurrency settings */
+	setWorkerConcurrency(settings: WorkerConcurrencySettings): void {
+		this.globalSettings.workerConcurrency = settings;
+		this.markModified("workerConcurrency");
+		this.save();
+	}
+
+	/** Get the effective max worker count (respects experimental mode gating) */
+	getEffectiveMaxWorkers(): number {
+		const wc = this.getWorkerConcurrency();
+		const requested = wc.maxWorkers ?? 3;
+		if (requested > 3 && !wc.experimentalModeEnabled) {
+			return 3; // Fall back to stable default when experimental not enabled
+		}
+		return Math.max(1, Math.min(6, requested));
+	}
+
+	/** Enable experimental worker mode with explicit confirmation */
+	async enableExperimentalWorkerMode(confirm: boolean): Promise<boolean> {
+		if (!confirm) {
+			return false;
+		}
+		const current = this.getWorkerConcurrency();
+		this.setWorkerConcurrency({
+			...current,
+			experimentalModeEnabled: true,
+		});
+		return true;
 	}
 
 	getDefaultProvider(): string | undefined {

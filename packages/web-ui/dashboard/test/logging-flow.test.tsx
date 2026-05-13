@@ -105,7 +105,7 @@ describe("Logging flow (e2e-style)", () => {
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
 
-		expect(screen.getByText("Connecting...")).toBeInTheDocument();
+		expect(screen.getByText(/Connecting/)).toBeInTheDocument();
 		expect(screen.getByText("No logs yet...")).toBeInTheDocument();
 
 		// Phase 2: WebSocket opens
@@ -114,7 +114,7 @@ describe("Logging flow (e2e-style)", () => {
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
 
-		expect(screen.getByText("Connected")).toBeInTheDocument();
+		expect(screen.getByText(/Connected/)).toBeInTheDocument();
 		// Still no logs
 		expect(screen.getByText("No logs yet...")).toBeInTheDocument();
 
@@ -124,7 +124,7 @@ describe("Logging flow (e2e-style)", () => {
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
 
-		expect(screen.getByText("Connected")).toBeInTheDocument();
+		expect(screen.getByText(/Connected/)).toBeInTheDocument();
 		expect(screen.getByText("line 1")).toBeInTheDocument();
 		expect(screen.getByText("line 2")).toBeInTheDocument();
 		expect(screen.queryByText("No logs yet...")).not.toBeInTheDocument();
@@ -139,8 +139,8 @@ describe("Logging flow (e2e-style)", () => {
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
 
-		// Should show "Disconnected" (stale data present)
-		expect(screen.getByText("Disconnected")).toBeInTheDocument();
+		// Should show disconnected indicator (stale data present)
+		expect(screen.getByText(/disconnected/)).toBeInTheDocument();
 		// Log lines still visible
 		expect(screen.getByText("line 1")).toBeInTheDocument();
 		expect(screen.getByText("line 2")).toBeInTheDocument();
@@ -156,7 +156,7 @@ describe("Logging flow (e2e-style)", () => {
 		rerender(
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
-		expect(screen.getByText("Connected")).toBeInTheDocument();
+		expect(screen.getByText(/Connected/)).toBeInTheDocument();
 
 		// Unexpected disconnect
 		setState({
@@ -169,7 +169,7 @@ describe("Logging flow (e2e-style)", () => {
 		);
 
 		// Shows reconnecting status — error hidden during reconnect
-		expect(screen.getByText("Reconnecting...")).toBeInTheDocument();
+		expect(screen.getByText(/Reconnecting/)).toBeInTheDocument();
 		expect(screen.queryByText("Connection lost")).not.toBeInTheDocument();
 		// Lines preserved
 		expect(screen.getByText("line 1")).toBeInTheDocument();
@@ -184,7 +184,7 @@ describe("Logging flow (e2e-style)", () => {
 			<WorkerDetail worker={baseWorker} planExecId="exec-1" workspace={baseWorkspace} />,
 		);
 
-		expect(screen.getByText("Connected")).toBeInTheDocument();
+		expect(screen.getByText(/Connected/)).toBeInTheDocument();
 		// Lines still there
 		expect(screen.getByText("line 1")).toBeInTheDocument();
 	});
@@ -203,8 +203,8 @@ describe("Logging flow (e2e-style)", () => {
 		);
 
 		expect(screen.getByText("Connection refused")).toBeInTheDocument();
-		expect(screen.queryByText("Connecting...")).not.toBeInTheDocument();
-		expect(screen.queryByText("Reconnecting...")).not.toBeInTheDocument();
+		expect(screen.queryByText(/Connecting/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
 	});
 
 	it("tracks which workspace is connected", async () => {

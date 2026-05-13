@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "valid-skill",
+      "source": "local",
+      "required": true
+    },
+    {
+      "name": "nonexistent-skill",
+      "source": "local",
+      "required": true
+    },
+    {
+      "name": "optional-missing",
+      "source": "local",
+      "required": false
+    }
+  ],
+  "remoteFetchEnabled": false
+}

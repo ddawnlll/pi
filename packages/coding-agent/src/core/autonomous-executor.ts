@@ -19,6 +19,7 @@ import { generateWorkspaceReport } from "./plan-state.js";
 import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
+import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceAgentExecutor } from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
@@ -100,6 +101,12 @@ export interface AutonomousExecutorConfig {
 	/** Enable real agent execution (default: false for backward compat) */
 	enableRealExecution?: boolean;
 	/**
+	 * Worker concurrency settings.
+	 * When provided, overrides maxWorkers.
+	 * Supports stable (1-3) and experimental (4-6) worker modes.
+	 */
+	workerConcurrency?: WorkerConcurrencySettings;
+	/**
 	 * Enable automatic git commits after workspace completion.
 	 * When false, no commits are made.
 	 * Defaults to true.
@@ -155,7 +162,13 @@ export class AutonomousExecutor {
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
 		this.workspaceRoot = config.workspaceRoot;
-		this.scheduler = new WorkspaceScheduler(config.maxWorkers ?? 3);
+
+		// Resolve effective worker count from workerConcurrency settings or maxWorkers
+		const effectiveWorkers = config.workerConcurrency
+			? resolveEffectiveWorkerCount(config.workerConcurrency)
+			: (config.maxWorkers ?? DEFAULT_WORKERS);
+
+		this.scheduler = new WorkspaceScheduler(effectiveWorkers);
 		this.packetBuilder = new RolePacketBuilder();
 		this.retryHandler = new RetryHandler(config.retryPolicy);
 		this.projectId = config.projectId ?? "default";
@@ -977,7 +990,7 @@ export class AutonomousExecutor {
  */
 export function createAutonomousExecutor(
 	workspaceRoot: string,
-	maxWorkers = 3,
+	maxWorkers = DEFAULT_WORKERS,
 	retryPolicy?: RetryPolicy,
 ): AutonomousExecutor {
 	const stateStore = new JsonStateStore(workspaceRoot);

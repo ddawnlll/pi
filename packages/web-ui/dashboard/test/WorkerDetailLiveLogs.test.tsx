@@ -55,7 +55,7 @@ describe("WorkerDetail Live Logs status", () => {
 
 		render(<WorkerDetail {...defaultDetailProps} />);
 
-		expect(screen.getByText("Connected")).toBeInTheDocument();
+		expect(screen.getByText(/Connected/)).toBeInTheDocument();
 	});
 
 	it('shows "Connecting..." when not connected and no lines', () => {
@@ -68,7 +68,7 @@ describe("WorkerDetail Live Logs status", () => {
 
 		render(<WorkerDetail {...defaultDetailProps} />);
 
-		expect(screen.getByText("Connecting...")).toBeInTheDocument();
+		expect(screen.getByText(/Connecting/)).toBeInTheDocument();
 	});
 
 	it('shows "Disconnected" when not connected but has lines (stale data)', () => {
@@ -81,7 +81,7 @@ describe("WorkerDetail Live Logs status", () => {
 
 		render(<WorkerDetail {...defaultDetailProps} />);
 
-		expect(screen.getByText("Disconnected")).toBeInTheDocument();
+		expect(screen.getByText(/disconnected/)).toBeInTheDocument();
 	});
 
 	it('shows "Reconnecting..." during reconnection attempt', () => {
@@ -94,7 +94,7 @@ describe("WorkerDetail Live Logs status", () => {
 
 		render(<WorkerDetail {...defaultDetailProps} />);
 
-		expect(screen.getByText("Reconnecting...")).toBeInTheDocument();
+		expect(screen.getByText(/Reconnecting/)).toBeInTheDocument();
 	});
 
 	it("shows error text when an error is present (not reconnecting)", () => {

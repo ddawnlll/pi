@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "valid-skill",
+      "source": "local",
+      "required": true
+    },
+    {
+      "name": "builtin-helper",
+      "source": "builtin"
+    }
+  ],
+  "remoteFetchEnabled": false
+}

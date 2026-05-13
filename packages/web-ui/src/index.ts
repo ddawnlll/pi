@@ -60,6 +60,7 @@ export { CustomProviderDialog } from "./dialogs/CustomProviderDialog.js";
 export { ModelSelector } from "./dialogs/ModelSelector.js";
 export { PersistentStorageDialog } from "./dialogs/PersistentStorageDialog.js";
 export { ProvidersModelsTab } from "./dialogs/ProvidersModelsTab.js";
+export { SafetyProfileTab } from "./dialogs/SafetyProfileTab.js";
 export { SessionListDialog } from "./dialogs/SessionListDialog.js";
 export { ApiKeysTab, ProxyTab, SettingsDialog, SettingsTab } from "./dialogs/SettingsDialog.js";
 // Prompts

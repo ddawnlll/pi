@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "5N.F",
+  "title": "Validate failed workspace retry path",
+  "stage": "complete",
+  "totalAttempts": 2,
+  "maxRetries": 3,
+  "attempts": [
+    { "attempt": 1, "stage": "worker", "verdict": "failed", "error": "Simulated failure for retry validation" },
+    { "attempt": 2, "stage": "flash", "verdict": "complete" }
+  ],
+  "retryEligible": false,
+  "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried",
+  "roleBudget": "worker",
+  "ownedFiles": [],
+  "lastError": null,
+  "generatedAt": 1778684893445
+}

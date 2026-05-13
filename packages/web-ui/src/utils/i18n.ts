@@ -204,6 +204,26 @@ declare module "@mariozechner/mini-lit" {
 		"Anthropic Messages Compatible": string;
 		"Checking...": string;
 		Disconnected: string;
+		// Safety Profile
+		"Safety Profile": string;
+		"Strict (Default)": string;
+		Balanced: string;
+		"Full Auto": string;
+		"Maximum safety. All shell commands require confirmation. git push and rm -rf are blocked. File writes require confirmation. Single workspace only.": string;
+		"Moderate safety. Common dev commands allowed. git push and rm -rf are blocked. Deployment requires confirmation. Up to 3 parallel workspaces.": string;
+		"Least restrictive. Most commands allowed. git push and rm -rf require EXPLICIT confirmation each time. Up to 5 parallel workspaces.": string;
+		"Safety profiles control what commands and operations the agent can execute. Strict is the default and most restrictive profile.": string;
+		"Select Safety Profile": string;
+		Active: string;
+		"Effective Permissions": string;
+		"Effective permissions will be displayed after profile selection.": string;
+		"Shell Default": string;
+		"File Write Default": string;
+		"Plan Execution": string;
+		"Max Parallel Workspaces": string;
+		"Key Commands:": string;
+		Blocked: string;
+		Unlimited: string;
 	}
 }
 
@@ -426,6 +446,31 @@ export const translations = {
 		"Anthropic Messages Compatible": "Anthropic Messages Compatible",
 		"Checking...": "Checking...",
 		Disconnected: "Disconnected",
+		// Safety Profile
+		"Safety Profile": "Safety Profile",
+		"Strict (Default)": "Strict (Default)",
+		Balanced: "Balanced",
+		"Full Auto": "Full Auto",
+		"Maximum safety. All shell commands require confirmation. git push and rm -rf are blocked. File writes require confirmation. Single workspace only.":
+			"Maximum safety. All shell commands require confirmation. git push and rm -rf are blocked. File writes require confirmation. Single workspace only.",
+		"Moderate safety. Common dev commands allowed. git push and rm -rf are blocked. Deployment requires confirmation. Up to 3 parallel workspaces.":
+			"Moderate safety. Common dev commands allowed. git push and rm -rf are blocked. Deployment requires confirmation. Up to 3 parallel workspaces.",
+		"Least restrictive. Most commands allowed. git push and rm -rf require EXPLICIT confirmation each time. Up to 5 parallel workspaces.":
+			"Least restrictive. Most commands allowed. git push and rm -rf require EXPLICIT confirmation each time. Up to 5 parallel workspaces.",
+		"Safety profiles control what commands and operations the agent can execute. Strict is the default and most restrictive profile.":
+			"Safety profiles control what commands and operations the agent can execute. Strict is the default and most restrictive profile.",
+		"Select Safety Profile": "Select Safety Profile",
+		Active: "Active",
+		"Effective Permissions": "Effective Permissions",
+		"Effective permissions will be displayed after profile selection.":
+			"Effective permissions will be displayed after profile selection.",
+		"Shell Default": "Shell Default",
+		"File Write Default": "File Write Default",
+		"Plan Execution": "Plan Execution",
+		"Max Parallel Workspaces": "Max Parallel Workspaces",
+		"Key Commands:": "Key Commands:",
+		Blocked: "Blocked",
+		Unlimited: "Unlimited",
 	},
 	de: {
 		...defaultGerman,
@@ -645,6 +690,31 @@ export const translations = {
 		"Anthropic Messages Compatible": "Anthropic Messages Kompatibel",
 		"Checking...": "Überprüfe...",
 		Disconnected: "Getrennt",
+		// Safety Profile
+		"Safety Profile": "Sicherheitsprofil",
+		"Strict (Default)": "Streng (Standard)",
+		Balanced: "Ausgeglichen",
+		"Full Auto": "Vollautomatisch",
+		"Maximum safety. All shell commands require confirmation. git push and rm -rf are blocked. File writes require confirmation. Single workspace only.":
+			"Maximale Sicherheit. Alle Shell-Befehle erfordern Bestätigung. git push und rm -rf sind blockiert. Dateischreiben erfordert Bestätigung. Nur ein Workspace.",
+		"Moderate safety. Common dev commands allowed. git push and rm -rf are blocked. Deployment requires confirmation. Up to 3 parallel workspaces.":
+			"Moderate Sicherheit. Übliche Dev-Befehle erlaubt. git push und rm -rf sind blockiert. Deployment erfordert Bestätigung. Bis zu 3 parallele Workspaces.",
+		"Least restrictive. Most commands allowed. git push and rm -rf require EXPLICIT confirmation each time. Up to 5 parallel workspaces.":
+			"Am wenigsten restriktiv. Die meisten Befehle erlaubt. git push und rm -rf erfordern JEDMAL explizite Bestätigung. Bis zu 5 parallele Workspaces.",
+		"Safety profiles control what commands and operations the agent can execute. Strict is the default and most restrictive profile.":
+			"Sicherheitsprofile steuern, welche Befehle und Operationen der Agent ausfuhren kann. Streng ist das Standard- und restriktivste Profil.",
+		"Select Safety Profile": "Sicherheitsprofil auswahlen",
+		Active: "Aktiv",
+		"Effective Permissions": "Effektive Berechtigungen",
+		"Effective permissions will be displayed after profile selection.":
+			"Effektive Berechtigungen werden nach Profilauswahl angezeigt.",
+		"Shell Default": "Shell-Standard",
+		"File Write Default": "Dateischreiben-Standard",
+		"Plan Execution": "Planausfuhrung",
+		"Max Parallel Workspaces": "Maximale parallele Workspaces",
+		"Key Commands:": "Wichtige Befehle:",
+		Blocked: "Blockiert",
+		Unlimited: "Unbegrenzt",
 	},
 };
 

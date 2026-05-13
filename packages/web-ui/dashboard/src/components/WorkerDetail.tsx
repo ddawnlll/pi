@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt } from "../types";
+import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogStream } from "../types";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
+import { useWorkerTranscript } from "../hooks/useWorkerTranscript";
 import { DiffViewer } from "./DiffViewer";
 
-type TabId = "overview" | "tokens" | "git" | "commands";
+type TabId = "overview" | "tokens" | "git" | "commands" | "logs" | "transcript";
 
 interface WorkerDetailProps {
   worker: WorkerInfo;
@@ -16,12 +17,15 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "tokens", label: "Tokens" },
   { id: "git", label: "Git" },
   { id: "commands", label: "Commands" },
+  { id: "logs", label: "Logs" },
+  { id: "transcript", label: "Transcript" },
 ];
 
 export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [attempts, setAttempts] = useState<WorkspaceAttempt[]>([]);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [activeLogStream, setActiveLogStream] = useState<LogStream>("raw");
 
   // Fetch attempt history when workspace detail is available
   useEffect(() => {
@@ -83,6 +87,8 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
         {activeTab === "tokens" && <TokensTab workspace={workspace} />}
         {activeTab === "git" && <GitTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
         {activeTab === "commands" && <CommandsTab lines={lines} />}
+        {activeTab === "logs" && <LogsTab planExecId={planExecId} workerId={worker.id} activeStream={activeLogStream} onSwitchStream={setActiveLogStream} />}
+        {activeTab === "transcript" && <TranscriptTab planExecId={planExecId} workerId={worker.id} />}
       </div>
     </div>
   );
@@ -416,6 +422,218 @@ function formatDuration(ms: number | null): string {
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${minutes}m ${secs}s`;
+}
+
+// ── Logs Tab ──────────────────────────────────────────────────────────────────
+
+const LOG_STREAMS: LogStream[] = ["raw", "structured", "narrative", "audit", "decision", "stdout", "stderr", "test", "error", "transcript"];
+
+const LOG_STREAM_DESCRIPTIONS: Record<LogStream, string> = {
+  raw: "Raw console output from the worker process",
+  structured: "Structured JSON log entries with metadata",
+  narrative: "Human-readable narrative summaries of worker activity",
+  audit: "Audit trail of control and safety actions",
+  decision: "Agent decision log entries",
+  stdout: "Standard output stream (legacy)",
+  stderr: "Standard error stream (legacy)",
+  test: "Test output stream",
+  error: "Error output stream (legacy)",
+  transcript: "Sanitized worker transcript events (worker_status, decision_summary, validation, blocker)",
+};
+
+function LogsTab({ planExecId, workerId, activeStream, onSwitchStream }: {
+  planExecId: string | null;
+  workerId: string;
+  activeStream: LogStream;
+  onSwitchStream: (stream: LogStream) => void;
+}) {
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch log stream content via SSE
+  useEffect(() => {
+    if (!planExecId || !workerId) {
+      setLogLines([]);
+      return;
+    }
+
+    setLogLoading(true);
+    setLogError(null);
+    setLogLines([]);
+
+    const url = `/api/logs/v2/${planExecId}/${workerId}/${activeStream}`;
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      setLogLoading(false);
+      if (event.data === "__NO_LOGS__") {
+        return;
+      }
+      setLogLines((prev) => [...prev, event.data]);
+    };
+
+    eventSource.onerror = () => {
+      setLogLoading(false);
+      eventSource.close();
+      setLogError("Stream disconnected");
+    };
+
+    eventSource.onopen = () => {
+      setLogLoading(false);
+      setLogError(null);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [planExecId, workerId, activeStream]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logLines.length]);
+
+  return (
+    <div className="flex flex-col gap-3 pt-3">
+      {/* Stream selector */}
+      <div className="flex flex-wrap gap-1">
+        {LOG_STREAMS.map((stream) => (
+          <button
+            key={stream}
+            onClick={() => onSwitchStream(stream)}
+            className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${
+              activeStream === stream
+                  ? "bg-blue-600 text-white"
+                  : "bg-stone-100 dark:bg-[#333] text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-[#444]"
+            }`}
+          >
+            {stream}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-stone-400 dark:text-stone-500">
+        {LOG_STREAM_DESCRIPTIONS[activeStream]}
+      </p>
+
+      {/* Log content */}
+      <div
+        ref={logContainerRef}
+        className="bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] p-2 overflow-y-auto font-mono text-xs text-stone-700 dark:text-stone-300"
+        style={{ maxHeight: "50vh", minHeight: "120px" }}
+      >
+        {logLoading && (
+          <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+            <span className="w-3 h-3 border-2 border-stone-400 dark:border-stone-500 border-t-transparent rounded-full animate-spin" />
+            Loading {activeStream} stream...
+          </div>
+        )}
+        {!logLoading && logError && (
+          <div className="text-red-600 dark:text-red-400 italic">{logError}</div>
+        )}
+        {!logLoading && !logError && logLines.length === 0 && (
+          <div className="text-stone-400 dark:text-stone-500 italic">
+            No {activeStream} log entries yet
+          </div>
+        )}
+        {logLines.map((line, i) => (
+          <div key={i} className="whitespace-pre-wrap break-words">{line}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Transcript Tab ────────────────────────────────────────────────────────────
+
+function TranscriptTab({ planExecId, workerId }: { planExecId: string | null; workerId: string }) {
+  const { events, isConnected, isReconnecting, error } = useWorkerTranscript({
+    planExecId,
+    workspaceId: workerId,
+  });
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (transcriptContainerRef.current) {
+      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+    }
+  }, [events.length]);
+
+  return (
+    <div className="flex flex-col gap-3 pt-3">
+      <div className="flex items-center justify-between shrink-0">
+        <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400">Live Transcript</h3>
+        <div className="flex items-center gap-2 shrink-0">
+          {isConnected && <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-pulse" />Connected ({events.length} events)</span>}
+          {isReconnecting && <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-pulse" />Reconnecting...</span>}
+          {!isConnected && !isReconnecting && !error && <span className="text-xs text-stone-400 dark:text-stone-500">Connecting...</span>}
+          {error && !isReconnecting && <span className="text-xs text-red-500 dark:text-red-400">{error}</span>}
+        </div>
+      </div>
+
+      <p className="text-[10px] text-stone-400 dark:text-stone-500">
+        Sanitized worker transcript — worker_status, decision_summary, validation, and blocker events. No private chain-of-thought.
+      </p>
+
+      <div
+        ref={transcriptContainerRef}
+        className="bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] p-2 overflow-y-auto font-mono text-xs"
+        style={{ maxHeight: "50vh", minHeight: "120px" }}
+      >
+        {events.length === 0 && (
+          <div className="text-stone-400 dark:text-stone-500 italic">No transcript events yet...</div>
+        )}
+        {events.map((event, i) => (
+          <TranscriptEventLine key={`${event.timestamp}-${i}`} event={event} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Renders a single transcript event with timestamp and type-appropriate styling.
+ * Validates that no private chain-of-thought data is present.
+ */
+function TranscriptEventLine({ event }: { event: import("../types").WorkerTranscriptEvent }) {
+  const types = event.type;
+  const ts = new Date(event.timestamp).toLocaleTimeString();
+
+  // Type badge colors
+  const badgeColors: Record<string, string> = {
+    worker_status: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+    worker_decision_summary: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+    validation: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+    blocker: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+    tool_call: "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300",
+    workspace_start: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+    workspace_complete: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+    workspace_failed: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+    workspace_blocked: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+    retry_attempt: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+  };
+
+  const badge = badgeColors[types] ?? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300";
+
+  // Validation pass/fail indicator
+  const passed = event.data?.passed as boolean | undefined;
+  const validationIcon = passed === true ? "\u2713" : passed === false ? "\u2717" : null;
+
+  return (
+    <div className="flex gap-2 py-1 border-b border-stone-100 dark:border-[#222] last:border-0">
+      <span className="text-stone-400 dark:text-stone-500 shrink-0 w-16">{ts}</span>
+      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ${badge}`}>{types}</span>
+      <span className="text-stone-700 dark:text-stone-300 break-words flex-1">
+        {validationIcon && <span className={passed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>{validationIcon} </span>}
+        {event.summary}
+      </span>
+    </div>
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

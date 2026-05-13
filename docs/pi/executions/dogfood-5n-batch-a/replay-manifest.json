@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "planExecutionId": "dogfood-5n-batch-a",
+  "phase": "P5-DOGFOOD",
+  "title": "P5 Dogfood Batch A — Queue & Archive Validation",
+  "status": "complete",
+  "generatedAt": 1778684893445,
+  "startedAt": 1778684893000,
+  "completedAt": 1778684893400,
+  "workspaces": [
+    {
+      "workspaceId": "5N.A",
+      "title": "Validate plan queue runner enqueue/dequeue",
+      "stage": "complete",
+      "attempts": 1,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-a/5N.A/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    },
+    {
+      "workspaceId": "5N.B",
+      "title": "Validate sequential execution and gate checks",
+      "stage": "complete",
+      "attempts": 1,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-a/5N.B/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    },
+    {
+      "workspaceId": "5N.C",
+      "title": "Validate docs export for completed plans",
+      "stage": "complete",
+      "attempts": 1,
+      "replayFile": "docs/pi/executions/dogfood-5n-batch-a/5N.C/workspace-replay.json",
+      "retryEligible": false,
+      "retryBlockReason": "Workspace stage is complete, only failed or blocked workspaces can be retried"
+    }
+  ],
+  "planFile": "docs/pi/plans/dogfood-5n-batch-a.json"
+}

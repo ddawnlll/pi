@@ -7,7 +7,7 @@ import {
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
-  Filter, DollarSign, Zap, Bot,
+  Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -34,9 +34,11 @@ import { ProjectItem } from "./components/ProjectItem";
 import { HistoryItem } from "./components/HistoryItem";
 import { StatCard } from "./components/StatCard";
 import { EventLine } from "./components/EventLine";
-import { ChatPanel } from "./components/ChatPanel";
+import { ChatPanel, type ContextRef } from "./components/ChatPanel";
 import { CommandsPanel } from "./components/CommandsPanel";
+import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent } from "./utils/format";
+import { PlanQueueTab } from "./components/PlanQueueTab";
 
 const API_BASE = "";
 
@@ -52,8 +54,6 @@ async function sendControlCommand(action: "pause" | "stop" | "cancel" | "resume"
 }
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
-// Light:  bg-[#F7F6F3], bg-white, border-[#E8E6E1], text-stone-*, bg-[#EBF2FF]
-// Dark:   dark:bg-[#161616], dark:bg-[#1E1E1E], dark:border-[#333], dark:text-stone-300/400, dark:bg-[#1A2A44]
 
 const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
 const SURF = "bg-white dark:bg-[#1E1E1E]";
@@ -128,9 +128,13 @@ export function App() {
   const [showGitDialog, setShowGitDialog] = useState(false);
   const [showCommandsDialog, setShowCommandsDialog] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showArtifacts, setShowArtifacts] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
+
+  /** Left sidebar tab: "nav" = projects + history, "chat" = project chat */
+  const [leftTab, setLeftTab] = useState<"nav" | "queue" | "chat">("nav");
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id);
@@ -181,6 +185,13 @@ export function App() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<"all" | "errors">("all");
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  /** Context refs for the chat panel derived from current dashboard selections. */
+  const chatContextRefs: ContextRef[] = [
+    ...(selectedProjectId ? [{ kind: "plan" as const, id: selectedProjectId, label: projects.find(p => p.id === selectedProjectId)?.name ?? selectedProjectId }] : []),
+    ...(selectedPlanExecId ? [{ kind: "run" as const, id: selectedPlanExecId, label: executionDetail?.title ?? `Run ${selectedPlanExecId.slice(0, 6)}` }] : []),
+    ...(selectedWorkerId ? [{ kind: "workspace" as const, id: selectedWorkerId, label: selectedWorkerId }] : []),
+  ];
 
   useEffect(() => {
     if (!_appMounted) {
@@ -249,7 +260,7 @@ export function App() {
           <span className={`text-[13px] font-semibold ${TXT} tracking-tight whitespace-nowrap`}>Planner</span>
           {activePlanStatus !== "unknown" && <StatusBadge status={activePlanStatus} />}
           {executionDetail?.title && (
-            <span className={`hidden sm:inline text-xs ${MUT} truncate max-w-[200px]`}>&mdash; {executionDetail.title}</span>
+            <span className={`hidden sm:inline text-xs ${MUT} truncate max-w-[200px]}`}>&mdash; {executionDetail.title}</span>
           )}
         </div>
         <div className="flex-1 min-w-0" />
@@ -293,36 +304,98 @@ export function App() {
         <AnimatePresence initial={false}>
           {(leftOpen || mobileNav === "left") && (
             <motion.aside key="left"
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 220, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+              initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
               className={`shrink-0 ${SURF} border-r ${BORD} flex flex-col overflow-hidden
                 md:relative md:z-auto ${mobileNav === "left" ? "absolute left-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
             >
-              <SectionHeader title="Projects" />
-              <div className="px-2 pb-1 flex flex-col gap-0.5">
-                {projects.map(p => (
-                  <ProjectItem key={p.id} name={p.name ?? p.id} active={p.id === selectedProjectId}
-                    onClick={() => { setSelectedProjectId(p.id); setSelectedPlanExecId(null); setMobileNav(null); }} />
-                ))}
-                <button onClick={() => setShowProjectDialog(true)}
-                  className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
-                  <Plus size={13} strokeWidth={2} /> Open project...
+              {/* Left sidebar tab bar */}
+              <div className={`shrink-0 flex items-center border-b ${BORD}`}>
+                <button
+                  onClick={() => setLeftTab("nav")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+                    leftTab === "nav"
+                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
+                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
+                  }`}
+                >
+                  <LayoutGrid size={12} strokeWidth={1.8} /> Browse
+                </button>
+                <button
+                  onClick={() => setLeftTab("queue")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+                    leftTab === "queue"
+                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
+                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
+                  }`}
+                >
+                  <ListOrdered size={12} strokeWidth={1.8} /> Queue
+                </button>
+                <button
+                  onClick={() => {
+                    setLeftTab("chat");
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+                    leftTab === "chat"
+                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
+                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
+                  }`}
+                >
+                  <Bot size={12} strokeWidth={1.8} /> Chat
                 </button>
               </div>
-              <Divider />
-              <SectionHeader title="History" />
-              <div className={`flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5`}>
-                {executionsLoading ? (
-                  <div className={`flex items-center gap-2 px-3 py-2 text-xs ${MUT}`}><Loader2 size={11} className="animate-spin" /> Loading...</div>
-                ) : executions.length === 0 ? (
-                  <p className={`px-3 py-2 text-xs ${MUT}`}>No runs yet</p>
-                ) : (
-                  executions.map(ex => (
-                    <HistoryItem key={ex.id} exec={ex} active={ex.id === selectedPlanExecId}
-                      onClick={() => { setSelectedPlanExecId(ex.id); setMobileNav(null); }} />
-                  ))
-                )}
-              </div>
+
+              {/* Nav tab content */}
+              {leftTab === "nav" && (
+                <>
+                  <SectionHeader title="Projects" />
+                  <div className="px-2 pb-1 flex flex-col gap-0.5">
+                    {projects.map(p => (
+                      <ProjectItem key={p.id} name={p.name ?? p.id} active={p.id === selectedProjectId}
+                        onClick={() => { setSelectedProjectId(p.id); setSelectedPlanExecId(null); setMobileNav(null); }} />
+                    ))}
+                    <button onClick={() => setShowProjectDialog(true)}
+                      className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
+                      <Plus size={13} strokeWidth={2} /> Open project...
+                    </button>
+                  </div>
+                  <Divider />
+                  <SectionHeader title="History" />
+                  <div className={`flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5`}>
+                    {executionsLoading ? (
+                      <div className={`flex items-center gap-2 px-3 py-2 text-xs ${MUT}`}><Loader2 size={11} className="animate-spin" /> Loading...</div>
+                    ) : executions.length === 0 ? (
+                      <p className={`px-3 py-2 text-xs ${MUT}`}>No runs yet</p>
+                    ) : (
+                      executions.map(ex => (
+                        <HistoryItem key={ex.id} exec={ex} active={ex.id === selectedPlanExecId}
+                          onClick={() => { setSelectedPlanExecId(ex.id); setMobileNav(null); }} />
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Queue tab content */}
+              {leftTab === "queue" && (
+                <PlanQueueTab projectId={selectedProjectId} />
+              )}
+
+              {/* Chat tab content */}
+              {leftTab === "chat" && (
+                <ChatPanel
+                  projectId={selectedProjectId}
+                  onClose={() => setLeftTab("nav")}
+                  contextRefs={chatContextRefs}
+                  onContextRefClick={(ref) => {
+                    if (ref.kind === "run") {
+                      setSelectedPlanExecId(ref.id);
+                    } else if (ref.kind === "workspace") {
+                      setSelectedWorkerId(ref.id);
+                    }
+                  }}
+                />
+              )}
             </motion.aside>
           )}
         </AnimatePresence>
@@ -336,6 +409,7 @@ export function App() {
             <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
             <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
             <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
+            <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -352,7 +426,7 @@ export function App() {
                 <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
                 <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
                 <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
-                <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "\u2014"} />
+                <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} />
                 <StatCard icon={Activity} label="Cache hit" value={formatPercent(planStats?.cache_hit_rate)} />
               </div>
               <QueueStrip queue={queue} />
@@ -418,15 +492,16 @@ export function App() {
           </div>
         </div>
 
-        {/* ── right sidebar ── */}
+        {/* ── right sidebar (event feed + alerts) ── */}
         <AnimatePresence initial={false}>
           {(rightOpen || mobileNav === "right") && (
             <motion.aside key="right"
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 260, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+              initial={{ width: 0, opacity: 0 }} animate={{ width: 300, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
               className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden
                 md:relative md:z-auto ${mobileNav === "right" ? "absolute right-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
             >
+              {/* Section: Events */}
               <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
                 <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Events</span>
                 <div className="flex items-center gap-1">
@@ -438,7 +513,7 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 {filteredEvents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-300 dark:text-stone-600">
                     <Activity size={20} strokeWidth={1.2} />
@@ -446,6 +521,42 @@ export function App() {
                   </div>
                 ) : (
                   filteredEvents.map((ev: any, i: number) => <EventLine key={ev.id ?? i} event={ev} />)
+                )}
+              </div>
+
+              {/* Section: Alerts */}
+              <Divider />
+              <div className={`shrink-0 flex items-center px-4 h-9 border-b ${BORD}`}>
+                <Bell size={11} className={`${MUT} mr-1.5`} />
+                <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Alerts</span>
+                {activeWorkspaces.filter(w => w.stage === "failed").length > 0 && (
+                  <span className="ml-auto h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+                    {activeWorkspaces.filter(w => w.stage === "failed").length}
+                  </span>
+                )}
+              </div>
+              <div className="shrink-0 max-h-40 overflow-y-auto">
+                {activeWorkspaces.filter(w => w.stage === "failed").length === 0 && activeWorkspaces.filter(w => w.stage === "blocked").length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 gap-1 text-stone-300 dark:text-stone-600">
+                    <p className="text-[10px]">No alerts</p>
+                  </div>
+                ) : (
+                  <>
+                    {activeWorkspaces.filter(w => w.stage === "failed").map(w => (
+                      <div key={`alert-failed-${w.id}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-red-50/50 dark:bg-red-950/20`}>
+                        <AlertCircle size={11} className="shrink-0 text-red-500" />
+                        <span className="text-red-700 dark:text-red-300 font-medium truncate">{w.id}</span>
+                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>failed</span>
+                      </div>
+                    ))}
+                    {activeWorkspaces.filter(w => w.stage === "blocked").map(w => (
+                      <div key={`alert-blocked-${w.id}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-amber-50/50 dark:bg-amber-950/20`}>
+                        <AlertCircle size={11} className="shrink-0 text-amber-500" />
+                        <span className="text-amber-700 dark:text-amber-300 font-medium truncate">{w.id}</span>
+                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>blocked</span>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             </motion.aside>
@@ -460,7 +571,35 @@ export function App() {
               transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
               className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden relative z-20`}
             >
-              <ChatPanel projectId={selectedProjectId} onClose={() => setShowChat(false)} />
+              <ChatPanel projectId={selectedProjectId} onClose={() => setShowChat(false)} contextRefs={chatContextRefs}
+                onContextRefClick={(ref) => {
+                  if (ref.kind === "run") {
+                    setSelectedPlanExecId(ref.id);
+                  } else if (ref.kind === "workspace") {
+                    setSelectedWorkerId(ref.id);
+                  }
+                }} />
+            </motion.aside>
+          )}
+        </AnimatePresence>
+
+        {/* -- artifacts overlay -- */}
+        <AnimatePresence>
+          {showArtifacts && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }} animate={{ width: 480, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden relative z-20`}
+            >
+              <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
+                <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Artifacts</span>
+                <button onClick={() => setShowArtifacts(false)} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300`}>
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ArtifactBrowser planExecId={selectedPlanExecId} />
+              </div>
             </motion.aside>
           )}
         </AnimatePresence>

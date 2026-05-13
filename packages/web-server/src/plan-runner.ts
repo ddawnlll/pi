@@ -17,6 +17,13 @@ import {
 	parsePlan,
 	type WorkspaceQueue,
 } from "@earendil-works/pi-coding-agent";
+import {
+	appendAuditEntry,
+	appendDecision,
+	appendNarrativeEntry,
+	appendRawLogLine,
+	appendStructuredEntry,
+} from "./execution-archive.js";
 import { initializePlanMarkdown, updatePlanMarkdown } from "./plan-markdown.js";
 import { getStateStore } from "./state-store-provider.js";
 
@@ -376,6 +383,16 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			};
 		}
 
+		// Audit log: safety doctor validation result
+		const _safetyAuditEntry = {
+			timestamp: new Date().toISOString(),
+			type: "safety-validation",
+			safe: safetyReport.safe,
+			criticalCount: safetyReport.critical.length,
+			warningCount: safetyReport.warnings.length,
+			projectId,
+		};
+
 		// Save the plan file to the project directory
 		const piDir = join(workspaceRoot, ".pi");
 		const plansDir = join(piDir, "plans");
@@ -427,6 +444,9 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			new PiLogger({ planExecId: planExecutionId }).error(`Background execution failed: ${error}`);
 			updateExecutionStatus(planExecutionId, "failed", String(error));
 		});
+
+		// Audit log: safety validation persisted to archive (fire-and-forget)
+		appendAuditEntry(workspaceRoot, planExecutionId, "_plan", _safetyAuditEntry).catch(() => {});
 
 		return {
 			success: true,
@@ -570,6 +590,25 @@ async function executePlanInBackground(
 		await log(`Workspace root: ${workspaceRoot}`);
 		await log(`Total workspaces: ${queue.workspaces.length}, Max parallel: ${queue.maxParallelWorkspaces || 3}`);
 
+		// Raw log: execution start
+		await appendRawLogLine(
+			workspaceRoot,
+			planExecId,
+			"_plan",
+			`[${new Date().toISOString()}] Starting execution for plan ${planExecId} (${queue.title})`,
+		).catch(() => {});
+
+		// Structured log: execution started
+		await appendStructuredEntry(workspaceRoot, planExecId, "_plan", {
+			timestamp: new Date().toISOString(),
+			category: "execution-started",
+			planExecId,
+			title: queue.title,
+			phase: queue.phase,
+			totalWorkspaces: queue.workspaces.length,
+			maxParallel: queue.maxParallelWorkspaces || 3,
+		}).catch(() => {});
+
 		// Log model information
 		const state = executor.getState();
 		if (state) {
@@ -623,6 +662,15 @@ async function executePlanInBackground(
 			const control = await executor.checkControlRequest();
 			if (control) {
 				await log(`Control request: ${control.action}`);
+
+				// Audit log: control action (pause/resume/stop)
+				await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+					timestamp: new Date().toISOString(),
+					type: "control",
+					action: control.action,
+					actor: control.reason ? `dashboard: ${control.reason}` : "dashboard",
+					planExecId,
+				}).catch(() => {});
 				if (control.action === "pause") {
 					const planState = executor.getState();
 					if (planState && planState.status === "paused") {
@@ -668,10 +716,30 @@ async function executePlanInBackground(
 				`Next workspaces to execute: ${nextWorkspaces.length} [${nextWorkspaces.map((w) => w.id).join(", ")}]`,
 			);
 
+			// Audit log: queue reorder / workspace scheduling decision
+			if (nextWorkspaces.length > 0) {
+				await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+					timestamp: new Date().toISOString(),
+					type: "queue-reorder",
+					scheduledWorkspaces: nextWorkspaces.map((w) => w.id),
+					iteration,
+					planExecId,
+				}).catch(() => {});
+			}
+
 			if (nextWorkspaces.length === 0) {
 				// 3. Deadlock check gated on exec.status === running
 				if (stats && stats.blocked > 0 && stats.active === 0 && exec.status === "running") {
 					await log(`ERROR: Execution blocked - dependency deadlock`);
+
+					// Audit log: dependency deadlock
+					await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+						timestamp: new Date().toISOString(),
+						type: "deadlock-detected",
+						blockedCount: stats.blocked,
+						planExecId,
+						iteration,
+					}).catch(() => {});
 					await executor.failPlan("Execution blocked - dependency deadlock");
 					updateExecutionStatus(planExecId, "failed", "Execution blocked - dependency deadlock");
 					return;
@@ -699,6 +767,58 @@ async function executePlanInBackground(
 				if (result.error) {
 					await log(`    Error: ${result.error}`);
 				}
+
+				// Raw log: mirror execution result to workspace raw.log
+				await appendRawLogLine(
+					workspaceRoot,
+					planExecId,
+					result.workspaceId,
+					`[${new Date().toISOString()}] Workspace ${result.workspaceId}: ${result.verdict} (success=${result.success})`,
+				).catch(() => {});
+
+				// Structured log: workspace result as JSON
+				await appendStructuredEntry(workspaceRoot, planExecId, result.workspaceId, {
+					timestamp: new Date().toISOString(),
+					category: "workspace-result",
+					workspaceId: result.workspaceId,
+					verdict: result.verdict,
+					success: result.success,
+					error: result.error ?? null,
+				}).catch(() => {});
+
+				// Narrative log: human-readable worker summary
+				await appendNarrativeEntry(workspaceRoot, planExecId, result.workspaceId, {
+					timestamp: new Date().toISOString(),
+					type: "worker-summary",
+					workspaceId: result.workspaceId,
+					verdict: result.verdict,
+					summary: result.success
+						? `Workspace ${result.workspaceId} completed successfully with verdict ${result.verdict}.`
+						: `Workspace ${result.workspaceId} ${result.verdict === "BLOCKED" ? "was blocked" : "failed"} with verdict ${result.verdict}.`,
+					error: result.error ?? null,
+				}).catch(() => {});
+
+				// Decision log: agent decision record
+				await appendDecision(workspaceRoot, planExecId, result.workspaceId, {
+					timestamp: new Date().toISOString(),
+					type: "workspace-verdict",
+					workspaceId: result.workspaceId,
+					verdict: result.verdict,
+					success: result.success,
+					error: result.error ?? null,
+					iteration,
+				}).catch(() => {});
+
+				// Audit log: workspace completion/failure
+				await appendAuditEntry(workspaceRoot, planExecId, result.workspaceId, {
+					timestamp: new Date().toISOString(),
+					type: "workspace-result",
+					workspaceId: result.workspaceId,
+					verdict: result.verdict,
+					success: result.success,
+					error: result.error ?? null,
+				}).catch(() => {});
+
 				if (result.success) {
 					_completedCount++;
 				} else if (result.verdict === "FAILED") {
@@ -744,6 +864,23 @@ async function executePlanInBackground(
 		if (failedCount === 0) {
 			await log(`\n=== Execution Complete ===`);
 			await log(summary);
+
+			// Audit log: plan completion
+			await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+				timestamp: new Date().toISOString(),
+				type: "plan-complete",
+				planExecId,
+				summary,
+			}).catch(() => {});
+
+			// Narrative log: final execution summary
+			await appendNarrativeEntry(workspaceRoot, planExecId, "_plan", {
+				timestamp: new Date().toISOString(),
+				type: "execution-complete",
+				planExecId,
+				summary,
+			}).catch(() => {});
+
 			// Update living plan markdown to complete state before plan completion
 			try {
 				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-complete" });
@@ -757,6 +894,25 @@ async function executePlanInBackground(
 		} else {
 			await log(`\n=== Execution Failed ===`);
 			await log(summary);
+
+			// Audit log: plan failure
+			await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+				timestamp: new Date().toISOString(),
+				type: "plan-failed",
+				planExecId,
+				failedCount,
+				summary,
+			}).catch(() => {});
+
+			// Narrative log: execution failure summary
+			await appendNarrativeEntry(workspaceRoot, planExecId, "_plan", {
+				timestamp: new Date().toISOString(),
+				type: "execution-failed",
+				planExecId,
+				summary,
+				failedCount,
+			}).catch(() => {});
+
 			// Update living plan markdown to failed state before plan failure
 			try {
 				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-failed" });

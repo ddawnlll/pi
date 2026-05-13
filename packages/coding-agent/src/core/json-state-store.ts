@@ -11,8 +11,13 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
-import { PlanStateStore } from "./plan-state.js";
+import type { JournalEvent, PlanState, WorkerTranscriptEvent, WorkspaceState } from "./plan-state.js";
+import {
+	buildTranscriptSummary,
+	createWorkerTranscriptEvent,
+	PlanStateStore,
+	sanitizeTranscriptData,
+} from "./plan-state.js";
 import type {
 	ControlAction,
 	IStateStore,
@@ -763,6 +768,101 @@ export class JsonStateStore implements IStateStore {
 			return [];
 		}
 		return buffer.slice(-maxLines);
+	}
+
+	// =========================================================================
+	// Worker Transcript
+	// =========================================================================
+
+	async appendWorkerTranscriptEvent(
+		planExecutionId: string,
+		workspaceId: string,
+		event: WorkerTranscriptEvent,
+	): Promise<void> {
+		// Delegate to PlanStateStore which handles the transcript ndjson file
+		this.store.setCurrentPlanExecutionId(planExecutionId);
+		await this.store.appendWorkerTranscriptEvent(planExecutionId, workspaceId, event);
+	}
+
+	async readWorkerTranscriptEvents(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]> {
+		return this.store.readWorkerTranscriptEvents(planExecutionId, workspaceId);
+	}
+
+	async emitWorkerStatus(
+		planExecutionId: string,
+		workspaceId: string,
+		status: string,
+		message?: string,
+	): Promise<void> {
+		const event: JournalEvent = {
+			type: "worker_status",
+			timestamp: Date.now(),
+			workspaceId,
+			data: sanitizeTranscriptData({ status, message: message ?? undefined }) as Record<string, unknown>,
+		};
+		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
+	}
+
+	async emitWorkerDecisionSummary(
+		planExecutionId: string,
+		workspaceId: string,
+		summary: string,
+		verdict: string,
+	): Promise<void> {
+		const event: JournalEvent = {
+			type: "worker_decision_summary",
+			timestamp: Date.now(),
+			workspaceId,
+			data: sanitizeTranscriptData({ summary, verdict }) as Record<string, unknown>,
+		};
+		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
+	}
+
+	async emitValidation(
+		planExecutionId: string,
+		workspaceId: string,
+		criterion: string,
+		passed: boolean,
+		details?: string,
+	): Promise<void> {
+		const event: JournalEvent = {
+			type: "validation",
+			timestamp: Date.now(),
+			workspaceId,
+			data: sanitizeTranscriptData({ criterion, passed, details: details ?? undefined }) as Record<string, unknown>,
+		};
+		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
+	}
+
+	async emitBlocker(
+		planExecutionId: string,
+		workspaceId: string,
+		reason: string,
+		dependencies?: string[],
+	): Promise<void> {
+		const event: JournalEvent = {
+			type: "blocker",
+			timestamp: Date.now(),
+			workspaceId,
+			data: sanitizeTranscriptData({ reason, dependencies: dependencies ?? undefined }) as Record<string, unknown>,
+		};
+		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
 	}
 
 	// =========================================================================

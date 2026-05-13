@@ -20,6 +20,15 @@ import { createPlanControlManager } from "../core/plan-control.js";
 import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
+import {
+	DEFAULT_WORKERS,
+	isExperimentalWorkerCount,
+	MAX_EXPERIMENTAL_WORKERS,
+	MIN_STABLE_WORKERS,
+	validateWorkerConcurrency,
+	type WorkerConcurrencySettings,
+} from "../core/worker-concurrency.js";
+import { WorkspaceStage } from "../core/workspace-schema.js";
 
 /**
  * Exit codes for plan commands
@@ -45,6 +54,85 @@ export interface PlanCommandOptions {
 	verbose?: boolean;
 	/** Force operation (e.g., resume cancelled plan) */
 	force?: boolean;
+	/** Maximum worker count (1-6, default: 3) */
+	workers?: number;
+}
+
+/**
+ * Build WorkerConcurrencySettings from PlanCommandOptions.
+ *
+ * If --workers is within the experimental range (4-6), experimentalModeEnabled
+ * must have been explicitly confirmed (via --force flag for now).
+ *
+ * @param options - Plan command options
+ * @returns WorkerConcurrencySettings or undefined if defaults should be used
+ */
+function buildWorkerConcurrencyFromOptions(options: PlanCommandOptions): WorkerConcurrencySettings | undefined {
+	const workers = options.workers;
+	if (workers === undefined) {
+		return undefined;
+	}
+	const isExperimental = isExperimentalWorkerCount(workers);
+	return {
+		maxWorkers: workers,
+		experimentalModeEnabled: isExperimental ? (options.force ?? false) : false,
+	};
+}
+
+/**
+ * Validate and potentially prompt for experimental worker mode confirmation.
+ *
+ * Returns the resolved worker concurrency settings, or null if the user
+ * declines experimental mode.
+ *
+ * @param options - Plan command options
+ * @returns WorkerConcurrencySettings or null if declined
+ */
+function resolveWorkerConcurrencyWithConfirmation(options: PlanCommandOptions): WorkerConcurrencySettings | null {
+	const workers = options.workers ?? DEFAULT_WORKERS;
+	const isExperimental = isExperimentalWorkerCount(workers);
+
+	if (isExperimental) {
+		// Experimental mode requires explicit confirmation (force flag)
+		if (!options.force) {
+			console.error(
+				chalk.yellow(
+					`⚠ Worker count ${workers} is in the experimental range (${MIN_STABLE_WORKERS + 1 + 1}-${MAX_EXPERIMENTAL_WORKERS}). ` +
+						`Use --force to confirm you want to enable experimental ${workers}-worker mode.\n` +
+						`Experimental mode requires archive enabled and stop-on-failure enabled.`,
+				),
+			);
+			return null;
+		}
+
+		// Validate experimental mode prerequisites
+		const settings: WorkerConcurrencySettings = {
+			maxWorkers: workers,
+			experimentalModeEnabled: true,
+		};
+		const validation = validateWorkerConcurrency(settings, {
+			archiveEnabled: true, // Assume archive is available in plan mode
+			stopOnFailureEnabled: true, // Plan mode uses stop-on-failure by default
+		});
+		if (!validation.valid) {
+			for (const error of validation.errors) {
+				console.error(chalk.red(`✗ ${error}`));
+			}
+			return null;
+		}
+
+		for (const warning of validation.warnings) {
+			console.error(chalk.yellow(`⚠ ${warning}`));
+		}
+
+		return settings;
+	}
+
+	// Stable range - no confirmation needed
+	return {
+		maxWorkers: workers,
+		experimentalModeEnabled: false,
+	};
 }
 
 /**
@@ -86,7 +174,9 @@ export async function planDoctor(planFile: string, options: PlanCommandOptions =
 		}
 
 		// Run safety doctor
-		const doctor = createSafetyDoctor();
+		const workers = options.workers ?? DEFAULT_WORKERS;
+		const workerConcurrency = buildWorkerConcurrencyFromOptions(options);
+		const doctor = createSafetyDoctor(workers, workerConcurrency);
 		const safetyReport = doctor.validateQueue(parseResult.queue);
 
 		if (json) {
@@ -309,11 +399,13 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 		}
 
 		// Run safety doctor
-		const doctor = createSafetyDoctor();
+		const workers = options.workers ?? DEFAULT_WORKERS;
+		const workerConcurrency = buildWorkerConcurrencyFromOptions(options);
+		const doctor = createSafetyDoctor(workers, workerConcurrency);
 		const safetyReport = doctor.validateQueue(parseResult.queue);
 
 		// Simulate scheduling (no actual execution)
-		const executor = createAutonomousExecutor(cwd);
+		const executor = createAutonomousExecutor(cwd, workers);
 		await executor.initialize(parseResult.queue);
 
 		const state = executor.getState();
@@ -405,17 +497,20 @@ export function parsePlanCommand(args: string[]): {
 	command: string | null;
 	planFile: string | null;
 	workspaceId: string | null;
+	planExecutionId: string | null;
 	options: PlanCommandOptions;
 } {
 	const result: {
 		command: string | null;
 		planFile: string | null;
 		workspaceId: string | null;
+		planExecutionId: string | null;
 		options: PlanCommandOptions;
 	} = {
 		command: null,
 		planFile: null,
 		workspaceId: null,
+		planExecutionId: null,
 		options: {},
 	};
 
@@ -436,14 +531,21 @@ export function parsePlanCommand(args: string[]): {
 			result.options.verbose = true;
 		} else if (arg === "--force" || arg === "-f") {
 			result.options.force = true;
+		} else if (arg === "--workers" && i + 1 < args.length) {
+			const workers = parseInt(args[++i], 10);
+			if (!Number.isNaN(workers) && workers >= 1 && workers <= 6) {
+				result.options.workers = workers;
+			}
 		} else if (arg === "--cwd" && i + 1 < args.length) {
 			result.options.cwd = args[++i];
 		} else if (!arg.startsWith("-")) {
 			// Positional argument
 			if (result.command === "doctor" || result.command === "dry-run" || result.command === "run") {
 				result.planFile = arg;
-			} else if (result.command === "one") {
+			} else if (result.command === "one" || result.command === "retry") {
 				result.workspaceId = arg;
+			} else if (result.command === "replay-dry-run") {
+				result.planExecutionId = arg;
 			}
 		}
 	}
@@ -488,7 +590,9 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		}
 
 		// Run safety doctor
-		const doctor = createSafetyDoctor();
+		const workers = options.workers ?? DEFAULT_WORKERS;
+		const doctorWorkerConcurrency = buildWorkerConcurrencyFromOptions(options);
+		const doctor = createSafetyDoctor(workers, doctorWorkerConcurrency);
 		const safetyReport = doctor.validateQueue(parseResult.queue);
 
 		if (!safetyReport.safe) {
@@ -510,8 +614,16 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 			return PlanExitCode.SafetyError;
 		}
 
+		// Resolve worker concurrency with experimental mode confirmation
+		const resolvedWorkerConcurrency = resolveWorkerConcurrencyWithConfirmation(options);
+		if (resolvedWorkerConcurrency === null) {
+			// User declined or prerequisites not met for experimental mode
+			return PlanExitCode.SafetyError;
+		}
+		const effectiveWorkers = resolvedWorkerConcurrency.maxWorkers ?? DEFAULT_WORKERS;
+
 		// Initialize executor
-		const executor = createAutonomousExecutor(cwd);
+		const executor = createAutonomousExecutor(cwd, effectiveWorkers);
 		await executor.initialize(parseResult.queue);
 
 		if (!json) {
@@ -1436,12 +1548,205 @@ export async function planHandoffDiscard(options: PlanCommandOptions = {}): Prom
  */
 export { planWatch } from "./plan-watch.js";
 
+import { ReplayMetadataManager } from "../core/replay-metadata.js";
+
+/**
+ * Retry command - retry a failed workspace with pre-flight checks.
+ *
+ * Checks retry eligibility (stage, max retries, dirty tree, safety conflict)
+ * before proceeding. Use --force to skip the dirty-tree and safety checks
+ * (stage and max-retries checks are always enforced).
+ *
+ * @param workspaceId - Workspace ID to retry
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planRetry(workspaceId: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false, force = false } = options;
+
+	try {
+		const stateStore = new PlanStateStore(cwd);
+		const state = await stateStore.loadState();
+
+		if (!state) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No execution state found" }, null, 2));
+			} else {
+				console.error(chalk.red("No execution state found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		const wsState = state.workspaces.get(workspaceId);
+		if (!wsState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: `Workspace ${workspaceId} not found` }, null, 2));
+			} else {
+				console.error(chalk.red(`Workspace ${workspaceId} not found in plan`));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		// Build a workspace definition from state (minimal — used only for eligibility check)
+		const workspace: import("../core/workspace-schema.js").Workspace = {
+			id: workspaceId,
+			title: `Workspace ${workspaceId}`,
+			dependencies: [],
+			roleBudget: "worker",
+			maxRetries: 3,
+		};
+
+		const replayManager = new ReplayMetadataManager(cwd);
+
+		if (!force) {
+			try {
+				await replayManager.gateRetry(workspace, wsState);
+			} catch (gateError) {
+				if (json) {
+					console.log(
+						JSON.stringify(
+							{
+								success: false,
+								error: gateError instanceof Error ? gateError.message : String(gateError),
+							},
+							null,
+							2,
+						),
+					);
+				} else {
+					console.error(chalk.red(gateError instanceof Error ? gateError.message : String(gateError)));
+					console.error(chalk.dim("Use --force to bypass dirty-tree / safety checks (not recommended)"));
+				}
+				return PlanExitCode.SafetyError;
+			}
+		}
+
+		// Perform the retry: reset workspace to pending and increment attempt
+		await stateStore.transitionWorkspace(wsState.workspaceId, WorkspaceStage.Pending, {
+			reason: "retry",
+			previousStage: wsState.stage,
+		});
+		await stateStore.incrementRetryAttempt(wsState.workspaceId);
+
+		// Write replay metadata
+		await replayManager.writeWorkspaceReplay(workspace, wsState);
+
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: true,
+						workspaceId,
+						attempts: wsState.attempts + 1,
+						stage: "pending",
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.log(chalk.green(`Retrying workspace ${workspaceId} (attempt ${wsState.attempts + 1})`));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Replay dry-run command - read archive without modifying any files.
+ *
+ * Loads the replay manifest and all per-workspace replay files for the
+ * given plan execution, validating consistency and reporting issues.
+ * No files are modified; no state transitions are made.
+ *
+ * @param planExecutionId - Plan execution ID to inspect
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planReplayDryRun(planExecutionId: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		const replayManager = new ReplayMetadataManager(cwd);
+		const result = await replayManager.dryRunReplay(planExecutionId);
+
+		if (json) {
+			const output: Record<string, unknown> = {
+				success: result.success,
+				errors: result.errors,
+				warnings: result.warnings,
+				workspaceCount: result.workspaceReplays.size,
+			};
+			if (result.manifest) {
+				output.phase = result.manifest.phase;
+				output.title = result.manifest.title;
+				output.status = result.manifest.status;
+			}
+			console.log(JSON.stringify(output, null, 2));
+		} else {
+			if (!result.success) {
+				console.error(chalk.red("Replay dry-run failed"));
+				for (const error of result.errors) {
+					console.error(chalk.red(`  Error: ${error}`));
+				}
+			} else {
+				console.log(chalk.green("Replay dry-run OK"));
+				if (result.manifest) {
+					console.log(chalk.dim(`Plan: ${result.manifest.title}`));
+					console.log(chalk.dim(`Phase: ${result.manifest.phase}`));
+					console.log(chalk.dim(`Status: ${result.manifest.status}`));
+				}
+				console.log(chalk.dim(`Workspaces: ${result.workspaceReplays.size}`));
+			}
+			for (const warning of result.warnings) {
+				console.log(chalk.yellow(`  Warning: ${warning}`));
+			}
+		}
+
+		return result.success ? PlanExitCode.Success : PlanExitCode.ExecutionError;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
 /**
  * Print plan command help
  */
 export function printPlanHelp(): void {
-	console.log(chalk.bold("Pi Plan Commands\n"));
-	console.log("Autonomous multi-agent plan execution\n");
+	console.log(chalk.bold("Pi Plan Commands"));
+	console.log("");
+	console.log("Autonomous multi-agent plan execution");
+	console.log("");
 
 	console.log(chalk.bold("Commands:"));
 	console.log("  doctor <plan-file>        Validate plan safety");
@@ -1450,6 +1755,8 @@ export function printPlanHelp(): void {
 	console.log("  run <plan-file>           Start autonomous execution");
 	console.log("  resume                    Resume from persisted state");
 	console.log("  one <workspace-id>        Execute single workspace");
+	console.log("  retry <workspace-id>      Retry a failed workspace");
+	console.log("  replay-dry-run <exec-id>  Read archive without modifying files");
 	console.log("  watch                     Observer-only dashboard");
 	console.log("  pause                     Pause execution (graceful)");
 	console.log("  stop                      Stop execution (graceful)");
@@ -1462,6 +1769,8 @@ export function printPlanHelp(): void {
 	console.log(chalk.bold("Options:"));
 	console.log("  --json                 Output JSON format");
 	console.log("  --verbose, -v          Verbose output");
+	console.log("  --force, -f            Force operation (bypass safety / dirty-tree checks)");
+	console.log("  --workers <N>          Max concurrent workers (1-3 stable, 4-6 experimental, default: 3)");
 	console.log("  --cwd <dir>            Working directory");
 	console.log("");
 
@@ -1472,6 +1781,8 @@ export function printPlanHelp(): void {
 	console.log("  pi plan status");
 	console.log("  pi plan resume");
 	console.log("  pi plan one 7.A");
+	console.log("  pi plan retry 7.A");
+	console.log("  pi plan replay-dry-run abc123");
 	console.log("  pi plan watch");
 	console.log("  pi plan pause");
 	console.log("  pi plan stop");

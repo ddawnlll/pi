@@ -55,7 +55,29 @@ export interface ControlResponse {
 	error?: string;
 }
 
-export type LogStream = "stdout" | "stderr" | "test" | "error";
+export type LogStream = "raw" | "structured" | "narrative" | "audit" | "decision" | "stdout" | "stderr" | "test" | "error" | "transcript";
+
+/** Worker transcript event — matches WorkerTranscriptEvent from plan-state.ts */
+export type WorkerTranscriptEventType =
+	| "worker_status"
+	| "worker_decision_summary"
+	| "validation"
+	| "blocker"
+	| "tool_call"
+	| "workspace_start"
+	| "workspace_complete"
+	| "workspace_failed"
+	| "workspace_blocked"
+	| "retry_attempt";
+
+/** Worker transcript event from /api/transcript endpoint */
+export interface WorkerTranscriptEvent {
+	type: WorkerTranscriptEventType;
+	timestamp: number;
+	workspaceId: string;
+	summary: string;
+	data?: Record<string, unknown>;
+}
 
 // =============================================================================
 // Multi-Project Types (P2 Phase 1)

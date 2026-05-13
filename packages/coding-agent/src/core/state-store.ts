@@ -7,7 +7,7 @@
 
 import { DatabaseStateStore } from "./database-state-store.js";
 import { JsonStateStore } from "./json-state-store.js";
-import type { JournalEvent } from "./plan-state.js";
+import type { JournalEvent, WorkerTranscriptEvent } from "./plan-state.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 
 /**
@@ -502,6 +502,85 @@ export interface IStateStore {
 	 * @returns Array of recent log lines
 	 */
 	getRecentWorkspaceLogs?(planExecutionId: string, workspaceId: string, maxLines?: number): string[];
+
+	// =========================================================================
+	// Worker Transcript
+	// =========================================================================
+
+	/**
+	 * Append a worker transcript event to the workspace transcript ndjson file.
+	 * Only sanitized events (no private chain-of-thought) should be archived.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param event - Worker transcript event
+	 */
+	appendWorkerTranscriptEvent?(
+		planExecutionId: string,
+		workspaceId: string,
+		event: WorkerTranscriptEvent,
+	): Promise<void>;
+
+	/**
+	 * Read worker transcript events from the workspace transcript ndjson file.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @returns Array of worker transcript events
+	 */
+	readWorkerTranscriptEvents?(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]>;
+
+	/**
+	 * Emit a worker_status event to journal and transcript.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param status - Worker status string (e.g., "executing", "validating", "deciding")
+	 * @param message - Optional human-readable message
+	 */
+	emitWorkerStatus?(planExecutionId: string, workspaceId: string, status: string, message?: string): Promise<void>;
+
+	/**
+	 * Emit a worker_decision_summary event to journal and transcript.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param summary - Decision summary text
+	 * @param verdict - Decision verdict
+	 */
+	emitWorkerDecisionSummary?(
+		planExecutionId: string,
+		workspaceId: string,
+		summary: string,
+		verdict: string,
+	): Promise<void>;
+
+	/**
+	 * Emit a validation event to journal and transcript.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param criterion - Validation criterion description
+	 * @param passed - Whether validation passed
+	 * @param details - Optional details
+	 */
+	emitValidation?(
+		planExecutionId: string,
+		workspaceId: string,
+		criterion: string,
+		passed: boolean,
+		details?: string,
+	): Promise<void>;
+
+	/**
+	 * Emit a blocker event to journal and transcript.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param reason - Blocker reason
+	 * @param dependencies - Optional list of blocking dependencies
+	 */
+	emitBlocker?(planExecutionId: string, workspaceId: string, reason: string, dependencies?: string[]): Promise<void>;
 }
 
 /**

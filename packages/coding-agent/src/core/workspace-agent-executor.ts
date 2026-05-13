@@ -219,6 +219,14 @@ export class WorkspaceAgentExecutor {
 							.catch((err: unknown) => {
 								console.error("[workspace-agent-executor] Failed to emit tool_call journal event:", err);
 							});
+
+						// Emit worker_status transcript event for tool execution
+						if (typeof this.stateStore.emitWorkerStatus === "function") {
+							this.stateStore
+								.emitWorkerStatus(this.planExecutionId, workspaceId, "executing", `Tool: ${pending.toolName}`)
+								.catch(() => {});
+						}
+
 						pendingToolCalls.delete(event.toolCallId);
 					}
 				}
@@ -226,6 +234,17 @@ export class WorkspaceAgentExecutor {
 
 			// Run the agent with the prompt
 			log("Starting agent execution...");
+
+			// Emit worker_status: executing
+			if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {
+				await this.stateStore.emitWorkerStatus(
+					this.planExecutionId,
+					workspaceId,
+					"executing",
+					"Agent execution started",
+				);
+			}
+
 			await session.prompt(prompt);
 			log("Agent prompt sent, waiting for completion...");
 
@@ -265,12 +284,78 @@ export class WorkspaceAgentExecutor {
 				if (content.includes("VERDICT: COMPLETE")) {
 					finalVerdict = "COMPLETE";
 					log("Agent reported COMPLETE");
+
+					// Emit validation passed and decision summary
+					if (this.stateStore && this.planExecutionId) {
+						if (typeof this.stateStore.emitValidation === "function") {
+							await this.stateStore
+								.emitValidation(this.planExecutionId, workspaceId, "All acceptance criteria met", true)
+								.catch(() => {});
+						}
+						if (typeof this.stateStore.emitWorkerDecisionSummary === "function") {
+							await this.stateStore
+								.emitWorkerDecisionSummary(
+									this.planExecutionId,
+									workspaceId,
+									"Task completed successfully",
+									"COMPLETE",
+								)
+								.catch(() => {});
+						}
+					}
 				} else if (content.includes("VERDICT: BLOCKED")) {
 					finalVerdict = "BLOCKED";
 					log("Agent reported BLOCKED");
+
+					// Emit blocker event
+					if (this.stateStore && this.planExecutionId) {
+						if (typeof this.stateStore.emitBlocker === "function") {
+							// Extract blocker reason from content after VERDICT: BLOCKED
+							const blockerMatch = content.match(/VERDICT:\s*BLOCKED[^\n]*\n([^\n]*)/);
+							const blockerReason = blockerMatch ? blockerMatch[1].trim() : "Agent reported blocked";
+							await this.stateStore
+								.emitBlocker(this.planExecutionId, workspaceId, blockerReason)
+								.catch(() => {});
+						}
+						if (typeof this.stateStore.emitWorkerDecisionSummary === "function") {
+							await this.stateStore
+								.emitWorkerDecisionSummary(
+									this.planExecutionId,
+									workspaceId,
+									`Task blocked: ${content.substring(0, 200)}`,
+									"BLOCKED",
+								)
+								.catch(() => {});
+						}
+					}
 				} else if (content.includes("VERDICT: FAILED")) {
 					finalVerdict = "FAILED";
 					log("Agent reported FAILED");
+
+					// Emit validation failed and decision summary
+					if (this.stateStore && this.planExecutionId) {
+						if (typeof this.stateStore.emitValidation === "function") {
+							await this.stateStore
+								.emitValidation(
+									this.planExecutionId,
+									workspaceId,
+									"Task failed",
+									false,
+									content.substring(0, 200),
+								)
+								.catch(() => {});
+						}
+						if (typeof this.stateStore.emitWorkerDecisionSummary === "function") {
+							await this.stateStore
+								.emitWorkerDecisionSummary(
+									this.planExecutionId,
+									workspaceId,
+									`Task failed: ${content.substring(0, 200)}`,
+									"FAILED",
+								)
+								.catch(() => {});
+						}
+					}
 				} else {
 					// If no explicit verdict but agent completed without error, assume success
 					if (content.toLowerCase().includes("complete") || content.toLowerCase().includes("done")) {

@@ -10,6 +10,10 @@
  *   GET    /api/logs/:workspaceId/:attempt/:stream  Legacy: SSE stream of worker logs
  *   POST   /api/control                       Legacy: send control command
  *
+ *   GET    /api/logs/v2/:planExecId/:workspaceId/:stream  Logs v2: raw/structured/narrative/audit/decision SSE
+ *
+ *   GET    /api/transcript/:planExecId/:workspaceId     SSE: worker transcript events
+ *
  *   GET    /api/projects                      List projects
  *   POST   /api/projects                      Create project
  *   GET    /api/projects/:projectId/plans     List plan executions for project
@@ -19,6 +23,17 @@
  *   POST   /api/projects/:projectId/plans/validate  Validate plan content
  *   POST   /api/projects/:projectId/plans/run       Upload and run a plan
  *   GET    /api/projects/:projectId/active          Get active execution info
+ *
+ *   GET    /api/projects/:projectId/queue           Get plan queue for project
+ *   POST   /api/projects/:projectId/queue/enqueue  Add plan(s) to queue
+ *   POST   /api/projects/:projectId/queue/reorder   Reorder queued plans
+ *   POST   /api/projects/:projectId/queue/:entryId/skip    Skip a queued plan
+ *   DELETE /api/projects/:projectId/queue/:entryId  Remove a queued plan
+ *   POST   /api/projects/:projectId/queue/:entryId/move-to-top  Move entry to top
+ *   POST   /api/projects/:projectId/queue/run-next   Run next queued plan
+ *   POST   /api/projects/:projectId/queue/pause      Pause queue processing
+ *   POST   /api/projects/:projectId/queue/resume     Resume queue processing
+ *   POST   /api/projects/:projectId/queue/stop-after-current  Stop after current plan
  */
 
 import { execSync } from "node:child_process";
@@ -38,6 +53,7 @@ import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
+import { registerArtifactRoutes } from "./artifact-routes.js";
 import {
 	getActiveExecution,
 	getActiveExecutions,
@@ -1355,6 +1371,220 @@ fastify.get<{
 });
 
 // ---------------------------------------------------------------------------
+// Logs v2: Narrative, Audit, Decision Streams
+// ---------------------------------------------------------------------------
+
+/** Valid v2 log stream names */
+const V2_LOG_STREAMS = ["raw", "structured", "narrative", "audit", "decision"] as const;
+type V2LogStream = (typeof V2_LOG_STREAMS)[number];
+
+/** Map v2 stream names to archive file names */
+const V2_STREAM_FILE_MAP: Record<V2LogStream, string> = {
+	raw: "raw.log",
+	structured: "structured.ndjson",
+	narrative: "narrative.ndjson",
+	audit: "audit.ndjson",
+	decision: "decisions.ndjson",
+};
+
+/** Map legacy stream names for backward compatibility in v2 endpoint */
+const V2_LEGACY_STREAM_MAP: Record<string, string> = {
+	stdout: "raw.log",
+	stderr: "raw.log",
+	error: "raw.log",
+	test: "raw.log",
+};
+
+/**
+ * Read a v2 log stream file from the execution archive.
+ *
+ * Reads from .pi/executions/{planExecId}/workspaces/{workspaceId}/{filename}
+ * and returns lines suitable for SSE streaming.
+ */
+function readV2LogStream(
+	workspaceRoot: string,
+	planExecId: string,
+	workspaceId: string,
+	stream: V2LogStream,
+): string[] {
+	const fileName = V2_STREAM_FILE_MAP[stream];
+	const filePath = join(workspaceRoot, ".pi", "executions", planExecId, "workspaces", workspaceId, fileName);
+
+	if (!existsSync(filePath)) {
+		return [];
+	}
+
+	try {
+		const content = readFileSync(filePath, "utf-8");
+		if (stream === "raw") {
+			return content.split("\n").filter(Boolean);
+		}
+		// For ndjson streams, return pretty-printed JSON lines
+		return content
+			.split("\n")
+			.filter(Boolean)
+			.map((line) => {
+				try {
+					return JSON.stringify(JSON.parse(line), null, 2);
+				} catch {
+					return line;
+				}
+			});
+	} catch {
+		return [];
+	}
+}
+
+/** Also try the legacy workspace log as fallback for "raw" stream */
+function readV2RawFromLegacy(workspaceRoot: string, _planExecId: string, workspaceId: string): string[] {
+	// Try state store first
+	const stateStore = getStateStore();
+	if (typeof (stateStore as any).loadWorkspaceLog === "function") {
+		try {
+			// Synchronous attempts only — the state store may be async
+		} catch {
+			// Ignore
+		}
+	}
+
+	// Try legacy workspace execution log files
+	for (let a = 1; a <= 10; a++) {
+		const wsLogFile = join(workspaceRoot, ".pi", "workspaces", workspaceId, `execution-${a}.log`);
+		if (existsSync(wsLogFile)) {
+			try {
+				const content = readFileSync(wsLogFile, "utf-8");
+				const lines = content.split("\n").filter(Boolean);
+				if (lines.length > 0) {
+					return lines;
+				}
+			} catch {
+				// Ignore
+			}
+		}
+	}
+
+	return [];
+}
+
+/** readFileSync wrapper for use in sync contexts */
+import { readFileSync, watch as watchSync } from "node:fs";
+
+/**
+ * GET /api/logs/v2/:planExecId/:workspaceId/:stream - SSE stream of v2 log streams
+ *
+ * Supported streams: raw, structured, narrative, audit, decision
+ * Also accepts legacy stream names (stdout, stderr, error, test) which map to raw.
+ */
+fastify.get<{
+	Params: { planExecId: string; workspaceId: string; stream: string };
+}>("/api/logs/v2/:planExecId/:workspaceId/:stream", async (request, reply) => {
+	const { planExecId, workspaceId, stream } = request.params;
+
+	// Resolve stream name
+	let resolvedStream: V2LogStream;
+	if (V2_LOG_STREAMS.includes(stream as V2LogStream)) {
+		resolvedStream = stream as V2LogStream;
+	} else if (stream in V2_LEGACY_STREAM_MAP) {
+		resolvedStream = "raw";
+	} else {
+		reply.code(400).send({ error: `Unknown log stream: ${stream}` });
+		return;
+	}
+
+	const workspaceRoot = getWorkspaceRoot();
+
+	reply.raw.writeHead(200, {
+		"Content-Type": "text/event-stream",
+		"Cache-Control": "no-cache",
+		Connection: "keep-alive",
+	});
+
+	// Read the v2 log stream file
+	let lines = readV2LogStream(workspaceRoot, planExecId, workspaceId, resolvedStream);
+
+	// Fallback for raw stream: try legacy log files
+	if (lines.length === 0 && resolvedStream === "raw") {
+		lines = readV2RawFromLegacy(workspaceRoot, planExecId, workspaceId);
+	}
+
+	// Also try the in-memory state store log buffer
+	if (lines.length === 0 && resolvedStream === "raw") {
+		const stateStore = getStateStore();
+		if ("getRecentWorkspaceLogs" in stateStore) {
+			const fn = (stateStore as any).getRecentWorkspaceLogs;
+			if (typeof fn === "function") {
+				try {
+					const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
+					if (bufferLogs.length > 0) {
+						lines = bufferLogs;
+					}
+				} catch {
+					// Ignore
+				}
+			}
+		}
+	}
+
+	// Send existing lines
+	for (const line of lines) {
+		reply.raw.write(`data: ${line}\n\n`);
+	}
+
+	if (lines.length === 0) {
+		reply.raw.write(`data: __NO_LOGS__\n\n`);
+		reply.raw.end();
+		return;
+	}
+
+	// Watch for new lines on the v2 log file (live updates)
+	const fileName = V2_STREAM_FILE_MAP[resolvedStream];
+	const filePath = join(workspaceRoot, ".pi", "executions", planExecId, "workspaces", workspaceId, fileName);
+
+	if (!existsSync(filePath)) {
+		// No file to watch — end the stream after sending buffered lines
+		reply.raw.end();
+		return;
+	}
+
+	let lastLineCount = lines.length;
+	const abortController = new AbortController();
+	request.raw.on("close", () => abortController.abort());
+
+	try {
+		const watcher = watch(filePath, { signal: abortController.signal });
+		for await (const event of watcher) {
+			if (event.eventType === "change") {
+				try {
+					const content = readFileSync(filePath, "utf-8");
+					const allLines = content.split("\n").filter(Boolean);
+					if (resolvedStream !== "raw") {
+						// For ndjson streams, pretty-print and send only new entries
+						for (let i = lastLineCount; i < allLines.length; i++) {
+							try {
+								reply.raw.write(`data: ${JSON.stringify(JSON.parse(allLines[i]), null, 2)}\n\n`);
+							} catch {
+								reply.raw.write(`data: ${allLines[i]}\n\n`);
+							}
+						}
+					} else {
+						// For raw log, send last line (simple append)
+						const newLine = allLines[allLines.length - 1];
+						if (newLine) {
+							reply.raw.write(`data: ${newLine}\n\n`);
+						}
+					}
+					lastLineCount = allLines.length;
+				} catch {
+					// Ignore read errors
+				}
+			}
+		}
+	} catch {
+		// Watcher aborted or file doesn't exist
+	}
+});
+
+// ---------------------------------------------------------------------------
 // Plan Management Endpoints (upload, validate, run)
 // ---------------------------------------------------------------------------
 
@@ -1485,6 +1715,377 @@ fastify.get<{
 	}
 });
 
+// ── Plan Queue ────────────────────────────────────────────────────────────
+
+/**
+ * In-memory plan queue state per project.
+ * Each entry tracks a plan waiting to run or currently running.
+ */
+interface PlanQueueEntry {
+	entryId: string;
+	projectId: string;
+	planExecId: string | null;
+	title: string;
+	status: "pending" | "active" | "complete" | "failed" | "skipped" | "blocked";
+	queuedAt: number;
+	startedAt: number | null;
+	completedAt: number | null;
+	error: string | null;
+	blockReason: string | null;
+}
+
+interface ProjectQueueState {
+	entries: PlanQueueEntry[];
+	isPaused: boolean;
+	stopAfterCurrent: boolean;
+}
+
+const projectQueues = new Map<string, ProjectQueueState>();
+
+function getOrCreateQueue(projectId: string): ProjectQueueState {
+	if (!projectQueues.has(projectId)) {
+		projectQueues.set(projectId, { entries: [], isPaused: false, stopAfterCurrent: false });
+	}
+	return projectQueues.get(projectId)!;
+}
+
+function queueAuditLog(projectId: string, action: string, entryId: string, details: Record<string, unknown> = {}) {
+	const workspaceRoot = getWorkspaceRoot();
+	const auditEntry = {
+		type: "queue_action",
+		action,
+		entryId,
+		projectId,
+		timestamp: Date.now(),
+		actor: "dashboard",
+		...details,
+	};
+	const dir = join(workspaceRoot, ".pi", "queue-audit");
+	const filePath = join(dir, `${projectId}-audit.ndjson`);
+	fs.mkdir(dir, { recursive: true })
+		.then(() => {
+			fs.appendFile(filePath, JSON.stringify(auditEntry) + String.fromCharCode(10), "utf-8").catch(() => {});
+		})
+		.catch(() => {});
+}
+
+/**
+ * GET /api/projects/:projectId/queue - Get plan queue for project
+ */
+fastify.get<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/queue", async (request, _reply) => {
+	const { projectId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	return {
+		entries: queue.entries,
+		isPaused: queue.isPaused,
+		stopAfterCurrent: queue.stopAfterCurrent,
+	};
+});
+
+/**
+ * POST /api/projects/:projectId/queue/enqueue - Add plan(s) to queue
+ *
+ * Accepts an array of plan contents or a single plan content.
+ * Each plan is validated and added as a pending entry.
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: { plans?: Array<{ planContent: string; planFileName?: string }>; planContent?: string; planFileName?: string };
+}>("/api/projects/:projectId/queue/enqueue", async (request, reply) => {
+	const { projectId } = request.params;
+	const body = request.body;
+	const queue = getOrCreateQueue(projectId);
+
+	// Support single or multi-plan upload
+	const plans: Array<{ planContent: string; planFileName?: string }> =
+		body.plans ?? (body.planContent ? [{ planContent: body.planContent, planFileName: body.planFileName }] : []);
+	if (plans.length === 0) {
+		return reply.code(400).send({ error: "No plan content provided" });
+	}
+
+	const newEntries: PlanQueueEntry[] = [];
+	const errors: string[] = [];
+
+	for (const plan of plans) {
+		if (!plan.planContent?.trim()) {
+			errors.push("Plan content is empty");
+			continue;
+		}
+
+		// Validate the plan
+		try {
+			const parseResult = parsePlan(plan.planContent);
+			if (!parseResult.success) {
+				errors.push(`Invalid plan: ${(parseResult.errors ?? []).join(", ")}`);
+				continue;
+			}
+		} catch (e) {
+			errors.push(`Parse error: ${String(e)}`);
+			continue;
+		}
+
+		const entry: PlanQueueEntry = {
+			entryId: `qe-${randomUUID().slice(0, 12)}`,
+			projectId,
+			planExecId: null,
+			title: plan.planFileName ?? `Queued Plan ${queue.entries.length + 1}`,
+			status: "pending",
+			queuedAt: Date.now(),
+			startedAt: null,
+			completedAt: null,
+			error: null,
+			blockReason: null,
+		};
+		queue.entries.push(entry);
+		newEntries.push(entry);
+	}
+
+	// Auto-start next if queue is not paused and no active entry
+	if (!queue.isPaused && newEntries.length > 0) {
+		const activeEntry = queue.entries.find((e) => e.status === "active");
+		if (!activeEntry) {
+			void startNextInQueue(projectId);
+		}
+	}
+
+	return {
+		success: true,
+		added: newEntries.map((e) => e.entryId),
+		errors: errors.length > 0 ? errors : undefined,
+	};
+});
+
+/**
+ * POST /api/projects/:projectId/queue/reorder - Reorder queued plans
+ *
+ * Accepts an ordered array of entry IDs for pending entries.
+ * Active entries cannot be reordered.
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: { orderedIds: string[] };
+}>("/api/projects/:projectId/queue/reorder", async (request, reply) => {
+	const { projectId } = request.params;
+	const { orderedIds } = request.body;
+	const queue = getOrCreateQueue(projectId);
+
+	if (!Array.isArray(orderedIds)) {
+		return reply.code(400).send({ error: "orderedIds must be an array" });
+	}
+
+	// Validate: no active entry in the reorder list
+	const activeEntry = queue.entries.find((e) => e.status === "active");
+	if (activeEntry && orderedIds.includes(activeEntry.entryId)) {
+		return reply.code(400).send({ error: "Cannot reorder the active/running plan" });
+	}
+
+	const pendingMap = new Map(queue.entries.filter((e) => e.status === "pending").map((e) => [e.entryId, e]));
+
+	// Validate all orderedIds exist in pending
+	const unknownIds = orderedIds.filter((id) => !pendingMap.has(id));
+	if (unknownIds.length > 0) {
+		return reply.code(400).send({ error: `Unknown entry IDs: ${unknownIds.join(", ")}` });
+	}
+
+	// Reorder: active entries first, then blocked, then ordered pending, then remaining pending, then terminal
+	const orderedPending = orderedIds.map((id) => pendingMap.get(id)!);
+	const remainingPending = queue.entries.filter((e) => e.status === "pending" && !orderedIds.includes(e.entryId));
+	const terminalEntries = queue.entries.filter(
+		(e) => e.status === "complete" || e.status === "failed" || e.status === "skipped",
+	);
+
+	queue.entries = [
+		...queue.entries.filter((e) => e.status === "active"),
+		...queue.entries.filter((e) => e.status === "blocked"),
+		...orderedPending,
+		...remainingPending,
+		...terminalEntries,
+	];
+
+	// Audit log
+	for (const id of orderedIds) {
+		queueAuditLog(projectId, "reorder", id, { newPosition: orderedIds.indexOf(id) });
+	}
+
+	return { success: true };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/:entryId/skip - Skip a queued plan
+ */
+fastify.post<{
+	Params: { projectId: string; entryId: string };
+}>("/api/projects/:projectId/queue/:entryId/skip", async (request, reply) => {
+	const { projectId, entryId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	const entry = queue.entries.find((e) => e.entryId === entryId);
+
+	if (!entry) {
+		return reply.code(404).send({ error: "Entry not found" });
+	}
+	if (entry.status === "active") {
+		return reply.code(400).send({ error: "Cannot skip the active/running plan" });
+	}
+	if (entry.status === "complete" || entry.status === "failed" || entry.status === "skipped") {
+		return reply.code(400).send({ error: "Cannot skip a completed/failed/skipped entry" });
+	}
+
+	entry.status = "skipped";
+	entry.completedAt = Date.now();
+	queueAuditLog(projectId, "skip", entryId);
+
+	return { success: true };
+});
+
+/**
+ * DELETE /api/projects/:projectId/queue/:entryId - Remove a queued plan
+ */
+fastify.delete<{
+	Params: { projectId: string; entryId: string };
+}>("/api/projects/:projectId/queue/:entryId", async (request, reply) => {
+	const { projectId, entryId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	const entry = queue.entries.find((e) => e.entryId === entryId);
+
+	if (!entry) {
+		return reply.code(404).send({ error: "Entry not found" });
+	}
+	if (entry.status === "active") {
+		return reply.code(400).send({ error: "Cannot remove the active/running plan" });
+	}
+
+	queue.entries = queue.entries.filter((e) => e.entryId !== entryId);
+	queueAuditLog(projectId, "remove", entryId);
+
+	return { success: true };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/:entryId/move-to-top - Move entry to top of queue
+ */
+fastify.post<{
+	Params: { projectId: string; entryId: string };
+}>("/api/projects/:projectId/queue/:entryId/move-to-top", async (request, reply) => {
+	const { projectId, entryId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	const entryIndex = queue.entries.findIndex((e) => e.entryId === entryId);
+
+	if (entryIndex === -1) {
+		return reply.code(404).send({ error: "Entry not found" });
+	}
+	const entry = queue.entries[entryIndex];
+	if (entry.status === "active") {
+		return reply.code(400).send({ error: "Cannot move the active/running plan" });
+	}
+	if (entry.status === "complete" || entry.status === "failed" || entry.status === "skipped") {
+		return reply.code(400).send({ error: "Cannot move a completed/failed/skipped entry" });
+	}
+
+	// Remove and re-insert at the top of the pending section
+	queue.entries.splice(entryIndex, 1);
+	const activeEnd = queue.entries.findIndex((e) => e.status !== "active" && e.status !== "blocked");
+	const insertIdx = activeEnd === -1 ? queue.entries.length : activeEnd;
+	queue.entries.splice(insertIdx, 0, entry);
+
+	queueAuditLog(projectId, "move_to_top", entryId);
+
+	return { success: true };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/run-next - Run next queued plan
+ */
+fastify.post<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/queue/run-next", async (request, reply) => {
+	const { projectId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+
+	if (queue.isPaused) {
+		return reply.code(400).send({ error: "Queue is paused; resume before running next" });
+	}
+
+	const result = await startNextInQueue(projectId);
+	return { success: result };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/pause - Pause queue processing
+ */
+fastify.post<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/queue/pause", async (request, _reply) => {
+	const { projectId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	queue.isPaused = true;
+	return { success: true };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/resume - Resume queue processing
+ */
+fastify.post<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/queue/resume", async (request, _reply) => {
+	const { projectId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	queue.isPaused = false;
+	queue.stopAfterCurrent = false;
+	return { success: true };
+});
+
+/**
+ * POST /api/projects/:projectId/queue/stop-after-current - Stop after current plan
+ */
+fastify.post<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/queue/stop-after-current", async (request, _reply) => {
+	const { projectId } = request.params;
+	const queue = getOrCreateQueue(projectId);
+	queue.stopAfterCurrent = true;
+	return { success: true };
+});
+
+/**
+ * Helper: start the next pending entry in the queue.
+ * Returns true if a plan was started, false otherwise.
+ */
+async function startNextInQueue(projectId: string): Promise<boolean> {
+	const queue = getOrCreateQueue(projectId);
+
+	// Don't start if paused or stop-after-current
+	if (queue.isPaused || queue.stopAfterCurrent) return false;
+
+	// Don't start if there's already an active entry
+	const activeEntry = queue.entries.find((e) => e.status === "active");
+	if (activeEntry) return false;
+
+	// Find the next pending entry
+	const nextEntry = queue.entries.find((e) => e.status === "pending");
+	if (!nextEntry) return false;
+
+	// Mark as active
+	nextEntry.status = "active";
+	nextEntry.startedAt = Date.now();
+
+	try {
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		const _workspaceRoot = project?.rootPath || getWorkspaceRoot();
+
+		nextEntry.planExecId = `pending-${nextEntry.entryId}`;
+		return true;
+	} catch (error) {
+		nextEntry.status = "failed";
+		nextEntry.error = String(error);
+		nextEntry.completedAt = Date.now();
+		return false;
+	}
+}
+
 /**
  * GET /api/executions/:planExecId - Get a specific active execution
  */
@@ -1535,6 +2136,127 @@ fastify.get<{
 		fastify.log.error({ error }, "Failed to get execution log");
 		return reply.code(500).send({ error: "Failed to get execution log", message: String(error) });
 	}
+});
+
+/**
+ * GET /api/transcript/:planExecId/:workspaceId - SSE stream of worker transcript events
+ *
+ * Streams sanitized worker transcript events (worker_status, worker_decision_summary,
+ * validation, blocker) in real-time. Raw private chain-of-thought is never emitted.
+ *
+ * Reads existing transcript.ndjson file first, then watches for new entries.
+ */
+fastify.get<{
+	Params: { planExecId: string; workspaceId: string };
+}>("/api/transcript/:planExecId/:workspaceId", async (request, reply) => {
+	const { planExecId, workspaceId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	reply.raw.writeHead(200, {
+		"Content-Type": "text/event-stream",
+		"Cache-Control": "no-cache",
+		Connection: "keep-alive",
+	});
+
+	// Read existing transcript events from ndjson file
+	const transcriptFilePath = join(
+		workspaceRoot,
+		".pi",
+		"executions",
+		planExecId,
+		"workspaces",
+		workspaceId,
+		"transcript.ndjson",
+	);
+
+	let existingLines: string[] = [];
+	if (existsSync(transcriptFilePath)) {
+		try {
+			const content = readFileSync(transcriptFilePath, "utf-8");
+			existingLines = content.split("\n").filter(Boolean);
+		} catch {
+			// Ignore read errors
+		}
+	}
+
+	// Also try the state store for transcript events
+	const stateStore = getStateStore();
+	if (existingLines.length === 0 && typeof (stateStore as any).readWorkerTranscriptEvents === "function") {
+		try {
+			const events = await (stateStore as any).readWorkerTranscriptEvents(planExecId, workspaceId);
+			if (Array.isArray(events) && events.length > 0) {
+				existingLines = events.map((e: any) => JSON.stringify(e));
+			}
+		} catch {
+			// Ignore
+		}
+	}
+
+	// Send existing events
+	for (const line of existingLines) {
+		reply.raw.write(`data: ${line}\n\n`);
+	}
+
+	if (existingLines.length === 0) {
+		reply.raw.write(`data: __NO_TRANSCRIPT__\n\n`);
+	}
+
+	// Watch for new transcript entries (file-based live updates)
+	if (existsSync(transcriptFilePath)) {
+		let lastSentLineCount = existingLines.length;
+
+		const watcher = watchSync(transcriptFilePath, (eventType) => {
+			if (eventType === "change") {
+				try {
+					const content = readFileSync(transcriptFilePath, "utf-8");
+					const allLines = content.split("\n").filter(Boolean);
+					const newLines = allLines.slice(lastSentLineCount);
+					for (const line of newLines) {
+						reply.raw.write(`data: ${line}\n\n`);
+					}
+					lastSentLineCount = allLines.length;
+				} catch {
+					// Ignore
+				}
+			}
+		});
+
+		request.raw.on("close", () => {
+			watcher.close();
+		});
+	} else {
+		// No file yet — poll for the state store transcript events
+		let lastSentCount = existingLines.length;
+
+		const pollInterval = setInterval(async () => {
+			try {
+				if (typeof (stateStore as any).readWorkerTranscriptEvents === "function") {
+					const events = await (stateStore as any).readWorkerTranscriptEvents(planExecId, workspaceId);
+					if (Array.isArray(events) && events.length > lastSentCount) {
+						const newEvents = events.slice(lastSentCount);
+						for (const event of newEvents) {
+							reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+						}
+						lastSentCount = events.length;
+					}
+				}
+			} catch {
+				// Ignore poll errors
+			}
+		}, 2000);
+
+		request.raw.on("close", () => {
+			clearInterval(pollInterval);
+		});
+	}
+
+	// Keep-alive heartbeat
+	const heartbeat = setInterval(() => {
+		reply.raw.write(": heartbeat\n\n");
+	}, 15_000);
+	request.raw.on("close", () => {
+		clearInterval(heartbeat);
+	});
 });
 
 /**
@@ -2091,6 +2813,12 @@ Always confirm with the user before making destructive changes.`;
 		reply.raw.end();
 	}
 });
+
+// ---------------------------------------------------------------------------
+// Artifact Browser Routes (P5 Workstream 5.C)
+// ---------------------------------------------------------------------------
+
+await registerArtifactRoutes(fastify);
 
 // ---------------------------------------------------------------------------
 // Health Check

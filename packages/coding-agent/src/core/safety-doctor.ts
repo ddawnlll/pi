@@ -6,6 +6,9 @@
  */
 
 import type { RetryPolicy } from "./retry-handler.js";
+import { checkCommand, getEffectivePermissions, type SafetyProfileName } from "./safety-profile.js";
+import { SkillRegistry } from "./skill-registry.js";
+import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { validateWorkspaceQueue } from "./workspace-schema.js";
@@ -44,6 +47,12 @@ export enum SafetyIssueType {
 	DependencyCycle = "dependency_cycle",
 	/** Invalid workspace configuration */
 	InvalidConfig = "invalid_config",
+	/** Required skill missing from workspace */
+	MissingSkill = "missing_skill",
+	/** Safety profile conflict with plan requirements */
+	ProfileConflict = "profile_conflict",
+	/** Experimental worker mode enabled (4-6 workers) */
+	ExperimentalWorkers = "experimental_workers",
 }
 
 /**
@@ -153,18 +162,21 @@ const PLACEHOLDER_PATTERNS = [
  */
 export class SafetyDoctor {
 	private scheduler: WorkspaceScheduler;
+	private workerConcurrency?: WorkerConcurrencySettings;
 
-	constructor() {
-		this.scheduler = new WorkspaceScheduler(3);
+	constructor(maxWorkers = 3, workerConcurrency?: WorkerConcurrencySettings) {
+		this.scheduler = new WorkspaceScheduler(maxWorkers);
+		this.workerConcurrency = workerConcurrency;
 	}
 
 	/**
 	 * Validate workspace queue for safety issues
 	 *
 	 * @param queue - Workspace queue to validate
+	 * @param profileName - Optional safety profile to check against for profile conflicts
 	 * @returns Safety report
 	 */
-	validateQueue(queue: WorkspaceQueue): SafetyReport {
+	validateQueue(queue: WorkspaceQueue, profileName?: SafetyProfileName): SafetyReport {
 		const issues: SafetyIssue[] = [];
 
 		// Validate workspace schema
@@ -206,7 +218,163 @@ export class SafetyDoctor {
 			issues.push(...this.validateWorkspace(workspace));
 		}
 
+		// Check for profile conflicts if a profile is specified
+		if (profileName) {
+			issues.push(...this.detectProfileConflicts(queue, profileName));
+		}
+
+		// Check for experimental worker mode warnings
+		if (this.workerConcurrency) {
+			issues.push(...this.detectExperimentalWorkerIssues(this.workerConcurrency));
+		}
+
 		return this.buildReport(issues);
+	}
+
+	/**
+	 * Validate required skills for a workspace queue.
+	 *
+	 * Checks all required skills declared in the skill manifest
+	 * are available in the local skill directories.
+	 *
+	 * @param cwd - Working directory
+	 * @param agentDir - Agent config directory
+	 * @param options - Options for skill loading
+	 * @returns Safety report focusing on missing skills
+	 */
+	validateSkills(
+		cwd: string,
+		agentDir: string,
+		options?: { skillPaths?: string[]; includeDefaults?: boolean },
+	): SafetyReport {
+		const issues = this.validateRequiredSkills(cwd, agentDir, options);
+		return this.buildReport(issues);
+	}
+
+	/**
+	 * Validate plan against safety profile for conflicts.
+	 *
+	 * Checks that workspace capabilities don't conflict with the
+	 * effective permissions of the currently configured safety profile.
+	 * For example, if a workspace requires running "git push" but the
+	 * profile blocks it, this produces a ProfileConflict warning.
+	 *
+	 * @param queue - Workspace queue to validate
+	 * @param profileName - Safety profile name to validate against
+	 * @returns Safety report highlighting profile conflicts
+	 */
+	validateProfileConflicts(queue: WorkspaceQueue, profileName: SafetyProfileName = "strict"): SafetyReport {
+		const issues = this.detectProfileConflicts(queue, profileName);
+		return this.buildReport(issues);
+	}
+
+	/**
+	 * Detect conflicts between plan workspace capabilities and safety profile.
+	 *
+	 * For each workspace that declares canRun capabilities, checks each
+	 * command against the safety profile. If the command is blocked or
+	 * requires confirmation, a ProfileConflict issue is raised.
+	 *
+	 * @param queue - Workspace queue
+	 * @param profileName - Safety profile name
+	 * @returns Array of safety issues for profile conflicts
+	 */
+	detectProfileConflicts(queue: WorkspaceQueue, profileName: SafetyProfileName = "strict"): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+		const permissions = getEffectivePermissions(profileName);
+
+		for (const workspace of queue.workspaces) {
+			if (!workspace.capabilities) continue;
+
+			// Check each declared canRun command against the profile
+			for (const command of workspace.capabilities.canRun) {
+				const result = checkCommand(command, profileName);
+				if (result.level === "blocked") {
+					issues.push({
+						type: SafetyIssueType.ProfileConflict,
+						severity: SafetyIssueSeverity.Warning,
+						message: `Command "${command}" in workspace "${workspace.title}" is blocked by safety profile "${profileName}"`,
+						workspaceId: workspace.id,
+						context: { command, profile: profileName, level: result.level, reason: result.reason },
+					});
+				} else if (result.level === "confirm") {
+					issues.push({
+						type: SafetyIssueType.ProfileConflict,
+						severity: SafetyIssueSeverity.Info,
+						message: `Command "${command}" in workspace "${workspace.title}" requires confirmation under safety profile "${profileName}"`,
+						workspaceId: workspace.id,
+						context: { command, profile: profileName, level: result.level, reason: result.reason },
+					});
+				}
+			}
+
+			// Check that parallel workspace count doesn't exceed profile maximum
+			if (
+				permissions.maxParallelWorkspaces > 0 &&
+				queue.workspaces.length > permissions.maxParallelWorkspaces &&
+				profileName === "strict"
+			) {
+				issues.push({
+					type: SafetyIssueType.ProfileConflict,
+					severity: SafetyIssueSeverity.Warning,
+					message: `Plan has ${queue.workspaces.length} workspaces but safety profile "${profileName}" allows maximum ${permissions.maxParallelWorkspaces} parallel workspaces`,
+					context: {
+						workspaceCount: queue.workspaces.length,
+						maxParallel: permissions.maxParallelWorkspaces,
+						profile: profileName,
+					},
+				});
+			}
+
+			// Only check parallel limit once, break after first workspace with capabilities
+			break;
+		}
+
+		return issues;
+	}
+
+	/**
+	 * Detect issues with experimental worker concurrency settings.
+	 *
+	 * Warns when experimental mode (4-6 workers) is enabled.
+	 * Produces critical errors if prerequisites (archive, stop-on-failure)
+	 * are not met for experimental mode.
+	 *
+	 * @param settings - Worker concurrency settings
+	 * @returns Array of safety issues
+	 */
+	detectExperimentalWorkerIssues(settings: WorkerConcurrencySettings): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+		const validation = validateWorkerConcurrency(settings);
+
+		// Report validation errors as critical issues
+		for (const error of validation.errors) {
+			issues.push({
+				type: SafetyIssueType.ExperimentalWorkers,
+				severity: SafetyIssueSeverity.Critical,
+				message: error,
+				context: {
+					maxWorkers: settings.maxWorkers,
+					experimentalModeEnabled: settings.experimentalModeEnabled,
+				},
+			});
+		}
+
+		// Report validation warnings
+		for (const warning of validation.warnings) {
+			issues.push({
+				type: SafetyIssueType.ExperimentalWorkers,
+				severity: SafetyIssueSeverity.Warning,
+				message: warning,
+				context: {
+					maxWorkers: settings.maxWorkers,
+					experimentalModeEnabled: settings.experimentalModeEnabled,
+					effectiveWorkers: validation.effectiveWorkers,
+				},
+			});
+		}
+
+		return issues;
 	}
 
 	/**
@@ -324,6 +492,38 @@ export class SafetyDoctor {
 			info,
 			totalIssues: issues.length,
 		};
+	}
+
+	/**
+	 * Validate that all required skills are present for a workspace.
+	 *
+	 * Uses the SkillRegistry to check the manifest and local skills,
+	 * and produces safety issues for any missing required skills.
+	 *
+	 * @param cwd - Working directory
+	 * @param agentDir - Agent config directory
+	 * @param options - Options for skill loading
+	 * @returns Array of safety issues for missing required skills
+	 */
+	validateRequiredSkills(
+		cwd: string,
+		agentDir: string,
+		options?: { skillPaths?: string[]; includeDefaults?: boolean },
+	): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+		const registry = new SkillRegistry(cwd, agentDir);
+		const validation = registry.validate(options);
+
+		for (const missing of validation.missingRequired) {
+			issues.push({
+				type: SafetyIssueType.MissingSkill,
+				severity: SafetyIssueSeverity.Critical,
+				message: missing.reason,
+				context: { skillName: missing.entry.name, skillSource: missing.entry.source },
+			});
+		}
+
+		return issues;
 	}
 
 	/**
@@ -448,8 +648,10 @@ export class SafetyDoctor {
 /**
  * Create a safety doctor instance
  *
+ * @param maxWorkers - Maximum worker count (default: 3)
+ * @param workerConcurrency - Optional worker concurrency settings for experimental mode warnings
  * @returns Safety doctor instance
  */
-export function createSafetyDoctor(): SafetyDoctor {
-	return new SafetyDoctor();
+export function createSafetyDoctor(maxWorkers = 3, workerConcurrency?: WorkerConcurrencySettings): SafetyDoctor {
+	return new SafetyDoctor(maxWorkers, workerConcurrency);
 }

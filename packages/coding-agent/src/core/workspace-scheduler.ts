@@ -2,10 +2,11 @@
  * DAG Scheduler + File Locks - P2 Workstream 7.D
  *
  * Manages workspace scheduling with dependency resolution, file locking,
- * and bounded parallelism (max 3 workers, no same-file edits).
+ * and bounded parallelism with stable (1-3) and experimental (4-6) worker modes.
  */
 
 import type { PlanState } from "./plan-state.js";
+import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "./worker-concurrency.js";
 import type { Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
 
@@ -39,7 +40,7 @@ export interface FileLockConflict {
  * Manages workspace execution scheduling with:
  * - Dependency-aware execution
  * - File ownership tracking (no same-file parallelism)
- * - 3-worker maximum enforcement
+ * - Stable (1-3) and experimental (4-6) worker concurrency
  * - Capability manifest boundary enforcement
  * - Cycle detection
  */
@@ -47,8 +48,10 @@ export class WorkspaceScheduler {
 	private maxWorkers: number;
 	private fileLocks: Map<string, string>; // file path -> workspace ID
 
-	constructor(maxWorkers = 3) {
-		this.maxWorkers = maxWorkers;
+	constructor(maxWorkers = DEFAULT_WORKERS) {
+		// Clamp worker count to valid range
+		const clamped = Math.max(MIN_STABLE_WORKERS, Math.min(MAX_EXPERIMENTAL_WORKERS, maxWorkers));
+		this.maxWorkers = clamped;
 		this.fileLocks = new Map();
 	}
 
@@ -83,7 +86,7 @@ export class WorkspaceScheduler {
 				const wsState = state.workspaces.get(workspace.id);
 				if (wsState?.stage === WorkspaceStage.Pending) {
 					blocked.push(workspace);
-					blockReasons.set(workspace.id, "Worker limit reached (max 3)");
+					blockReasons.set(workspace.id, `Worker limit reached (max ${this.maxWorkers})`);
 				}
 			}
 			return { ready, blocked, blockReasons };

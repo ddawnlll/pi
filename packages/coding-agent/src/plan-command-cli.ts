@@ -14,7 +14,9 @@ import {
 	planHandoffKeep,
 	planOne,
 	planPause,
+	planReplayDryRun,
 	planResume,
+	planRetry,
 	planRun,
 	planStatus,
 	planStop,
@@ -120,6 +122,24 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 
 			case "handoff-discard":
 				exitCode = await planHandoffDiscard({ cwd, json });
+				break;
+
+			case "retry":
+				if (!parsed.workspaceId) {
+					console.error("Error: retry command requires a workspace ID");
+					printPlanHelp();
+					process.exit(1);
+				}
+				exitCode = await planRetry(parsed.workspaceId, { cwd, json, force });
+				break;
+
+			case "replay-dry-run":
+				if (!parsed.planExecutionId) {
+					console.error("Error: replay-dry-run command requires a plan execution ID");
+					printPlanHelp();
+					process.exit(1);
+				}
+				exitCode = await planReplayDryRun(parsed.planExecutionId, { cwd, json });
 				break;
 
 			default:
