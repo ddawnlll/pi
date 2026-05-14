@@ -8,7 +8,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { Model } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
@@ -328,6 +328,30 @@ export class WorkspaceAgentExecutor {
 							}
 							thinkingBuffer = "";
 						}
+
+						// Capture cache usage from assistant message for cache hit rate computation
+						const assistantMsg = event.message as unknown as AssistantMessage;
+						if (assistantMsg.usage) {
+							const { cacheRead, cacheWrite, input } = assistantMsg.usage;
+
+							// Persist cache usage to journal for statistics computation
+							if (this.stateStore && this.planExecutionId) {
+								this.stateStore
+									.appendJournal(this.planExecutionId, {
+										type: "cache_usage",
+										timestamp: Date.now(),
+										data: {
+											cacheRead,
+											cacheWrite,
+											input,
+										},
+									})
+									.catch((err: unknown) => {
+										console.error("[workspace-agent-executor] Failed to persist cache_usage:", err);
+									});
+							}
+						}
+
 						emitStatus("deciding", "Assistant message completed");
 					}
 

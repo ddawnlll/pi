@@ -782,12 +782,39 @@ export class DatabaseStateStore implements IStateStore {
 		const progressPct = stats.total > 0 ? (stats.complete / stats.total) * 100 : 0;
 		const tokensPerPercent = progressPct > 0 ? Math.round(totalTokensIn / progressPct) : undefined;
 
+		// Compute cache hit rate from cache_usage journal events if available
+		let cacheHitRate: number | undefined;
+		let cacheHitRateKnown = false;
+		try {
+			const cacheEvents = await this.journalEventRepo.query({
+				planExecutionId,
+				eventTypes: ["cache_usage"],
+			});
+			let totalCacheRead = 0;
+			let totalInput = 0;
+			for (const entry of cacheEvents) {
+				const data =
+					typeof entry.data === "string"
+						? JSON.parse(entry.data)
+						: ((entry.data as Record<string, unknown>) ?? {});
+				totalCacheRead += Number(data.cacheRead ?? 0);
+				totalInput += Number(data.input ?? 0);
+			}
+			const denom = totalCacheRead + totalInput;
+			if (denom > 0) {
+				cacheHitRate = totalCacheRead / denom;
+				cacheHitRateKnown = true;
+			}
+		} catch {
+			// Non-fatal — fall back to unknown
+		}
+
 		return {
 			...stats,
 			total_tokens_in: totalTokensIn,
 			total_tokens_out: totalTokensOut,
-			cache_hit_rate: 0,
-			cache_hit_rate_known: false, // cache_hit_rate is a placeholder, not from real data
+			cache_hit_rate: cacheHitRate ?? 0,
+			cache_hit_rate_known: cacheHitRateKnown,
 			estimated_cost_usd: Number.parseFloat(estimatedCost.toFixed(4)),
 			burn_rate_per_min: burnRate,
 			tokens_per_workspace: tokensPerWorkspace,

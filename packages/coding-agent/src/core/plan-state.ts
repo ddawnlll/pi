@@ -98,7 +98,8 @@ export type JournalEventType =
 	| "integration_merge_blocked"
 	| "integration_validate_start"
 	| "integration_validate_complete"
-	| "integration_validate_failed";
+	| "integration_validate_failed"
+	| "cache_usage";
 
 /**
  * Execution journal event

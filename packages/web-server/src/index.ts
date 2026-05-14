@@ -2772,12 +2772,14 @@ fastify.get<{
 
 	try {
 		const workspaceRoot = getWorkspaceRoot();
-		const summaryPath = join(workspaceRoot, ".pi", "plan-summary.json");
+
+		// Scope summary per plan execution, like other plan artifacts.
+		const summaryPath = join(workspaceRoot, ".pi", "executions", planExecId, "plan-summary.json");
 
 		if (existsSync(summaryPath)) {
 			const content = await readFile(summaryPath, "utf-8");
 			const summary = JSON.parse(content);
-			return summary;
+			return { ...summary, planExecutionId: planExecId };
 		}
 
 		// Fallback: try to read the plan_summary journal event

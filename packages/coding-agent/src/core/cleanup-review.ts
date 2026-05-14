@@ -306,9 +306,9 @@ async function executeCleanupAgent(config: {
 			})
 			.catch(() => {});
 
-		// Write summary to file for dashboard consumption
+		// Write summary to file for dashboard consumption, scoped to plan execution
 		try {
-			const summaryPath = path.join(workspaceRoot, ".pi", "plan-summary.json");
+			const summaryPath = path.join(workspaceRoot, ".pi", "executions", planExecutionId, "plan-summary.json");
 			await fs.writeFile(
 				summaryPath,
 				JSON.stringify(
