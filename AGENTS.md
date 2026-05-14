@@ -32,6 +32,81 @@
 - Put issue-specific regressions under `packages/coding-agent/test/suite/regressions/` and name them `<issue-number>-<short-slug>.test.ts`.
 - NEVER commit unless user asks
 
+## Commit Message Quality
+
+Every commit message MUST follow this format:
+
+```
+<type>(<scope>): <imperative description>
+
+<optional body explaining WHAT and WHY, not HOW>
+```
+
+### Format rules (enforced by `npm run commitmsg:check`):
+
+1. **First line**: `<type>(<scope>): <description>`
+   - `type`: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+   - `scope`: which package or area (`ai`, `coding-agent`, `web-server`, `web-ui`, `tui`, `docs`, `cleanup`, `p5.5`, `p6.5`, etc.)
+   - Scope MUST include the phase when applicable: `p6.5`, `p5.5`, `p4.6`, etc.
+   - `description`: imperative, concise, meaningful. NOT generic like "fixes and improvements" or "review fixes"
+
+2. **Second line**: blank
+
+3. **Body** (required for non-trivial commits):
+   - Explain WHAT was changed and WHY
+   - List key changes as bullet points
+   - Reference issues with `#<number>`
+   - Keep under 72 characters per line
+
+4. **First line maximum 72 characters** — if it exceeds this, the scope or description is too long
+
+### Examples
+
+```
+feat(p6.5): add max workers input and experimental mode toggle to settings dialog
+
+The Scale & Safety tab was missing the max workers number input and
+experimental mode toggle. Without these, users could select experimental_6
+mode but the actual worker count was always clamped to 3 by the settings
+manager. Fixes #<number>
+
+Changes:
+- Add maxWorkers state and experimentalModeEnabled state
+- Wire save handler to include workerConcurrency in API request
+- Show experimental toggle only when maxWorkers > 3
+```
+
+```
+fix(coding-agent): handle null agent session in executeWorkspace
+
+When a workspace is adopted after crash recovery, the agent session was
+null causing a TypeError. Check for null and create a fresh session.
+Fixes #<number>
+```
+
+```
+docs(p6.5): add worker detail lifecycle tab shell description
+
+Document the 6.5.F1 workstream scope and acceptance criteria.
+```
+
+### Banned patterns
+
+These commit subjects are FORBIDDEN and will fail the commit-msg hook:
+
+- `feat(cleanup): review fixes and improvements`
+- `feat(x): miscellaneous fixes`
+- `fix: stuff`
+- `update`
+- `wip`
+- Any message without a body for commits touching more than 5 files
+
+### How to fix bad commit messages
+
+If a commit with a bad message is:
+- **Not yet pushed**: `git commit --amend -m "<new message>"` and expand body
+- **Already pushed**: `git commit --amend` + `git push --force-with-lease` (only on feature branches, NEVER on main without confirmation)
+
 ## Contribution Gate
 
 - New issues from new contributors are auto-closed by `.github/workflows/issue-gate.yml`

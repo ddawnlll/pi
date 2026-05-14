@@ -1,0 +1,84 @@
+#!/bin/bash
+# Git commit-msg hook — enforces commit message quality.
+# Installed via: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+MSG_FILE="$1"
+MSG=$(cat "$MSG_FILE")
+FIRST_LINE=$(echo "$MSG" | head -1)
+
+# ---- Banned patterns ----
+BANNED_PATTERNS=(
+  "review fixes and improvements"
+  "miscellaneous fixes"
+  "^fix: stuff$"
+  "^update$"
+  "^wip$"
+  "^chore: "
+)
+
+for pattern in "${BANNED_PATTERNS[@]}"; do
+  if echo "$FIRST_LINE" | grep -qiE "$pattern"; then
+    echo "✗ ERROR: Banned commit message pattern detected:"
+    echo "  \"$FIRST_LINE\""
+    echo ""
+    echo "  See AGENTS.md → Commit Message Quality for the required format."
+    echo "  Tip: use git commit --amend to fix the message."
+    exit 1
+  fi
+done
+
+# ---- Format check: <type>(<scope>): <description> ----
+if ! echo "$FIRST_LINE" | grep -qE '^(feat|fix|refactor|docs|test|chore)\([a-zA-Z0-9._/-]+\): .+'; then
+  echo "✗ ERROR: Commit message must match format:"
+  echo "  <type>(<scope>): <description>"
+  echo ""
+  echo "  Got: \"$FIRST_LINE\""
+  echo ""
+  echo "  Examples:"
+  echo "    feat(p6.5): add max workers input to settings dialog"
+  echo "    fix(coding-agent): handle null session in executeWorkspace"
+  echo "    docs(p5.5): update prompt cache architecture"
+  exit 1
+fi
+
+# ---- First line length ----
+LEN=${#FIRST_LINE}
+if [ "$LEN" -gt 72 ]; then
+  echo "✗ ERROR: First line is $LEN characters (max 72)."
+  echo "  \"$FIRST_LINE\""
+  echo ""
+  echo "  Shorten the scope or description."
+  exit 1
+fi
+
+# ---- Body required for commits touching more than 5 files ----
+FILE_COUNT=$(git diff --cached --name-only --diff-filter=ACMR | wc -l | tr -d ' ')
+if [ "$FILE_COUNT" -gt 5 ]; then
+  BODY=$(echo "$MSG" | tail -n +2 | xargs echo -n)
+  if [ -z "$BODY" ]; then
+    echo "✗ ERROR: Commits touching $FILE_COUNT files require a body explaining WHAT and WHY."
+    echo ""
+    echo "  Add a blank line after the subject, then describe the changes."
+    echo "  See AGENTS.md → Commit Message Quality for details."
+    exit 1
+  fi
+fi
+
+# ---- Body line length check (>10 chars files, check body lines) ----
+# Only enforce for non-trivial commits
+if [ "$FILE_COUNT" -gt 3 ]; then
+  BODY_LINES=$(echo "$MSG" | tail -n +3 | grep -v '^#' | grep -v '^$' || true)
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then
+      LEN=${#line}
+      if [ "$LEN" -gt 100 ]; then
+        echo "⚠  WARNING: Body line ${LEN} characters (consider wrapping at 72)."
+        echo "  \"$line\""
+      fi
+    fi
+  done <<< "$BODY_LINES"
+fi
+
+exit 0
