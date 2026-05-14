@@ -6,6 +6,7 @@
  * - pi plan status              - Show execution status
  * - pi plan dry-run <plan-file> - Validate without execution
  * - pi plan run <plan-file>     - Start autonomous execution
+ * - pi plan rerun <plan-file>   - Re-execute failed plan, skip completed workspaces
  * - pi plan resume              - Resume from persisted state
  * - pi plan one <workspace-id>  - Execute single workspace
  * - pi plan watch               - Observer-only dashboard
@@ -540,7 +541,12 @@ export function parsePlanCommand(args: string[]): {
 			result.options.cwd = args[++i];
 		} else if (!arg.startsWith("-")) {
 			// Positional argument
-			if (result.command === "doctor" || result.command === "dry-run" || result.command === "run") {
+			if (
+				result.command === "doctor" ||
+				result.command === "dry-run" ||
+				result.command === "run" ||
+				result.command === "rerun"
+			) {
 				result.planFile = arg;
 			} else if (result.command === "one" || result.command === "retry") {
 				result.workspaceId = arg;
@@ -792,6 +798,360 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 			console.log("");
 			console.error(chalk.red(`✗ Plan execution failed`));
 			console.error(chalk.dim(`Completed: ${completedCount}, Failed: ${failedCount}`));
+		}
+		return PlanExitCode.ExecutionError;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Rerun command - re-execute a failed plan, skipping already-completed workspaces.
+ *
+ * Loads the plan file (required for the workspace queue), finds the existing
+ * execution state, and resets failed/blocked workspaces back to pending while
+ * keeping completed workspaces untouched. Then resumes the execution loop.
+ *
+ * This is the recommended way to recover from a failed plan execution without
+ * losing the progress of workspaces that already completed successfully.
+ *
+ * Use --force to also reset blocked workspaces (default: only failed are reset).
+ * Use --workers <N> to override the worker count.
+ *
+ * @param planFile - Path to plan file (same one used for `plan run`)
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planRerun(planFile: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false, verbose = false, force = false } = options;
+
+	try {
+		// Resolve plan file path
+		const planPath = path.resolve(cwd, planFile);
+
+		// Load and parse plan
+		const parseResult = await loadPlan(planPath);
+
+		if (!parseResult.success || !parseResult.queue) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							errors: parseResult.errors,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.error(chalk.red("Plan parsing failed\n"));
+				console.error(formatParseResult(parseResult));
+			}
+			return PlanExitCode.ParseError;
+		}
+
+		// Load existing state
+		const stateStore = new JsonStateStore(cwd);
+		const planStateStore = stateStore.getPlanStateStore();
+		const currentState = await planStateStore.loadState();
+
+		if (!currentState) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No execution state found to rerun" }, null, 2));
+			} else {
+				console.error(chalk.red("No execution state found to rerun"));
+				console.error(chalk.dim("Run 'pi plan run <plan-file>' first to start a plan execution"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		// Check plan status is terminal
+		if (
+			currentState.status !== "failed" &&
+			currentState.status !== "stopped" &&
+			currentState.status !== "cancelled"
+		) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							error: `Plan status is '${currentState.status}'. Rerun only works for failed/stopped/cancelled plans.`,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log(
+					chalk.yellow(
+						`Plan status is '${currentState.status}'. Rerun is only for failed/stopped/cancelled plans.`,
+					),
+				);
+				if (currentState.status === "paused") {
+					console.error(chalk.dim("Use 'pi plan resume' to resume a paused plan"));
+				} else if (currentState.status === "running") {
+					console.error(
+						chalk.dim("The plan is still running. Use 'pi plan watch' to monitor or 'pi plan pause' to pause."),
+					);
+				} else if (currentState.status === "complete" || currentState.status === "awaiting_handoff") {
+					console.error(
+						chalk.dim(
+							"The plan already completed successfully. Use 'pi plan run <plan-file>' to start a new execution.",
+						),
+					);
+				}
+			}
+			return PlanExitCode.StateError;
+		}
+
+		// Resolve worker concurrency
+		const _workers = options.workers ?? DEFAULT_WORKERS;
+		const resolvedWorkerConcurrency = resolveWorkerConcurrencyWithConfirmation(options);
+		if (resolvedWorkerConcurrency === null) {
+			return PlanExitCode.SafetyError;
+		}
+		const effectiveWorkers = resolvedWorkerConcurrency.maxWorkers ?? DEFAULT_WORKERS;
+
+		// Create executor and load state
+		const executor = createAutonomousExecutor(cwd, effectiveWorkers);
+		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+		if (!planExecutionId) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No plan execution ID found" }, null, 2));
+			} else {
+				console.error(chalk.red("No plan execution ID found"));
+			}
+			return PlanExitCode.StateError;
+		}
+
+		// Load state into executor
+		await executor.loadState();
+
+		// Perform rerun: reset failed/blocked workspaces, keep completed
+		const rerunResult = await executor.rerunExecution(parseResult.queue, {
+			resetFailed: true,
+			resetBlocked: force, // Only reset blocked with --force
+		});
+
+		if (!rerunResult.success) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							error: rerunResult.error,
+							reset: rerunResult.resetWorkspaces,
+							kept: rerunResult.keptWorkspaces,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.error(chalk.red(`Rerun failed: ${rerunResult.error}`));
+			}
+			return PlanExitCode.StateError;
+		}
+
+		if (!json) {
+			console.log(chalk.bold(`Rerunning plan: ${currentState.title}`));
+			console.log(chalk.dim(`Phase: ${currentState.phase}`));
+			console.log("");
+			console.log(chalk.green(`Kept ${rerunResult.keptWorkspaces.length} completed workspace(s)`));
+			if (rerunResult.keptWorkspaces.length > 0 && verbose) {
+				for (const wsId of rerunResult.keptWorkspaces) {
+					console.log(chalk.dim(`  ${wsId} (complete)`));
+				}
+			}
+			console.log(chalk.yellow(`Reset ${rerunResult.resetWorkspaces.length} workspace(s) for re-execution`));
+			for (const wsId of rerunResult.resetWorkspaces) {
+				const wsState = currentState.workspaces.get(wsId);
+				const prevStage = wsState?.stage ?? "unknown";
+				console.log(chalk.dim(`  ${wsId} (was: ${prevStage})`));
+			}
+			console.log("");
+		} else {
+			console.log(
+				JSON.stringify(
+					{
+						success: true,
+						status: "running",
+						reset: rerunResult.resetWorkspaces,
+						kept: rerunResult.keptWorkspaces,
+					},
+					null,
+					2,
+				),
+			);
+		}
+
+		// Continue execution from the reset state
+		let completedCount = 0;
+		let failedCount = 0;
+
+		while (!executor.isExecutionComplete()) {
+			// Control check at top of loop
+			const control = await executor.checkControlRequest();
+			if (control) {
+				const state = executor.getState();
+				if (control.action === "pause" && state?.status === "paused") {
+					if (!json) {
+						console.log(chalk.yellow("\nPlan paused, waiting for resume..."));
+					}
+					while (true) {
+						await new Promise((resolve) => setTimeout(resolve, 500));
+						await executor.loadState();
+						const s = executor.getState();
+						if (!s || s.status === "stopped" || s.status === "cancelled") {
+							break;
+						}
+						if (s.status === "running") {
+							break;
+						}
+					}
+					const finalState = executor.getState();
+					if (finalState && (finalState.status === "stopped" || finalState.status === "cancelled")) {
+						if (!json) {
+							console.log(chalk.yellow("Plan stopped while paused"));
+						}
+						break;
+					}
+					if (!json) {
+						console.log(chalk.green("Plan resumed"));
+					}
+					continue;
+				}
+				if (control.action === "stop" && state?.status === "stopped") {
+					if (!json) {
+						console.log(chalk.yellow("Plan stopped"));
+					}
+					break;
+				}
+			}
+
+			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
+
+			if (nextWorkspaces.length === 0) {
+				const stats = executor.getStatistics();
+				const state = executor.getState();
+				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
+					if (!json) {
+						console.error(chalk.red("\nExecution blocked - no workspaces can proceed"));
+					}
+					await executor.failPlan("Execution blocked - dependency deadlock");
+					return PlanExitCode.ExecutionError;
+				}
+				break;
+			}
+
+			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+
+			for (const result of results) {
+				if (result.success) {
+					completedCount++;
+					if (!json) {
+						console.log(chalk.green(`+ ${result.workspaceId} completed`));
+					}
+				} else if (result.verdict === "FAILED") {
+					failedCount++;
+					if (!json) {
+						console.error(chalk.red(`x ${result.workspaceId} failed: ${result.error}`));
+					}
+				} else if (result.verdict === "BLOCKED") {
+					if (verbose && !json) {
+						console.log(chalk.yellow(`${result.workspaceId} will retry`));
+					}
+				}
+			}
+		}
+
+		// Complete execution
+		if (failedCount === 0) {
+			await executor.completePlan();
+
+			// Check for awaiting_handoff state
+			const handoffState = await executor.getState();
+			if (handoffState?.status === "awaiting_handoff") {
+				if (json) {
+					console.log(
+						JSON.stringify(
+							{
+								success: true,
+								status: "awaiting_handoff",
+								completed: completedCount,
+								failed: failedCount,
+								resetWorkspaces: rerunResult.resetWorkspaces,
+								keptWorkspaces: rerunResult.keptWorkspaces,
+							},
+							null,
+							2,
+						),
+					);
+				} else {
+					console.log("");
+					console.log(chalk.green(`All workspaces complete - awaiting handoff`));
+					console.log(chalk.dim(`Completed this run: ${completedCount} workspaces`));
+				}
+				return PlanExitCode.Success;
+			}
+
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: true,
+							completed: completedCount,
+							failed: failedCount,
+							resetWorkspaces: rerunResult.resetWorkspaces,
+							keptWorkspaces: rerunResult.keptWorkspaces,
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.log("");
+				console.log(chalk.green(`Plan rerun complete`));
+				console.log(chalk.dim(`Completed this run: ${completedCount} workspaces`));
+				console.log(chalk.dim(`Skipped (already done): ${rerunResult.keptWorkspaces.length} workspaces`));
+			}
+			return PlanExitCode.Success;
+		}
+
+		await executor.failPlan(`${failedCount} workspace(s) failed`);
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						completed: completedCount,
+						failed: failedCount,
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.log("");
+			console.error(chalk.red(`Plan rerun failed`));
+			console.error(chalk.dim(`Completed: ${completedCount}, Failed: ${failedCount}`));
+			console.error(chalk.dim("Use 'pi plan rerun <plan-file>' to try again"));
 		}
 		return PlanExitCode.ExecutionError;
 	} catch (error) {
@@ -1753,6 +2113,7 @@ export function printPlanHelp(): void {
 	console.log("  status                    Show execution status");
 	console.log("  dry-run <plan-file>       Validate without execution");
 	console.log("  run <plan-file>           Start autonomous execution");
+	console.log("  rerun <plan-file>        Re-execute failed plan, skip completed workspaces");
 	console.log("  resume                    Resume from persisted state");
 	console.log("  one <workspace-id>        Execute single workspace");
 	console.log("  retry <workspace-id>      Retry a failed workspace");
@@ -1778,6 +2139,7 @@ export function printPlanHelp(): void {
 	console.log("  pi plan doctor docs/plan.md");
 	console.log("  pi plan dry-run docs/plan.md");
 	console.log("  pi plan run docs/plan.md");
+	console.log("  pi plan rerun docs/plan.md");
 	console.log("  pi plan status");
 	console.log("  pi plan resume");
 	console.log("  pi plan one 7.A");

@@ -47,7 +47,7 @@ export interface ActiveExecution {
 	planExecId: string;
 	title: string;
 	phase: string;
-	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled";
+	status: "running" | "complete" | "failed" | "paused" | "stopped" | "cancelled" | "awaiting_handoff";
 	startedAt: number;
 	completedAt: number | null;
 	error?: string;
@@ -101,22 +101,46 @@ const cleanupTimers = new Map<string, NodeJS.Timeout>();
  * Stores the last signal so it is not lost if sent before nextCompletion()
  * is called (handles race between API handler and loop wait).
  */
+/**
+ * Signal type emitted by WorkspaceCompletionBus.
+ */
+class WorkspaceCompletionSignal {
+	/**
+	 * @param continue_ - true to continue execution, false to stop
+	 * @param wakeOnly - if true, this is a pure wake-up with no semantic meaning
+	 */
+	constructor(
+		readonly continue_: boolean,
+		readonly wakeOnly: boolean = false,
+	) {}
+
+	static complete(): WorkspaceCompletionSignal {
+		return new WorkspaceCompletionSignal(true, false);
+	}
+	static stop(): WorkspaceCompletionSignal {
+		return new WorkspaceCompletionSignal(false, false);
+	}
+	static wake(): WorkspaceCompletionSignal {
+		return new WorkspaceCompletionSignal(true, true);
+	}
+}
+
 class WorkspaceCompletionBus extends EventEmitter {
-	private pendingNext: { resolve: (value: boolean) => void } | null = null;
-	private lastSignal: boolean | null = null;
+	private pendingNext: { resolve: (value: WorkspaceCompletionSignal) => void } | null = null;
+	private lastSignal: WorkspaceCompletionSignal | null = null;
 
 	/**
 	 * Wait for the next completion or stop signal.
-	 * @returns true if a normal completion/resume occurred, false if stopped/cancelled
+	 * @returns a signal describing what happened
 	 */
-	async nextCompletion(): Promise<boolean> {
+	async nextCompletion(): Promise<WorkspaceCompletionSignal> {
 		// If a signal was previously sent, consume it immediately
 		if (this.lastSignal !== null) {
 			const signal = this.lastSignal;
 			this.lastSignal = null;
 			return signal;
 		}
-		return new Promise<boolean>((resolve) => {
+		return new Promise<WorkspaceCompletionSignal>((resolve) => {
 			this.pendingNext = { resolve };
 		});
 	}
@@ -126,20 +150,31 @@ class WorkspaceCompletionBus extends EventEmitter {
 		if (this.pendingNext) {
 			const resolve = this.pendingNext.resolve;
 			this.pendingNext = null;
-			resolve(true);
+			resolve(WorkspaceCompletionSignal.complete());
 		} else {
-			this.lastSignal = true;
+			this.lastSignal = WorkspaceCompletionSignal.complete();
 		}
 	}
 
-	/** Signal stop - resolves any pending nextCompletion with false */
+	/** Signal stop - resolves any pending nextCompletion */
 	signalStop(): void {
 		if (this.pendingNext) {
 			const resolve = this.pendingNext.resolve;
 			this.pendingNext = null;
-			resolve(false);
+			resolve(WorkspaceCompletionSignal.stop());
 		} else {
-			this.lastSignal = false;
+			this.lastSignal = WorkspaceCompletionSignal.stop();
+		}
+	}
+
+	/** Signal wake - wakes without semantic meaning, e.g. pause has been written */
+	signalWake(): void {
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(WorkspaceCompletionSignal.wake());
+		} else {
+			this.lastSignal = WorkspaceCompletionSignal.wake();
 		}
 	}
 }
@@ -169,13 +204,19 @@ function getCompletionBus(planExecId: string): WorkspaceCompletionBus {
  * @param event - Event type: "complete" signals workspace completion/resume,
  *                "stop" signals stop/cancel to break out of any pending wait
  */
-export function signalExecutionEvent(planExecId: string, event: "complete" | "stop"): void {
+export function signalExecutionEvent(planExecId: string, event: "complete" | "stop" | "wake"): void {
 	const bus = completionBuses.get(planExecId);
 	if (!bus) return;
-	if (event === "stop") {
-		bus.signalStop();
-	} else {
-		bus.signalCompletion();
+	switch (event) {
+		case "stop":
+			bus.signalStop();
+			break;
+		case "wake":
+			bus.signalWake();
+			break;
+		default:
+			bus.signalCompletion();
+			break;
 	}
 }
 
@@ -701,18 +742,16 @@ async function executePlanInBackground(
 					const planState = executor.getState();
 					if (planState && planState.status === "paused") {
 						updateExecutionStatus(planExecId, "paused");
-						// 2. Paused status awaits resumed/stopped event instead of polling
 						await log(`Plan paused, waiting for resume or stop event...`);
-						const shouldContinue = await completionBus.nextCompletion();
+						const signal = await completionBus.nextCompletion();
 						await executor.loadState();
 						const finalState = executor.getState();
 						if (
-							!shouldContinue ||
+							!signal.continue_ ||
 							!finalState ||
 							finalState.status === "stopped" ||
 							finalState.status === "cancelled"
 						) {
-							// 4. Stop while paused exits cleanly
 							await log(`Execution stopped while paused`);
 							return;
 						}
@@ -773,8 +812,22 @@ async function executePlanInBackground(
 				// If there are active workspaces, wait for them to complete
 				if (stats && stats.active > 0) {
 					await log(`Waiting for ${stats.active} active workspace(s) to complete...`);
-					const shouldContinue = await completionBus.nextCompletion();
-					if (!shouldContinue) {
+					let signal = await completionBus.nextCompletion();
+					// Wake signals (e.g. from pause being issued) cause a re-check
+					// of pause/stop state rather than looping back to scheduling.
+					while (signal.wakeOnly) {
+						await executor.loadState();
+						const currentExec = activeExecutions.get(planExecId);
+						if (!currentExec || currentExec.status === "stopped" || currentExec.status === "cancelled") {
+							await log(`Execution stopped while waiting for active workspaces`);
+							return;
+						}
+						if (stats && stats.active === 0) {
+							break; // No active workspaces left, let the loop re-schedule
+						}
+						signal = await completionBus.nextCompletion();
+					}
+					if (!signal.continue_) {
 						await log(`Execution stopped while waiting for active workspaces`);
 						return;
 					}
@@ -872,21 +925,12 @@ async function executePlanInBackground(
 			}
 		}
 
-		// Signal completion so any pending nextCompletion() resolves
-		completionBus.signalCompletion();
-
-		// Check final state before completing
-		const finalState = executor.getState();
-		if (finalState?.status === "stopped" || finalState?.status === "cancelled") {
-			await log(`Execution already ${finalState.status}, not overriding`);
-			return;
-		}
-
 		// Generate execution summary
 		const stats = executor.getStatistics();
 		const summary = generateExecutionSummary(queue, stats, failedCount);
 
-		// Complete execution
+		// Complete execution before signalling the completion bus, so that
+		// any caller waiting on nextCompletion() sees the post-completePlan() state.
 		if (failedCount === 0) {
 			await log(`\n=== Execution Complete ===`);
 			await log(summary);
@@ -915,7 +959,30 @@ async function executePlanInBackground(
 					`WARNING: Failed to finalize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			}
+
 			await executor.completePlan();
+
+			// If completePlan() transitioned to awaiting_handoff, poll until
+			// the handoff resolves or times out, then exit.
+			const stateAfterComplete = executor.getState();
+			if (stateAfterComplete?.status === "awaiting_handoff") {
+				await log(`Plan entered awaiting_handoff state, waiting for user action...`);
+				updateExecutionStatus(planExecId, "awaiting_handoff");
+
+				// Refactored handoff wait into shared helper to avoid duplicated
+				// logic between initial entry and crash recovery.
+				await thisWaitForHandoff(executor, completionBus, planExecId, log);
+				return;
+			}
+
+			// Check final state before signalling
+			const finalState = executor.getState();
+			if (finalState?.status === "stopped" || finalState?.status === "cancelled") {
+				await log(`Execution already ${finalState.status}, not overriding`);
+				completionBus.signalCompletion();
+				return;
+			}
+
 			updateExecutionStatus(planExecId, "complete");
 		} else {
 			await log(`\n=== Execution Failed ===`);
@@ -1006,6 +1073,65 @@ async function loadWorkspaceQueue(workspaceRoot: string, planExecId: string): Pr
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Wait for handoff resolution (commit, keep editing, discard, or timeout).
+ *
+ * Shared between the initial completion path and crash recovery so that
+ * a recovered plan in awaiting_handoff preserves its original handoffStartedAt
+ * timestamp instead of re-entering completePlan() and resetting the timeout.
+ */
+async function thisWaitForHandoff(
+	executor: AutonomousExecutor,
+	completionBus: WorkspaceCompletionBus,
+	planExecId: string,
+	log: (msg: string) => Promise<void>,
+): Promise<void> {
+	while (executor.getState()?.status === "awaiting_handoff") {
+		// Wait for a signal on the completion bus from the API handler
+		const signal = await completionBus.nextCompletion();
+
+		// Wake-only signals (e.g. pause being written) cause a harmless re-check
+		if (signal.wakeOnly) {
+			await executor.loadState();
+			continue;
+		}
+
+		await executor.loadState();
+		const current = executor.getState();
+
+		// Stop/cancel ends the wait
+		if (!signal.continue_ || current?.status === "stopped" || current?.status === "cancelled") {
+			await log(`Handoff interrupted by stop/cancel`);
+			break;
+		}
+
+		// Status changed (commit, keep editing) — break out
+		if (current?.status !== "awaiting_handoff") {
+			await log(`Handoff resolved: ${current?.status}`);
+			break;
+		}
+
+		// Check handoff timeout (auto-commit after configured duration)
+		const timedOut = await executor.checkHandoffTimeout();
+		if (timedOut) {
+			await log(`Handoff auto-committed after timeout`);
+			break;
+		}
+	}
+
+	const finalState = executor.getState();
+	if (finalState?.status === "complete") {
+		updateExecutionStatus(planExecId, "complete");
+	} else if (finalState?.status === "failed") {
+		updateExecutionStatus(planExecId, "failed", "Handoff discarded by user");
+	} else if (finalState?.status === "running") {
+		await log(`Handoff resolved to keep editing, plan remains active`);
+		updateExecutionStatus(planExecId, "running");
+	}
+
+	completionBus.signalCompletion();
 }
 
 /**
