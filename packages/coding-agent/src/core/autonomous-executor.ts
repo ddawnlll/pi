@@ -602,9 +602,12 @@ export class AutonomousExecutor {
 				});
 			} else {
 				// Completion gate blocked — transition to the recommended state instead
-				console.warn(
-					`[completion-gate] Workspace ${workspace.id} cannot be marked complete: ${gateResult.blockReasons.join("; ")}`,
-				);
+				const gateBlockMsg = gateResult.blockReasons.join("; ");
+				console.error(`[completion-gate] Workspace ${workspace.id} cannot be marked complete: ${gateBlockMsg}`);
+				// Write the block reason into the workspace state so failure reason is visible
+				await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
+					error: `Completion gate blocked: ${gateBlockMsg}`,
+				});
 				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, gateResult.recommendedState, {
 					verdict: "FAILED",
 					gateBlockReasons: gateResult.blockReasons,
@@ -1021,7 +1024,7 @@ export class AutonomousExecutor {
 			const planResult = evaluatePlanCompletion(this.currentPlanState.workspaces);
 			if (!planResult.canComplete) {
 				const errorMsg = `Plan cannot be marked complete: ${planResult.blockReasons.join("; ")}`;
-				console.warn(`[completion-gate] ${errorMsg}`);
+				console.error(`[completion-gate] ${errorMsg}`);
 				await this.failPlan(errorMsg);
 				return;
 			}
