@@ -29,6 +29,9 @@ export interface DashboardSettings {
 	steeringMode?: "all" | "one-at-a-time";
 	followUpMode?: "all" | "one-at-a-time";
 	contextBudgets?: Partial<ContextBudgets>;
+	scaleMode?: "stable_3" | "experimental_6" | "scale_8";
+	dogfoodPass?: boolean;
+	explicitApproval?: boolean;
 	[key: string]: unknown;
 }
 

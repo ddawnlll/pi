@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSettings, useProjectMeta } from "../hooks/useSettings";
+import { ScaleModeSettings } from "./ScaleModeSettings";
 import type { Project } from "../types";
 
-type TabId = "general" | "budgets" | "project" | "advanced";
+type TabId = "general" | "budgets" | "project" | "advanced" | "scale";
 
 const DASHBOARD_THEME_KEY = "pi-dashboard-theme";
 
@@ -89,6 +90,11 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	// P4.5: Edit strategy mode
 	const [editStrategyMode, setEditStrategyMode] = useState<"token_saving" | "hybrid" | "speed">("hybrid");
 
+	// Form state: Scale & Safety
+	const [scaleMode, setScaleMode] = useState<"stable_3" | "experimental_6" | "scale_8">("stable_3");
+	const [dogfoodPass, setDogfoodPass] = useState(false);
+	const [explicitApproval, setExplicitApproval] = useState(false);
+
 	// Load settings into form state + snapshot originals
 	// Note: no auto-refetch on open — TanStack Query keeps settings fresh
 	// via staleTime. The second effect handles populating the form.
@@ -111,6 +117,11 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		// P4.5: Load edit strategy mode
 		setEditStrategyMode((settings.editStrategyMode as "token_saving" | "hybrid" | "speed") ?? "hybrid");
 
+		// Workspace 6.5.B: Load scale mode
+		setScaleMode((settings.scaleMode as "stable_3" | "experimental_6" | "scale_8") ?? "stable_3");
+		setDogfoodPass((settings.dogfoodPass as boolean) ?? false);
+		setExplicitApproval((settings.explicitApproval as boolean) ?? false);
+
 		setOrig({
 			steeringMode: settings.steeringMode ?? "one-at-a-time",
 			followUpMode: settings.followUpMode ?? "one-at-a-time",
@@ -120,6 +131,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			collapseChangelog: (settings.collapseChangelog as boolean) ?? false,
 			enableInstallTelemetry: (settings.enableInstallTelemetry as boolean) ?? true,
 			enableSkillCommands: (settings.enableSkillCommands as boolean) ?? true,
+			scaleMode: (settings.scaleMode as string) ?? "stable_3",
+			dogfoodPass: (settings.dogfoodPass as boolean) ?? false,
+			explicitApproval: (settings.explicitApproval as boolean) ?? false,
 		});
 
 		if (budgets) {
@@ -202,6 +216,14 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		[shellPath, quietStartup, collapseChangelog, enableInstallTelemetry, enableSkillCommands, orig],
 	);
 
+	const scaleDirty = useMemo(
+		() =>
+			!isEqual(scaleMode, orig.scaleMode) ||
+			!isEqual(dogfoodPass, orig.dogfoodPass) ||
+			!isEqual(explicitApproval, orig.explicitApproval),
+		[scaleMode, dogfoodPass, explicitApproval, orig],
+	);
+
 	// Compute change counts per tab
 	const generalChanges = useMemo(() => {
 		let count = 0;
@@ -232,7 +254,15 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		return count;
 	}, [projectName, projectRootPath, projectProvider, projectModel, project, origProject]);
 
-	const totalChanges = generalChanges + budgetsChanges + projectChanges;
+	const scaleChanges = useMemo(() => {
+		let count = 0;
+		if (!isEqual(scaleMode, orig.scaleMode)) count++;
+		if (!isEqual(dogfoodPass, orig.dogfoodPass)) count++;
+		if (!isEqual(explicitApproval, orig.explicitApproval)) count++;
+		return count;
+	}, [scaleMode, dogfoodPass, explicitApproval, orig]);
+
+	const totalChanges = generalChanges + budgetsChanges + projectChanges + scaleChanges;
 
 	const handleClose = useCallback(() => {
 		setSaved(false);
@@ -315,6 +345,22 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setTimeout(() => setSaved(false), 2000);
 	};
 
+	const handleSaveScale = async () => {
+		await updateSettings({
+			scaleMode,
+			dogfoodPass,
+			explicitApproval,
+		});
+		setOrig({
+			...orig,
+			scaleMode,
+			dogfoodPass,
+			explicitApproval,
+		});
+		setSaved(true);
+		setTimeout(() => setSaved(false), 2000);
+	};
+
 	// ---- Theme helper (localStorage only) ----
 	const handleThemeChange = (newTheme: string) => {
 		setTheme(newTheme);
@@ -345,6 +391,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		{ id: "budgets", label: "Context Budgets", changes: budgetsChanges },
 		{ id: "project", label: "Project", changes: projectChanges },
 		{ id: "advanced", label: "Advanced" },
+		{ id: "scale", label: "Scale & Safety", changes: scaleChanges },
 	];
 
 	const inputClass =
@@ -827,6 +874,105 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													}`}
 												>
 													{isSaving ? "Saving..." : advancedDirty ? "Save" : "No changes"}
+												</button>
+											</div>
+										</div>
+									)}
+
+									{/* Scale & Safety Tab */}
+									{activeTab === "scale" && (
+										<div className="space-y-4">
+											<p className="text-xs text-gray-500 mb-3">
+												Scale mode controls how many worker agents run in parallel.
+												{" "}<strong>Stable default: 3 workers</strong>.
+											</p>
+
+											{/* Mode selector */}
+											<div>
+												<label className={labelClass}>Scale Mode</label>
+												<div className="space-y-2">
+													<label className="flex items-center gap-3 p-3 rounded border border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors">
+														<input
+															type="radio"
+															name="scaleMode"
+															value="stable_3"
+															checked={scaleMode === "stable_3"}
+															onChange={() => setScaleMode("stable_3")}
+															className="text-blue-500"
+														/>
+														<div>
+															<span className="text-sm font-medium text-gray-200">Stable (3 workers)</span>
+															<p className="text-[11px] text-gray-500 mt-0.5">Default mode. Safe, well-tested parallel execution with 3 workers.</p>
+														</div>
+													</label>
+													<label className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-colors ${
+														scaleMode === "experimental_6"
+															? "border-amber-500 bg-amber-900/10"
+															: "border-gray-700 hover:bg-gray-800/50"
+													}`}>
+														<input
+															type="radio"
+															name="scaleMode"
+															value="experimental_6"
+															checked={scaleMode === "experimental_6"}
+															onChange={() => setScaleMode("experimental_6")}
+															className="text-amber-500"
+														/>
+														<div>
+															<span className="text-sm font-medium text-gray-200">Experimental (6 workers)</span>
+															<p className="text-[11px] text-gray-500 mt-0.5">Up to 6 workers. Requires worktree isolation, integration queue, and validation lock.</p>
+														</div>
+													</label>
+													<label className="flex items-center gap-3 p-3 rounded border border-gray-700 opacity-50 cursor-not-allowed">
+														<input
+															type="radio"
+															name="scaleMode"
+															value="scale_8"
+															checked={scaleMode === "scale_8"}
+															disabled
+															className="text-gray-500"
+														/>
+														<div>
+															<span className="text-sm font-medium text-gray-400">Scale (8 workers)</span>
+															<p className="text-[11px] text-gray-500 mt-0.5">
+																8 workers. Requires dogfood pass and explicit approval.
+																<span className="block text-red-400 mt-0.5">Disabled — dogfood pass and approval required.</span>
+															</p>
+														</div>
+													</label>
+												</div>
+											</div>
+
+											{/* Prerequisites via ScaleModeSettings */}
+											<ScaleModeSettings />
+
+											{/* Warnings for experimental_6 */}
+											{scaleMode === "experimental_6" && (
+												<div className="bg-amber-50 dark:bg-amber-900/10 rounded px-3 py-2">
+													<p className="text-[11px] text-amber-700 dark:text-amber-300">
+														Experimental mode (6 workers) may cause instability if prerequisites are not fully met.
+														Ensure worktree isolation, integration queue, and validation lock are operational.
+													</p>
+												</div>
+											)}
+
+											<div className="pt-2 flex items-center justify-between">
+												{scaleChanges > 0 && (
+													<span className="text-xs text-yellow-500">
+														{scaleChanges} change{scaleChanges !== 1 ? "s" : ""}
+													</span>
+												)}
+												<div className="flex-1" />
+												<button
+													onClick={handleSaveScale}
+													disabled={isSaving || !scaleDirty}
+													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
+														scaleDirty
+															? "bg-blue-700 hover:bg-blue-600 text-white"
+															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+													}`}
+												>
+													{isSaving ? "Saving..." : scaleDirty ? "Save" : "No changes"}
 												</button>
 											</div>
 										</div>
