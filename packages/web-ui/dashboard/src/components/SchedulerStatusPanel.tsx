@@ -1,4 +1,4 @@
-import { Cpu, Loader2, CheckCircle, AlertTriangle, XCircle, Clock } from "lucide-react";
+import { Cpu, Loader2, CheckCircle, AlertTriangle, XCircle, Clock, AlertCircle, ArrowRight } from "lucide-react";
 import type { ExecutionStats } from "../types";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
@@ -48,8 +48,18 @@ interface SchedulerStatusPanelProps {
  * - Failed workers (terminated with errors)
  * - Total workers (overall count)
  *
+ * Also shows:
+ * - Requested workers vs max allowed workers
+ * - Safe effective parallelism when available
+ * - Bottleneck reasons when the scheduler is constrained
+ * - Plan progress as a percentage bar
+ *
  * Acceptance criteria covered:
  * - Scheduler status shows active/max/ready/blocked counts
+ * - Scheduler panel shows requested workers and max allowed workers
+ * - Scheduler panel shows safe effective parallelism if available
+ * - Scheduler panel shows bottleneck reasons
+ * - Existing progress display remains
  */
 export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelProps) {
 	if (!stats) {
@@ -110,6 +120,14 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 	const progressPct = stats.total > 0 ? Math.round((stats.complete / stats.total) * 100) : 0;
 	const barColor = progressPct >= 80 ? "bg-emerald-500" : progressPct >= 50 ? "bg-blue-500" : "bg-amber-500";
 
+	// Scheduler parallelism info
+	const showParallelism =
+		stats.requestedWorkers !== undefined &&
+		stats.maxAllowedWorkers !== undefined;
+	const showSafeParallelism = stats.safeEffectiveParallelism !== undefined;
+	const showBottlenecks =
+		stats.bottleneckReasons !== undefined && stats.bottleneckReasons.length > 0;
+
 	return (
 		<div className={`${className ?? ""}`}>
 			{/* Status badge grid */}
@@ -125,6 +143,52 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 					/>
 				))}
 			</div>
+
+			{/* Worker parallelism info */}
+			{showParallelism && (
+				<div className="mt-2 flex items-center gap-3 text-[11px] text-stone-600 dark:text-stone-400">
+					<div className="flex items-center gap-1">
+						<Cpu size={12} />
+						<span>Requested:</span>
+						<span className="font-semibold tabular-nums text-stone-800 dark:text-stone-200">
+							{stats.requestedWorkers}
+						</span>
+					</div>
+					<ArrowRight size={10} />
+					<div className="flex items-center gap-1">
+						<span>Max allowed:</span>
+						<span className="font-semibold tabular-nums text-stone-800 dark:text-stone-200">
+							{stats.maxAllowedWorkers}
+						</span>
+					</div>
+				</div>
+			)}
+
+			{/* Safe effective parallelism */}
+			{showSafeParallelism && (
+				<div className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-600 dark:text-stone-400">
+					<Clock size={12} />
+					<span>Safe effective parallelism:</span>
+					<span className="font-semibold tabular-nums text-stone-800 dark:text-stone-200">
+						{stats.safeEffectiveParallelism}
+					</span>
+				</div>
+			)}
+
+			{/* Bottleneck reasons */}
+			{showBottlenecks && (
+				<div className="mt-1.5 space-y-0.5">
+					{stats.bottleneckReasons!.map((reason, idx) => (
+						<div
+							key={idx}
+							className="flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400"
+						>
+							<AlertCircle size={10} className="mt-0.5 shrink-0" />
+							<span>{reason}</span>
+						</div>
+					))}
+				</div>
+			)}
 
 			{/* Progress bar */}
 			<div className="mt-3">
