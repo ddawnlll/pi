@@ -9,7 +9,7 @@
  * 5. Validation planner tests pass
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { isValidationCommand } from "../src/core/validation-lock.js";
 import type { Workspace } from "../src/core/workspace-schema.js";
 import {

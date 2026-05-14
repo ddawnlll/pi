@@ -372,8 +372,8 @@ export class ExecutionMemory {
 	 * - Normalize by total unique keywords
 	 */
 	private computeRelevance(entry: ExecutionMemoryEntry, goal: string, acceptanceCriteria: string[]): number {
-		const queryTokens = this.tokenize(goal + " " + acceptanceCriteria.join(" "));
-		const entryTokens = this.tokenize(entry.goal + " " + entry.summary + " " + entry.acceptanceCriteria.join(" "));
+		const queryTokens = this.tokenize(`${goal} ${acceptanceCriteria.join(" ")}`);
+		const entryTokens = this.tokenize(`${entry.goal} ${entry.summary} ${entry.acceptanceCriteria.join(" ")}`);
 
 		if (queryTokens.size === 0) {
 			return 0;

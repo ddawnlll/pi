@@ -240,45 +240,6 @@ function isAllowed(relPath: string, allowedPatterns: string[]): boolean {
 	return false;
 }
 
-function getLanguageFromExtension(ext: string): string {
-	const langMap: Record<string, string> = {
-		".ts": "typescript",
-		".tsx": "typescriptreact",
-		".js": "javascript",
-		".jsx": "javascriptreact",
-		".mjs": "javascript",
-		".cjs": "javascript",
-		".json": "json",
-		".md": "markdown",
-		".yml": "yaml",
-		".yaml": "yaml",
-		".toml": "toml",
-		".css": "css",
-		".scss": "scss",
-		".html": "html",
-		".py": "python",
-		".rb": "ruby",
-		".go": "go",
-		".rs": "rust",
-		".java": "java",
-		".kt": "kotlin",
-		".swift": "swift",
-		".c": "c",
-		".cpp": "cpp",
-		".h": "c",
-		".hpp": "cpp",
-		".sh": "shellscript",
-		".bash": "shellscript",
-		".sql": "sql",
-		".graphql": "graphql",
-		".xml": "xml",
-		".svg": "xml",
-		".txt": "text",
-		".dockerfile": "dockerfile",
-	};
-	return langMap[ext] || "text";
-}
-
 /**
  * Add ignore rules from .gitignore, .ignore, .fdignore files in a directory hierarchy
  */
@@ -474,7 +435,6 @@ function scoreSnippet(content: string, filePath: string, query: string): number 
 export class LocalRepoIndex {
 	private config: Required<LocalRepoIndexConfig>;
 	private files: IndexedFile[] | null = null;
-	private ig: ReturnType<typeof ignore>;
 
 	constructor(config: LocalRepoIndexConfig) {
 		this.config = {
@@ -483,7 +443,6 @@ export class LocalRepoIndex {
 			includeExtensions: config.includeExtensions ?? [...DEFAULT_INCLUDE_EXTENSIONS],
 			skipExtensions: config.skipExtensions ?? [...DEFAULT_SKIP_EXTENSIONS],
 		};
-		this.ig = ignore();
 	}
 
 	/**

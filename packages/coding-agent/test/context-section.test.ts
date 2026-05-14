@@ -31,12 +31,28 @@ import { BudgetExceededError, ContextBudgetEnforcer } from "../src/core/context-
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeUserMessage(text: string): Message {
-	return { role: "user", content: text };
+function makeUserMessage(text: string, timestamp = 1000): Message {
+	return { role: "user", content: text, timestamp };
 }
 
-function makeAssistantMessage(text: string): Message {
-	return { role: "assistant", content: [{ type: "text" as const, text }] };
+function makeAssistantMessage(text: string, timestamp = 1000): Message {
+	return {
+		role: "assistant",
+		content: [{ type: "text" as const, text }],
+		api: "faux",
+		provider: "faux",
+		model: "faux",
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason: "stop",
+		timestamp,
+	};
 }
 
 function makeTool(name: string, description = `Description of ${name}`): Tool<TSchema> {
@@ -208,7 +224,7 @@ describe("context-section", () => {
 					{
 						role: "assistant",
 						content: "Retrying after error...",
-					} as Message,
+					} as unknown as Message,
 				],
 			});
 
@@ -230,7 +246,10 @@ describe("context-section", () => {
 			const builder = new ContextBuilder();
 			const context = makeContext({
 				systemPrompt: makeSystemPrompt("2026-05-14", "/tmp/workspace"),
-				messages: [makeUserMessage("pinned message"), { role: "assistant", content: "retry result" } as Message],
+				messages: [
+					makeUserMessage("pinned message"),
+					{ role: "assistant", content: "retry result" } as unknown as Message,
+				],
 			});
 
 			const result = builder.build(context, { pinnedMessageCount: 0 });
@@ -254,6 +273,19 @@ describe("context-section", () => {
 					{
 						role: "assistant",
 						content: [{ type: "text", text: "Tool execution result: passed" }],
+						api: "faux",
+						provider: "faux",
+						model: "faux",
+						usage: {
+							input: 0,
+							output: 0,
+							cacheRead: 0,
+							cacheWrite: 0,
+							totalTokens: 0,
+							cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+						},
+						stopReason: "stop",
+						timestamp: 1000,
 					} as unknown as Message,
 				],
 			});

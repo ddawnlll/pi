@@ -23,16 +23,14 @@ import {
 } from "../src/context/context-section.js";
 import { PromptAssembler } from "../src/context/prompt-assembler.js";
 import { type Cacheability, type ContextSection, PromptCachePolicy } from "../src/context/prompt-cache-policy.js";
-import { type BudgetCheckResult, ContextBudgetEnforcer } from "../src/core/context-budget.js";
-import { createEditAttemptTracker, type EditAttemptTracker } from "../src/core/edit-attempt-tracker.js";
-import { createEditAuditEventEmitter, type EditAuditEventEmitter } from "../src/core/edit-audit-events.js";
-import { createEditFailureHandoff, type EditFailureHandoff } from "../src/core/edit-failure-handoff.js";
-import { createEditStrategyPolicy, type EditStrategyPolicy } from "../src/core/edit-strategy-policy.js";
-import { createEventBus, type EventBus } from "../src/core/event-bus.js";
-import { createTruncationDetector, type TruncationDetector } from "../src/core/truncation-detector.js";
+import { ContextBudgetEnforcer } from "../src/core/context-budget.js";
+import { createEditAttemptTracker } from "../src/core/edit-attempt-tracker.js";
+
+import { createEditFailureHandoff } from "../src/core/edit-failure-handoff.js";
+import { createEditStrategyPolicy } from "../src/core/edit-strategy-policy.js";
+import { createEventBus } from "../src/core/event-bus.js";
 import { isWatchModeCommand, rewriteToNonWatch } from "../src/core/watch-mode-guard.js";
 import type { Workspace } from "../src/core/workspace-schema.js";
-import { createWriteGate, type WriteGate } from "../src/core/write-gate.js";
 import {
 	type ChangedFile,
 	planValidation,
@@ -200,7 +198,7 @@ describe("AC2: Prefix/suffix token split", () => {
 
 		// Different tool sets should have different hashes
 		const ctx4 = makeContext();
-		if (ctx4.tools && ctx4.tools[0]) {
+		if (ctx4.tools?.[0]) {
 			ctx4.tools[0] = {
 				...ctx4.tools[0],
 				description: "Different description that changes the prefix",
@@ -657,14 +655,14 @@ describe("AC5: No safety regression", () => {
 
 	it("safety classifications remain correct for dynamic sections", () => {
 		// Dynamic sections (logs, timestamps, retry data) must stay out of prefix
-		expect(SECTION_CACHEABILITY["retry_state"]).toBe("dynamic_non_cacheable");
-		expect(SECTION_CACHEABILITY["latest_tool_result"]).toBe("dynamic_non_cacheable");
+		expect(SECTION_CACHEABILITY.retry_state).toBe("dynamic_non_cacheable");
+		expect(SECTION_CACHEABILITY.latest_tool_result).toBe("dynamic_non_cacheable");
 		expect(isDynamic({ cacheability: "dynamic_non_cacheable" } as ContextSection)).toBe(true);
 		expect(classifySection("retry_state")).toBe("dynamic_non_cacheable");
 		expect(classifySection("latest_tool_result")).toBe("dynamic_non_cacheable");
 
 		// Safety policy is still cacheable (stable across turns)
-		expect(SECTION_CACHEABILITY["safety_policy"]).toBe("static_cacheable");
+		expect(SECTION_CACHEABILITY.safety_policy).toBe("static_cacheable");
 		expect(classifySection("safety_policy")).toBe("static_cacheable");
 	});
 });

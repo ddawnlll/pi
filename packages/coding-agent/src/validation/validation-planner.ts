@@ -136,7 +136,6 @@ function deriveTargetedCommands(changedFiles: ChangedFile[]): string[] {
 
 	// Group changed files by type
 	const testFiles = changedFiles.filter((f) => isTestFilePath(f.path));
-	const deletedFiles = changedFiles.filter((f) => f.status === "deleted");
 	const sourceFiles = changedFiles.filter(
 		(f) => !isTestFilePath(f.path) && f.status !== "deleted" && SOURCE_EXTENSIONS.some((ext) => f.path.endsWith(ext)),
 	);

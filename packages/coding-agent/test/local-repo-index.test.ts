@@ -8,17 +8,11 @@
  * 4. Retrieval reasons are logged
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { estimateTokensFromString } from "../src/core/token-metering.js";
-import {
-	createLocalRepoIndex,
-	type IndexedFile,
-	LocalRepoIndex,
-	type RetrievalResult,
-} from "../src/retrieval/local-repo-index.js";
+import { createLocalRepoIndex, LocalRepoIndex, type RetrievalResult } from "../src/retrieval/local-repo-index.js";
 import { createRetrievalService } from "../src/retrieval/retrieval-service.js";
 
 // ---------------------------------------------------------------------------
@@ -49,7 +43,7 @@ function createTestRepo(): void {
 			"",
 			"export function main(): void {",
 			'  console.log(greet("World"));',
-			"  console.log(`2 + 3 = ${add(2, 3)}`);",
+			"  console.log(`2 + 3 = \x24{add(2, 3)}`);",
 			"}",
 			"",
 			"main();",
@@ -61,12 +55,12 @@ function createTestRepo(): void {
 		[
 			"/** Greet someone */",
 			"export function greet(name: string): string {",
-			"  return `Hello, ${name}!`;",
+			"  return `Hello, \x24{name}!`;",
 			"}",
 			"",
 			"/** Say goodbye */",
 			"export function goodbye(name: string): string {",
-			"  return `Goodbye, ${name}!`;",
+			"  return `Goodbye, \x24{name}!`;",
 			"}",
 		].join("\n"),
 	);
@@ -316,7 +310,6 @@ describe("LocalRepoIndex", () => {
 				maxTokens: 10000,
 			});
 
-			const files = getSnippetFiles(result.snippets);
 			// config.ts should be highly relevant due to file name matching
 			expect(result.snippets.length).toBeGreaterThan(0);
 		});

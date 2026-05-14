@@ -97,6 +97,17 @@ class AsyncLock {
 	}
 
 	/**
+	 * Reset the lock to an unlocked state.
+	 *
+	 * Drains any waiting queue and sets the lock to unlocked.
+	 * Intended ONLY for use in tests between test cases.
+	 */
+	reset(): void {
+		this._queue = [];
+		this._locked = false;
+	}
+
+	/**
 	 * Release the lock. Passes ownership to the next waiter in line.
 	 */
 	release(): void {
@@ -134,12 +145,7 @@ export function getGlobalValidationLock(): AsyncLock {
  * in production code.
  */
 export function resetGlobalValidationLock(): void {
-	// Drain any waiting queue
-	while (globalLock.waitingCount > 0) {
-		// The lock is in an inconsistent state; just reset internals.
-		globalLock["_queue"] = [];
-	}
-	globalLock["_locked"] = false;
+	globalLock.reset();
 }
 
 // ---------------------------------------------------------------------------
