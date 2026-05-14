@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogStream } from "../types";
+import { formatPercent } from "../utils/format";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
 import { useWorkerTranscript } from "../hooks/useWorkerTranscript";
 import { DiffViewer } from "./DiffViewer";
 import { EditStrategyWarnings, type EditStrategyWarningData } from "./EditStrategyWarnings";
 
-type TabId = "overview" | "tokens" | "git" | "commands" | "logs" | "transcript";
+type TabId = "overview" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript";
 
 interface WorkerDetailProps {
   worker: WorkerInfo;
@@ -16,6 +17,7 @@ interface WorkerDetailProps {
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "tokens", label: "Tokens" },
+  { id: "performance", label: "Performance" },
   { id: "git", label: "Git" },
   { id: "commands", label: "Commands" },
   { id: "logs", label: "Logs" },
@@ -86,6 +88,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
             attempts={attempts} attemptsLoading={attemptsLoading} />
         )}
         {activeTab === "tokens" && <TokensTab workspace={workspace} />}
+        {activeTab === "performance" && <PerformanceTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
         {activeTab === "git" && <GitTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
         {activeTab === "commands" && <CommandsTab lines={lines} />}
         {activeTab === "logs" && <LogsTab planExecId={planExecId} workerId={worker.id} activeStream={activeLogStream} onSwitchStream={setActiveLogStream} />}
@@ -129,10 +132,34 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
         {worker.reportPath && <Row label="Report" value={worker.reportPath} />}
         {lastActivityLabel != null && <Row label="Last activity" value={lastActivityLabel} />}
         {idleWarning && <div className={`mt-1 text-xs font-medium ${idleMinutes! > 10 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>{idleWarning}</div>}
-        {worker.error && (
+        {/* Failure / blocked banner */}
+        {(worker.stage === "failed" || worker.stage === "blocked") && (
           <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
-            <div className="text-red-600 dark:text-red-400 font-semibold mb-1">Error:</div>
-            <div className="text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-900 whitespace-pre-wrap break-words">{worker.error}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">{worker.stage === "failed" ? "\u274C" : "\u26A0\uFE0F"}</span>
+              <div>
+                <div className="text-sm font-bold text-red-700 dark:text-red-300">
+                  {worker.stage === "failed" ? "Workspace Failed" : "Workspace Blocked"}
+                </div>
+                <div className="text-xs text-stone-500 dark:text-stone-400">
+                  {worker.stage === "failed" ? "The workspace did not pass completion validation." : "The workspace is blocked and cannot proceed."}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Failure reason from worker */}
+        {worker.error && (
+          <div className="mt-3">
+            <div className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Failure Reason:</div>
+            <div className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-900 whitespace-pre-wrap break-words">{worker.error}</div>
+          </div>
+        )}
+        {/* Additional error from workspace detail (completion gate blocks, etc.) */}
+        {workspace?.error && workspace.error !== worker.error && (
+          <div className="mt-3">
+            <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">Workspace State Error:</div>
+            <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200 dark:border-amber-900 whitespace-pre-wrap break-words">{workspace.error}</div>
           </div>
         )}
       </div>
@@ -204,6 +231,117 @@ function TokensTab({ workspace }: { workspace?: WorkspaceSummary }) {
       <div className="text-xs text-stone-500 dark:text-stone-400 mb-1">Context: {fmt(ctxUsed)} / {fmt(ctxLimit)} ({pct}%)</div>
       <div className="w-full h-2 bg-stone-100 dark:bg-[#333] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-500 ${bar}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Performance Tab ──────────────────────────────────────────────────────────
+
+function PerformanceTab({ workspace, planExecId, workerId }: { workspace?: WorkspaceSummary; planExecId: string | null; workerId: string }) {
+  const [perfMetrics, setPerfMetrics] = useState<import("../types").WorkspacePerformanceMetrics | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfError, setPerfError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!planExecId) {
+      setPerfMetrics(null);
+      return;
+    }
+    setPerfLoading(true);
+    setPerfError(null);
+    fetch(`/api/projects/_/plans/${planExecId}/workspaces/${workerId}/performance`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        setPerfMetrics(data);
+      })
+      .catch(err => {
+        setPerfError(String(err));
+        setPerfMetrics(null);
+      })
+      .finally(() => setPerfLoading(false));
+  }, [planExecId, workerId]);
+
+  if (perfLoading) {
+    return (
+      <div className="flex items-center gap-2 pt-3 text-xs text-stone-400 dark:text-stone-500">
+        <span className="w-3 h-3 border-2 border-stone-400 dark:border-stone-500 border-t-transparent rounded-full animate-spin" />
+        Loading performance data...
+      </div>
+    );
+  }
+
+  if (perfError) {
+    return <div className="pt-3 text-xs text-amber-600 dark:text-amber-400">Performance data unavailable: {perfError}</div>;
+  }
+
+  if (!perfMetrics) {
+    return <div className="pt-3 text-xs text-stone-400 dark:text-stone-500">No performance data available</div>;
+  }
+
+  const { cache, tokenSplit, validationLock } = perfMetrics;
+  const cacheDisplay = cache.cacheHitRateKnown ? formatPercent(cache.cacheHitRate) : "unknown";
+
+  return (
+    <div className="flex flex-col gap-4 pt-3">
+      {/* Cache Performance */}
+      <div>
+        <h3 className="text-xs font-semibold text-stone-600 dark:text-stone-400 mb-2">Cache Performance</h3>
+        <div className="text-xs space-y-1 text-stone-500 dark:text-stone-400">
+          <Row label="Cache hit" value={cacheDisplay} />
+          {cache.cacheCreationInputTokens != null && <Row label="Cache created" value={fmt(cache.cacheCreationInputTokens)} />}
+          {cache.cacheReadInputTokens != null && <Row label="Cache read" value={fmt(cache.cacheReadInputTokens)} />}
+        </div>
+      </div>
+
+      {/* Token Split */}
+      <div className="border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+        <h3 className="text-xs font-semibold text-stone-600 dark:text-stone-400 mb-2">Token Split (Prefix / Suffix)</h3>
+        {tokenSplit.totalTokenCount != null ? (
+          <div className="text-xs space-y-1 text-stone-500 dark:text-stone-400">
+            <Row label="Prefix" value={fmt(tokenSplit.prefixTokenCount ?? 0)} />
+            <Row label="Suffix" value={fmt(tokenSplit.suffixTokenCount ?? 0)} />
+            <Row label="Total" value={fmt(tokenSplit.totalTokenCount)} />
+            {/* Visual split bar */}
+            <div className="mt-2">
+              <div className="flex items-center gap-1 text-[10px] text-stone-400 dark:text-stone-500 mb-1">
+                <span className="inline-block w-2 h-2 bg-blue-500 rounded-sm" /> Prefix
+                <span className="ml-2 inline-block w-2 h-2 bg-amber-500 rounded-sm" /> Suffix
+              </div>
+              <div className="w-full h-2 bg-stone-100 dark:bg-[#333] rounded-full overflow-hidden flex">
+                {tokenSplit.totalTokenCount > 0 && (
+                  <>
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      style={{ width: `${((tokenSplit.prefixTokenCount ?? 0) / tokenSplit.totalTokenCount) * 100}%` }}
+                    />
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-500"
+                      style={{ width: `${((tokenSplit.suffixTokenCount ?? 0) / tokenSplit.totalTokenCount) * 100}%` }}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-stone-400 dark:text-stone-500">Token split data not available</div>
+        )}
+      </div>
+
+      {/* Validation Lock */}
+      <div className="border-t border-[#E8E6E1] dark:border-[#333] pt-3">
+        <h3 className="text-xs font-semibold text-stone-600 dark:text-stone-400 mb-2">Validation Lock</h3>
+        <div className="text-xs space-y-1 text-stone-500 dark:text-stone-400">
+          <Row label="Lock waits" value={String(validationLock.lockWaits)} />
+          {validationLock.totalLockWaitMs != null && <Row label="Total wait" value={`${validationLock.totalLockWaitMs}ms`} />}
+          {validationLock.maxLockWaitMs != null && <Row label="Max wait" value={`${validationLock.maxLockWaitMs}ms`} />}
+          {validationLock.avgLockWaitMs != null && <Row label="Avg wait" value={`${validationLock.avgLockWaitMs}ms`} />}
+          {validationLock.lockWaits === 0 && <div className="text-stone-400 dark:text-stone-500 italic mt-1">No validation lock contention</div>}
+        </div>
       </div>
     </div>
   );
@@ -414,9 +552,7 @@ function AttemptRow({ attempt: a }: { attempt: WorkspaceAttempt }) {
           </div>
         )}
         {a.error && !isRunning && (
-          <div className="mt-1 text-xs text-red-600 dark:text-red-400 truncate max-w-full" title={a.error}>
-            {a.error}
-          </div>
+          <div className="mt-1 text-xs text-red-600 dark:text-red-400 break-words">{a.error}</div>
         )}
       </div>
     </div>
