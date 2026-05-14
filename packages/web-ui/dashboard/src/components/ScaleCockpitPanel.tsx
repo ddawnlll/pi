@@ -18,10 +18,12 @@
 import {
   AlertTriangle,
   Cpu,
+  Lightbulb,
 } from "lucide-react";
 import { useIntegrationQueueStatus } from "../hooks/useScaleStatus";
 import { WorktreeStatusPanel } from "./WorktreeStatusPanel";
 import { IntegrationQueuePanel } from "./IntegrationQueuePanel";
+import { QueueOptimizationPanel } from "./QueueOptimizationPanel";
 import { ScaleModeSettings } from "./ScaleModeSettings";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
@@ -58,10 +60,11 @@ export function ScaleCockpitPanel({ className }: ScaleCockpitPanelProps) {
     <div className={`overflow-y-auto ${className ?? ""}`}>
       {/* Responsive grid: 2 columns on large screens, 1 on small */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 p-3">
-        {/* Column 1: Worktree + Scale Mode */}
+        {/* Column 1: Worktree + Scale Mode + Optimizer */}
         <div className="space-y-3">
           <WorktreeStatusPanel />
           <ScaleModeSettings />
+          <QueueOptimizationPanel />
         </div>
 
         {/* Column 2: Integration Queue + Merge Conflicts */}

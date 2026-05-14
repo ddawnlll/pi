@@ -197,6 +197,54 @@ describe("parseIntegrationQueue", () => {
 		expect(result.entries[0].error).toBeNull();
 		expect(result.entries[0].conflictFiles).toBeNull();
 	});
+
+	it("parses paused state", () => {
+		const json = JSON.stringify({
+			isProcessing: false,
+			paused: true,
+			entries: [],
+		});
+
+		const result = parseIntegrationQueue(json);
+		expect(result.paused).toBe(true);
+	});
+
+	it("defaults paused to false when missing", () => {
+		const json = JSON.stringify({
+			isProcessing: false,
+			entries: [],
+		});
+
+		const result = parseIntegrationQueue(json);
+		expect(result.paused).toBe(false);
+	});
+
+	it("parses audit events", () => {
+		const json = JSON.stringify({
+			isProcessing: false,
+			entries: [],
+			auditEvents: [
+				{ action: "pause", timestamp: 1000, details: "Queue paused" },
+				{ action: "resume", timestamp: 2000, details: "Queue resumed", workspaceId: "ws-1" },
+			],
+		});
+
+		const result = parseIntegrationQueue(json);
+		expect(result.auditEvents).toHaveLength(2);
+		expect(result.auditEvents[0].action).toBe("pause");
+		expect(result.auditEvents[1].action).toBe("resume");
+		expect(result.auditEvents[1].workspaceId).toBe("ws-1");
+	});
+
+	it("defaults audit events to empty array when missing", () => {
+		const json = JSON.stringify({
+			isProcessing: false,
+			entries: [],
+		});
+
+		const result = parseIntegrationQueue(json);
+		expect(result.auditEvents).toEqual([]);
+	});
 });
 
 // =============================================================================

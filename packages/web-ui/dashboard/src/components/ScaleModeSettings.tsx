@@ -122,7 +122,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			};
 		}
 		// Stable mode
-		if (readiness.prerequisites.every((p) => p.met)) {
+		if (readiness.prerequisites && readiness.prerequisites.length > 0 && readiness.prerequisites.every((p) => p.met)) {
 			return {
 				icon: <CheckCircle size={16} />,
 				label: "Stable (prerequisites met)",
@@ -181,12 +181,12 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			</div>
 
 			{/* Prerequisite checklist */}
-			<div className="border-t ${BORD} pt-2">
+			<div className={`border-t ${BORD} pt-2`}>
 				<h4 className={`text-[10px] uppercase tracking-widest font-semibold mb-1 ${MUT}`}>
 					Prerequisites
 				</h4>
 				<div className="divide-y divide-[#E8E6E1] dark:divide-[#333]">
-					{readiness ? (
+					{readiness && readiness.prerequisites ? (
 						readiness.prerequisites.map((prereq) => (
 							<PrerequisiteRow key={prereq.key} status={prereq} />
 						))
@@ -196,17 +196,17 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 				</div>
 			</div>
 
-			{/* Errors */}
-			{readiness && readiness.errors.length > 0 && (
+			{/* Blocking reasons */}
+			{readiness && readiness.blockedReasons && readiness.blockedReasons.length > 0 && (
 				<div className="bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-1.5">
 					<p className={`text-[11px] font-medium text-red-700 dark:text-red-300 mb-1`}>
 						Blocking Issues:
 					</p>
 					<ul className="space-y-0.5">
-						{readiness.errors.map((err, i) => (
+						{readiness.blockedReasons.map((reason, i) => (
 							<li key={i} className="text-[11px] text-red-600 dark:text-red-400 flex items-start gap-1">
 								<span className="shrink-0 mt-0.5">•</span>
-								<span>{err}</span>
+								<span>{reason}</span>
 							</li>
 						))}
 					</ul>
@@ -214,7 +214,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			)}
 
 			{/* Warnings */}
-			{readiness && readiness.warnings.length > 0 && (
+			{readiness && readiness.warnings && readiness.warnings.length > 0 && (
 				<div className="bg-amber-50 dark:bg-amber-900/10 rounded px-2.5 py-1.5">
 					<p className={`text-[11px] font-medium text-amber-700 dark:text-amber-300 mb-1`}>
 						Warnings:

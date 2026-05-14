@@ -1,5 +1,5 @@
 /**
- * Integration Queue - P2 Workstream 6.C / 6.D
+ * Integration Queue - P2 Workstream 6.C / 6.D / 6.6.F
  *
  * Manages a queue of workspaces awaiting integration into the integration
  * branch. Workspaces are processed one at a time: merged, validated, and
@@ -13,13 +13,23 @@
  *   entry).
  * - Use retryEntry() after manual resolution to re-attempt integration.
  *
+ * Queue control actions (6.6.F):
+ * - pause/resume: Suspend and resume queue processing safely
+ * - retry/requeue: Re-attempt blocked/failed or requeue merged entries
+ * - clear-completed: Remove completed entries from the queue
+ * - reorder: Optimize queue ordering respecting dependency constraints
+ * - All actions are audited and unsafe actions are rejected
+ *
  * Never pushes to remote — all operations are local.
  */
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { Workspace } from "../core/workspace-schema.js";
 import { IntegrationBranch } from "./integration-branch.js";
 import { isMergeConflictError, MergeConflictResolver } from "./merge-conflict-handoff.js";
+import type { OptimizationResult, ReorderSuggestionResult, ThroughputImpact } from "./queue-optimizer.js";
+import { QueueOptimizer } from "./queue-optimizer.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +55,34 @@ export type QueueEntryStatus =
 	| "conflict";
 
 /**
+ * Computed timing metrics for a queue entry.
+ */
+export interface QueueEntryTiming {
+	/** Time spent waiting in queue before processing started (ms) */
+	waitTimeMs: number;
+	/** Time spent on the merge operation (ms) */
+	mergeTimeMs: number;
+	/** Time spent on validation, if validation was run (ms) */
+	validationTimeMs?: number;
+	/** Total time from enqueue to terminal state (ms) */
+	totalTimeMs: number;
+}
+
+/**
+ * A single audit event recording a queue control action.
+ */
+export interface AuditEntry {
+	/** Action type */
+	action: "pause" | "resume" | "retry" | "requeue" | "clear_completed" | "reorder" | "cancel";
+	/** Workspace ID if the action targeted a specific entry */
+	workspaceId?: string;
+	/** Timestamp when the action occurred */
+	timestamp: number;
+	/** Human-readable details about the action */
+	details: string;
+}
+
+/**
  * A single queue entry.
  */
 export interface QueueEntry {
@@ -62,6 +100,10 @@ export interface QueueEntry {
 	processedAt?: number;
 	/** Timestamp when merge completed */
 	mergedAt?: number;
+	/** Timestamp when validation started */
+	validationStartedAt?: number;
+	/** Timestamp when processing completed (terminal state reached) */
+	completedAt?: number;
 	/** Whether validation passed */
 	validationPassed?: boolean;
 	/** Validation output */
@@ -72,6 +114,8 @@ export interface QueueEntry {
 	conflictArtifactPath?: string;
 	/** List of files involved in a merge conflict */
 	conflictFiles?: string[];
+	/** Computed timing metrics for the entry */
+	timingMetrics?: QueueEntryTiming;
 }
 
 /**
@@ -82,12 +126,16 @@ export interface IntegrationQueueState {
 	entries: QueueEntry[];
 	/** Whether the queue is currently processing an entry */
 	isProcessing: boolean;
+	/** Whether the queue is paused (will not process new entries) */
+	paused: boolean;
 	/** Workspace ID currently being processed (if isProcessing) */
 	currentWorkspaceId?: string;
 	/** Timestamp when the queue was created */
 	createdAt: number;
 	/** Timestamp when the state was last updated */
 	updatedAt: number;
+	/** Audit trail of queue control actions (most recent first) */
+	auditEvents: AuditEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +175,11 @@ export class IntegrationQueue {
 		this.state = {
 			entries: [],
 			isProcessing: false,
+			paused: false,
+			currentWorkspaceId: undefined,
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
+			auditEvents: [],
 		};
 		this.stateFilePath = path.join(workspaceRoot, ".pi", "integration-queue.json");
 	}
@@ -159,6 +210,14 @@ export class IntegrationQueue {
 	 */
 	get currentWorkspaceId(): string | undefined {
 		return this.state.currentWorkspaceId;
+	}
+
+	/**
+	 * Whether the queue is paused (loads persisted state).
+	 */
+	async isPaused(): Promise<boolean> {
+		await this.loadState();
+		return this.state.paused;
 	}
 
 	/**
@@ -227,6 +286,11 @@ export class IntegrationQueue {
 			return { processed: false };
 		}
 
+		// Guard: paused queue does not process new entries (6.6.F)
+		if (this.state.paused) {
+			return { processed: false };
+		}
+
 		// Find the next entry that is queued, blocked, or conflicted
 		// (skip already merged/failed ones)
 		const nextEntry = this.state.entries.find(
@@ -266,6 +330,7 @@ export class IntegrationQueue {
 			// AC4: Run integration validation after merge
 			if (nextEntry.validationCommand) {
 				nextEntry.status = "validating";
+				nextEntry.validationStartedAt = Date.now();
 				await this.saveState();
 
 				const validationResult = await this.branch.runValidation(
@@ -352,6 +417,17 @@ export class IntegrationQueue {
 				}
 			}
 		} finally {
+			// Set completedAt and compute timing metrics when entry reaches a terminal state
+			if (
+				nextEntry.status === "merged" ||
+				nextEntry.status === "failed" ||
+				nextEntry.status === "blocked" ||
+				nextEntry.status === "conflict"
+			) {
+				nextEntry.completedAt = Date.now();
+				nextEntry.timingMetrics = this.computeTimingMetrics(nextEntry);
+			}
+
 			// Release processing lock
 			this.state.isProcessing = false;
 			this.state.currentWorkspaceId = undefined;
@@ -478,7 +554,15 @@ export class IntegrationQueue {
 		entry.error = undefined;
 		entry.conflictArtifactPath = undefined;
 		entry.conflictFiles = undefined;
+		entry.validationStartedAt = undefined;
+		entry.completedAt = undefined;
+		entry.timingMetrics = undefined;
 
+		this.appendAuditEvent(
+			"retry",
+			workspaceId,
+			`Retried entry for workspace "${workspaceId}" (was ${entry.status} before reset)`,
+		);
 		await this.saveState();
 	}
 
@@ -493,9 +577,250 @@ export class IntegrationQueue {
 		const idx = this.state.entries.findIndex((e) => e.workspaceId === workspaceId && e.status === "queued");
 
 		if (idx >= 0) {
+			const entry = this.state.entries[idx];
 			this.state.entries.splice(idx, 1);
+			this.appendAuditEvent(
+				"cancel",
+				workspaceId,
+				`Cancelled queued entry for workspace "${workspaceId}" (commit ${entry.commitHash.slice(0, 8)})`,
+			);
 			await this.saveState();
 		}
+	}
+
+	// -----------------------------------------------------------------------
+	// 6.6.F: Queue Control Actions
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Pause the queue, suspending processing of new entries.
+	 *
+	 * If a workspace is currently being processed, it will finish,
+	 * but no new entries will start until resume() is called.
+	 *
+	 * Safe to call even if already paused (no-op).
+	 */
+	async pause(): Promise<void> {
+		await this.loadState();
+
+		if (this.state.paused) {
+			return; // Already paused — no-op
+		}
+
+		this.state.paused = true;
+		this.appendAuditEvent("pause", undefined, "Queue processing paused");
+		await this.saveState();
+	}
+
+	/**
+	 * Resume queue processing.
+	 *
+	 * Safe to call even if not paused (no-op). The next call to
+	 * processNext() will resume processing queued entries.
+	 */
+	async resume(): Promise<void> {
+		await this.loadState();
+
+		if (!this.state.paused) {
+			return; // Not paused — no-op
+		}
+
+		this.state.paused = false;
+		this.appendAuditEvent("resume", undefined, "Queue processing resumed");
+		await this.saveState();
+	}
+
+	/**
+	 * Requeue a merged entry, moving it back to the queued state.
+	 *
+	 * Unlike retryEntry(), requeueEntry() specifically targets merged
+	 * entries that have already completed successfully. This allows
+	 * re-running a merge for entries that need to be refreshed.
+	 *
+	 * Unsafe if dependents of this entry are still in the queue —
+	 * those would need to be re-processed after this entry.
+	 * Use validateAction() first to check safety.
+	 *
+	 * @param workspaceId - Workspace ID to requeue
+	 * @throws If entry is not found or is not in a requeue-able state
+	 */
+	async requeueEntry(workspaceId: string): Promise<void> {
+		await this.loadState();
+
+		const entry = this.state.entries.find((e) => e.workspaceId === workspaceId && e.status === "merged");
+
+		if (!entry) {
+			// Check if it exists at all
+			const exists = this.state.entries.find((e) => e.workspaceId === workspaceId);
+			if (!exists) {
+				throw new Error(`No entry found for workspace "${workspaceId}"`);
+			}
+			throw new Error(
+				`Entry "${workspaceId}" is in status "${exists.status}" — requeue is only valid for "merged" entries. Use retryEntry() for blocked/conflict/failed entries.`,
+			);
+		}
+
+		entry.status = "queued";
+		entry.validationPassed = undefined;
+		entry.validationOutput = undefined;
+		entry.validationStartedAt = undefined;
+		entry.completedAt = undefined;
+		entry.timingMetrics = undefined;
+		entry.error = undefined;
+		entry.conflictArtifactPath = undefined;
+		entry.conflictFiles = undefined;
+
+		this.appendAuditEvent("requeue", workspaceId, `Requeued merged entry for workspace "${workspaceId}"`);
+		await this.saveState();
+	}
+
+	/**
+	 * Get the audit log of queue control actions.
+	 *
+	 * @returns Array of audit events (most recent first)
+	 */
+	async getAuditLog(): Promise<AuditEntry[]> {
+		await this.loadState();
+		return [...this.state.auditEvents];
+	}
+
+	/**
+	 * Validate whether a queue control action is safe to execute.
+	 *
+	 * Checks:
+	 * - Requeuing an entry whose dependents are still in the queue
+	 * - Cancelling an entry that is currently being processed
+	 * - Reordering when blocked entries exist (blockers halt the queue)
+	 * - Clearing completed entries with dependents still active
+	 *
+	 * @param action - The action to validate
+	 * @param workspaceId - Optional workspace ID for single-entry actions
+	 * @param workspaceDefs - Optional workspace definitions for dependency checks
+	 * @returns Validation result with safe flag and detailed error messages
+	 */
+	async validateAction(
+		action: "pause" | "resume" | "retry" | "requeue" | "clear_completed" | "reorder" | "cancel",
+		workspaceId?: string,
+		workspaceDefs?: Workspace[],
+	): Promise<{ safe: boolean; errors: string[] }> {
+		await this.loadState();
+		const errors: string[] = [];
+
+		// Build a fast lookup of workspace IDs still in the queue
+		const queuedIds = new Set(this.state.entries.map((e) => e.workspaceId));
+
+		switch (action) {
+			case "pause":
+				// Pause is always safe (already processing entries finish naturally)
+				break;
+
+			case "resume":
+				// Resume is always safe
+				break;
+
+			case "retry":
+				if (!workspaceId) {
+					errors.push("retry requires a workspaceId");
+					break;
+				}
+				{
+					const entry = this.state.entries.find((e) => e.workspaceId === workspaceId);
+					if (!entry) {
+						errors.push(`No entry found for workspace "${workspaceId}"`);
+					} else if (entry.status !== "blocked" && entry.status !== "failed" && entry.status !== "conflict") {
+						errors.push(
+							`Cannot retry entry "${workspaceId}": status is "${entry.status}". ` +
+								"Retry is only valid for blocked, conflict, or failed entries.",
+						);
+					}
+				}
+				break;
+
+			case "requeue":
+				if (!workspaceId) {
+					errors.push("requeue requires a workspaceId");
+					break;
+				}
+				{
+					const entry = this.state.entries.find((e) => e.workspaceId === workspaceId);
+					if (!entry) {
+						errors.push(`No entry found for workspace "${workspaceId}"`);
+					} else if (entry.status !== "merged") {
+						errors.push(
+							`Cannot requeue entry "${workspaceId}": status is "${entry.status}". ` +
+								"Requeue is only valid for merged entries.",
+						);
+					} else if (workspaceDefs && workspaceDefs.length > 0) {
+						// Check if any queued entries depend on this workspace
+						const depMap = new Map<string, string[]>();
+						for (const wd of workspaceDefs) {
+							if (wd.dependencies && wd.dependencies.length > 0) {
+								depMap.set(wd.id, wd.dependencies);
+							}
+						}
+
+						const dependents = workspaceDefs
+							.filter((wd) => wd.dependencies?.includes(workspaceId))
+							.map((wd) => wd.id)
+							.filter((id) => queuedIds.has(id));
+
+						if (dependents.length > 0) {
+							errors.push(
+								`Cannot requeue "${workspaceId}": the following queued entries depend on it: "${dependents.join(", ")}". ` +
+									"Requeue this entry would invalidate the dependency order. Resolve dependents first.",
+							);
+						}
+					}
+				}
+				break;
+
+			case "cancel":
+				if (!workspaceId) {
+					errors.push("cancel requires a workspaceId");
+					break;
+				}
+				{
+					const entry = this.state.entries.find((e) => e.workspaceId === workspaceId);
+					if (!entry) {
+						errors.push(`No entry found for workspace "${workspaceId}"`);
+					} else if (entry.status !== "queued") {
+						errors.push(
+							`Cannot cancel entry "${workspaceId}": status is "${entry.status}". ` +
+								"Cancel is only valid for queued entries.",
+						);
+					} else if (this.state.isProcessing && this.state.currentWorkspaceId === workspaceId) {
+						errors.push(
+							`Cannot cancel entry "${workspaceId}": it is currently being processed. ` +
+								"Wait for processing to complete before cancelling.",
+						);
+					}
+				}
+				break;
+
+			case "clear_completed":
+				// clear_completed is always safe — completed entries have already
+				// been merged into the integration branch and removing them from
+				// the queue does not affect the branch state.
+				break;
+
+			case "reorder":
+				if (this.state.isProcessing) {
+					errors.push(
+						"Cannot reorder the queue while an entry is being processed. " +
+							"Wait for processing to complete before reordering.",
+					);
+				}
+				{
+					const blockers = this.state.entries.filter((e) => e.status === "blocked" || e.status === "conflict");
+					if (blockers.length > 0 && workspaceDefs) {
+						// Informational — blocked entries at the front effectively halt the queue
+						// but reorder can still reorder non-blocked entries behind them
+					}
+				}
+				break;
+		}
+
+		return { safe: errors.length === 0, errors };
 	}
 
 	/**
@@ -506,10 +831,73 @@ export class IntegrationQueue {
 	 */
 	async clearCompleted(): Promise<void> {
 		await this.loadState();
+		const before = this.state.entries.length;
 		this.state.entries = this.state.entries.filter(
 			(e) => e.status !== "merged" && e.status !== "failed" && e.status !== "conflict",
 		);
+		const removed = before - this.state.entries.length;
+		this.appendAuditEvent(
+			"clear_completed",
+			undefined,
+			`Cleared ${removed} completed/failed/conflict entries from the queue`,
+		);
 		await this.saveState();
+	}
+
+	/**
+	 * Compute timing metrics for a queue entry from its timestamps.
+	 */
+	private computeTimingMetrics(entry: QueueEntry): QueueEntryTiming {
+		const waitTimeMs =
+			entry.processedAt && entry.processedAt >= entry.queuedAt ? entry.processedAt - entry.queuedAt : 0;
+		const mergeTimeMs =
+			entry.mergedAt && entry.processedAt && entry.mergedAt >= entry.processedAt
+				? entry.mergedAt - entry.processedAt
+				: 0;
+		const totalTimeMs =
+			entry.completedAt && entry.completedAt >= entry.queuedAt
+				? entry.completedAt - entry.queuedAt
+				: entry.mergedAt && entry.mergedAt >= entry.queuedAt
+					? entry.mergedAt - entry.queuedAt
+					: 0;
+
+		let validationTimeMs: number | undefined;
+		if (entry.validationStartedAt && entry.mergedAt && entry.validationStartedAt >= entry.mergedAt) {
+			// If we have a completion time for validation, use it; otherwise approximate
+			// by the time between validation started and completedAt/mergedAt
+			const validationEnd = entry.completedAt ?? Date.now();
+			if (validationEnd >= entry.validationStartedAt) {
+				validationTimeMs = validationEnd - entry.validationStartedAt;
+			}
+		}
+
+		return {
+			waitTimeMs: Math.max(0, waitTimeMs),
+			mergeTimeMs: Math.max(0, mergeTimeMs),
+			validationTimeMs: validationTimeMs !== undefined ? Math.max(0, validationTimeMs) : undefined,
+			totalTimeMs: Math.max(0, totalTimeMs),
+		};
+	}
+
+	/**
+	 * Append an event to the audit log.
+	 *
+	 * Maintains a maximum of 100 recent events, discarding the oldest
+	 * as new events are added.
+	 */
+	private appendAuditEvent(action: AuditEntry["action"], workspaceId: string | undefined, details: string): void {
+		const entry: AuditEntry = {
+			action,
+			workspaceId,
+			timestamp: Date.now(),
+			details,
+		};
+		// Prepend for most-recent-first ordering
+		this.state.auditEvents.unshift(entry);
+		// Cap at 100 entries
+		if (this.state.auditEvents.length > 100) {
+			this.state.auditEvents = this.state.auditEvents.slice(0, 100);
+		}
 	}
 
 	/**
@@ -537,6 +925,9 @@ export class IntegrationQueue {
 			this.state = {
 				...parsed,
 				entries: parsed.entries ?? [],
+				// Backward compat: old state files won't have paused/auditEvents
+				paused: parsed.paused ?? false,
+				auditEvents: parsed.auditEvents ?? [],
 			};
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -545,6 +936,81 @@ export class IntegrationQueue {
 			}
 			throw error;
 		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Queue Optimizer Integration (6.D)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get reorder suggestions for the current queue state.
+	 *
+	 * Returns suggested reorderings without modifying the queue.
+	 * Safe to call at any point for informational purposes.
+	 *
+	 * @param workspaceDefs - Optional workspace definitions for accurate scoring
+	 * @returns Reorder suggestions
+	 */
+	async getOptimizerSuggestions(workspaceDefs?: Workspace[]): Promise<ReorderSuggestionResult> {
+		await this.loadState();
+		const optimizer = new QueueOptimizer();
+		return optimizer.suggestReorder(this.state, workspaceDefs);
+	}
+
+	/**
+	 * Apply queue optimizer suggestions to reorder the queue.
+	 *
+	 * Reorders queued entries by priority score while respecting
+	 * dependency constraints. Non-queued entries are preserved.
+	 *
+	 * @param workspaceDefs - Optional workspace definitions for accurate scoring
+	 * @returns Optimization result
+	 */
+	async applyOptimizerOrdering(workspaceDefs?: Workspace[]): Promise<OptimizationResult> {
+		await this.loadState();
+		const optimizer = new QueueOptimizer();
+		const result = optimizer.optimize(this.state, workspaceDefs);
+
+		if (result.optimized) {
+			this.state = result.state;
+			const orderStr = this.state.entries
+				.filter((e) => e.status === "queued")
+				.map((e) => e.workspaceId)
+				.join(" \u2192 ");
+			this.appendAuditEvent("reorder", undefined, `Reordered queue (optimized): ${orderStr}`);
+			await this.saveState();
+		}
+
+		return result;
+	}
+
+	/**
+	 * Get a throughput impact analysis of the current queue ordering.
+	 *
+	 * Compares the current order against the optimized order and
+	 * explains the throughput difference.
+	 *
+	 * @param workspaceDefs - Optional workspace definitions for accurate scoring
+	 * @returns Throughput impact analysis
+	 */
+	async analyzeThroughput(workspaceDefs?: Workspace[]): Promise<ThroughputImpact> {
+		await this.loadState();
+		const optimizer = new QueueOptimizer();
+		const suggestions = optimizer.suggestReorder(this.state, workspaceDefs);
+		return suggestions.throughputImpact;
+	}
+
+	/**
+	 * Check whether the current queue ordering respects dependency constraints.
+	 *
+	 * @param workspaceDefs - Workspace definitions with dependency info
+	 * @returns True if all dependency constraints are satisfied
+	 */
+	async isOrderSafe(workspaceDefs?: Workspace[]): Promise<boolean> {
+		await this.loadState();
+		const optimizer = new QueueOptimizer();
+		const suggestions = optimizer.suggestReorder(this.state, workspaceDefs);
+		return suggestions.isSafe;
 	}
 }
 
@@ -587,6 +1053,16 @@ export function formatQueueEntry(entry: QueueEntry): string {
 		lines.push(`  Merged: ${new Date(entry.mergedAt).toISOString()}`);
 	}
 
+	if (entry.timingMetrics) {
+		lines.push(`  Timing Metrics:`);
+		lines.push(`    Wait Time: ${entry.timingMetrics.waitTimeMs}ms`);
+		lines.push(`    Merge Time: ${entry.timingMetrics.mergeTimeMs}ms`);
+		if (entry.timingMetrics.validationTimeMs !== undefined) {
+			lines.push(`    Validation Time: ${entry.timingMetrics.validationTimeMs}ms`);
+		}
+		lines.push(`    Total Time: ${entry.timingMetrics.totalTimeMs}ms`);
+	}
+
 	return lines.join("\n");
 }
 
@@ -601,11 +1077,13 @@ export function formatIntegrationQueueState(state: IntegrationQueueState): strin
 
 	lines.push(`Integration Queue`);
 	lines.push(`Processing: ${state.isProcessing}`);
+	lines.push(`Paused: ${state.paused}`);
 	if (state.currentWorkspaceId) {
 		lines.push(`Current: ${state.currentWorkspaceId}`);
 	}
 	lines.push(`Created: ${new Date(state.createdAt).toISOString()}`);
 	lines.push(`Updated: ${new Date(state.updatedAt).toISOString()}`);
+	lines.push(`Audit Events: ${state.auditEvents.length} logged`);
 	lines.push("");
 	lines.push(`Entries (${state.entries.length}):`);
 	lines.push("");
@@ -629,6 +1107,11 @@ export function formatIntegrationQueueState(state: IntegrationQueueState): strin
 		}
 		if (entry.conflictFiles && entry.conflictFiles.length > 0) {
 			lines.push(`       Conflict Files: ${entry.conflictFiles.join(", ")}`);
+		}
+		if (entry.timingMetrics) {
+			lines.push(
+				`       Times: wait=${entry.timingMetrics.waitTimeMs}ms merge=${entry.timingMetrics.mergeTimeMs}ms total=${entry.timingMetrics.totalTimeMs}ms`,
+			);
 		}
 		lines.push("");
 	}

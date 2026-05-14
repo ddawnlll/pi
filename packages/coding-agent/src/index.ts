@@ -95,6 +95,12 @@ export {
 	type WorkspaceQueue,
 	WorkspaceStage,
 } from "./core/workspace-schema.js";
+export {
+	type AuditEntry,
+	IntegrationQueue,
+	type IntegrationQueueState,
+	type QueueEntry,
+} from "./integration/integration-queue.js";
 
 // Core session management
 

@@ -10075,11 +10075,11 @@ export const MODELS = {
 			cost: {
 				input: 0.74,
 				output: 3.5,
-				cacheRead: 0.25,
+				cacheRead: 0.37,
 				cacheWrite: 0,
 			},
-			contextWindow: 262142,
-			maxTokens: 262142,
+			contextWindow: 262144,
+			maxTokens: 65535,
 		} satisfies Model<"openai-completions">,
 		"nex-agi/deepseek-v3.1-nex-n1": {
 			id: "nex-agi/deepseek-v3.1-nex-n1",
@@ -11428,7 +11428,7 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.06,
+				input: 0.09999999999999999,
 				output: 0.24,
 				cacheRead: 0,
 				cacheWrite: 0,
@@ -11940,7 +11940,7 @@ export const MODELS = {
 			cost: {
 				input: 0.39,
 				output: 2.34,
-				cacheRead: 0,
+				cacheRead: 0.195,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
@@ -12824,11 +12824,11 @@ export const MODELS = {
 			cost: {
 				input: 0.74,
 				output: 3.5,
-				cacheRead: 0.25,
+				cacheRead: 0.37,
 				cacheWrite: 0,
 			},
-			contextWindow: 262142,
-			maxTokens: 262142,
+			contextWindow: 262144,
+			maxTokens: 65535,
 		} satisfies Model<"openai-completions">,
 		"~openai/gpt-latest": {
 			id: "~openai/gpt-latest",
@@ -15210,7 +15210,7 @@ export const MODELS = {
 		} satisfies Model<"anthropic-messages">,
 		"openai/gpt-oss-20b": {
 			id: "openai/gpt-oss-20b",
-			name: "GPT OSS 120B",
+			name: "GPT OSS 20B",
 			api: "anthropic-messages",
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",

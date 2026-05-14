@@ -19,8 +19,29 @@ import {
 	GitMerge,
 	AlertOctagon,
 	X,
+	GitBranch,
+	Cpu,
+	Zap,
+	Timer,
+	BarChart3,
+	TrendingUp,
+	Pause,
+	Play,
+	RotateCcw,
+	Trash2,
+	ListOrdered,
+	History,
 } from "lucide-react";
-import { useIntegrationQueueStatus, type MergeConflictInfo, type QueueEntryInfo } from "../hooks/useScaleStatus";
+import {
+	useIntegrationQueueStatus,
+	useQueueMetrics,
+	useQueueControl,
+	useAuditLog,
+	type MergeConflictInfo,
+	type QueueEntryInfo,
+	type QueueMetrics,
+	type AuditEntryInfo,
+} from "../hooks/useScaleStatus";
 import { MergeConflictPanel, type MergeConflictData, type ConflictedFile } from "./MergeConflictPanel";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
@@ -86,9 +107,12 @@ function getStatusConfig(status: string) {
 interface QueueEntryRowProps {
 	entry: QueueEntryInfo;
 	onConflictClick?: (workspaceId: string) => void;
+	onRetry?: (workspaceId: string) => void;
+	onRequeue?: (workspaceId: string) => void;
+	isPending?: boolean;
 }
 
-function QueueEntryRow({ entry, onConflictClick }: QueueEntryRowProps) {
+function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }: QueueEntryRowProps) {
 	const cfg = getStatusConfig(entry.status);
 	const time = entry.processedAt
 		? new Date(entry.processedAt).toLocaleTimeString()
@@ -96,14 +120,18 @@ function QueueEntryRow({ entry, onConflictClick }: QueueEntryRowProps) {
 
 	const isConflict = entry.status === "conflict";
 	const isBlocked = entry.status === "blocked";
+	const isFailed = entry.status === "failed";
+	const isMerged = entry.status === "merged";
 	const clickable = isConflict && !!onConflictClick;
 
+	const canRetry = (isBlocked || isFailed || isConflict) && !!onRetry;
+	const canRequeue = isMerged && !!onRequeue;
+
 	return (
-		<button
-			onClick={clickable ? () => onConflictClick(entry.workspaceId) : undefined}
-			className={`w-full text-left flex items-start gap-2.5 py-2 px-2 rounded transition-colors
+		<div
+			className={`w-full text-left flex items-start gap-2.5 py-2 px-2 rounded
 				bg-stone-50 dark:bg-stone-800/50 border border-[#E8E6E1] dark:border-[#333]
-				${clickable ? "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/20" : "cursor-default"}
+				${clickable ? "cursor-pointer" : "cursor-default"}
 				${isConflict ? "border-l-2 border-l-amber-400 dark:border-l-amber-600" : ""}
 			`}
 		>
@@ -144,7 +172,7 @@ function QueueEntryRow({ entry, onConflictClick }: QueueEntryRowProps) {
 					</div>
 				)}
 				{/* Click hint for conflict entries */}
-				{isConflict && clickable && (
+				{isConflict && clickable && !canRetry && (
 					<p className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5 italic">
 						Click to open handoff panel
 					</p>
@@ -155,8 +183,56 @@ function QueueEntryRow({ entry, onConflictClick }: QueueEntryRowProps) {
 						Validation: {entry.validationPassed ? "PASSED" : "FAILED"}
 					</p>
 				)}
+				{/* Action buttons */}
+				{(canRetry || canRequeue) && (
+					<div className="flex gap-1 mt-1.5">
+						{canRetry && (
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onRetry!(entry.workspaceId);
+								}}
+								disabled={isPending}
+								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium
+									bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300
+									hover:bg-blue-100 dark:hover:bg-blue-900/30
+									disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<RotateCcw size={8} />
+								Retry
+							</button>
+						)}
+						{canRequeue && (
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onRequeue!(entry.workspaceId);
+								}}
+								disabled={isPending}
+								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium
+									bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+									hover:bg-stone-200 dark:hover:bg-stone-700
+									disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<RotateCcw size={8} />
+								Requeue
+							</button>
+						)}
+					</div>
+				)}
 			</div>
-		</button>
+			{/* Clickable overlay for conflict entries */}
+			{clickable && (
+				<button
+					onClick={() => onConflictClick!(entry.workspaceId)}
+					className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium
+						bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400
+						hover:bg-amber-100 dark:hover:bg-amber-900/30"
+				>
+					View
+				</button>
+			)}
+		</div>
 	);
 }
 
@@ -175,6 +251,54 @@ function Stat({ label, value, color }: StatProps) {
 			<p className={`text-[9px] uppercase tracking-wider mt-0.5 ${MUT}`}>{label}</p>
 		</div>
 	);
+}
+
+// ─── Mini metric component (for DAG/timing display) ──────────────────────
+
+interface MiniMetricProps {
+	icon: React.ReactNode;
+	label: string;
+	value: string;
+	sublabel?: string;
+	accent?: "ok" | "warn" | "none";
+}
+
+function MiniMetric({ icon, label, value, sublabel, accent = "none" }: MiniMetricProps) {
+	const accentColors: Record<string, string> = {
+		ok: "text-emerald-600 dark:text-emerald-400",
+		warn: "text-amber-600 dark:text-amber-400",
+		none: TXT,
+	};
+	const accentBg: Record<string, string> = {
+		ok: "bg-emerald-50 dark:bg-emerald-900/10",
+		warn: "bg-amber-50 dark:bg-amber-900/10",
+		none: "bg-stone-50 dark:bg-stone-800/30",
+	};
+
+	return (
+		<div
+			className={`flex items-center gap-1.5 px-2 py-1.5 rounded border border-[#E8E6E1] dark:border-[#333] ${accentBg[accent]}`}
+		>
+			<span className={`shrink-0 ${accentColors[accent]}`}>{icon}</span>
+			<div className="min-w-0">
+				<p className={`text-xs font-bold tabular-nums leading-tight ${accentColors[accent]}`}>{value}</p>
+				<p className={`text-[9px] leading-tight ${MUT}`}>{label}</p>
+				{sublabel && (
+					<p className={`text-[8px] leading-tight ${MUT} opacity-70`}>{sublabel}</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+// ─── Duration formatting helper ───────────────────────────────────────────
+
+function formatDuration(ms: number): string {
+	if (ms < 1000) return `${ms}ms`;
+	if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+	const minutes = Math.floor(ms / 60_000);
+	const seconds = Math.round((ms % 60_000) / 1000);
+	return `${minutes}m ${seconds}s`;
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
@@ -196,6 +320,9 @@ interface IntegrationQueuePanelProps {
  */
 export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps) {
 	const { data, isLoading, error } = useIntegrationQueueStatus();
+	const { data: metrics, isLoading: metricsLoading } = useQueueMetrics();
+	const queueControl = useQueueControl();
+	const { data: auditLog } = useAuditLog();
 
 	const entries = data?.entries ?? [];
 	const counts = data?.counts ?? {
@@ -211,6 +338,30 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 
 	const hasIssues = counts.failed > 0 || counts.blocked > 0 || counts.conflict > 0;
 	const totalIssues = counts.failed + counts.blocked + counts.conflict;
+
+	// ── Action feedback state ──────────────────────────────────────────────
+	const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+	const [showAuditLog, setShowAuditLog] = useState(false);
+
+	const handleAction = useCallback(
+		async (
+			action: () => Promise<{ success: boolean; error?: string; message?: string }>,
+			label: string,
+		) => {
+			try {
+				const result = await action();
+				if (result.success) {
+					setActionFeedback({ type: "success", message: result.message ?? `${label} completed` });
+				} else {
+					setActionFeedback({ type: "error", message: result.error ?? `${label} failed` });
+				}
+			} catch (err) {
+				setActionFeedback({ type: "error", message: `${label}: ${String(err)}` });
+			}
+			setTimeout(() => setActionFeedback(null), 5000);
+		},
+		[],
+	);
 
 	// ── Handoff panel state ────────────────────────────────────────────────
 	const [selectedConflict, setSelectedConflict] = useState<MergeConflictInfo | null>(null);
@@ -315,6 +466,90 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 				</div>
 			)}
 
+			{/* ── DAG metrics section ── */}
+			{!metricsLoading && metrics && (
+				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
+					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+						Queue Metrics
+					</h4>
+					<div className="grid grid-cols-4 gap-1.5">
+						<MiniMetric
+							icon={<GitBranch size={12} />}
+							label="DAG Width"
+							value={String(metrics.dagWidth)}
+							sublabel="Parallel branches"
+						/>
+						<MiniMetric
+							icon={<Cpu size={12} />}
+							label="Worker Cap"
+							value={String(metrics.workerCap)}
+							sublabel="Max configured"
+						/>
+						<MiniMetric
+							icon={<Zap size={12} />}
+							label="Safe Runnable"
+							value={String(metrics.safeRunnableWorkers)}
+							sublabel="min(cap, DAG)"
+							accent={metrics.actualUtilization < metrics.safeRunnableWorkers ? "warn" : "ok"}
+						/>
+						<MiniMetric
+							icon={<Layers size={12} />}
+							label="Utilization"
+							value={`${metrics.actualUtilization}`}
+							sublabel={`of ${metrics.safeRunnableWorkers} active`}
+							accent={metrics.actualUtilization === 0 ? "none" : metrics.actualUtilization < metrics.safeRunnableWorkers ? "warn" : "ok"}
+						/>
+					</div>
+
+					{/* Critical path + serialized tail */}
+					<div className="grid grid-cols-2 gap-1.5">
+						<MiniMetric
+							icon={<TrendingUp size={12} />}
+							label="Critical Path"
+							value={String(metrics.criticalPath)}
+							sublabel={metrics.criticalPath === 1 ? "1 step to drain" : `${metrics.criticalPath} steps to drain`}
+							accent={metrics.criticalPath > 5 ? "warn" : "ok"}
+						/>
+						<MiniMetric
+							icon={<BarChart3 size={12} />}
+							label="Serialized Tail"
+							value={String(metrics.serializedTail)}
+							sublabel={metrics.serializedTail === 1 ? "1 entry waiting" : `${metrics.serializedTail} entries waiting`}
+							accent={metrics.serializedTail > 3 ? "warn" : "ok"}
+						/>
+					</div>
+
+					{/* Timing metrics */}
+					{metrics.queueTiming && (
+						<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 mt-1">
+							<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT} mb-1.5`}>
+								Queue Timing
+							</h4>
+							<div className="grid grid-cols-3 gap-1.5">
+								<MiniMetric
+									icon={<Timer size={12} />}
+									label="Avg Wait"
+									value={metrics.queueTiming.avgWaitTimeMs != null ? formatDuration(metrics.queueTiming.avgWaitTimeMs) : "—"}
+									sublabel={`from ${metrics.queueTiming.sampleSize} samples`}
+								/>
+								<MiniMetric
+									icon={<Timer size={12} />}
+									label="Avg Process"
+									value={metrics.queueTiming.avgProcessTimeMs != null ? formatDuration(metrics.queueTiming.avgProcessTimeMs) : "—"}
+									sublabel="per entry"
+								/>
+								<MiniMetric
+									icon={<CheckCircle size={12} />}
+									label="Processed"
+									value={String(metrics.queueTiming.totalProcessed)}
+									sublabel="total entries"
+								/>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
+
 			{/* Entry list */}
 			{entries.length > 0 && (
 				<div className="space-y-1.5 max-h-64 overflow-y-auto">
@@ -323,6 +558,9 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 							key={entry.workspaceId}
 							entry={entry}
 							onConflictClick={handleConflictClick}
+							onRetry={(wid) => handleAction(() => queueControl.retry(wid), `Retry ${wid}`)}
+							onRequeue={(wid) => handleAction(() => queueControl.requeue(wid), `Requeue ${wid}`)}
+							isPending={queueControl.isPending}
 						/>
 					))}
 				</div>
@@ -366,12 +604,135 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 				</div>
 			)}
 
-			{/* Help text */}
+			{/* ── Action feedback ── */}
+			{actionFeedback && (
+				<div
+					className={`px-2.5 py-1.5 rounded text-[10px] font-medium ${
+						actionFeedback.type === "success"
+							? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+							: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+					}`}
+				>
+					{actionFeedback.type === "success" ? <CheckCircle size={10} className="inline mr-1" /> : null}
+					{actionFeedback.type === "error" ? <AlertTriangle size={10} className="inline mr-1" /> : null}
+					{actionFeedback.message}
+				</div>
+			)}
+
+			{/* ── Help text ── */}
 			<p className={`text-[10px] leading-tight ${MUT}`}>
 				The integration queue processes workspace changes serially.
 				Conflicts and validation failures block further processing until resolved.
 				<strong> Scale mode</strong> requires the integration queue to be enabled.
 			</p>
+
+			{/* ── Queue control actions (6.6.F) ── */}
+			<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
+				<div className="flex items-center justify-between">
+					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+						Queue Actions
+					</h4>
+					<button
+						onClick={() => setShowAuditLog(!showAuditLog)}
+						className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+					>
+						<History size={10} />
+						{showAuditLog ? "Hide log" : "Audit log"}
+					</button>
+				</div>
+				<div className="flex flex-wrap gap-1.5">
+					{/* Pause / Resume */}
+					{data?.paused ? (
+						<button
+							onClick={() => handleAction(() => queueControl.resume(), "Resume")}
+							disabled={queueControl.isPending}
+							className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+								bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300
+								hover:bg-emerald-100 dark:hover:bg-emerald-900/30
+								disabled:opacity-50 disabled:cursor-not-allowed`}
+						>
+							<Play size={10} />
+							Resume
+						</button>
+					) : (
+						<button
+							onClick={() => handleAction(() => queueControl.pause(), "Pause")}
+							disabled={queueControl.isPending}
+							className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+								bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300
+								hover:bg-amber-100 dark:hover:bg-amber-900/30
+								disabled:opacity-50 disabled:cursor-not-allowed`}
+						>
+							<Pause size={10} />
+							Pause
+						</button>
+					)}
+
+					{/* Retry / Requeue buttons visible per entry in entry rows */}
+					<button
+						onClick={() => handleAction(() => queueControl.clearCompleted(), "Clear completed")}
+						disabled={queueControl.isPending || entries.length === 0}
+						className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+							bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+							hover:bg-stone-200 dark:hover:bg-stone-700
+							disabled:opacity-50 disabled:cursor-not-allowed`}
+					>
+						<Trash2 size={10} />
+						Clear Completed
+					</button>
+
+					<button
+						onClick={() => handleAction(() => queueControl.reorder(), "Reorder")}
+						disabled={queueControl.isPending}
+						className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+							bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+							hover:bg-stone-200 dark:hover:bg-stone-700
+							disabled:opacity-50 disabled:cursor-not-allowed`}
+					>
+						<ListOrdered size={10} />
+						Reorder
+					</button>
+				</div>
+			</div>
+
+			{/* ── Audit log section ── */}
+			{showAuditLog && (
+				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-1.5">
+					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+						Audit Log {(auditLog?.total ?? 0) > 0 ? `(${auditLog!.total})` : ""}
+					</h4>
+					{(!auditLog || auditLog.entries.length === 0) && (
+						<p className={`text-[10px] italic ${MUT}`}>No audit events recorded yet.</p>
+					)}
+					{auditLog && auditLog.entries.length > 0 && (
+						<div className="max-h-32 overflow-y-auto space-y-1">
+							{auditLog.entries.map((event, idx) => (
+								<div
+									key={idx}
+									className="flex items-start gap-1.5 px-1.5 py-1 rounded bg-stone-50 dark:bg-stone-800/30"
+								>
+									<span className="shrink-0 text-[9px] font-mono text-stone-400 dark:text-stone-500 mt-0.5">
+										{new Date(event.timestamp).toLocaleTimeString()}
+									</span>
+									<div className="min-w-0 flex-1">
+										<span className={`text-[9px] font-medium ${
+											event.action === "pause" || event.action === "resume"
+												? "text-amber-600 dark:text-amber-400"
+												: event.action === "retry" || event.action === "requeue"
+													? "text-blue-600 dark:text-blue-400"
+													: "text-stone-600 dark:text-stone-400"
+										}`}>
+											{event.action.replace("_", " ")}
+											{event.workspaceId ? `: ${event.workspaceId}` : ""}
+										</span>
+										<p className={`text-[8px] ${MUT} leading-tight`}>{event.details}</p>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
 
 			{/* ── Merge conflict handoff overlay ── */}
 			{selectedConflict ? (() => {

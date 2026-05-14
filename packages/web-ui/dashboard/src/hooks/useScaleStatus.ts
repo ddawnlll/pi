@@ -49,6 +49,7 @@ export interface QueueEntryInfo {
 /** Integration queue status from the API. */
 export interface IntegrationQueueStatus {
 	isProcessing: boolean;
+	paused: boolean;
 	currentWorkspaceId: string | null;
 	entries: QueueEntryInfo[];
 	totalEntries: number;
@@ -62,6 +63,7 @@ export interface IntegrationQueueStatus {
 		conflict: number;
 	};
 	mergeConflicts?: MergeConflictInfo[];
+	auditEvents?: AuditEntryInfo[];
 }
 
 /** Merge conflict info from the API. */
@@ -81,6 +83,38 @@ export interface WorkerQueueEntry {
 	entry: QueueEntryInfo | null;
 	/** The merge conflict for this workspace, if any. */
 	mergeConflict: MergeConflictInfo | null;
+}
+
+/** Queue metrics — DAG width, worker cap, safe runnable workers, utilization, timing. */
+export interface QueueMetrics {
+	/** Maximum number of parallel non-conflicting branches in the DAG. */
+	dagWidth: number;
+	/** Maximum workers allowed (from settings). */
+	workerCap: number;
+	/** Number of workers that can safely run without exceeding DAG width or cap. */
+	safeRunnableWorkers: number;
+	/** Number of workers currently actively processing entries. */
+	actualUtilization: number;
+	/** Length of the longest serial dependency chain in the queue. */
+	criticalPath: number;
+	/** Number of entries queued behind the current processing entry. */
+	serializedTail: number;
+	/** Queue timing metrics when available (null if insufficient data). */
+	queueTiming: {
+		sampleSize: number;
+		avgWaitTimeMs: number | null;
+		avgProcessTimeMs: number | null;
+		totalProcessed: number;
+	} | null;
+	/** Advisory optimizer suggestions. */
+	optimizerSuggestions: OptimizerSuggestion[];
+}
+
+/** Advisory suggestion from the queue optimizer. */
+export interface OptimizerSuggestion {
+	type: "info" | "warning" | "tip";
+	title: string;
+	message: string;
 }
 
 /** Quarantine/cleanup state for a failed workspace. */
@@ -116,6 +150,7 @@ async function fetchIntegrationQueue(): Promise<IntegrationQueueStatus> {
 	if (!res.ok) {
 		return {
 			isProcessing: false,
+			paused: false,
 			currentWorkspaceId: null,
 			entries: [],
 			totalEntries: 0,
@@ -164,6 +199,16 @@ export async function fetchWorkerQueueEntry(workspaceId: string): Promise<Worker
 export async function fetchQuarantineState(workspaceId: string): Promise<QuarantineState | null> {
 	try {
 		const res = await fetch(`${API_BASE}/api/scale/workspaces/${encodeURIComponent(workspaceId)}/quarantine`);
+		if (!res.ok) return null;
+		return res.json();
+	} catch {
+		return null;
+	}
+}
+
+async function fetchQueueMetrics(): Promise<QueueMetrics | null> {
+	try {
+		const res = await fetch(`${API_BASE}/api/scale/queue-metrics`);
 		if (!res.ok) return null;
 		return res.json();
 	} catch {
@@ -347,4 +392,163 @@ export function useQuarantineState(workspaceId: string | null | undefined, enabl
 	});
 }
 
+/**
+ * Hook for fetching queue metrics (DAG width, worker cap, utilization, timing, optimizer suggestions).
+ *
+ * @param enabled - Whether the query is enabled
+ * @returns Queue metrics with loading/error state
+ */
+export function useQueueMetrics(enabled: boolean = true) {
+	return useQuery<QueueMetrics | null>({
+		queryKey: ["scale", "queue-metrics"],
+		queryFn: fetchQueueMetrics,
+		enabled,
+		refetchInterval: 15_000,
+		refetchIntervalInBackground: false,
+		staleTime: 10_000,
+	});
+}
 
+// =============================================================================
+// Queue Control Actions (6.6.F)
+// =============================================================================
+
+/** Audit entry from the queue control audit log. */
+export interface AuditEntryInfo {
+	action: "pause" | "resume" | "retry" | "requeue" | "clear_completed" | "reorder" | "cancel";
+	workspaceId?: string;
+	timestamp: number;
+	details: string;
+}
+
+/** Response from a queue control action. */
+export interface QueueControlActionResult {
+	success: boolean;
+	message?: string;
+	error?: string;
+	optimized?: boolean;
+	throughputImpact?: unknown;
+}
+
+/** Audit log API response. */
+export interface AuditLogResponse {
+	entries: AuditEntryInfo[];
+	total: number;
+}
+
+async function performQueueAction(
+	action: string,
+	workspaceId?: string,
+): Promise<QueueControlActionResult> {
+	let url: string;
+	if (workspaceId) {
+		url = `${API_BASE}/api/scale/integration-queue/${action}/${encodeURIComponent(workspaceId)}`;
+	} else {
+		url = `${API_BASE}/api/scale/integration-queue/${action}`;
+	}
+	const res = await fetch(url, { method: "POST" });
+	const data = await res.json();
+	if (!res.ok) {
+		return { success: false, error: data.error ?? res.statusText };
+	}
+	return data;
+}
+
+async function fetchAuditLog(): Promise<AuditLogResponse> {
+	const res = await fetch(`${API_BASE}/api/scale/integration-queue/audit-log`);
+	if (!res.ok) return { entries: [], total: 0 };
+	return res.json();
+}
+
+/**
+ * Hook for performing queue control actions (pause, resume, retry, requeue, clear-completed, reorder).
+ *
+ * Invalidates the integration queue query on success so the UI reflects the changes.
+ */
+export function useQueueControl() {
+	const queryClient = useQueryClient();
+
+	const pauseMutation = useMutation({
+		mutationFn: () => performQueueAction("pause"),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	const resumeMutation = useMutation({
+		mutationFn: () => performQueueAction("resume"),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	const retryMutation = useMutation({
+		mutationFn: (workspaceId: string) => performQueueAction("retry", workspaceId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	const requeueMutation = useMutation({
+		mutationFn: (workspaceId: string) => performQueueAction("requeue", workspaceId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	const clearCompletedMutation = useMutation({
+		mutationFn: () => performQueueAction("clear-completed"),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	const reorderMutation = useMutation({
+		mutationFn: () => performQueueAction("reorder"),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["scale", "integration-queue"] });
+		},
+	});
+
+	return {
+		pause: pauseMutation.mutateAsync,
+		resume: resumeMutation.mutateAsync,
+		retry: retryMutation.mutateAsync,
+		requeue: requeueMutation.mutateAsync,
+		clearCompleted: clearCompletedMutation.mutateAsync,
+		reorder: reorderMutation.mutateAsync,
+		isPending:
+			pauseMutation.isPending ||
+			resumeMutation.isPending ||
+			retryMutation.isPending ||
+			requeueMutation.isPending ||
+			clearCompletedMutation.isPending ||
+			reorderMutation.isPending,
+		lastResult: (pauseMutation.data ??
+			resumeMutation.data ??
+			retryMutation.data ??
+			requeueMutation.data ??
+			clearCompletedMutation.data ??
+			reorderMutation.data) as QueueControlActionResult | null,
+		error:
+			pauseMutation.error ??
+			resumeMutation.error ??
+			retryMutation.error ??
+			requeueMutation.error ??
+			clearCompletedMutation.error ??
+			reorderMutation.error,
+	};
+}
+
+/**
+ * Hook for fetching the audit log.
+ */
+export function useAuditLog() {
+	return useQuery<AuditLogResponse>({
+		queryKey: ["scale", "audit-log"],
+		queryFn: fetchAuditLog,
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false,
+		staleTime: 15_000,
+	});
+}

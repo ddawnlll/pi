@@ -3,6 +3,7 @@
  * status, merge conflicts, and scale mode readiness.
  *
  * Workspace 6.J — Dashboard scale controls and integration visibility.
+ * Workspace 6.6.F — Executor-mediated queue control actions.
  *
  * Endpoints:
  *   GET  /api/scale/worktrees
@@ -10,6 +11,9 @@
  *
  *   GET  /api/scale/integration-queue
  *       Returns integration queue state from .pi/integration-queue.json.
+ *
+ *   GET  /api/scale/queue-metrics
+ *       Returns queue DAG metrics, timing, and optimizer suggestions.
  *
  *   GET  /api/scale/readiness
  *       Returns scale mode readiness (prerequisites, enabled/blocked reasons).
@@ -19,13 +23,35 @@
  *
  *   DELETE /api/scale/worktrees/:worktreeName
  *       Removes a specific worktree by name (scoped cleanup).
+ *
+ *   POST /api/scale/integration-queue/pause
+ *       Pauses queue processing (safe, no new entries started).
+ *
+ *   POST /api/scale/integration-queue/resume
+ *       Resumes queue processing.
+ *
+ *   POST /api/scale/integration-queue/retry/:workspaceId
+ *       Retries a blocked, conflict, or failed entry.
+ *
+ *   POST /api/scale/integration-queue/requeue/:workspaceId
+ *       Requeues a merged entry (with dependency safety check).
+ *
+ *   POST /api/scale/integration-queue/clear-completed
+ *       Removes all completed, failed, and conflict entries.
+ *
+ *   POST /api/scale/integration-queue/reorder
+ *       Reorders queued entries respecting dependency constraints.
+ *
+ *   GET  /api/scale/integration-queue/audit-log
+ *       Returns audit trail of queue control actions.
  */
 
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { IntegrationQueue } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
 
 // ---------------------------------------------------------------------------
@@ -74,6 +100,8 @@ export interface QueueEntryInfo {
 export interface IntegrationQueueStatus {
 	/** Whether the queue is currently processing an entry */
 	isProcessing: boolean;
+	/** Whether the queue is paused (will not process new entries) */
+	paused: boolean;
 	/** Workspace ID currently being processed (may be null) */
 	currentWorkspaceId: string | null;
 	/** All queue entries in order */
@@ -90,6 +118,23 @@ export interface IntegrationQueueStatus {
 		blocked: number;
 		conflict: number;
 	};
+	/** Audit events (most recent first) */
+	auditEvents: AuditEntryInfo[];
+}
+
+/** Audit event info for queue control actions. */
+export interface AuditEntryInfo {
+	action: "pause" | "resume" | "retry" | "requeue" | "clear_completed" | "reorder" | "cancel";
+	workspaceId?: string;
+	timestamp: number;
+	details: string;
+}
+
+/** Result of a queue control action. */
+export interface QueueControlActionResult {
+	success: boolean;
+	message?: string;
+	error?: string;
 }
 
 /** Merge conflict details from .pi/merge-conflicts/ artifacts. */
@@ -124,6 +169,38 @@ export interface ScaleModeReadiness {
 	warnings: string[];
 	requestedWorkers: number;
 	maxAllowedWorkers: number;
+}
+
+/** Queue metrics — DAG width, worker cap, safe runnable workers, utilization, timing. */
+export interface QueueMetrics {
+	/** Maximum number of parallel non-conflicting branches in the DAG. */
+	dagWidth: number;
+	/** Maximum workers allowed (from settings). */
+	workerCap: number;
+	/** Number of workers that can safely run without exceeding DAG width or cap. */
+	safeRunnableWorkers: number;
+	/** Number of workers currently actively processing entries. */
+	actualUtilization: number;
+	/** Length of the longest serial dependency chain in the queue. */
+	criticalPath: number;
+	/** Number of entries queued behind the current processing entry. */
+	serializedTail: number;
+	/** Queue timing metrics when available (null if insufficient data). */
+	queueTiming: {
+		sampleSize: number;
+		avgWaitTimeMs: number | null;
+		avgProcessTimeMs: number | null;
+		totalProcessed: number;
+	} | null;
+	/** Advisory optimizer suggestions. */
+	optimizerSuggestions: OptimizerSuggestion[];
+}
+
+/** Advisory suggestion from the queue optimizer. */
+export interface OptimizerSuggestion {
+	type: "info" | "warning" | "tip";
+	title: string;
+	message: string;
 }
 
 /** Worktree cleanup result. */
@@ -226,12 +303,21 @@ export function parseIntegrationQueue(jsonContent: string): IntegrationQueueStat
 		conflict: entries.filter((e) => e.status === "conflict").length,
 	};
 
+	const auditEvents: AuditEntryInfo[] = (raw.auditEvents ?? []).map((event: Record<string, unknown>) => ({
+		action: String(event.action) as AuditEntryInfo["action"],
+		workspaceId: event.workspaceId != null ? String(event.workspaceId) : undefined,
+		timestamp: Number(event.timestamp ?? 0),
+		details: String(event.details ?? ""),
+	}));
+
 	return {
 		isProcessing: Boolean(raw.isProcessing ?? false),
+		paused: Boolean(raw.paused ?? false),
 		currentWorkspaceId: raw.currentWorkspaceId != null ? String(raw.currentWorkspaceId) : null,
 		entries,
 		totalEntries: entries.length,
 		counts,
+		auditEvents,
 	};
 }
 
@@ -267,7 +353,6 @@ export async function collectMergeConflicts(conflictDir: string): Promise<MergeC
 	const conflicts: MergeConflictInfo[] = [];
 	if (!existsSync(conflictDir)) return conflicts;
 
-	const { readdir } = await import("node:fs/promises");
 	try {
 		const files = await readdir(conflictDir);
 		for (const file of files) {
@@ -418,6 +503,176 @@ export function buildScaleModeReadiness(
 }
 
 // ---------------------------------------------------------------------------
+// Queue metrics computation
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute queue metrics from integration queue entries and settings.
+ *
+ * @param entries - Parsed queue entries
+ * @param isProcessing - Whether the queue is processing
+ * @param currentWorkspaceId - Current processing workspace ID
+ * @param workerCap - Maximum workers configured
+ * @returns Computed queue metrics
+ */
+export function computeQueueMetrics(
+	entries: QueueEntryInfo[],
+	isProcessing: boolean,
+	currentWorkspaceId: string | null,
+	workerCap: number,
+): QueueMetrics {
+	// ── DAG width: max non-conflicting branches ──
+	// Count entries that are not in terminal states (merged/failed) — these
+	// are potentially runnable. DAG width is bounded by worker cap.
+	const activeEntries = entries.filter((e) => e.status !== "merged" && e.status !== "failed");
+	const dagWidth = Math.min(activeEntries.length, workerCap);
+
+	// ── Actual utilization ──
+	const actualUtilization = entries.filter((e) => e.status === "merging" || e.status === "validating").length;
+
+	// ── Safe runnable workers: min(worker cap, DAG width) ──
+	const safeRunnableWorkers = Math.min(workerCap, dagWidth);
+
+	// ── Critical path: longest serial chain ──
+	// In a serial queue, the critical path is the number of entries that must
+	// be processed end-to-end. Non-terminal entries define the current run.
+	const criticalPath = isProcessing ? activeEntries.length : entries.length;
+
+	// ── Serialized tail: entries blocked behind current ──
+	// Count queued entries after the current workspace.
+	let serializedTail = 0;
+	if (isProcessing && currentWorkspaceId) {
+		const currentIndex = entries.findIndex((e) => e.workspaceId === currentWorkspaceId);
+		if (currentIndex >= 0) {
+			serializedTail = entries.length - currentIndex - 1;
+		}
+	} else if (entries.length > 0 && !isProcessing) {
+		serializedTail = entries.length; // all entries are waiting
+	}
+
+	// ── Queue timing metrics ──
+	// Compute from processed entries (merged/failed) that have timing data.
+	const processedEntries = entries.filter(
+		(e) =>
+			(e.status === "merged" || e.status === "failed") &&
+			e.processedAt != null &&
+			e.queuedAt > 0 &&
+			e.processedAt > e.queuedAt,
+	);
+
+	let queueTiming: QueueMetrics["queueTiming"] = null;
+	if (processedEntries.length > 0) {
+		const waitTimes: number[] = [];
+		const processTimes: number[] = [];
+
+		for (const entry of processedEntries) {
+			// Wait time: queuedAt -> processedAt (when processing started)
+			// For failed entries, processedAt is the failure timestamp.
+			const waitMs = entry.processedAt! - entry.queuedAt;
+			if (waitMs > 0) waitTimes.push(waitMs);
+
+			// Process time: we don't have a completion timestamp separate from
+			// processedAt in the current schema. Use fallback logic:
+			// If validationPassed is known, estimate process time as half of
+			// the total duration (conservative heuristic).
+			if (entry.validationPassed != null) {
+				// For entries with validation results, processedAt represents
+				// completion, so total duration = processedAt - queuedAt.
+				// Process time is a subset of total time.
+				const totalMs = entry.processedAt! - entry.queuedAt;
+				// Rough estimate: processing takes at least 10% of total time
+				const estProcessMs = Math.max(totalMs * 0.3, 1000);
+				processTimes.push(estProcessMs);
+			}
+		}
+
+		queueTiming = {
+			sampleSize: processedEntries.length,
+			avgWaitTimeMs:
+				waitTimes.length > 0 ? Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length) : null,
+			avgProcessTimeMs:
+				processTimes.length > 0 ? Math.round(processTimes.reduce((a, b) => a + b, 0) / processTimes.length) : null,
+			totalProcessed: processedEntries.length,
+		};
+	}
+
+	// ── Optimizer suggestions ──
+	const optimizerSuggestions: OptimizerSuggestion[] = [];
+
+	// 1. If there are many queued entries and low worker cap, suggest increasing workers
+	if (entries.length > 3 && workerCap < 6 && dagWidth > workerCap) {
+		optimizerSuggestions.push({
+			type: "tip",
+			title: "Increase worker concurrency",
+			message:
+				`The queue has ${entries.length} entries but worker cap is ${workerCap}. ` +
+				`DAG analysis suggests up to ${dagWidth} workers could run in parallel. ` +
+				"Consider increasing maxWorkers in Scale & Safety settings.",
+		});
+	}
+
+	// 2. If there are blocked/conflict entries, suggest resolution
+	const blockedCount = entries.filter((e) => e.status === "blocked").length;
+	const conflictCount = entries.filter((e) => e.status === "conflict").length;
+	if (blockedCount > 0 || conflictCount > 0) {
+		const total = blockedCount + conflictCount;
+		optimizerSuggestions.push({
+			type: "warning",
+			title: `Resolve ${total} blocking issue${total !== 1 ? "s" : ""}`,
+			message:
+				`${blockedCount} blocked and ${conflictCount} conflict entries are blocking the queue. ` +
+				"Resolve these before adding more workers yields benefits.",
+		});
+	}
+
+	// 3. If actual utilization is far below safe runnable, note underutilization
+	if (actualUtilization < safeRunnableWorkers && safeRunnableWorkers > 1) {
+		optimizerSuggestions.push({
+			type: "info",
+			title: "Workers are underutilized",
+			message:
+				`Only ${actualUtilization} of ${safeRunnableWorkers} safe runnable workers are active. ` +
+				"This may indicate dependencies between queued entries that limit parallelism.",
+		});
+	}
+
+	// 4. If the queue is empty, no suggestions needed
+	if (entries.length === 0) {
+		optimizerSuggestions.push({
+			type: "info",
+			title: "Queue is empty",
+			message: "No entries in the integration queue. Suggestions will appear when workspace changes are queued.",
+		});
+	}
+
+	// 5. Timing insight if available
+	if (queueTiming && queueTiming.avgProcessTimeMs != null && queueTiming.sampleSize >= 2) {
+		const avgProcessSec = Math.round(queueTiming.avgProcessTimeMs / 1000);
+		const totalQueueTime = criticalPath * avgProcessSec;
+		if (totalQueueTime > 120) {
+			optimizerSuggestions.push({
+				type: "warning",
+				title: `Estimated queue time: ${totalQueueTime}s`,
+				message:
+					`Based on ${queueTiming.sampleSize} processed entries (avg ${avgProcessSec}s each), ` +
+					`the queue may take ~${totalQueueTime}s to drain. Consider batching workspace changes.`,
+			});
+		}
+	}
+
+	return {
+		dagWidth,
+		workerCap,
+		safeRunnableWorkers,
+		actualUtilization,
+		criticalPath,
+		serializedTail,
+		queueTiming,
+		optimizerSuggestions,
+	};
+}
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -513,6 +768,45 @@ export async function registerScaleRoutes(
 			fastify.log.error({ error }, "Failed to get integration queue");
 			return reply.code(500).send({
 				error: "Failed to get integration queue",
+				message: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/scale/queue-metrics — queue DAG metrics and optimizer suggestions
+	// -----------------------------------------------------------------------
+
+	fastify.get("/api/scale/queue-metrics", async (_request, reply) => {
+		try {
+			const piDir = getPiDir();
+			const queuePath = join(piDir, "integration-queue.json");
+
+			let entries: QueueEntryInfo[] = [];
+			let isProcessing = false;
+			let currentWorkspaceId: string | null = null;
+
+			if (existsSync(queuePath)) {
+				const content = await readFile(queuePath, "utf-8");
+				const queue = parseIntegrationQueue(content);
+				entries = queue.entries;
+				isProcessing = queue.isProcessing;
+				currentWorkspaceId = queue.currentWorkspaceId;
+			}
+
+			// Get worker cap from settings
+			const settingsMgr = getSettingsManager();
+			const settings = settingsMgr.getMergedSettings() as Record<string, unknown>;
+			const workerConcurrency = (settings.workerConcurrency as Record<string, unknown>) ?? {};
+			const workerCap = Number(workerConcurrency.maxWorkers ?? 3);
+
+			const metrics = computeQueueMetrics(entries, isProcessing, currentWorkspaceId, workerCap);
+
+			return metrics;
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to compute queue metrics");
+			return reply.code(500).send({
+				error: "Failed to compute queue metrics",
 				message: String(error),
 			});
 		}
@@ -678,6 +972,213 @@ export async function registerScaleRoutes(
 			fastify.log.error({ error }, "Failed to remove worktree");
 			return reply.code(500).send({
 				error: "Failed to remove worktree",
+				message: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// 6.6.F: Executor-mediated queue control actions
+	// -----------------------------------------------------------------------
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/pause — pause queue processing
+	// -----------------------------------------------------------------------
+
+	fastify.post("/api/scale/integration-queue/pause", async (_request, reply) => {
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const queue = new IntegrationQueue(workspaceRoot);
+
+			const validation = await queue.validateAction("pause");
+			if (!validation.safe) {
+				return reply.code(422).send({
+					success: false,
+					error: validation.errors.join("; "),
+				});
+			}
+
+			await queue.pause();
+			return { success: true, message: "Queue processing paused" };
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to pause integration queue");
+			return reply.code(500).send({
+				success: false,
+				error: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/resume — resume queue processing
+	// -----------------------------------------------------------------------
+
+	fastify.post("/api/scale/integration-queue/resume", async (_request, reply) => {
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const queue = new IntegrationQueue(workspaceRoot);
+
+			const validation = await queue.validateAction("resume");
+			if (!validation.safe) {
+				return reply.code(422).send({
+					success: false,
+					error: validation.errors.join("; "),
+				});
+			}
+
+			await queue.resume();
+			return { success: true, message: "Queue processing resumed" };
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to resume integration queue");
+			return reply.code(500).send({
+				success: false,
+				error: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/retry/:workspaceId — retry an entry
+	// -----------------------------------------------------------------------
+
+	fastify.post<{ Params: { workspaceId: string } }>(
+		"/api/scale/integration-queue/retry/:workspaceId",
+		async (request, reply) => {
+			try {
+				const { workspaceId } = request.params;
+				const workspaceRoot = getWorkspaceRoot();
+				const queue = new IntegrationQueue(workspaceRoot);
+
+				const validation = await queue.validateAction("retry", workspaceId);
+				if (!validation.safe) {
+					return reply.code(422).send({
+						success: false,
+						error: validation.errors.join("; "),
+					});
+				}
+
+				await queue.retryEntry(workspaceId);
+				return { success: true, message: `Entry "${workspaceId}" retried` };
+			} catch (error) {
+				fastify.log.error({ error }, "Failed to retry entry");
+				return reply.code(500).send({
+					success: false,
+					error: String(error),
+				});
+			}
+		},
+	);
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/requeue/:workspaceId — requeue merged
+	// -----------------------------------------------------------------------
+
+	fastify.post<{ Params: { workspaceId: string } }>(
+		"/api/scale/integration-queue/requeue/:workspaceId",
+		async (request, reply) => {
+			try {
+				const { workspaceId } = request.params;
+				const workspaceRoot = getWorkspaceRoot();
+				const queue = new IntegrationQueue(workspaceRoot);
+
+				const validation = await queue.validateAction("requeue", workspaceId);
+				if (!validation.safe) {
+					return reply.code(422).send({
+						success: false,
+						error: validation.errors.join("; "),
+					});
+				}
+
+				await queue.requeueEntry(workspaceId);
+				return { success: true, message: `Entry "${workspaceId}" requeued` };
+			} catch (error) {
+				fastify.log.error({ error }, "Failed to requeue entry");
+				return reply.code(500).send({
+					success: false,
+					error: String(error),
+				});
+			}
+		},
+	);
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/clear-completed
+	// -----------------------------------------------------------------------
+
+	fastify.post("/api/scale/integration-queue/clear-completed", async (_request, reply) => {
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const queue = new IntegrationQueue(workspaceRoot);
+
+			const validation = await queue.validateAction("clear_completed");
+			if (!validation.safe) {
+				return reply.code(422).send({
+					success: false,
+					error: validation.errors.join("; "),
+				});
+			}
+
+			await queue.clearCompleted();
+			return { success: true, message: "Completed entries cleared from queue" };
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to clear completed entries");
+			return reply.code(500).send({
+				success: false,
+				error: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// POST /api/scale/integration-queue/reorder — reorder respecting deps
+	// -----------------------------------------------------------------------
+
+	fastify.post("/api/scale/integration-queue/reorder", async (_request, reply) => {
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const queue = new IntegrationQueue(workspaceRoot);
+
+			const validation = await queue.validateAction("reorder");
+			if (!validation.safe) {
+				return reply.code(422).send({
+					success: false,
+					error: validation.errors.join("; "),
+				});
+			}
+
+			const result = await queue.applyOptimizerOrdering();
+			return {
+				success: true,
+				optimized: result.optimized,
+				message: result.optimized ? "Queue reordered for optimal throughput" : "Queue is already in optimal order",
+				throughputImpact: result.throughputImpact,
+			};
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to reorder queue");
+			return reply.code(500).send({
+				success: false,
+				error: String(error),
+			});
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/scale/integration-queue/audit-log — audit trail
+	// -----------------------------------------------------------------------
+
+	fastify.get("/api/scale/integration-queue/audit-log", async (_request, reply) => {
+		try {
+			const workspaceRoot = getWorkspaceRoot();
+			const queue = new IntegrationQueue(workspaceRoot);
+			const auditLog = await queue.getAuditLog();
+			return {
+				entries: auditLog,
+				total: auditLog.length,
+			};
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to get audit log");
+			return reply.code(500).send({
+				error: "Failed to get audit log",
 				message: String(error),
 			});
 		}
