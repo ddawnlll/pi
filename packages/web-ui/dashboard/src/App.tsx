@@ -42,6 +42,8 @@ import { PlanQueueTab } from "./components/PlanQueueTab";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
+import { ScaleOverviewStrip } from "./components/ScaleOverviewStrip";
+import { ScaleCockpitPanel } from "./components/ScaleCockpitPanel";
 
 const API_BASE = "";
 
@@ -132,6 +134,7 @@ export function App() {
   const [showCommandsDialog, setShowCommandsDialog] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
+  const [showScaleCockpit, setShowScaleCockpit] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
@@ -413,6 +416,7 @@ export function App() {
             <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
             <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
             <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
+            <LabeledBtn icon={Cpu} label="Scale" onClick={() => setShowScaleCockpit(o => !o)} accent={showScaleCockpit} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -477,24 +481,36 @@ export function App() {
             <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
           )}
 
-          {/* worker list */}
-          {workers.length > 0 && (
-            <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
-              {workers.map(w => (
-                <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
-                  active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)} />
-              ))}
-            </div>
-          )}
+          {/* scale cockpit (replaces worker detail when active) */}
+          {showScaleCockpit ? (
+            <>
+              <div className={`shrink-0 border-b ${BORD} ${SURF}`}>
+                <ScaleOverviewStrip />
+              </div>
+              <ScaleCockpitPanel className="flex-1 min-h-0" />
+            </>
+          ) : (
+            <>
+              {/* worker list */}
+              {workers.length > 0 && (
+                <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
+                  {workers.map(w => (
+                    <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
+                      active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)} />
+                  ))}
+                </div>
+              )}
 
-          {/* worker detail */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {selectedWorker ? (
-              <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
-            ) : workers.length > 0 ? (
-              <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
-            ) : null}
-          </div>
+              {/* worker detail */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {selectedWorker ? (
+                  <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
+                ) : workers.length > 0 ? (
+                  <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── right sidebar (event feed + alerts) ── */}
