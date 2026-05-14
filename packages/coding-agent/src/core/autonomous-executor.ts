@@ -170,6 +170,8 @@ export class AutonomousExecutor {
 	private handoffTimeoutMs: number;
 	/** Completion gate registry for tracking validation state per workspace (P4.6.1) */
 	private completionGate = new CompletionGateRegistry();
+	/** P4.6.3: Track in-flight execution promises per workspace for cancellation */
+	private inFlightExecutions = new Map<string, Promise<WorkspaceExecutionResult>>();
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
@@ -1239,6 +1241,24 @@ export class AutonomousExecutor {
 	 */
 	getCompletionGate(): CompletionGateRegistry {
 		return this.completionGate;
+	}
+
+	/**
+	 * P4.6.3: Abort all in-flight workspace executions.
+	 * Each active WorkspaceAgentExecutor receives an abort signal,
+	 * causing the in-flight execute() promise to resolve with FAILED.
+	 * Then waits for all promises to settle.
+	 */
+	async stopAllActiveWorkspaces(): Promise<void> {
+		// Abort the agent executor first (sends signal to in-flight LLM calls)
+		this.agentExecutor?.abort();
+
+		// Wait for all tracked in-flight executions to settle
+		if (this.inFlightExecutions.size > 0) {
+			const promises = Array.from(this.inFlightExecutions.values());
+			this.inFlightExecutions.clear();
+			await Promise.allSettled(promises);
+		}
 	}
 }
 

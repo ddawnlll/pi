@@ -62,6 +62,8 @@ export class WorkspaceAgentExecutor {
 	private logPath?: string;
 	private stateStore?: import("./state-store.js").IStateStore;
 	private planExecutionId?: string;
+	/** P4.6.3: AbortController for the current execution, created per execute() call. */
+	private abortController: AbortController | null = null;
 
 	constructor(config: WorkspaceAgentExecutorConfig) {
 		this.workspaceRoot = config.workspaceRoot;
@@ -106,6 +108,16 @@ export class WorkspaceAgentExecutor {
 	}
 
 	/**
+	 * Abort the current execution, if one is active.
+	 * The in-flight execute() promise will resolve with a FAILED verdict.
+	 */
+	abort(): void {
+		if (this.abortController && !this.abortController.signal.aborted) {
+			this.abortController.abort();
+		}
+	}
+
+	/**
 	 * Set the plan execution ID for log persistence context.
 	 * Used by AutonomousExecutor to update context after initialization
 	 * without needing to recreate the entire executor.
@@ -141,6 +153,10 @@ export class WorkspaceAgentExecutor {
 		};
 
 		try {
+			// P4.6.3: Create per-execution abort controller
+			this.abortController = new AbortController();
+			const abortSignal = this.abortController.signal;
+
 			log(`Starting execution for workspace ${workspaceId}`);
 			log(`Provider: ${this.model.provider}`);
 			log(`Model: ${this.model.id}`);
@@ -193,6 +209,25 @@ export class WorkspaceAgentExecutor {
 						resolve();
 					}
 				});
+
+				// P4.6.3: If abort signal fires before agent completes, abort the agent session
+				if (abortSignal.aborted) {
+					_agentCompleted = true;
+					unsubscribe();
+					session.agent.abort();
+					resolve();
+					return;
+				}
+				abortSignal.addEventListener(
+					"abort",
+					() => {
+						_agentCompleted = true;
+						unsubscribe();
+						session.agent.abort();
+						resolve();
+					},
+					{ once: true },
+				);
 			});
 
 			// Track tool calls for journal events
@@ -374,6 +409,21 @@ export class WorkspaceAgentExecutor {
 			log(`Execution completed with verdict: ${finalVerdict}`);
 
 			// Write logs to file if path provided
+			// P4.6.3: Check if aborted mid-execution
+			if (this.abortController?.signal.aborted) {
+				log("Execution aborted during finalization");
+				if (this.logPath) {
+					await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
+				}
+				return {
+					success: false,
+					verdict: "FAILED",
+					report: "Execution aborted by user",
+					error: "Execution aborted by user",
+					logs,
+				};
+			}
+
 			if (this.logPath) {
 				await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
 			}
@@ -385,8 +435,19 @@ export class WorkspaceAgentExecutor {
 				logs,
 			};
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			log(`Execution failed with error: ${errorMessage}`);
+			// P4.6.3: Check if this was an abort-caused error
+			const isAborted =
+				error instanceof Error &&
+				(error.message === "aborted" ||
+					error.message.includes("abort") ||
+					(this.abortController?.signal.aborted ?? false));
+			const errorMessage = isAborted
+				? "Execution aborted by user"
+				: error instanceof Error
+					? error.message
+					: String(error);
+
+			log(`Execution ${isAborted ? "aborted" : "failed"}: ${errorMessage}`);
 
 			// Write logs even on error
 			if (this.logPath) {
@@ -404,6 +465,9 @@ export class WorkspaceAgentExecutor {
 				error: errorMessage,
 				logs,
 			};
+		} finally {
+			// P4.6.3: Clean up abort controller
+			this.abortController = null;
 		}
 	}
 

@@ -764,6 +764,7 @@ async function executePlanInBackground(
 					const planState = executor.getState();
 					if (planState && planState.status === "stopped") {
 						await log(`Stopping execution: ${control.reason || "no reason"}`);
+						await executor.stopAllActiveWorkspaces();
 						updateExecutionStatus(planExecId, "stopped", control.reason);
 						return;
 					}
