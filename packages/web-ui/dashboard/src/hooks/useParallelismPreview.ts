@@ -146,6 +146,44 @@ async function patchPreview(
 	}
 }
 
+async function enqueuePlan(
+	projectId: string,
+	planContent: string,
+	planFileName?: string,
+): Promise<{ success: boolean; entryId?: string; errors?: string[] }> {
+	try {
+		const response = await fetch(
+			`${API_BASE}/api/projects/${projectId}/queue/enqueue`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ planContent, planFileName, queueAfterCurrent: true }),
+			},
+		);
+		if (!response.ok) {
+			const text = await response.text().catch(() => "");
+			return {
+				success: false,
+				errors: [`Queue request failed (${response.status}): ${text}`],
+			};
+		}
+		const json = await response.json();
+		// The enqueue API returns { success: true, added: [entryId], errors }
+		// success is always true even when validation fails; check added[] length.
+		const added = json.added as string[] | undefined;
+		return {
+			success: (added?.length ?? 0) > 0,
+			entryId: added?.[0],
+			errors: json.errors,
+		};
+	} catch (err) {
+		return {
+			success: false,
+			errors: [String(err)],
+		};
+	}
+}
+
 async function approveAndRun(
 	projectId: string,
 	planContent: string,
@@ -591,6 +629,83 @@ export function useParallelismPreview(projectId: string | null) {
 	);
 
 	/**
+	 * Queue the plan for execution after the current plan finishes.
+	 *
+	 * Enqueues the plan via the server queue API instead of running it immediately.
+	 * The plan must be validated first.
+	 *
+	 * @param planContent - The plan JSON content
+	 * @param planFileName - Optional plan file name for display
+	 * @returns The queue result with entryId, or null
+	 */
+	const queuePlan = useCallback(
+		async (
+			planContent: string,
+			planFileName?: string,
+		): Promise<{ success: boolean; entryId?: string; errors?: string[] } | null> => {
+			if (!projectId) return null;
+
+			if (state.stage !== "validated" && state.stage !== "patched" && state.stage !== "approved") {
+				setState((prev) => ({
+					...prev,
+					error: {
+						timestamp: Date.now(),
+						stage: "running",
+						message: "Plan must be validated before queuing",
+						recoverable: true,
+					},
+				}));
+				return null;
+			}
+
+			if (state.isStale) {
+				setState((prev) => ({
+					...prev,
+					error: {
+						timestamp: Date.now(),
+						stage: "running",
+						message: "Preview is stale. Revalidate before queuing.",
+						recoverable: true,
+					},
+				}));
+				return null;
+			}
+
+			try {
+				const result = await enqueuePlan(projectId, planContent, planFileName);
+
+				if (!result.success) {
+					setState((prev) => ({
+						...prev,
+						error: {
+							timestamp: Date.now(),
+							stage: "running",
+							message: result.errors?.join("; ") ?? "Queue failed",
+							recoverable: true,
+							validationErrors: result.errors,
+						},
+					}));
+					return result;
+				}
+
+				return result;
+			} catch (err) {
+				setState((prev) => ({
+					...prev,
+					error: {
+						timestamp: Date.now(),
+						stage: "running",
+						message: String(err),
+						recoverable: true,
+					},
+				}));
+				return null;
+			}
+		},
+		[projectId, state.stage, state.isStale],
+	);
+
+	/**
 	 * Reset the workflow to the initial idle state.
 	 */
 	const reset = useCallback((): void => {
@@ -632,6 +747,8 @@ export function useParallelismPreview(projectId: string | null) {
 		approve,
 		/** Run the approved plan */
 		run,
+		/** Queue the plan to run after the current plan */
+		queuePlan,
 		/** Reset to initial idle state */
 		reset,
 		/** Clear current error */

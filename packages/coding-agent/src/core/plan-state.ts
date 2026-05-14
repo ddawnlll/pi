@@ -34,6 +34,21 @@ export interface WorkspaceState {
 	ownedFiles?: string[];
 	/** Edit strategy audit summary (P4.5) */
 	editAuditSummary?: EditStrategyAuditSummary;
+
+	/**
+	 * Preflight approval status.
+	 * - undefined: preflight not required or not yet evaluated
+	 * - "pending": preflight required but not yet reviewed
+	 * - "approved": preflight approved, workspace may execute
+	 * - "rejected": preflight rejected, workspace will not execute
+	 */
+	preflightStatus?: "pending" | "approved" | "rejected";
+
+	/**
+	 * Human-readable reason provided when preflight was rejected.
+	 * Only set when preflightStatus is "rejected".
+	 */
+	preflightRejectionReason?: string;
 }
 
 /**
@@ -99,7 +114,9 @@ export type JournalEventType =
 	| "integration_validate_start"
 	| "integration_validate_complete"
 	| "integration_validate_failed"
-	| "cache_usage";
+	| "cache_usage"
+	| "workspace_preflight_approved"
+	| "workspace_preflight_rejected";
 
 /**
  * Execution journal event
@@ -1071,7 +1088,7 @@ export function generateWorkspaceReport(workspace: Workspace, state: WorkspaceSt
 		lines.push("");
 		lines.push("## Capabilities");
 		lines.push(`- **Can Edit:** ${workspace.capabilities.canEdit.join(", ") || "None"}`);
-		lines.push(`- **Cannot Edit:** ${workspace.capabilities.cannotEdit.join(", ") || "None"}`);
+		lines.push(`- **Cannot Edit:** ${(workspace.capabilities.cannotEdit ?? []).join(", ") || "None"}`);
 	}
 
 	return lines.join("\n");

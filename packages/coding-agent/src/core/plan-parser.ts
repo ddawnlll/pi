@@ -14,7 +14,7 @@ import type {
 	Workspace,
 	WorkspaceQueue,
 } from "./workspace-schema.js";
-import { isAcceptedSchemaVersion, validateWorkspaceQueue } from "./workspace-schema.js";
+import { ACCEPTED_SCHEMA_VERSIONS, isAcceptedSchemaVersion, validateWorkspaceQueue } from "./workspace-schema.js";
 
 /**
  * Source of the parsed workspace queue metadata.
@@ -249,7 +249,7 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 		// v2.2.0+: Early contract version check for clear error messages
 		if (queue.contractVersion && !isAcceptedSchemaVersion(queue.contractVersion)) {
 			errors.push(
-				`Contract version ${queue.contractVersion} is not supported. Accepted versions: 2.0.0, 2.1.0, 2.2.0, 2.3.0`,
+				`Contract version ${queue.contractVersion} is not supported. Accepted versions: ${Array.from(ACCEPTED_SCHEMA_VERSIONS).join(", ")}`,
 			);
 		}
 
@@ -429,9 +429,21 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 	// P4.6.2: Use phase and title from Part 3 JSON as-is when present.
 	// Only fall back to defaults when the field is missing/empty.
 	// This ensures "19" and "V6.2 Mode-Routed Scalp Expansion" are preserved.
-	const phase = typeof parsed.phase === "string" && parsed.phase.trim() !== "" ? parsed.phase.trim() : "P2";
+	//
+	// Also check planExecution.phase/title as a fallback for v2.3.1+ templates
+	// where phase/title were moved into the planExecution block.
+	const phase =
+		typeof parsed.phase === "string" && parsed.phase.trim() !== ""
+			? parsed.phase.trim()
+			: typeof parsed.planExecution?.phase === "string" && parsed.planExecution.phase.trim() !== ""
+				? parsed.planExecution.phase.trim()
+				: "P2";
 	const title =
-		typeof parsed.title === "string" && parsed.title.trim() !== "" ? parsed.title.trim() : "Untitled Phase";
+		typeof parsed.title === "string" && parsed.title.trim() !== ""
+			? parsed.title.trim()
+			: typeof parsed.planExecution?.title === "string" && parsed.planExecution.title.trim() !== ""
+				? parsed.planExecution.title.trim()
+				: "Untitled Phase";
 
 	// v2.2.0: contractVersion
 	const contractVersion: string | undefined =
@@ -439,6 +451,7 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 
 	// v2.2.0: planExecution
 	// v2.3.0: Adds scale, worktree, integrationQueue, validation
+	// v2.3.1: Adds queuePriority, queueOptimization (parsed in workspace loop)
 	let planExecution: PlanExecutionConfig | undefined;
 	if (parsed.planExecution && typeof parsed.planExecution === "object" && !Array.isArray(parsed.planExecution)) {
 		const pe = parsed.planExecution;

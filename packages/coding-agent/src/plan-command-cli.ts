@@ -6,6 +6,7 @@
 
 import {
 	parsePlanCommand,
+	planApprove,
 	planCancel,
 	planDoctor,
 	planDryRun,
@@ -14,6 +15,7 @@ import {
 	planHandoffKeep,
 	planOne,
 	planPause,
+	planReject,
 	planReplayDryRun,
 	planRerun,
 	planResume,
@@ -151,6 +153,29 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 				}
 				exitCode = await planReplayDryRun(parsed.planExecutionId, { cwd, json });
 				break;
+
+			case "approve":
+				if (!parsed.workspaceId) {
+					console.error("Error: approve command requires a workspace ID");
+					printPlanHelp();
+					process.exit(1);
+				}
+				exitCode = await planApprove(parsed.workspaceId, { cwd, json });
+				break;
+
+			case "reject": {
+				if (!parsed.workspaceId) {
+					console.error("Error: reject command requires a workspace ID");
+					printPlanHelp();
+					process.exit(1);
+				}
+				// Remaining CLI args after workspaceId are treated as the rejection reason
+				const wsIdx = args.indexOf(parsed.workspaceId);
+				const reasonParts = wsIdx >= 0 ? args.slice(wsIdx + 1) : [];
+				const rejectionReason = reasonParts.join(" ") || undefined;
+				exitCode = await planReject(parsed.workspaceId, { cwd, json, reason: rejectionReason });
+				break;
+			}
 
 			default:
 				console.error(`Error: Unknown plan command: ${parsed.command}`);

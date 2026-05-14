@@ -1399,3 +1399,142 @@ describe("v2.3.0: plan parser accepts contract version 2.3.0", () => {
 		expect(result.errors.some((e) => e.includes("not supported"))).toBe(true);
 	});
 });
+
+// ===========================================================================
+// v2.3.1 Tests — Contract Schema Version Acceptance in Plan Parser
+// ===========================================================================
+
+describe("v2.3.1: plan parser accepts contract version 2.3.1", () => {
+	it("should parse and validate v2.3.1 minimal plan", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.1",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.3.1");
+	});
+
+	it("should parse v2.3.1 plan with scale, worktree, integrationQueue, validation", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.1",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 6,
+  "planExecution": {
+    "scale": { "selectedMode": "experimental_6" },
+    "worktree": { "enabled": true },
+    "integrationQueue": { "enabled": true },
+    "validation": { "globalValidationLockRequired": true }
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Task B", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.C", "title": "Task C", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.D", "title": "Task D", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.E", "title": "Task E", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.F", "title": "Task F", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.3.1");
+		expect(result.queue?.planExecution?.scale?.selectedMode).toBe("experimental_6");
+		expect(result.queue?.planExecution?.worktree?.enabled).toBe(true);
+		expect(result.queue?.planExecution?.integrationQueue?.enabled).toBe(true);
+		expect(result.queue?.planExecution?.validation?.globalValidationLockRequired).toBe(true);
+	});
+
+	it("should be backward compatible with v2.3.0 validation rules", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.1",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.3.1");
+	});
+
+	it("should extract phase and title from planExecution when top-level fields are missing (v2.3.1 template style)", () => {
+		const planContent = `
+# Part 3 — Machine-Readable Execution Contract
+
+\`\`\`json
+{
+  "contractVersion": "2.3.1",
+  "planExecution": {
+    "phase": "P8",
+    "title": "Scale & Safety Phase",
+    "maxParallelWorkspaces": 3
+  },
+  "workspaces": [
+    { "id": "8.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.phase).toBe("P8");
+		expect(result.queue?.title).toBe("Scale & Safety Phase");
+	});
+
+	it("should prefer top-level phase/title over planExecution fallback", () => {
+		const planContent = `
+# Part 3 — Machine-Readable Execution Contract
+
+\`\`\`json
+{
+  "contractVersion": "2.3.1",
+  "phase": "P9",
+  "title": "Top-Level Phase",
+  "planExecution": {
+    "phase": "P1",
+    "title": "Inside PlanExec",
+    "maxParallelWorkspaces": 3
+  },
+  "workspaces": [
+    { "id": "9.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.phase).toBe("P9");
+		expect(result.queue?.title).toBe("Top-Level Phase");
+	});
+});

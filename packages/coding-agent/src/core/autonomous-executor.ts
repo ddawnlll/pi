@@ -827,6 +827,22 @@ export class AutonomousExecutor {
 			return [];
 		}
 
+		// P7.G AC1: Initialize preflight status for workspaces that require preflight approval
+		// but don't have a status set yet. This ensures the scheduler sees them as "pending"
+		// and blocks execution until a human reviews them.
+		for (const workspace of workspaces) {
+			if (workspace.preflightRequired) {
+				const wsState = state.workspaces.get(workspace.id);
+				if (wsState && wsState.preflightStatus === undefined) {
+					await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
+						preflightStatus: "pending",
+					});
+					// Update in-memory cache
+					wsState.preflightStatus = "pending";
+				}
+			}
+		}
+
 		const decision = this.scheduler.getNextWorkspaces(workspaces, state);
 
 		// AC4: Log planned batch IDs for each scheduled workspace
@@ -843,6 +859,105 @@ export class AutonomousExecutor {
 		}
 
 		return decision.ready;
+	}
+
+	/**
+	 * Get workspaces that are blocked waiting for preflight approval.
+	 * Returns workspaces with preflightRequired that have not been approved yet.
+	 *
+	 * @param workspaces - All workspace definitions
+	 * @returns Array of { workspace, status, rejectionReason } for blocked workspaces
+	 */
+	getPreflightBlockedWorkspaces(
+		workspaces: Workspace[],
+	): Array<{ workspace: Workspace; status: string; rejectionReason?: string }> {
+		const state = this.currentPlanState;
+		if (!state) return [];
+
+		const blocked: Array<{ workspace: Workspace; status: string; rejectionReason?: string }> = [];
+		for (const workspace of workspaces) {
+			if (workspace.preflightRequired) {
+				const wsState = state.workspaces.get(workspace.id);
+				const status = wsState?.preflightStatus ?? "not_reviewed";
+				if (status !== "approved") {
+					blocked.push({
+						workspace,
+						status,
+						rejectionReason: wsState?.preflightRejectionReason,
+					});
+				}
+			}
+		}
+		return blocked;
+	}
+
+	/**
+	 * Approve a workspace's preflight requirement, allowing it to be scheduled.
+	 *
+	 * P7.G AC3: Approval UX never mutates executor state directly —
+	 * this writes approval via the state store, which the scheduler
+	 * reads passively on its next scheduling round.
+	 *
+	 * @param workspaceId - Workspace ID to approve
+	 */
+	async approveWorkspacePreflight(workspaceId: string): Promise<void> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+
+		await this.stateStore.updateWorkspaceState(planExecutionId, workspaceId, {
+			preflightStatus: "approved",
+			preflightRejectionReason: undefined,
+		});
+
+		// Update in-memory cache
+		const state = this.currentPlanState;
+		const wsState = state?.workspaces.get(workspaceId);
+		if (wsState) {
+			wsState.preflightStatus = "approved";
+			wsState.preflightRejectionReason = undefined;
+		}
+
+		// Log to journal
+		await this.stateStore.appendJournal(planExecutionId, {
+			type: "workspace_preflight_approved",
+			timestamp: Date.now(),
+			workspaceId,
+		});
+	}
+
+	/**
+	 * Reject a workspace's preflight requirement, preventing it from being scheduled.
+	 *
+	 * P7.G AC2: Rejected suggestions are logged with reason where available.
+	 * P7.G AC3: Approval UX never mutates executor state directly.
+	 *
+	 * @param workspaceId - Workspace ID to reject
+	 * @param reason - Human-readable reason for rejection (optional)
+	 */
+	async rejectWorkspacePreflight(workspaceId: string, reason?: string): Promise<void> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) throw new Error("No active execution");
+
+		await this.stateStore.updateWorkspaceState(planExecutionId, workspaceId, {
+			preflightStatus: "rejected",
+			preflightRejectionReason: reason,
+		});
+
+		// Update in-memory cache
+		const state = this.currentPlanState;
+		const wsState = state?.workspaces.get(workspaceId);
+		if (wsState) {
+			wsState.preflightStatus = "rejected";
+			wsState.preflightRejectionReason = reason;
+		}
+
+		// Log to journal (P7.G AC2: rejected suggestions are logged with reason)
+		await this.stateStore.appendJournal(planExecutionId, {
+			type: "workspace_preflight_rejected",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { reason: reason ?? null },
+		});
 	}
 
 	/**

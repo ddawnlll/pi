@@ -363,6 +363,30 @@ export class DynamicParallelScheduler {
 				}
 			}
 
+			// P7.G AC1: Check preflight approval requirement
+			// Workspaces with preflightRequired=true must be approved before execution.
+			const preflightStatus = wsState.preflightStatus;
+			if (workspace.preflightRequired && preflightStatus !== "approved") {
+				const statusLabel = preflightStatus ?? "not_reviewed";
+				const preflightReason =
+					preflightStatus === "rejected"
+						? `Preflight rejected${wsState.preflightRejectionReason ? `: ${wsState.preflightRejectionReason}` : ""}`
+						: `Preflight approval required (status: ${statusLabel})`;
+
+				blocked.push(workspace);
+				blockReasons.set(workspace.id, preflightReason);
+				skipped.push({
+					workspaceId: workspace.id,
+					category: "preflight_required",
+					reason: preflightReason,
+					batchId: this.batchAssignment.get(workspace.id),
+				});
+
+				// The AutonomousExecutor layer handles initializing preflightStatus
+				// to "pending" before calling the scheduler.
+				continue;
+			}
+
 			// AC1: Check capacity
 			if (ready.length >= availableSlots) {
 				blocked.push(workspace);

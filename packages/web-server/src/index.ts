@@ -1992,7 +1992,12 @@ fastify.get<{
  */
 fastify.post<{
 	Params: { projectId: string };
-	Body: { plans?: Array<{ planContent: string; planFileName?: string }>; planContent?: string; planFileName?: string };
+	Body: {
+		plans?: Array<{ planContent: string; planFileName?: string }>;
+		planContent?: string;
+		planFileName?: string;
+		queueAfterCurrent?: boolean;
+	};
 }>("/api/projects/:projectId/queue/enqueue", async (request, reply) => {
 	const { projectId } = request.params;
 	const body = request.body;
@@ -2063,8 +2068,9 @@ fastify.post<{
 		newEntries.push(entry);
 	}
 
-	// Auto-start next if queue is not paused and no active entry
-	if (!queue.isPaused && newEntries.length > 0) {
+	// Auto-start next if queue is not paused and no active entry.
+	// Skip auto-start when queueAfterCurrent is set — user explicitly wants to defer.
+	if (!body.queueAfterCurrent && !queue.isPaused && newEntries.length > 0) {
 		const activeEntry = queue.entries.find((e) => e.status === "active");
 		if (!activeEntry) {
 			void startNextInQueue(projectId);

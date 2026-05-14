@@ -12,10 +12,25 @@
  * - pi plan watch               - Observer-only dashboard
  */
 
+import * as crypto from "node:crypto";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as readline from "node:readline";
 import chalk from "chalk";
 import { AutoCommit } from "../core/auto-commit.js";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";
+import {
+	archiveDryRunReport,
+	archiveOriginalPlan,
+	archiveParsedContract,
+	archiveWorkspaceDAG,
+	initExecutionArchive,
+} from "../core/execution-archive.js";
+import {
+	ExecutionSimulator,
+	formatMutationGuardResult,
+	formatSimulationForecast,
+} from "../core/execution-simulator.js";
 import { JsonStateStore } from "../core/json-state-store.js";
 import { createPlanControlManager } from "../core/plan-control.js";
 import { formatParseResult, loadPlan } from "../core/plan-parser.js";
@@ -57,6 +72,8 @@ export interface PlanCommandOptions {
 	force?: boolean;
 	/** Maximum worker count (1-6, default: 3) */
 	workers?: number;
+	/** Reason for rejection (for plan reject command) */
+	reason?: string;
 }
 
 /**
@@ -365,6 +382,11 @@ export async function planStatus(options: PlanCommandOptions = {}): Promise<numb
 /**
  * Dry-run command - validate plan without execution
  *
+ * Runs the execution simulator to produce forecast artifacts (parallelism
+ * estimates, contention analysis, worker utilization) and persists them to
+ * `.pi/executions/{planExecId}/` for review.  Guarantees no side effects:
+ * no git commits, queue mutations, or repo mutations.
+ *
  * @param planFile - Path to plan file
  * @param options - Command options
  * @returns Exit code
@@ -375,6 +397,9 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 	try {
 		// Resolve plan file path
 		const planPath = path.resolve(cwd, planFile);
+
+		// Read original plan content for archiving
+		const planContent = await fs.readFile(planPath, "utf-8");
 
 		// Load and parse plan
 		const parseResult = await loadPlan(planPath);
@@ -399,36 +424,93 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 			return PlanExitCode.ParseError;
 		}
 
-		// Run safety doctor
+		const queue = parseResult.queue;
+
+		// Run safety doctor (standard validation)
 		const workers = options.workers ?? DEFAULT_WORKERS;
 		const workerConcurrency = buildWorkerConcurrencyFromOptions(options);
 		const doctor = createSafetyDoctor(workers, workerConcurrency);
-		const safetyReport = doctor.validateQueue(parseResult.queue);
+		const safetyReport = doctor.validateQueue(queue);
 
-		// Simulate scheduling (no actual execution)
-		const executor = createAutonomousExecutor(cwd, workers);
-		await executor.initialize(parseResult.queue);
+		// Run dry-run mutation check (doctor blocks if forbidden mutations)
+		const dryRunReport = doctor.validateDryRun(queue);
 
-		const state = executor.getState();
-		if (!state) {
-			throw new Error("Failed to initialize execution state");
+		// Run execution simulation (no side effects)
+		const simulator = new ExecutionSimulator(workers);
+		const forecast = simulator.simulate(queue);
+
+		// Generate a deterministic execution ID for the dry-run archive
+		const planExecId = `dry-run-${crypto.randomUUID().slice(0, 8)}`;
+
+		// Persist dry-run forecast artifacts to archive (no repo mutation)
+		const initResult = await initExecutionArchive(cwd, planExecId);
+
+		if (initResult.success) {
+			await archiveOriginalPlan(cwd, planExecId, planContent);
+			await archiveParsedContract(cwd, planExecId, queue);
+			await archiveWorkspaceDAG(cwd, planExecId, queue);
+			await archiveDryRunReport(cwd, planExecId, {
+				plan: {
+					phase: queue.phase,
+					title: queue.title,
+					workspaceCount: queue.workspaces.length,
+					maxParallelWorkspaces: queue.maxParallelWorkspaces,
+				},
+				safety: {
+					safe: safetyReport.safe,
+					totalIssues: safetyReport.totalIssues,
+					critical: safetyReport.critical.length,
+					warnings: safetyReport.warnings.length,
+				},
+				dryRunSafe: !dryRunReport.critical.length,
+				simulatedAt: forecast.simulatedAt,
+				batchPlan: {
+					totalBatches: forecast.batchPlan.totalBatches,
+					effectiveParallelism: forecast.batchPlan.effectiveParallelism,
+					requestedParallelism: forecast.batchPlan.requestedParallelism,
+					parallelismDelta: forecast.batchPlan.parallelismDelta,
+					criticalPathLength: forecast.batchPlan.criticalPathLength,
+					serializedTailLength: forecast.batchPlan.serializedTailLength,
+					isOverSerialized: forecast.batchPlan.isOverSerialized,
+				},
+				utilization: {
+					estimatedUtilization: forecast.estimatedUtilization,
+					totalIdleSlots: forecast.totalIdleSlots,
+				},
+				contention: {
+					validationContendedBatches: forecast.validationContendedBatches,
+					mergeContendedBatches: forecast.mergeContendedBatches,
+					batchContention: forecast.batchContention,
+				},
+				fileOverlaps: forecast.fileOverlaps,
+				dagComparison: forecast.dagComparison
+					? {
+							manualLabel: forecast.dagComparison.manualLabel,
+							optimizedLabel: forecast.dagComparison.optimizedLabel,
+							parallelismDelta: forecast.dagComparison.parallelismDelta,
+							criticalPathDelta: forecast.dagComparison.criticalPathDelta,
+							serializedTailDelta: forecast.dagComparison.serializedTailDelta,
+							improved: forecast.dagComparison.improved,
+						}
+					: undefined,
+			});
 		}
 
-		if (json) {
-			const workspaces = Array.from(state.workspaces.entries()).map(([id, ws]) => ({
-				id,
-				stage: ws.stage,
-			}));
+		// Determine final safety: must pass both standard validation and dry-run mutation guard
+		const isDryRunSafe = safetyReport.safe && dryRunReport.critical.length === 0;
 
+		if (json) {
 			console.log(
 				JSON.stringify(
 					{
-						success: safetyReport.safe,
+						success: isDryRunSafe,
+						planExecId,
+						archiveDir: initResult.success ? initResult.archiveDir : null,
 						parse: {
-							phase: parseResult.queue.phase,
-							title: parseResult.queue.title,
-							workspaceCount: parseResult.queue.workspaces.length,
-							maxParallel: parseResult.queue.maxParallelWorkspaces,
+							phase: queue.phase,
+							title: queue.title,
+							workspaceCount: queue.workspaces.length,
+							maxParallel: queue.maxParallelWorkspaces,
 						},
 						safety: {
 							safe: safetyReport.safe,
@@ -436,7 +518,23 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 							critical: safetyReport.critical.length,
 							warnings: safetyReport.warnings.length,
 						},
-						workspaces,
+						dryRun: {
+							safe: dryRunReport.critical.length === 0,
+							forbiddenMutations: dryRunReport.critical.length,
+						},
+						forecast: {
+							totalBatches: forecast.totalBatches,
+							effectiveParallelism: forecast.batchPlan.effectiveParallelism,
+							estimatedUtilization: forecast.estimatedUtilization,
+							totalIdleSlots: forecast.totalIdleSlots,
+							validationContendedBatches: forecast.validationContendedBatches,
+							mergeContendedBatches: forecast.mergeContendedBatches,
+						},
+						workspaces: queue.workspaces.map((ws) => ({
+							id: ws.id,
+							title: ws.title,
+							dependencies: ws.dependencies,
+						})),
 					},
 					null,
 					2,
@@ -450,25 +548,50 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 				console.log("");
 			}
 
-			console.log(chalk.bold(`Plan: ${parseResult.queue.title}`));
-			console.log(chalk.dim(`Phase: ${parseResult.queue.phase}`));
-			console.log(chalk.dim(`Workspaces: ${parseResult.queue.workspaces.length}`));
-			console.log(chalk.dim(`Max Parallel: ${parseResult.queue.maxParallelWorkspaces}`));
+			console.log(chalk.bold(`Plan: ${queue.title}`));
+			console.log(chalk.dim(`Phase: ${queue.phase}`));
+			console.log(chalk.dim(`Workspaces: ${queue.workspaces.length}`));
+			console.log(chalk.dim(`Max Parallel: ${queue.maxParallelWorkspaces}`));
 			console.log("");
 
+			// Standard safety report
 			console.log(doctor.formatReport(safetyReport));
 
-			if (safetyReport.safe) {
+			// Dry-run mutation guard
+			if (dryRunReport.critical.length > 0) {
+				console.log("");
+				console.log(
+					chalk.red(
+						formatMutationGuardResult({
+							forbiddenMutationDetected: true,
+							forbiddenMutations: dryRunReport.critical.map((i) => i.message),
+							blocksExecution: true,
+						}),
+					),
+				);
+			}
+
+			// Simulation forecast
+			console.log("");
+			console.log(formatSimulationForecast(forecast));
+
+			// Archive info
+			if (initResult.success) {
+				console.log(chalk.dim(`Dry-run artifacts saved to: ${initResult.archiveDir}`));
+				console.log(chalk.dim(`Run: pi plan replay-dry-run ${planExecId} to inspect`));
+			}
+
+			if (isDryRunSafe) {
 				console.log("");
 				console.log(chalk.green("✓ Plan is ready for execution"));
 				console.log(chalk.dim("Run with: pi plan run <plan-file>"));
 			} else {
 				console.log("");
-				console.log(chalk.red("✗ Plan has safety issues - fix before execution"));
+				console.log(chalk.red("✗ Dry-run failed - fix issues before execution"));
 			}
 		}
 
-		return safetyReport.safe ? PlanExitCode.Success : PlanExitCode.SafetyError;
+		return isDryRunSafe ? PlanExitCode.Success : PlanExitCode.SafetyError;
 	} catch (error) {
 		if (json) {
 			console.log(
@@ -548,7 +671,12 @@ export function parsePlanCommand(args: string[]): {
 				result.command === "rerun"
 			) {
 				result.planFile = arg;
-			} else if (result.command === "one" || result.command === "retry") {
+			} else if (
+				result.command === "one" ||
+				result.command === "retry" ||
+				result.command === "approve" ||
+				result.command === "reject"
+			) {
 				result.workspaceId = arg;
 			} else if (result.command === "replay-dry-run") {
 				result.planExecutionId = arg;
@@ -687,6 +815,101 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 			}
 
 			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
+
+			// P7.G: Check for workspaces blocked by preflight requirements.
+			// When workspaces require preflight approval, prompt the user
+			// to approve or reject each one before continuing.
+			const preflightBlocked = executor.getPreflightBlockedWorkspaces(parseResult.queue.workspaces);
+			if (preflightBlocked.length > 0 && !json) {
+				const state = executor.getState();
+				const stats = executor.getStatistics();
+				const isStuck = stats && stats.active === 0 && state?.status === "running";
+
+				if (isStuck && nextWorkspaces.length === 0) {
+					// All active slots are idle and no workspaces can proceed —
+					// show preflight approval prompt
+					console.log("");
+					console.log(chalk.bold.yellow("⚡ Preflight Approval Required"));
+					console.log(
+						chalk.dim(
+							`${preflightBlocked.length} workspace(s) require human review before execution can proceed.`,
+						),
+					);
+					console.log("");
+
+					for (const blocked of preflightBlocked) {
+						const ws = blocked.workspace;
+						const statusColor =
+							blocked.status === "rejected"
+								? chalk.red
+								: blocked.status === "approved"
+									? chalk.green
+									: chalk.yellow;
+
+						console.log(`  ${chalk.bold(ws.id)}: ${ws.title}`);
+						console.log(`    Status: ${statusColor(blocked.status)}`);
+						if (blocked.status === "rejected" && blocked.rejectionReason) {
+							console.log(`    Reason: ${chalk.dim(blocked.rejectionReason)}`);
+						}
+						console.log(`    ${chalk.dim("Acceptance criteria:")}`);
+						if (ws.acceptanceCriteria && ws.acceptanceCriteria.length > 0) {
+							for (const ac of ws.acceptanceCriteria) {
+								console.log(`      - ${chalk.dim(ac)}`);
+							}
+						} else {
+							console.log(`      ${chalk.dim("(none specified)")}`);
+						}
+						console.log("");
+
+						// If rejected, ask if user wants to re-review
+						if (blocked.status === "rejected") {
+							const reReview = await askYesNo(`Re-review workspace ${ws.id}? (y = approve, n = keep rejected)`);
+							if (reReview) {
+								const approve = await askYesNo(`Approve workspace ${ws.id}?`);
+								if (approve) {
+									await executor.approveWorkspacePreflight(ws.id);
+									console.log(chalk.green(`  ✓ ${ws.id} approved`));
+								} else {
+									// Can add a new rejection reason
+									const reason = await askText(`Reason for rejecting ${ws.id} (optional):`);
+									await executor.rejectWorkspacePreflight(ws.id, reason || undefined);
+									// P7.G AC2: Logged with reason
+									console.log(chalk.red(`  ✗ ${ws.id} rejected${reason ? `: ${reason}` : ""}`));
+								}
+							} else {
+								console.log(chalk.dim(`  Keeping ${ws.id} rejected`));
+							}
+						} else {
+							// Not yet reviewed — ask for approval
+							const approve = await askYesNo(`Approve workspace ${ws.id}?`);
+							if (approve) {
+								await executor.approveWorkspacePreflight(ws.id);
+								console.log(chalk.green(`  ✓ ${ws.id} approved`));
+							} else {
+								const reason = await askText(`Reason for rejecting ${ws.id} (optional, logged for audit):`);
+								await executor.rejectWorkspacePreflight(ws.id, reason || undefined);
+								// P7.G AC2: Rejected suggestions are logged with reason
+								console.log(chalk.red(`  ✗ ${ws.id} rejected${reason ? `: ${reason}` : ""}`));
+							}
+						}
+						console.log("");
+					}
+
+					// Reload state after preflight decisions
+					await executor.loadState();
+					continue;
+				} else if (isStuck) {
+					// Some workspaces are active, but preflight-blocked workspaces remain
+					if (verbose) {
+						console.log(
+							chalk.dim(`
+  ${preflightBlocked.length} workspace(s) awaiting preflight approval.
+  Run pi plan approve <ws-id> to approve a workspace.
+  Run pi plan reject <ws-id> [reason] to reject.`),
+						);
+					}
+				}
+			}
 
 			if (nextWorkspaces.length === 0) {
 				// No workspaces ready - check if we're blocked
@@ -1461,6 +1684,134 @@ export async function planOne(workspaceId: string, options: PlanCommandOptions =
 }
 
 /**
+ * Approve command - approve a workspace's preflight requirement
+ *
+ * @param workspaceId - Workspace ID to approve
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planApprove(workspaceId: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+
+	try {
+		const executor = createAutonomousExecutor(cwd);
+		const loaded = await executor.loadState();
+		if (!loaded) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution" }, null, 2));
+			} else {
+				console.error(chalk.red("\u2717 No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		const state = executor.getState();
+		if (!state || !state.workspaces.has(workspaceId)) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: `Workspace ${workspaceId} not found` }, null, 2));
+			} else {
+				console.error(chalk.red(`\u2717 Workspace ${workspaceId} not found in plan`));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		await executor.approveWorkspacePreflight(workspaceId);
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, workspaceId, action: "approve" }, null, 2));
+		} else {
+			console.log(chalk.green(`\u2713 Workspace ${workspaceId} preflight approved`));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
+ * Reject command - reject a workspace's preflight requirement
+ *
+ * P7.G AC2: Rejected suggestions are logged with reason where available.
+ *
+ * @param workspaceId - Workspace ID to reject
+ * @param reason - Optional reason for rejection
+ * @param options - Command options
+ * @returns Exit code
+ */
+export async function planReject(workspaceId: string, options: PlanCommandOptions = {}): Promise<number> {
+	const { cwd = process.cwd(), json = false } = options;
+	// The first positional arg after "reject <ws-id>" is parsed in the CLI;
+	// additional words require a quoted string: pi plan reject 7.A "reason here"
+	// The parsePlanCommand function only captures workspaceId. We accept an
+	// optional reason field in options.
+	const reason = options.reason;
+
+	try {
+		const executor = createAutonomousExecutor(cwd);
+		const loaded = await executor.loadState();
+		if (!loaded) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution" }, null, 2));
+			} else {
+				console.error(chalk.red("\u2717 No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		const state = executor.getState();
+		if (!state || !state.workspaces.has(workspaceId)) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: `Workspace ${workspaceId} not found` }, null, 2));
+			} else {
+				console.error(chalk.red(`\u2717 Workspace ${workspaceId} not found in plan`));
+			}
+			return PlanExitCode.NotFound;
+		}
+
+		await executor.rejectWorkspacePreflight(workspaceId, reason);
+
+		if (json) {
+			console.log(JSON.stringify({ success: true, workspaceId, action: "reject", reason: reason ?? null }, null, 2));
+		} else {
+			console.log(chalk.red(`\u2717 Workspace ${workspaceId} preflight rejected${reason ? `: ${reason}` : ""}`));
+		}
+
+		return PlanExitCode.Success;
+	} catch (error) {
+		if (json) {
+			console.log(
+				JSON.stringify(
+					{
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					null,
+					2,
+				),
+			);
+		} else {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+		}
+		return PlanExitCode.ExecutionError;
+	}
+}
+
+/**
  * Pause command - request graceful pause
  *
  * @param options - Command options
@@ -2125,6 +2476,8 @@ export function printPlanHelp(): void {
 	console.log("  handoff-commit            Commit handoff and finalize plan");
 	console.log("  handoff-keep              Return plan to running status");
 	console.log("  handoff-discard           Discard changes and fail plan");
+	console.log("  approve <workspace-id>    Approve preflight requirement for workspace");
+	console.log("  reject <workspace-id> [reason]  Reject preflight requirement (reason logged)");
 	console.log("");
 
 	console.log(chalk.bold("Options:"));
@@ -2152,4 +2505,54 @@ export function printPlanHelp(): void {
 	console.log("  pi plan handoff-commit");
 	console.log("  pi plan handoff-keep");
 	console.log("  pi plan handoff-discard");
+	console.log("  pi plan approve 7.A");
+	console.log('  pi plan reject 7.A "Reason: too risky"');
+}
+
+// ---------------------------------------------------------------------------
+// CLI Interaction Helpers (P7.G)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask a yes/no question on the terminal.
+ * Returns true for 'y' or 'yes', false for 'n' or 'no'.
+ * Keeps asking until a valid answer is given.
+ */
+function askYesNo(question: string): Promise<boolean> {
+	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+	return new Promise<boolean>((resolve) => {
+		const ask = () => {
+			rl.question(`${chalk.cyan("?")} ${question} ${chalk.dim("(y/n)")} `, (answer) => {
+				const trimmed = answer.trim().toLowerCase();
+				if (trimmed === "y" || trimmed === "yes") {
+					rl.close();
+					resolve(true);
+				} else if (trimmed === "n" || trimmed === "no") {
+					rl.close();
+					resolve(false);
+				} else {
+					console.log(chalk.dim("  Please answer 'y' or 'n'."));
+					ask();
+				}
+			});
+		};
+		ask();
+	});
+}
+
+/**
+ * Ask for text input on the terminal.
+ * Returns the entered text, or empty string if cancelled.
+ *
+ * @param question - The prompt to show
+ * @returns The text entered by the user
+ */
+function askText(question: string): Promise<string> {
+	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+	return new Promise<string>((resolve) => {
+		rl.question(`${chalk.cyan("?")} ${question} `, (answer) => {
+			rl.close();
+			resolve(answer.trim());
+		});
+	});
 }

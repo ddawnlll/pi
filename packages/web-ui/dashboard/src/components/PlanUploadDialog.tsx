@@ -36,6 +36,8 @@ interface PlanUploadDialogProps {
 	onClose: () => void;
 	projectId: string;
 	onExecutionStarted: (planExecId: string) => void;
+	/** Called when a plan is queued for later execution */
+	onEnqueued?: () => void;
 }
 
 /** Stage of the dialog workflow. */
@@ -51,6 +53,7 @@ export function PlanUploadDialog({
 	onClose,
 	projectId,
 	onExecutionStarted,
+	onEnqueued,
 }: PlanUploadDialogProps) {
 	const {
 		state: previewState,
@@ -58,6 +61,7 @@ export function PlanUploadDialog({
 		patch,
 		approve,
 		run,
+		queuePlan,
 		reset: resetPreview,
 		clearError,
 	} = useParallelismPreview(projectId);
@@ -146,6 +150,31 @@ export function PlanUploadDialog({
 			setError(result.errors.join("; "));
 		}
 	}, [planContent, previewState.validationResponse, previewState.isApproved, run, handleClose, onExecutionStarted]);
+
+	const handleQueuePlan = useCallback(async () => {
+		if (!planContent.trim()) return;
+		setError(null);
+
+		// Apply any pending patches first
+		if (pendingPatches.length > 0) {
+			const patchResult = await patch(planContent.trim(), pendingPatches);
+			if (!patchResult?.success) {
+				setError(
+					patchResult?.errors?.join("; ") ?? "Failed to apply dependency patches",
+				);
+				return;
+			}
+			setPendingPatches([]);
+		}
+
+		const result = await queuePlan(planContent.trim(), planFileName);
+		if (result?.success) {
+			onEnqueued?.();
+			onClose();
+		} else if (result?.errors) {
+			setError(result.errors.join("; "));
+		}
+	}, [planContent, planFileName, pendingPatches, patch, queuePlan, onClose]);
 
 	const handleApproveAndRun = useCallback(async () => {
 		if (!planContent.trim()) return;
@@ -684,6 +713,13 @@ export function PlanUploadDialog({
 										Back
 									</button>
 									<button
+										onClick={handleQueuePlan}
+										className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors flex items-center gap-1"
+										title="Queue this plan to run after the current working plan finishes"
+									>
+										Do after current
+									</button>
+									<button
 										onClick={handleRun}
 										disabled={!canRun}
 										className="px-3 py-1.5 text-xs rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
@@ -705,6 +741,13 @@ export function PlanUploadDialog({
 										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
 									>
 										Back
+									</button>
+									<button
+										onClick={handleQueuePlan}
+										className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors flex items-center gap-1"
+										title="Queue this plan to run after the current working plan finishes"
+									>
+										Do after current
 									</button>
 									{/* AC 2: Run disabled until approved */}
 									<button

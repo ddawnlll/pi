@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Track first mount for debug logging
 let _appMounted = false;
@@ -8,7 +9,7 @@ import {
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
-  AlertTriangle,
+  AlertTriangle, BarChart3,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -46,6 +47,7 @@ import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
 import { ScaleOverviewStrip } from "./components/ScaleOverviewStrip";
 import { ScaleCockpitPanel } from "./components/ScaleCockpitPanel";
+import { BatchOSDashboard } from "./components/BatchOSDashboard";
 
 const API_BASE = "";
 
@@ -123,6 +125,7 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
 
 export function App() {
   const { theme, setTheme } = useTheme();
+  const queryClient = useQueryClient();
   console.log("[App] useTheme resolved, theme=", theme);
   const { projects, isLoading: projectsLoading, createProject } = useProjects();
   console.log("[App] useProjects resolved, loading=", projectsLoading, "count=", projects.length);
@@ -138,6 +141,7 @@ export function App() {
   const [showChat, setShowChat] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [showScaleCockpit, setShowScaleCockpit] = useState(false);
+  const [showBatchOS, setShowBatchOS] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
@@ -243,6 +247,13 @@ export function App() {
     setSelectedPlanExecId(id);
     setShowPlanUploadDialog(false);
   }, []);
+
+  const handlePlanEnqueued = useCallback(() => {
+    // Invalidate the queue query so the queue tab refreshes immediately
+    if (selectedProjectId) {
+      queryClient.invalidateQueries({ queryKey: ["plan-queue", selectedProjectId] });
+    }
+  }, [queryClient, selectedProjectId]);
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
 
@@ -429,7 +440,8 @@ export function App() {
             <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
             <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
             <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
-            <LabeledBtn icon={Cpu} label="Scale" onClick={() => setShowScaleCockpit(o => !o)} accent={showScaleCockpit} />
+            <LabeledBtn icon={Cpu} label="Scale" onClick={() => { setShowScaleCockpit(o => !o); setShowBatchOS(false); }} accent={showScaleCockpit} />
+            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setShowBatchOS(o => !o); setShowScaleCockpit(false); }} accent={showBatchOS} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -502,6 +514,13 @@ export function App() {
               </div>
               <ScaleCockpitPanel className="flex-1 min-h-0" />
             </>
+          ) : showBatchOS ? (
+            <BatchOSDashboard
+              className="flex-1 min-h-0"
+              planStatus={activePlanStatus}
+              hasActiveExecution={selectedPlanExecId !== null}
+              onControl={(action) => handleControl(action)}
+            />
           ) : (
             <>
               {/* worker list */}
@@ -661,7 +680,8 @@ export function App() {
         onSelectExisting={(id) => { setSelectedProjectId(id); setSelectedPlanExecId(null); }} />
       {showPlanUploadDialog && (selectedProjectId || projects.length > 0) && (
         <PlanUploadDialog isOpen={showPlanUploadDialog} onClose={() => setShowPlanUploadDialog(false)}
-          projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted} />
+          projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted}
+          onEnqueued={handlePlanEnqueued} />
       )}
       <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
         project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />

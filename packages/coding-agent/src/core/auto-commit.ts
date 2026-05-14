@@ -100,7 +100,7 @@ export class AutoCommit {
 			const forbiddenFilesDirty: string[] = [];
 
 			for (const file of changedFiles) {
-				if (workspace.capabilities.cannotEdit.some((pattern) => this.matchesPattern(file, pattern))) {
+				if ((workspace.capabilities.cannotEdit ?? []).some((pattern) => this.matchesPattern(file, pattern))) {
 					forbiddenFilesDirty.push(file);
 				}
 			}
@@ -119,7 +119,7 @@ export class AutoCommit {
 			const filesToCommit = changedFiles.filter((file) => {
 				// If canEdit is empty, allow all files not in cannotEdit
 				if (workspace.capabilities!.canEdit.length === 0) {
-					return !workspace.capabilities!.cannotEdit.some((pattern) => this.matchesPattern(file, pattern));
+					return !(workspace.capabilities!.cannotEdit ?? []).some((pattern) => this.matchesPattern(file, pattern));
 				}
 
 				// Otherwise, only allow files in canEdit

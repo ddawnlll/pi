@@ -15,6 +15,28 @@ export {
 } from "./core/autonomous-executor.js";
 export { type CleanupReviewConfig, type CleanupReviewResult, runCleanupReview } from "./core/cleanup-review.js";
 export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
+export {
+	type ArchiveInitResult,
+	archiveDryRunReport,
+	archiveOriginalPlan,
+	archiveParsedContract,
+	archiveWorkspaceDAG,
+	type DAGNode,
+	initExecutionArchive,
+} from "./core/execution-archive.js";
+export {
+	type BatchContention,
+	type DAGComparison,
+	dagComparisonToJSON,
+	ExecutionSimulator,
+	formatDAGComparison,
+	formatMutationGuardResult,
+	formatSimulationForecast,
+	type MutationGuardResult,
+	type SimulationForecast,
+	type SimulationSlot,
+	type WorkerTimelineEntry,
+} from "./core/execution-simulator.js";
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";

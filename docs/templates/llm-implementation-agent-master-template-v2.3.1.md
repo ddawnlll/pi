@@ -814,7 +814,7 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.3.0"` for P6 scale-aware isolated execution. v2.2.0 remains supported for plans that only use interactive parallelism review.
+- **`contractVersion`**: Must be `"2.3.1"` for P6 scale-aware isolated execution with queue optimization. v2.2.0 and v2.3.0 remain supported for plans that only use interactive parallelism review or basic scale-aware execution.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.

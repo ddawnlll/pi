@@ -41,14 +41,20 @@ const MAX_PARALLEL_EXPERIMENTAL = 6;
  * - 2.3.0: Added planExecution.scale, planExecution.worktree,
  *          planExecution.integrationQueue, planExecution.validation;
  *          supports experimental_6 mode (maxParallelWorkspaces up to 6).
+ * - 2.3.1: Added queuePriority, queueOptimization to workspace/plan execution.
  */
-export const CONTRACT_SCHEMA_VERSION = "2.3.0" as const;
+export const CONTRACT_SCHEMA_VERSION = "2.3.1" as const;
 
 /**
  * Set of all contract schema versions that this parser accepts.
  * Plans declaring any of these versions will be accepted.
+ *
+ * Maintained as an explicit set for forward/backward compat.
+ * When bumping the schema version, add the new version here and
+ * update CONTRACT_SCHEMA_VERSION above. The tests will fail if
+ * CONTRACT_SCHEMA_VERSION is not in ACCEPTED_SCHEMA_VERSIONS.
  */
-export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0", "2.3.0"]);
+export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0", "2.3.0", "2.3.1"]);
 
 /**
  * Check whether a given version string is an accepted contract schema version.
@@ -192,11 +198,19 @@ export interface WorkspaceCapabilityManifest {
 	/** Files this workspace can read and edit */
 	canEdit: string[];
 	/** Files this workspace must not edit (read-only or forbidden) */
-	cannotEdit: string[];
+	cannotEdit?: string[];
 	/** Commands this workspace can run */
 	canRun: string[];
 	/** Commands this workspace must not run */
-	cannotRun: string[];
+	cannotRun?: string[];
+	/**
+	 * Validation weight/profile for the workspace.
+	 * Used by execution simulation to predict contention.
+	 * - "light": minimal validation overhead
+	 * - "heavy": significant validation time, may cause contention
+	 * - "full": exhaustive validation, blocks other validation in same batch
+	 */
+	validation?: "light" | "heavy" | "full";
 }
 
 /**
@@ -497,9 +511,10 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		});
 	}
 
-	// v2.3.0: Validate maxParallelWorkspaces limits and prerequisites
+	// v2.3.0+: Validate maxParallelWorkspaces limits and prerequisites
+	// v2.3.1 inherits all v2.3.0 validation rules
 	const contractVer = queue.contractVersion ?? "2.0.0";
-	const isV230 = contractVer === "2.3.0";
+	const isV230Plus = contractVer === "2.3.0" || contractVer === "2.3.1";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({
@@ -507,7 +522,7 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 			message: `maxParallelWorkspaces must be at least 1, got ${queue.maxParallelWorkspaces}`,
 			context: { maxParallelWorkspaces: queue.maxParallelWorkspaces },
 		});
-	} else if (isV230) {
+	} else if (isV230Plus) {
 		const selectedMode = queue.planExecution?.scale?.selectedMode;
 		const isExperimental6 = selectedMode === "experimental_6";
 
@@ -721,7 +736,7 @@ export function canEditFile(capabilities: WorkspaceCapabilityManifest | undefine
 	}
 
 	// Check if explicitly forbidden
-	if (capabilities.cannotEdit.some((pattern) => matchesPattern(filePath, pattern))) {
+	if ((capabilities.cannotEdit ?? []).some((pattern) => matchesPattern(filePath, pattern))) {
 		return false;
 	}
 
@@ -747,7 +762,7 @@ export function canRunCommand(capabilities: WorkspaceCapabilityManifest | undefi
 	}
 
 	// Check if explicitly forbidden
-	if (capabilities.cannotRun.some((pattern) => matchesPattern(command, pattern))) {
+	if ((capabilities.cannotRun ?? []).some((pattern) => matchesPattern(command, pattern))) {
 		return false;
 	}
 

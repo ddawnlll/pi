@@ -2,6 +2,15 @@
  * Core modules shared between all run modes.
  */
 
+// Planner Memory — Heuristics and Memory (P7.E)
+export {
+	createPlannerMemory,
+	InMemoryPlannerMemoryStore,
+	PlannerMemory,
+	type PlannerMemoryConfig,
+	type PlannerMemoryEntry,
+	type PlannerMemoryStore,
+} from "../memory/planner-memory.js";
 export {
 	AgentSession,
 	type AgentSessionConfig,
@@ -40,6 +49,25 @@ export {
 	type WorkspaceCompletionResult,
 	type WorkspaceValidationState,
 } from "./completion-gate.js";
+// DAG Optimizer — P7.B
+export {
+	type ApprovalStatus,
+	analyzeOptimizationOpportunities,
+	applyApprovedProposals,
+	approveProposal,
+	createPatchPlanFromApprovedProposals,
+	type DagOptimizationResult,
+	type DependencyAdditionProposal,
+	type DependencyRemovalProposal,
+	formatOptimizationResult,
+	type OptimizationEvidence,
+	type OptimizationKind,
+	type OptimizationProposal,
+	type OptimizationSummary,
+	previewApprovedProposals,
+	rejectProposal,
+	type SplitProposal,
+} from "./dag-optimizer.js";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.js";
 // Extensions system
 export {
@@ -100,6 +128,31 @@ export {
 	type ParsedSource,
 	scanMarkdownWorkstreamHeadings,
 } from "./plan-parser.js";
+// Planner — Autonomous Planner Core
+export {
+	type CriticalPathInfo,
+	formatCriticalPath,
+	formatPlannerOutput,
+	type OptimizedBatch,
+	Planner,
+	type PlannerOptions,
+	type PlannerOutput,
+	type PlannerSuggestion,
+	type PlannerWarning,
+	type PredictedParallelism,
+	planExecution,
+} from "./planner.js";
+// Planner Feedback Loop — Queue feedback updates planner risk models (P7.F)
+export {
+	analyzeQueueFeedback,
+	type FeedbackLoopResult,
+	formatFeedbackLoopResult,
+	PlannerFeedbackLoop,
+	type PlannerFeedbackLoopConfig,
+	type QueueOutcome,
+	type RebatchingRecommendation,
+	type RiskModelUpdate,
+} from "./planner-feedback-loop.js";
 // Safety profiles
 export {
 	BALANCED_PROFILE,

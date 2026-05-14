@@ -6,6 +6,7 @@
  */
 
 import { computeBatchPlan } from "./dag-analyzer.js";
+import { ExecutionSimulator } from "./execution-simulator.js";
 import type { RetryPolicy } from "./retry-handler.js";
 import { checkCommand, getEffectivePermissions, type SafetyProfileName } from "./safety-profile.js";
 import { SkillRegistry } from "./skill-registry.js";
@@ -58,6 +59,8 @@ export enum SafetyIssueType {
 	PreflightRequired = "preflight_required",
 	/** Effective parallelism is below requested parallelism */
 	LowEffectiveParallelism = "low_effective_parallelism",
+	/** Dry-run forbidden mutation detected */
+	DryRunForbiddenMutation = "dry_run_forbidden_mutation",
 }
 
 /**
@@ -532,6 +535,33 @@ export class SafetyDoctor {
 		}
 
 		return issues;
+	}
+
+	/**
+	 * Validate a workspace queue for dry-run safety.
+	 *
+	 * Checks that the dry-run simulation would not attempt forbidden mutations
+	 * such as git commits, pushes, resets, or destructive commands.
+	 *
+	 * @param queue - Workspace queue to validate for dry-run
+	 * @returns Safety report focused on dry-run mutation issues
+	 */
+	validateDryRun(queue: WorkspaceQueue): SafetyReport {
+		const issues: SafetyIssue[] = [];
+		const simulator = new ExecutionSimulator();
+		const mutationResult = simulator.checkForbiddenMutations(queue);
+
+		if (mutationResult.forbiddenMutationDetected) {
+			for (const mutation of mutationResult.forbiddenMutations) {
+				issues.push({
+					type: SafetyIssueType.DryRunForbiddenMutation,
+					severity: SafetyIssueSeverity.Critical,
+					message: mutation,
+				});
+			}
+		}
+
+		return this.buildReport(issues);
 	}
 
 	/**

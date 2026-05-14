@@ -396,19 +396,20 @@ describe("v2.2.0: contract version", () => {
 		expect(isAcceptedSchemaVersion("1.0.0")).toBe(false);
 	});
 
-	it("CONTRACT_SCHEMA_VERSION should be 2.3.0", () => {
-		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.0");
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.1", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.1");
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0", () => {
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.0", () => {
-		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(4);
+	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.1", () => {
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(5);
 	});
 
 	it("should validate a queue with contractVersion 2.2.0", () => {
@@ -844,16 +845,21 @@ describe("v2.3.0: contract version acceptance", () => {
 		expect(isAcceptedSchemaVersion("2.3.0")).toBe(true);
 	});
 
-	it("CONTRACT_SCHEMA_VERSION should be 2.3.0", () => {
-		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.0");
+	it("should accept contract version 2.3.1", () => {
+		expect(isAcceptedSchemaVersion("2.3.1")).toBe(true);
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0", () => {
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.1", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.1");
+	});
+
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(4);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(5);
 	});
 
 	it("should reject future unsupported version 2.4.0", () => {
@@ -1126,8 +1132,96 @@ describe("v2.3.0: pre-v2.3.0 maxParallelWorkspaces limit preserved", () => {
 	});
 });
 
-describe("v2.3.0: future version 2.4.0 still rejected", () => {
-	it("should reject unsupported future version 2.4.0", () => {
+// ===========================================================================
+// v2.3.1 Tests — Contract Schema Version Acceptance
+// ===========================================================================
+
+describe("v2.3.1: contract version acceptance", () => {
+	it("should accept contract version 2.3.1", () => {
+		expect(isAcceptedSchemaVersion("2.3.1")).toBe(true);
+	});
+
+	it("should accept contract version 2.3.0", () => {
+		expect(isAcceptedSchemaVersion("2.3.0")).toBe(true);
+	});
+});
+
+describe("v2.3.1: minimal plan validates", () => {
+	it("should validate a minimal v2.3.1 plan", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "2.3.1",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(true);
+	});
+
+	it("should be backward compatible with v2.3.0 validations", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "2.3.1",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+			planExecution: {
+				scale: { selectedMode: "experimental_6" },
+				worktree: { enabled: true },
+				integrationQueue: { enabled: true },
+				validation: { globalValidationLockRequired: true },
+			},
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(true);
+	});
+
+	it("should enforce experimental_6 prerequisites for v2.3.1", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 6,
+			contractVersion: "2.3.1",
+			planExecution: {
+				scale: { selectedMode: "experimental_6" },
+			},
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+	});
+});
+
+describe("Future unsupported versions still rejected", () => {
+	it("should reject unsupported version 2.4.0", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",
 			title: "Test Phase",
@@ -1149,7 +1243,7 @@ describe("v2.3.0: future version 2.4.0 still rejected", () => {
 		expect(result.errors.some((e) => e.type === "invalid_contract_version")).toBe(true);
 	});
 
-	it("should reject unsupported future version 3.0.0", () => {
+	it("should reject unsupported version 3.0.0", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",
 			title: "Test Phase",
