@@ -137,6 +137,12 @@ export interface WorkspaceSummary {
 	lastActivityAt?: number;
 	/** Human-readable description of what caused the last activity (e.g. "journal", "tool_call", "edit", "validation", "transcript"). */
 	lastActivitySource?: string;
+	/** Prefix/suffix token split for prompt assembly. */
+	tokenSplit?: {
+		prefixTokenCount: number | null;
+		suffixTokenCount: number | null;
+		totalTokenCount: number | null;
+	};
 	// Git metadata (optional)
 	gitBranch?: string;
 	gitDirty?: boolean;
@@ -226,6 +232,56 @@ export interface GitFilePatch {
 	patch: string;
 	truncated: boolean;
 	truncatedLines: number;
+}
+
+// =============================================================================
+// Performance Telemetry Types (workspace 5.5.G)
+// =============================================================================
+
+/** Performance telemetry for a single workspace's prompt cache. */
+export interface CachePerformanceMetrics {
+	/** Cache hit rate as a decimal (0.0 – 1.0). null/undefined means unknown. */
+	cacheHitRate: number | null;
+	/** Whether cache_hit_rate is known; false means the backend hasn't tracked it yet. */
+	cacheHitRateKnown: boolean;
+	/** Cache creation input tokens (tokens written to cache). */
+	cacheCreationInputTokens: number | null;
+	/** Cache read input tokens (tokens served from cache). */
+	cacheReadInputTokens: number | null;
+}
+
+/** Token split for prefix vs suffix in a workspace's prompt assembly. */
+export interface TokenSplitMetrics {
+	/** Estimated tokens in the cacheable prefix (system prompt + tools + pinned messages). */
+	prefixTokenCount: number | null;
+	/** Estimated tokens in the dynamic suffix (recent messages, user input). */
+	suffixTokenCount: number | null;
+	/** Total tokens (prefix + suffix). */
+	totalTokenCount: number | null;
+}
+
+/** Validation lock performance metrics for a workspace. */
+export interface ValidationLockMetrics {
+	/** Number of times the workspace waited for the validation lock. */
+	lockWaits: number;
+	/** Total time (ms) spent waiting for the validation lock across all waits. */
+	totalLockWaitMs: number | null;
+	/** Longest single lock wait (ms). */
+	maxLockWaitMs: number | null;
+	/** Average lock wait (ms); null when lockWaits === 0. */
+	avgLockWaitMs: number | null;
+}
+
+/** Full performance telemetry for a workspace. */
+export interface WorkspacePerformanceMetrics {
+	/** Workspace ID these metrics belong to. */
+	workspaceId: string;
+	/** Cache/prompt performance metrics. */
+	cache: CachePerformanceMetrics;
+	/** Prefix/suffix token split. */
+	tokenSplit: TokenSplitMetrics;
+	/** Validation lock performance. */
+	validationLock: ValidationLockMetrics;
 }
 
 // =============================================================================

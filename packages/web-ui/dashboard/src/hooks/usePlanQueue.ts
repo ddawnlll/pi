@@ -42,7 +42,7 @@ async function fetchPlanQueue(projectId: string): Promise<PlanQueueState> {
 async function enqueuePlans(
 	projectId: string,
 	plans: Array<{ planContent: string; planFileName?: string }>,
-): Promise<{ success: boolean; added: string[]; errors?: string[] }> {
+): Promise<{ success: boolean; added: string[]; errors?: string[]; safetyWarnings?: Array<{ planFileName?: string; warnings: string[] }> }> {
 	const response = await fetch(`${API_BASE}/api/projects/${projectId}/queue/enqueue`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -223,6 +223,8 @@ export function usePlanQueue(projectId: string | null) {
 		enqueue: enqueueMutation.mutate,
 		/** Whether an enqueue is in progress */
 		isEnqueueing: enqueueMutation.isPending,
+		/** Result of the last enqueue operation (includes safetyWarnings) */
+		enqueueResult: enqueueMutation.data ?? null,
 		/** Reorder pending entries by providing ordered IDs */
 		reorder: reorderMutation.mutate,
 		/** Skip a queued entry */

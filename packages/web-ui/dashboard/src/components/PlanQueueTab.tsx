@@ -194,9 +194,16 @@ function QueueEntryRow({
 interface MultiPlanUploadProps {
 	onEnqueue: (plans: Array<{ planContent: string; planFileName?: string }>) => void;
 	isEnqueueing: boolean;
+	/** Result from the last enqueue, including safetyWarnings if the doctor found any. */
+	enqueueResult?: {
+		success: boolean;
+		added: string[];
+		errors?: string[];
+		safetyWarnings?: Array<{ planFileName?: string; warnings: string[] }>;
+	} | null;
 }
 
-function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
+function MultiPlanUpload({ onEnqueue, isEnqueueing, enqueueResult }: MultiPlanUploadProps) {
 	const [plans, setPlans] = useState<Array<{ content: string; fileName: string }>>([
 		{ content: "", fileName: "plan-1.md" },
 	]);
@@ -431,6 +438,36 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing }: MultiPlanUploadProps) {
 				</div>
 			))}
 
+			{/* Safety doctor warnings from last enqueue */}
+			{enqueueResult?.safetyWarnings && enqueueResult.safetyWarnings.length > 0 && (
+				<div className="p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs space-y-1.5">
+					<div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+						Safety Doctor Warnings
+					</div>
+					{enqueueResult.safetyWarnings.map((sw, i) => (
+						<div key={i} className="space-y-0.5">
+							{sw.planFileName && (
+								<span className="text-amber-600 dark:text-amber-500 font-mono text-[10px]">{sw.planFileName}</span>
+							)}
+							{sw.warnings.map((w, j) => (
+								<div key={j} className="ml-2 text-amber-700 dark:text-amber-400">{w}</div>
+							))}
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Enqueue errors from last enqueue */}
+			{enqueueResult?.errors && enqueueResult.errors.length > 0 && (
+				<div className="p-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded text-xs space-y-1">
+					<div className="font-semibold text-red-700 dark:text-red-400 mb-1">Enqueue Errors</div>
+					{enqueueResult.errors.map((e, i) => (
+						<div key={i} className="ml-2 text-red-600 dark:text-red-400">{e}</div>
+					))}
+				</div>
+			)}
+
 			{/* Hidden multi-file input */}
 			<input
 				ref={multiFileInputRef}
@@ -501,6 +538,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 		isLoading,
 		enqueue,
 		isEnqueueing,
+		enqueueResult,
 		reorder,
 		skip,
 		remove,
@@ -672,7 +710,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 			<div className="flex-1 min-h-0 overflow-y-auto">
 				{/* Multi-plan upload */}
 				<div className={`p-3 border-b ${BORD}`}>
-					<MultiPlanUpload onEnqueue={handleEnqueue} isEnqueueing={isEnqueueing} />
+					<MultiPlanUpload onEnqueue={handleEnqueue} isEnqueueing={isEnqueueing} enqueueResult={enqueueResult} />
 				</div>
 
 				{/* Active entry */}

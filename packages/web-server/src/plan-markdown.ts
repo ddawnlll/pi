@@ -34,7 +34,9 @@ export type PlanMarkdownEvent =
 			attempts: number;
 	  }
 	| { type: "plan-complete" }
-	| { type: "plan-failed" };
+	| { type: "plan-failed" }
+	| { type: "plan-resumed" }
+	| { type: "plan-retry" };
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -253,6 +255,16 @@ export async function updatePlanMarkdown(piDir: string, planExecId: string, even
 		case "plan-failed": {
 			const now = new Date().toISOString();
 			updated = replaceHeader(content, planExecId, "failed", now);
+			break;
+		}
+		case "plan-resumed": {
+			// Restore the header status to "running" without changing startedAt or completedAt.
+			updated = replaceHeader(content, planExecId, "running");
+			break;
+		}
+		case "plan-retry": {
+			// Revert the header from "failed" back to "running" to reflect the retry.
+			updated = replaceHeader(content, planExecId, "running");
 			break;
 		}
 	}

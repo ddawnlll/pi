@@ -15,6 +15,7 @@ import {
 	planOne,
 	planPause,
 	planReplayDryRun,
+	planRerun,
 	planResume,
 	planRetry,
 	planRun,
@@ -80,6 +81,15 @@ export async function handlePlanCommand(args: string[]): Promise<boolean> {
 					process.exit(1);
 				}
 				exitCode = await planRun(parsed.planFile, { cwd, json, verbose });
+				break;
+
+			case "rerun":
+				if (!parsed.planFile) {
+					console.error("Error: rerun command requires a plan file");
+					printPlanHelp();
+					process.exit(1);
+				}
+				exitCode = await planRerun(parsed.planFile, { cwd, json, verbose, force });
 				break;
 
 			case "resume":

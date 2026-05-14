@@ -173,6 +173,19 @@ export class AutonomousExecutor {
 	/** P4.6.3: Track in-flight execution promises per workspace for cancellation */
 	private inFlightExecutions = new Map<string, Promise<WorkspaceExecutionResult>>();
 
+	/**
+	 * Register a promise for tracking via inFlightExecutions.
+	 * When the promise settles (resolves or rejects), it is removed from the map.
+	 */
+	private trackExecution(workspaceId: string, promise: Promise<WorkspaceExecutionResult>): void {
+		this.inFlightExecutions.set(workspaceId, promise);
+		promise.finally(() => {
+			if (this.inFlightExecutions.get(workspaceId) === promise) {
+				this.inFlightExecutions.delete(workspaceId);
+			}
+		});
+	}
+
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
 		this.workspaceRoot = config.workspaceRoot;
@@ -540,36 +553,44 @@ export class AutonomousExecutor {
 			await this.savePacketSnapshot(snapshot, packet, wsStateForPacket.attempts);
 
 			// Execute workspace with real agent or simulate
-			let result: WorkspaceExecutionResult;
+			// P4.6.3: Wrap execution in a tracked promise so stopAllActiveWorkspaces() can await it.
+			const executionPromise = (async (): Promise<WorkspaceExecutionResult> => {
+				let result: WorkspaceExecutionResult;
 
-			if (this.enableRealExecution && this.agentExecutor) {
-				// Real agent execution
-				const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
-				const agentResult = await this.agentExecutor.execute(packet, workspace.id);
+				if (this.enableRealExecution && this.agentExecutor) {
+					// Real agent execution
+					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
+					const agentResult = await this.agentExecutor.execute(packet, workspace.id);
 
-				// Write execution logs
-				await fs.writeFile(logPath, agentResult.logs.join("\n"), "utf-8");
+					// Write execution logs
+					await fs.writeFile(logPath, agentResult.logs.join("\n"), "utf-8");
 
-				result = {
-					workspaceId: workspace.id,
-					success: agentResult.success,
-					verdict: agentResult.verdict,
-					report: agentResult.report,
-					error: agentResult.error,
-				};
-			} else {
-				// Simulate execution (for testing/backward compat)
-				if (simulateFailure) {
-					throw new Error("Simulated test failure");
+					result = {
+						workspaceId: workspace.id,
+						success: agentResult.success,
+						verdict: agentResult.verdict,
+						report: agentResult.report,
+						error: agentResult.error,
+					};
+				} else {
+					// Simulate execution (for testing/backward compat)
+					if (simulateFailure) {
+						throw new Error("Simulated test failure");
+					}
+
+					result = {
+						workspaceId: workspace.id,
+						success: true,
+						verdict: "COMPLETE",
+						report: `Workspace ${workspace.id} executed successfully (attempt ${wsStateForPacket.attempts}) [SIMULATED]`,
+					};
 				}
 
-				result = {
-					workspaceId: workspace.id,
-					success: true,
-					verdict: "COMPLETE",
-					report: `Workspace ${workspace.id} executed successfully (attempt ${wsStateForPacket.attempts}) [SIMULATED]`,
-				};
-			}
+				return result;
+			})();
+
+			this.trackExecution(workspace.id, executionPromise);
+			const result = await executionPromise;
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
