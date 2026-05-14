@@ -73,32 +73,32 @@ export interface MergeConflictInfo {
 	artifactPath: string;
 }
 
-/** Scale mode prerequisite status. */
-export interface PrerequisiteStatus {
-	key: string;
-	name: string;
-	met: boolean;
-	message: string;
+/** Per-worker queue entry fetched from the integration queue for a specific workspace. */
+export interface WorkerQueueEntry {
+	/** Whether the workspace was found in the integration queue. */
+	found: boolean;
+	/** The queue entry for this workspace, if found. */
+	entry: QueueEntryInfo | null;
+	/** The merge conflict for this workspace, if any. */
+	mergeConflict: MergeConflictInfo | null;
 }
 
-/** Scale mode readiness from the API. */
-export interface ScaleModeReadiness {
-	ready: boolean;
-	currentMode: "stable_3" | "experimental_6" | "scale_8";
-	isScaleModeActive: boolean;
-	prerequisites: PrerequisiteStatus[];
-	blockedReasons: string[];
-	warnings: string[];
-	requestedWorkers: number;
-	maxAllowedWorkers: number;
-	experimentalModeEnabled: boolean;
-}
-
-/** Worktree cleanup result from the API. */
-export interface WorktreeCleanupResult {
-	removed: number;
-	removedNames: string[];
-	errors: string[];
+/** Quarantine/cleanup state for a failed workspace. */
+export interface QuarantineState {
+	/** Whether the workspace is in quarantine. */
+	inQuarantine: boolean;
+	/** Reason for quarantine. */
+	reason?: string;
+	/** Whether cleanup has been performed. */
+	cleanupPerformed: boolean;
+	/** Cleanup timestamp. */
+	cleanedAt?: number;
+	/** Cleanup details. */
+	cleanupDetails?: string;
+	/** Whether auto-cleanup is pending. */
+	cleanupPending: boolean;
+	/** Error during cleanup, if any. */
+	cleanupError?: string;
 }
 
 // =============================================================================
@@ -131,6 +131,72 @@ async function fetchIntegrationQueue(): Promise<IntegrationQueueStatus> {
 		};
 	}
 	return res.json();
+}
+
+/**
+ * Fetch a single workspace's entry from the integration queue, plus
+ * any associated merge conflict info.
+ */
+export async function fetchWorkerQueueEntry(workspaceId: string): Promise<WorkerQueueEntry> {
+	try {
+		// We fetch the full queue and filter client-side.
+		const queueData = await fetchIntegrationQueue();
+		const entry = queueData.entries.find((e) => e.workspaceId === workspaceId) ?? null;
+		const mergeConflict = queueData.mergeConflicts?.find((c) => c.workspaceId === workspaceId) ?? null;
+		return {
+			found: entry !== null,
+			entry,
+			mergeConflict,
+		};
+	} catch {
+		return {
+			found: false,
+			entry: null,
+			mergeConflict: null,
+		};
+	}
+}
+
+/**
+ * Fetch quarantine state for a failed workspace.
+ * Returns null if unavailable (no backend support).
+ */
+export async function fetchQuarantineState(workspaceId: string): Promise<QuarantineState | null> {
+	try {
+		const res = await fetch(`${API_BASE}/api/scale/workspaces/${encodeURIComponent(workspaceId)}/quarantine`);
+		if (!res.ok) return null;
+		return res.json();
+	} catch {
+		return null;
+	}
+}
+
+/** Scale mode prerequisite status. */
+export interface PrerequisiteStatus {
+	key: string;
+	name: string;
+	met: boolean;
+	message: string;
+}
+
+/** Scale mode readiness from the API. */
+export interface ScaleModeReadiness {
+	ready: boolean;
+	currentMode: "stable_3" | "experimental_6" | "scale_8";
+	isScaleModeActive: boolean;
+	prerequisites: PrerequisiteStatus[];
+	blockedReasons: string[];
+	warnings: string[];
+	requestedWorkers: number;
+	maxAllowedWorkers: number;
+	experimentalModeEnabled: boolean;
+}
+
+/** Worktree cleanup result from the API. */
+export interface WorktreeCleanupResult {
+	removed: number;
+	removedNames: string[];
+	errors: string[];
 }
 
 async function fetchScaleReadiness(): Promise<ScaleModeReadiness | null> {
@@ -243,6 +309,42 @@ export function useWorktreeCleanup() {
 			| null,
 		error: bulkCleanupMutation.error ?? singleRemoveMutation.error,
 	};
+}
+
+/**
+ * Hook for fetching a single workspace's entry from the integration queue.
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @param enabled - Whether the query is enabled
+ * @returns Worker queue entry with loading/error state
+ */
+export function useWorkerQueueEntry(workspaceId: string | null | undefined, enabled: boolean = true) {
+	return useQuery<WorkerQueueEntry>({
+		queryKey: ["scale", "worker-queue-entry", workspaceId],
+		queryFn: () => fetchWorkerQueueEntry(workspaceId!),
+		enabled: enabled && !!workspaceId,
+		refetchInterval: 10_000,
+		refetchIntervalInBackground: false,
+		staleTime: 5_000,
+	});
+}
+
+/**
+ * Hook for fetching quarantine state for a failed workspace.
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @param enabled - Whether the query is enabled
+ * @returns Quarantine state or null if unavailable
+ */
+export function useQuarantineState(workspaceId: string | null | undefined, enabled: boolean = true) {
+	return useQuery<QuarantineState | null>({
+		queryKey: ["scale", "quarantine", workspaceId],
+		queryFn: () => fetchQuarantineState(workspaceId!),
+		enabled: enabled && !!workspaceId,
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false,
+		staleTime: 15_000,
+	});
 }
 
 

@@ -101,7 +101,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
         {activeTab === "commands" && <CommandsTab lines={lines} />}
         {activeTab === "logs" && <LogsTab planExecId={planExecId} workerId={worker.id} activeStream={activeLogStream} onSwitchStream={setActiveLogStream} />}
         {activeTab === "transcript" && <TranscriptTab planExecId={planExecId} workerId={worker.id} />}
-        {activeTab === "p6-lifecycle" && <WorkerP6LifecycleTab worker={worker} workspace={workspace} />}
+        {activeTab === "p6-lifecycle" && <WorkerP6LifecycleTab worker={worker} workspace={workspace} planExecId={planExecId} />}
       </div>
     </div>
   );
