@@ -4,10 +4,11 @@ import { formatPercent } from "../utils/format";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
 import { useWorkerTranscript } from "../hooks/useWorkerTranscript";
 import { DiffViewer } from "./DiffViewer";
+import { WorkerP6LifecycleTab } from "./WorkerP6LifecycleTab";
 import { EditStrategyWarnings, type EditStrategyWarningData } from "./EditStrategyWarnings";
 import { ThinkingAnimation, LiveWritingText } from "./ThinkingAnimation";
 
-type TabId = "overview" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript";
+type TabId = "overview" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript" | "p6-lifecycle";
 
 interface WorkerDetailProps {
   worker: WorkerInfo;
@@ -23,6 +24,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "commands", label: "Commands" },
   { id: "logs", label: "Logs" },
   { id: "transcript", label: "Transcript" },
+  { id: "p6-lifecycle", label: "P6 Lifecycle" },
 ];
 
 export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProps) {
@@ -99,6 +101,7 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
         {activeTab === "commands" && <CommandsTab lines={lines} />}
         {activeTab === "logs" && <LogsTab planExecId={planExecId} workerId={worker.id} activeStream={activeLogStream} onSwitchStream={setActiveLogStream} />}
         {activeTab === "transcript" && <TranscriptTab planExecId={planExecId} workerId={worker.id} />}
+        {activeTab === "p6-lifecycle" && <WorkerP6LifecycleTab worker={worker} workspace={workspace} />}
       </div>
     </div>
   );
