@@ -13,9 +13,11 @@ import { join } from "node:path";
 import {
 	type ApprovedPreviewMetadata,
 	AutonomousExecutor,
+	type CleanupReviewResult,
 	createSafetyDoctor,
 	PiLogger,
 	parsePlan,
+	runCleanupReview,
 	type WorkspaceQueue,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -506,6 +508,12 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			approvedPreview: approvedPreviewMetadata, // AC2: persist approved preview metadata
 		});
 
+		// Release the in-flight guard immediately after the execution is registered
+		// in activeExecutions, so a concurrent runPlan() call sees it and returns
+		// the existing execution instead of starting a duplicate. The finally block
+		// below still acts as a safety net for early-thrown errors.
+		inFlightProjects.delete(projectId);
+
 		// Start execution in background (do not await)
 		executePlanInBackground(executor, parseResult.queue, planExecutionId, workspaceRoot).catch((error) => {
 			new PiLogger({ planExecId: planExecutionId }).error(`Background execution failed: ${error}`);
@@ -521,9 +529,11 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			execution,
 			warnings: parseResult.warnings,
 		};
-	} finally {
-		// AC #3: Always release the guard, regardless of success or failure
+	} catch (err) {
+		// Safety net: release guard on thrown errors before the try block's
+		// setup completes (e.g., executor.initialize failure).
 		inFlightProjects.delete(projectId);
+		throw err;
 	}
 }
 
@@ -568,6 +578,79 @@ function generateExecutionSummary(
 	return lines.join("\n");
 }
 
+// ---------------------------------------------------------------------------
+// LogBuffer — batched log flushing to state store
+// ---------------------------------------------------------------------------
+
+/**
+ * Buffers log lines and flushes them to the state store in batches.
+ * Flushes when the buffer reaches 50 lines or after a 5-second idle timeout.
+ * Safe to call dispose() multiple times.
+ */
+export class LogBuffer {
+	private lines: string[] = [];
+	private timer: ReturnType<typeof setTimeout> | null = null;
+	private count = 0;
+
+	constructor(
+		private readonly planExecId: string,
+		private readonly stateStore: { saveExecutionLog: (id: string, batch: string) => Promise<void> },
+	) {}
+
+	/**
+	 * Append a log line. Triggers an immediate flush if 50 lines have accumulated,
+	 * otherwise schedules a 5-second flush timer.
+	 */
+	append(line: string): void {
+		this.lines.push(line);
+		this.count++;
+
+		if (this.count >= 50) {
+			this.cancelTimer();
+			this.doFlush();
+		} else {
+			this.scheduleFlush();
+		}
+	}
+
+	/**
+	 * Dispose: cancel any pending timer and flush remaining lines.
+	 * Safe to call multiple times.
+	 */
+	async dispose(): Promise<void> {
+		this.cancelTimer();
+		await this.doFlush();
+	}
+
+	private cancelTimer(): void {
+		if (this.timer !== null) {
+			clearTimeout(this.timer);
+			this.timer = null;
+		}
+	}
+
+	private scheduleFlush(): void {
+		if (this.timer !== null) return;
+		this.timer = setTimeout(() => {
+			this.timer = null;
+			this.doFlush();
+		}, 5000);
+	}
+
+	private async doFlush(): Promise<void> {
+		if (this.lines.length === 0) return;
+		const batch = this.lines.join("");
+		this.lines = [];
+		this.count = 0;
+
+		try {
+			await this.stateStore.saveExecutionLog(this.planExecId, batch);
+		} catch {
+			// Ignore write errors
+		}
+	}
+}
+
 /**
  * Execute a plan in the background, updating the execution status.
  */
@@ -576,42 +659,12 @@ async function executePlanInBackground(
 	queue: WorkspaceQueue,
 	planExecId: string,
 	workspaceRoot: string,
+	isRecovery = false,
 ): Promise<void> {
 	const logFile = join(workspaceRoot, ".pi", `execution-${planExecId}.log`);
 
 	// Batched log buffer: lines since last flush to state store
-	const logLines: string[] = [];
-	let linesSinceLastFlush = 0;
-	let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-	const cancelFlushTimer = () => {
-		if (flushTimer !== null) {
-			clearTimeout(flushTimer);
-			flushTimer = null;
-		}
-	};
-
-	const flushLogBuffer = async () => {
-		if (logLines.length === 0) return;
-		const batch = logLines.join("");
-		logLines.length = 0;
-		linesSinceLastFlush = 0;
-
-		try {
-			const stateStore = executor.getStateStore();
-			await stateStore.saveExecutionLog(planExecId, batch);
-		} catch {
-			// Ignore write errors
-		}
-	};
-
-	const scheduleFlush = () => {
-		if (flushTimer !== null) return;
-		flushTimer = setTimeout(async () => {
-			flushTimer = null;
-			await flushLogBuffer();
-		}, 5000);
-	};
+	const logBuffer = new LogBuffer(planExecId, executor.getStateStore());
 
 	const log = async (message: string) => {
 		const timestamp = new Date().toISOString();
@@ -626,15 +679,7 @@ async function executePlanInBackground(
 		}
 
 		// Buffer for batched state store persistence
-		logLines.push(logLine);
-		linesSinceLastFlush++;
-
-		if (linesSinceLastFlush >= 50) {
-			cancelFlushTimer();
-			await flushLogBuffer();
-		} else {
-			scheduleFlush();
-		}
+		logBuffer.append(logLine);
 	};
 
 	// Create event bus for this execution
@@ -688,29 +733,45 @@ async function executePlanInBackground(
 		let _completedCount = 0;
 		let failedCount = 0;
 		let iteration = 0;
+		let planRetryCount = 0;
+		const maxPlanRetries = 3;
 
 		// Persist the workspace queue for crash recovery
 		await persistWorkspaceQueue(workspaceRoot, planExecId, queue);
 
-		// Initialize the living plan markdown (clone plan file with status header)
-		try {
-			const meta = await loadExecutionMeta(workspaceRoot, planExecId);
-			if (meta) {
-				const plansDir = join(workspaceRoot, ".pi", "plans");
-				const planFilePath = join(plansDir, meta.planFile);
-				const planContent = await readFile(planFilePath, "utf-8");
-				await initializePlanMarkdown(
-					join(workspaceRoot, ".pi"),
-					planExecId,
-					planContent,
-					new Date(meta.startedAt).toISOString(),
+		// Initialize the living plan markdown (clone plan file with status header).
+		// Skip during recovery since the file already exists from the previous run.
+		if (!isRecovery) {
+			try {
+				const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+				if (meta) {
+					const plansDir = join(workspaceRoot, ".pi", "plans");
+					const planFilePath = join(plansDir, meta.planFile);
+					const planContent = await readFile(planFilePath, "utf-8");
+					await initializePlanMarkdown(
+						join(workspaceRoot, ".pi"),
+						planExecId,
+						planContent,
+						new Date(meta.startedAt).toISOString(),
+					);
+					await log(`Living plan markdown initialized: ${planExecId}.md`);
+				}
+			} catch (error) {
+				await log(
+					`WARNING: Failed to initialize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
 				);
-				await log(`Living plan markdown initialized: ${planExecId}.md`);
 			}
-		} catch (error) {
-			await log(
-				`WARNING: Failed to initialize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
-			);
+		} else {
+			// During recovery, emit a plan-resumed event to update the header status.
+			try {
+				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, {
+					type: "plan-resumed",
+				});
+			} catch (error) {
+				await log(
+					`WARNING: Failed to update plan markdown for recovery: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
 		}
 
 		while (!executor.isExecutionComplete()) {
@@ -718,7 +779,7 @@ async function executePlanInBackground(
 			await log(`\n=== Iteration ${iteration} ===`);
 
 			// Check if execution was externally cancelled/stopped
-			const exec = activeExecutions.get(planExecId);
+			let exec = activeExecutions.get(planExecId);
 			if (!exec || exec.status === "stopped" || exec.status === "cancelled") {
 				await log(`Execution cancelled by user`);
 				await executor.failPlan("Execution cancelled by user");
@@ -770,6 +831,12 @@ async function executePlanInBackground(
 					}
 					// Still running (active workspaces finishing), let the loop continue
 				}
+
+				// Refresh exec after control handling — the pause/stop blocks above
+				// may have mutated the status via updateExecutionStatus(). The stale
+				// exec.status must not be used by the deadlock check below.
+				exec = activeExecutions.get(planExecId);
+				if (!exec) return;
 			}
 
 			const stats = executor.getStatistics();
@@ -834,6 +901,55 @@ async function executePlanInBackground(
 					}
 					continue;
 				}
+				// No workspaces to schedule and none active - check if any failed
+				// and retry them at plan level before declaring completion.
+				//
+				// The plan status must be set to "failed" first because rerunExecution()
+				// only accepts terminal states (failed/stopped/cancelled).
+				if (failedCount > 0 && planRetryCount < maxPlanRetries && exec.status === "running") {
+					planRetryCount++;
+					await log(
+						`Plan-level retry ${planRetryCount}/${maxPlanRetries}: ${failedCount} workspace(s) failed, resetting to pending...`,
+					);
+
+					// Transition plan to failed state so rerunExecution() accepts it.
+					// loadState is called between fail and rerun so the cache is fresh.
+					await executor.failPlan(`Plan retry ${planRetryCount}: ${failedCount} workspace(s) failed`);
+					await executor.loadState();
+
+					try {
+						const rerunResult = await executor.rerunExecution(queue, {
+							resetFailed: true,
+							resetBlocked: true,
+						});
+
+						if (rerunResult.success && rerunResult.resetWorkspaces.length > 0) {
+							await log(
+								`Plan retry ${planRetryCount}/${maxPlanRetries}: reset ${rerunResult.resetWorkspaces.length} workspace(s), kept ${rerunResult.keptWorkspaces.length} complete`,
+							);
+							failedCount = 0;
+							_completedCount = 0;
+
+							// Update plan markdown
+							try {
+								await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, {
+									type: "plan-retry",
+								});
+							} catch {}
+
+							continue;
+						} else {
+							await log(
+								`Plan retry produced no resettable workspaces: ${rerunResult.error || "unknown"} — declaring complete`,
+							);
+						}
+					} catch (retryError) {
+						await log(
+							`Plan retry threw: ${retryError instanceof Error ? retryError.message : String(retryError)} — declaring complete`,
+						);
+					}
+				}
+
 				// No workspaces to schedule and none active - execution is complete
 				await log(`No more workspaces to schedule and none active - execution complete`);
 				break;
@@ -903,6 +1019,8 @@ async function executePlanInBackground(
 					_completedCount++;
 				} else if (result.verdict === "FAILED") {
 					failedCount++;
+					// Log the specific error for plan-level diagnostics
+					await log(`  -> ${result.workspaceId} will be retried at plan level if retries remain`);
 				}
 
 				// Update living plan markdown with workspace result
@@ -930,53 +1048,136 @@ async function executePlanInBackground(
 		const stats = executor.getStatistics();
 		const summary = generateExecutionSummary(queue, stats, failedCount);
 
-		// Complete execution before signalling the completion bus, so that
-		// any caller waiting on nextCompletion() sees the post-completePlan() state.
-		if (failedCount === 0) {
-			await log(`\n=== Execution Complete ===`);
-			await log(summary);
-
-			// Audit log: plan completion
-			await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
-				timestamp: new Date().toISOString(),
-				type: "plan-complete",
-				planExecId,
-				summary,
-			}).catch(() => {});
-
-			// Narrative log: final execution summary
-			await appendNarrativeEntry(workspaceRoot, planExecId, "_plan", {
-				timestamp: new Date().toISOString(),
-				type: "execution-complete",
-				planExecId,
-				summary,
-			}).catch(() => {});
-
-			// Update living plan markdown to complete state before plan completion
-			try {
-				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-complete" });
-			} catch (error) {
-				await log(
-					`WARNING: Failed to finalize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
-				);
+		// ── Run cleanup review agent ────────────────────────────────────────
+		// After all workspace workers complete, run a cleanup/review agent that:
+		// 1. Reads workspace reports and git diffs
+		// 2. Runs available tests
+		// 3. Catches regressions and bugs
+		// 4. If review passes, auto-commits all changes
+		// 5. Produces a comprehensive plan summary for the dashboard
+		let cleanupResult: CleanupReviewResult | null = null;
+		try {
+			await log(`Running cleanup/review agent...`);
+			const model = (executor as any).agentExecutor?.model;
+			cleanupResult = await runCleanupReview({
+				workspaceRoot,
+				planExecutionId: planExecId,
+				stateStore: executor.getStateStore(),
+				queue,
+				model,
+			});
+			await log(`Cleanup/review complete: ${cleanupResult.passed ? "PASS" : "FAIL"}`);
+			await log(`Summary: ${cleanupResult.summary}`);
+			if (cleanupResult.issues.length > 0) {
+				const issueList = cleanupResult.issues.join("; ");
+				await log(`Issues found (${cleanupResult.issueCount}): ${issueList}`);
 			}
 
+			// Persist the cleanup result as plan metadata for the dashboard
+			try {
+				const cleanupPath = join(workspaceRoot, ".pi", "plan-summary.json");
+				await writeFile(
+					cleanupPath,
+					JSON.stringify({
+						planExecutionId: planExecId,
+						planTitle: queue.title,
+						phase: queue.phase,
+						completedAt: Date.now(),
+						...cleanupResult,
+						testResults: cleanupResult.testResults,
+						changedFiles: cleanupResult.changedFiles,
+						rawOutput: undefined,
+					}),
+					"utf-8",
+				);
+			} catch {
+				// Non-fatal
+			}
+		} catch (cleanupError) {
+			const cleanupMsg = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+			await log(`Cleanup/review agent failed: ${cleanupMsg}`);
+		}
+
+		// ── Finalize plan: commit, complete, or handoff ─────────────────────
+		//
+		// After cleanup review, we determine how to finalize:
+		// 1. All workspaces passed + cleanup passed → auto-commit + mark complete
+		// 2. All workspaces passed but cleanup has issues → handoff for review
+		// 3. Some workspaces failed → mark as failed
+		const cleanupPassed = cleanupResult?.passed !== false;
+		const canAutoComplete = failedCount === 0 && cleanupPassed;
+
+		// Common: log final summary, update plan markdown, append audit/narrative
+		const finalStatus = canAutoComplete ? "complete" : failedCount === 0 ? "awaiting_handoff" : "failed";
+
+		await log(`\n=== Execution ${finalStatus.toUpperCase()} ===`);
+		await log(summary);
+
+		if (cleanupResult) {
+			await log(`Cleanup review: ${cleanupPassed ? "PASS (auto-committing)" : "ISSUES FOUND (entering handoff)"}`);
+		}
+
+		// Audit log
+		await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
+			timestamp: new Date().toISOString(),
+			type: "plan-complete",
+			planExecId,
+			summary,
+			cleanupPassed,
+		}).catch(() => {});
+
+		// Narrative log
+		await appendNarrativeEntry(workspaceRoot, planExecId, "_plan", {
+			timestamp: new Date().toISOString(),
+			type: "execution-complete",
+			planExecId,
+			summary,
+		}).catch(() => {});
+
+		// Update living plan markdown
+		try {
+			const mdType = canAutoComplete ? "plan-complete" : finalStatus === "failed" ? "plan-failed" : "plan-complete";
+			await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: mdType });
+		} catch (error) {
+			await log(
+				`WARNING: Failed to update plan markdown: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+
+		if (canAutoComplete) {
+			// ── Auto-complete: rollup commit + mark complete ────────────────
+			// The cleanup agent already committed fixes. Now do a final rollup commit
+			// that captures ALL changes (workspaces + cleanup fixes).
+			try {
+				// Stage all remaining changes including cleanup agent's fixes
+				await log(`Auto-committing all plan changes...`);
+				await executor.commitPlan();
+			} catch (commitError) {
+				const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+				await log(`Rollup commit warning: ${commitMsg}`);
+			}
+
+			// Complete the plan in state store (bypasses awaiting_handoff entirely)
+			const stateStore = executor.getStateStore();
+			await stateStore.completePlan(planExecId);
+			await executor.loadState();
+
+			updateExecutionStatus(planExecId, "complete");
+			await log(`Plan execution complete, auto-committed.`);
+		} else if (failedCount === 0) {
+			// ── Enter handoff for user review (cleanup found issues) ─────────
 			await executor.completePlan();
 
-			// If completePlan() transitioned to awaiting_handoff, poll until
-			// the handoff resolves or times out, then exit.
 			const stateAfterComplete = executor.getState();
 			if (stateAfterComplete?.status === "awaiting_handoff") {
-				await log(`Plan entered awaiting_handoff state, waiting for user action...`);
+				await log(
+					`Plan entered awaiting_handoff state for user review (${cleanupResult?.issueCount ?? "unknown"} issue(s) found)...`,
+				);
 				updateExecutionStatus(planExecId, "awaiting_handoff");
-
-				// Refactored handoff wait into shared helper to avoid duplicated
-				// logic between initial entry and crash recovery.
 				await thisWaitForHandoff(executor, completionBus, planExecId, log);
 				return;
 			}
 
-			// Check final state before signalling
 			const finalState = executor.getState();
 			if (finalState?.status === "stopped" || finalState?.status === "cancelled") {
 				await log(`Execution already ${finalState.status}, not overriding`);
@@ -986,36 +1187,8 @@ async function executePlanInBackground(
 
 			updateExecutionStatus(planExecId, "complete");
 		} else {
-			await log(`\n=== Execution Failed ===`);
-			await log(summary);
-
-			// Audit log: plan failure
-			await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
-				timestamp: new Date().toISOString(),
-				type: "plan-failed",
-				planExecId,
-				failedCount,
-				summary,
-			}).catch(() => {});
-
-			// Narrative log: execution failure summary
-			await appendNarrativeEntry(workspaceRoot, planExecId, "_plan", {
-				timestamp: new Date().toISOString(),
-				type: "execution-failed",
-				planExecId,
-				summary,
-				failedCount,
-			}).catch(() => {});
-
-			// Update living plan markdown to failed state before plan failure
-			try {
-				await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-failed" });
-			} catch (error) {
-				await log(
-					`WARNING: Failed to finalize plan markdown: ${error instanceof Error ? error.message : String(error)}`,
-				);
-			}
-			await executor.failPlan(`${failedCount} workspace(s) failed`);
+			// ── Mark as failed ────────────────────────────────────────────
+			await executor.failPlan(`${failedCount} workspace(s) failed after ${planRetryCount} plan retries`);
 			updateExecutionStatus(planExecId, "failed", `${failedCount} workspace(s) failed`);
 		}
 	} catch (error) {
@@ -1032,9 +1205,16 @@ async function executePlanInBackground(
 		}
 		updateExecutionStatus(planExecId, "failed", errorMsg);
 	} finally {
-		cancelFlushTimer();
-		await flushLogBuffer().catch(() => {});
-		completionBuses.delete(planExecId);
+		await logBuffer.dispose().catch(() => {});
+		// Signal a terminal stop on the bus before deleting, so any pending
+		// nextCompletion() waiter unblocks and sees a stop signal.
+		const bus = completionBuses.get(planExecId);
+		if (bus) {
+			bus.signalStop();
+			completionBuses.delete(planExecId);
+		} else {
+			completionBuses.delete(planExecId);
+		}
 	}
 }
 
@@ -1328,7 +1508,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	executionWorkspaceRoots.set(planExecId, workspaceRoot);
 
 	// Start execution in background
-	executePlanInBackground(executor, queue, planExecId, workspaceRoot).catch((error) => {
+	executePlanInBackground(executor, queue, planExecId, workspaceRoot, true).catch((error) => {
 		new PiLogger({ planExecId }).error(`Background execution (recovered) failed: ${error}`);
 		updateExecutionStatus(planExecId, "failed", String(error));
 	});

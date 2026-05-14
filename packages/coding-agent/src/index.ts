@@ -13,6 +13,7 @@ export {
 	createAutonomousExecutor,
 	type WorkspaceExecutionResult,
 } from "./core/autonomous-executor.js";
+export { type CleanupReviewConfig, type CleanupReviewResult, runCleanupReview } from "./core/cleanup-review.js";
 export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";

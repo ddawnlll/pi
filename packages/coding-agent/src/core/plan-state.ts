@@ -89,7 +89,9 @@ export type JournalEventType =
 	| "worker_status"
 	| "worker_decision_summary"
 	| "validation"
-	| "blocker";
+	| "blocker"
+	| "plan_summary"
+	| "cleanup_workspace";
 
 /**
  * Execution journal event
@@ -122,7 +124,8 @@ export type WorkerTranscriptEventType =
 	| "workspace_complete"
 	| "workspace_failed"
 	| "workspace_blocked"
-	| "retry_attempt";
+	| "retry_attempt"
+	| "plan_summary";
 
 export interface WorkerTranscriptEvent {
 	/** Event type */
@@ -223,6 +226,10 @@ export function buildTranscriptSummary(event: JournalEvent): string {
 			return `Worker ${ws} blocked: ${(event.data?.reason as string) ?? "unknown"}`;
 		case "retry_attempt":
 			return `Worker ${ws} retry attempt ${(event.data?.attempt as number) ?? "?"}`;
+		case "plan_summary":
+			return `Plan summary: ${(event.data?.summary as string) ?? "no summary"}`;
+		case "cleanup_workspace":
+			return `Cleanup: ${(event.data?.message as string) ?? "running"}`;
 		default:
 			return `Worker ${ws} ${event.type}`;
 	}

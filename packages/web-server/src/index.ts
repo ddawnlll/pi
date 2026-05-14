@@ -56,6 +56,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
+import { registerPerformanceRoutes } from "./performance-routes.js";
 import {
 	applyDependencyPatches,
 	computeBatchPlan,
@@ -699,10 +700,12 @@ fastify.post<{ Body: LegacyControlRequest }>("/api/control", async (request, rep
 			const stateStore = getStateStore();
 			const jsonStore = _getJsonStateStore();
 			const planState = jsonStore.getPlanStateStore().getState();
+			const planExecutionId = jsonStore.getCurrentPlanExecutionId();
 
 			if (planState && (planState.status === "stopped" || planState.status === "paused")) {
 				// No active loop, execute cancel immediately
-				await stateStore.cancelPlan("current-exec-id");
+				const execId = planExecutionId ?? "current-exec-id";
+				await stateStore.cancelPlan(execId);
 				// Clear the control file since we processed it
 				try {
 					await fs.unlink(controlFile);
@@ -1336,83 +1339,112 @@ fastify.get<{
 		}
 	})();
 
-	// Set up polling for new logs
-	// Checks in-memory buffer first, then falls back to persisted log file/DB.
-	const pollInterval = setInterval(async () => {
-		try {
+	// Track which source fed the last fetch to prevent cursor corruption
+	// across fallback tiers (fix #4: lastSentCount corruption).
+	let lastSource: "buffer" | "file" = "buffer";
+
+	// Ping/pong keepalive to prevent proxies from killing idle connections
+	// during long workspaces with infrequent log output (fix #3).
+	const pingInterval = setInterval(() => {
+		if (socket.readyState === socket.OPEN) {
+			socket.ping();
+		}
+	}, 20_000);
+
+	// Poll for new logs. Uses .then()/.catch() instead of an async callback
+	// so that any thrown error in the interval body becomes a handled rejection
+	// rather than killing the connection (fix #2).
+	const pollInterval = setInterval(() => {
+		// Skip if socket is closing/closed — interval will be cleared on close
+		if (socket.readyState !== socket.OPEN) return;
+
+		const fetchAndSend = async () => {
 			const stateStore = getStateStore();
+			let logs: string[] = [];
+			let source: "buffer" | "file" = "file";
 
-			// Helper: fetch logs from buffer or persistence
-			const fetchLogs = async (): Promise<string[]> => {
-				// 1. Try in-memory buffer (fast, real-time)
-				if ("getRecentWorkspaceLogs" in stateStore) {
-					const fn = (stateStore as any).getRecentWorkspaceLogs;
-					if (typeof fn === "function") {
-						const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
-						if (bufferLogs.length > 0) {
-							return bufferLogs;
-						}
+			// 1. Try in-memory buffer (fast, real-time)
+			if ("getRecentWorkspaceLogs" in stateStore) {
+				const fn = (stateStore as any).getRecentWorkspaceLogs;
+				if (typeof fn === "function") {
+					const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
+					if (bufferLogs.length > 0) {
+						logs = bufferLogs;
+						source = "buffer";
 					}
 				}
+			}
 
-				// 2. Fall back to persisted storage (catches buffer misses from
-				//    state store instance mismatches or process restarts)
-				if ("loadWorkspaceLog" in stateStore) {
-					const fn = (stateStore as any).loadWorkspaceLog;
-					if (typeof fn === "function") {
-						const logContent = (await fn.call(stateStore, planExecId, workspaceId)) as string | null;
-						if (logContent) {
-							return logContent.split("\n").filter(Boolean);
-						}
+			// 2. Fall back to persisted storage only when the buffer is empty.
+			//    Once we've switched to file-based tracking, keep using file so
+			//    the cursor doesn't reset (fix #4).
+			if (logs.length === 0 && "loadWorkspaceLog" in stateStore) {
+				const fn = (stateStore as any).loadWorkspaceLog;
+				if (typeof fn === "function") {
+					const logContent = (await fn.call(stateStore, planExecId, workspaceId)) as string | null;
+					if (logContent) {
+						logs = logContent.split("\n").filter(Boolean);
 					}
 				}
+			}
 
-				// 3. Fallback: read from workspace execution log file
-				try {
-					for (let a = 1; a <= 10; a++) {
+			// 3. Fallback: read from workspace execution log file on disk
+			if (logs.length === 0) {
+				for (let a = 1; a <= 10; a++) {
+					try {
 						const wsLogFile = join(getPiDir(), "workspaces", workspaceId, `execution-${a}.log`);
 						if (existsSync(wsLogFile)) {
 							const content = await readFile(wsLogFile, "utf-8");
 							const lines = content.split("\n").filter(Boolean);
 							if (lines.length > 0) {
-								return lines;
+								logs = lines;
+								break;
 							}
 						}
+					} catch {
+						// Ignore fallback errors
 					}
-				} catch {
-					// Ignore fallback errors
 				}
-
-				return [];
-			};
-
-			const allLogs = await fetchLogs();
-			if (allLogs.length > lastSentCount) {
-				const newLogs = allLogs.slice(lastSentCount);
-				for (const line of newLogs) {
-					socket.send(JSON.stringify({ type: "log", data: line }));
-				}
-				lastSentCount = allLogs.length;
 			}
-		} catch (error) {
-			fastify.log.error({ error }, "Failed to poll logs");
-		}
+
+			// If we switched sources, reset the cursor — the new source starts fresh
+			if (source !== lastSource) {
+				lastSentCount = 0;
+				lastSource = source;
+			}
+
+			if (logs.length > lastSentCount) {
+				const newLogs = logs.slice(lastSentCount);
+				for (const line of newLogs) {
+					if (socket.readyState === socket.OPEN) {
+						socket.send(JSON.stringify({ type: "log", data: line }));
+					}
+				}
+				lastSentCount = logs.length;
+			}
+		};
+
+		fetchAndSend().catch((err: unknown) => {
+			fastify.log.error({ err }, "Log poll error");
+			// Don't close the socket — let the next poll retry
+		});
 	}, 1000);
 
-	socket.on("close", () => {
+	const cleanup = () => {
 		clearInterval(pollInterval);
+		clearInterval(pingInterval);
+	};
+
+	socket.on("close", () => {
+		cleanup();
 		fastify.log.info({ planExecId, workspaceId }, "WebSocket log stream disconnected");
 	});
 
-	socket.on("error", (error: Error) => {
-		clearInterval(pollInterval);
-		fastify.log.error({ error, planExecId, workspaceId }, "WebSocket log stream error");
-		// End the socket to propagate a clean close to the client
-		try {
-			socket.close(1011, "Internal error");
-		} catch {
-			// Ignore close errors
-		}
+	socket.on("error", (_error: Error) => {
+		cleanup();
+		// socket.close() is not called here — the error event is terminal and
+		// close will fire shortly after. Calling close(1011) can race with the
+		// underlying transport teardown and cause cascading failures (#1).
 	});
 });
 
@@ -1895,6 +1927,10 @@ interface PlanQueueEntry {
 	completedAt: number | null;
 	error: string | null;
 	blockReason: string | null;
+	/** The raw plan content, stored so startNextInQueue can pass it to runPlan. */
+	planContent: string;
+	/** Optional plan file name for persistence. */
+	planFileName?: string;
 }
 
 interface ProjectQueueState {
@@ -1970,6 +2006,7 @@ fastify.post<{
 
 	const newEntries: PlanQueueEntry[] = [];
 	const errors: string[] = [];
+	const safetyWarnings: Array<{ planFileName?: string; warnings: string[] }> = [];
 
 	for (const plan of plans) {
 		if (!plan.planContent?.trim()) {
@@ -1977,12 +2014,30 @@ fastify.post<{
 			continue;
 		}
 
-		// Validate the plan
+		// Validate the plan (parse + safety doctor)
 		try {
 			const parseResult = parsePlan(plan.planContent);
 			if (!parseResult.success) {
 				errors.push(`Invalid plan: ${(parseResult.errors ?? []).join(", ")}`);
 				continue;
+			}
+
+			// Run safety doctor before allowing plan into the queue
+			if (parseResult.queue) {
+				const doctor = createSafetyDoctor();
+				const safetyReport = doctor.validateQueue(parseResult.queue);
+				if (!safetyReport.safe) {
+					const criticalMsgs = safetyReport.critical.map((i) => `[${i.type}] ${i.message}`);
+					errors.push(`Safety check failed: ${criticalMsgs.join(", ")}`);
+					continue;
+				}
+				// Collect non-blocking safety warnings to surface in the UI
+				if (safetyReport.warnings.length > 0) {
+					safetyWarnings.push({
+						planFileName: plan.planFileName,
+						warnings: safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`),
+					});
+				}
 			}
 		} catch (e) {
 			errors.push(`Parse error: ${String(e)}`);
@@ -2000,6 +2055,8 @@ fastify.post<{
 			completedAt: null,
 			error: null,
 			blockReason: null,
+			planContent: plan.planContent,
+			planFileName: plan.planFileName,
 		};
 		queue.entries.push(entry);
 		newEntries.push(entry);
@@ -2017,6 +2074,7 @@ fastify.post<{
 		success: true,
 		added: newEntries.map((e) => e.entryId),
 		errors: errors.length > 0 ? errors : undefined,
+		safetyWarnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
 	};
 });
 
@@ -2237,9 +2295,26 @@ async function startNextInQueue(projectId: string): Promise<boolean> {
 		const stateStore = getStateStore();
 		const projects = await stateStore.listProjects();
 		const project = projects.find((p) => p.id === projectId);
-		const _workspaceRoot = project?.rootPath || getWorkspaceRoot();
+		const workspaceRoot = project?.rootPath || getWorkspaceRoot();
 
-		nextEntry.planExecId = `pending-${nextEntry.entryId}`;
+		const projectName = project?.name || projectId;
+
+		const result = await runPlan({
+			planContent: nextEntry.planContent,
+			projectId,
+			projectName,
+			workspaceRoot,
+			planFileName: nextEntry.planFileName,
+		});
+
+		if (!result.success) {
+			nextEntry.status = "failed";
+			nextEntry.error = (result.errors ?? []).join("; ");
+			nextEntry.completedAt = Date.now();
+			return false;
+		}
+
+		nextEntry.planExecId = result.planExecId ?? null;
 		return true;
 	} catch (error) {
 		nextEntry.status = "failed";
@@ -2652,6 +2727,10 @@ fastify.post<{
 		switch (action) {
 			case "pause":
 				await stateStore.pausePlan(planExecId);
+				// Wake the background loop so it re-checks pause state at the
+				// top of its iteration. A wake signal carries no semantic meaning,
+				// so the loop won't try to schedule work on a paused plan.
+				signalExecutionEvent(planExecId, "wake");
 				break;
 			case "stop":
 				await stateStore.stopPlan(planExecId, "Stopped by user");
@@ -2671,6 +2750,51 @@ fastify.post<{
 	} catch (error) {
 		fastify.log.error({ error, planExecId, action }, "Failed to execute control command");
 		return reply.code(500).send({ success: false, error: String(error) });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// Plan Summary Endpoint (cleanup/review result)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:projectId/plans/:planExecId/summary - Get plan summary from cleanup review
+ *
+ * Returns the comprehensive plan summary generated by the cleanup/review agent
+ * after all workspace workers completed. Includes changed files, test results,
+ * issues found, and an overall assessment.
+ */
+fastify.get<{
+	Params: { projectId: string; planExecId: string };
+}>("/api/projects/:projectId/plans/:planExecId/summary", async (request, reply) => {
+	const { planExecId } = request.params;
+
+	try {
+		const workspaceRoot = getWorkspaceRoot();
+		const summaryPath = join(workspaceRoot, ".pi", "plan-summary.json");
+
+		if (existsSync(summaryPath)) {
+			const content = await readFile(summaryPath, "utf-8");
+			const summary = JSON.parse(content);
+			return summary;
+		}
+
+		// Fallback: try to read the plan_summary journal event
+		const stateStore = getStateStore();
+		const journal = await stateStore.readJournal(planExecId);
+		const summaryEvent = journal.find((e) => e.type === "plan_summary");
+		if (summaryEvent?.data) {
+			return {
+				planExecutionId: planExecId,
+				...summaryEvent.data,
+				source: "journal",
+			};
+		}
+
+		return reply.code(404).send({ error: "Plan summary not found. Cleanup review may not have completed yet." });
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get plan summary");
+		return reply.code(500).send({ error: "Failed to get plan summary", message: String(error) });
 	}
 });
 
@@ -2990,6 +3114,12 @@ await registerArtifactRoutes(fastify);
 registerLogStreamRoutes(fastify, getWorkspaceRoot, getStateStore);
 
 // ---------------------------------------------------------------------------
+// Performance Telemetry Routes (workspace 5.5.G)
+// ---------------------------------------------------------------------------
+
+registerPerformanceRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 
@@ -3035,10 +3165,15 @@ const start = async () => {
 			console.log("[server] Database migrations complete");
 		}
 
-		// Resume stranded executions from a previous server crash
+		// Resume stranded executions from a previous server crash.
+		// Look up the project by the configured name to get its stable project ID.
 		const workspaceRoot = getWorkspaceRoot();
 		const projectName = process.env.PI_PROJECT_NAME || "hello";
-		const recovered = await resumeStrandedExecutions(workspaceRoot, projectName, projectName);
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.name === projectName);
+		const projectId = project?.id ?? projectName; // fall back to name if not found
+		const recovered = await resumeStrandedExecutions(workspaceRoot, projectId, projectName);
 		if (recovered > 0) {
 			console.log(`[server] Recovered ${recovered} stranded plan execution(s)`);
 		}

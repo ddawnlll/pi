@@ -37,10 +37,11 @@ import { EventLine } from "./components/EventLine";
 import { ChatPanel, type ContextRef } from "./components/ChatPanel";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
-import { formatTokens, formatCost, formatPercent } from "./utils/format";
+import { formatTokens, formatCost, formatPercent, formatPercentOrUnknown } from "./utils/format";
 import { PlanQueueTab } from "./components/PlanQueueTab";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
+import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
 
 const API_BASE = "";
 
@@ -429,7 +430,7 @@ export function App() {
                 <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
                 <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
                 <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
-                <StatCard icon={Activity} label="Cache hit" value={planStats?.cache_hit_rate_known ? formatPercent(planStats?.cache_hit_rate) : "unknown"} />
+                <StatCard icon={Activity} label="Cache hit" value={formatPercentOrUnknown(planStats?.cache_hit_rate_known ? planStats?.cache_hit_rate : null)} />
                 <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
                 <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
               </div>
@@ -563,6 +564,13 @@ export function App() {
                   </>
                 )}
               </div>
+
+              {/* Section: Plan Summary (cleanup review) */}
+              <Divider />
+              <PlanSummaryPanel
+                projectId={selectedProjectId}
+                planExecId={selectedPlanExecId}
+                className="shrink-0" />
             </motion.aside>
           )}
         </AnimatePresence>

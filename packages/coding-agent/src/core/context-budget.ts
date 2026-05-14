@@ -7,6 +7,9 @@
 
 import type { TokenRole } from "./token-metering.js";
 
+// Re-export TokenRole for consumers that import it from this module
+export type { TokenRole };
+
 /**
  * Context budget settings for different agent roles
  */

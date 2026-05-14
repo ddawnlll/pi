@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
-import { Terminal, Pause, ArrowDown } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Terminal, Pause, ArrowDown, Sparkles, Cpu } from "lucide-react";
 import type { JournalEvent, WorkerInfo } from "../types";
 import {
 	useLiveLogTerminal,
@@ -19,8 +19,8 @@ const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Log line renderer ────────────────────────────────────────────────────────
 
-/** Renders a single log entry with channel-appropriate styling. */
-function LogLine({ entry }: { entry: LogEntry }) {
+/** Renders a single log entry with channel-appropriate styling and fade-in animation. */
+function LogLine({ entry, index }: { entry: LogEntry; index: number }) {
 	const colors = CHANNEL_COLORS[entry.channel];
 	const time = new Date(entry.timestamp).toLocaleTimeString("en-US", {
 		hour12: false,
@@ -29,8 +29,16 @@ function LogLine({ entry }: { entry: LogEntry }) {
 		second: "2-digit",
 	});
 
+	// Animate new entries with a staggered fade-in for the last 50 entries
+	const isRecent = index < 50;
+
 	return (
-		<div className="flex items-start gap-2 px-3 py-0.5 hover:bg-stone-50 dark:hover:bg-[#222] group">
+		<div
+			className={`flex items-start gap-2 px-3 py-0.5 hover:bg-stone-50 dark:hover:bg-[#222] group transition-colors ${
+				isRecent ? "animate-log-fade-in" : ""
+			}`}
+			style={isRecent ? { animationDelay: `${Math.min((index % 20) * 15, 300)}ms` } : undefined}
+		>
 			<span className="shrink-0 text-[10px] font-mono text-stone-400 dark:text-stone-500 w-16 select-none">
 				{time}
 			</span>
@@ -289,8 +297,8 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 						{activeChannel ? ` on ${activeChannel} channel` : ""} yet...
 					</div>
 				)}
-				{filteredLogs.map(entry => (
-					<LogLine key={entry.id} entry={entry} />
+				{filteredLogs.map((entry, i) => (
+					<LogLine key={entry.id} entry={entry} index={i} />
 				))}
 			</div>
 
@@ -317,7 +325,10 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 				<div className={`shrink-0 flex items-center justify-between px-3 py-1 h-7 border-t ${BORD} bg-stone-50 dark:bg-[#1A1A1A] text-[9px] ${MUT}`}>
 					<span className="flex items-center gap-1.5">
 						{selectedWorker?.stage === "active" && (
-							<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+							<>
+								<Cpu size={9} className="text-emerald-500 animate-spin-slow shrink-0" />
+								<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+							</>
 						)}
 						{selectedWorker?.stage === "blocked" && (
 							<span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -326,13 +337,23 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 							<span className="w-1.5 h-1.5 rounded-full bg-red-500" />
 						)}
 						{selectedWorker?.stage === "complete" && (
-							<span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+							<>
+								<Sparkles size={9} className="text-blue-500 shrink-0" />
+								<span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+							</>
 						)}
 						{selectedWorker?.stage === "pending" && (
 							<span className="w-1.5 h-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
 						)}
 						<span>
 							{selectedWorkerId} &middot; {selectedWorker?.stage ?? "unknown"}
+							{selectedWorker?.stage === "active" && (
+								<span className="ml-1.5 inline-flex items-center gap-[2px]">
+									<span className="w-1 h-1 rounded-full bg-emerald-400 animate-thinking-dot-1" />
+									<span className="w-1 h-1 rounded-full bg-emerald-400 animate-thinking-dot-2" />
+									<span className="w-1 h-1 rounded-full bg-emerald-400 animate-thinking-dot-3" />
+								</span>
+							)}
 						</span>
 					</span>
 					<span className="tabular-nums">

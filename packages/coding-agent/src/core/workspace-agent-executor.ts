@@ -10,7 +10,7 @@ import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
-import type { AgentSession } from "./agent-session.js";
+import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import type { HashedPacket } from "./role-packets.js";
 import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
@@ -199,14 +199,102 @@ export class WorkspaceAgentExecutor {
 			log(`Active tools: ${activeTools.join(", ")}`);
 			log(`Agent has ${session.agent.state.tools.length} tools registered`);
 
-			// Subscribe to agent events to track completion
+			// Subscribe to agent events for live status tracking and completion
 			let _agentCompleted = false;
+			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
+			let agentTurnCount = 0;
+
+			// Helper: emit worker_status via state store and log
+			const emitStatus = (status: string, message?: string) => {
+				log(`Status: ${status}${message ? ` — ${message}` : ""}`);
+				if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {
+					this.stateStore.emitWorkerStatus(this.planExecutionId, workspaceId, status, message).catch(() => {});
+				}
+			};
+
 			const completionPromise = new Promise<void>((resolve) => {
-				const unsubscribe = session.subscribe((event) => {
-					if (event.type === "agent_end") {
+				const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+					// --- Agent lifecycle ---
+					if (event.type === "agent_start") {
+						agentTurnCount = 0;
+						emitStatus("thinking", "Agent started");
+					} else if (event.type === "agent_end") {
 						_agentCompleted = true;
+						emitStatus("deciding", "Agent completed");
 						unsubscribe();
 						resolve();
+					} else if (event.type === "turn_start") {
+						agentTurnCount++;
+						emitStatus("thinking", `Turn ${agentTurnCount} started`);
+					} else if (event.type === "turn_end") {
+						emitStatus("deciding", `Turn ${agentTurnCount} ended`);
+					}
+
+					// --- Message events (live thinking stream) ---
+					if (event.type === "message_start" && event.message.role === "assistant") {
+						emitStatus("thinking", "Assistant message started");
+					} else if (event.type === "message_update") {
+						// Log text deltas from the assistant for live visibility
+						if (
+							event.assistantMessageEvent &&
+							event.assistantMessageEvent.type === "text_delta" &&
+							event.assistantMessageEvent.delta
+						) {
+							const delta = event.assistantMessageEvent.delta;
+							// Log short deltas inline; truncate long ones
+							if (delta.length <= 120) {
+								log(`[thinking] ${delta}`);
+							}
+						}
+					} else if (event.type === "message_end" && event.message.role === "assistant") {
+						emitStatus("deciding", "Assistant message completed");
+					}
+
+					// --- Tool execution events ---
+					if (event.type === "tool_execution_start") {
+						pendingToolCalls.set(event.toolCallId, {
+							toolName: event.toolName,
+							args: event.args,
+						});
+						emitStatus("executing", `Tool: ${event.toolName}`);
+					} else if (event.type === "tool_execution_end") {
+						const pending = pendingToolCalls.get(event.toolCallId);
+						if (pending) {
+							const resultPreview = event.isError ? `error: ${String(event.result).slice(0, 100)}` : "success";
+							emitStatus("deciding", `Tool ${pending.toolName}: ${resultPreview}`);
+
+							// Persist tool call to journal
+							if (this.stateStore && this.planExecutionId) {
+								const input =
+									typeof pending.args === "object" && pending.args !== null
+										? (pending.args as Record<string, unknown>)
+										: { value: String(pending.args) };
+								this.stateStore
+									.appendJournalEvent(this.planExecutionId, pending.toolName, input, {
+										isError: event.isError,
+										errorMessage: event.isError ? JSON.stringify(event.result) : undefined,
+										result: event.isError ? undefined : event.result,
+									})
+									.catch((err: unknown) => {
+										console.error("[workspace-agent-executor] Failed to emit tool_call journal event:", err);
+									});
+							}
+
+							pendingToolCalls.delete(event.toolCallId);
+						}
+					}
+
+					// --- Compaction / retry events ---
+					if (event.type === "compaction_start") {
+						emitStatus("compacting", `Reason: ${event.reason}`);
+					} else if (event.type === "compaction_end") {
+						emitStatus("deciding", `Compaction ${event.aborted ? "aborted" : "complete"}`);
+					} else if (event.type === "thinking_level_changed") {
+						emitStatus("thinking", `Level changed to: ${event.level}`);
+					} else if (event.type === "auto_retry_start") {
+						emitStatus("thinking", `Auto-retry attempt ${event.attempt}/${event.maxAttempts}`);
+					} else if (event.type === "auto_retry_end") {
+						emitStatus("deciding", `Auto-retry ${event.success ? "succeeded" : "failed"}`);
 					}
 				});
 
@@ -228,43 +316,6 @@ export class WorkspaceAgentExecutor {
 					},
 					{ once: true },
 				);
-			});
-
-			// Track tool calls for journal events
-			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
-			session.subscribe((event) => {
-				if (event.type === "tool_execution_start") {
-					pendingToolCalls.set(event.toolCallId, {
-						toolName: event.toolName,
-						args: event.args,
-					});
-				} else if (event.type === "tool_execution_end") {
-					const pending = pendingToolCalls.get(event.toolCallId);
-					if (pending && this.stateStore && this.planExecutionId) {
-						const input =
-							typeof pending.args === "object" && pending.args !== null
-								? (pending.args as Record<string, unknown>)
-								: { value: String(pending.args) };
-						this.stateStore
-							.appendJournalEvent(this.planExecutionId, pending.toolName, input, {
-								isError: event.isError,
-								errorMessage: event.isError ? JSON.stringify(event.result) : undefined,
-								result: event.isError ? undefined : event.result,
-							})
-							.catch((err: unknown) => {
-								console.error("[workspace-agent-executor] Failed to emit tool_call journal event:", err);
-							});
-
-						// Emit worker_status transcript event for tool execution
-						if (typeof this.stateStore.emitWorkerStatus === "function") {
-							this.stateStore
-								.emitWorkerStatus(this.planExecutionId, workspaceId, "executing", `Tool: ${pending.toolName}`)
-								.catch(() => {});
-						}
-
-						pendingToolCalls.delete(event.toolCallId);
-					}
-				}
 			});
 
 			// Run the agent with the prompt

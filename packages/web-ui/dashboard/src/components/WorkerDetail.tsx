@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogStream } from "../types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogStream, WorkerTranscriptEvent } from "../types";
 import { formatPercent } from "../utils/format";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
 import { useWorkerTranscript } from "../hooks/useWorkerTranscript";
 import { DiffViewer } from "./DiffViewer";
 import { EditStrategyWarnings, type EditStrategyWarningData } from "./EditStrategyWarnings";
+import { ThinkingAnimation, LiveWritingText } from "./ThinkingAnimation";
 
 type TabId = "overview" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript";
 
@@ -46,6 +47,10 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
     }
   }, [planExecId, worker.id]);
   const { lines, isConnected, isReconnecting, error: logError } = useWorkspaceLogStream(planExecId, worker.id);
+  const { events: transcriptEvents } = useWorkerTranscript({
+    planExecId,
+    workspaceId: worker.id,
+  });
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,7 +90,8 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
           <OverviewTab worker={worker} workspace={workspace}
             lines={lines} isConnected={isConnected} isReconnecting={isReconnecting} logError={logError}
             logContainerRef={logContainerRef} planExecId={planExecId}
-            attempts={attempts} attemptsLoading={attemptsLoading} />
+            attempts={attempts} attemptsLoading={attemptsLoading}
+            transcriptEvents={transcriptEvents} />
         )}
         {activeTab === "tokens" && <TokensTab workspace={workspace} />}
         {activeTab === "performance" && <PerformanceTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
@@ -100,13 +106,14 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, logError, logContainerRef, planExecId, attempts, attemptsLoading }: {
+function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, logError, logContainerRef, planExecId, attempts, attemptsLoading, transcriptEvents }: {
   worker: WorkerInfo; workspace?: WorkspaceSummary; lines: string[];
   isConnected: boolean; isReconnecting: boolean; logError: string | null;
   logContainerRef: React.RefObject<HTMLDivElement | null>;
   planExecId: string | null;
   attempts: WorkspaceAttempt[];
   attemptsLoading: boolean;
+  transcriptEvents: WorkerTranscriptEvent[];
 }) {
   const now = Date.now();
   const isTerminal = workspace?.stage === "complete" || workspace?.stage === "failed";
@@ -132,6 +139,9 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
         {worker.reportPath && <Row label="Report" value={worker.reportPath} />}
         {lastActivityLabel != null && <Row label="Last activity" value={lastActivityLabel} />}
         {idleWarning && <div className={`mt-1 text-xs font-medium ${idleMinutes! > 10 ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>{idleWarning}</div>}
+
+        {/* Live thinking animation for active workspaces */}
+        {worker.stage === "active" && <LiveThinkingStatus events={transcriptEvents} />}
         {/* Failure / blocked banner */}
         {(worker.stage === "failed" || worker.stage === "blocked") && (
           <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
@@ -723,11 +733,20 @@ function TranscriptTab({ planExecId, workerId }: { planExecId: string | null; wo
     workspaceId: workerId,
   });
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const [animateEventId, setAnimateEventId] = useState<string | null>(null);
 
   // Auto-scroll
   useEffect(() => {
     if (transcriptContainerRef.current) {
       transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+    }
+  }, [events.length]);
+
+  // Animate the last event's summary on new events
+  useEffect(() => {
+    if (events.length > 0) {
+      const last = events[events.length - 1];
+      setAnimateEventId(`${last.timestamp}-${last.type}`);
     }
   }, [events.length]);
 
@@ -755,9 +774,18 @@ function TranscriptTab({ planExecId, workerId }: { planExecId: string | null; wo
         {events.length === 0 && (
           <div className="text-stone-400 dark:text-stone-500 italic">No transcript events yet...</div>
         )}
-        {events.map((event, i) => (
-          <TranscriptEventLine key={`${event.timestamp}-${i}`} event={event} />
-        ))}
+        {events.map((event, i) => {
+          const isLatest = i === events.length - 1;
+          const eventId = `${event.timestamp}-${event.type}`;
+          const shouldAnimate = isLatest && animateEventId === eventId;
+          return (
+            <TranscriptEventLine
+              key={eventId}
+              event={event}
+              animate={shouldAnimate}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -767,7 +795,7 @@ function TranscriptTab({ planExecId, workerId }: { planExecId: string | null; wo
  * Renders a single transcript event with timestamp and type-appropriate styling.
  * Validates that no private chain-of-thought data is present.
  */
-function TranscriptEventLine({ event }: { event: import("../types").WorkerTranscriptEvent }) {
+function TranscriptEventLine({ event, animate = false }: { event: import("../types").WorkerTranscriptEvent; animate?: boolean }) {
   const types = event.type;
   const ts = new Date(event.timestamp).toLocaleTimeString();
 
@@ -792,13 +820,78 @@ function TranscriptEventLine({ event }: { event: import("../types").WorkerTransc
   const validationIcon = passed === true ? "\u2713" : passed === false ? "\u2717" : null;
 
   return (
-    <div className="flex gap-2 py-1 border-b border-stone-100 dark:border-[#222] last:border-0">
+    <div className={`flex gap-2 py-1 border-b border-stone-100 dark:border-[#222] last:border-0 ${animate ? "bg-blue-50/50 dark:bg-blue-950/20 -mx-2 px-2 rounded" : ""}`}>
       <span className="text-stone-400 dark:text-stone-500 shrink-0 w-16">{ts}</span>
       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ${badge}`}>{types}</span>
       <span className="text-stone-700 dark:text-stone-300 break-words flex-1">
         {validationIcon && <span className={passed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>{validationIcon} </span>}
-        {event.summary}
+        {animate ? (
+          <LiveWritingText text={event.summary} tickMs={12} charsPerTick={2} />
+        ) : (
+          event.summary
+        )}
       </span>
+    </div>
+  );
+}
+
+// ── LiveThinkingStatus ──────────────────────────────────────────────────────
+
+/**
+ * Derives the current thinking state from the most recent transcript events.
+ * Renders an animated ThinkingAnimation card for active workers.
+ */
+function LiveThinkingStatus({ events }: { events: WorkerTranscriptEvent[] }) {
+  const [animationKey, setAnimationKey] = useState(0);
+
+  // Get the latest events to determine current state
+  const recentEvents = events.slice(-10);
+  const latestEvent = recentEvents[recentEvents.length - 1];
+
+  // Map transcript event type to thinking state
+  const getState = (): "thinking" | "executing" | "deciding" | "compacting" | "idle" => {
+    if (!latestEvent) return "thinking";
+    switch (latestEvent.type) {
+      case "worker_status":
+        const status = latestEvent.data?.status as string | undefined;
+        if (status === "executing") return "executing";
+        if (status === "compacting") return "compacting";
+        if (status === "deciding") return "deciding";
+        return "thinking";
+      case "tool_call":
+        return "executing";
+      case "workspace_start":
+        return "thinking";
+      case "workspace_complete":
+      case "workspace_failed":
+      case "workspace_blocked":
+        return "deciding";
+      default:
+        return "thinking";
+    }
+  };
+
+  const state = getState();
+  const message = latestEvent?.summary ?? "Waiting for worker activity...";
+
+  // Re-trigger animation when new events arrive
+  useEffect(() => {
+    setAnimationKey((k) => k + 1);
+  }, [events.length]);
+
+  if (!latestEvent) {
+    return (
+      <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
+        <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 mb-2">Worker Status</h4>
+        <ThinkingAnimation state="thinking" text="Awaiting first activity..." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[#E8E6E1] dark:border-[#333]">
+      <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 mb-2">Live Status</h4>
+      <ThinkingAnimation key={animationKey} state={state} text={message} />
     </div>
   );
 }
