@@ -13,7 +13,7 @@ import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
 import { AutoCommit } from "./auto-commit.js";
-import { CompletionGateRegistry, evaluatePlanCompletion, evaluateWorkspaceCompletion } from "./completion-gate.js";
+import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import { JsonStateStore } from "./json-state-store.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -199,21 +199,22 @@ export class AutonomousExecutor {
 			this.projectId = "default";
 		}
 
-		// Create agent executor if real execution is enabled
+		// Create agent executor if real execution is enabled.
+		// planExecutionId is null here — it's set later via initialize() or
+		// adoptExistingExecution(), both of which call updateAgentExecutorContext().
 		if (this.enableRealExecution) {
 			this.agentExecutor = new WorkspaceAgentExecutor({
 				workspaceRoot: config.workspaceRoot,
 				model: config.model,
 				maxTurns: 50,
 				stateStore: this.stateStore,
-				planExecutionId: this.planExecutionId ?? undefined,
 			});
 		}
 	}
 
 	/**
-	 * Update agent executor with current plan execution ID after initialization.
-	 * Called after initialize() to ensure the executor has the correct context.
+	 * Update agent executor with current plan execution ID after initialization
+	 * or when adopting an existing execution.
 	 */
 	private updateAgentExecutorContext(): void {
 		if (this.agentExecutor && this.planExecutionId) {
@@ -322,6 +323,19 @@ export class AutonomousExecutor {
 			await this.stateStore.resumePlan(planExecutionId);
 		}
 
+		// Update agent executor with the current plan execution ID (#2/#3)
+		this.updateAgentExecutorContext();
+
+		// Rebuild completion gate state from persisted workspace state (#4).
+		// Completed workspaces are marked as implementation-finished so the
+		// gate doesn't block them when evaluateWorkspaceCompletion is called.
+		this.completionGate = new CompletionGateRegistry();
+		for (const [wsId, ws] of state.workspaces) {
+			if (ws.stage === WorkspaceStage.Complete) {
+				this.completionGate.markImplementationFinished(planExecutionId, wsId);
+			}
+		}
+
 		const log = new PiLogger({ planExecId: planExecutionId });
 		log.info(
 			`Adopted execution ${planExecutionId}, recovered ${recovered} stranded workspace(s), status=${state.status}`,
@@ -335,6 +349,120 @@ export class AutonomousExecutor {
 	 */
 	getPlanExecutionId(): string | null {
 		return this.planExecutionId;
+	}
+
+	/**
+	 * Re-run a failed plan execution, skipping already-completed workspaces.
+	 *
+	 * Resets failed and blocked workspaces back to pending so they can be
+	 * re-scheduled. Completed workspaces are left untouched. The plan status
+	 * is reset from "failed" to "running" so the execution loop picks it up.
+	 *
+	 * Returns a summary of what was reset and what was kept.
+	 *
+	 * @param queue - The original workspace queue (for scheduling/dependency graph)
+	 * @param options - Rerun options
+	 * @returns Rerun result summary
+	 */
+	async rerunExecution(
+		queue: WorkspaceQueue,
+		options: { resetBlocked?: boolean; resetFailed?: boolean } = {},
+	): Promise<{
+		success: boolean;
+		resetWorkspaces: string[];
+		keptWorkspaces: string[];
+		error?: string;
+	}> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			return { success: false, resetWorkspaces: [], keptWorkspaces: [], error: "No plan execution ID" };
+		}
+
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (!state) {
+			return { success: false, resetWorkspaces: [], keptWorkspaces: [], error: "No state found to rerun" };
+		}
+
+		// Only allow rerun for terminal states (failed, stopped, cancelled)
+		if (state.status !== "failed" && state.status !== "stopped" && state.status !== "cancelled") {
+			return {
+				success: false,
+				resetWorkspaces: [],
+				keptWorkspaces: [],
+				error: `Plan status is '${state.status}', not a terminal state. Rerun is only for failed/stopped/cancelled plans.`,
+			};
+		}
+
+		const resetFailed = options.resetFailed ?? true;
+		const resetBlocked = options.resetBlocked ?? true;
+		const resetWorkspaces: string[] = [];
+		const keptWorkspaces: string[] = [];
+
+		for (const [wsId, ws] of state.workspaces) {
+			if (ws.stage === WorkspaceStage.Complete) {
+				keptWorkspaces.push(wsId);
+				continue;
+			}
+
+			if (ws.stage === WorkspaceStage.Failed && resetFailed) {
+				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+					reason: "rerun",
+					previousStage: ws.stage,
+				});
+				resetWorkspaces.push(wsId);
+				continue;
+			}
+
+			if (ws.stage === WorkspaceStage.Blocked && resetBlocked) {
+				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+					reason: "rerun",
+					previousStage: ws.stage,
+				});
+				resetWorkspaces.push(wsId);
+				continue;
+			}
+
+			// Active or pending workspaces: just keep them as-is (they'll be picked up)
+			if (ws.stage === WorkspaceStage.Active || ws.stage === WorkspaceStage.Pending) {
+				keptWorkspaces.push(wsId);
+				continue;
+			}
+
+			// Any other stage (shouldn't happen, but be safe)
+			keptWorkspaces.push(wsId);
+		}
+
+		if (resetWorkspaces.length === 0) {
+			return {
+				success: false,
+				resetWorkspaces: [],
+				keptWorkspaces,
+				error: "No workspaces to reset. All workspaces are already complete or not in a resettable state.",
+			};
+		}
+
+		// Reset plan status to running so the execution loop picks it up
+		await this.stateStore.resumePlan(planExecutionId);
+
+		// Load updated state into cache
+		this.workspaceQueue = queue;
+		this.currentPlanState = await this.stateStore.loadState(planExecutionId);
+
+		// Clear any pending control requests
+		try {
+			const { createPlanControlManager } = await import("./plan-control.js");
+			const mgr = createPlanControlManager(this.workspaceRoot);
+			await mgr.clearControlRequest();
+		} catch {
+			// Non-fatal — control file may not exist
+		}
+
+		const log = new PiLogger({ planExecId: planExecutionId });
+		log.info(
+			`Rerun execution ${planExecutionId}: reset ${resetWorkspaces.length} workspace(s), kept ${keptWorkspaces.length} complete`,
+		);
+
+		return { success: true, resetWorkspaces, keptWorkspaces };
 	}
 
 	/**
@@ -453,9 +581,21 @@ export class AutonomousExecutor {
 			this.scheduler.releaseFileLocks(workspace);
 			await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
 
-			// Transition to complete — but check the completion gate first (P4.6.1)
-			const wsValidationState = this.completionGate.getOrCreate(planExecutionId, workspace.id);
-			const gateResult = evaluateWorkspaceCompletion(wsValidationState, workspace);
+			// Feed the completion gate with execution results before evaluating (P4.6.1).
+			// The agent executor does not call into the completion gate directly, so we
+			// translate the agent result into gate state here.
+			if (result.verdict === "COMPLETE") {
+				// Mark implementation as finished
+				this.completionGate.markImplementationFinished(planExecutionId, workspace.id);
+				// If a targetCommand was specified, mark it as passed (the agent was
+				// instructed to run it in its prompt; if it reported COMPLETE, assume success)
+				if (workspace.targetCommand) {
+					this.completionGate.markTargetCommandStarted(planExecutionId, workspace.id);
+					this.completionGate.recordCompletion(planExecutionId, workspace.id, 0, true);
+				}
+			}
+			// Evaluate via registry to get the live state after mutations above
+			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
 			if (gateResult.canComplete) {
 				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
