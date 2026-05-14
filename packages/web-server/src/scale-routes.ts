@@ -304,6 +304,7 @@ export async function collectMergeConflicts(conflictDir: string): Promise<MergeC
 export function isWorktreeSafeToPrune(worktree: WorktreeInfo, activeQueueWorkspaceIds: Set<string>): boolean {
 	if (worktree.bare) return false;
 	if (worktree.dirty) return false;
+	if (worktree.locked) return false;
 	if (worktree.name.startsWith(".")) return false;
 	const nameLower = worktree.name.toLowerCase();
 	if (nameLower === "main" || nameLower === "master" || nameLower === "primary") return false;

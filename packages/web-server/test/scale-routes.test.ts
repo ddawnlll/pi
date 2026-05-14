@@ -282,6 +282,11 @@ describe("isWorktreeSafeToPrune", () => {
 		expect(isWorktreeSafeToPrune(primary, new Set())).toBe(false);
 	});
 
+	it("blocks locked worktrees", () => {
+		const wt = makeWorktree({ locked: true });
+		expect(isWorktreeSafeToPrune(wt, new Set())).toBe(false);
+	});
+
 	it("blocks dot-prefixed worktrees", () => {
 		const wt = makeWorktree({ name: ".hidden" });
 		expect(isWorktreeSafeToPrune(wt, new Set())).toBe(false);
