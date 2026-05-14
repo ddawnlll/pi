@@ -6,7 +6,14 @@
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
-import type { ParallelismReview, PlanExecutionConfig, Workspace, WorkspaceQueue } from "./workspace-schema.js";
+import type {
+	ParallelismReview,
+	PlanExecutionConfig,
+	PlanExecutionScale,
+	PlanExecutionValidation,
+	Workspace,
+	WorkspaceQueue,
+} from "./workspace-schema.js";
 import { isAcceptedSchemaVersion, validateWorkspaceQueue } from "./workspace-schema.js";
 
 /**
@@ -239,10 +246,10 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 
 	// Validate queue
 	if (queue && validate) {
-		// v2.2.0: Early contract version check for clear error messages
+		// v2.2.0+: Early contract version check for clear error messages
 		if (queue.contractVersion && !isAcceptedSchemaVersion(queue.contractVersion)) {
 			errors.push(
-				`Contract version ${queue.contractVersion} is not supported. Accepted versions: 2.0.0, 2.1.0, 2.2.0`,
+				`Contract version ${queue.contractVersion} is not supported. Accepted versions: 2.0.0, 2.1.0, 2.2.0, 2.3.0`,
 			);
 		}
 
@@ -431,13 +438,54 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		typeof parsed.contractVersion === "string" ? parsed.contractVersion : undefined;
 
 	// v2.2.0: planExecution
+	// v2.3.0: Adds scale, worktree, integrationQueue, validation
 	let planExecution: PlanExecutionConfig | undefined;
 	if (parsed.planExecution && typeof parsed.planExecution === "object" && !Array.isArray(parsed.planExecution)) {
+		const pe = parsed.planExecution;
+
+		// v2.3.0: scale
+		let scale: PlanExecutionScale | undefined;
+		if (pe.scale && typeof pe.scale === "object" && !Array.isArray(pe.scale)) {
+			const mode = pe.scale.selectedMode;
+			if (mode === "standard" || mode === "experimental_6") {
+				scale = { selectedMode: mode };
+			}
+		}
+
+		// v2.3.0: worktree
+		let worktree: { enabled: boolean } | undefined;
+		if (pe.worktree && typeof pe.worktree === "object" && !Array.isArray(pe.worktree)) {
+			if (typeof pe.worktree.enabled === "boolean") {
+				worktree = { enabled: pe.worktree.enabled };
+			}
+		}
+
+		// v2.3.0: integrationQueue
+		let integrationQueue: { enabled: boolean } | undefined;
+		if (pe.integrationQueue && typeof pe.integrationQueue === "object" && !Array.isArray(pe.integrationQueue)) {
+			if (typeof pe.integrationQueue.enabled === "boolean") {
+				integrationQueue = { enabled: pe.integrationQueue.enabled };
+			}
+		}
+
+		// v2.3.0: validation
+		let validation: PlanExecutionValidation | undefined;
+		if (pe.validation && typeof pe.validation === "object" && !Array.isArray(pe.validation)) {
+			validation = {
+				globalValidationLockRequired:
+					typeof pe.validation.globalValidationLockRequired === "boolean"
+						? pe.validation.globalValidationLockRequired
+						: undefined,
+			};
+		}
+
 		planExecution = {
 			interactiveParallelismReview:
-				typeof parsed.planExecution.interactiveParallelismReview === "boolean"
-					? parsed.planExecution.interactiveParallelismReview
-					: undefined,
+				typeof pe.interactiveParallelismReview === "boolean" ? pe.interactiveParallelismReview : undefined,
+			scale,
+			worktree,
+			integrationQueue,
+			validation,
 		};
 	}
 

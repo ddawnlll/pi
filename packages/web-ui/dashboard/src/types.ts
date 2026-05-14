@@ -196,6 +196,14 @@ export interface ExecutionStats {
 	tokens_per_workspace?: number;
 	/** Tokens per percent progress (total_tokens / (complete/total*100)). Undefined when total === 0. */
 	tokens_per_percent?: number;
+	/** Workers requested by user configuration (before validation/clamping). */
+	requestedWorkers?: number;
+	/** Maximum workers allowed after validation/clamping. */
+	maxAllowedWorkers?: number;
+	/** Safe effective parallelism considering current constraints. */
+	safeEffectiveParallelism?: number;
+	/** Reasons the scheduler is bottlenecked (human-readable strings). */
+	bottleneckReasons?: string[];
 }
 
 /** Paginated journal response */

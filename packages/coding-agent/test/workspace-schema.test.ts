@@ -396,15 +396,19 @@ describe("v2.2.0: contract version", () => {
 		expect(isAcceptedSchemaVersion("1.0.0")).toBe(false);
 	});
 
-	it("CONTRACT_SCHEMA_VERSION should be 2.2.0", () => {
-		expect(CONTRACT_SCHEMA_VERSION).toBe("2.2.0");
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.0", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.0");
 	});
 
 	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(3);
+	});
+
+	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.0", () => {
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(4);
 	});
 
 	it("should validate a queue with contractVersion 2.2.0", () => {
@@ -828,5 +832,341 @@ describe("v2.2.0: workspace dependencyReason field", () => {
 
 		const result = validateWorkspaceQueue(queue);
 		expect(result.valid).toBe(true);
+	});
+});
+
+// ===========================================================================
+// v2.3.0 Tests — Contract Schema Experimental Parallelism & Prerequisites
+// ===========================================================================
+
+describe("v2.3.0: contract version acceptance", () => {
+	it("should accept contract version 2.3.0", () => {
+		expect(isAcceptedSchemaVersion("2.3.0")).toBe(true);
+	});
+
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.0", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.0");
+	});
+
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0", () => {
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(4);
+	});
+
+	it("should reject future unsupported version 2.4.0", () => {
+		expect(isAcceptedSchemaVersion("2.4.0")).toBe(false);
+	});
+});
+
+describe("v2.3.0: minimal plan validates", () => {
+	it("should validate a minimal v2.3.0 plan", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "2.3.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(true);
+	});
+});
+
+describe("v2.3.0: experimental_6 prerequisites", () => {
+	const makeBaseQueue = (overrides: Partial<WorkspaceQueue> = {}): WorkspaceQueue => ({
+		phase: "P2",
+		title: "Test Phase",
+		maxParallelWorkspaces: 6,
+		contractVersion: "2.3.0",
+		planExecution: {
+			scale: {
+				selectedMode: "experimental_6",
+			},
+			worktree: { enabled: true },
+			integrationQueue: { enabled: true },
+			validation: {
+				globalValidationLockRequired: true,
+			},
+		},
+		workspaces: [
+			{
+				id: "7.A",
+				title: "Task A",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+			{
+				id: "7.B",
+				title: "Task B",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+			{
+				id: "7.C",
+				title: "Task C",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+			{
+				id: "7.D",
+				title: "Task D",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+			{
+				id: "7.E",
+				title: "Task E",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+			{
+				id: "7.F",
+				title: "Task F",
+				dependencies: [],
+				roleBudget: "worker",
+				maxRetries: 3,
+			},
+		],
+		...overrides,
+	});
+
+	it("should validate v2.3.0 experimental_6 with maxParallelWorkspaces=6 and all prerequisites", () => {
+		const result = validateWorkspaceQueue(makeBaseQueue());
+		expect(result.valid).toBe(true);
+		expect(result.errors).toHaveLength(0);
+	});
+
+	it("should fail v2.3.0 experimental_6 when worktree is missing", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution) {
+			delete queue.planExecution.worktree;
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("worktree"))).toBe(true);
+	});
+
+	it("should fail v2.3.0 experimental_6 when integrationQueue is missing", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution) {
+			delete queue.planExecution.integrationQueue;
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("integrationQueue"))).toBe(true);
+	});
+
+	it("should fail v2.3.0 experimental_6 when globalValidationLockRequired is missing", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution?.validation) {
+			delete queue.planExecution.validation.globalValidationLockRequired;
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("globalValidationLockRequired"))).toBe(true);
+	});
+
+	it("should fail v2.3.0 experimental_6 when scale.selectedMode is standard (needs experimental_6)", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution?.scale) {
+			queue.planExecution.scale.selectedMode = "standard";
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+	});
+
+	it("should fail v2.3.0 when planExecution is missing and maxParallelWorkspaces > 3", () => {
+		const queue = makeBaseQueue();
+		delete queue.planExecution;
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+	});
+
+	it("should fail v2.3.0 experimental_6 when all prerequisite fields are present but disabled", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution) {
+			queue.planExecution.worktree = { enabled: false };
+			queue.planExecution.integrationQueue = { enabled: false };
+			if (queue.planExecution.validation) {
+				queue.planExecution.validation.globalValidationLockRequired = false;
+			}
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.length).toBeGreaterThanOrEqual(3);
+	});
+
+	it("should require experimental_6 mode to enable >3 parallelism even with all other prereqs", () => {
+		const queue = makeBaseQueue();
+		if (queue.planExecution?.scale) {
+			queue.planExecution.scale.selectedMode = "standard";
+		}
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+	});
+
+	it("should fail when maxParallelWorkspaces exceeds 6 in experimental_6", () => {
+		const queue = makeBaseQueue({ maxParallelWorkspaces: 7 });
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("exceeds"))).toBe(true);
+	});
+
+	it("should succeed with maxParallelWorkspaces=4 and all prerequisites", () => {
+		const queue = makeBaseQueue({ maxParallelWorkspaces: 4 });
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(true);
+	});
+});
+
+describe("v2.3.0: pre-v2.3.0 maxParallelWorkspaces limit preserved", () => {
+	it("should reject v2.2.0 with maxParallelWorkspaces=6", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 6,
+			contractVersion: "2.2.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.message.includes("maxParallelWorkspaces"))).toBe(true);
+	});
+
+	it("should reject v2.1.0 with maxParallelWorkspaces=6", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 6,
+			contractVersion: "2.1.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+	});
+
+	it("should reject v2.0.0 with maxParallelWorkspaces=6", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 6,
+			contractVersion: "2.0.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+	});
+
+	it("should accept v2.3.0 with maxParallelWorkspaces=3 and no planExecution (minimal plan)", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "2.3.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(true);
+	});
+});
+
+describe("v2.3.0: future version 2.4.0 still rejected", () => {
+	it("should reject unsupported future version 2.4.0", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "2.4.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.type === "invalid_contract_version")).toBe(true);
+	});
+
+	it("should reject unsupported future version 3.0.0", () => {
+		const queue: WorkspaceQueue = {
+			phase: "P2",
+			title: "Test Phase",
+			maxParallelWorkspaces: 3,
+			contractVersion: "3.0.0",
+			workspaces: [
+				{
+					id: "7.A",
+					title: "Task A",
+					dependencies: [],
+					roleBudget: "worker",
+					maxRetries: 3,
+				},
+			],
+		};
+
+		const result = validateWorkspaceQueue(queue);
+		expect(result.valid).toBe(false);
 	});
 });

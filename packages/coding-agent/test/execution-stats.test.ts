@@ -167,6 +167,124 @@ describe("computeExecutionStats", () => {
 		expect(stats.maxWorkers).toBe(3);
 	});
 
+	it("shows requested workers and max allowed workers", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now - 2000 },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(3);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now, 5);
+
+		expect(stats.requestedWorkers).toBe(5);
+		expect(stats.maxAllowedWorkers).toBe(3);
+		expect(stats.maxAllowedWorkers).toBe(stats.maxWorkers);
+	});
+
+	it("defaults requested workers to maxWorkers when not provided", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now - 2000 },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(4);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now);
+
+		expect(stats.requestedWorkers).toBe(4);
+		expect(stats.maxAllowedWorkers).toBe(4);
+	});
+
+	it("shows safe effective parallelism", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Active },
+				{ id: "C", stage: WorkspaceStage.Pending },
+				{ id: "D", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now - 3000 },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(3);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now);
+
+		// active=2, ready should be 1 (1 available slot, 2 pending - 0 blocked = 2, capped by 1 slot)
+		// safeEffectiveParallelism = min(maxAllowedWorkers=3, active+ready) = min(3, 2+1) = 3
+		expect(stats.active).toBe(2);
+		expect(stats.maxAllowedWorkers).toBe(3);
+		expect(stats.safeEffectiveParallelism).toBeGreaterThanOrEqual(2);
+		expect(stats.safeEffectiveParallelism).toBeLessThanOrEqual(3);
+	});
+
+	it("shows bottleneck reasons with blocked workspaces", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Blocked },
+				{ id: "C", stage: WorkspaceStage.Blocked },
+				{ id: "D", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now - 5000 },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(3);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now);
+
+		expect(stats.bottleneckReasons.length).toBeGreaterThanOrEqual(1);
+		expect(stats.bottleneckReasons.some((r) => r.includes("blocked by dependencies"))).toBe(true);
+	});
+
+	it("shows bottleneck reasons with full worker slots", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Active },
+				{ id: "C", stage: WorkspaceStage.Active },
+				{ id: "D", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now - 5000 },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(3);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now);
+
+		expect(stats.bottleneckReasons.length).toBeGreaterThanOrEqual(1);
+		expect(stats.bottleneckReasons.some((r) => r.includes("worker slots occupied"))).toBe(true);
+	});
+
+	it("shows empty bottleneck reasons when no constraints", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Complete },
+				{ id: "B", stage: WorkspaceStage.Complete },
+			],
+			{ startedAt: now - 5000, status: "complete" },
+			now,
+		);
+		const scheduler = new WorkspaceScheduler(3);
+
+		const stats = computeExecutionStats(state, scheduler, emptyJournal(), now);
+
+		expect(stats.bottleneckReasons).toEqual([]);
+	});
+
 	it("shows ready/pending/blocked/failed counts", () => {
 		const now = 1000000;
 		const state = makeState(
@@ -363,6 +481,94 @@ describe("computeExecutionStatsSimple", () => {
 
 		expect(stats.lastEventTimestamp).toBe(now - 100);
 	});
+
+	it("shows requested workers and max allowed in simple mode", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now },
+			now,
+		);
+
+		const stats = computeExecutionStatsSimple(state, emptyJournal(), 3, now, 6);
+
+		expect(stats.requestedWorkers).toBe(6);
+		expect(stats.maxAllowedWorkers).toBe(3);
+		expect(stats.maxWorkers).toBe(3);
+	});
+
+	it("defaults requested workers to maxWorkers in simple mode", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now },
+			now,
+		);
+
+		const stats = computeExecutionStatsSimple(state, emptyJournal(), 4, now);
+
+		expect(stats.requestedWorkers).toBe(4);
+		expect(stats.maxAllowedWorkers).toBe(4);
+	});
+
+	it("shows safe effective parallelism in simple mode", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Pending },
+				{ id: "C", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now },
+			now,
+		);
+
+		const stats = computeExecutionStatsSimple(state, emptyJournal(), 3, now);
+
+		// active=1, ready=2 (availableSlots=2, pending=2), so safe=min(3, 1+2)=3
+		expect(stats.active).toBe(1);
+		expect(stats.safeEffectiveParallelism).toBe(3);
+	});
+
+	it("shows bottleneck reasons in simple mode with blocked workspaces", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Active },
+				{ id: "B", stage: WorkspaceStage.Blocked },
+				{ id: "C", stage: WorkspaceStage.Pending },
+			],
+			{ startedAt: now },
+			now,
+		);
+
+		const stats = computeExecutionStatsSimple(state, emptyJournal(), 3, now);
+
+		expect(stats.bottleneckReasons.length).toBeGreaterThanOrEqual(1);
+		expect(stats.bottleneckReasons.some((r) => r.includes("blocked by dependencies"))).toBe(true);
+	});
+
+	it("shows empty bottleneck reasons in simple mode when no constraints", () => {
+		const now = 1000000;
+		const state = makeState(
+			[
+				{ id: "A", stage: WorkspaceStage.Complete },
+				{ id: "B", stage: WorkspaceStage.Complete },
+			],
+			{ startedAt: now, status: "complete" },
+			now,
+		);
+
+		const stats = computeExecutionStatsSimple(state, emptyJournal(), 3, now);
+
+		expect(stats.bottleneckReasons).toEqual([]);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -383,6 +589,10 @@ describe("formatExecutionStats", () => {
 			failed: 0,
 			elapsedMs: 45000,
 			lastEventTimestamp: 1000500,
+			requestedWorkers: 3,
+			maxAllowedWorkers: 3,
+			safeEffectiveParallelism: 1,
+			bottleneckReasons: [],
 		};
 
 		const formatted = formatExecutionStats(stats);
@@ -394,6 +604,9 @@ describe("formatExecutionStats", () => {
 		expect(formatted).toContain("pending=0");
 		expect(formatted).toContain("blocked=0");
 		expect(formatted).toContain("failed=0");
+		expect(formatted).toContain("Requested: 3 workers");
+		expect(formatted).toContain("Max allowed: 3");
+		expect(formatted).toContain("Safe parallelism: 1");
 		expect(formatted).toContain("45s");
 		expect(formatted).toContain("1970-01-01"); // ISO date part
 	});
@@ -411,11 +624,67 @@ describe("formatExecutionStats", () => {
 			failed: 0,
 			elapsedMs: 0,
 			lastEventTimestamp: null,
+			requestedWorkers: 5,
+			maxAllowedWorkers: 3,
+			safeEffectiveParallelism: 0,
+			bottleneckReasons: ["Pending workspace(s) waiting"],
 		};
 
 		const formatted = formatExecutionStats(stats);
 
 		expect(formatted).toContain("Last event: —");
+		expect(formatted).toContain("Requested: 5 workers");
+		expect(formatted).toContain("Max allowed: 3");
+		expect(formatted).toContain("Safe parallelism: 0");
+		expect(formatted).toContain("Bottlenecks: Pending workspace(s) waiting");
+	});
+
+	it("shows bottleneck reasons when present", () => {
+		const stats: ExecutionStats = {
+			progressPercent: 50,
+			completed: 1,
+			total: 2,
+			active: 0,
+			maxWorkers: 3,
+			ready: 0,
+			pending: 0,
+			blocked: 1,
+			failed: 0,
+			elapsedMs: 10000,
+			lastEventTimestamp: null,
+			requestedWorkers: 5,
+			maxAllowedWorkers: 3,
+			safeEffectiveParallelism: 0,
+			bottleneckReasons: ["1 workspace(s) blocked by dependencies"],
+		};
+
+		const formatted = formatExecutionStats(stats);
+
+		expect(formatted).toContain("Bottlenecks: 1 workspace(s) blocked by dependencies");
+	});
+
+	it("omits bottleneck line when no reasons", () => {
+		const stats: ExecutionStats = {
+			progressPercent: 100,
+			completed: 2,
+			total: 2,
+			active: 0,
+			maxWorkers: 3,
+			ready: 0,
+			pending: 0,
+			blocked: 0,
+			failed: 0,
+			elapsedMs: 5000,
+			lastEventTimestamp: null,
+			requestedWorkers: 3,
+			maxAllowedWorkers: 3,
+			safeEffectiveParallelism: 0,
+			bottleneckReasons: [],
+		};
+
+		const formatted = formatExecutionStats(stats);
+
+		expect(formatted).not.toContain("Bottlenecks:");
 	});
 });
 

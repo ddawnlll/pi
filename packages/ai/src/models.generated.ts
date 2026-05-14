@@ -8988,8 +8988,8 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 256000,
-			maxTokens: 256000,
+			contextWindow: 1048576,
+			maxTokens: 384000,
 		} satisfies Model<"openai-completions">,
 		"deepseek/deepseek-v4-pro": {
 			id: "deepseek/deepseek-v4-pro",
@@ -12703,13 +12703,13 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 1.0499999999999998,
-				output: 3.5,
-				cacheRead: 0.5249999999999999,
+				input: 0.98,
+				output: 3.08,
+				cacheRead: 0.182,
 				cacheWrite: 0,
 			},
 			contextWindow: 202752,
-			maxTokens: 65535,
+			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"z-ai/glm-5v-turbo": {
 			id: "z-ai/glm-5v-turbo",

@@ -4,10 +4,27 @@
  * Defines normalized workspace schema, validation logic, and state machine.
  * Contract Schema v2.2.0: adds parallelGroup, dependencyReason on Workspace;
  *   planExecution.interactiveParallelismReview and parallelismReview on WorkspaceQueue.
+ * Contract Schema v2.3.0: adds planExecution.scale, planExecution.worktree,
+ *   planExecution.integrationQueue, planExecution.validation;
+ *   supports experimental_6 mode (maxParallelWorkspaces up to 6).
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
 import type { RetryPolicy } from "./retry-handler.js";
+
+// ---------------------------------------------------------------------------
+// Contract Schema Version Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum maxParallelWorkspaces for pre-v2.3.0 schema versions.
+ */
+const MAX_PARALLEL_LEGACY = 3;
+
+/**
+ * Maximum maxParallelWorkspaces for v2.3.0+ when using experimental_6 mode.
+ */
+const MAX_PARALLEL_EXPERIMENTAL = 6;
 
 // ---------------------------------------------------------------------------
 // Contract Schema Version
@@ -21,14 +38,17 @@ import type { RetryPolicy } from "./retry-handler.js";
  * - 2.2.0: Added parallelGroup, dependencyReason on Workspace;
  *          planExecution.interactiveParallelismReview on WorkspaceQueue;
  *          parallelismReview on WorkspaceQueue
+ * - 2.3.0: Added planExecution.scale, planExecution.worktree,
+ *          planExecution.integrationQueue, planExecution.validation;
+ *          supports experimental_6 mode (maxParallelWorkspaces up to 6).
  */
-export const CONTRACT_SCHEMA_VERSION = "2.2.0" as const;
+export const CONTRACT_SCHEMA_VERSION = "2.3.0" as const;
 
 /**
  * Set of all contract schema versions that this parser accepts.
  * Plans declaring any of these versions will be accepted.
  */
-export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0"]);
+export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0", "2.3.0"]);
 
 /**
  * Check whether a given version string is an accepted contract schema version.
@@ -83,6 +103,67 @@ export interface PlanExecutionConfig {
 	 * workspace schedule and asks for explicit approval before proceeding.
 	 */
 	interactiveParallelismReview?: boolean;
+
+	/**
+	 * Scaling configuration.
+	 *
+	 * Contract Schema v2.3.0 field.
+	 */
+	scale?: PlanExecutionScale;
+
+	/**
+	 * Worktree configuration.
+	 *
+	 * When enabled, each workspace runs in its own worktree.
+	 * Required for experimental_6 mode.
+	 *
+	 * Contract Schema v2.3.0 field.
+	 */
+	worktree?: { enabled: boolean };
+
+	/**
+	 * Integration queue configuration.
+	 *
+	 * When enabled, serializes integration-related workspaces.
+	 * Required for experimental_6 mode.
+	 *
+	 * Contract Schema v2.3.0 field.
+	 */
+	integrationQueue?: { enabled: boolean };
+
+	/**
+	 * Validation configuration.
+	 *
+	 * Contract Schema v2.3.0 field.
+	 */
+	validation?: PlanExecutionValidation;
+}
+
+/**
+ * Scaling configuration for plan execution.
+ *
+ * Contract Schema v2.3.0.
+ */
+export interface PlanExecutionScale {
+	/**
+	 * Selected scaling mode.
+	 * - "standard": Legacy parallelism (maxParallelWorkspaces <= 3)
+	 * - "experimental_6": Expanded parallelism (maxParallelWorkspaces <= 6)
+	 */
+	selectedMode: "standard" | "experimental_6";
+}
+
+/**
+ * Validation configuration for plan execution.
+ *
+ * Contract Schema v2.3.0.
+ */
+export interface PlanExecutionValidation {
+	/**
+	 * Whether global validation lock is required before validation runs.
+	 * Required for experimental_6 mode.
+	 */
+	globalValidationLockRequired?: boolean;
 }
 
 /**
@@ -407,12 +488,78 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		}
 	}
 
-	// v2.2.0: Validate contract version if declared
+	// v2.2.0+: Validate contract version if declared
 	if (queue.contractVersion !== undefined && !isAcceptedSchemaVersion(queue.contractVersion)) {
 		errors.push({
 			type: "invalid_contract_version",
 			message: `Unsupported contract version: ${queue.contractVersion}. Accepted versions: ${Array.from(ACCEPTED_SCHEMA_VERSIONS).join(", ")}`,
 			context: { contractVersion: queue.contractVersion },
+		});
+	}
+
+	// v2.3.0: Validate maxParallelWorkspaces limits and prerequisites
+	const contractVer = queue.contractVersion ?? "2.0.0";
+	const isV230 = contractVer === "2.3.0";
+
+	if (queue.maxParallelWorkspaces < 1) {
+		errors.push({
+			type: "invalid_parallelism_review",
+			message: `maxParallelWorkspaces must be at least 1, got ${queue.maxParallelWorkspaces}`,
+			context: { maxParallelWorkspaces: queue.maxParallelWorkspaces },
+		});
+	} else if (isV230) {
+		const selectedMode = queue.planExecution?.scale?.selectedMode;
+		const isExperimental6 = selectedMode === "experimental_6";
+
+		if (isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_EXPERIMENTAL) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: `maxParallelWorkspaces ${queue.maxParallelWorkspaces} exceeds experimental_6 limit of ${MAX_PARALLEL_EXPERIMENTAL}`,
+				context: { maxParallelWorkspaces: queue.maxParallelWorkspaces, limit: MAX_PARALLEL_EXPERIMENTAL },
+			});
+		} else if (!isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: `maxParallelWorkspaces ${queue.maxParallelWorkspaces} exceeds standard limit of ${MAX_PARALLEL_LEGACY}. Set planExecution.scale.selectedMode to "experimental_6" to allow up to ${MAX_PARALLEL_EXPERIMENTAL}.`,
+				context: { maxParallelWorkspaces: queue.maxParallelWorkspaces, limit: MAX_PARALLEL_LEGACY },
+			});
+		}
+
+		// Experimental_6 prerequisites check
+		if (isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
+			const planExec = queue.planExecution;
+			if (!planExec?.worktree?.enabled) {
+				errors.push({
+					type: "missing_field",
+					message: "Experimental_6 mode requires planExecution.worktree.enabled to be true",
+					context: { requiredField: "planExecution.worktree" },
+				});
+			}
+			if (!planExec?.integrationQueue?.enabled) {
+				errors.push({
+					type: "missing_field",
+					message: "Experimental_6 mode requires planExecution.integrationQueue.enabled to be true",
+					context: { requiredField: "planExecution.integrationQueue" },
+				});
+			}
+			if (!planExec?.validation?.globalValidationLockRequired) {
+				errors.push({
+					type: "missing_field",
+					message: "Experimental_6 mode requires planExecution.validation.globalValidationLockRequired to be true",
+					context: { requiredField: "planExecution.validation.globalValidationLockRequired" },
+				});
+			}
+		}
+	} else if (queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
+		// Pre-v2.3.0: enforce the legacy 1-3 limit
+		errors.push({
+			type: "invalid_parallelism_review",
+			message: `maxParallelWorkspaces must be between 1 and ${MAX_PARALLEL_LEGACY} for contract version ${contractVer}, got ${queue.maxParallelWorkspaces}`,
+			context: {
+				maxParallelWorkspaces: queue.maxParallelWorkspaces,
+				limit: MAX_PARALLEL_LEGACY,
+				contractVersion: contractVer,
+			},
 		});
 	}
 

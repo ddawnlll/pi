@@ -473,12 +473,35 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			approvedPreviewMetadata.batchAssignment[node.id] = node.batchIndex;
 		}
 
+		// Read worker concurrency settings from the settings manager so that
+		// the dashboard's Scale & Safety tab (maxWorkers + experimentalModeEnabled)
+		// is respected at runtime. The plan's maxParallelWorkspaces is the upper
+		// bound; the settings value is the actual runtime cap.
+		let workerConcurrencySettings = undefined as
+			| { maxWorkers?: number; experimentalModeEnabled?: boolean }
+			| undefined;
+		try {
+			const { SettingsManager } = await import("@earendil-works/pi-coding-agent");
+			const sm = SettingsManager.create(workspaceRoot);
+			workerConcurrencySettings = sm.getWorkerConcurrency();
+		} catch {
+			// Non-fatal — fall back to plan-level maxParallelWorkspaces
+		}
+
+		const workerConcurrency = workerConcurrencySettings
+			? {
+					maxWorkers: workerConcurrencySettings.maxWorkers ?? parseResult.queue.maxParallelWorkspaces ?? 3,
+					experimentalModeEnabled: workerConcurrencySettings.experimentalModeEnabled ?? false,
+				}
+			: undefined;
+
 		const executor = new AutonomousExecutor(stateStore, {
 			workspaceRoot,
 			projectId,
 			maxWorkers: parseResult.queue.maxParallelWorkspaces || 3,
+			workerConcurrency,
 			skipProjectManagement: false,
-			enableRealExecution: true, // Enable real agent execution
+			enableRealExecution: true,
 			approvedPreview: approvedPreviewMetadata,
 		});
 

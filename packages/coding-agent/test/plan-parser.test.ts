@@ -1283,3 +1283,119 @@ describe("v2.2.0: workspace parallelGroup and dependencyReason parsing", () => {
 		expect(result.queue?.workspaces[0].dependencyReason).toBeUndefined();
 	});
 });
+
+// ===========================================================================
+// v2.3.0 Tests — Contract Schema Experimental Parallelism in Plan Parser
+// ===========================================================================
+
+describe("v2.3.0: plan parser accepts contract version 2.3.0", () => {
+	it("should parse and validate v2.3.0 minimal plan", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.3.0");
+	});
+
+	it("should parse v2.3.0 plan with scale, worktree, integrationQueue, validation", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 6,
+  "planExecution": {
+    "scale": { "selectedMode": "experimental_6" },
+    "worktree": { "enabled": true },
+    "integrationQueue": { "enabled": true },
+    "validation": { "globalValidationLockRequired": true }
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Task B", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.C", "title": "Task C", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.D", "title": "Task D", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.E", "title": "Task E", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.F", "title": "Task F", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(true);
+		expect(result.queue?.contractVersion).toBe("2.3.0");
+		expect(result.queue?.planExecution?.scale?.selectedMode).toBe("experimental_6");
+		expect(result.queue?.planExecution?.worktree?.enabled).toBe(true);
+		expect(result.queue?.planExecution?.integrationQueue?.enabled).toBe(true);
+		expect(result.queue?.planExecution?.validation?.globalValidationLockRequired).toBe(true);
+	});
+
+	it("should reject v2.3.0 plan with missing prerequisites for experimental_6", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.3.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 6,
+  "planExecution": {
+    "scale": { "selectedMode": "experimental_6" }
+  },
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.B", "title": "Task B", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.C", "title": "Task C", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.D", "title": "Task D", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.E", "title": "Task E", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 },
+    { "id": "7.F", "title": "Task F", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject unsupported future contract version 2.4.0", () => {
+		const planContent = `
+# Part 3 — Workspace Queue
+
+\`\`\`json
+{
+  "contractVersion": "2.4.0",
+  "phase": "P2",
+  "title": "Test Phase",
+  "maxParallelWorkspaces": 3,
+  "workspaces": [
+    { "id": "7.A", "title": "Task A", "dependencies": [], "roleBudget": "worker", "maxRetries": 3 }
+  ]
+}
+\`\`\`
+`;
+
+		const result = parsePlan(planContent);
+		expect(result.success).toBe(false);
+		expect(result.errors.some((e) => e.includes("not supported"))).toBe(true);
+	});
+});

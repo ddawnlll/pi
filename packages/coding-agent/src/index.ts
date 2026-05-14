@@ -86,6 +86,8 @@ export {
 	isAcceptedSchemaVersion,
 	type ParallelismReview,
 	type PlanExecutionConfig,
+	type PlanExecutionScale,
+	type PlanExecutionValidation,
 	type TopologicalBatch,
 	validateWorkspaceQueue,
 	type Workspace,

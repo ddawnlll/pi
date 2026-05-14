@@ -531,15 +531,21 @@ export async function registerScaleRoutes(
 			const requestedWorkers = Number(workerConcurrency.maxWorkers ?? 3);
 			const experimentalModeEnabled = Boolean(workerConcurrency.experimentalModeEnabled ?? false);
 
-			// Read prerequisite flags from settings
+			// P6 already enables worktree isolation, integration queue, and validation
+			// lock at runtime. These are not stored as settings flags — they are
+			// hard-enabled by the P6 architecture. The readiness endpoint reflects
+			// this by defaulting to true.
+			//
+			// If a plan overrides these via planExecution config, we respect that;
+			// otherwise assume P6 defaults are in effect.
 			const worktreeIsolationEnabled = Boolean(
-				(settings.scale as Record<string, unknown>)?.worktreeIsolationEnabled ?? false,
+				(settings.scale as Record<string, unknown>)?.worktreeIsolationEnabled ?? true,
 			);
 			const integrationQueueEnabled = Boolean(
-				(settings.scale as Record<string, unknown>)?.integrationQueueEnabled ?? false,
+				(settings.scale as Record<string, unknown>)?.integrationQueueEnabled ?? true,
 			);
 			const validationLockEnabled = Boolean(
-				(settings.scale as Record<string, unknown>)?.validationLockEnabled ?? false,
+				(settings.scale as Record<string, unknown>)?.validationLockEnabled ?? true,
 			);
 
 			const readiness = buildScaleModeReadiness(

@@ -32,6 +32,10 @@ export interface DashboardSettings {
 	scaleMode?: "stable_3" | "experimental_6" | "scale_8";
 	dogfoodPass?: boolean;
 	explicitApproval?: boolean;
+	workerConcurrency?: {
+		maxWorkers?: number;
+		experimentalModeEnabled?: boolean;
+	};
 	[key: string]: unknown;
 }
 

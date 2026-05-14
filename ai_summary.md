@@ -1,8 +1,115 @@
-# Autonomous Execution System — File Analysis Summary
+# Pi Monorepo — File Analysis Summary
 
-**Date:** 2026-05-12  
-**Scope:** `packages/web-ui/dashboard/`, `packages/web-server/`, reference docs  
-**Purpose:** Understand what every file does for the P2 autonomous multi-agent plan executor system
+**Date:** 2026-05-14  
+**Scope:** `packages/ai/`, `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`, reference docs  
+**Purpose:** Understand what every file does across the autonomous execution system, prompt cache architecture, P6 large-project scale reliability, performance telemetry, and cleanup/review pipeline
+
+---
+
+## Recent Commits (last 10, oldest to newest)
+
+### 1. `fix: log failure reason when completion gate blocks workspace` (0ed9e1ff)
+
+Completion gate block reasons are now written into workspace state as the `error` field, making them visible in the dashboard and logs. Previously only `console.warn` was emitted.
+
+- **Files:** `packages/coding-agent/src/core/autonomous-executor.ts`
+
+### 2. `feat(ui): show clear failure reason when workspace fails or blocked` (cddc31b5)
+
+Updated `WorkerDetail` component: failed/blocked banner with icons, "Failure Reason" section (red), "Workspace State Error" section (amber), full-text attempt history errors, separate display for `worker.error` vs `workspace.error`.
+
+- **Files:** `packages/web-ui/dashboard/src/components/WorkerDetail.tsx`
+
+### 3. `feat(p4.6.3): abort in-flight agent execution on stop` (2ec81452)
+
+Stop/pause signals can now cancel in-flight workspace executions. Added `AbortController` per execution in `WorkspaceAgentExecutor` — when abort fires, `session.agent.abort()` is called, which aborts the ongoing LLM API call. `AutonomousExecutor.stopAllActiveWorkspaces()` calls `agentExecutor.abort()` then waits via `Promise.allSettled`. PlanRunner calls `stopAllActiveWorkspaces()` on stop control signal.
+
+- **Files:** `packages/coding-agent/src/core/autonomous-executor.ts`, `packages/coding-agent/src/core/workspace-agent-executor.ts`, `packages/web-server/src/plan-runner.ts`
+
+### 4. `feat(pP2): complete workspace 5.5.G — Performance telemetry dashboard` (c581733e)
+
+Added performance metrics hooks and panel components for the dashboard: `PerformancePanel.tsx`, `usePerformanceMetrics.ts`, `performance-routes.test.ts`.
+
+- **Files:** 3 files in `packages/web-server/test/` and `packages/web-ui/dashboard/src/`
+
+### 5. `feat(pP2): complete workspace 5.5.A — Prompt cache architecture` (6341d538)
+
+Documentation-only commit: `docs/pi/performance/prompt-cache-architecture.md` — describes the prompt cache design.
+
+- **Files:** `docs/pi/performance/prompt-cache-architecture.md`
+
+### 6. `feat(p5.5): prompt cache architecture, worker live status, cleanup review, and dashboard animations` (f047aa15)
+
+Major cross-cutting commit:
+- **Backend:** `WorkspaceAgentExecutor` emits live `worker_status` events for full agent lifecycle (thinking, executing, deciding, compacting, retry)
+- **Backend:** Cleanup/review worker runs after all plan workspaces complete — reviews changes, runs tests, catches bugs, auto-commits fixes
+- **Backend:** Fixed plan auto-completion — when all workspaces pass + cleanup passes, plan auto-commits and marks complete
+- **Backend:** Added `plan_summary` and `cleanup_workspace` journal event types
+- **Backend:** Fixed pre-existing build error in `context-budget.ts` (re-export `TokenRole`)
+- **API:** `GET /api/projects/:projectId/plans/:planExecId/summary` endpoint
+- **Dashboard:** `ThinkingAnimation` component (animated brain/wrench icons, pulsing dots, live-writing text)
+- **Dashboard:** `WorkerDetail` overview tab shows live agent state from transcript
+- **Dashboard:** `LiveLogTerminal` log lines with fade-in animation, CPU spinner + thinking dots
+- **Dashboard:** `PlanSummaryPanel` showing cleanup verdict, changed files, issues, test results
+- **Dashboard:** `PlanSummaryPanel` in right sidebar below alerts
+
+- **Files:** 13 files across `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`
+
+### 7. `feat(p5.5): complete workspaces 5.5.A-H — Performance, Cache & Retrieval Acceleration` (0c50ffbe)
+
+Completes 8 workspaces:
+- **5.5.A:** Prompt cache architecture — `PromptCachePolicy`, `PromptAssembler`, cacheable prefix/dynamic suffix split, stable prefix hash
+- **5.5.B:** Static/dynamic context split — `ContextSection` classification, cacheability rules (static/semi-static/dynamic), budget enforcement
+- **5.5.C:** Cacheable workspace packet format — Deterministic contract hashing, state separated from contract, `WorkspacePacket` type
+- **5.5.D:** Local repo retrieval — `LocalRepoIndex` for snippet-level search, `RetrievalService` for relevant context fetching
+- **5.5.E:** Execution memory — `ExecutionMemoryStore` for prior run reuse, summarization, relevance scoring
+- **5.5.F:** Targeted validation planning — `ValidationPlanner` with decision tree: targetCommand → high-risk full validation → targeted file tests → fallback
+- **5.5.G:** Performance telemetry dashboard — `CachePerformanceMetrics`, `WorkspacePerformanceMetrics`, `ValidationLockMetrics`, token split visualization, burn rate display
+- **5.5.H:** Stability report & dogfood — E2E validation, 68% avg validation time reduction, 59% cache hit rate, no safety regressions
+
+Key metrics: cacheable prefix ~5,200 tokens, dynamic suffix 1,800-3,200 tokens, avg cache hit rate 59.0%, validation time reduction 68% (102s → 33s avg).
+
+- **Files:** 29 files across `packages/ai/`, `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`
+
+### 8. `feat(cleanup): review fixes and improvements` (387c3696)
+
+Lint/cleanup fixes:
+- `validation-lock`: add `reset()` method to `AsyncLock` for private field access
+- `execution-memory`: string concat → template literals
+- `local-repo-index`: remove unused `getLanguageFromExtension()` and `ig` field
+- `validation-planner`: remove unused `deletedFiles` variable
+- `repo-symbol-graph`: add missing config property declaration with lint suppression
+- `context-section.test`: fix Message type compliance
+- Various test files: remove unused imports, variables; fix biome lint warnings
+
+- **Files:** 10 files across `packages/coding-agent/`
+
+### 9. `feat(cleanup): review fixes and improvements` (197af512)
+
+Large-scale P6 commit introducing the full large-project scale reliability architecture:
+- **Worktree isolation:** `worktree-manager.ts`, `worktree-cleanup.ts`, `worktree-types.ts`, `worktree-workspace-executor.ts`
+- **Dynamic scheduler:** `dynamic-scheduler.ts`, `scale-mode-policy.ts`
+- **Integration queue:** `integration-queue.ts`, `integration-branch.ts`, `merge-conflict-handoff.ts`
+- **Validation:** `test-impact-analyzer.ts`, `validation-planner.ts`
+- **Failure handling:** `failure-classifier.ts`, `retry-router.ts`
+- **Repo graph:** `repo-graph-builder.ts`
+- **Dashboard:** `IntegrationQueuePanel`, `MergeConflictPanel`, `ScaleModeSettings`, `WorktreeStatusPanel`, `useScaleStatus` hook, `scale-routes.ts`
+- **Scale readiness doctor:** `scale-readiness-doctor.ts`
+- **Removed `packages/db/`** (entire PostgreSQL database package — deprecated)
+
+60 files changed, 17340 additions, 1819 deletions. This is a major architecture addition for P6 large-project scale reliability.
+
+### 10. `fix(ai): capture LLM cache usage data and compute cache hit rate in execution statistics` (e4df5440)
+
+Previously `cache_hit_rate` was hardcoded as 0 with `known=false`. Now each assistant `message_end` event extracts `usage.cacheRead/input` from `AssistantMessage` and persists it as a `cache_usage` journal event. `getStatistics()` aggregates these events to compute `cache_hit_rate = cacheRead / (cacheRead + input)`.
+
+Also fixes:
+- `plan-summary.json` now scoped per plan execution: `.pi/executions/{planExecId}/plan-summary.json`
+- `PlanSummaryPanel` sidebar container made scrollable
+- P6 phase plan dependency graph flattened to reduce serial bottlenecks
+- Thinking streaming buffers deltas until newline before logging
+
+- **Files:** 6 files across `packages/coding-agent/`, `packages/web-server/`
 
 ---
 
@@ -12,6 +119,169 @@
 |---|---|
 | `docs/llm-implementation-agent-master-template.md` | **Canonical plan template v2.1.0** — Defines the 4-part structure (Phase Plan, Agent Brief, Machine-Readable Execution Contract, Machine-Readable Summary) used by Pi to execute plans autonomously. Introduces PostgreSQL-backed multi-project execution, state backends (postgres/json), dashboard enablement, safety gates, and control model. |
 | `docs/pi_autonomous_multiagent_plan_executor.md` | **Phase P2 plan** — Concrete instance of the master template describing the full scope: plan parser, workspace schema, state store, DAG scheduler, packet builders, autonomous execution loop, 3-worker scheduler, retry loop, auto-commit, doctor/safety, CLI commands, and an E2E dry run. |
+| `docs/pi/performance/prompt-cache-architecture.md` | **Prompt cache architecture** (workspace 5.5.A) — Describes cacheable prefix / dynamic suffix split, stable prefix hashing, version bump strategy. |
+| `docs/pi/stability/p5-5-performance-cache-report.md` | **P5.5 stability report & dogfood** (workspace 5.5.H) — E2E validation metrics, cache hit rates, validation time reduction, safety assurance. |
+| `docs/phase_p_6_large_project_scale_reliability.md` | **Phase P6 plan** — Large project scale reliability: worktree isolation, dynamic scheduling, integration queue, merge conflict resolution, test impact analysis, failure classification. |
+| `docs/pi/scale/worktree-isolation.md` | **Worktree isolation design** — How Pi uses git worktrees to isolate workspace executions and prevent cross-contamination. |
+| `docs/pi/stability/p6-large-project-scale-report.md` | **P6 stability report** — Dogfood results for large-project scale mode. |
+
+---
+
+## File Tree — `packages/ai`
+
+```
+packages/ai/
+  src/
+    prompt-cache.ts                # PromptCachePolicy — cacheable prefix/dynamic suffix split, prefix hashing, assembly
+    index.ts                       # Re-exports prompt-cache.ts in addition to existing exports
+    models.generated.ts            # Updated model data: OpenAI GPT-4.1 pricing, DeepSeek V4 Flash (free), GLM-4.6V maxTokens fix, OSS model maxTokens bump
+  test/
+    prompt-cache-policy.test.ts    # 450-line exhaustive test suite for prompt cache policy
+```
+
+### Key additions
+
+#### `src/prompt-cache.ts` — Prompt Cache Architecture
+
+Core prompt caching logic separating cacheable prefix from dynamic suffix:
+
+| Export | Purpose |
+|---|---|
+| `CACHE_PREFIX_VERSION` | Current prefix version constant (v1) — bump when safety/policy rules change |
+| `PromptAssembly` | Result type: version + prefix (cacheable) + suffix (dynamic messages) |
+| `PromptPrefix` | Cacheable portion: systemPrompt, tools, pinnedMessages |
+| `assemblePrompt(context, options)` | Splits context into prefix/suffix based on pinnedMessageCount |
+| `computePrefixHash(prefix)` | Stable hash of prefix content (deterministic, order-independent for tools) |
+| `computeContextPrefixHash(context, options)` | Hash directly from Context |
+| `prefixHashStableAcrossSuffixChange(a, b)` | Verify hash stability across suffix-only changes |
+
+---
+
+## File Tree — `packages/coding-agent`
+
+```
+packages/coding-agent/src/
+  context/
+    context-builder.ts             # Static/dynamic context split, context section classification, budget enforcement
+    context-section.ts             # ContextSection types + cacheability rules (static/semi-static/dynamic)
+    workspace-packet.ts            # WorkspacePacket — deterministic contract hashing, state separated from contract
+  core/
+    cleanup-review.ts              # Cleanup/review worker — runs after all plan workspaces complete, reviews changes, runs tests, auto-commits fixes. Writes plan-summary.json per execution.
+    context-budget.ts              # Context budget limits per role, fixed re-export of TokenRole
+    autonomous-executor.ts         # AutonomousExecutor — tracks in-flight executions, supports abortAll/stopAllActiveWorkspaces, error state for completion gate blocks
+    workspace-agent-executor.ts    # WorkspaceAgentExecutor — per-execution AbortController for in-flight LLM abort, cache_usage journal events, live worker_status events, thinking buffer logging
+    database-state-store.ts        # DatabaseStateStore — getStatistics() computes cache_hit_rate from cache_usage journal events
+    json-state-store.ts            # JsonStateStore — same cache_hit_rate computation from journal events
+    plan-state.ts                  # Added cache_usage and cleanup/review journal event types
+    validation-lock.ts             # AsyncLock with reset() method for test cleanup
+  memory/
+    execution-memory.ts            # ExecutionMemory — relevance scoring, string concat → template literals cleanup
+    execution-memory-store.ts      # ExecutionMemoryStore — prior run reuse, summarization, scoring
+  retrieval/
+    local-repo-index.ts            # LocalRepoIndex — snippet-level search, removed unused getLanguageFromExtension()
+    retrieval-service.ts           # RetrievalService — fetches relevant context from local repo
+  repo-graph/
+    repo-symbol-graph.ts           # RepoSymbolGraph — maps files to tests, tracks import/export, conflict detection
+    repo-graph-builder.ts          # Builds the symbol graph from repository source
+  scheduler/
+    dynamic-scheduler.ts           # P6 dynamic scheduler — multi-workspace scheduling with dependency resolution
+    scale-mode-policy.ts           # P6 scale mode policy — decides when to parallelize vs serialize
+  integration/
+    integration-queue.ts           # P6 integration queue — manages merge order of parallel workspaces
+    integration-branch.ts          # P6 integration branch — temporary branch for merging workspace changes
+    merge-conflict-handoff.ts      # P6 merge conflict resolution — detects and resolves conflicts between workspaces
+  validation/
+    validation-planner.ts          # ValidationPlanner — decision tree for targeted test selection, removed unused deletedFiles
+    test-impact-analyzer.ts        # P6 test impact analysis — determines which tests to run from changed files
+  worktree/
+    worktree-manager.ts            # P6 worktree manager — creates/manages git worktrees for workspace isolation
+    worktree-cleanup.ts            # P6 worktree cleanup — removes worktrees after execution
+    worktree-types.ts              # P6 worktree type definitions
+    worktree-workspace-executor.ts # P6 worktree workspace executor — runs workspaces in isolated worktrees
+  failure/
+    failure-classifier.ts          # P6 failure classifier — categorizes failures for retry routing
+    retry-router.ts                # P6 retry router — decides retry strategy based on failure category
+  doctor/
+    scale-readiness-doctor.ts      # P6 scale readiness doctor — checks if project is ready for scale mode
+test/
+  dynamic-scheduler.test.ts        # 801 lines
+  failure-classifier.test.ts       # 497 lines
+  integration-queue.test.ts        # 871 lines
+  merge-conflict-handoff.test.ts   # 656 lines
+  p6-large-project-dogfood.test.ts # 829 lines
+  repo-symbol-graph.test.ts        # 695 lines
+  scale-mode-policy.test.ts        # 584 lines
+  test-impact-analyzer.test.ts     # 436 lines
+  worktree-manager.test.ts         # 665 lines
+  worktree-workspace-executor.test.ts  # 908 lines
+  autonomous-executor.test.ts      # 161 lines
+  context-section.test.ts          # 781 lines — fixed Message type compliance
+  execution-memory.test.ts         # 622 lines
+  local-repo-index.test.ts         # 764 lines
+  p55-performance-dogfood.test.ts  # 850 lines
+  validation-planner.test.ts       # 655 lines
+  workspace-packet.test.ts         # 469 lines
+```
+
+### Key Files
+
+#### `core/cleanup-review.ts`
+
+Post-execution review agent that runs after all plan workspaces complete. Reviews code changes, runs tests, catches bugs, and auto-commits fixes. Writes cleanup summary to `.pi/executions/{planExecId}/plan-summary.json`.
+
+Key changes:
+- Summary path scoped per plan execution (was global `.pi/plan-summary.json`)
+- Emits `plan_summary` and `cleanup_workspace` journal events
+
+#### `core/workspace-agent-executor.ts`
+
+Central workspace execution engine with significant additions:
+
+| Feature | Detail |
+|---|---|
+| AbortController | Per-execution `AbortController` — `abort()` cancels in-flight LLM API call, returns clean FAILED |
+| Cache usage capture | Extracts `usage.cacheRead/input` from `AssistantMessage.message_end`, persists as `cache_usage` journal event |
+| Worker status events | Emits `worker_status` events for lifecycle: thinking, executing, deciding, compacting, retry |
+| Thinking buffer logging | Buffers thinking deltas until newline before logging (no character-by-character noise) |
+
+#### `core/autonomous-executor.ts`
+
+Orchestrates multiple workspace executions:
+
+| Feature | Detail |
+|---|---|
+| `stopAllActiveWorkspaces()` | Calls `agentExecutor.abort()` for each in-flight execution, waits via `Promise.allSettled` |
+| Completion gate | Block reasons written to workspace state as `error` field (visible in dashboard) |
+| In-flight tracking | Tracks execution promises per workspace ID |
+
+#### `context/` — Cacheable Context Architecture
+
+| File | Key Exports |
+|---|---|
+| `context-section.ts` | `ContextSection` classification (static/semi-static/dynamic), cacheability rules |
+| `context-builder.ts` | Static/dynamic context split, budget enforcement |
+| `workspace-packet.ts` | `WorkspacePacket` — deterministic contract hashing, state separated from contract |
+
+#### `memory/execution-memory.ts`
+
+| Feature | Detail |
+|---|---|
+| Relevance scoring | Tokenizes goal + acceptance criteria, compares with stored entries via Jaccard similarity |
+| Prior run reuse | `ExecutionMemoryStore` provides summarization and relevance scoring for reusing past runs |
+
+#### `retrieval/local-repo-index.ts`
+
+| Feature | Detail |
+|---|---|
+| Snippet-level search | Indexes repository files for snippet-level content search |
+| Removed unused | `getLanguageFromExtension()` and `ig` field removed |
+
+#### `validation/validation-planner.ts`
+
+| Feature | Detail |
+|---|---|
+| Decision tree | `targetCommand` → high-risk check → full validation → targeted file tests → fallback |
+| Removed unused | `deletedFiles` variable |
 
 ---
 
@@ -19,241 +289,86 @@
 
 ```
 packages/web-server/
-  package.json                  # Fastify server deps (fastify, cors, websocket, static)
-  tsconfig.json                 # ESNext module, ES2022 target, strict
   src/
-    index.ts                    # Web server entry point — all REST/SSE/WS endpoints
-    plan-runner.ts              # Background plan execution manager (AutonomousExecutor)
-    state-store-provider.ts     # Singleton state store + settings manager provider
-  dist/                         # Compiled JS output
+    index.ts                       # Fastify server — added GET /api/projects/:projectId/plans/:planExecId/summary endpoint
+    plan-runner.ts                 # Background plan execution — abort on stop control signal
+    scale-routes.ts                # P6 scale routes — API endpoints for scale mode, worktree status, integration queue
+  test/
+    scale-routes.test.ts           # 423 lines
+    performance-routes.test.ts     # 508 lines — workspace 5.5.G performance telemetry dashboard routes
+    log-buffer.test.ts             # 164 lines
 ```
 
-### File-by-File Breakdown
+### Key Changes
 
-#### `src/index.ts` — Web Server Entry Point
+#### `src/index.ts`
 
-**Role:** Fastify HTTP/WS server that hosts the REST API for the plan dashboard.
-
-**Legacy Endpoints (backward compatible, file-based):**
+New endpoint:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/plan-state` | Poll legacy `plan-state.json` file |
-| GET | `/api/events` | SSE stream of `execution-journal.ndjson` |
-| GET | `/api/logs/:workspaceId/:attempt/:stream` | SSE stream of worker log files |
-| POST | `/api/control` | Write control command to `plan-control.json` |
+| GET | `/api/projects/:projectId/plans/:planExecId/summary` | Returns cleanup review summary, scoped to `.pi/executions/{planExecId}/plan-summary.json` |
 
-**Multi-Project Endpoints (P2 Phase 1):**
+#### `src/plan-runner.ts`
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/projects` | List all projects |
-| POST | `/api/projects` | Create a new project |
-| PATCH | `/api/projects/:id` | Update project name/rootPath |
-| GET | `/api/projects/:id/plans` | List plan executions for a project |
-| GET | `/api/projects/:id/plans/:execId` | Get plan execution detail |
-| GET | `/api/projects/:id/plans/:execId/events` | SSE stream of plan events (LISTEN/NOTIFY or file watch) |
-| GET | `/api/projects/:id/plans/:execId/stats` | Plan execution statistics |
-| GET | `/api/projects/:id/plans/:execId/journal` | Paginated execution journal |
-| GET | `/api/projects/:id/plans/:execId/workspaces` | List workspace executions |
-| GET | `/api/projects/:id/plans/:execId/workspaces/:wsId` | Get workspace detail |
-| GET | `/api/projects/:id/plans/:execId/workspaces/:wsId/logs` | Recent workspace logs |
-| POST | `/api/projects/:id/plans/validate` | Validate plan content |
-| POST | `/api/projects/:id/plans/run` | Upload, validate, and run a plan |
-| GET | `/api/projects/:id/active` | Get active executions for a project |
+- `executePlanInBackground()` calls `executor.stopAllActiveWorkspaces()` on stop control signal (aborts in-flight LLM calls)
 
-**Execution Control & Logging:**
+#### `src/scale-routes.ts` (new)
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/executions/:planExecId/control` | Pause/stop/cancel/resume a specific execution |
-| GET | `/api/executions/:planExecId` | Get a specific active execution |
-| GET | `/api/executions/:planExecId/log` | Get execution log file content |
-| GET | `/api/logs/:planExecId/:workspaceId/recent` | Recent workspace logs |
-| WS | `/api/ws/logs/:planExecId/:workspaceId` | WebSocket live log streaming |
-
-**Settings & AI Models:**
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/settings` | Merged global + project settings |
-| PUT | `/api/settings` | Update global settings |
-| GET | `/api/settings/global` | Global-only settings |
-| GET | `/api/settings/project` | Project-only settings |
-| PUT | `/api/settings/project` | Update project settings |
-| GET | `/api/settings/context-budgets` | Context budget settings |
-| GET | `/api/ai-models` | List all providers + models |
-| GET | `/api/health` | Health check |
-
----
-
-#### `src/plan-runner.ts` — Background Plan Runner
-
-**Role:** Manages `AutonomousExecutor` instances in the background so plan execution runs asynchronously through the web API.
-
-| Export | Type | Purpose |
-|---|---|---|
-| `ActiveExecution` | Interface | Tracks running/completed/failed execution metadata |
-| `RunPlanOptions` | Interface | Input to start a plan (content, project, workspace root) |
-| `RunPlanResult` | Interface | Return value from starting a plan |
-| `getActiveExecutions(projectId)` | Function | List active executions for a project |
-| `getActiveExecution(planExecId)` | Function | Get a specific active execution |
-| `runPlan(options)` | Function | Parse, validate, doctor-check, save plan file, create executor, start background loop |
-| `executePlanInBackground(...)` | Async function | Core loop: iterate workspaces, schedule, execute, retry, check control, log |
-| `persistWorkspaceQueue(...)` | Async function | Save queue snapshot to `.pi/` for crash recovery |
-| `resumeStrandedExecutions(...)` | Async function | Server startup recovery — scan for queue snapshots, adopt existing state, resume |
-| `generateExecutionSummary(...)` | Function | Text summary of completed execution |
-
----
-
-#### `src/state-store-provider.ts` — State Store Singleton
-
-**Role:** Provides a single shared `IStateStore` instance and `SettingsManager` for all web-server modules.
-
-| Export | Type | Purpose |
-|---|---|---|
-| `getWorkspaceRoot()` | Function | Resolve workspace root from env `PI_WORKSPACE_ROOT` or cwd |
-| `getStateStore()` | Function | Singleton state store — detects backend (postgres/json) |
-| `getSettingsManager()` | Function | Singleton settings manager with `FileSettingsStorage` |
-| `getJsonStateStore()` | Function | Legacy `JsonStateStore` wrapper for file-based access |
+P6 scale mode API routes: worktree status, dynamic scheduling control, integration queue monitoring.
 
 ---
 
 ## File Tree — `packages/web-ui/dashboard`
 
 ```
-packages/web-ui/dashboard/
-  package.json                  # Vite + React 18 + TanStack Query + Framer Motion
-  tsconfig.json                 # ES2022, DOM, strict, jsx-react
-  vite.config.ts                # Vite config — proxies /api → :3000, node stubs
-  index.html                    # HTML entry point
-  QUICKSTART.md                 # Setup guide for running dashboard + mock data
-  src/
-    main.tsx                    # App bootstrap: ReactDOM + QueryClientProvider
-    App.tsx                     # Root component: layout, state management, routing
-    types.ts                    # All TypeScript interfaces
-    tailwind.css                # Tailwind CSS with Tailwind v4
-    index.css                   # Base styles
-    app.css                     # App-specific styles
-    utils/
-      format.ts                 # formatElapsed(), getStatusColorClass()
-    stubs/                      # Browser stubs for Node modules (Vite alias)
-      child_process.ts
-      crypto.ts
-      fs.ts
-      fs-promises.ts
-      os.ts
-      path.ts
-    hooks/
-      usePlanState.ts           # Legacy: poll /api/plan-state every 5s
-      useLogStream.ts           # Legacy: SSE log stream per workspace/attempt
-      useJournalStream.ts       # Legacy: SSE journal stream from /api/events
-      useProjects.ts            # Query + create projects via /api/projects
-      usePlanExecutions.ts      # Query plan executions, details, stats, journal pages
-      usePlanEvents.ts          # SSE event stream for a specific plan execution
-      usePlanRunner.ts          # Validate, run, and check active plan executions
-      useSettings.ts            # Read/write settings, context budgets, AI models
-      useWorkspaceLogStream.ts  # WebSocket live log streaming for a workspace
-    components/
-      Header.tsx                # Top bar: "Pi Plan Dashboard" title + status badge + control buttons
-      ControlButtons.tsx        # Pause/Stop/Cancel/Resume with confirmation popover
-      PlanSummary.tsx           # Legacy card: plan title, phase, status, elapsed
-      QueuePanel.tsx            # Legacy card: pending/active/blocked/complete/failed counts
-      WorkerList.tsx            # Grouped worker list (active, pending, blocked, completed, failed)
-      WorkerDetail.tsx          # Selected workspace detail + live WebSocket log viewer
-      LogViewer.tsx             # Legacy monospace terminal log viewer with stream tabs
-      EventFeed.tsx             # Right sidebar: real-time event feed with filter
-      ProjectList.tsx           # Left sidebar: list of projects + new project button
-      PlanHistory.tsx           # Left sidebar: list of past plan executions per project
-      OpenProjectDialog.tsx     # Modal: create new project or select existing
-      PlanUploadDialog.tsx      # Modal: paste plan content, validate, run with confirmation
-      SettingsDialog.tsx        # Modal: 4-tab settings (General, Budgets, Project, Advanced)
-      ExecutionLogViewer.tsx    # Modal: view full execution log with auto-refresh
-  dist/
-    index.html                  # Built output
-    assets/
-      main-*.js                 # Bundled JS
-      main-*.css                # Bundled CSS
+packages/web-ui/dashboard/src/
+  App.tsx                          # Updated imports for new components
+  app.css                          # Animations for ThinkingAnimation, fade-in log lines
+  types.ts                         # Added PerformanceMetric types
+  components/
+    PlanSummaryPanel.tsx           # New — cleanup verdict, changed files, issues, test results; scrollable sidebar
+    ThinkingAnimation.tsx          # New — animated brain/wrench icons, pulsing dots, live-writing text
+    LiveLogTerminal.tsx            # Updated — fade-in animation, active worker CPU spinner + thinking dots footer
+    WorkerDetail.tsx               # Updated — live agent state from transcript, failed/blocked banners, worker.error vs workspace.error display
+    IntegrationQueuePanel.tsx      # New — P6 integration queue status
+    MergeConflictPanel.tsx         # New — P6 merge conflict display
+    ScaleModeSettings.tsx          # New — P6 scale mode configuration
+    WorktreeStatusPanel.tsx        # New — P6 worktree status display
+    PerformancePanel.tsx           # New — cache performance metrics, workspace performance metrics, token split visualization, burn rate display
+  hooks/
+    useScaleStatus.ts              # New — P6 scale status hook (worktree, integration queue, merge conflicts)
+    usePerformanceMetrics.ts       # New — fetches performance telemetry from /api/performance/*
 ```
 
-### File-by-File Breakdown
+### Key Components
 
-#### Entry Points
+#### `PlanSummaryPanel.tsx`
 
-| File | Purpose |
-|---|---|
-| `index.html` | Loads `main-*.js` and `main-*.css`, mounts React at `<div id="root">` |
-| `src/main.tsx` | Creates `QueryClient`, renders `<App>` inside `<QueryClientProvider>` |
-| `src/App.tsx` | **Root component** — 3-panel layout: left sidebar (projects + plan history), center (execution info + workers + logs), right sidebar (event feed). Manages all state: project selection, plan execution selection, worker selection, log streams, dialogs. Handles both legacy (single-plan) and new (multi-project) modes. |
+Displays cleanup review results in the right sidebar below alerts:
+- Cleanup verdict (pass/fail)
+- Changed files list
+- Issues found
+- Test results
+- Scrollable container (fixed overflow issue)
 
-#### Types (`src/types.ts`)
+#### `WorkerDetail.tsx`
 
-| Type | Purpose |
-|---|---|
-| `PlanState` | Legacy plan state from `plan-state.json` |
-| `WorkerInfo` | Legacy worker metadata (id, stage, attempt, retries) |
-| `ExecutionEvent` | Legacy journal event |
-| `ControlRequest` / `ControlResponse` | Legacy control API types |
-| `LogStream` | Union: "stdout" \| "stderr" \| "test" \| "error" |
-| `Project` | Multi-project: id, name, description, rootPath, createdAt |
-| `PlanExecution` | Plan execution summary (id, project, phase, title, status, timestamps) |
-| `PlanExecutionStatus` | Union of all statuses |
-| `PlanExecutionDetail` | Full detail with workspace summaries |
-| `WorkspaceSummary` | Workspace within an execution (id, stage, attempts, error, timestamps) |
-| `WorkspaceDetail` | Workspace with owned files |
-| `JournalEvent` | New SSE journal event |
-| `ExecutionStats` | Counts per status |
-| `JournalPage` | Paginated journal response |
+Updated with:
+- Failed/Blocked banner with icons at top when stage is terminal-unhealthy
+- "Failure Reason" section with red background showing exact error
+- "Workspace State Error" section in amber for additional context
+- Full-text attempt history errors (not truncated)
+- Separate display for `worker.error` vs `workspace.error`
+- Live agent state from transcript (thinking, executing, deciding, etc.)
 
-#### Stubs (`src/stubs/`)
+#### `ThinkingAnimation.tsx`
 
-Browser-safe replacements for Node built-in modules. Used by Vite's `resolve.alias` to prevent bundling Node modules in the browser:
-
-| File | Purpose |
-|---|---|
-| `child_process.ts` | Stub — returns empty/noop |
-| `crypto.ts` | Stub — returns empty/noop |
-| `fs.ts` | Stub — returns empty/noop |
-| `fs-promises.ts` | Stub — returns empty/noop |
-| `os.ts` | Stub — returns empty/noop |
-| `path.ts` | Stub — returns empty/noop |
-
-#### Hooks
-
-| Hook | Purpose |
-|---|---|
-| `usePlanState()` | Legacy: polls `/api/plan-state` every 5s via TanStack Query |
-| `useLogStream(workspaceId, attempt, stream)` | Legacy: SSE connection to `/api/logs/:id/:attempt/:stream`, collects lines |
-| `useJournalStream()` | Legacy: SSE connection to `/api/events`, collects last 50 events |
-| `useProjects()` | Lists projects via `/api/projects`, provides `createProject()` |
-| `usePlanExecutions(projectId)` | Lists executions for a project (poll 10s) |
-| `usePlanExecutionDetail(projectId, planExecId)` | Fetches execution detail (poll 5s) |
-| `usePlanStats(projectId, planExecId)` | Fetches execution stats (poll 5s) |
-| `useJournalPage(projectId, planExecId)` | Paginated journal (poll 10s) |
-| `usePlanEvents({projectId, planExecId})` | SSE event stream for a specific execution via `/api/.../events` |
-| `usePlanRunner(projectId)` | Manages validate/run lifecycle for plan upload |
-| `useSettings()` | Reads merged settings, context budgets, AI models; provides update mutations |
-| `useProjectMeta()` | PATCH `/api/projects/:id` for name/rootPath updates |
-| `useWorkspaceLogStream(planExecId, workspaceId)` | WebSocket connection to `/api/ws/logs/:planExecId/:workspaceId` for real-time logs |
-
-#### Components
-
-| Component | Purpose |
-|---|---|
-| `Header` | Top bar with title, animated status badge, and control buttons |
-| `ControlButtons` | Pause/Stop/Cancel/Resume buttons with animated confirmation popover |
-| `PlanSummary` | Legacy card showing plan title, phase, status, elapsed time |
-| `QueuePanel` | Legacy card showing queue breakdown (pending/active/blocked/complete/failed) |
-| `WorkerList` | Animated grouped list of workers by stage (active, pending, blocked, complete, failed) |
-| `WorkerDetail` | Selected worker's metadata (id, stage, attempts, error) + live logs section |
-| `LogViewer` | Legacy terminal-style log viewer with stdout/stderr/error stream tabs, auto-scroll |
-| `EventFeed` | Right sidebar — real-time execution events with all/errors filter |
-| `ProjectList` | Left sidebar — list of projects with selection + "New" button |
-| `PlanHistory` | Left sidebar — plan executions per project with status badges |
-| `OpenProjectDialog` | Modal for creating new project or selecting existing one |
-| `PlanUploadDialog` | Modal for pasting plan content, validating, and running with confirmation |
-| `SettingsDialog` | 4-tab settings modal: General (provider/model/theme/mode), Context Budgets (token limits per role), Project (name/path/shell/quiet), Advanced (shell/telemetry/skills) |
-| `ExecutionLogViewer` | Modal showing full execution log with auto-refresh every 2s |
+Animated component showing agent thinking state:
+- Animated brain/wrench icons cycling
+- Pulsing dots
+- Live-writing text with cursor
+- Used in WorkerDetail to show active agent state
 
 ---
 
@@ -272,15 +387,16 @@ Web Server (Fastify on :3000)
   ├── REST API endpoints
   ├── SSE endpoint handlers
   ├── WebSocket handler
+  ├── Scale Mode API routes (scale-routes.ts)
   │
   ├── Background Plan Runner (plan-runner.ts)
-  │   ├── Parses plans
-  │   ├── Creates AutonomousExecutor
-  │   ├── Runs executePlanInBackground loop
-  │   └── Handles crash recovery
+  │   ├── Now supports abort on stop control signal
+  │   ├── Cleanup/review worker runs after all workspaces complete
+  │   └── Auto-commit on successful plan + cleanup
   │
   ├── State Store Provider (singleton)
   │   ├── IStateStore (PostgreSQL or JSON fallback)
+  │   ├── getStatistics() now computes real cache_hit_rate from cache_usage journal events
   │   └── SettingsManager
   │
   └── Reads/Writes
@@ -289,7 +405,37 @@ Web Server (Fastify on :3000)
       ├── .pi/workspaces/{id}/attempts/{n}/*.log (legacy)
       ├── .pi/plans/*.md (saved plans)
       ├── .pi/{execId}.workspace-queue.json (crash recovery)
-      └── PostgreSQL (when backend=postgres)
+      ├── .pi/executions/{planExecId}/plan-summary.json (cleanup review — per execution)
+      └── PostgreSQL (when backend=postgres, removed in P6)
+
+Coding Agent (packages/coding-agent/)
+  │
+  ├── Context Layer
+  │   ├── Prompt cache (ai/src/prompt-cache.ts) — cacheable prefix/dynamic suffix
+  │   ├── Context sections (context/) — static/semi-static/dynamic classification
+  │   └── Workspace packets — deterministic contract hashing
+  │
+  ├── Execution Layer
+  │   ├── AutonomousExecutor — orchestrates workspaces, abort support
+  │   ├── WorkspaceAgentExecutor — per-workspace LLM execution, cache tracking, live status
+  │   └── Cleanup review — post-execution code review + test + auto-commit
+  │
+  ├── Memory & Retrieval
+  │   ├── ExecutionMemory — prior run reuse + relevance scoring
+  │   ├── LocalRepoIndex — snippet-level content search
+  │   └── RetrievalService — context fetching
+  │
+  ├── P6 Scale Mode
+  │   ├── DynamicScheduler — multi-workspace scheduling
+  │   ├── IntegrationQueue/Branch/MergeConflict — parallel workspace merging
+  │   ├── WorktreeManager — git worktree isolation
+  │   ├── TestImpactAnalyzer — targeted test selection
+  │   ├── RepoSymbolGraph — file-to-test mapping
+  │   ├── FailureClassifier/RetryRouter — categorized retry logic
+  │   └── ScaleReadinessDoctor — pre-flight checks
+  │
+  └── Validation
+      └── ValidationPlanner — decision tree: full test → targeted → fallback
 
 ```
 
@@ -298,9 +444,25 @@ Web Server (Fastify on :3000)
 1. **User uploads plan** via `PlanUploadDialog` → `usePlanRunner` validates via POST `/api/projects/:id/plans/validate` → safety doctor check
 2. **User confirms** → POST `/api/projects/:id/plans/run` → `runPlan()` in `plan-runner.ts`
 3. **Plan is parsed**, queue validated, safety doctor runs, plan file saved to `.pi/plans/`
-4. **AutonomousExecutor** is created with shared state store → `initialize()` → `executePlanInBackground()`
-5. **Execution loop**: calls `getNextWorkspaces()`, runs `executeWorkspace()` for each, checks control requests, logs via state store
-6. **Dashboard polls** `/api/projects/:id/plans/:execId` every 5s for detail, SSE stream pushes real-time events
-7. **WebSocket** `/api/ws/logs/:planExecId/:workspaceId` streams live workspace logs to `WorkerDetail`
-8. **On completion**: summary generated, plan finalized, execution marked complete
-9. **On crash**: `resumeStrandedExecutions()` scans `.pi/` for queue snapshots at server startup and resumes
+4. **AutonomousExecutor** created → `initialize()` → `executePlanInBackground()`
+5. **Execution loop**: `getNextWorkspaces()` → `executeWorkspace()` for each → abort if stop/pause signal → live `worker_status` events → cache usage tracked via `cache_usage` journal events → thinking stream buffered
+6. **Dashboard polls** `/api/projects/:id/plans/:execId` every 5s, SSE pushes real-time events, WebSocket streams live logs
+7. **On all workspaces complete**: cleanup/review worker runs → reviews changes, runs tests, catches bugs → auto-commits fixes → writes `plan-summary.json` to `.pi/executions/{planExecId}/`
+8. **On completion**: plan auto-commits and marks complete (no more stuck `awaiting_handoff`)
+9. **On stop signal**: `executor.stopAllActiveWorkspaces()` → each in-flight `WorkspaceAgentExecutor.abort()` → `session.agent.abort()` → ongoing LLM call aborted → clean FAILED state
+10. **On crash**: `resumeStrandedExecutions()` scans `.pi/` for queue snapshots at server startup and resumes
+
+## Key Metrics (from P5.5 dogfood report)
+
+| Metric | Value |
+|---|---|
+| Cacheable prefix tokens | ~5,200 tokens stable across workspace calls |
+| Dynamic suffix tokens | 1,800-3,200 tokens per workspace |
+| Avg cache hit rate | 59.0% |
+| Validation time reduction | 68% (102s → 33s avg) |
+| Prefix hash stability | 100% stable within session, 0 false cache invalidations |
+| Cache unknown vs 0% | Clearly distinguished in UI (was hardcoded, now real data) |
+
+## Removed
+
+- **`packages/db/`** — Entire PostgreSQL database package removed in P6 cleanup. The JSON state store is now the primary backend.

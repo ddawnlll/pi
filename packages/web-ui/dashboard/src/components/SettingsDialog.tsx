@@ -94,6 +94,8 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const [scaleMode, setScaleMode] = useState<"stable_3" | "experimental_6" | "scale_8">("stable_3");
 	const [dogfoodPass, setDogfoodPass] = useState(false);
 	const [explicitApproval, setExplicitApproval] = useState(false);
+	const [maxWorkers, setMaxWorkers] = useState(3);
+	const [experimentalModeEnabled, setExperimentalModeEnabled] = useState(false);
 
 	// Load settings into form state + snapshot originals
 	// Note: no auto-refetch on open — TanStack Query keeps settings fresh
@@ -121,6 +123,8 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setScaleMode((settings.scaleMode as "stable_3" | "experimental_6" | "scale_8") ?? "stable_3");
 		setDogfoodPass((settings.dogfoodPass as boolean) ?? false);
 		setExplicitApproval((settings.explicitApproval as boolean) ?? false);
+		setMaxWorkers(((settings.workerConcurrency as Record<string, unknown>)?.maxWorkers as number) ?? 3);
+		setExperimentalModeEnabled(((settings.workerConcurrency as Record<string, unknown>)?.experimentalModeEnabled as boolean) ?? false);
 
 		setOrig({
 			steeringMode: settings.steeringMode ?? "one-at-a-time",
@@ -350,12 +354,17 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			scaleMode,
 			dogfoodPass,
 			explicitApproval,
+			workerConcurrency: {
+				maxWorkers,
+				experimentalModeEnabled,
+			},
 		});
 		setOrig({
 			...orig,
 			scaleMode,
 			dogfoodPass,
 			explicitApproval,
+			workerConcurrency: { maxWorkers, experimentalModeEnabled },
 		});
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
@@ -942,6 +951,54 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													</label>
 												</div>
 											</div>
+
+											{/* Max Workers */}
+											<div>
+												<label className={labelClass}>Max Workers</label>
+												<input
+													type="number"
+													min={1}
+													max={scaleMode === "stable_3" ? 3 : scaleMode === "experimental_6" ? 6 : 8}
+													value={maxWorkers}
+													onChange={(e) => setMaxWorkers(Number(e.target.value))}
+													className={inputClass}
+													disabled={scaleMode === "scale_8"}
+												/>
+												<p className="text-[11px] text-gray-500 mt-1">
+													{scaleMode === "stable_3"
+														? "1-3 workers in stable mode."
+														: scaleMode === "experimental_6"
+															? "4-6 workers in experimental mode."
+															: "Requires dogfood pass and explicit approval."}
+												</p>
+											</div>
+
+											{/* Experimental mode toggle (visible when maxWorkers > 3) */}
+											{maxWorkers > 3 && (
+												<div className="flex items-center gap-3">
+													<button
+														type="button"
+														onClick={() => setExperimentalModeEnabled(!experimentalModeEnabled)}
+														className={`${toggleClass} ${
+															experimentalModeEnabled ? toggleActiveClass : toggleInactiveClass
+														}`}
+													>
+														<span
+															className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+																experimentalModeEnabled ? "translate-x-[18px]" : "translate-x-[2px]"
+															}`}
+														/>
+													</button>
+													<div>
+														<label className="text-xs text-gray-300 cursor-pointer">
+															Enable Experimental Worker Mode
+														</label>
+														<p className="text-[11px] text-gray-500">
+															Explicit confirmation required to use {maxWorkers} workers in parallel.
+														</p>
+													</div>
+												</div>
+											)}
 
 											{/* Prerequisites via ScaleModeSettings */}
 											<ScaleModeSettings />
