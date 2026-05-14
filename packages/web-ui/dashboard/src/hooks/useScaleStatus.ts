@@ -84,12 +84,13 @@ export interface PrerequisiteStatus {
 /** Scale mode readiness from the API. */
 export interface ScaleModeReadiness {
 	ready: boolean;
-	currentMode: "stable" | "scale";
+	currentMode: "stable_3" | "experimental_6" | "scale_8";
 	isScaleModeActive: boolean;
 	prerequisites: PrerequisiteStatus[];
-	errors: string[];
+	blockedReasons: string[];
 	warnings: string[];
 	requestedWorkers: number;
+	maxAllowedWorkers: number;
 	experimentalModeEnabled: boolean;
 }
 

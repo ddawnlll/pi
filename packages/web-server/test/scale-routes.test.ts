@@ -314,17 +314,17 @@ describe("buildScaleModeReadiness", () => {
 	it("returns ready=true for stable mode (1-3 workers)", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 3, false);
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("stable");
+		expect(result.currentMode).toBe("stable_3");
 		expect(result.isScaleModeActive).toBe(false);
-		expect(result.errors).toHaveLength(0);
+		expect(result.blockedReasons).toHaveLength(0);
 	});
 
-	it("returns ready when all prerequisites met for scale mode", () => {
+	it("returns ready when all prerequisites met for experimental_6 mode", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 4, true);
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("scale");
+		expect(result.currentMode).toBe("experimental_6");
 		expect(result.isScaleModeActive).toBe(true);
-		expect(result.errors).toHaveLength(0);
+		expect(result.blockedReasons).toHaveLength(0);
 	});
 
 	it("blocks scale mode when worktree isolation is disabled", () => {
@@ -339,8 +339,8 @@ describe("buildScaleModeReadiness", () => {
 		);
 		expect(result.ready).toBe(false);
 		expect(result.isScaleModeActive).toBe(true);
-		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0]).toContain("Worktree Isolation");
+		expect(result.blockedReasons).toHaveLength(1);
+		expect(result.blockedReasons[0]).toContain("Worktree Isolation");
 	});
 
 	it("blocks scale mode when integration queue is disabled", () => {
@@ -354,8 +354,8 @@ describe("buildScaleModeReadiness", () => {
 			true,
 		);
 		expect(result.ready).toBe(false);
-		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0]).toContain("Integration Queue");
+		expect(result.blockedReasons).toHaveLength(1);
+		expect(result.blockedReasons[0]).toContain("Integration Queue");
 	});
 
 	it("blocks scale mode when validation lock is disabled", () => {
@@ -369,8 +369,8 @@ describe("buildScaleModeReadiness", () => {
 			true,
 		);
 		expect(result.ready).toBe(false);
-		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0]).toContain("Global Validation Lock");
+		expect(result.blockedReasons).toHaveLength(1);
+		expect(result.blockedReasons[0]).toContain("Global Validation Lock");
 	});
 
 	it("reports multiple failures when multiple prerequisites are unmet", () => {
@@ -384,7 +384,7 @@ describe("buildScaleModeReadiness", () => {
 			true,
 		);
 		expect(result.ready).toBe(false);
-		expect(result.errors).toHaveLength(3);
+		expect(result.blockedReasons).toHaveLength(3);
 	});
 
 	it("all prerequisites are listed", () => {
@@ -401,7 +401,7 @@ describe("buildScaleModeReadiness", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 3, true);
 		// Two warnings: prerequisites met + stable range, and experimental flag has no effect
 		expect(result.warnings.length).toBeGreaterThanOrEqual(1);
-		expect(result.warnings.some((w) => w.includes("stable range"))).toBe(true);
+		expect(result.warnings.some((w) => w.includes("stable range") && w.includes("4-8"))).toBe(true);
 	});
 
 	it("warns when experimental flag set but workers in stable range", () => {
@@ -412,12 +412,45 @@ describe("buildScaleModeReadiness", () => {
 
 	it("clamps worker count to valid range", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 99, true);
-		expect(result.currentMode).toBe("scale");
+		expect(result.currentMode).toBe("scale_8");
+		expect(result.requestedWorkers).toBe(99);
+		expect(result.maxAllowedWorkers).toBe(8);
 	});
 
 	it("clamps worker count below minimum", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 0, false);
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("stable");
+		expect(result.currentMode).toBe("stable_3");
+	});
+
+	it("six workers with experimental enabled returns experimental_6 mode", () => {
+		const result = buildScaleModeReadiness(allSettingsTrue, 6, true);
+		expect(result.ready).toBe(true);
+		expect(result.currentMode).toBe("experimental_6");
+		expect(result.isScaleModeActive).toBe(true);
+		expect(result.blockedReasons).toHaveLength(0);
+	});
+
+	it("eight workers with experimental enabled returns scale_8 mode", () => {
+		const result = buildScaleModeReadiness(allSettingsTrue, 8, true);
+		expect(result.ready).toBe(true);
+		expect(result.currentMode).toBe("scale_8");
+		expect(result.isScaleModeActive).toBe(true);
+		expect(result.blockedReasons).toHaveLength(0);
+		expect(result.maxAllowedWorkers).toBe(8);
+	});
+
+	it("includes requestedWorkers and maxAllowedWorkers fields", () => {
+		const result = buildScaleModeReadiness(allSettingsTrue, 4, true);
+		expect(result).toHaveProperty("requestedWorkers", 4);
+		expect(result).toHaveProperty("maxAllowedWorkers", 8);
+	});
+
+	it("includes blockedReasons and warnings fields", () => {
+		const result = buildScaleModeReadiness(allSettingsTrue, 4, true);
+		expect(result).toHaveProperty("blockedReasons");
+		expect(result).toHaveProperty("warnings");
+		expect(Array.isArray(result.blockedReasons)).toBe(true);
+		expect(Array.isArray(result.warnings)).toBe(true);
 	});
 });

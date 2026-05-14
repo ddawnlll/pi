@@ -412,3 +412,28 @@ export interface ValidateWithPreviewResponse {
 	/** Whether the plan requires interactive approval before running */
 	requiresApproval?: boolean;
 }
+
+// =============================================================================
+// Scale Readiness Types (workspace 6.5.C)
+// =============================================================================
+
+/** Scale mode prerequisite status. */
+export interface PrerequisiteStatus {
+	key: string;
+	name: string;
+	met: boolean;
+	message: string;
+}
+
+/** Scale mode readiness from the API. */
+export interface ScaleModeReadiness {
+	ready: boolean;
+	currentMode: "stable_3" | "experimental_6" | "scale_8";
+	isScaleModeActive: boolean;
+	prerequisites: PrerequisiteStatus[];
+	blockedReasons: string[];
+	warnings: string[];
+	requestedWorkers: number;
+	maxAllowedWorkers: number;
+	experimentalModeEnabled: boolean;
+}

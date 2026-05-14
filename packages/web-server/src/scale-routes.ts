@@ -117,11 +117,13 @@ export interface PrerequisiteStatus {
 /** Scale mode readiness result. */
 export interface ScaleModeReadiness {
 	ready: boolean;
-	currentMode: "stable" | "scale";
+	currentMode: "stable_3" | "experimental_6" | "scale_8";
 	isScaleModeActive: boolean;
 	prerequisites: PrerequisiteStatus[];
-	errors: string[];
+	blockedReasons: string[];
 	warnings: string[];
+	requestedWorkers: number;
+	maxAllowedWorkers: number;
 }
 
 /** Worktree cleanup result. */
@@ -330,13 +332,27 @@ export function buildScaleModeReadiness(
 	const MAX_STABLE = 3;
 	const MIN_EXPERIMENTAL = 4;
 	const MAX_EXPERIMENTAL = 6;
+	const MIN_SCALE = 7;
+	const MAX_SCALE = 8;
 
-	const errors: string[] = [];
+	const blockedReasons: string[] = [];
 	const warnings: string[] = [];
 
-	const workers = Math.max(MIN_STABLE, Math.min(MAX_EXPERIMENTAL, requestedWorkers));
-	const isScaleModeActive = workers >= MIN_EXPERIMENTAL && workers <= MAX_EXPERIMENTAL && experimentalModeEnabled;
-	const currentMode = isScaleModeActive ? "scale" : "stable";
+	const workers = Math.max(MIN_STABLE, Math.min(MAX_SCALE, requestedWorkers));
+
+	let currentMode: "stable_3" | "experimental_6" | "scale_8";
+	let isScaleModeActive: boolean;
+
+	if (workers >= MIN_EXPERIMENTAL && workers <= MAX_EXPERIMENTAL && experimentalModeEnabled) {
+		currentMode = "experimental_6";
+		isScaleModeActive = true;
+	} else if (workers >= MIN_SCALE && workers <= MAX_SCALE && experimentalModeEnabled) {
+		currentMode = "scale_8";
+		isScaleModeActive = true;
+	} else {
+		currentMode = "stable_3";
+		isScaleModeActive = false;
+	}
 
 	const prerequisites: PrerequisiteStatus[] = [
 		{
@@ -368,14 +384,14 @@ export function buildScaleModeReadiness(
 	if (isScaleModeActive) {
 		const unmet = prerequisites.filter((p) => !p.met);
 		for (const prereq of unmet) {
-			errors.push(`Scale mode requires "${prereq.name}" to be enabled. ${prereq.message}`);
+			blockedReasons.push(`Scale mode requires "${prereq.name}" to be enabled. ${prereq.message}`);
 		}
 	}
 
 	if (!isScaleModeActive && prerequisites.every((p) => p.met) && workers <= MAX_STABLE) {
 		warnings.push(
 			`All scale mode prerequisites are met, but worker count (${workers}) is within stable range (1-3). ` +
-				"Increase worker count to 4-6 to enable scale mode.",
+				"Increase worker count to 4-8 to enable scale mode.",
 		);
 	}
 
@@ -386,9 +402,18 @@ export function buildScaleModeReadiness(
 		);
 	}
 
-	const ready = !isScaleModeActive || errors.length === 0;
+	const ready = !isScaleModeActive || blockedReasons.length === 0;
 
-	return { ready, currentMode, isScaleModeActive, prerequisites, errors, warnings };
+	return {
+		ready,
+		currentMode,
+		isScaleModeActive,
+		prerequisites,
+		blockedReasons,
+		warnings,
+		requestedWorkers,
+		maxAllowedWorkers: MAX_SCALE,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +549,6 @@ export async function registerScaleRoutes(
 
 			return {
 				...readiness,
-				requestedWorkers,
 				experimentalModeEnabled,
 			};
 		} catch (error) {
