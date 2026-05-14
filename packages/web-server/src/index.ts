@@ -71,6 +71,7 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
+import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
@@ -3118,6 +3119,12 @@ registerLogStreamRoutes(fastify, getWorkspaceRoot, getStateStore);
 // ---------------------------------------------------------------------------
 
 registerPerformanceRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
+// Scale Dashboard Routes (Workspace 6.J)
+// ---------------------------------------------------------------------------
+
+await registerScaleRoutes(fastify, getPiDir, getWorkspaceRoot, getSettingsManager);
 
 // ---------------------------------------------------------------------------
 // Health Check

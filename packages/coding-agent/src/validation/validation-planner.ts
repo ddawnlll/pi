@@ -20,6 +20,7 @@
 
 import { isWatchModeCommand, rewriteToNonWatch } from "../core/watch-mode-guard.js";
 import type { Workspace } from "../core/workspace-schema.js";
+import { analyzeTestImpact, type TestImpactResult } from "./test-impact-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,6 +81,25 @@ export interface ValidationPlannerOptions {
 	defaultValidationCommand?: string;
 	/** Whether to attempt targeted validation (default: true) */
 	preferTargeted?: boolean;
+	/**
+	 * Whether to use the test impact analyzer for smarter targeted
+	 * command derivation (default: false for now, opt-in).
+	 *
+	 * When enabled, the analyzer maps changed files to repo areas and
+	 * derives area-specific test and build commands. Low-confidence
+	 * mappings trigger broader validation.
+	 *
+	 * @experimental This is v1 of test impact analysis.
+	 */
+	useTestImpactAnalyzer?: boolean;
+	/**
+	 * When useTestImpactAnalyzer is true and the analyzer produces a
+	 * result, that result is returned here for callers to log/inspect.
+	 *
+	 * Populated as a side-effect of planValidation when the analyzer
+	 * is used, unless already provided.
+	 */
+	testImpactResult?: TestImpactResult;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,10 +148,24 @@ function isTestFilePath(filePath: string): boolean {
  * - If source files were changed, attempt to derive matching test commands
  * - Otherwise return empty (no targeted commands possible)
  *
+ * When useTestImpactAnalyzer is true, uses the test impact analyzer
+ * for smarter area-aware command derivation.
+ *
  * @param changedFiles - Files that were changed
+ * @param useAnalyzer - Whether to use the test impact analyzer
  * @returns Targeted validation commands (may be empty if none can be derived)
  */
-function deriveTargetedCommands(changedFiles: ChangedFile[]): string[] {
+function deriveTargetedCommands(changedFiles: ChangedFile[], useAnalyzer: boolean = false): string[] {
+	if (useAnalyzer) {
+		const paths = changedFiles.map((f) => f.path);
+		const result = analyzeTestImpact(paths);
+		if (result.useBroaderValidation) {
+			// Analyzer says broader validation needed — return empty to
+			// let the planner fall through to full validation
+			return [];
+		}
+		return [...result.testCommands, ...result.buildCommands];
+	}
 	const commands: string[] = [];
 
 	// Group changed files by type
@@ -245,7 +279,10 @@ export function planValidation(options: ValidationPlannerOptions): ValidationPla
 	// 3. Targeted validation based on changed files
 	// -----------------------------------------------------------------------
 	if (preferTargetedValidation && changedFiles.length > 0) {
-		const targetedCommands = deriveTargetedCommands(changedFiles);
+		const targetedCommands = deriveTargetedCommands(
+			changedFiles,
+			preferTargetedValidation && !!options.useTestImpactAnalyzer,
+		);
 		if (targetedCommands.length > 0) {
 			return {
 				commands: targetedCommands.map((c) => cmd(c)),

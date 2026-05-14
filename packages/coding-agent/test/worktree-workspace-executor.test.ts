@@ -529,6 +529,7 @@ describe("WorktreeWorkspaceExecutor", () => {
 
 		// Make a commit in worktree A
 		const worktreeDirA = executorA.worktreePath!;
+		await fs.writeFile(path.join(worktreeDirA, "new-file-a.ts"), "export const a = 1;\n", "utf-8");
 		execSync("git config user.name test", { cwd: worktreeDirA, stdio: "pipe" });
 		execSync("git config user.email test@test.com", { cwd: worktreeDirA, stdio: "pipe" });
 		execSync("git add -A", { cwd: worktreeDirA, stdio: "pipe" });

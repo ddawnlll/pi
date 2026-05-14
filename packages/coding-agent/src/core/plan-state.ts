@@ -91,7 +91,14 @@ export type JournalEventType =
 	| "validation"
 	| "blocker"
 	| "plan_summary"
-	| "cleanup_workspace";
+	| "cleanup_workspace"
+	| "integration_merge_start"
+	| "integration_merge_complete"
+	| "integration_merge_failed"
+	| "integration_merge_blocked"
+	| "integration_validate_start"
+	| "integration_validate_complete"
+	| "integration_validate_failed";
 
 /**
  * Execution journal event
@@ -876,6 +883,126 @@ export class PlanStateStore {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * Record an integration merge start event in the journal.
+	 *
+	 * @param workspaceId - Workspace being merged
+	 * @param commitHash - Commit hash being merged
+	 * @param data - Additional data
+	 */
+	async recordIntegrationMergeStart(
+		workspaceId: string,
+		commitHash: string,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		await this.appendJournal({
+			type: "integration_merge_start",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { commitHash: commitHash.slice(0, 12), ...data },
+		});
+	}
+
+	/**
+	 * Record an integration merge complete event in the journal.
+	 *
+	 * @param workspaceId - Workspace that was merged
+	 * @param mergeCommitHash - Merge commit hash in the integration branch
+	 * @param validationPassed - Whether validation passed
+	 * @param data - Additional data
+	 */
+	async recordIntegrationMergeComplete(
+		workspaceId: string,
+		mergeCommitHash: string,
+		validationPassed: boolean,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		await this.appendJournal({
+			type: "integration_merge_complete",
+			timestamp: Date.now(),
+			workspaceId,
+			data: {
+				mergeCommitHash: mergeCommitHash.slice(0, 12),
+				validationPassed,
+				...data,
+			},
+		});
+	}
+
+	/**
+	 * Record an integration merge failed event in the journal.
+	 *
+	 * @param workspaceId - Workspace that failed to merge
+	 * @param error - Error message
+	 * @param data - Additional data
+	 */
+	async recordIntegrationMergeFailed(
+		workspaceId: string,
+		error: string,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		await this.appendJournal({
+			type: "integration_merge_failed",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { error, ...data },
+		});
+	}
+
+	/**
+	 * Record an integration merge blocked event in the journal.
+	 * Validation failed, merge is blocked.
+	 *
+	 * @param workspaceId - Workspace that was blocked
+	 * @param validationCommand - Validation command that failed
+	 * @param validationOutput - Output from the validation command
+	 * @param data - Additional data
+	 */
+	async recordIntegrationMergeBlocked(
+		workspaceId: string,
+		validationCommand: string,
+		validationOutput: string,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		await this.appendJournal({
+			type: "integration_merge_blocked",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { validationCommand, validationOutput: validationOutput.slice(0, 500), ...data },
+		});
+	}
+
+	/**
+	 * Record an integration validate start event in the journal.
+	 *
+	 * @param workspaceId - Workspace being validated
+	 * @param validationCommand - Validation command being run
+	 */
+	async recordIntegrationValidateStart(workspaceId: string, validationCommand: string): Promise<void> {
+		await this.appendJournal({
+			type: "integration_validate_start",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { validationCommand },
+		});
+	}
+
+	/**
+	 * Record an integration validate complete event in the journal.
+	 *
+	 * @param workspaceId - Workspace that was validated
+	 * @param passed - Whether validation passed
+	 * @param output - Validation output
+	 */
+	async recordIntegrationValidateComplete(workspaceId: string, passed: boolean, output: string): Promise<void> {
+		await this.appendJournal({
+			type: passed ? "integration_validate_complete" : "integration_validate_failed",
+			timestamp: Date.now(),
+			workspaceId,
+			data: { passed, output: output.slice(0, 500) },
+		});
 	}
 }
 

@@ -10,6 +10,8 @@ import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
+import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.js";
+import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import type { HashedPacket } from "./role-packets.js";
 import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
@@ -48,6 +50,12 @@ export interface WorkspaceAgentExecutorConfig {
 	stateStore?: import("./state-store.js").IStateStore;
 	/** Plan execution ID for log persistence */
 	planExecutionId?: string;
+	/**
+	 * Worktree isolation configuration.
+	 * When enabled, each workspace executes inside its own git worktree.
+	 * When disabled or absent, falls back to shared-working-tree execution (P5.5).
+	 */
+	worktree?: WorktreeConfig;
 }
 
 /**
@@ -62,6 +70,10 @@ export class WorkspaceAgentExecutor {
 	private logPath?: string;
 	private stateStore?: import("./state-store.js").IStateStore;
 	private planExecutionId?: string;
+	/** Worktree isolation config, if enabled. */
+	private worktreeConfig?: WorktreeConfig;
+	/** P6.A: The worktree executor, created when worktree mode is enabled. */
+	private worktreeExecutor: WorktreeWorkspaceExecutor | null = null;
 	/** P4.6.3: AbortController for the current execution, created per execute() call. */
 	private abortController: AbortController | null = null;
 
@@ -71,6 +83,7 @@ export class WorkspaceAgentExecutor {
 		this.logPath = config.logPath;
 		this.stateStore = config.stateStore;
 		this.planExecutionId = config.planExecutionId;
+		this.worktreeConfig = config.worktree;
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -118,23 +131,72 @@ export class WorkspaceAgentExecutor {
 	}
 
 	/**
+	 * Whether worktree isolation mode is enabled.
+	 */
+	get isWorktreeModeEnabled(): boolean {
+		return this.worktreeConfig?.enabled === true;
+	}
+
+	/**
+	 * Get the current worktree state, if worktree mode is active.
+	 */
+	get currentWorktreeState(): WorktreeState | null {
+		return this.worktreeExecutor?.currentWorktreeState ?? null;
+	}
+
+	/**
+	 * Get the worktree path, if worktree mode is active.
+	 */
+	get worktreePath(): string | null {
+		return this.worktreeExecutor?.worktreePath ?? null;
+	}
+
+	/**
+	 * Get the base commit hash for the worktree, if available.
+	 */
+	get baseCommit(): string | null {
+		return this.worktreeExecutor?.baseCommit ?? null;
+	}
+
+	/**
+	 * Get the effective workspace root for agent execution.
+	 * Returns the worktree path when mode is enabled, or the original root otherwise.
+	 */
+	getEffectiveWorkspaceRoot(): string {
+		return this.worktreeExecutor?.getEffectiveWorkspaceRoot() ?? this.workspaceRoot;
+	}
+
+	/**
 	 * Set the plan execution ID for log persistence context.
 	 * Used by AutonomousExecutor to update context after initialization
 	 * without needing to recreate the entire executor.
+	 * Also updates the worktree executor if created.
 	 */
 	setPlanExecutionId(id: string): void {
 		this.planExecutionId = id;
+		if (this.worktreeExecutor) {
+			this.worktreeExecutor.setPlanExecutionId(id);
+		}
 	}
 
 	/**
 	 * Execute a workspace using the provided packet
+	 *
+	 * When worktree mode is enabled, execution happens inside an isolated git worktree.
+	 * Otherwise, falls back to shared-working-tree execution (P5.5).
 	 *
 	 * @param packet - Hashed workspace packet
 	 * @param workspaceId - Workspace ID for logging
 	 * @returns Execution result
 	 */
 	async execute(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+		// P6.A: When worktree mode is enabled, delegate to WorktreeWorkspaceExecutor
+		if (this.isWorktreeModeEnabled && this.planExecutionId) {
+			return this.executeInWorktree(packet, workspaceId);
+		}
+
 		const logs: string[] = [];
+		let thinkingBuffer = "";
 		const log = async (message: string) => {
 			const timestamp = new Date().toISOString();
 			const logLine = `[${timestamp}] ${message}`;
@@ -234,19 +296,38 @@ export class WorkspaceAgentExecutor {
 					if (event.type === "message_start" && event.message.role === "assistant") {
 						emitStatus("thinking", "Assistant message started");
 					} else if (event.type === "message_update") {
-						// Log text deltas from the assistant for live visibility
+						// Buffer text deltas until newline, then emit complete lines.
+						// Each delta is often a single character; logging each one individually
+						// would flood the log viewer with one-line-per-character garbage.
 						if (
 							event.assistantMessageEvent &&
 							event.assistantMessageEvent.type === "text_delta" &&
 							event.assistantMessageEvent.delta
 						) {
 							const delta = event.assistantMessageEvent.delta;
-							// Log short deltas inline; truncate long ones
-							if (delta.length <= 120) {
-								log(`[thinking] ${delta}`);
+							thinkingBuffer += delta;
+
+							// Flush complete lines (split on \n, keep remainder)
+							const newlineIdx = thinkingBuffer.lastIndexOf("\n");
+							if (newlineIdx >= 0) {
+								const completeLines = thinkingBuffer.slice(0, newlineIdx);
+								for (const line of completeLines.split("\n")) {
+									if (line.length <= 120) {
+										log(`[thinking] ${line}`);
+									}
+								}
+								thinkingBuffer = thinkingBuffer.slice(newlineIdx + 1);
 							}
 						}
 					} else if (event.type === "message_end" && event.message.role === "assistant") {
+						// Flush remaining thinking buffer
+						if (thinkingBuffer) {
+							const remainder = thinkingBuffer.trim();
+							if (remainder && remainder.length <= 120) {
+								log(`[thinking] ${remainder}`);
+							}
+							thinkingBuffer = "";
+						}
 						emitStatus("deciding", "Assistant message completed");
 					}
 
@@ -519,6 +600,84 @@ export class WorkspaceAgentExecutor {
 		} finally {
 			// P4.6.3: Clean up abort controller
 			this.abortController = null;
+		}
+	}
+
+	/**
+	 * P6.A: Execute a workspace inside an isolated git worktree.
+	 * Creates the worktree, delegates to the WorktreeWorkspaceExecutor,
+	 * and maps the result to AgentExecutionResult.
+	 */
+	private async executeInWorktree(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+		const logs: string[] = [];
+		const log = (message: string) => {
+			const timestamp = new Date().toISOString();
+			const logLine = `[${timestamp}] ${message}`;
+			logs.push(logLine);
+			console.log(`[workspace-agent-executor] ${logLine}`);
+		};
+
+		try {
+			log(`Worktree mode enabled for workspace ${workspaceId}`);
+
+			// Create or reuse the worktree executor
+			if (!this.worktreeExecutor) {
+				this.worktreeExecutor = new WorktreeWorkspaceExecutor({
+					workspaceRoot: this.workspaceRoot,
+					planExecutionId: this.planExecutionId!,
+					workspaceId,
+					worktree: this.worktreeConfig,
+				});
+			}
+
+			// Create the worktree
+			const createResult = await this.worktreeExecutor.createWorktree();
+			if (createResult.error) {
+				log(`Failed to create worktree: ${createResult.error}`);
+				return {
+					success: false,
+					verdict: "FAILED",
+					report: `Worktree creation failed: ${createResult.error}`,
+					error: createResult.error,
+					logs,
+				};
+			}
+
+			log(`Worktree ready at: ${createResult.state.worktreePath}`);
+			log(`Base commit: ${createResult.state.baseCommit}`);
+			log(`Branch: ${createResult.state.branchName}`);
+
+			// Execute using the worktree path as workspace root
+			// We create a fresh WorkspaceAgentExecutor scoped to the worktree
+			const worktreeExecutor = new WorkspaceAgentExecutor({
+				workspaceRoot: createResult.state.worktreePath,
+				model: this.model,
+				maxTurns: this.maxTurns,
+				logPath: this.logPath,
+				stateStore: this.stateStore,
+				planExecutionId: this.planExecutionId,
+				// Worktree mode is disabled for the inner executor to avoid recursion
+				worktree: { enabled: false },
+			});
+
+			log(`Executing agent in worktree: ${createResult.state.worktreePath}`);
+			const result = await worktreeExecutor.execute(packet, workspaceId);
+
+			// Attach worktree state to the result
+			return {
+				...result,
+				logs: [...logs, ...result.logs],
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			log(`Worktree execution error: ${errorMessage}`);
+			return {
+				success: false,
+				verdict: "FAILED",
+				report: `Worktree execution failed: ${errorMessage}`,
+				error: errorMessage,
+				logs,
+			};
 		}
 	}
 
