@@ -397,6 +397,61 @@ export interface PreviewResult {
 	rejectedPatches: Array<{ patch: DependencyPatch; reason: string }>;
 }
 
+// =============================================================================
+// Lead Agent Dashboard Types (P8.G)
+// =============================================================================
+
+/** Evidence bundle captured at proposal submission time. */
+export interface ProposalEvidence {
+	plannerOutput: Record<string, unknown>;
+	queue: Record<string, unknown>;
+	optimizationProposals?: Array<{
+		id: string;
+		kind: string;
+		description: string;
+		approvalStatus: string;
+		evidence: Record<string, unknown>;
+	}>;
+}
+
+/** Audit trail entry for a proposal. */
+export interface ProposalAuditEntry {
+	timestamp: number;
+	action: "submitted" | "approved" | "rejected";
+	actor: string;
+	reason?: string;
+	resultingStatus: string;
+}
+
+/** Proposal returned by the lead agent API (read-only). */
+export interface ProposalResponse {
+	id: string;
+	title: string;
+	phase: string;
+	status: "pending" | "approved" | "rejected";
+	evidence: ProposalEvidence;
+	auditTrail: ProposalAuditEntry[];
+	submittedAt: number;
+	actionedAt?: number;
+	rejectionReason?: string;
+	metadata?: Record<string, unknown>;
+}
+
+/** Response from GET /api/proposals. */
+export interface ProposalsListResponse {
+	success: boolean;
+	proposals: ProposalResponse[];
+	count: number;
+	error?: string;
+}
+
+/** Response from GET /api/proposals/:id. */
+export interface ProposalDetailResponse {
+	success: boolean;
+	proposal: ProposalResponse;
+	error?: string;
+}
+
 /** Full response from POST /plans/validate with parallelism preview data. */
 export interface ValidateWithPreviewResponse {
 	success: boolean;

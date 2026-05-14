@@ -97,6 +97,19 @@ export {
 	type WorkerConcurrencyValidationResult,
 } from "./core/worker-concurrency.js";
 export {
+	canStartWorker,
+	configureMemoryGuard,
+	formatBytes,
+	formatMemorySnapshot,
+	getLastSnapshot,
+	getMemoryGuardConfig,
+	getMemorySnapshot,
+	type MemorySnapshot,
+	setSystemMemoryLimitBytes,
+	WORKER_MEMORY_LIMIT_BYTES,
+	waitForMemoryAvailable,
+} from "./core/worker-memory-guard.js";
+export {
 	type AgentExecutionResult,
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,
@@ -123,6 +136,20 @@ export {
 	type IntegrationQueueState,
 	type QueueEntry,
 } from "./integration/integration-queue.js";
+// Repo scanning and analysis
+export {
+	createRepoHealthScanner,
+	formatScanResult,
+	formatScanResultJson,
+	type HealthCategory,
+	type HealthSignal,
+	RepoHealthScanner,
+	type ScanResult,
+	type ScanSummary,
+	type SignalEvidence,
+	type SignalProposal,
+	type SignalSeverity,
+} from "./repo-scanner/index.js";
 
 // Core session management
 

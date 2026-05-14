@@ -768,7 +768,7 @@ export class Planner {
 
 					const baseMessage = `Feedback loop risk adjustments indicate elevated risk for workspaces: ${adjustedHighRisk.join(", ")}. High-risk workspaces in parallel batches: ${batchDescriptions}. Consider serializing these workspaces to reduce failure impact.`;
 					suggestions.push({
-						type: "add_serialization" as any,
+						type: "add_serialization",
 						message: withEvidence(baseMessage, "add_serialization"),
 						requiresApproval: true,
 						expectedBenefit:
@@ -799,7 +799,7 @@ export class Planner {
 				if (lowRiskInSerialBatches.length > 0) {
 					const baseMessage = `Workspaces with adjusted low risk are in serial single-width batches: [${lowRiskInSerialBatches.join(", ")}]. Consider moving them to earlier batches or adding parallel groups to reduce serialization.`;
 					suggestions.push({
-						type: "remove_serialization" as any,
+						type: "remove_serialization",
 						message: withEvidence(baseMessage, "remove_serialization"),
 						requiresApproval: true,
 						expectedBenefit:

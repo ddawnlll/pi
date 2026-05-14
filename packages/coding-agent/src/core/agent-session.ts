@@ -34,6 +34,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
+import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { sleep } from "../utils/sleep.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.js";
@@ -80,6 +81,11 @@ import type { BashExecutionMessage, CustomMessage } from "./messages.js";
 import type { ModelRegistry } from "./model-registry.js";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.js";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.js";
+import {
+	createSelfModificationFirewall,
+	type SelfModificationFirewall,
+	type SelfModificationReport,
+} from "./self-modification-firewall.js";
 import type { BranchSummaryEntry, CompactionEntry, SessionManager } from "./session-manager.js";
 import { CURRENT_SESSION_VERSION, getLatestCompactionEntry, type SessionHeader } from "./session-manager.js";
 import type { SettingsManager } from "./settings-manager.js";
@@ -278,6 +284,9 @@ export class AgentSession {
 	private _bashAbortController: AbortController | undefined = undefined;
 	private _pendingBashMessages: BashExecutionMessage[] = [];
 
+	// Self-modification firewall
+	private _selfModFirewall: SelfModificationFirewall;
+
 	// Extension system
 	private _extensionRunner!: ExtensionRunner;
 	private _turnIndex = 0;
@@ -325,6 +334,9 @@ export class AgentSession {
 		this._baseToolsOverride = config.baseToolsOverride;
 		this._sessionStartEvent = config.sessionStartEvent ?? { type: "session_start", reason: "startup" };
 
+		// Initialize self-modification firewall (non-autonomous by default unless overridden)
+		this._selfModFirewall = createSelfModificationFirewall(config.cwd, false);
+
 		// Always subscribe to agent events for internal handling
 		// (session persistence, extensions, auto-compaction, retry logic)
 		this._unsubscribeAgent = this.agent.subscribe(this._handleAgentEvent);
@@ -368,15 +380,52 @@ export class AgentSession {
 	}
 
 	/**
+	 * Set the self-modification firewall to autonomous mode.
+	 * In this mode, any modification to protected systems is blocked entirely.
+	 */
+	setSelfModificationFirewallAutonomous(autonomous: boolean): void {
+		this._selfModFirewall = createSelfModificationFirewall(this._cwd, autonomous);
+	}
+
+	/**
 	 * Install tool hooks once on the Agent instance.
 	 *
 	 * The callbacks read `this._extensionRunner` at execution time, so extension reload swaps in the
 	 * new runner without reinstalling hooks. Extension-specific tool wrappers are still used to adapt
 	 * registered tool execution to the extension context. Tool call and tool result interception now
 	 * happens here instead of in wrappers.
+	 *
+	 * P8.F Self-Modification Firewall:
+	 * Before extension handlers or tool execution, the firewall checks whether
+	 * the tool call targets protected systems (pi's own source code/config).
+	 * In autonomous mode, protected modifications are blocked entirely.
+	 * In interactive mode, they require enhanced explicit approval.
 	 */
 	private _installAgentToolHooks(): void {
 		this.agent.beforeToolCall = async ({ toolCall, args }) => {
+			// P8.F: Self-Modification Firewall check
+			// Run before extensions to ensure firewall is always enforced.
+			const toolArgs = args as Record<string, unknown>;
+			const firewallReport: SelfModificationReport = this._selfModFirewall.checkToolCall(toolCall.name, toolArgs);
+
+			if (firewallReport.hasSelfModification) {
+				const formatted = this._selfModFirewall.formatReport(firewallReport);
+
+				if (firewallReport.anyBlocked) {
+					// Autonomous mode: Block the modification entirely
+					return {
+						block: true,
+						reason: `Self-Modification Firewall: ${formatted}`,
+					};
+				}
+
+				// Interactive mode: Log the self-modification warning but let
+				// extension handlers (which may prompt user confirmation) process it.
+				// The enhanced approval requirement is enforced at the UI layer.
+				// The formatted report is emitted into the tool result context.
+				console.error(`[Self-Modification Firewall] ${firewallReport.summary}`);
+			}
+
 			const runner = this._extensionRunner;
 			if (!runner.hasHandlers("tool_call")) {
 				return undefined;
@@ -389,7 +438,7 @@ export class AgentSession {
 					type: "tool_call",
 					toolName: toolCall.name,
 					toolCallId: toolCall.id,
-					input: args as Record<string, unknown>,
+					input: toolArgs,
 				});
 			} catch (err) {
 				if (err instanceof Error) {
@@ -753,6 +802,11 @@ export class AgentSession {
 		);
 		this._disconnectFromAgent();
 		this._eventListeners = [];
+		// Kill any orphaned child processes (vitest, etc.) spawned via the bash tool
+		// during this session. The bash tool uses detached: true for long-running
+		// commands, which survive the parent process if not explicitly killed.
+		// See shell.ts trackDetachedChildPid mechanism.
+		killTrackedDetachedChildren();
 		cleanupSessionResources(this.sessionId);
 	}
 
@@ -930,6 +984,14 @@ export class AgentSession {
 				promptGuidelines.push(...toolGuidelines);
 			}
 		}
+
+		// P8.F: Add self-modification firewall guidelines
+		promptGuidelines.push(
+			"Self-Modification Firewall: pi's own source code (packages/), agent configuration (.pi/agent/), " +
+				"settings (.pi/settings.json), and skill manifests (.pi/skills/) are PROTECTED SYSTEMS. " +
+				"Modifying these files requires enhanced explicit approval. In autonomous execution mode, " +
+				"modifications to protected systems are blocked entirely.",
+		);
 
 		const loaderSystemPrompt = this._resourceLoader.getSystemPrompt();
 		const loaderAppendSystemPrompt = this._resourceLoader.getAppendSystemPrompt();

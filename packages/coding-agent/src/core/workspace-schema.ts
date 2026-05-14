@@ -370,6 +370,27 @@ export interface WorkspaceQueue {
 	 * Contract Schema v2.2.0 field.
 	 */
 	parallelismReview?: ParallelismReview;
+
+	/**
+	 * Whether this queue represents a draft plan (non-executable until approved).
+	 *
+	 * Draft plans are generated from approved proposals but remain
+	 * non-executable until they pass normal plan approval gates.
+	 * The lead agent that created the draft cannot enqueue or execute it.
+	 *
+	 * P8.E field.
+	 */
+	isDraft?: boolean;
+
+	/**
+	 * The agent ID of the lead agent that created this draft plan.
+	 *
+	 * When set, this lead agent cannot enqueue or execute the draft.
+	 * Only set when isDraft is true.
+	 *
+	 * P8.E field.
+	 */
+	leadAgentId?: string;
 }
 
 /**

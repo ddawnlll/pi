@@ -122,6 +122,14 @@ export interface Settings {
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
 	safetyProfile?: SafetyProfileName; // Safety profile: "strict" | "balanced" | "full_auto" (default: "strict")
 	workerConcurrency?: WorkerConcurrencySettings; // Worker concurrency settings (1-3 stable, 4-6 experimental)
+	memoryGuard?: MemoryGuardSettings; // P6.5: Memory guard settings (limit GB, wait timeout)
+}
+
+export interface MemoryGuardSettings {
+	/** System memory limit in GB (default: 8) */
+	memoryLimitGb?: number;
+	/** Max seconds to wait for memory to become available (default: 300) */
+	memoryWaitTimeoutSec?: number;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -623,6 +631,21 @@ export class SettingsManager {
 	setWorkerConcurrency(settings: WorkerConcurrencySettings): void {
 		this.globalSettings.workerConcurrency = settings;
 		this.markModified("workerConcurrency");
+		this.save();
+	}
+
+	/** P6.5: Get memory guard settings */
+	getMemoryGuard(): MemoryGuardSettings {
+		return {
+			memoryLimitGb: this.settings.memoryGuard?.memoryLimitGb ?? 8,
+			memoryWaitTimeoutSec: this.settings.memoryGuard?.memoryWaitTimeoutSec ?? 300,
+		};
+	}
+
+	/** P6.5: Set memory guard settings */
+	setMemoryGuard(settings: MemoryGuardSettings): void {
+		this.globalSettings.memoryGuard = settings;
+		this.markModified("memoryGuard");
 		this.save();
 	}
 

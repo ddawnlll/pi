@@ -116,7 +116,8 @@ export type JournalEventType =
 	| "integration_validate_failed"
 	| "cache_usage"
 	| "workspace_preflight_approved"
-	| "workspace_preflight_rejected";
+	| "workspace_preflight_rejected"
+	| "lead_observation";
 
 /**
  * Execution journal event

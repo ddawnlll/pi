@@ -68,6 +68,49 @@ export {
 	rejectProposal,
 	type SplitProposal,
 } from "./dag-optimizer.js";
+// Detection Engine — P8.D
+export {
+	createDetectionEngine,
+	DetectionEngine,
+	type DetectionEngineConfig,
+	type ScannerInput,
+} from "./detection-engine.js";
+// Detection Types — P8.D
+export {
+	type ConfidenceLevel,
+	confidenceLevelToScore,
+	type DetectionCategory,
+	type DetectionEvidenceItem,
+	type DetectionOutput,
+	type DetectionResult,
+	type FalsePositiveInfo,
+	type FalsePositiveSummary,
+	generateDetectionId,
+	type RiskLevel,
+	riskLevelToScore,
+	scoreToConfidenceLevel,
+	scoreToRiskLevel,
+	type UnsafeCheckResult,
+	type UnsafeReason,
+} from "./detection-types.js";
+// Draft Planner — P8.E
+export {
+	assertNotDraftPlan,
+	canAgentEnqueuePlan,
+	canAgentExecutePlan,
+	checkDraftGates,
+	createDraftPlanner,
+	type DraftGateResult,
+	type DraftPlanMeta,
+	DraftPlanner,
+	type DraftPlannerConfig,
+	formatDraftGateResult,
+	formatDraftPlanList,
+	formatDraftPlanMeta,
+	type GenerateDraftPlanResult,
+	isDraftPlan,
+	setDraftLeadAgent,
+} from "./draft-planner.js";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.js";
 // Extensions system
 export {
@@ -115,6 +158,14 @@ export {
 	type TurnStartEvent,
 	type WorkingIndicatorOptions,
 } from "./extensions/index.js";
+// False-Positive Tracker — P8.D
+export {
+	createFalsePositiveTracker,
+	type FalsePositiveRecord,
+	FalsePositiveTracker,
+	type FalsePositiveTrackerConfig,
+	type SuppressionPattern,
+} from "./false-positive-tracker.js";
 export {
 	detectFailureSignals,
 	type FailureSignal,
@@ -153,6 +204,19 @@ export {
 	type RebatchingRecommendation,
 	type RiskModelUpdate,
 } from "./planner-feedback-loop.js";
+// Proposal Inbox — P8.B
+export {
+	type ActionProposalResult,
+	formatProposal,
+	formatProposalList,
+	type Proposal,
+	type ProposalAuditEntry,
+	type ProposalEvidence,
+	type ProposalFilter,
+	ProposalInbox,
+	type ProposalStatus,
+	type SubmitProposalResult,
+} from "./proposal-inbox.js";
 // Safety profiles
 export {
 	BALANCED_PROFILE,
@@ -177,7 +241,22 @@ export {
 	type SafetyProfileName,
 	STRICT_PROFILE,
 } from "./safety-profile.js";
+// Self-Modification Firewall — P8.F
+export {
+	BUILT_IN_PROTECTED_SYSTEMS,
+	createSelfModificationFirewall,
+	type ProtectedSystem,
+	type SelfModificationCheckResult,
+	SelfModificationFirewall,
+	type SelfModificationFirewallConfig,
+	type SelfModificationReport,
+} from "./self-modification-firewall.js";
 export { createSyntheticSourceInfo } from "./source-info.js";
+// Unsafe Suggestion Guard — P8.D
+export {
+	createUnsafeSuggestionGuard,
+	UnsafeSuggestionGuard,
+} from "./unsafe-suggestion-guard.js";
 export {
 	getGlobalValidationLock,
 	isValidationCommand,

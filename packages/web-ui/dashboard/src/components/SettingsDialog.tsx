@@ -96,6 +96,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	const [explicitApproval, setExplicitApproval] = useState(false);
 	const [maxWorkers, setMaxWorkers] = useState(3);
 	const [experimentalModeEnabled, setExperimentalModeEnabled] = useState(false);
+	// Memory guard settings
+	const [memoryLimitGb, setMemoryLimitGb] = useState(8);
+	const [memoryWaitTimeoutSec, setMemoryWaitTimeoutSec] = useState(300);
 
 	// Load settings into form state + snapshot originals
 	// Note: no auto-refetch on open — TanStack Query keeps settings fresh
@@ -125,6 +128,9 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		setExplicitApproval((settings.explicitApproval as boolean) ?? false);
 		setMaxWorkers(((settings.workerConcurrency as Record<string, unknown>)?.maxWorkers as number) ?? 3);
 		setExperimentalModeEnabled(((settings.workerConcurrency as Record<string, unknown>)?.experimentalModeEnabled as boolean) ?? false);
+		// Memory guard settings
+		setMemoryLimitGb(((settings.memoryGuard as Record<string, unknown>)?.memoryLimitGb as number) ?? 8);
+		setMemoryWaitTimeoutSec(((settings.memoryGuard as Record<string, unknown>)?.memoryWaitTimeoutSec as number) ?? 300);
 
 		setOrig({
 			steeringMode: settings.steeringMode ?? "one-at-a-time",
@@ -224,8 +230,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		() =>
 			!isEqual(scaleMode, orig.scaleMode) ||
 			!isEqual(dogfoodPass, orig.dogfoodPass) ||
-			!isEqual(explicitApproval, orig.explicitApproval),
-		[scaleMode, dogfoodPass, explicitApproval, orig],
+			!isEqual(explicitApproval, orig.explicitApproval) ||
+			!isEqual(maxWorkers, (orig.workerConcurrency as Record<string, unknown>)?.maxWorkers) ||
+			!isEqual(experimentalModeEnabled, (orig.workerConcurrency as Record<string, unknown>)?.experimentalModeEnabled) ||
+			!isEqual(memoryLimitGb, (orig.memoryGuard as Record<string, unknown>)?.memoryLimitGb) ||
+			!isEqual(memoryWaitTimeoutSec, (orig.memoryGuard as Record<string, unknown>)?.memoryWaitTimeoutSec),
+		[scaleMode, dogfoodPass, explicitApproval, orig, maxWorkers, experimentalModeEnabled, memoryLimitGb, memoryWaitTimeoutSec],
 	);
 
 	// Compute change counts per tab
@@ -358,6 +368,10 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 				maxWorkers,
 				experimentalModeEnabled,
 			},
+			memoryGuard: {
+				memoryLimitGb,
+				memoryWaitTimeoutSec,
+			},
 		});
 		setOrig({
 			...orig,
@@ -365,6 +379,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 			dogfoodPass,
 			explicitApproval,
 			workerConcurrency: { maxWorkers, experimentalModeEnabled },
+			memoryGuard: { memoryLimitGb, memoryWaitTimeoutSec },
 		});
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);
@@ -1002,6 +1017,43 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 
 											{/* Prerequisites via ScaleModeSettings */}
 											<ScaleModeSettings />
+
+											{/* Memory Guard Settings */}
+											<div className="border-t border-gray-700 pt-4 mt-4">
+												<h4 className="text-xs font-medium text-gray-300 mb-3">Memory Guard</h4>
+
+												{/* Memory Limit */}
+												<div className="mb-3">
+													<label className={labelClass}>Memory Limit (GB)</label>
+													<input
+														type="number"
+														min={1}
+														max={64}
+														value={memoryLimitGb}
+														onChange={(e) => setMemoryLimitGb(Number(e.target.value))}
+														className={inputClass}
+													/>
+													<p className="text-[11px] text-gray-500 mt-1">
+														System memory limit — new workers are blocked when exceeded.
+													</p>
+												</div>
+
+												{/* Wait Timeout */}
+												<div>
+													<label className={labelClass}>Wait Timeout (seconds)</label>
+													<input
+														type="number"
+														min={30}
+														max={3600}
+														value={memoryWaitTimeoutSec}
+														onChange={(e) => setMemoryWaitTimeoutSec(Number(e.target.value))}
+														className={inputClass}
+													/>
+													<p className="text-[11px] text-gray-500 mt-1">
+														Max time to wait for memory to become available (30–3600s).
+													</p>
+												</div>
+											</div>
 
 											{/* Warnings for experimental_6 */}
 											{scaleMode === "experimental_6" && (

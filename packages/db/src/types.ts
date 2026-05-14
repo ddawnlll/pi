@@ -91,10 +91,51 @@ export interface WorkspaceLogRow {
 }
 
 // =============================================================================
+// Proposal row (P8.B)
+// =============================================================================
+
+/**
+ * Raw proposal row from the database.
+ */
+export interface ProposalRow {
+	id: string;
+	project_id: string;
+	proposal_key: string;
+	title: string;
+	phase: string;
+	status: string;
+	evidence: Record<string, unknown>;
+	audit_trail: Record<string, unknown>[];
+	submitted_at: string;
+	actioned_at: string | null;
+	rejection_reason: string | null;
+	metadata: Record<string, unknown> | null;
+	created_at: string;
+	updated_at: string;
+}
+
+// =============================================================================
 // Kysely table definitions
 // =============================================================================
 
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from "kysely";
+
+export interface ProposalTable {
+	id: Generated<string>;
+	project_id: string;
+	proposal_key: string;
+	title: string;
+	phase: string;
+	status: string;
+	evidence: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	audit_trail: ColumnType<Record<string, unknown>[], Record<string, unknown>[], Record<string, unknown>[]>;
+	submitted_at: ColumnType<string, string, string | undefined>;
+	actioned_at: string | null;
+	rejection_reason: string | null;
+	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
+}
 
 export interface Database {
 	projects: ProjectTable;
@@ -103,6 +144,7 @@ export interface Database {
 	journal_events: JournalEventTable;
 	workspace_logs: WorkspaceLogTable;
 	chat_messages: ChatMessageTable;
+	proposals: ProposalTable;
 	_migrations: MigrationsTable;
 }
 
@@ -197,6 +239,10 @@ export type NewJournalEvent = Insertable<JournalEventTable>;
 
 export type WorkspaceLog = Selectable<WorkspaceLogTable>;
 export type NewWorkspaceLog = Insertable<WorkspaceLogTable>;
+
+export type Proposal = Selectable<ProposalTable>;
+export type NewProposal = Insertable<ProposalTable>;
+export type ProposalUpdate = Updateable<ProposalTable>;
 
 export type ChatMessage = Selectable<ChatMessageTable>;
 export type NewChatMessage = Insertable<ChatMessageTable>;

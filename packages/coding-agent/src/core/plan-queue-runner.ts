@@ -14,6 +14,7 @@ import { exec } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
+import { checkDraftGates, isDraftPlan } from "./draft-planner.js";
 import type { IStateStore } from "./state-store.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 
@@ -63,6 +64,11 @@ export interface PlanQueueEntry {
 	error?: string;
 	/** Reason for blocking (if blocked) */
 	blockReason?: string;
+	/**
+	 * Agent ID of the enqueuing agent (P8.E).
+	 * When set, draft gate checks use this to enforce lead agent restrictions.
+	 */
+	agentId?: string;
 }
 
 /**
@@ -146,12 +152,30 @@ export class PlanQueueRunner {
 	/**
 	 * Add a plan to the queue.
 	 *
+	 * Checks draft gates (P8.E AC3): if the queue is a draft plan and the
+	 * enqueuing agent is the lead agent, the enqueue is rejected.
+	 *
 	 * @param projectId - Project ID
 	 * @param planPath - Path to plan file
 	 * @param queue - Optional parsed workspace queue
+	 * @param agentId - Optional agent ID for draft gate enforcement (P8.E)
 	 * @returns The created queue entry
+	 * @throws Error if draft gates block the enqueue
 	 */
-	async enqueue(projectId: string, planPath: string, queue?: WorkspaceQueue): Promise<PlanQueueEntry> {
+	async enqueue(
+		projectId: string,
+		planPath: string,
+		queue?: WorkspaceQueue,
+		agentId?: string,
+	): Promise<PlanQueueEntry> {
+		// P8.E AC3: Check draft gate before enqueueing
+		if (queue && isDraftPlan(queue) && agentId) {
+			const gateResult = checkDraftGates(queue, agentId, "enqueue");
+			if (!gateResult.allowed) {
+				throw new Error(gateResult.reason);
+			}
+		}
+
 		const entry: PlanQueueEntry = {
 			id: this.generateId(),
 			projectId,
@@ -159,6 +183,7 @@ export class PlanQueueRunner {
 			queue,
 			status: PlanQueueEntryStatus.Pending,
 			queuedAt: Date.now(),
+			agentId,
 		};
 
 		this.entries.push(entry);
@@ -318,6 +343,21 @@ export class PlanQueueRunner {
 
 				// Dirty tree stops the queue — we cannot proceed until the tree is clean
 				break;
+			}
+
+			// P8.E AC2: Check draft execution gate before executing
+			if (next.queue && isDraftPlan(next.queue)) {
+				const gateResult = checkDraftGates(next.queue, next.agentId ?? "unknown", "execute");
+				if (!gateResult.allowed) {
+					next.status = PlanQueueEntryStatus.Blocked;
+					next.blockReason = gateResult.reason;
+					next.completedAt = Date.now();
+					this.activeEntryId = null;
+					await this.saveState();
+
+					// Draft plan blocking stops the queue — the draft must be promoted first
+					break;
+				}
 			}
 
 			// Execute the plan

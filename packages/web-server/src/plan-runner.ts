@@ -480,12 +480,19 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		let workerConcurrencySettings = undefined as
 			| { maxWorkers?: number; experimentalModeEnabled?: boolean }
 			| undefined;
+		let memoryGuardConfig = undefined as { memoryLimitGb?: number; memoryWaitTimeoutSec?: number } | undefined;
 		try {
-			const { SettingsManager } = await import("@earendil-works/pi-coding-agent");
+			const { SettingsManager, configureMemoryGuard } = await import("@earendil-works/pi-coding-agent");
 			const sm = SettingsManager.create(workspaceRoot);
 			workerConcurrencySettings = sm.getWorkerConcurrency();
+			// P6.5: Configure memory guard from settings before any workers start
+			memoryGuardConfig = sm.getMemoryGuard();
+			configureMemoryGuard({
+				memoryLimitGb: memoryGuardConfig.memoryLimitGb,
+				waitTimeoutSec: memoryGuardConfig.memoryWaitTimeoutSec,
+			});
 		} catch {
-			// Non-fatal — fall back to plan-level maxParallelWorkspaces
+			// Non-fatal — fall back to plan-level maxParallelWorkspaces and memory guard defaults
 		}
 
 		const workerConcurrency = workerConcurrencySettings

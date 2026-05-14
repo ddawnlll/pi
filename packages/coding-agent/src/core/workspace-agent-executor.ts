@@ -241,6 +241,14 @@ export class WorkspaceAgentExecutor {
 			const prompt = this.buildPromptFromPacket(packet);
 			log(`Prompt length: ${prompt.length} characters`);
 
+			// P8.A: Select tools based on role
+			// Lead agents get read-only tools (observe only), worker agents get full coding tools
+			const isLeadRole = packet.packet.role === "lead";
+			const tools = isLeadRole
+				? ["read", "grep", "find", "ls"]
+				: ["read", "write", "edit", "bash", "find", "grep", "ls"];
+			log(`Role ${packet.packet.role} — using ${isLeadRole ? "read-only" : "full"} tools: ${tools.join(", ")}`);
+
 			// Create agent session
 			log("Creating agent session...");
 			const sessionResult: CreateAgentSessionResult = await createAgentSession({
@@ -249,8 +257,7 @@ export class WorkspaceAgentExecutor {
 				thinkingLevel: "medium",
 				sessionManager,
 				settingsManager,
-				// Enable all coding tools (using correct tool names)
-				tools: ["read", "write", "edit", "bash", "find", "grep", "ls"],
+				tools,
 			});
 
 			const { session } = sessionResult;
@@ -442,6 +449,34 @@ export class WorkspaceAgentExecutor {
 			// Wait for agent to fully complete (all turns, tool calls, and final response)
 			await completionPromise;
 			log("Agent execution finished");
+
+			// P8.A: For lead agents, emit observation log instead of mutation-related operations
+			if (isLeadRole) {
+				log("Lead agent execution completed — read-only mode, no mutations performed");
+				if (this.stateStore && this.planExecutionId) {
+					const agentMessages = session.messages.filter((m) => m.role === "assistant");
+					const toolCallsCount = agentMessages.reduce(
+						(count, m) => count + m.content.filter((c: any) => c.type === "tool_call").length,
+						0,
+					);
+					this.stateStore
+						.appendJournal(this.planExecutionId, {
+							type: "lead_observation",
+							timestamp: Date.now(),
+							data: {
+								workspaceId,
+								role: "lead",
+								readOnly: true,
+								toolCalls: toolCallsCount,
+								messageCount: session.messages.length,
+								mutationsBlocked: true,
+							},
+						})
+						.catch((err: unknown) => {
+							console.error("[workspace-agent-executor] Failed to persist lead_observation:", err);
+						});
+				}
+			}
 
 			// Get the final messages and determine verdict
 			const messages = session.messages;
@@ -732,6 +767,7 @@ export class WorkspaceAgentExecutor {
 	 */
 	private buildPromptFromPacket(packet: HashedPacket): string {
 		const p = packet.packet;
+		const isLeadRole = p.role === "lead";
 
 		let prompt = `# Workspace Execution Task
 
@@ -749,7 +785,7 @@ ${p.acceptanceCriteria.map((ac, i) => `${i + 1}. ${typeof ac === "string" ? ac :
 `;
 
 		if (p.allowedFiles.length > 0) {
-			prompt += `\n### Allowed to Edit\n${p.allowedFiles.map((f) => `- ${f}`).join("\n")}\n`;
+			prompt += `\n### Allowed to Observe\n${p.allowedFiles.map((f) => `- ${f}`).join("\n")}\n`;
 		}
 
 		if (p.forbiddenFiles.length > 0) {
@@ -771,7 +807,31 @@ ${p.acceptanceCriteria.map((ac, i) => `${i + 1}. ${typeof ac === "string" ? ac :
 			}
 		}
 
-		prompt += `\n## Output Contract
+		// P8.A: Generate role-specific instructions
+		if (isLeadRole) {
+			prompt += `\n## Output Contract
+${p.outputContract}
+
+## Instructions (Read-Only Mode)
+1. Read and understand the goal and acceptance criteria
+2. Observe the codebase by CALLING THE TOOLS directly — use read, grep, find, and ls to explore the source
+3. You are in READ-ONLY mode. You CANNOT:
+   - Create, modify, or delete files
+   - Execute shell commands
+   - Run tests or build commands
+   - Make git commits or changes
+   - Modify the plan queue or execution state
+4. Focus on analysis, understanding, and reporting your findings
+5. After completing your observation, respond with EXACTLY one of these verdicts:
+   - VERDICT: COMPLETE (if all acceptance criteria are met)
+   - VERDICT: BLOCKED (if you cannot proceed due to missing dependencies)
+   - VERDICT: FAILED (if you encountered unresolvable errors)
+
+CRITICAL: You have only read-only tools available. Any attempt to write, edit, or execute commands will be blocked.
+
+Begin observation now.`;
+		} else {
+			prompt += `\n## Output Contract
 ${p.outputContract}
 
 ## Instructions
@@ -790,6 +850,7 @@ ${p.outputContract}
 CRITICAL: You must CALL the tools, not describe them. Your response should invoke tool calls, wait for results, then provide the verdict.
 
 Begin implementation now.`;
+		}
 
 		return prompt;
 	}

@@ -71,6 +71,7 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
+import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 
@@ -3133,6 +3134,12 @@ registerPerformanceRoutes(fastify, getPiDir, getWorkspaceRoot);
 // ---------------------------------------------------------------------------
 
 await registerScaleRoutes(fastify, getPiDir, getWorkspaceRoot, getSettingsManager);
+
+// ---------------------------------------------------------------------------
+// Proposal Routes (P8.G — Lead Agent Dashboard, read-only)
+// ---------------------------------------------------------------------------
+
+await registerProposalRoutes(fastify, getPiDir, getWorkspaceRoot);
 
 // ---------------------------------------------------------------------------
 // Health Check

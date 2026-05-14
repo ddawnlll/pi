@@ -15,11 +15,38 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
+import { PiLogger } from "../utils/logger.js";
 import { createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 import type { IStateStore } from "./state-store.js";
+import {
+	canStartWorker,
+	formatMemorySnapshot,
+	getMemorySnapshot,
+	waitForMemoryAvailable,
+} from "./worker-memory-guard.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
+
+/**
+ * Global merge lock to prevent concurrent cleanup/merge operations.
+ * Uses an async mutex so only one cleanup runs at a time across
+ * all plan executions within the same process.
+ */
+let cleanupLock: Promise<void> = Promise.resolve();
+
+/**
+ * Acquire the global cleanup lock.
+ * Returns a release function. The caller must call release() when done.
+ */
+function acquireCleanupLock(): Promise<() => void> {
+	let release: () => void;
+	const prev = cleanupLock;
+	cleanupLock = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	return prev.then(() => release!);
+}
 
 /**
  * Result of the cleanup/review process.
@@ -64,73 +91,151 @@ export interface CleanupReviewConfig {
 export async function runCleanupReview(config: CleanupReviewConfig): Promise<CleanupReviewResult> {
 	const { workspaceRoot, planExecutionId, stateStore, queue, model } = config;
 
-	const resolvedModel = model ?? getFallbackModel();
+	// Logger for this cleanup session — created immediately so we can log before/after memory
+	const log = new PiLogger({ planExecId: planExecutionId });
 
-	// Collect workspace execution data for the cleanup agent
-	const workspaceData: Array<{
-		id: string;
-		title: string;
-		stage: string;
-		report?: string;
-		logs?: string;
-		error?: string;
-	}> = [];
+	// Check memory before starting cleanup agent
+	const memoryCheck = getMemorySnapshot();
+	log.info(`[cleanup] Memory: ${formatMemorySnapshot(memoryCheck)}`);
 
-	for (const ws of queue.workspaces) {
-		const reportPath = path.join(workspaceRoot, ".pi", "workspaces", ws.id, "report.md");
-		let report: string | undefined;
-		try {
-			report = await fs.readFile(reportPath, "utf-8");
-		} catch {
-			// Report not available
-		}
-
-		// Get the workspace state from the state store
-		let wsState: { stage: string; error?: string } | undefined;
-		try {
-			wsState = await stateStore.getWorkspaceState(planExecutionId, ws.id);
-		} catch {
-			// State not available
-		}
-
-		workspaceData.push({
-			id: ws.id,
-			title: ws.title,
-			stage: wsState?.stage ?? "unknown",
-			report,
-			error: wsState?.error,
-		});
+	if (!canStartWorker("cleanup review agent")) {
+		log.warn("[cleanup] Memory limit exceeded, waiting for memory to become available...");
+		await waitForMemoryAvailable();
+		const afterWait = getMemorySnapshot();
+		log.info(`[cleanup] Memory available after wait: ${formatMemorySnapshot(afterWait)}`);
 	}
 
-	// Get git diff for context on what changed
-	let gitDiff = "";
+	// Acquire the global merge lock — only one cleanup at a time
+	const releaseLock = await acquireCleanupLock();
+	log.info(`[cleanup] Acquired cleanup lock`);
+
 	try {
-		const { exec } = await import("node:child_process");
-		const { promisify } = await import("node:util");
-		const execAsync = promisify(exec);
-		const diffResult = await execAsync("git diff --stat HEAD", {
-			cwd: workspaceRoot,
-			timeout: 5000,
-			encoding: "utf-8",
-		}).catch(() => ({ stdout: "" }));
-		gitDiff = diffResult.stdout;
-	} catch {
-		gitDiff = "(git diff unavailable)";
+		const resolvedModel = model ?? getFallbackModel();
+
+		// Create archive directories for cleanup logs (same structure as workers)
+		const cleanupArchiveDir = path.join(
+			workspaceRoot,
+			".pi",
+			"executions",
+			planExecutionId,
+			"workspaces",
+			"_cleanup",
+		);
+		try {
+			await fs.mkdir(cleanupArchiveDir, { recursive: true });
+		} catch {
+			// Non-fatal
+		}
+
+		// Archive helper: persist a raw log line
+		const archiveRawLog = async (line: string) => {
+			try {
+				const rawLogPath = path.join(cleanupArchiveDir, "raw.log");
+				await fs.appendFile(rawLogPath, `${line}\n`, "utf-8");
+			} catch {
+				// Non-fatal
+			}
+		};
+
+		const emitStatus = (status: string, message?: string) => {
+			stateStore.emitWorkerStatus?.(planExecutionId, "_cleanup", status, message).catch(() => {});
+			log.info(`[cleanup] Worker status: ${status}${message ? `: ${message}` : ""}`);
+		};
+
+		emitStatus("starting", "Cleanup review started, acquired merge lock");
+
+		// Emit cleanup_workspace journal event
+		await stateStore
+			.appendJournal(planExecutionId, {
+				type: "cleanup_workspace",
+				timestamp: Date.now(),
+				data: { message: "Cleanup review started" },
+			})
+			.catch(() => {});
+
+		await archiveRawLog(`[${new Date().toISOString()}] Cleanup review started - acquired merge lock`);
+
+		// Collect workspace execution data for the cleanup agent
+		const workspaceData: Array<{
+			id: string;
+			title: string;
+			stage: string;
+			report?: string;
+			logs?: string;
+			error?: string;
+		}> = [];
+
+		for (const ws of queue.workspaces) {
+			const reportPath = path.join(workspaceRoot, ".pi", "workspaces", ws.id, "report.md");
+			let report: string | undefined;
+			try {
+				report = await fs.readFile(reportPath, "utf-8");
+			} catch {
+				// Report not available
+			}
+
+			// Get the workspace state from the state store
+			let wsState: { stage: string; error?: string } | undefined;
+			try {
+				wsState = await stateStore.getWorkspaceState(planExecutionId, ws.id);
+			} catch {
+				// State not available
+			}
+
+			workspaceData.push({
+				id: ws.id,
+				title: ws.title,
+				stage: wsState?.stage ?? "unknown",
+				report,
+				error: wsState?.error,
+			});
+		}
+
+		// Get git diff for context on what changed
+		let gitDiff = "";
+		try {
+			const { exec } = await import("node:child_process");
+			const { promisify } = await import("node:util");
+			const execAsync = promisify(exec);
+			const diffResult = await execAsync("git diff --stat HEAD", {
+				cwd: workspaceRoot,
+				timeout: 5000,
+				encoding: "utf-8",
+				// Limit git memory: use environment to cap git operations
+				env: {
+					...process.env,
+					GIT_ALLOW_PROTOCOL: "file",
+				},
+			}).catch(() => ({ stdout: "" }));
+			gitDiff = diffResult.stdout;
+		} catch {
+			gitDiff = "(git diff unavailable)";
+		}
+
+		emitStatus("analyzing", `Collected ${workspaceData.length} workspace reports`);
+
+		// Build the cleanup prompt
+		const prompt = buildCleanupPrompt(queue, workspaceData, gitDiff);
+
+		// Run the cleanup agent to analyze, test, and summarize
+		const result = await executeCleanupAgent({
+			workspaceRoot,
+			model: resolvedModel,
+			prompt,
+			planExecutionId,
+			stateStore,
+			emitStatus,
+			archiveRawLog,
+		});
+
+		emitStatus("complete", `Cleanup review ${result.passed ? "PASS" : "FAIL"}`);
+		await archiveRawLog(`[${new Date().toISOString()}] Cleanup review complete: ${result.passed ? "PASS" : "FAIL"}`);
+
+		return result;
+	} finally {
+		releaseLock();
+		log.info("[cleanup] Released clean up / merge lock");
 	}
-
-	// Build the cleanup prompt
-	const prompt = buildCleanupPrompt(queue, workspaceData, gitDiff);
-
-	// Run the cleanup agent to analyze, test, and summarize
-	const result = await executeCleanupAgent({
-		workspaceRoot,
-		model: resolvedModel,
-		prompt,
-		planExecutionId,
-		stateStore,
-	});
-
-	return result;
 }
 
 /**
@@ -181,7 +286,7 @@ function buildCleanupPrompt(
 		`1. **Review**: Analyze each workspace's report. Check for logical errors, incomplete implementations, missing edge cases, and code quality issues.`,
 	);
 	parts.push(
-		`2. **Test**: Run any available test commands (npm test, cargo test, go test, pytest, etc.) to verify nothing is broken. If no test runner is configured, at minimum run a type check (npm run check, tsc --noEmit, etc.).`,
+		`2. **Test**: Run any available test commands (npm test, cargo test, go test, pytest, etc.) to verify nothing is broken. If no test runner is configured, at minimum run a type check (npm run check, tsc --noEmit, etc.). IMPORTANT: Never run 'git add -A' as it consumes excessive memory on large repos. Use specific file paths with git add.`,
 	);
 	parts.push(
 		`3. **Bug Catch**: Look for regressions, missing error handling, type mismatches, and other bugs the individual workers may have missed.`,
@@ -190,7 +295,7 @@ function buildCleanupPrompt(
 		`4. **Fix**: Call tools to fix any issues you find (edit files, run commands). Do NOT leave bugs unfixed.`,
 	);
 	parts.push(
-		`5. **Commit**: After all fixes are applied, run 'git add -A && git commit -m "feat(cleanup): review fixes and improvements"' to commit the cleanup changes. If there are no changes to commit, skip this step.`,
+		`5. **Commit**: After all fixes are applied stage specific changed files with 'git add <file1> <file2> ...' instead of 'git add -A', then run 'git commit -m "feat(cleanup): review fixes and improvements"' to commit the cleanup changes. Never use git add -A as it can blow up memory on large repos. If there are no changes to commit, skip this step.`,
 	);
 	parts.push(`6. **Summarize**: After your analysis, fixes, and commit, produce a final summary.`);
 	parts.push(``);
@@ -225,17 +330,19 @@ async function executeCleanupAgent(config: {
 	prompt: string;
 	planExecutionId: string;
 	stateStore: IStateStore;
+	emitStatus: (status: string, message?: string) => void;
+	archiveRawLog: (line: string) => Promise<void>;
 }): Promise<CleanupReviewResult> {
-	const { workspaceRoot, model, prompt, planExecutionId, stateStore } = config;
+	const { workspaceRoot, model, prompt, planExecutionId, stateStore, emitStatus, archiveRawLog } = config;
 
-	// Emit cleanup_workspace journal event
-	await stateStore
-		.appendJournal(planExecutionId, {
-			type: "cleanup_workspace",
-			timestamp: Date.now(),
-			data: { message: "Cleanup review started" },
-		})
-		.catch(() => {});
+	// Persist raw log lines to the cleanup archive directory
+	const logAndArchive = async (message: string) => {
+		const timestamp = new Date().toISOString();
+		const line = `[${timestamp}] ${message}`;
+		await archiveRawLog(line);
+	};
+
+	await logAndArchive("Creating cleanup agent session...");
 
 	const sessionManager = SessionManager.create(workspaceRoot, path.join(workspaceRoot, ".pi", "sessions", "_cleanup"));
 
@@ -255,6 +362,23 @@ async function executeCleanupAgent(config: {
 		const outputParts: string[] = [];
 
 		const unsubscribe = session.subscribe((event) => {
+			// Forward agent session events as worker status updates
+			if (event.type === "agent_start") {
+				emitStatus("executing", "Cleanup agent started");
+				logAndArchive("Cleanup agent started execution");
+			} else if (event.type === "agent_end") {
+				emitStatus("deciding", "Cleanup agent completed");
+				logAndArchive("Cleanup agent completed execution");
+			} else if (event.type === "turn_start") {
+				emitStatus("thinking", `Turn started`);
+			} else if (event.type === "tool_execution_start") {
+				emitStatus("executing", `Tool: ${event.toolName}`);
+				logAndArchive(`Tool execution: ${event.toolName}`);
+			} else if (event.type === "tool_execution_end") {
+				emitStatus("deciding", `Tool ${event.toolName}: ${event.isError ? "error" : "success"}`);
+				logAndArchive(`Tool ${event.toolName}: ${event.isError ? "error" : "success"}`);
+			}
+
 			if (event.type === "message_update") {
 				if (
 					event.assistantMessageEvent &&
@@ -276,7 +400,24 @@ async function executeCleanupAgent(config: {
 					resolve();
 				}
 			});
+			// Hard timeout: if agent hasn't completed within 90 seconds, force-resolve
+			// to avoid hanging the entire cleanup process on a stalled agent.
+			// The dispose() call kills any orphaned child processes via the
+			// killTrackedDetachedChildren() hook added in agent-session.ts.
+			setTimeout(() => {
+				if (!agentCompleted) {
+					agentCompleted = true;
+					unsub();
+					// Dispose kills tracked children (vitest, etc.) via shell.ts exit handler
+					session.dispose();
+					outputParts.push("\n[cleanup] Agent timed out after 90 seconds");
+					resolve();
+				}
+			}, 90_000);
 		});
+
+		await logAndArchive("Sending prompt to cleanup agent...");
+		emitStatus("executing", "Sending prompt to cleanup agent");
 
 		await session.prompt(prompt);
 		if (!agentCompleted) {
@@ -288,6 +429,10 @@ async function executeCleanupAgent(config: {
 		// Parse the final output for the structured result
 		const fullOutput = outputParts.join("");
 		const result = parseCleanupResult(fullOutput);
+
+		await logAndArchive(
+			`Cleanup result: ${result.passed ? "PASS" : "FAIL"}, issues=${result.issueCount}, files=${result.changedFiles.length}`,
+		);
 
 		// Emit plan_summary journal event
 		await stateStore
@@ -314,7 +459,7 @@ async function executeCleanupAgent(config: {
 				JSON.stringify(
 					{
 						planExecutionId,
-						planTitle: "", // filled in by caller
+						planTitle: "",
 						phase: "",
 						completedAt: Date.now(),
 						...result,
@@ -339,6 +484,9 @@ async function executeCleanupAgent(config: {
 			changedFiles: [],
 			testResults: [],
 		};
+
+		await logAndArchive(`Cleanup review failed: ${errorMsg}`);
+		emitStatus("error", `Cleanup review failed: ${errorMsg}`);
 
 		await stateStore
 			.appendJournal(planExecutionId, {

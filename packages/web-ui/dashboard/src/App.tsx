@@ -9,7 +9,7 @@ import {
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
-  AlertTriangle, BarChart3,
+  AlertTriangle, BarChart3, Lightbulb,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -48,6 +48,7 @@ import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
 import { ScaleOverviewStrip } from "./components/ScaleOverviewStrip";
 import { ScaleCockpitPanel } from "./components/ScaleCockpitPanel";
 import { BatchOSDashboard } from "./components/BatchOSDashboard";
+import { LeadAgentDashboard } from "./components/LeadAgentDashboard";
 
 const API_BASE = "";
 
@@ -142,6 +143,7 @@ export function App() {
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [showScaleCockpit, setShowScaleCockpit] = useState(false);
   const [showBatchOS, setShowBatchOS] = useState(false);
+  const [showLeadAgent, setShowLeadAgent] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
@@ -441,7 +443,8 @@ export function App() {
             <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
             <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
             <LabeledBtn icon={Cpu} label="Scale" onClick={() => { setShowScaleCockpit(o => !o); setShowBatchOS(false); }} accent={showScaleCockpit} />
-            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setShowBatchOS(o => !o); setShowScaleCockpit(false); }} accent={showBatchOS} />
+            <LabeledBtn icon={Lightbulb} label="Lead Agent" onClick={() => { setShowLeadAgent(o => !o); setShowScaleCockpit(false); setShowBatchOS(false); }} accent={showLeadAgent} />
+            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setShowBatchOS(o => !o); setShowScaleCockpit(false); setShowLeadAgent(false); }} accent={showBatchOS} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -507,7 +510,9 @@ export function App() {
           )}
 
           {/* scale cockpit (replaces worker detail when active) */}
-          {showScaleCockpit ? (
+          {showLeadAgent ? (
+            <LeadAgentDashboard className="flex-1 min-h-0" />
+          ) : showScaleCockpit ? (
             <>
               <div className={`shrink-0 border-b ${BORD} ${SURF}`}>
                 <ScaleOverviewStrip />

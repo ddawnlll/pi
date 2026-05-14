@@ -6,6 +6,12 @@
 
 - Added Together AI to built-in provider setup, `/login` API-key auth, and default model resolution ([#3624](https://github.com/earendil-works/pi-mono/pull/3624) by [@Nutlope](https://github.com/Nutlope)).
 - Added NeoTokens to built-in provider setup, `/login` API-key auth, and default model resolution.
+- **Proposal Inbox (P8.B)**: New `ProposalInbox` class that manages plan proposal lifecycle with persistence, audit trail, and approval gating. Proposals must be explicitly approved before becoming execution plans. See `packages/coding-agent/src/core/proposal-inbox.ts`.
+- **Repo Scanning & Health Analysis (P8.C)**: New `RepoHealthScanner` that analyzes git history, workspace topology, and project structure to produce health signals and improvement proposals. See `packages/coding-agent/src/repo-scanner/`.
+- **Bug, Risk & Improvement Detection (P8.D)**: New `DetectionEngine` that categorizes scanner output into risk-scored, evidence-backed findings with false-positive tracking (`FalsePositiveTracker`) and unsafe suggestion guarding (`UnsafeSuggestionGuard`). See `packages/coding-agent/src/core/detection-engine.ts`.
+- **Semi-Autonomous Draft Planning (P8.E)**: New `DraftPlanner` that converts approved proposals into non-executable draft plans with lead agent gating. Draft plans must pass normal approval gates before execution. See `packages/coding-agent/src/core/draft-planner.ts`.
+- **Self-Modification Firewall (P8.F)**: New `SelfModificationFirewall` that protects pi's own source code and configuration from autonomous modification. Self-modifying proposals require enhanced explicit approval. See `packages/coding-agent/src/core/self-modification-firewall.ts`.
+- **Lead Agent Dashboard (P8.G)**: New read-only dashboard displaying proposal evidence, status, and audit trail in the web UI. Includes `LeadAgentDashboard`, `ProposalCard`, and `ProposalDetailPanel` components. See `packages/web-ui/dashboard/src/components/`.
 
 ### Fixed
 

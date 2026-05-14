@@ -515,6 +515,21 @@ export class AutonomousExecutor {
 		});
 
 		try {
+			// Memory guard: check before starting a new agent session
+			const { getMemorySnapshot, canStartWorker, waitForMemoryAvailable, formatMemorySnapshot } = await import(
+				"./worker-memory-guard.js"
+			);
+			const memSnap = getMemorySnapshot();
+			if (!canStartWorker(`workspace ${workspace.id}`)) {
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] Memory limit reached (${formatMemorySnapshot(memSnap)}), waiting...`,
+				);
+				await waitForMemoryAvailable();
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] Memory available, proceeding`,
+				);
+			}
+
 			// Increment attempt counter
 			await this.stateStore.incrementRetryAttempt(planExecutionId, workspace.id);
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
@@ -541,7 +556,27 @@ export class AutonomousExecutor {
 			const flashThreshold = policy.escalationThresholds.flash;
 			const reviewerThreshold = policy.escalationThresholds.reviewer;
 			let packet: HashedPacket;
-			if (retryStage === RetryStage.Flash && wsStateForPacket.attempts >= flashThreshold) {
+
+			// P8.A: Dispatch based on workspace role budget
+			// Lead role: read-only observation, skip retry escalation
+			if (workspace.roleBudget === "lead") {
+				// Gather dependency results for lead context from current plan state
+				const depResults: Record<string, string> = {};
+				const currentState = this.currentPlanState;
+				if (currentState) {
+					for (const depId of workspace.dependencies) {
+						const depState = currentState.workspaces.get(depId);
+						if (depState && depState.stage === WorkspaceStage.Complete) {
+							depResults[depId] = depState.error || "Completed";
+						}
+					}
+				}
+				packet = this.packetBuilder.buildLeadPacket(workspace, wsStateForPacket, depResults);
+				// Log that this is a read-only lead agent execution
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] Lead role — read-only execution, no mutations allowed`,
+				);
+			} else if (retryStage === RetryStage.Flash && wsStateForPacket.attempts >= flashThreshold) {
 				packet = this.packetBuilder.buildFlashPacket(workspace, wsStateForPacket, retryContext);
 			} else if (retryStage === RetryStage.Reviewer && wsStateForPacket.attempts >= reviewerThreshold) {
 				packet = this.packetBuilder.buildReviewerPacket(workspace, wsStateForPacket, retryContext);
@@ -604,6 +639,38 @@ export class AutonomousExecutor {
 			this.scheduler.releaseFileLocks(workspace);
 			await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
 
+			// P8.A: Lead role — skip completion gate (no implementation to validate) and auto-commit
+			const isLeadRole = workspace.roleBudget === "lead";
+			if (isLeadRole) {
+				// Lead agents are read-only observers; mark complete directly without completion gate
+				if (result.verdict === "COMPLETE") {
+					await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+						verdict: result.verdict,
+					});
+				} else {
+					await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+						verdict: result.verdict,
+						note: "Lead agent completed observation, no mutations performed",
+					});
+				}
+
+				// Log that lead agent completed without mutations
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] Lead agent completed — read-only observation, no mutations performed. Verdict: ${result.verdict}`,
+				);
+
+				// Update local cache
+				await this.stateCacheMutex.runExclusive(async () => {
+					const updatedState = await this.stateStore.loadState(planExecutionId);
+					if (updatedState) {
+						this.currentPlanState = updatedState;
+					}
+				});
+
+				// Skip auto-commit for lead agents (no changes to commit)
+				return result;
+			}
+
 			// Feed the completion gate with execution results before evaluating (P4.6.1).
 			// The agent executor does not call into the completion gate directly, so we
 			// translate the agent result into gate state here.
@@ -647,7 +714,7 @@ export class AutonomousExecutor {
 				}
 			});
 
-			// Auto-commit on success
+			// Auto-commit on success (skipped for lead agents — no changes to commit)
 			if (result.success && workspace.autoCommit !== false) {
 				try {
 					await this.commitWorkspace(workspace);
