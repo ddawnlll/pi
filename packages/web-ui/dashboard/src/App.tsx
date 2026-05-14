@@ -8,6 +8,7 @@ import {
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
+  AlertTriangle,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -17,6 +18,7 @@ import { usePlanExecutions, usePlanExecutionDetail, usePlanStats } from "./hooks
 import { usePlanEvents } from "./hooks/usePlanEvents";
 import { useToolCallEvents } from "./hooks/useToolCallEvents";
 import { useSettings } from "./hooks/useSettings";
+import { useIntegrationQueueStatus } from "./hooks/useScaleStatus";
 import { useTheme } from "./hooks/useTheme";
 import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
@@ -124,6 +126,7 @@ export function App() {
   console.log("[App] useTheme resolved, theme=", theme);
   const { projects, isLoading: projectsLoading, createProject } = useProjects();
   console.log("[App] useProjects resolved, loading=", projectsLoading, "count=", projects.length);
+  const hasProjects = projects.length > 0;
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
@@ -152,6 +155,7 @@ export function App() {
   const { budgets: contextBudgets } = useSettings();
   const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
+  const { data: integrationQueueData } = useIntegrationQueueStatus(hasProjects);
 
   useEffect(() => {
     if (!selectedPlanExecId && executions.length > 0) {
@@ -160,7 +164,6 @@ export function App() {
     }
   }, [executions, selectedPlanExecId]);
 
-  const hasProjects = projects.length > 0;
   const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState(!hasProjects);
   const { events: legacyEvents } = useJournalStream(!hasProjects);
   const isLegacyMode = !hasProjects && !selectedProjectId;
@@ -180,6 +183,16 @@ export function App() {
     : (executionDetail?.workspaces ?? []);
 
   const activeEvents = isLegacyMode ? legacyEvents : planEvents;
+
+  // ── Integration queue / conflict alerts ──────────────────────────────────
+  const conflictAlertCount =
+    integrationQueueData?.counts?.conflict ??
+    integrationQueueData?.entries?.filter((e) => e.status === "conflict").length ??
+    0;
+  const conflictEntries =
+    integrationQueueData?.entries?.filter((e) => e.status === "conflict") ?? [];
+  const totalAlertIssues =
+    activeWorkspaces.filter((w) => w.stage === "failed").length + conflictAlertCount;
   const workers: WorkerInfo[] = isLegacyMode
     ? legacyWorkers
     : activeWorkspaces.map(ws => ({ id: ws.id, stage: ws.stage as WorkerInfo["stage"], attempt: ws.attempts, retries: 0 }));
@@ -550,14 +563,14 @@ export function App() {
               <div className={`shrink-0 flex items-center px-4 h-9 border-b ${BORD}`}>
                 <Bell size={11} className={`${MUT} mr-1.5`} />
                 <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Alerts</span>
-                {activeWorkspaces.filter(w => w.stage === "failed").length > 0 && (
+                {totalAlertIssues > 0 && (
                   <span className="ml-auto h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
-                    {activeWorkspaces.filter(w => w.stage === "failed").length}
+                    {totalAlertIssues}
                   </span>
                 )}
               </div>
               <div className="shrink-0 max-h-40 overflow-y-auto">
-                {activeWorkspaces.filter(w => w.stage === "failed").length === 0 && activeWorkspaces.filter(w => w.stage === "blocked").length === 0 ? (
+                {totalAlertIssues === 0 ? (
                   <div className="flex flex-col items-center justify-center py-6 gap-1 text-stone-300 dark:text-stone-600">
                     <p className="text-[10px]">No alerts</p>
                   </div>
@@ -568,6 +581,13 @@ export function App() {
                         <AlertCircle size={11} className="shrink-0 text-red-500" />
                         <span className="text-red-700 dark:text-red-300 font-medium truncate">{w.id}</span>
                         <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>failed</span>
+                      </div>
+                    ))}
+                    {conflictEntries.map((entry) => (
+                      <div key={`alert-conflict-${entry.workspaceId}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-amber-50/50 dark:bg-amber-950/20`}>
+                        <AlertTriangle size={11} className="shrink-0 text-amber-500" />
+                        <span className="text-amber-700 dark:text-amber-300 font-medium truncate">{entry.workspaceId}</span>
+                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>conflict</span>
                       </div>
                     ))}
                     {activeWorkspaces.filter(w => w.stage === "blocked").map(w => (

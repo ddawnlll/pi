@@ -1,13 +1,14 @@
 /**
  * IntegrationQueuePanel — Dashboard component showing integration queue status.
  *
- * Workspace 6.J — Dashboard scale controls and integration visibility.
+ * Workspace 6.5.E — Integration queue and merge conflict visibility.
  *
- * AC2: User can see integration queue status
- * AC3: User can see merge conflicts and handoff details
- * AC6: Dashboard remains responsive via useQuery with proper polling.
+ * AC1: Queue shows blocked reason and validation status
+ * AC2: Conflict entries open handoff panel
+ * AC4: Conflict is distinct from ordinary failed workspace
  */
 
+import { useState, useCallback } from "react";
 import {
 	AlertTriangle,
 	CheckCircle,
@@ -17,8 +18,10 @@ import {
 	RefreshCw,
 	GitMerge,
 	AlertOctagon,
+	X,
 } from "lucide-react";
-import { useIntegrationQueueStatus } from "../hooks/useScaleStatus";
+import { useIntegrationQueueStatus, type MergeConflictInfo, type QueueEntryInfo } from "../hooks/useScaleStatus";
+import { MergeConflictPanel, type MergeConflictData, type ConflictedFile } from "./MergeConflictPanel";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
@@ -81,28 +84,28 @@ function getStatusConfig(status: string) {
 // ─── Entry row component ───────────────────────────────────────────────────
 
 interface QueueEntryRowProps {
-	entry: {
-		workspaceId: string;
-		status: string;
-		commitHash: string;
-		queuedAt: number;
-		processedAt: number | null;
-		validationPassed: boolean | null;
-		error: string | null;
-		conflictFiles: string[] | null;
-	};
+	entry: QueueEntryInfo;
+	onConflictClick?: (workspaceId: string) => void;
 }
 
-function QueueEntryRow({ entry }: QueueEntryRowProps) {
+function QueueEntryRow({ entry, onConflictClick }: QueueEntryRowProps) {
 	const cfg = getStatusConfig(entry.status);
 	const time = entry.processedAt
 		? new Date(entry.processedAt).toLocaleTimeString()
 		: new Date(entry.queuedAt).toLocaleTimeString();
 
+	const isConflict = entry.status === "conflict";
+	const isBlocked = entry.status === "blocked";
+	const clickable = isConflict && !!onConflictClick;
+
 	return (
-		<div
-			className="flex items-start gap-2.5 py-2 px-2 rounded
-				bg-stone-50 dark:bg-stone-800/50 border border-[#E8E6E1] dark:border-[#333]"
+		<button
+			onClick={clickable ? () => onConflictClick(entry.workspaceId) : undefined}
+			className={`w-full text-left flex items-start gap-2.5 py-2 px-2 rounded transition-colors
+				bg-stone-50 dark:bg-stone-800/50 border border-[#E8E6E1] dark:border-[#333]
+				${clickable ? "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/20" : "cursor-default"}
+				${isConflict ? "border-l-2 border-l-amber-400 dark:border-l-amber-600" : ""}
+			`}
 		>
 			<div className={`mt-0.5 shrink-0 ${cfg.color}`}>{cfg.icon}</div>
 			<div className="min-w-0 flex-1">
@@ -115,8 +118,14 @@ function QueueEntryRow({ entry }: QueueEntryRowProps) {
 				<p className={`text-[10px] font-mono ${MUT}`}>
 					{entry.commitHash.slice(0, 8)}
 				</p>
-				{/* Error */}
-				{entry.error && (
+				{/* Blocked reason */}
+				{isBlocked && entry.error && (
+					<p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+						Blocked: {entry.error}
+					</p>
+				)}
+				{/* Error (non-blocked) */}
+				{!isBlocked && entry.error && (
 					<p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">
 						{entry.error}
 					</p>
@@ -124,7 +133,7 @@ function QueueEntryRow({ entry }: QueueEntryRowProps) {
 				{/* Conflict files */}
 				{entry.conflictFiles && entry.conflictFiles.length > 0 && (
 					<div className="mt-1">
-						<p className={`text-[9px] font-medium text-amber-600 dark:text-amber-400`}>
+						<p className="text-[9px] font-medium text-amber-600 dark:text-amber-400">
 							Conflicted files:
 						</p>
 						<ul className="text-[9px] font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
@@ -134,6 +143,12 @@ function QueueEntryRow({ entry }: QueueEntryRowProps) {
 						</ul>
 					</div>
 				)}
+				{/* Click hint for conflict entries */}
+				{isConflict && clickable && (
+					<p className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5 italic">
+						Click to open handoff panel
+					</p>
+				)}
 				{/* Validation status */}
 				{entry.validationPassed !== null && (
 					<p className={`text-[10px] mt-0.5 ${entry.validationPassed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
@@ -141,7 +156,7 @@ function QueueEntryRow({ entry }: QueueEntryRowProps) {
 					</p>
 				)}
 			</div>
-		</div>
+		</button>
 	);
 }
 
@@ -175,7 +190,8 @@ interface IntegrationQueuePanelProps {
  * Displays the integration queue status including:
  * - Current processing state
  * - Per-entry status (queued, merging, validating, merged, failed, blocked, conflict)
- * - Merge conflict details
+ * - Blocked reason and validation status per entry
+ * - Merge conflict handoff panel on click
  * - Summary counts
  */
 export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps) {
@@ -195,6 +211,44 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 
 	const hasIssues = counts.failed > 0 || counts.blocked > 0 || counts.conflict > 0;
 	const totalIssues = counts.failed + counts.blocked + counts.conflict;
+
+	// ── Handoff panel state ────────────────────────────────────────────────
+	const [selectedConflict, setSelectedConflict] = useState<MergeConflictInfo | null>(null);
+
+	const handleConflictClick = useCallback(
+		(workspaceId: string) => {
+			const conflict = mergeConflicts.find((c) => c.workspaceId === workspaceId);
+			if (conflict) {
+				setSelectedConflict(conflict);
+			}
+		},
+		[mergeConflicts],
+	);
+
+	const convertToMergeConflictData = useCallback(
+		(info: MergeConflictInfo, queueEntry: QueueEntryInfo): MergeConflictData => ({
+			workspaceId: info.workspaceId,
+			commitHash: queueEntry.commitHash,
+			status: "unresolved",
+			detectedAt: info.timestamp,
+			conflictedFiles: info.conflictedFiles.map(
+				(f): ConflictedFile => ({
+					filePath: f,
+					conflictType: "both modified",
+					hasConflictMarkers: true,
+				}),
+			),
+			conflictDiff: info.diff,
+			gitStatusOutput: "",
+			description: `Merge conflict detected in workspace "${info.workspaceId}" during integration.`,
+			suggestedResolutionSteps: [
+				"Open each conflicted file and resolve conflict markers",
+				"Stage resolved files: git add <file>",
+				"Complete the merge: git merge --continue",
+			],
+		}),
+		[],
+	);
 
 	return (
 		<div className={`${SURF} rounded-lg border ${BORD} p-3 space-y-3 ${className ?? ""}`}>
@@ -265,24 +319,29 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{entries.length > 0 && (
 				<div className="space-y-1.5 max-h-64 overflow-y-auto">
 					{entries.map((entry) => (
-						<QueueEntryRow key={entry.workspaceId} entry={entry} />
+						<QueueEntryRow
+							key={entry.workspaceId}
+							entry={entry}
+							onConflictClick={handleConflictClick}
+						/>
 					))}
 				</div>
 			)}
 
 			{/* Merge conflicts section */}
 			{mergeConflicts.length > 0 && (
-				<div className="border-t ${BORD} pt-2 space-y-2">
+				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
 					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
 						Merge Conflicts
 					</h4>
 					{mergeConflicts.map((conflict) => (
-						<div
+						<button
 							key={conflict.workspaceId}
-							className="bg-amber-50 dark:bg-amber-900/10 rounded px-2.5 py-2 border border-amber-200 dark:border-amber-800"
+							onClick={() => handleConflictClick(conflict.workspaceId)}
+							className="w-full text-left bg-amber-50 dark:bg-amber-900/10 rounded px-2.5 py-2 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
 						>
 							<div className="flex items-center gap-1.5">
-								<AlertTriangle size={12} className="text-amber-600 dark:text-amber-400" />
+								<AlertTriangle size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
 								<span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
 									{conflict.workspaceId}
 								</span>
@@ -299,7 +358,10 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 									{conflict.diff.slice(0, 500)}
 								</pre>
 							)}
-						</div>
+							<p className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5 italic">
+								Click to open handoff panel
+							</p>
+						</button>
 					))}
 				</div>
 			)}
@@ -310,6 +372,43 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 				Conflicts and validation failures block further processing until resolved.
 				<strong> Scale mode</strong> requires the integration queue to be enabled.
 			</p>
+
+			{/* ── Merge conflict handoff overlay ── */}
+			{selectedConflict ? (() => {
+				const queueEntry = entries.find(
+					(e) => e.workspaceId === selectedConflict.workspaceId,
+				);
+				if (!queueEntry) return null;
+				const conflictData = convertToMergeConflictData(
+					selectedConflict,
+					queueEntry,
+				);
+				return (
+					<div
+						className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+						onClick={() => setSelectedConflict(null)}
+					>
+						<div
+							className="relative max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<button
+								onClick={() => setSelectedConflict(null)}
+								className="absolute top-2 right-2 z-10 flex items-center justify-center h-6 w-6 rounded-full bg-white dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#333] shadow-sm"
+								aria-label="Close handoff panel"
+							>
+								<X size={12} />
+							</button>
+							<MergeConflictPanel
+								conflict={conflictData}
+								onResolved={() => setSelectedConflict(null)}
+								onRetry={() => setSelectedConflict(null)}
+								onAbort={() => setSelectedConflict(null)}
+							/>
+						</div>
+					</div>
+				);
+			})() : null}
 		</div>
 	);
 }
