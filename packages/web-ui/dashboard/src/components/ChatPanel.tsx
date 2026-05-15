@@ -104,12 +104,12 @@ function refKindIcon(kind: ContextRef["kind"]): React.ElementType {
 
 /** Render a short pill label for a context ref. */
 function ContextRefPill({
-  ref: ctx,
+  ctx,
   removable,
   onRemove,
   onClick,
 }: {
-  ref: ContextRef;
+  ctx: ContextRef;
   removable?: boolean;
   onRemove?: () => void;
   onClick?: () => void;
@@ -392,7 +392,7 @@ export function ChatPanel({
           {attachedRefs.map((r) => (
             <ContextRefPill
               key={`${r.kind}:${r.id}`}
-              ref={r}
+              ctx={r}
               removable
               onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)}
               onClick={() => onContextRefClick?.(r)}
@@ -467,7 +467,7 @@ export function ChatPanel({
                   {msg.contextRefs.map((r) => (
                     <ContextRefPill
                       key={`${r.kind}:${r.id}-${i}`}
-                      ref={r}
+                      ctx={r}
                       onClick={() => onContextRefClick?.(r)}
                     />
                   ))}
@@ -605,7 +605,7 @@ export function ChatPanel({
             {attachedRefs.map((r) => (
               <ContextRefPill
                 key={`input-${r.kind}:${r.id}`}
-                ref={r}
+                ctx={r}
                 removable
                 onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)}
                 onClick={() => onContextRefClick?.(r)}
