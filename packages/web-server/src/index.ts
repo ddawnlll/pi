@@ -2940,7 +2940,42 @@ fastify.get<{
 
 	const dbBackend = detectStateStoreBackend();
 	if (dbBackend !== "postgres") {
-		return { sessions: [], messages: [] };
+		// Local file fallback for chat history
+		const piDir = getPiDir();
+		const chatDir = join(piDir, "chat");
+		try {
+			const dirs = await readdir(chatDir);
+			const projectChats = dirs.filter((d) => d.startsWith(projectId));
+			const allSessions: Array<{ id: string; title: string; messageCount: number; createdAt: Date }> = [];
+			let targetMessages: Array<{ role: string; content: string }> = [];
+			for (const f of projectChats) {
+				const parts = f.replace(".json", "").split("_");
+				const sid = parts.slice(1).join("_");
+				const stat = await fs.stat(join(chatDir, f));
+				const content = await readFile(join(chatDir, f), "utf-8");
+				const msgs = JSON.parse(content) as Array<{ role: string; content: string }>;
+				const firstUser = msgs.find((m) => m.role === "user");
+				const title = firstUser
+					? firstUser.content.slice(0, 80) + (firstUser.content.length > 80 ? "..." : "")
+					: "New chat";
+				const s = { id: sid, title, messageCount: msgs.length, createdAt: stat.birthtime };
+				allSessions.push(s);
+				if ((sessionId && sid === sessionId) || (!sessionId && s === allSessions[allSessions.length - 1])) {
+					targetMessages = msgs;
+				}
+			}
+			// Sort newest first
+			allSessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+			// If no specific sessionId, use latest
+			if (!targetMessages.length && allSessions.length > 0) {
+				targetMessages = JSON.parse(
+					await readFile(join(chatDir, `${projectId}_${allSessions[0].id}.json`), "utf-8"),
+				);
+			}
+			return { sessions: allSessions, messages: targetMessages };
+		} catch {
+			return { sessions: [], messages: [] };
+		}
 	}
 
 	try {
@@ -3200,18 +3235,42 @@ Always confirm with the user before making destructive changes.`;
 				try {
 					const { getKysely } = await import("@earendil-works/pi-db");
 					const db = getKysely();
+					// Get next message_index for this session
+					const lastMsg = await db
+						.selectFrom("chat_messages")
+						.select(db.fn.max("message_index").as("max_idx"))
+						.where("session_id", "=", sessionId)
+						.executeTakeFirst();
+					const nextIndex = ((lastMsg as any)?.max_idx ?? -1) + 1;
 					await db
 						.insertInto("chat_messages")
 						.values({
 							project_id: projectId,
 							role: "user",
 							content: message,
-							message_index: 0,
+							message_index: nextIndex,
 							session_id: sessionId,
 						})
 						.execute();
 				} catch {
 					fastify.log.warn("Failed to save user chat message to DB");
+				}
+			} else {
+				// Local file fallback (user message)
+				try {
+					const piDir = getPiDir();
+					const chatDir = join(piDir, "chat");
+					await fs.mkdir(chatDir, { recursive: true });
+					const filePath = join(chatDir, `${projectId}_${sessionId}.json`);
+					let msgs: Array<{ role: string; content: string }> = [];
+					try {
+						const existing = await readFile(filePath, "utf-8");
+						msgs = JSON.parse(existing);
+					} catch {}
+					msgs.push({ role: "user", content: message });
+					await writeFile(filePath, JSON.stringify(msgs, null, 2));
+				} catch {
+					fastify.log.warn("Failed to save user chat message locally");
 				}
 			}
 
@@ -3225,20 +3284,48 @@ Always confirm with the user before making destructive changes.`;
 				try {
 					const { getKysely } = await import("@earendil-works/pi-db");
 					const db = getKysely();
+					const lastMsg = await db
+						.selectFrom("chat_messages")
+						.select(db.fn.max("message_index").as("max_idx"))
+						.where("session_id", "=", sessionId)
+						.executeTakeFirst();
+					const nextIndex = ((lastMsg as any)?.max_idx ?? -1) + 1;
 					await db
 						.insertInto("chat_messages")
 						.values({
 							project_id: projectId,
 							role: "assistant",
 							content: _responseText,
-							message_index: 0,
+							message_index: nextIndex,
 							session_id: sessionId,
 						})
 						.execute();
 				} catch {
 					fastify.log.warn("Failed to save assistant chat message to DB");
 				}
+			} else if (_responseText) {
+				// Local file fallback (assistant message)
+				try {
+					const piDir = getPiDir();
+					const chatDir = join(piDir, "chat");
+					const filePath = join(chatDir, `${projectId}_${sessionId}.json`);
+					let msgs: Array<{ role: string; content: string }> = [];
+					try {
+						const existing = await readFile(filePath, "utf-8");
+						msgs = JSON.parse(existing);
+					} catch {}
+					msgs.push({ role: "assistant", content: _responseText });
+					await writeFile(filePath, JSON.stringify(msgs, null, 2));
+				} catch {
+					fastify.log.warn("Failed to save assistant chat message locally");
+				}
 			}
+
+			// Send usage stats
+			const totalTokens = estimateTokensChat(_responseText + message);
+			reply.raw.write(
+				`data: ${JSON.stringify({ type: "usage", inputTokens: estimateTokensChat(message), outputTokens: estimateTokensChat(_responseText), totalTokens })}\n\n`,
+			);
 
 			// Signal completion
 			reply.raw.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
@@ -3258,6 +3345,67 @@ Always confirm with the user before making destructive changes.`;
 		reply.raw.end();
 	}
 });
+
+// ---------------------------------------------------------------------------
+// Chat Compact Endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/chat/compact - Compact a chat session's context
+ * (stub - returns existing messages as-is)
+ */
+fastify.post<{
+	Body: {
+		projectId: string;
+		sessionId: string;
+	};
+}>("/api/chat/compact", async (request, _reply) => {
+	const { projectId, sessionId } = request.body;
+	if (!projectId || !sessionId) {
+		return { messages: [] };
+	}
+
+	const dbBackend = detectStateStoreBackend();
+	let msgs: Array<{ role: string; content: string }> = [];
+
+	if (dbBackend === "postgres") {
+		try {
+			const { getKysely } = await import("@earendil-works/pi-db");
+			const db = getKysely();
+			const rows = await db
+				.selectFrom("chat_messages")
+				.select(["role", "content"])
+				.where("project_id", "=", projectId)
+				.where("session_id", "=", sessionId)
+				.orderBy("message_index")
+				.execute();
+			msgs = rows.map((r) => ({ role: r.role, content: r.content }));
+		} catch {
+			fastify.log.warn("Failed to compact chat from DB");
+		}
+	} else {
+		try {
+			const piDir = getPiDir();
+			const filePath = join(piDir, "chat", `${projectId}_${sessionId}.json`);
+			const content = await readFile(filePath, "utf-8");
+			msgs = JSON.parse(content);
+			// Truncate to last 10 messages as a simple compaction
+			if (msgs.length > 10) {
+				const compacted = msgs.slice(-10);
+				await writeFile(filePath, JSON.stringify(compacted, null, 2));
+				msgs = compacted;
+			}
+		} catch {
+			fastify.log.warn("Failed to compact chat locally");
+		}
+	}
+
+	return { messages: msgs };
+});
+
+function estimateTokensChat(text: string): number {
+	return Math.round(text.length * 0.3);
+}
 
 // ---------------------------------------------------------------------------
 // Artifact Browser Routes (P5 Workstream 5.C)
