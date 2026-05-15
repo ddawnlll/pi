@@ -205,6 +205,8 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
   onCompact: () => void; compacting: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const pct = contextLimit > 0 ? Math.min(100, Math.round((contextUsed / contextLimit) * 100)) : 0;
   const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-blue-500";
   return (
@@ -214,18 +216,48 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
       </button>
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-2 top-full mt-1 z-20 w-64 max-h-48 overflow-y-auto rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] shadow-lg p-1">
-            {aiModels.length === 0 && <div className={`px-2 py-3 text-[10px] ${MUT} text-center`}>No models available</div>}
-            {aiModels.map((p) => (
-              <div key={p.provider}>
-                <div className={`px-2 py-1 text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>{p.provider}</div>
-                {p.models.map((m) => (
-                  <button key={m.id} onClick={() => { onSelectModel(p.provider, m.id); setMenuOpen(false); }}
-                    className={`w-full text-left px-2 py-1 text-[10px] rounded transition-colors ${provider === p.provider && model === m.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}`}>{m.name}</button>
-                ))}
-              </div>
-            ))}
+          <div className="fixed inset-0 z-10" onClick={() => { setMenuOpen(false); setSearchQuery(""); }} />
+          <div className="absolute left-2 top-full mt-1 z-20 w-72 max-h-64 overflow-hidden rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] shadow-lg p-1 flex flex-col"
+            onKeyDown={(e) => { if (e.key === "Escape") { setMenuOpen(false); setSearchQuery(""); } }}>
+            {/* Search input */}
+            <div className="relative mb-1 shrink-0">
+              <Search size={10} className={`absolute left-2 top-1/2 -translate-y-1/2 ${MUT}`} />
+              <input ref={searchRef} type="text" value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search models..."
+                autoFocus
+                className={`w-full pl-6 pr-2 py-1.5 text-[10px] rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500`}
+              />
+            </div>
+            {/* Filtered model list */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {(() => {
+                const q = searchQuery.toLowerCase();
+                const filtered = q
+                  ? aiModels.filter((p) =>
+                      p.provider.toLowerCase().includes(q) ||
+                      p.models.some((m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+                    ).map((p) => ({
+                      ...p,
+                      models: p.models.filter((m) =>
+                        m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
+                      ),
+                    }))
+                  : aiModels;
+                if (filtered.length === 0) {
+                  return <div className={`px-2 py-3 text-[10px] ${MUT} text-center`}>No models found</div>;
+                }
+                return filtered.map((p) => (
+                  <div key={p.provider}>
+                    <div className={`px-2 py-1 text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>{p.provider}</div>
+                    {p.models.map((m) => (
+                      <button key={m.id} onClick={() => { onSelectModel(p.provider, m.id); setMenuOpen(false); setSearchQuery(""); }}
+                        className={`w-full text-left px-2 py-1 text-[10px] rounded transition-colors ${provider === p.provider && model === m.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}`}>{m.name}</button>
+                    ))}
+                  </div>
+                ));
+              })()}
+            </div>
           </div>
         </>
       )}
