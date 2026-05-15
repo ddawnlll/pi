@@ -41,7 +41,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
-import { readFile, watch, writeFile } from "node:fs/promises";
+import { readdir, readFile, watch, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
 import {
@@ -67,6 +67,7 @@ import {
 import {
 	getActiveExecution,
 	getActiveExecutions,
+	loadExecutionMeta,
 	resumeStrandedExecutions,
 	runPlan,
 	signalExecutionEvent,
@@ -1892,6 +1893,118 @@ fastify.post<{
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to run plan");
 		return reply.code(500).send({ error: "Failed to run plan", message: String(error) });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/plans/:planExecId/rerun - Rerun a stopped or failed plan
+ *
+ * Loads the original plan file from the meta file, then re-runs it via runPlan.
+ * The existing execution must be in "stopped" or "failed" state.
+ */
+fastify.post<{
+	Params: { projectId: string; planExecId: string };
+}>("/api/projects/:projectId/plans/:planExecId/rerun", async (request, reply) => {
+	const { projectId, planExecId } = request.params;
+
+	try {
+		// 1. Get the project to resolve workspaceRoot
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			return reply.code(404).send({ success: false, error: "Project not found" });
+		}
+
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+
+		// 2. Load execution state to verify it's in a terminal/restartable state
+		const exec = getActiveExecution(planExecId);
+		const execStatus = exec?.status;
+		if (!execStatus) {
+			// Check if it was cleaned up (completed/failed TTL may have expired)
+			const state = await stateStore.loadState(planExecId);
+			if (!state) {
+				return reply.code(404).send({ success: false, error: "Execution not found" });
+			}
+			// If state exists but not in activeExecutions, it's terminal.
+			// Still allow rerun if it's failed/stopped.
+			if (state.status !== "failed" && state.status !== "stopped" && state.status !== "cancelled") {
+				return reply.code(400).send({ success: false, error: `Execution is '${state.status}', cannot rerun` });
+			}
+		} else if (execStatus !== "failed" && execStatus !== "stopped" && execStatus !== "cancelled") {
+			return reply.code(400).send({
+				success: false,
+				error: `Execution is '${execStatus}', cannot rerun. Only failed, stopped, or cancelled plans can be rerun.`,
+			});
+		}
+
+		// 3. Load the meta file to get the original plan file name
+		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+		if (!meta) {
+			return reply
+				.code(404)
+				.send({ success: false, error: "Plan meta file not found. The original plan content is unavailable." });
+		}
+
+		// 4. Read the original plan content
+		const piDir = join(workspaceRoot, ".pi");
+		const plansDir = join(piDir, "plans");
+		let planContent: string | null = null;
+
+		if (meta.planFile) {
+			try {
+				planContent = await readFile(join(plansDir, meta.planFile), "utf-8");
+			} catch {
+				// Fall through to scan
+			}
+		}
+
+		if (!planContent) {
+			// Fallback: scan .md files
+			try {
+				const files = await readdir(plansDir);
+				for (const file of files.reverse()) {
+					if (file.endsWith(".md")) {
+						planContent = await readFile(join(plansDir, file), "utf-8");
+						if (planContent) break;
+					}
+				}
+			} catch {
+				// No plan dir
+			}
+		}
+
+		if (!planContent) {
+			return reply.code(404).send({ success: false, error: "Original plan file not found." });
+		}
+
+		// 5. Re-run the plan
+		const result = await runPlan({
+			planContent,
+			projectId,
+			projectName: project.name,
+			workspaceRoot,
+			planFileName: meta.planFile || undefined,
+		});
+
+		if (!result.success) {
+			return reply.code(400).send({
+				success: false,
+				errors: result.errors,
+				warnings: result.warnings,
+			});
+		}
+
+		return reply.code(201).send({
+			success: true,
+			planExecutionId: result.planExecId,
+			execution: result.execution,
+			warnings: result.warnings,
+		});
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to rerun plan");
+		return reply.code(500).send({ success: false, error: "Failed to rerun plan", message: String(error) });
 	}
 });
 

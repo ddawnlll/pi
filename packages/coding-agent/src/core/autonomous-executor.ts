@@ -540,6 +540,18 @@ export class AutonomousExecutor {
 			// Create workspace snapshot directory
 			const snapshot = await this.createWorkspaceSnapshot(workspace.id);
 
+			// Release stale file locks from completed/failed workspaces before acquiring new ones.
+			// This prevents lock contention between workspaces with overlapping canEdit paths
+			// (e.g., "src/**") when a prior workspace has finished but its locks weren't released.
+			const currentPlanState = this.currentPlanState;
+			if (currentPlanState) {
+				for (const [wsId, wsState] of currentPlanState.workspaces) {
+					if (wsState.stage === WorkspaceStage.Complete || wsState.stage === WorkspaceStage.Failed) {
+						this.scheduler.releaseLocksByWorkspaceId(wsId);
+					}
+				}
+			}
+
 			// Acquire file locks
 			const lockedFiles = this.scheduler.acquireFileLocks(workspace);
 			await this.stateStore.acquireFileLocks(planExecutionId, workspace.id, lockedFiles);

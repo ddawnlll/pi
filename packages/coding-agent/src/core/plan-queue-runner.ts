@@ -268,12 +268,20 @@ export class PlanQueueRunner {
 	// Queue Execution
 	// =========================================================================
 
+	// =========================================================================
+	// Queue Execution
+	// =========================================================================
+
 	/**
 	 * Start processing the queue.
 	 *
 	 * Processes plans sequentially per project. Only one plan per project
-	 * runs at a time. Continues until the queue is empty or a failure
-	 * stops it (if stopOnFailure is true).
+	 * runs at a time. Continues until the queue is empty or a non-recoverable
+	 * condition stops it (dirty tree, draft gate blocked). Failed plans do
+	 * NOT stop the queue runner — remaining pending entries for the same
+	 * project are skipped (when stopOnFailure is true), but the runner stays
+	 * alive so that newly enqueued plans (e.g., from autonomous recovery
+	 * after a failed summary) are picked up without an explicit restart.
 	 */
 	async start(): Promise<void> {
 		if (this.isRunning) {
@@ -317,6 +325,22 @@ export class PlanQueueRunner {
 
 	/**
 	 * Process the queue: find next ready plan and execute it.
+	 *
+	 * Processes plans sequentially per project. Only one plan per project
+	 * runs at a time. When there are no more entries, the loop exits
+	 * normally.
+	 *
+	 * Exit conditions:
+	 * - Queue empty (no pending entries)
+	 * - AbortController signal fires (explicit stop())
+	 * - Dirty working tree (cannot proceed until clean)
+	 * - Draft gate blocked (cannot execute until promoted)
+	 *
+	 * Unlike the old behavior, a failed plan with stopOnFailure=true does
+	 * NOT exit the loop — remaining entries for the same project are
+	 * skipped, but the runner stays alive. This allows newly enqueued
+	 * plans (e.g., autonomous recovery after a failed summary) to be
+	 * picked up on the next call to start().
 	 */
 	private async processQueue(): Promise<void> {
 		while (!this.abortController?.signal.aborted) {
@@ -400,10 +424,15 @@ export class PlanQueueRunner {
 			this.activeEntryId = null;
 			await this.saveState();
 
-			// If the plan failed and stopOnFailure is enabled, stop the queue
+			// If the plan failed and stopOnFailure is enabled, skip remaining
+			// pending entries for this project. Unlike the old behavior, do NOT
+			// break the queue loop — the runner exits naturally when no more
+			// entries remain. The caller (e.g., autonomous recovery loop) can
+			// enqueue and call start() again to process the next plan.
 			if (next.status === PlanQueueEntryStatus.Failed && this.stopOnFailure) {
 				await this.skipRemainingEntries(next.projectId, "Prior plan failed");
-				break;
+				// Fall through — the while loop will iterate again, find no more
+				// pending entries, and break normally.
 			}
 		}
 	}

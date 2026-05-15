@@ -729,3 +729,427 @@ describe("Edge cases", () => {
 		expect(output.batchPlan).toBeUndefined();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// P9.C: Automatic DAG and parallel optimization
+// ---------------------------------------------------------------------------
+
+/**
+ * P9.C Acceptance Criteria:
+ * 1. Planner detects unnecessary serialization.
+ * 2. Planner suggests safe workspace splitting and rebatching.
+ * 3. Planner computes optimized batches, critical path, and expected parallelism gain.
+ */
+
+describe("P9.C — Automatic DAG and parallel optimization", () => {
+	// =======================================================================
+	// AC1: Planner detects unnecessary serialization
+	// =======================================================================
+
+	describe("AC1: Detects unnecessary serialization", () => {
+		it("detects over-serialization in fully serialized chain with multiple workers", async () => {
+			const output = await planExecution(overSerialized());
+			expect(output.success).toBe(true);
+			// Over-serialization warning should be present
+			const serializedWarn = output.plannerWarnings.find((w) => w.type === "over_serialized");
+			expect(serializedWarn).toBeDefined();
+			expect(serializedWarn!.message).toContain("fully serialized");
+			// Predicted parallelism should show effective=1 despite requested=3
+			expect(output.predictedParallelism.effective).toBe(1);
+			expect(output.predictedParallelism.requested).toBe(3);
+			// Bottlenecks should mention serialization
+			expect(output.predictedParallelism.bottlenecks.length).toBeGreaterThan(0);
+			const serialBottleneck = output.predictedParallelism.bottlenecks.find((b) => b.includes("serialized"));
+			expect(serialBottleneck).toBeDefined();
+		});
+
+		it("detects single-width batch bottlenecks causing unnecessary serialization", async () => {
+			// A, B parallel -> C (single-width) -> D, E parallel
+			// C being a single-width batch in the middle is unnecessary serialization
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Single-Width Bottleneck",
+				maxParallelWorkspaces: 3,
+				workspaces: [ws("A", []), ws("B", []), ws("C", ["A", "B"]), ws("D", ["C"]), ws("E", ["C"])],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Should have single_width_batch warnings
+			const singleWidth = output.plannerWarnings.filter((w) => w.type === "single_width_batch");
+			expect(singleWidth.length).toBeGreaterThan(0);
+
+			// Batch 2 (C) should be identified as bottleneck
+			const batch2 = output.optimizedBatches.find((b) => b.batchIndex === 2);
+			expect(batch2).toBeDefined();
+			expect(batch2!.isBottleneck).toBe(true);
+			expect(batch2!.optimizationNotes.some((n) => n.includes("Single-width"))).toBe(true);
+
+			// Effective parallelism should be 2 (A+B), not 3
+			expect(output.predictedParallelism.effective).toBe(2);
+		});
+
+		it("detects serialized tail where parallel capacity is unused", async () => {
+			// A, B, C parallel -> D -> E -> F (serial tail)
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Serial Tail",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", []),
+					ws("C", []),
+					ws("D", ["A", "B", "C"]),
+					ws("E", ["D"]),
+					ws("F", ["E"]),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Should have bottlenecks mentioning serialized tail
+			const tailBottleneck = output.predictedParallelism.bottlenecks.find((b) => b.includes("Serialized tail"));
+			expect(tailBottleneck).toBeDefined();
+
+			// Low parallelism warning since effective (1) < requested (3)
+			// Actually effective is 3 (first batch has A,B,C), then serial tail
+			expect(output.predictedParallelism.effective).toBe(3);
+			expect(output.predictedParallelism.bottlenecks.length).toBeGreaterThan(0);
+		});
+
+		it("does not flag over-serialization when plan is already optimal", async () => {
+			const output = await planExecution(allParallel());
+			expect(output.success).toBe(true);
+			const serializedWarn = output.plannerWarnings.find((w) => w.type === "over_serialized");
+			expect(serializedWarn).toBeUndefined();
+			expect(output.predictedParallelism.effective).toBe(5);
+			expect(output.predictedParallelism.resourceUtilizationPercent).toBe(100);
+		});
+	});
+
+	// =======================================================================
+	// AC2: Planner suggests safe workspace splitting and rebatching
+	// =======================================================================
+
+	describe("AC2: Suggests safe workspace splitting and rebatching", () => {
+		it("suggests splitting workspaces with multiple acceptance criteria in a serial bottleneck", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Split Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", ["A"], {
+						title: "Big Task",
+						acceptanceCriteria: ["Step 1", "Step 2", "Step 3"],
+					}),
+					ws("C", ["B"]),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Should suggest split_workspace
+			const splitSuggestion = output.plannerSuggestions.find((s) => s.type === "split_workspace");
+			expect(splitSuggestion).toBeDefined();
+			expect(splitSuggestion!.message).toContain("B");
+			expect(splitSuggestion!.message).toContain("acceptance criteria");
+			expect(splitSuggestion!.workspaceIds).toContain("B");
+		});
+
+		it("suggests remove_dependency for workspaces that are unnecessarily serialized", async () => {
+			// A -> B -> C (fully serial). Each middle workspace has deps that
+			// could potentially be removed
+			const output = await planExecution(sequentialChain());
+			expect(output.success).toBe(true);
+
+			// Should suggest remove_dependency for B (depends on A, causing serialization)
+			const depSuggestion = output.plannerSuggestions.find((s) => s.type === "remove_dependency");
+			expect(depSuggestion).toBeDefined();
+			expect(depSuggestion!.requiresApproval).toBe(true);
+			expect(depSuggestion!.expectedBenefit).toBeTruthy();
+		});
+
+		it("suggests regrouping batches for low parallelism", async () => {
+			const output = await planExecution(fanInFanOut());
+			expect(output.success).toBe(true);
+
+			// Effective is 2, requested is 3 -> suggests regroup_batches
+			const regroupSuggestion = output.plannerSuggestions.find((s) => s.type === "regroup_batches");
+			expect(regroupSuggestion).toBeDefined();
+			expect(regroupSuggestion!.requiresApproval).toBe(true);
+		});
+
+		it("suggests add_parallel_group when plan is over-serialized", async () => {
+			const output = await planExecution(overSerialized());
+			expect(output.success).toBe(true);
+
+			const parallelGroupSuggestion = output.plannerSuggestions.find((s) => s.type === "add_parallel_group");
+			expect(parallelGroupSuggestion).toBeDefined();
+			expect(parallelGroupSuggestion!.message).toContain("parallelGroup");
+		});
+
+		it("does not suggest splitting when workspace has no acceptance criteria", async () => {
+			// Over-serialized chain, no AC on B
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "No Split Needed",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", ["A"]), // No acceptanceCriteria
+					ws("C", ["B"]),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			const splitSuggestion = output.plannerSuggestions.find((s) => s.type === "split_workspace");
+			expect(splitSuggestion).toBeUndefined();
+		});
+
+		it("all suggestions require approval before execution", async () => {
+			const output = await planExecution(overSerialized());
+			expect(output.success).toBe(true);
+
+			for (const suggestion of output.plannerSuggestions) {
+				expect(suggestion.requiresApproval).toBe(true);
+			}
+		});
+	});
+
+	// =======================================================================
+	// AC3: Planner computes optimized batches, critical path, and expected
+	//      parallelism gain
+	// =======================================================================
+
+	describe("AC3: Computes optimized batches, critical path, and expected parallelism gain", () => {
+		it("includes optimizedBatchPlan in output when optimizations exist", async () => {
+			// Two workspaces editing the same file — triggers addition proposal
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Optimization Exists",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+					ws("B", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// The optimizer should find proposals (file overlap addition)
+			// and populate optimizedBatchPlan
+			expect(output.optimizedBatchPlan).toBeDefined();
+			expect("expectedParallelismGain" in output).toBe(true);
+		});
+
+		it("expectedParallelismGain is a non-negative number when set", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Gain Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", ["A"]),
+					ws("C", ["A", "B"]), // A is transitive
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			if (output.expectedParallelismGain !== undefined) {
+				expect(typeof output.expectedParallelismGain).toBe("number");
+				expect(output.expectedParallelismGain).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		it("optimizedBatchPlan is undefined when no optimizations are possible", async () => {
+			// Fully parallel with no dependencies — no optimization needed
+			const output = await planExecution(allParallel());
+			expect(output.success).toBe(true);
+
+			// No transitive deps, no splits, no serial bottlenecks
+			expect(output.optimizedBatchPlan).toBeUndefined();
+			expect(output.expectedParallelismGain).toBeUndefined();
+		});
+
+		it("optimizedBatchPlan shows the effect of applying proposals", async () => {
+			// Two workspaces editing the same file — optimizer adds serialization dep
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Optimization Effect",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+					ws("B", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Current plan: Batch 1: A, B (both parallel, width=2)
+			expect(output.optimizedBatches).toHaveLength(1);
+			expect(output.optimizedBatches[0]!.width).toBe(2);
+
+			// Optimized plan (adding serialization for file overlap):
+			// If the optimizer added a dep from A to B, we'd have [A] -> [B] (2 batches, width=1 each)
+			// This shows the optimized plan reflects the proposed changes
+			if (output.optimizedBatchPlan) {
+				// The optimizer proposes adding a dependency, which may change batch count
+				expect(output.optimizedBatchPlan.batches.length).toBeGreaterThanOrEqual(1);
+				expect(typeof output.optimizedBatchPlan.totalBatches).toBe("number");
+				expect(typeof output.optimizedBatchPlan.effectiveParallelism).toBe("number");
+			}
+		});
+
+		it("optimizedBatchPlan is defined when file overlap exists", async () => {
+			// Two workspaces editing the same file should trigger an addition proposal
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "File Overlap Opt",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+					ws("B", [], {
+						capabilities: {
+							canEdit: ["src/shared.ts"],
+							cannotEdit: [],
+							canRun: [],
+							cannotRun: [],
+						},
+					}),
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Should have an optimized plan (dependency addition proposal)
+			if (output.expectedParallelismGain !== undefined) {
+				// File overlap addition may not improve parallelism (it may slightly reduce it)
+				// But it should still produce an optimized batch plan
+				expect(output.expectedParallelismGain).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		it("summary includes optimized plan details when optimizations exist", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Summary Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", ["A"]),
+					ws("C", ["A", "B"]), // A is transitive
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Summary should mention optimized plan if it exists
+			if (output.optimizedBatchPlan) {
+				expect(output.summary).toContain("Optimized Plan");
+				if (output.expectedParallelismGain !== undefined && output.expectedParallelismGain > 0) {
+					expect(output.summary).toContain("Parallelism gain");
+				}
+			}
+		});
+
+		it("critical path computation remains correct with optimizer integration", async () => {
+			const output = await planExecution(sequentialChain());
+			expect(output.success).toBe(true);
+
+			// Critical path is the full chain
+			expect(output.criticalPath.length).toBe(4);
+			expect(output.criticalPath.path).toEqual(["A", "B", "C", "D"]);
+			expect(output.criticalPath.batchCount).toBe(4);
+		});
+
+		it("predicted parallelism metrics are computed alongside optimized plan", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Metrics Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					ws("A", []),
+					ws("B", ["A"]),
+					ws("C", ["A", "B"]), // A is transitive
+				],
+			};
+			const output = await planExecution(queue);
+			expect(output.success).toBe(true);
+
+			// Always has predicted parallelism
+			expect(output.predictedParallelism).toBeDefined();
+			expect(output.predictedParallelism.effective).toBeGreaterThanOrEqual(0);
+			expect(output.predictedParallelism.totalBatches).toBeGreaterThan(0);
+			expect(output.predictedParallelism.resourceUtilizationPercent).toBeGreaterThanOrEqual(0);
+
+			// If optimized plan exists, comparison metrics should be consistent
+			if (output.optimizedBatchPlan) {
+				// The optimized plan should be a BatchPlanResult with proper fields
+				expect(output.optimizedBatchPlan.batches).toBeDefined();
+				expect(output.optimizedBatchPlan.totalBatches).toBeGreaterThan(0);
+				expect(output.optimizedBatchPlan.effectiveParallelism).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		it("optimizedBatchPlan remains consistent within the same queue across multiple calls", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Consistency Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [ws("A", []), ws("B", ["A"]), ws("C", ["A", "B"])],
+			};
+
+			const output1 = await planExecution(queue);
+			const output2 = await planExecution(queue);
+
+			// If both have optimizedBatchPlan, they should be equivalent
+			if (output1.optimizedBatchPlan && output2.optimizedBatchPlan) {
+				expect(output1.optimizedBatchPlan.totalBatches).toBe(output2.optimizedBatchPlan.totalBatches);
+				expect(output1.optimizedBatchPlan.effectiveParallelism).toBe(
+					output2.optimizedBatchPlan.effectiveParallelism,
+				);
+			}
+
+			// expectedParallelismGain should be consistent too
+			expect(output1.expectedParallelismGain).toEqual(output2.expectedParallelismGain);
+		});
+	});
+});

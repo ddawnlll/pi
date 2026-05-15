@@ -13,6 +13,7 @@ import { getModel } from "@earendil-works/pi-ai";
 import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
+import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
 import type { HashedPacket } from "./role-packets.js";
 import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
@@ -226,6 +227,22 @@ export class WorkspaceAgentExecutor {
 			log(`Goal: ${packet.packet.goal}`);
 			log(`Max turns: ${this.maxTurns}`);
 			log(`Workspace root: ${this.workspaceRoot}`);
+
+			// P9.E: Check budget before execution
+			const budgetEnforcer = createWorkspaceBudgetEnforcer();
+			try {
+				budgetEnforcer.checkBudget(packet.packet);
+				log(
+					`Budget check passed: ${packet.packet.budget.estimatedInputTokens} tokens <= ${packet.packet.budget.maxInputTokens}`,
+				);
+			} catch (budgetError) {
+				log(`Budget check FAILED: ${budgetError instanceof Error ? budgetError.message : String(budgetError)}`);
+				throw budgetError;
+			}
+
+			// Build and log budget summary
+			const budgetSummary = budgetEnforcer.buildBudgetSummary(packet.packet);
+			log(`Budget summary:\n${budgetEnforcer.formatBudgetSummary(budgetSummary)}`);
 
 			// Create session directory for this workspace
 			const sessionDir = path.join(this.workspaceRoot, ".pi", "sessions", workspaceId);

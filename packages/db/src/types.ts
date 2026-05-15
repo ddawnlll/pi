@@ -110,6 +110,8 @@ export interface ProposalRow {
 	actioned_at: string | null;
 	rejection_reason: string | null;
 	metadata: Record<string, unknown> | null;
+	source_artifacts: Record<string, unknown>[];
+	source_recorded_at: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -133,6 +135,8 @@ export interface ProposalTable {
 	actioned_at: string | null;
 	rejection_reason: string | null;
 	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	source_artifacts: ColumnType<Record<string, unknown>[], Record<string, unknown>[], Record<string, unknown>[]>;
+	source_recorded_at: string | null;
 	created_at: Generated<string>;
 	updated_at: Generated<string>;
 }
@@ -145,6 +149,7 @@ export interface Database {
 	workspace_logs: WorkspaceLogTable;
 	chat_messages: ChatMessageTable;
 	proposals: ProposalTable;
+	plan_revisions: PlanRevisionTable;
 	_migrations: MigrationsTable;
 }
 
@@ -160,6 +165,7 @@ export interface ProjectTable {
 export interface PlanExecutionTable {
 	id: Generated<string>;
 	project_id: string;
+	proposal_id: string | null;
 	phase: string;
 	title: string;
 	status: string;
@@ -215,6 +221,18 @@ export interface ChatMessageTable {
 	created_at: Generated<string>;
 }
 
+export interface PlanRevisionTable {
+	id: Generated<string>;
+	plan_execution_id: string;
+	version_number: number;
+	title: string;
+	content: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	status: string;
+	diff_summary: string | null;
+	created_by: string | null;
+	created_at: Generated<string>;
+}
+
 export interface MigrationsTable {
 	version: number;
 	name: string;
@@ -243,6 +261,9 @@ export type NewWorkspaceLog = Insertable<WorkspaceLogTable>;
 export type Proposal = Selectable<ProposalTable>;
 export type NewProposal = Insertable<ProposalTable>;
 export type ProposalUpdate = Updateable<ProposalTable>;
+
+export type PlanRevision = Selectable<PlanRevisionTable>;
+export type NewPlanRevision = Insertable<PlanRevisionTable>;
 
 export type ChatMessage = Selectable<ChatMessageTable>;
 export type NewChatMessage = Insertable<ChatMessageTable>;

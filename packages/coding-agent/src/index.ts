@@ -14,6 +14,13 @@ export {
 	type WorkspaceExecutionResult,
 } from "./core/autonomous-executor.js";
 export { type CleanupReviewConfig, type CleanupReviewResult, runCleanupReview } from "./core/cleanup-review.js";
+// P9.G7 — Completion gate governance ledger integration
+export {
+	evaluateGovernanceLedgerCompliance,
+	evaluatePlanCompletionWithGovernance,
+	evaluateWorkspaceCompletionWithGovernance,
+	type GovernanceLedgerCompletionResult,
+} from "./core/completion-gate.js";
 export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
 export {
 	type ArchiveInitResult,
@@ -37,6 +44,20 @@ export {
 	type SimulationSlot,
 	type WorkerTimelineEntry,
 } from "./core/execution-simulator.js";
+// P9.G7 Governance Ledger — audit trail wiring for G1-G6 components
+// Integrates with completion gate to require ledger entry before marking done
+export {
+	type CompletionGateRecord,
+	createGovernanceLedger,
+	type GovernanceLedger,
+	type GovernanceLedgerSnapshot,
+	LEDGER_SOURCE_LABELS,
+	type LedgerEntry,
+	type LedgerEventCategory,
+	type LedgerEventSeverity,
+	type LedgerSource,
+	type LedgerSummary,
+} from "./core/governance-ledger.js";
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
@@ -62,6 +83,27 @@ export {
 	type ProductionReadinessReport,
 	type ProductionReadinessVerdict,
 } from "./core/production-readiness-doctor.js";
+// Remediation runtime (P9.A) — also exports P9.G3 approvals & budget recording
+// P9.G3 adds: ApprovalChain, ApprovalChainEntry, ChangeRequest,
+// SelfModificationApproval, budgetSnapshot on events, approval chain tracing
+export {
+	type ApprovalChain,
+	type ApprovalChainEntry,
+	type ApprovalEvent,
+	type ApprovalStatus,
+	type ChangeRequest,
+	createRemediationRuntime,
+	type DryRunReport,
+	InvalidTransitionError,
+	PreconditionError,
+	REMEDIATION_STATE_LABELS,
+	RemediationRuntime,
+	type RemediationRuntimeConfig,
+	type RemediationScanResult,
+	type RemediationSnapshot,
+	type RemediationState,
+	type SelfModificationApproval,
+} from "./core/remediation-runtime.js";
 export {
 	createSafetyDoctor,
 	SafetyDoctor,
@@ -201,6 +243,15 @@ export {
 	InMemoryAuthStorageBackend,
 	type OAuthCredential,
 } from "./core/auth-storage.js";
+// P9.E Budget & Blast-Radius Enforcement
+export {
+	type BlastRadiusConfig,
+	type BudgetConfig,
+	BudgetEnforcer,
+	type BudgetSummary,
+	BudgetViolation,
+	createWorkspaceBudgetEnforcer,
+} from "./core/budget-enforcer.js";
 // Compaction
 export {
 	type BranchPreparation,
@@ -361,6 +412,20 @@ export type {
 	ResolvedResource,
 } from "./core/package-manager.js";
 export { DefaultPackageManager } from "./core/package-manager.js";
+export {
+	AUTONOMY_LEVEL_RANK,
+	type AutonomyClassification,
+	type BatchPolicyResult,
+	createRemediationPolicyEngine,
+	DEFAULT_REMEDIATION_POLICY_CONFIG,
+	REMEDIATION_AUTONOMY_LABELS,
+	type RemediationAutonomyLevel,
+	type RemediationPolicyCheck,
+	RemediationPolicyEngine,
+	type RemediationPolicyEngineConfig,
+	type RemediationPolicyResult,
+	type RemediationRiskProfile,
+} from "./core/remediation-policy-engine.js";
 export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.js";
 export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.js";
 // SDK for programmatic usage

@@ -67,14 +67,26 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 	);
 
 	// Get selected proposal from the list
-	const selectedProposal = useMemo(
-		() => proposals.find((p) => p.id === selectedProposalId) ?? null,
-		[proposals, selectedProposalId],
+	const [selectedProposal, setSelectedProposal] = useState<ProposalResponse | null>(
+		null,
 	);
+
+	// Sync selectedProposal when proposals list changes
+	useMemo(() => {
+		const found = proposals.find((p) => p.id === selectedProposalId) ?? null;
+		setSelectedProposal((prev) => {
+			// If the found proposal is different from current, update
+			if (found?.id !== prev?.id || found?.status !== prev?.status) {
+				return found;
+			}
+			// Keep the previously updated proposal if it matches
+			return prev;
+		});
+	}, [proposals, selectedProposalId]);
 
 	// If the selected proposal is no longer in the list (e.g., filter changed),
 	// clear the selection
-	if (selectedProposalId && !selectedProposal) {
+	if (selectedProposalId && !proposals.find((p) => p.id === selectedProposalId)) {
 		setSelectedProposalId(null);
 	}
 
@@ -222,7 +234,13 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 				className={`flex-1 min-w-0 border-r ${BORD} overflow-hidden`}
 			>
 				{selectedProposal ? (
-					<ProposalDetailPanel proposal={selectedProposal} />
+					<ProposalDetailPanel
+						proposal={selectedProposal}
+						onProposalUpdated={(updated) => {
+							setSelectedProposal(updated);
+							refetch();
+						}}
+					/>
 				) : proposals.length > 0 ? (
 					<div
 						className={`flex flex-col items-center justify-center h-full ${MUT} gap-2`}

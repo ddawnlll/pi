@@ -417,24 +417,86 @@ export interface ProposalEvidence {
 /** Audit trail entry for a proposal. */
 export interface ProposalAuditEntry {
 	timestamp: number;
-	action: "submitted" | "approved" | "rejected";
+	action: "submitted" | "approved" | "rejected" | "approved_for_planning" | "approved_for_execution" | "changes_requested" | "self_modification_approved";
 	actor: string;
 	reason?: string;
 	resultingStatus: string;
 }
+
+/** Approval gate status for a specific approval type. */
+export type ApprovalGateStatus =
+	| "pending"
+	| "approved"
+	| "rejected"
+	| "changes_requested";
+
+/** Approval gate with metadata. */
+export interface ApprovalGate {
+	status: ApprovalGateStatus;
+	actionedAt?: number;
+	actionedBy?: string;
+	reason?: string;
+}
+
+/** Dry-run status for a proposal. */
+export type DryRunStatus =
+	| "not_started"
+	| "in_progress"
+	| "passed"
+	| "failed";
+
+/** Budget state for a proposal. */
+export type BudgetState =
+	| "not_set"
+	| "valid"
+	| "exceeded"
+	| "insufficient";
 
 /** Proposal returned by the lead agent API (read-only). */
 export interface ProposalResponse {
 	id: string;
 	title: string;
 	phase: string;
+	/** Legacy single status (kept for backward compatibility). */
 	status: "pending" | "approved" | "rejected";
+	/** Planning approval gate — separate from execution approval. */
+	planningApproval: ApprovalGate;
+	/** Execution approval gate — blocked until dry-run and budget are valid. */
+	executionApproval: ApprovalGate;
+	/** Self-modification approval gate — only relevant for proposals modifying protected systems. */
+	selfModificationApproval: ApprovalGate;
+	/** Current dry-run status. */
+	dryRunStatus: DryRunStatus;
+	/** Current budget state. */
+	budgetState: BudgetState;
 	evidence: ProposalEvidence;
 	auditTrail: ProposalAuditEntry[];
 	submittedAt: number;
 	actionedAt?: number;
 	rejectionReason?: string;
 	metadata?: Record<string, unknown>;
+}
+
+/** Action that can be performed on a proposal. */
+export type ProposalAction =
+	| "approve_for_planning"
+	| "approve_for_execution"
+	| "reject"
+	| "request_changes"
+	| "approve_self_modification";
+
+/** Request body for a proposal action mutation. */
+export interface ProposalActionRequest {
+	action: ProposalAction;
+	reason?: string;
+	actor?: string;
+}
+
+/** Response from a proposal action mutation. */
+export interface ProposalActionResponse {
+	success: boolean;
+	proposal?: ProposalResponse;
+	error?: string;
 }
 
 /** Response from GET /api/proposals. */

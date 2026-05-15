@@ -278,7 +278,7 @@ async function writeExecutionMeta(workspaceRoot: string, planExecId: string, met
 /**
  * Load the meta file for a plan execution.
  */
-async function loadExecutionMeta(workspaceRoot: string, planExecId: string): Promise<ExecutionMeta | null> {
+export async function loadExecutionMeta(workspaceRoot: string, planExecId: string): Promise<ExecutionMeta | null> {
 	try {
 		const metaPath = join(workspaceRoot, ".pi", `${planExecId}${META_FILE_SUFFIX}`);
 		const content = await readFile(metaPath, "utf-8");

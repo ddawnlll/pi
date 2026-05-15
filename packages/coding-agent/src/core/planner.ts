@@ -15,6 +15,7 @@
 
 import type { PlannerMemory, PlannerMemoryEntry } from "../memory/planner-memory.js";
 import { type BatchPlanResult, computeBatchPlan } from "./dag-analyzer.js";
+import { analyzeOptimizationOpportunities } from "./dag-optimizer.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 
 // ---------------------------------------------------------------------------
@@ -186,6 +187,18 @@ export interface PlannerOutput {
 	predictedParallelism: PredictedParallelism;
 	/** Underlying batch plan result (for tooling) */
 	batchPlan?: BatchPlanResult;
+	/**
+	 * Optimized batch plan showing what the plan would look like if all
+	 * suggestions were applied. Only present when optimization proposals
+	 * are generated. Null if no optimizations are possible.
+	 */
+	optimizedBatchPlan?: BatchPlanResult;
+	/**
+	 * Expected parallelism gain from applying all suggestions.
+	 * This is the difference between effective parallelism of the optimized
+	 * plan and the current plan. Null if no optimizations are possible.
+	 */
+	expectedParallelismGain?: number;
 	/** Human-readable summary of the plan */
 	summary: string;
 }
@@ -319,11 +332,22 @@ export class Planner {
 		// Generate suggestions (with memory evidence if available)
 		const plannerSuggestions = await this.generateSuggestions(batchPlan, queue);
 
+		// Integrate the DAG optimizer to compute optimized batch plan and expected gain
+		const dagOptimization = this.computeDagOptimization(queue, batchPlan);
+		const { optimizedBatchPlan, expectedParallelismGain } = dagOptimization;
+
 		// Predict parallelism
 		const predictedParallelism = this.predictParallelism(batchPlan, queue);
 
-		// Build summary
-		const summary = this.buildSummary(batchPlan, predictedParallelism, plannerWarnings, plannerSuggestions);
+		// Build summary (now includes optimized plan info)
+		const summary = this.buildSummary(
+			batchPlan,
+			predictedParallelism,
+			plannerWarnings,
+			plannerSuggestions,
+			optimizedBatchPlan,
+			expectedParallelismGain,
+		);
 
 		const output: PlannerOutput = {
 			success: true,
@@ -332,6 +356,8 @@ export class Planner {
 			plannerWarnings,
 			plannerSuggestions,
 			predictedParallelism,
+			optimizedBatchPlan,
+			expectedParallelismGain,
 			batchPlan: this.options.includeBatchPlanResult ? batchPlan : undefined,
 			summary,
 		};
@@ -934,6 +960,59 @@ export class Planner {
 	}
 
 	// -----------------------------------------------------------------------
+	// Private: DAG Optimization (P9.C)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Compute the optimized batch plan and expected parallelism gain using the
+	 * DAG optimizer.
+	 *
+	 * Calls analyzeOptimizationOpportunities() from the DAG optimizer to
+	 * generate formal proposals with simulated before/after evidence, then
+	 * extracts the best-case batch plan and computes the expected parallelism
+	 * gain.
+	 *
+	 * @param queue - Workspace queue to analyze
+	 * @param batchPlan - Current batch plan (before optimizations)
+	 * @returns Optimized batch plan (if proposals exist) and expected parallelism gain
+	 */
+	private computeDagOptimization(
+		queue: WorkspaceQueue,
+		batchPlan: BatchPlanResult,
+	): {
+		optimizedBatchPlan: BatchPlanResult | undefined;
+		expectedParallelismGain: number | undefined;
+	} {
+		// If the batch plan has errors, no optimization is possible
+		if (batchPlan.errors.length > 0) {
+			return { optimizedBatchPlan: undefined, expectedParallelismGain: undefined };
+		}
+
+		// Run the DAG optimizer to generate formal proposals
+		const optimizationResult = analyzeOptimizationOpportunities(queue);
+
+		// If no proposals were generated, no optimization is possible
+		if (optimizationResult.proposals.length === 0) {
+			return { optimizedBatchPlan: undefined, expectedParallelismGain: undefined };
+		}
+
+		// Use the best-case batch plan from the optimizer
+		const optimizedBatchPlan = optimizationResult.bestCaseBatchPlan ?? undefined;
+
+		// Compute expected parallelism gain
+		let expectedParallelismGain: number | undefined;
+		if (optimizedBatchPlan && optimizationResult.summary.parallelismImprovement > 0) {
+			expectedParallelismGain = optimizationResult.summary.parallelismImprovement;
+		} else if (optimizedBatchPlan) {
+			// Even if parallelism doesn't improve, there may be batch reductions
+			// or other improvements; gain is 0 in that case
+			expectedParallelismGain = 0;
+		}
+
+		return { optimizedBatchPlan, expectedParallelismGain };
+	}
+
+	// -----------------------------------------------------------------------
 	// Private: Summary
 	// -----------------------------------------------------------------------
 
@@ -945,6 +1024,8 @@ export class Planner {
 		predicted: PredictedParallelism,
 		warnings: PlannerWarning[],
 		suggestions: PlannerSuggestion[],
+		optimizedBatchPlan?: BatchPlanResult,
+		expectedParallelismGain?: number,
 	): string {
 		const lines: string[] = [];
 
@@ -993,6 +1074,32 @@ export class Planner {
 			lines.push("Bottlenecks:");
 			for (const b of predicted.bottlenecks) {
 				lines.push(`  - ${b}`);
+			}
+			lines.push("");
+		}
+
+		// Optimized plan (from DAG optimizer, P9.C)
+		if (optimizedBatchPlan) {
+			lines.push("Optimized Plan (with suggestions applied):");
+			lines.push(`  Batches:              ${optimizedBatchPlan.totalBatches}`);
+			lines.push(`  Effective parallelism: ${optimizedBatchPlan.effectiveParallelism}`);
+			lines.push(`  Critical path length:  ${optimizedBatchPlan.criticalPathLength}`);
+			if (expectedParallelismGain !== undefined && expectedParallelismGain > 0) {
+				lines.push(`  Parallelism gain:      +${expectedParallelismGain}`);
+			}
+			if (optimizedBatchPlan.effectiveParallelism > batchPlan.effectiveParallelism) {
+				lines.push(
+					`  Improvement: ${batchPlan.effectiveParallelism} -> ${optimizedBatchPlan.effectiveParallelism} workers`,
+				);
+			}
+			if (optimizedBatchPlan.totalBatches < batchPlan.totalBatches) {
+				lines.push(`  Batch reduction: ${batchPlan.totalBatches} -> ${optimizedBatchPlan.totalBatches} batches`);
+			}
+			if (
+				optimizedBatchPlan.isOverSerialized !== batchPlan.isOverSerialized &&
+				!optimizedBatchPlan.isOverSerialized
+			) {
+				lines.push("  Eliminates over-serialization");
 			}
 			lines.push("");
 		}

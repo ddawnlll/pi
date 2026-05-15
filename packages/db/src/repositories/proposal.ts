@@ -20,6 +20,27 @@ export interface ProposalFilter {
 }
 
 /**
+ * Source artifact descriptor.
+ *
+ * Represents an artifact (file, report, etc.) that serves as
+ * the source evidence for a proposal (P8 output before plan generation).
+ */
+export interface SourceArtifact {
+	/** Path to the source artifact file */
+	path: string;
+	/** Human-readable label */
+	label: string;
+	/** Artifact type (e.g., "remediation-plan", "dag", "risk-report") */
+	type: string;
+	/** Size in bytes (optional) */
+	size?: number;
+	/** Content hash for integrity checking (optional) */
+	hash?: string;
+	/** ISO timestamp when the artifact was recorded */
+	recorded_at: string;
+}
+
+/**
  * Proposal repository
  */
 export class ProposalRepository {
@@ -129,6 +150,52 @@ export class ProposalRepository {
 			update.actioned_at = new Date().toISOString();
 		}
 		return this.update(id, update);
+	}
+
+	/**
+	 * Record source artifacts for a proposal (AC 1: record P8 output before plan generation).
+	 *
+	 * Adds source artifacts and sets the source_recorded_at timestamp.
+	 * This should be called before any plan is generated from the proposal.
+	 *
+	 * @param id - Proposal UUID
+	 * @param artifacts - Array of source artifact descriptors
+	 * @returns Updated proposal
+	 */
+	async recordSourceArtifacts(id: string, artifacts: SourceArtifact[]): Promise<Proposal | undefined> {
+		const now = new Date().toISOString();
+		return this.db
+			.updateTable("proposals")
+			.set({
+				source_artifacts: JSON.stringify(artifacts) as any,
+				source_recorded_at: now,
+				updated_at: now,
+			})
+			.where("id", "=", id)
+			.returningAll()
+			.executeTakeFirst();
+	}
+
+	/**
+	 * Get source artifacts for a proposal.
+	 *
+	 * @param id - Proposal UUID
+	 * @returns Array of source artifacts or undefined if proposal not found
+	 */
+	async getSourceArtifacts(id: string): Promise<SourceArtifact[] | undefined> {
+		const proposal = await this.findById(id);
+		return proposal?.source_artifacts as SourceArtifact[] | undefined;
+	}
+
+	/**
+	 * Check if source artifacts have been recorded for a proposal.
+	 *
+	 * @param id - Proposal UUID
+	 * @returns True if source artifacts are recorded
+	 */
+	async hasSourceArtifacts(id: string): Promise<boolean> {
+		const proposal = await this.findById(id);
+		return proposal?.source_recorded_at != null;
 	}
 
 	/**

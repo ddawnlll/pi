@@ -260,6 +260,15 @@ export class DynamicParallelScheduler {
 		const skipped: SkipReason[] = [];
 		const selectedWithReasons: Array<{ workspaceId: string; reason: string }> = [];
 
+		// Release stale file locks from workspaces that are no longer active.
+		// This prevents completed/failed workspaces from blocking subsequent
+		// workspaces that share the same canEdit paths (e.g., "src/**").
+		for (const [wsId, wsState] of state.workspaces) {
+			if (wsState.stage !== WorkspaceStage.Active) {
+				this.releaseLocksByWorkspaceId(wsId);
+			}
+		}
+
 		// Calculate active count
 		const activeCount = Array.from(state.workspaces.values()).filter(
 			(ws) => ws.stage === WorkspaceStage.Active,
@@ -311,6 +320,12 @@ export class DynamicParallelScheduler {
 			return this.buildDecision(ready, blocked, blockReasons, skipped, selectedWithReasons, state, effectiveMax);
 		}
 
+		// Track file lock reservations for the current scheduling round.
+		// Workspaces already selected in this round claim their canEdit files,
+		// preventing subsequent workspaces that share the same files from being
+		// scheduled concurrently (they'd crash at acquireFileLocks time).
+		const reservedLocks = new Set<string>();
+
 		// AC1: Fill capacity with ready-safe workspaces
 		for (const workspace of workspaces) {
 			const wsState = state.workspaces.get(workspace.id);
@@ -346,7 +361,7 @@ export class DynamicParallelScheduler {
 
 			// AC5: Check file lock conflicts (skip in worktree mode - AC2)
 			if (!skipFileLocks) {
-				const lockConflict = this.checkFileLockConflict(workspace);
+				const lockConflict = this.checkFileLockConflict(workspace, reservedLocks);
 				if (lockConflict) {
 					blocked.push(workspace);
 					const lockReason = `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`;
@@ -399,6 +414,14 @@ export class DynamicParallelScheduler {
 					batchId: this.batchAssignment.get(workspace.id),
 				});
 				continue;
+			}
+
+			// Reserve file locks for this workspace so subsequent workspaces
+			// in the same scheduling round see the conflict.
+			if (!skipFileLocks && workspace.capabilities) {
+				for (const file of workspace.capabilities.canEdit) {
+					reservedLocks.add(file);
+				}
 			}
 
 			// AC4: Workspace is ready - record reason
@@ -611,12 +634,15 @@ export class DynamicParallelScheduler {
 	/**
 	 * Check for file lock conflicts.
 	 *
+	 * Checks against both currently held locks (active workspaces) and
+	 * reservations from workspaces selected earlier in this scheduling round.
 	 * Tracks the conflict in resource metrics for pressure evaluation.
 	 *
 	 * @param workspace - Workspace to check
+	 * @param reservedLocks - Set of files reserved by workspaces selected in this round
 	 * @returns Conflict details or null if no conflict
 	 */
-	checkFileLockConflict(workspace: Workspace): FileLockConflict | null {
+	checkFileLockConflict(workspace: Workspace, reservedLocks?: Set<string>): FileLockConflict | null {
 		if (!workspace.capabilities) {
 			return null;
 		}
@@ -627,6 +653,16 @@ export class DynamicParallelScheduler {
 				this.resourceMetrics.recentFileLockConflicts++;
 				this.resourceMetrics.totalFileLockConflicts++;
 				return { file, owner, requester: workspace.id };
+			}
+			// Also check reservations from the current scheduling round
+			if (reservedLocks?.has(file)) {
+				this.resourceMetrics.recentFileLockConflicts++;
+				this.resourceMetrics.totalFileLockConflicts++;
+				return {
+					file,
+					owner: "(scheduling round)",
+					requester: workspace.id,
+				};
 			}
 		}
 
@@ -765,6 +801,41 @@ export class DynamicParallelScheduler {
 	/**
 	 * Reset scheduler state (clears file locks, batch assignments, pressure metrics).
 	 */
+	/**
+	 * Get the set of workspace IDs that currently hold file locks.
+	 *
+	 * @returns Set of workspace IDs that own at least one file lock
+	 */
+	getLockedWorkspaceIds(): Set<string> {
+		const ids = new Set<string>();
+		for (const owner of this.fileLocks.values()) {
+			ids.add(owner);
+		}
+		return ids;
+	}
+
+	/**
+	 * Release all file locks held by a specific workspace.
+	 * This is used to clean up stale locks from workspaces that have
+	 * completed or failed but whose locks were not properly released.
+	 *
+	 * Unlike releaseFileLocks(), this does not require a Workspace object
+	 * with capabilities — it just needs the workspace ID.
+	 *
+	 * @param workspaceId - ID of the workspace whose locks to release
+	 */
+	releaseLocksByWorkspaceId(workspaceId: string): void {
+		const toDelete: string[] = [];
+		for (const [file, owner] of this.fileLocks) {
+			if (owner === workspaceId) {
+				toDelete.push(file);
+			}
+		}
+		for (const file of toDelete) {
+			this.fileLocks.delete(file);
+		}
+	}
+
 	reset(): void {
 		this.fileLocks.clear();
 		this.batchAssignment.clear();

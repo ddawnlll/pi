@@ -10,6 +10,7 @@
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
+import type { BlastRadiusConfig } from "./budget-enforcer.js";
 import type { RetryPolicy } from "./retry-handler.js";
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,17 @@ export interface PlanExecutionConfig {
 	 * Contract Schema v2.3.0 field.
 	 */
 	validation?: PlanExecutionValidation;
+
+	/**
+	 * Budget and blast-radius controls for plan execution.
+	 *
+	 * Defines default limits on token usage, file modifications, path
+	 * restrictions, and approval expiry for all workspaces in the plan.
+	 * Individual workspace blastRadius overrides these defaults.
+	 *
+	 * P9.E field.
+	 */
+	blastRadius?: BlastRadiusConfig;
 }
 
 /**
@@ -280,6 +292,17 @@ export interface Workspace {
 	 * Contract Schema v2.2.0 field.
 	 */
 	preflightRequired?: boolean;
+
+	/**
+	 * Budget and blast-radius controls for this workspace.
+	 *
+	 * Defines limits on token usage, file modifications, path restrictions,
+	 * and approval expiry. When set, these override any defaults from the
+	 * plan execution configuration.
+	 *
+	 * P9.E field.
+	 */
+	blastRadius?: BlastRadiusConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -640,6 +663,64 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 						context: { dependencyReason: workspace.dependencyReason, invalidKey: depId },
 					});
 				}
+			}
+		}
+	}
+
+	// P9.E: Validate blast-radius configuration
+	const planExec = queue.planExecution;
+	if (planExec?.blastRadius) {
+		const br = planExec.blastRadius;
+		if (br.maxFiles !== undefined && br.maxFiles < 1) {
+			errors.push({
+				type: "missing_field",
+				message: `blastRadius.maxFiles must be at least 1, got ${br.maxFiles}`,
+				context: { maxFiles: br.maxFiles },
+			});
+		}
+		if (br.maxLines !== undefined && br.maxLines < 1) {
+			errors.push({
+				type: "missing_field",
+				message: `blastRadius.maxLines must be at least 1, got ${br.maxLines}`,
+				context: { maxLines: br.maxLines },
+			});
+		}
+		if (br.approvalExpiry !== undefined && br.approvalExpiry !== null && br.approvalExpiry < 0) {
+			errors.push({
+				type: "missing_field",
+				message: `blastRadius.approvalExpiry must be non-negative or null, got ${br.approvalExpiry}`,
+				context: { approvalExpiry: br.approvalExpiry },
+			});
+		}
+	}
+
+	// P9.E: Validate per-workspace blast-radius configuration
+	for (const workspace of queue.workspaces) {
+		if (workspace.blastRadius) {
+			const br = workspace.blastRadius;
+			if (br.maxFiles !== undefined && br.maxFiles < 1) {
+				errors.push({
+					type: "missing_field",
+					message: `Workspace ${workspace.id} blastRadius.maxFiles must be at least 1, got ${br.maxFiles}`,
+					workspaceId: workspace.id,
+					context: { maxFiles: br.maxFiles },
+				});
+			}
+			if (br.maxLines !== undefined && br.maxLines < 1) {
+				errors.push({
+					type: "missing_field",
+					message: `Workspace ${workspace.id} blastRadius.maxLines must be at least 1, got ${br.maxLines}`,
+					workspaceId: workspace.id,
+					context: { maxLines: br.maxLines },
+				});
+			}
+			if (br.approvalExpiry !== undefined && br.approvalExpiry !== null && br.approvalExpiry < 0) {
+				errors.push({
+					type: "missing_field",
+					message: `Workspace ${workspace.id} blastRadius.approvalExpiry must be non-negative or null, got ${br.approvalExpiry}`,
+					workspaceId: workspace.id,
+					context: { approvalExpiry: br.approvalExpiry },
+				});
 			}
 		}
 	}

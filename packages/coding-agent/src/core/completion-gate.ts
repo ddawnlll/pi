@@ -1,5 +1,5 @@
 /**
- * Completion Gate - P4.6.1
+ * Completion Gate - P4.6.1 / P9.G7
  *
  * Hardened completion gate for workspaces and plans.
  * A workspace/plan must NOT be marked complete if:
@@ -8,11 +8,16 @@
  * - Unresolved error events exist
  * - A validation command is still running
  * - Watch-mode validation was attempted
+ * - Governance ledger is missing or incomplete (P9.G7)
  *
  * All checks are scoped by planExecId + workspaceId.
  * Events from different planExecId or workspaceId are ignored.
+ *
+ * P9.G7: Governance ledger integration requires a complete ledger entry
+ * before marking any workspace or plan done.
  */
 
+import type { GovernanceLedger } from "./governance-ledger.js";
 import type { FailureSignal } from "./log-failure-detector.js";
 import { FailureSignalCategory } from "./log-failure-detector.js";
 import type { WorkspaceState } from "./plan-state.js";
@@ -464,6 +469,158 @@ export function isWorkspaceLegitimatelyComplete(
 }
 
 // ---------------------------------------------------------------------------
+// Governance Ledger Completion Gate (P9.G7)
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of evaluating governance ledger compliance for completion.
+ */
+export interface GovernanceLedgerCompletionResult {
+	/** Whether the governance gate is satisfied */
+	passed: boolean;
+	/** Block reasons if not passed */
+	blockReasons: string[];
+}
+
+/**
+ * Evaluate whether a governance ledger is complete enough to allow
+ * a plan/workspace to be marked done.
+ *
+ * The governance ledger must have:
+ * 1. At least one entry recorded (non-empty ledger)
+ * 2. No unresolved critical or error entries
+ * 3. No unresolved validation failures
+ * 4. At least one G3 approval entry if the lifecycle has progressed
+ * 5. At least one G4 validation entry if the lifecycle has progressed
+ *
+ * This is called as part of the completion gate evaluation chain.
+ * The ledger gate is additive — it cannot override a passing result
+ * from the standard completion gate to force a pass, but it can add
+ * additional block reasons.
+ *
+ * @param ledger - The governance ledger to evaluate
+ * @returns Governance ledger compliance result
+ */
+export function evaluateGovernanceLedgerCompliance(ledger: GovernanceLedger): GovernanceLedgerCompletionResult {
+	const blockReasons: string[] = [];
+
+	// 1. Ledger must not be empty
+	if (ledger.entries.length === 0) {
+		blockReasons.push("Governance ledger is empty — no entries recorded");
+	}
+
+	// 2. No unresolved critical/error entries (excluding completion gate entries,
+	//    which record gate outcomes rather than actionable errors)
+	const unresolvedIssues = ledger.entries.filter(
+		(e) => (e.severity === "critical" || e.severity === "error") && e.category !== "completion_gate",
+	);
+	if (unresolvedIssues.length > 0) {
+		blockReasons.push(
+			`Governance ledger has ${unresolvedIssues.length} unresolved entries with error/critical severity`,
+		);
+	}
+
+	// 3. No unresolved validation failures
+	const unresolvedFailures = ledger.entries.filter(
+		(e) => e.category === "validation_failure" && e.severity === "error",
+	);
+	if (unresolvedFailures.length > 0) {
+		blockReasons.push(`Governance ledger has ${unresolvedFailures.length} unresolved validation failures`);
+	}
+
+	// 4. Must have at least one G3 approval entry if any G3 entries exist
+	const hasG3Entries = ledger.entries.some((e) => e.source === "g3_approval_budget");
+	const hasG3Approvals = ledger.entries.some((e) => e.source === "g3_approval_budget" && e.category === "approval");
+	if (hasG3Entries && !hasG3Approvals) {
+		blockReasons.push("Governance ledger has G3 entries but no approval events recorded");
+	}
+
+	// 5. Must have at least one G4 validation entry if any G4 entries exist
+	const hasG4Entries = ledger.entries.some((e) => e.source === "g4_dry_run_validation");
+	const hasG4Validations = ledger.entries.some(
+		(e) => e.source === "g4_dry_run_validation" && e.category === "validation",
+	);
+	if (hasG4Entries && !hasG4Validations) {
+		blockReasons.push("Governance ledger has G4 entries but no validation outcomes recorded");
+	}
+
+	return {
+		passed: blockReasons.length === 0,
+		blockReasons,
+	};
+}
+
+/**
+ * Evaluate workspace completion with governance ledger integration.
+ * Checks both the standard completion gate conditions and the
+ * governance ledger compliance.
+ *
+ * @param validationState - Current validation state for the workspace
+ * @param workspace - Workspace definition
+ * @param ledger - Governance ledger to check
+ * @returns Combined completion result
+ */
+export function evaluateWorkspaceCompletionWithGovernance(
+	validationState: WorkspaceValidationState,
+	workspace: Workspace,
+	ledger: GovernanceLedger,
+): WorkspaceCompletionResult {
+	// Standard completion check
+	const baseResult = evaluateWorkspaceCompletion(validationState, workspace);
+
+	// Governance ledger check
+	const governanceResult = evaluateGovernanceLedgerCompliance(ledger);
+
+	// Merge results
+	const blockReasons = [...baseResult.blockReasons, ...governanceResult.blockReasons];
+
+	if (blockReasons.length > 0) {
+		return {
+			canComplete: false,
+			blockReasons,
+			recommendedState: baseResult.recommendedState,
+		};
+	}
+
+	return baseResult;
+}
+
+/**
+ * Evaluate plan completion with governance ledger integration.
+ * Checks both the standard plan completion conditions and the
+ * governance ledger compliance.
+ *
+ * @param workspaceStates - Map of workspace ID to workspace state
+ * @param ledger - Governance ledger to check
+ * @param allowSkipped - Whether skipped workspaces are allowed
+ * @returns Combined plan completion result
+ */
+export function evaluatePlanCompletionWithGovernance(
+	workspaceStates: Map<string, WorkspaceState>,
+	ledger: GovernanceLedger,
+	allowSkipped: boolean = false,
+): PlanCompletionResult {
+	// Standard plan completion check
+	const baseResult = evaluatePlanCompletion(workspaceStates, allowSkipped);
+
+	// Governance ledger check
+	const governanceResult = evaluateGovernanceLedgerCompliance(ledger);
+
+	// Merge results
+	const blockReasons = [...baseResult.blockReasons, ...governanceResult.blockReasons];
+
+	if (blockReasons.length > 0) {
+		return {
+			canComplete: false,
+			blockReasons,
+			unhealthyWorkspaceIds: baseResult.unhealthyWorkspaceIds,
+		};
+	}
+
+	return baseResult;
+}
+
+// ---------------------------------------------------------------------------
 // Validation state registry (in-memory, keyed by planExecId+workspaceId)
 // ---------------------------------------------------------------------------
 
@@ -473,6 +630,24 @@ export function isWorkspaceLegitimatelyComplete(
  */
 export class CompletionGateRegistry {
 	private states: Map<string, WorkspaceValidationState> = new Map();
+	private _governanceLedger?: GovernanceLedger;
+
+	/**
+	 * Attach a governance ledger for compliance checks.
+	 * When set, all evaluate* calls also check governance ledger compliance (P9.G7).
+	 *
+	 * @param ledger - Governance ledger instance
+	 */
+	setGovernanceLedger(ledger: GovernanceLedger): void {
+		this._governanceLedger = ledger;
+	}
+
+	/**
+	 * Get the attached governance ledger, if any.
+	 */
+	get governanceLedger(): GovernanceLedger | undefined {
+		return this._governanceLedger;
+	}
 
 	/**
 	 * Build a composite key for a plan/workspace.
@@ -584,7 +759,7 @@ export class CompletionGateRegistry {
 	}
 
 	/**
-	 * Evaluate workspace completion.
+	 * Evaluate workspace completion, optionally with governance ledger.
 	 *
 	 * @param planExecId - Plan execution ID
 	 * @param workspaceId - Workspace ID
@@ -593,7 +768,41 @@ export class CompletionGateRegistry {
 	 */
 	evaluateWorkspace(planExecId: string, workspaceId: string, workspace: Workspace): WorkspaceCompletionResult {
 		const state = this.getOrCreate(planExecId, workspaceId);
+		if (this._governanceLedger) {
+			const result = evaluateWorkspaceCompletionWithGovernance(state, workspace, this._governanceLedger);
+			// Record the gate evaluation in the ledger
+			this._governanceLedger.recordCompletionGate(result.canComplete, result.blockReasons, {
+				planExecId,
+				workspaceId,
+			});
+			return result;
+		}
 		return evaluateWorkspaceCompletion(state, workspace);
+	}
+
+	/**
+	 * Evaluate plan completion, optionally with governance ledger.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceStates - Map of workspace ID to workspace state
+	 * @param allowSkipped - Whether skipped workspaces are allowed
+	 * @returns Plan completion result
+	 */
+	evaluatePlan(
+		planExecId: string,
+		workspaceStates: Map<string, WorkspaceState>,
+		allowSkipped: boolean = false,
+	): PlanCompletionResult {
+		if (this._governanceLedger) {
+			const result = evaluatePlanCompletionWithGovernance(workspaceStates, this._governanceLedger, allowSkipped);
+			// Record the gate evaluation in the ledger
+			this._governanceLedger.recordCompletionGate(result.canComplete, result.blockReasons, {
+				planExecId,
+				workspaceIds: Array.from(workspaceStates.keys()),
+			});
+			return result;
+		}
+		return evaluatePlanCompletion(workspaceStates, allowSkipped);
 	}
 
 	/**

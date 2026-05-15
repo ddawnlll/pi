@@ -201,11 +201,7 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 				cwd: workspaceRoot,
 				timeout: 5000,
 				encoding: "utf-8",
-				// Limit git memory: use environment to cap git operations
-				env: {
-					...process.env,
-					GIT_ALLOW_PROTOCOL: "file",
-				},
+				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
 			}).catch(() => ({ stdout: "" }));
 			gitDiff = diffResult.stdout;
 		} catch {
@@ -217,7 +213,7 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 		// Build the cleanup prompt
 		const prompt = buildCleanupPrompt(queue, workspaceData, gitDiff);
 
-		// Run the cleanup agent to analyze, test, and summarize
+		// Run the cleanup agent (max 3 turns, 90 second timeout)
 		const result = await executeCleanupAgent({
 			workspaceRoot,
 			model: resolvedModel,
@@ -240,6 +236,10 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 
 /**
  * Build the system prompt for the cleanup agent.
+ *
+ * Validation is NOT included here — each workspace worker already ran its
+ * own validation via targetCommand. The cleanup agent only reviews reports
+ * and produces a summary.
  */
 function buildCleanupPrompt(
 	queue: WorkspaceQueue,
@@ -283,40 +283,29 @@ function buildCleanupPrompt(
 	parts.push(`## Your Task`);
 	parts.push(``);
 	parts.push(
-		`1. **Review**: Analyze each workspace's report. Check for logical errors, incomplete implementations, missing edge cases, and code quality issues.`,
+		`1. **Review**: Analyze each workspace's report and the git diff. Check for logical errors, incomplete implementations, missing edge cases, code quality issues, and regressions.`,
 	);
 	parts.push(
-		`2. **Test**: Run any available test commands (npm test, cargo test, go test, pytest, etc.) to verify nothing is broken. If no test runner is configured, at minimum run a type check (npm run check, tsc --noEmit, etc.). IMPORTANT: Never run 'git add -A' as it consumes excessive memory on large repos. Use specific file paths with git add.`,
+		`2. **Summarize**: Write a comprehensive summary of what was accomplished and whether the plan passed review.`,
 	);
-	parts.push(
-		`3. **Bug Catch**: Look for regressions, missing error handling, type mismatches, and other bugs the individual workers may have missed.`,
-	);
-	parts.push(
-		`4. **Fix**: Call tools to fix any issues you find (edit files, run commands). Do NOT leave bugs unfixed.`,
-	);
-	parts.push(
-		`5. **Commit**: After all fixes are applied stage specific changed files with 'git add <file1> <file2> ...' instead of 'git add -A', then run 'git commit -m "feat(cleanup): review fixes and improvements"' to commit the cleanup changes. Never use git add -A as it can blow up memory on large repos. If there are no changes to commit, skip this step.`,
-	);
-	parts.push(`6. **Summarize**: After your analysis, fixes, and commit, produce a final summary.`);
+	parts.push(`3. Do NOT run any commands or modify any files. Your job is only review and summarization.`);
 	parts.push(``);
 	parts.push(`## Output Contract`);
 	parts.push(``);
-	parts.push(`After completing your review, fixes, and commit, output a summary with this structure:`);
+	parts.push(`Output exactly this structure — no extra text before or after:`);
 	parts.push(``);
 	parts.push(`CLEANUP_REVIEW_RESULT`);
 	parts.push(`Summary: <one-paragraph summary of what was accomplished in this plan execution>`);
 	parts.push(`Changed files: <comma-separated list of all files modified by the whole plan>`);
 	parts.push(`Issues found: <number>`);
 	parts.push(`Issues: <one issue per line, or "None">`);
-	parts.push(`Tests run: <number>`);
-	parts.push(`Tests passed: <number>`);
-	parts.push(`Tests failed: <number>`);
+	parts.push(`Tests run: 0`);
+	parts.push(`Tests passed: 0`);
+	parts.push(`Tests failed: 0`);
 	parts.push(`Verdict: PASS | FAIL`);
 	parts.push(`END_CLEANUP_REVIEW_RESULT`);
 	parts.push(``);
-	parts.push(
-		`CRITICAL: You MUST call tools (read, bash, write, edit) to perform the review and fixes. Do NOT just describe what you would do.`,
-	);
+	parts.push(`IMPORTANT: Do NOT run any commands. Do NOT edit files or commit. Only review and summarize.`);
 
 	return parts.join("\n");
 }

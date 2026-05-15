@@ -1,7 +1,8 @@
 /**
  * Plan execution repository.
  *
- * Provides CRUD operations for plan executions.
+ * Provides CRUD operations for plan executions,
+ * including linking to proposals (P9.G2).
  */
 
 import type { Kysely } from "kysely";
@@ -67,6 +68,42 @@ export class PlanExecutionRepository {
 			.limit(limit)
 			.offset(offset)
 			.execute();
+	}
+
+	/**
+	 * List plan executions for a proposal (AC 2: generated plan alongside proposal).
+	 *
+	 * @param proposalId - Proposal UUID
+	 * @param limit - Max results (default: 50)
+	 * @param offset - Pagination offset (default: 0)
+	 * @returns Array of plan executions
+	 */
+	async listByProposal(proposalId: string, limit = 50, offset = 0): Promise<PlanExecution[]> {
+		return this.db
+			.selectFrom("plan_executions")
+			.selectAll()
+			.where("proposal_id", "=", proposalId)
+			.orderBy("started_at", "desc")
+			.limit(limit)
+			.offset(offset)
+			.execute();
+	}
+
+	/**
+	 * Find plan execution by proposal ID and phase.
+	 * Useful for checking if a plan already exists for a given proposal+phase combo.
+	 *
+	 * @param proposalId - Proposal UUID
+	 * @param phase - The phase/workspace identifier
+	 * @returns Plan execution or undefined
+	 */
+	async findByProposalAndPhase(proposalId: string, phase: string): Promise<PlanExecution | undefined> {
+		return this.db
+			.selectFrom("plan_executions")
+			.selectAll()
+			.where("proposal_id", "=", proposalId)
+			.where("phase", "=", phase)
+			.executeTakeFirst();
 	}
 
 	/**

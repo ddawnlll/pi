@@ -9,7 +9,7 @@ import {
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
-  AlertTriangle, BarChart3, Lightbulb,
+  AlertTriangle, BarChart3, Lightbulb, RefreshCw,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -30,6 +30,7 @@ import { PlanUploadDialog } from "./components/PlanUploadDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
 import { WarningBanner } from "./components/WarningBanner";
+import { RerunDialog } from "./components/RerunDialog";
 import { StatusBadge } from "./components/StatusBadge";
 import { IconBtn, LabeledBtn } from "./components/IconBtn";
 import { SectionHeader, Divider } from "./components/SectionHeader";
@@ -58,6 +59,15 @@ async function sendControlCommand(action: "pause" | "stop" | "cancel" | "resume"
     const body = planExecId ? { action } : { action, requestedAt: new Date().toISOString(), requestedBy: "dashboard" };
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return r.json() as Promise<{ success: boolean; error?: string }>;
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+async function sendRerunCommand(projectId: string, planExecId: string): Promise<{ success: boolean; error?: string; planExecutionId?: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/api/projects/${projectId}/plans/${planExecId}/rerun`, { method: "POST" });
+    return r.json() as Promise<{ success: boolean; error?: string; planExecutionId?: string }>;
   } catch (e) {
     return { success: false, error: String(e) };
   }
@@ -136,6 +146,8 @@ export function App() {
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showRerunDialog, setShowRerunDialog] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
   const [showExecutionLog, setShowExecutionLog] = useState(false);
   const [showGitDialog, setShowGitDialog] = useState(false);
   const [showCommandsDialog, setShowCommandsDialog] = useState(false);
@@ -182,6 +194,7 @@ export function App() {
   const canResume = activePlanStatus === "paused";
   const canPause = activePlanStatus === "running";
   const canStop = activePlanStatus === "running" || activePlanStatus === "paused";
+  const canRerun = activePlanStatus === "failed" || activePlanStatus === "stopped" || activePlanStatus === "cancelled";
   const controlDisabled = selectedPlanExecId === null;
 
   const activeWorkspaces: WorkspaceSummary[] = isLegacyMode
@@ -240,6 +253,23 @@ export function App() {
     const res = await sendControlCommand(action, selectedPlanExecId);
     if (!res.success) showError(res.error || `Failed to ${action}`);
   }, [showError, selectedPlanExecId]);
+
+  const handleRerun = useCallback(async () => {
+    if (!selectedProjectId || !selectedPlanExecId) return;
+    setRerunning(true);
+    try {
+      const res = await sendRerunCommand(selectedProjectId, selectedPlanExecId);
+      if (!res.success) {
+        showError(res.error || "Failed to rerun plan");
+      } else if (res.planExecutionId) {
+        setSelectedPlanExecId(res.planExecutionId);
+        queryClient.invalidateQueries({ queryKey: ["plan-executions", selectedProjectId] });
+      }
+    } finally {
+      setRerunning(false);
+      setShowRerunDialog(false);
+    }
+  }, [selectedProjectId, selectedPlanExecId, showError, queryClient]);
 
   const handleUploadPlan = useCallback(() => {
     hasProjects ? setShowPlanUploadDialog(true) : setShowProjectDialog(true);
@@ -300,6 +330,9 @@ export function App() {
           <LabeledBtn icon={Play} label="Resume" onClick={() => handleControl("resume")} accent disabled={controlDisabled || !canResume} />
           <LabeledBtn icon={Pause} label="Pause" onClick={() => handleControl("pause")} disabled={controlDisabled || !canPause} />
           <LabeledBtn icon={Square} label="Stop" onClick={() => handleControl("stop")} danger disabled={controlDisabled || !canStop} />
+          {selectedPlanExecId && canRerun && (
+            <LabeledBtn icon={RefreshCw} label="Restart" onClick={() => setShowRerunDialog(true)} accent disabled={rerunning} />
+          )}
           <IconBtn icon={Settings} label="Settings" onClick={() => setShowSettingsDialog(true)} variant="ghost" />
         </div>
         <button className={`hidden md:flex items-center justify-center h-8 w-8 rounded-lg ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
@@ -691,6 +724,13 @@ export function App() {
       <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
         project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />
       <ExecutionLogViewer planExecId={selectedPlanExecId} isOpen={showExecutionLog} onClose={() => setShowExecutionLog(false)} />
+      <RerunDialog
+        isOpen={showRerunDialog}
+        onClose={() => setShowRerunDialog(false)}
+        onConfirm={handleRerun}
+        executionDetail={executionDetail ?? null}
+        loading={rerunning}
+      />
 
       {/* ── git dialog ── */}
       <AnimatePresence>

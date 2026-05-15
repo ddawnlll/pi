@@ -39,8 +39,12 @@ export type { CompactionResult } from "./compaction/index.js";
 export {
 	CompletionGateRegistry,
 	createWorkspaceValidationState,
+	evaluateGovernanceLedgerCompliance,
 	evaluatePlanCompletion,
+	evaluatePlanCompletionWithGovernance,
 	evaluateWorkspaceCompletion,
+	evaluateWorkspaceCompletionWithGovernance,
+	type GovernanceLedgerCompletionResult,
 	isWorkspaceLegitimatelyComplete,
 	mergeFailureSignals,
 	type PlanCompletionResult,
@@ -166,6 +170,19 @@ export {
 	type FalsePositiveTrackerConfig,
 	type SuppressionPattern,
 } from "./false-positive-tracker.js";
+// P9.G7 Governance Ledger
+export {
+	type CompletionGateRecord,
+	createGovernanceLedger,
+	GovernanceLedger,
+	type GovernanceLedgerSnapshot,
+	LEDGER_SOURCE_LABELS,
+	type LedgerEntry,
+	type LedgerEventCategory,
+	type LedgerEventSeverity,
+	type LedgerSource,
+	type LedgerSummary,
+} from "./governance-ledger.js";
 export {
 	detectFailureSignals,
 	type FailureSignal,
