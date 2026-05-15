@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, FileText, ClipboardList, AlertTriangle,
   Lightbulb, Wrench, FolderOpen, GitBranch, Archive, Search,
   FileEdit, Eye, Minimize2, ChevronDown, Brain, Plus, MessageSquare,
-  Copy, Clock, ArrowDown, Maximize2,
+  Copy, ArrowDown, Maximize2,
   Pencil, RefreshCw, Download, Filter,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
