@@ -2926,18 +2926,21 @@ fastify.get<{
 // ---------------------------------------------------------------------------
 
 /**
- * GET /api/projects/:projectId/chat/history - Load chat history for a project
+ * GET /api/projects/:projectId/chat/history - Load all chat sessions for a project
  *
- * Returns all chat messages for the project, grouped by session.
+ * Returns all sessions (metadata + messages) for the project.
+ * Query param ?sessionId=<uuid> loads a specific session.
  */
 fastify.get<{
 	Params: { projectId: string };
+	Querystring: { sessionId?: string };
 }>("/api/projects/:projectId/chat/history", async (request, _reply) => {
 	const { projectId } = request.params;
+	const { sessionId } = request.query;
 
 	const dbBackend = detectStateStoreBackend();
 	if (dbBackend !== "postgres") {
-		return { messages: [] };
+		return { sessions: [], messages: [] };
 	}
 
 	try {
@@ -2945,29 +2948,41 @@ fastify.get<{
 		const db = getKysely();
 		const rows = await db
 			.selectFrom("chat_messages")
-			.selectAll()
+			.select(["session_id", "role", "content", "created_at", "message_index"])
 			.where("project_id", "=", projectId)
 			.orderBy(["session_id", "message_index"])
 			.execute();
 
-		// Return messages for the most recent session
-		const sessions = new Map<string, Array<{ role: string; content: string }>>();
+		// Group messages by session
+		const sessionMap = new Map<string, { messages: Array<{ role: string; content: string }>; createdAt: string }>();
 		for (const row of rows) {
-			if (!sessions.has(row.session_id)) {
-				sessions.set(row.session_id, []);
+			if (!sessionMap.has(row.session_id)) {
+				sessionMap.set(row.session_id, { messages: [], createdAt: row.created_at });
 			}
-			sessions.get(row.session_id)!.push({ role: row.role, content: row.content });
+			sessionMap.get(row.session_id)!.messages.push({ role: row.role, content: row.content });
 		}
 
-		// Return the most recent session's messages
-		const sessionIds = Array.from(sessions.keys());
-		const latestSessionId = sessionIds[sessionIds.length - 1];
-		const messages = latestSessionId ? sessions.get(latestSessionId)! : [];
+		// Build session list (newest first)
+		const sessionIds = Array.from(sessionMap.keys());
+		const sessions = sessionIds.reverse().map((id) => {
+			const s = sessionMap.get(id)!;
+			// Derive a title from the first user message
+			const firstUser = s.messages.find((m) => m.role === "user");
+			const title = firstUser
+				? firstUser.content.slice(0, 80) + (firstUser.content.length > 80 ? "..." : "")
+				: "New chat";
+			return { id, title, messageCount: s.messages.length, createdAt: s.createdAt };
+		});
 
-		return { messages };
+		// Determine which session's messages to return
+		const targetSessionId = sessionId ?? sessionIds[sessionIds.length - 1];
+		const messages =
+			targetSessionId && sessionMap.has(targetSessionId) ? sessionMap.get(targetSessionId)!.messages : [];
+
+		return { sessions, messages };
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to load chat history");
-		return { messages: [] };
+		return { sessions: [], messages: [] };
 	}
 });
 
@@ -3179,13 +3194,33 @@ Always confirm with the user before making destructive changes.`;
 			// Send the user message to the agent
 			await session.sendUserMessage(message);
 
+			// Save user message to DB
+			const dbBackend = detectStateStoreBackend();
+			if (dbBackend === "postgres") {
+				try {
+					const { getKysely } = await import("@earendil-works/pi-db");
+					const db = getKysely();
+					await db
+						.insertInto("chat_messages")
+						.values({
+							project_id: projectId,
+							role: "user",
+							content: message,
+							message_index: 0,
+							session_id: sessionId,
+						})
+						.execute();
+				} catch {
+					fastify.log.warn("Failed to save user chat message to DB");
+				}
+			}
+
 			// Wait for agent to finish processing
 			await session.agent.waitForIdle();
 
 			unsubscribe();
 
 			// Save assistant response to DB
-			const dbBackend = detectStateStoreBackend();
 			if (dbBackend === "postgres" && _responseText) {
 				try {
 					const { getKysely } = await import("@earendil-works/pi-db");

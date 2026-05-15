@@ -4,7 +4,7 @@ import {
   Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code,
   CheckCircle2, XCircle, FileText, ClipboardList, AlertTriangle,
   Lightbulb, Wrench, FolderOpen, GitBranch, Archive, Search,
-  FileEdit, Eye, Minimize2, ChevronDown, Brain,
+  FileEdit, Eye, Minimize2, ChevronDown, Brain, Plus, MessageSquare,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -44,6 +44,13 @@ export interface QuickAction {
 interface AiModelInfo {
   provider: string;
   models: Array<{ id: string; name: string }>;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messageCount: number;
+  createdAt: Date;
 }
 
 interface ChatPanelProps {
@@ -290,6 +297,9 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
   const [contextUsed, setContextUsed] = useState(0);
   const [aiModels, setAiModels] = useState<AiModelInfo[]>([]);
   const [compacting, setCompacting] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [showThreads, setShowThreads] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -306,17 +316,26 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
     }).catch(() => {});
     fetch(`${API_BASE}/api/ai-models`).then((r) => r.ok ? r.json() : { providers: [] }).then((d) => setAiModels(d.providers ?? [])).catch(() => {});
     sessionIdRef.current = crypto.randomUUID();
+    setActiveSessionId(null);
+    setSessions([]);
+    setMessages([]);
     setAttachedRefs(externalContextRefs);
     setError(null);
     setContextUsed(0);
     totalCharsRef.current = 0;
     if (!projectId) return;
-    fetch(`${API_BASE}/api/projects/${projectId}/chat/history`).then((r) => r.ok ? r.json() : { messages: [] }).then((data) => {
-      if (data.messages?.length) {
-        setMessages(data.messages);
-        const chars = data.messages.reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
-        totalCharsRef.current = chars;
-        setContextUsed(estimateTokens(String(chars)));
+    fetch(`${API_BASE}/api/projects/${projectId}/chat/history`).then((r) => r.ok ? r.json() : { sessions: [], messages: [] }).then((data) => {
+      setSessions(data.sessions ?? []);
+      if (data.sessions?.length > 0) {
+        const latest = data.sessions[0];
+        setActiveSessionId(latest.id);
+        sessionIdRef.current = latest.id;
+        if (data.messages?.length) {
+          setMessages(data.messages);
+          const chars = data.messages.reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
+          totalCharsRef.current = chars;
+          setContextUsed(estimateTokens(String(chars)));
+        }
       }
     }).catch(() => {});
   }, [isOpen, projectId]);
@@ -337,6 +356,38 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
       setContextUsed(estimateTokens(String(totalCharsRef.current)));
     }
   }, [messages]);
+
+  // ── Switch to a specific thread/session ──────────────────────────────
+  const switchSession = useCallback((sessionId: string) => {
+    if (streaming) return;
+    setActiveSessionId(sessionId);
+    sessionIdRef.current = sessionId;
+    setError(null);
+    fetch(`${API_BASE}/api/projects/${projectId}/chat/history?sessionId=${sessionId}`)
+      .then((r) => r.ok ? r.json() : { messages: [] })
+      .then((data) => {
+        setMessages(data.messages ?? []);
+        const chars = (data.messages ?? []).reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
+        totalCharsRef.current = chars;
+        setContextUsed(estimateTokens(String(chars)));
+        setShowThreads(false);
+      }).catch(() => {});
+  }, [projectId, streaming]);
+
+  // ── New thread ───────────────────────────────────────────────────────
+  const newSession = useCallback(() => {
+    if (streaming) return;
+    setActiveSessionId(null);
+    sessionIdRef.current = crypto.randomUUID();
+    setMessages([]);
+    setStreamBuffer("");
+    setActiveToolCalls([]);
+    setError(null);
+    setContextUsed(0);
+    totalCharsRef.current = 0;
+    setShowThreads(false);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [streaming]);
 
   const handleSelectModel = useCallback((provider: string, model: string) => {
     setChatProvider(provider);
@@ -427,69 +478,124 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
       {isOpen && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.1 }}
-            className={`${SURF} border ${BORD} rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[80vh] min-h-[400px]`} onClick={(e) => e.stopPropagation()}>
+            className={`${SURF} border ${BORD} rounded-lg shadow-xl w-full max-w-4xl mx-4 flex flex-col max-h-[85vh] min-h-[400px]`} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
             <div className={`shrink-0 flex items-center justify-between px-5 h-11 border-b ${BORD}`}>
-              <div className="flex items-center gap-2"><Bot size={15} className="text-blue-600 dark:text-blue-400" /><span className={`text-xs font-semibold ${TXT}`}>Project Chat</span></div>
-              <button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`}><X size={16} /></button>
-            </div>
-            <ChatStatusBar provider={chatProvider} model={chatModel} contextUsed={contextUsed} contextLimit={contextLimit} aiModels={aiModels} onSelectModel={handleSelectModel} onCompact={handleCompact} compacting={compacting} />
-            {attachedRefs.length > 0 && (
-              <div className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 border-b ${BORD} flex-wrap`}>
-                <span className={`text-[9px] uppercase tracking-widest ${MUT} font-semibold mr-1`}>Context</span>
-                {attachedRefs.map((r) => <ContextRefPill key={`${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
-                <button onClick={() => setAttachedRefs([])} className={`ml-auto text-[10px] ${MUT} hover:text-red-500 dark:hover:text-red-400 transition-colors`}>Clear all</button>
+              <div className="flex items-center gap-2">
+                <Bot size={15} className="text-blue-600 dark:text-blue-400" />
+                <span className={`text-xs font-semibold ${TXT}`}>Project Chat</span>
+                {/* Thread indicator */}
+                {activeSessionId && sessions.length > 0 && (
+                  <span className={`text-[9px] ${MUT} ml-1`}>
+                    &middot; {sessions.find((s) => s.id === activeSessionId)?.title?.slice(0, 40) ?? ""}
+                  </span>
+                )}
               </div>
-            )}
-            {!streaming && availableQuickActions.length > 0 && (
-              <div className={`shrink-0 flex items-center gap-1.5 px-4 py-2 border-b ${BORD} overflow-x-auto`}>
-                {availableQuickActions.map((action) => {
-                  const ActionIcon = action.icon;
-                  return <button key={action.id} onClick={() => handleQuickAction(action)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors border ${BORD} text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] hover:border-stone-300 dark:hover:border-[#555]`} title={action.prompt}><ActionIcon size={11} className="shrink-0" />{action.label}</button>;
-                })}
-              </div>
-            )}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-xs">
-              {messages.length === 0 && !streaming && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-400 dark:text-stone-500">
-                  <Bot size={24} strokeWidth={1.2} /><p className="text-xs text-center">Ask about the project, execution results,<br />or request changes.</p>
-                  {attachedRefs.length > 0 && <p className={`text-[10px] text-center mt-1 ${MUT}`}>{attachedRefs.length} context reference{attachedRefs.length !== 1 ? "s" : ""} attached</p>}
-                </motion.div>
-              )}
-              {messages.map((msg, i) => <MessageBubble key={i} msg={msg} index={i} onContextRefClick={onContextRefClick} />)}
-              {(streamBuffer || streaming) && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="flex gap-2 justify-start">
-                  <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
-                  <div className={`max-w-[85%] rounded-lg px-3 py-2 leading-relaxed bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}>
-                    <StreamContent content={streamBuffer} hasToolCalls={activeToolCalls.length > 0} />
-                    {streamBuffer.length > 0 && <motion.span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 align-text-bottom" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />}
-                  </div>
-                </motion.div>
-              )}
-              {streaming && activeToolCalls.length > 0 && !streamBuffer && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-1 pl-7">
-                  {activeToolCalls.map((tc, j) => <ToolBadge key={j} tc={tc} compact />)}
-                </motion.div>
-              )}
-              {error && <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 justify-center"><AlertCircle size={11} />{error}</div>}
-              <div ref={bottomRef} />
-            </div>
-            <div className={`shrink-0 border-t ${BORD} p-4`}>
-              {attachedRefs.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {attachedRefs.map((r) => <ContextRefPill key={`input-${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
-                </div>
-              )}
-              <div className="flex gap-2 items-end">
-                <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-                  placeholder={attachedRefs.length > 0 ? `Ask about ${attachedRefs.map((r) => r.kind).join(", ")}...` : "Ask about the project or suggest fixes..."}
-                  rows={3} disabled={!projectId || streaming}
-                  className={`flex-1 resize-none rounded-lg border ${BORD} ${SURF} px-3 py-2 text-xs ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500 disabled:opacity-50`} />
-                <button onClick={() => sendMessage()} disabled={!input.trim() || streaming || !projectId}
-                  className="h-10 w-10 flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0">
-                  {streaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setShowThreads(!showThreads)}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showThreads ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  title="Threads">
+                  <MessageSquare size={11} />
+                  <span className="font-medium">{sessions.length}</span>
                 </button>
+                <button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`}><X size={16} /></button>
               </div>
-              {!projectId && <p className={`text-[10px] ${MUT} mt-1`}>Select a project to enable chat</p>}
+            </div>
+            {/* Body: thread sidebar + chat */}
+            <div className="flex flex-1 min-h-0">
+              {/* Thread sidebar */}
+              <AnimatePresence>
+                {showThreads && (
+                  <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 220, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className={`shrink-0 border-r ${BORD} flex flex-col overflow-hidden`}>
+                    <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
+                      <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Threads</span>
+                      <button onClick={newSession}
+                        className={`inline-flex items-center gap-0.5 text-[9px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`}
+                        title="New thread">
+                        <Plus size={10} /><span>New</span>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
+                      {sessions.length === 0 && (
+                        <div className={`px-2 py-4 text-[10px] ${MUT} text-center`}>No threads yet</div>
+                      )}
+                      {sessions.map((s) => (
+                        <button key={s.id} onClick={() => switchSession(s.id)}
+                          className={`w-full text-left px-2.5 py-2 rounded text-[10px] transition-colors ${
+                            activeSessionId === s.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+                          }`}>
+                          <div className="font-medium truncate">{s.title}</div>
+                          <div className={`text-[8px] ${MUT} mt-0.5`}>{s.messageCount} message{s.messageCount !== 1 ? "s" : ""}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {/* Chat content */}
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <ChatStatusBar provider={chatProvider} model={chatModel} contextUsed={contextUsed} contextLimit={contextLimit} aiModels={aiModels} onSelectModel={handleSelectModel} onCompact={handleCompact} compacting={compacting} />
+                {attachedRefs.length > 0 && (
+                  <div className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 border-b ${BORD} flex-wrap`}>
+                    <span className={`text-[9px] uppercase tracking-widest ${MUT} font-semibold mr-1`}>Context</span>
+                    {attachedRefs.map((r) => <ContextRefPill key={`${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
+                    <button onClick={() => setAttachedRefs([])} className={`ml-auto text-[10px] ${MUT} hover:text-red-500 dark:hover:text-red-400 transition-colors`}>Clear all</button>
+                  </div>
+                )}
+                {!streaming && availableQuickActions.length > 0 && (
+                  <div className={`shrink-0 flex items-center gap-1.5 px-4 py-2 border-b ${BORD} overflow-x-auto`}>
+                    {availableQuickActions.map((action) => {
+                      const ActionIcon = action.icon;
+                      return <button key={action.id} onClick={() => handleQuickAction(action)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors border ${BORD} text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] hover:border-stone-300 dark:hover:border-[#555]`} title={action.prompt}><ActionIcon size={11} className="shrink-0" />{action.label}</button>;
+                    })}
+                  </div>
+                )}
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-xs">
+                  {messages.length === 0 && !streaming && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-400 dark:text-stone-500">
+                      <Bot size={24} strokeWidth={1.2} /><p className="text-xs text-center">Ask about the project, execution results,<br />or request changes.</p>
+                      {attachedRefs.length > 0 && <p className={`text-[10px] text-center mt-1 ${MUT}`}>{attachedRefs.length} context reference{attachedRefs.length !== 1 ? "s" : ""} attached</p>}
+                    </motion.div>
+                  )}
+                  {messages.map((msg, i) => <MessageBubble key={i} msg={msg} index={i} onContextRefClick={onContextRefClick} />)}
+                  {(streamBuffer || streaming) && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="flex gap-2 justify-start">
+                      <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
+                      <div className={`max-w-[85%] rounded-lg px-3 py-2 leading-relaxed bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}>
+                        <StreamContent content={streamBuffer} hasToolCalls={activeToolCalls.length > 0} />
+                        {streamBuffer.length > 0 && <motion.span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 align-text-bottom" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />}
+                      </div>
+                    </motion.div>
+                  )}
+                  {streaming && activeToolCalls.length > 0 && !streamBuffer && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-1 pl-7">
+                      {activeToolCalls.map((tc, j) => <ToolBadge key={j} tc={tc} compact />)}
+                    </motion.div>
+                  )}
+                  {error && <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 justify-center"><AlertCircle size={11} />{error}</div>}
+                  <div ref={bottomRef} />
+                </div>
+                <div className={`shrink-0 border-t ${BORD} p-4`}>
+                  {attachedRefs.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {attachedRefs.map((r) => <ContextRefPill key={`input-${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
+                    </div>
+                  )}
+                  <div className="flex gap-2 items-end">
+                    <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                      placeholder={attachedRefs.length > 0 ? `Ask about ${attachedRefs.map((r) => r.kind).join(", ")}...` : "Ask about the project or suggest fixes..."}
+                      rows={3} disabled={!projectId || streaming}
+                      className={`flex-1 resize-none rounded-lg border ${BORD} ${SURF} px-3 py-2 text-xs ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500 disabled:opacity-50`} />
+                    <button onClick={() => sendMessage()} disabled={!input.trim() || streaming || !projectId}
+                      className="h-10 w-10 flex items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0">
+                      {streaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                    </button>
+                  </div>
+                  {!projectId && <p className={`text-[10px] ${MUT} mt-1`}>Select a project to enable chat</p>}
+                </div>
+              </div>
             </div>
           </motion.div>
         </motion.div>
