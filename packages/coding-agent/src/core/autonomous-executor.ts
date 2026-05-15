@@ -12,6 +12,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
+import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import { JsonStateStore } from "./json-state-store.js";
@@ -21,7 +22,7 @@ import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
-import { WorkspaceAgentExecutor } from "./workspace-agent-executor.js";
+import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { ApprovedPreviewMetadata, Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
@@ -135,6 +136,13 @@ export interface AutonomousExecutorConfig {
 	 * scheduling (AC1) and persists the preview metadata (AC2).
 	 */
 	approvedPreview?: ApprovedPreviewMetadata;
+	/**
+	 * Worktree isolation configuration.
+	 * When enabled, each workspace executes inside its own git worktree.
+	 * When disabled or absent, falls back to P5.5 shared-working-tree execution.
+	 * Required for experimental_6 scale mode.
+	 */
+	worktree?: WorktreeConfig;
 }
 
 /**
@@ -218,12 +226,17 @@ export class AutonomousExecutor {
 		// planExecutionId is null here — it's set later via initialize() or
 		// adoptExistingExecution(), both of which call updateAgentExecutorContext().
 		if (this.enableRealExecution) {
-			this.agentExecutor = new WorkspaceAgentExecutor({
+			const agentConfig: WorkspaceAgentExecutorConfig = {
 				workspaceRoot: config.workspaceRoot,
 				model: config.model,
 				maxTurns: 50,
 				stateStore: this.stateStore,
-			});
+			};
+			// P6.A: Pass worktree config to enable isolated worktree execution
+			if (config.worktree) {
+				agentConfig.worktree = config.worktree;
+			}
+			this.agentExecutor = new WorkspaceAgentExecutor(agentConfig);
 		}
 	}
 
@@ -1492,6 +1505,7 @@ export function createAutonomousExecutor(
 	workspaceRoot: string,
 	maxWorkers = DEFAULT_WORKERS,
 	retryPolicy?: RetryPolicy,
+	worktree?: WorktreeConfig,
 ): AutonomousExecutor {
 	const stateStore = new JsonStateStore(workspaceRoot);
 	return new AutonomousExecutor(stateStore, {
@@ -1500,5 +1514,6 @@ export function createAutonomousExecutor(
 		retryPolicy,
 		projectId: "default",
 		skipProjectManagement: true,
+		worktree,
 	});
 }

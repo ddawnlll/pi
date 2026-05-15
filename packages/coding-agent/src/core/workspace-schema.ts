@@ -43,8 +43,9 @@ const MAX_PARALLEL_EXPERIMENTAL = 6;
  *          planExecution.integrationQueue, planExecution.validation;
  *          supports experimental_6 mode (maxParallelWorkspaces up to 6).
  * - 2.3.1: Added queuePriority, queueOptimization to workspace/plan execution.
+ * - 2.3.2: Default scale mode changed to experimental_6, worktree isolation enabled by default.
  */
-export const CONTRACT_SCHEMA_VERSION = "2.3.1" as const;
+export const CONTRACT_SCHEMA_VERSION = "2.3.2" as const;
 
 /**
  * Set of all contract schema versions that this parser accepts.
@@ -55,7 +56,14 @@ export const CONTRACT_SCHEMA_VERSION = "2.3.1" as const;
  * update CONTRACT_SCHEMA_VERSION above. The tests will fail if
  * CONTRACT_SCHEMA_VERSION is not in ACCEPTED_SCHEMA_VERSIONS.
  */
-export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set(["2.0.0", "2.1.0", "2.2.0", "2.3.0", "2.3.1"]);
+export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
+	"2.0.0",
+	"2.1.0",
+	"2.2.0",
+	"2.3.0",
+	"2.3.1",
+	"2.3.2",
+]);
 
 /**
  * Check whether a given version string is an accepted contract schema version.

@@ -470,6 +470,9 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		if (pe.worktree && typeof pe.worktree === "object" && !Array.isArray(pe.worktree)) {
 			if (typeof pe.worktree.enabled === "boolean") {
 				worktree = { enabled: pe.worktree.enabled };
+			} else if (typeof pe.worktree.enabledByDefault === "boolean") {
+				// P6 execution policy format uses enabledByDefault
+				worktree = { enabled: pe.worktree.enabledByDefault };
 			}
 		}
 

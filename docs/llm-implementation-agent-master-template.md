@@ -1,7 +1,7 @@
 # LLM Implementation Agent — Master Template v2.3
 
-**Version:** 2.3.1  
-**Last Updated:** 2026-05-14  
+**Version:** 2.3.2  
+**Last Updated:** 2026-05-15  
 **Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, and queue-aware optimization with priority metadata.
 
 ---
@@ -22,6 +22,17 @@ Markdown explains purpose, risks, scope, rollback, and reasoning.
 Part 3 JSON is the authoritative execution contract.
 
 ---
+
+## What Changed in v2.3.2
+
+v2.3.2 makes `experimental_6` the default scale mode and enables worktree isolation by default.
+
+P6 worktree isolation, integration queue, merge conflict detection, dynamic scheduler, scale mode policy, test impact analysis, failure classifier, repo symbol graph, and dashboard scale controls are all implemented and tested. The master template now defaults to isolated workspace execution with up to 6 workers.
+
+Changes:
+- `scale.defaultMode` changed from `stable_3` to `experimental_6`
+- `scale.selectedMode` changed from `stable_3` to `experimental_6`
+- `worktree.enabledByDefault` changed from `false` to `true`
 
 ## What Changed in v2.3.1
 
@@ -503,7 +514,7 @@ Hard stop execution only for:
 
 ```json
 {
-  "contractVersion": "2.3.1",
+  "contractVersion": "2.3.2",
   "executionBackend": "postgres",
   "project": {
     "name": "{{ project_name }}",
@@ -522,8 +533,8 @@ Hard stop execution only for:
     "autoCommit": true,
     "autoPush": false,
     "scale": {
-      "defaultMode": "stable_3",
-      "selectedMode": "stable_3",
+      "defaultMode": "experimental_6",
+      "selectedMode": "experimental_6",
       "modes": {
         "stable_3": {
           "maxParallelWorkspaces": 3,
@@ -551,7 +562,7 @@ Hard stop execution only for:
       }
     },
     "worktree": {
-      "enabledByDefault": false,
+      "enabledByDefault": true,
       "root": ".pi/worktrees",
       "quarantineFailedByDefault": true,
       "rawRmRfForbidden": true,
@@ -814,7 +825,7 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.3.0"` for P6 scale-aware isolated execution. v2.2.0 remains supported for plans that only use interactive parallelism review.
+- **`contractVersion`**: Must be `"2.3.2"` for P6 scale-aware isolated execution with default experimental_6 mode and worktree isolation. `2.3.0` and `2.3.1` remain supported for plans using earlier defaults.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
@@ -1061,7 +1072,7 @@ Queue optimization controls are executor-mediated. The dashboard may display que
 
 ```json
 {
-  "contractVersion": "2.3.1",
+  "contractVersion": "2.3.2",
   "phase": "{{ Phase ID }}",
   "title": "{{ Phase Title }}",
   "primaryGoal": "{{ One sentence summary of the phase goal }}",
@@ -1328,6 +1339,13 @@ Do not treat `dagEffectiveParallelism` as permission to run that many workers. T
 - Added persisted artifacts for queue priority snapshots and reorder decision logs.
 - Updated all `contractVersion` references to `2.3.1`.
 - Preserved v2.3.0 scale mode, worktree isolation, integration queue, validation lock, and safe effective parallelism semantics intact.
+
+### v2.3.2 (2026-05-15)
+
+- Default scale mode changed from `stable_3` to `experimental_6`.
+- Default worktree isolation changed from disabled to enabled (`enabledByDefault: true`).
+- Updated `contractVersion` to `2.3.2`.
+- P6 worktree isolation, integration queue, merge conflict detection, dynamic scheduler, scale mode policy, and dashboard controls are all implemented and tested.
 
 ### v2.3.0 (2026-05-14)
 

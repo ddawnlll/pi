@@ -756,8 +756,12 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		}
 		const effectiveWorkers = resolvedWorkerConcurrency.maxWorkers ?? DEFAULT_WORKERS;
 
+		// P6.A: Extract worktree config from parsed plan execution settings
+		const worktreeConfig =
+			parseResult.queue.planExecution?.worktree?.enabled === true ? { enabled: true } : undefined;
+
 		// Initialize executor
-		const executor = createAutonomousExecutor(cwd, effectiveWorkers);
+		const executor = createAutonomousExecutor(cwd, effectiveWorkers, undefined, worktreeConfig);
 		await executor.initialize(parseResult.queue);
 
 		if (!json) {
@@ -1151,8 +1155,12 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 		}
 		const effectiveWorkers = resolvedWorkerConcurrency.maxWorkers ?? DEFAULT_WORKERS;
 
+		// P6.A: Extract worktree config from parsed plan execution settings
+		const worktreeConfig =
+			parseResult.queue.planExecution?.worktree?.enabled === true ? { enabled: true } : undefined;
+
 		// Create executor and load state
-		const executor = createAutonomousExecutor(cwd, effectiveWorkers);
+		const executor = createAutonomousExecutor(cwd, effectiveWorkers, undefined, worktreeConfig);
 		const planExecutionId = stateStore.getCurrentPlanExecutionId();
 		if (!planExecutionId) {
 			if (json) {

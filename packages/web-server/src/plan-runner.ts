@@ -502,6 +502,10 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				}
 			: undefined;
 
+		// P6.A: Extract worktree config from parsed plan execution settings
+		const worktreeConfig =
+			parseResult.queue.planExecution?.worktree?.enabled === true ? { enabled: true } : undefined;
+
 		const executor = new AutonomousExecutor(stateStore, {
 			workspaceRoot,
 			projectId,
@@ -510,6 +514,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			skipProjectManagement: false,
 			enableRealExecution: true,
 			approvedPreview: approvedPreviewMetadata,
+			worktree: worktreeConfig,
 		});
 
 		// AC #3: Guard released on initialize() success or failure

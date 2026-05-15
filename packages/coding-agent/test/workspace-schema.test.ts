@@ -2,7 +2,7 @@
  * Tests for Workspace Schema & Validation - P2 Workstream 7.B
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
 	ACCEPTED_SCHEMA_VERSIONS,
 	buildDependencyGraph,
@@ -396,20 +396,21 @@ describe("v2.2.0: contract version", () => {
 		expect(isAcceptedSchemaVersion("1.0.0")).toBe(false);
 	});
 
-	it("CONTRACT_SCHEMA_VERSION should be 2.3.1", () => {
-		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.1");
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.2", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.2");
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0", () => {
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.1", () => {
-		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(5);
+	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.2", () => {
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(6);
 	});
 
 	it("should validate a queue with contractVersion 2.2.0", () => {
@@ -849,17 +850,18 @@ describe("v2.3.0: contract version acceptance", () => {
 		expect(isAcceptedSchemaVersion("2.3.1")).toBe(true);
 	});
 
-	it("CONTRACT_SCHEMA_VERSION should be 2.3.1", () => {
-		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.1");
+	it("CONTRACT_SCHEMA_VERSION should be 2.3.2", () => {
+		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.2");
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1", () => {
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1, 2.3.2", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(5);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(6);
 	});
 
 	it("should reject future unsupported version 2.4.0", () => {
@@ -1133,26 +1135,30 @@ describe("v2.3.0: pre-v2.3.0 maxParallelWorkspaces limit preserved", () => {
 });
 
 // ===========================================================================
-// v2.3.1 Tests — Contract Schema Version Acceptance
+// v2.3.2 Tests — Contract Schema Version Acceptance
 // ===========================================================================
 
-describe("v2.3.1: contract version acceptance", () => {
-	it("should accept contract version 2.3.1", () => {
+describe("v2.3.2: contract version acceptance", () => {
+	test("should accept contract version 2.3.2", () => {
+		expect(isAcceptedSchemaVersion("2.3.2")).toBe(true);
+	});
+
+	test("should accept contract version 2.3.1", () => {
 		expect(isAcceptedSchemaVersion("2.3.1")).toBe(true);
 	});
 
-	it("should accept contract version 2.3.0", () => {
+	test("should accept contract version 2.3.0", () => {
 		expect(isAcceptedSchemaVersion("2.3.0")).toBe(true);
 	});
 });
 
-describe("v2.3.1: minimal plan validates", () => {
-	it("should validate a minimal v2.3.1 plan", () => {
+describe("v2.3.2: minimal plan validates", () => {
+	test("should validate a minimal v2.3.2 plan", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",
 			title: "Test Phase",
 			maxParallelWorkspaces: 3,
-			contractVersion: "2.3.1",
+			contractVersion: "2.3.2",
 			workspaces: [
 				{
 					id: "7.A",
@@ -1168,12 +1174,12 @@ describe("v2.3.1: minimal plan validates", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	it("should be backward compatible with v2.3.0 validations", () => {
+	test("should be backward compatible with v2.3.0 validations", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",
 			title: "Test Phase",
 			maxParallelWorkspaces: 3,
-			contractVersion: "2.3.1",
+			contractVersion: "2.3.2",
 			workspaces: [
 				{
 					id: "7.A",
@@ -1195,12 +1201,12 @@ describe("v2.3.1: minimal plan validates", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	it("should enforce experimental_6 prerequisites for v2.3.1", () => {
+	test("should enforce experimental_6 prerequisites for v2.3.2", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",
 			title: "Test Phase",
 			maxParallelWorkspaces: 6,
-			contractVersion: "2.3.1",
+			contractVersion: "2.3.2",
 			planExecution: {
 				scale: { selectedMode: "experimental_6" },
 			},
