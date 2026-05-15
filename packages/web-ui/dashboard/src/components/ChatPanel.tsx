@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code,
   CheckCircle2, XCircle, FileText, ClipboardList, AlertTriangle,
-  Lightbulb, Wrench, FolderOpen, GitBranch, Archive,
+  Lightbulb, Wrench, FolderOpen, GitBranch, Archive, Search,
+  FileEdit, Eye,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -23,7 +24,7 @@ interface ChatMessage {
   contextRefs?: ContextRef[];
 }
 
-interface ToolCallEvent {
+export interface ToolCallEvent {
   name: string;
   args: Record<string, unknown>;
   toolCallId?: string;
@@ -145,6 +146,152 @@ function ContextRefPill({
 }
 
 // ---------------------------------------------------------------------------
+// Tool call badge
+// ---------------------------------------------------------------------------
+
+interface ToolBadgeConfig {
+  icon: React.ElementType;
+  bg: string;
+  dot: string;
+}
+
+const TOOL_BADGES: Record<string, ToolBadgeConfig> = {
+  read:       { icon: Eye,       bg: "bg-blue-100 dark:bg-blue-900/40",     dot: "bg-blue-500" },
+  write:      { icon: FileEdit,  bg: "bg-amber-100 dark:bg-amber-900/40",   dot: "bg-amber-500" },
+  edit:       { icon: Code,      bg: "bg-violet-100 dark:bg-violet-900/40",  dot: "bg-violet-500" },
+  bash:       { icon: Terminal,  bg: "bg-emerald-100 dark:bg-emerald-900/40", dot: "bg-emerald-500" },
+  search:     { icon: Search,    bg: "bg-cyan-100 dark:bg-cyan-900/40",     dot: "bg-cyan-500" },
+  default:    { icon: Bot,       bg: "bg-stone-100 dark:bg-[#252525]",      dot: "bg-stone-400" },
+};
+
+function getToolBadge(name: string): ToolBadgeConfig {
+  return TOOL_BADGES[name] ?? TOOL_BADGES.default;
+}
+
+function ToolBadge({
+  tc,
+  compact,
+}: {
+  tc: ToolCallEvent;
+  compact?: boolean;
+}) {
+  const cfg = getToolBadge(tc.name);
+  const Icon = cfg.icon;
+
+  if (compact) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono ${cfg.bg} ${MUT}`}
+      >
+        <Icon size={9} />
+        <span>{tc.name}</span>
+        {tc.status === "running" && (
+          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-0.5`} />
+        )}
+        {tc.status === "success" && (
+          <CheckCircle2 size={9} className="text-green-500 ml-0.5" />
+        )}
+        {tc.status === "error" && (
+          <XCircle size={9} className="text-red-500 ml-0.5" />
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 text-[10px] ${MUT} ${cfg.bg} rounded px-2 py-1`}
+    >
+      <Icon size={10} />
+      <span className="font-medium">{tc.name}</span>
+      <span className="opacity-60 truncate max-w-[100px]">
+        {typeof tc.args === "object" && tc.args !== null
+          ? JSON.stringify(tc.args).slice(0, 60)
+          : ""}
+      </span>
+      {tc.status === "running" && (
+        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-auto shrink-0`} />
+      )}
+      {tc.status === "success" && (
+        <CheckCircle2 size={10} className="text-green-500 ml-auto shrink-0" />
+      )}
+      {tc.status === "error" && (
+        <XCircle size={10} className="text-red-500 ml-auto shrink-0" />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Thinking animation
+// ---------------------------------------------------------------------------
+
+function ThinkingDots() {
+  return (
+    <span className="inline-flex items-center gap-1 ml-1">
+      <motion.span
+        className="w-1.5 h-1.5 rounded-full bg-blue-400"
+        animate={{ opacity: [0.3, 1, 0.3] }}
+        transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
+      />
+      <motion.span
+        className="w-1.5 h-1.5 rounded-full bg-blue-400"
+        animate={{ opacity: [0.3, 1, 0.3] }}
+        transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+      />
+      <motion.span
+        className="w-1.5 h-1.5 rounded-full bg-blue-400"
+        animate={{ opacity: [0.3, 1, 0.3] }}
+        transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
+      />
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Streaming content with smooth fade-in
+// ---------------------------------------------------------------------------
+
+function StreamContent({
+  content,
+  hasToolCalls,
+}: {
+  content: string;
+  hasToolCalls: boolean;
+}) {
+  // If the stream has started producing text, render it with markdown
+  if (content.length > 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+      >
+        <MarkdownContent content={content} />
+      </motion.div>
+    );
+  }
+
+  // No text yet — show a thinking state with tool call badges if present
+  if (hasToolCalls) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] italic text-stone-400">
+        Processing
+        <ThinkingDots />
+      </span>
+    );
+  }
+
+  // Pure thinking — nothing yet
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] italic text-stone-400">
+      Thinking
+      <ThinkingDots />
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Markdown components
 // ---------------------------------------------------------------------------
 
@@ -244,18 +391,77 @@ function MarkdownContent({ content }: { content: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Message bubble with fade-in animation
+// ---------------------------------------------------------------------------
+
+function MessageBubble({
+  msg,
+  index,
+  onContextRefClick,
+}: {
+  msg: ChatMessage;
+  index: number;
+  onContextRefClick?: (ref: ContextRef) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={`flex gap-2 ${
+        msg.role === "user" ? "justify-end" : "justify-start"
+      }`}
+    >
+      {msg.role === "assistant" && (
+        <Bot
+          size={14}
+          className="shrink-0 mt-1 text-blue-600 dark:text-blue-400"
+        />
+      )}
+      <div className="max-w-[85%] space-y-1.5">
+        {msg.role === "user" && msg.contextRefs && msg.contextRefs.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-0.5">
+            {msg.contextRefs.map((r) => (
+              <ContextRefPill
+                key={`${r.kind}:${r.id}-${index}`}
+                ctx={r}
+                onClick={() => onContextRefClick?.(r)}
+              />
+            ))}
+          </div>
+        )}
+        <div
+          className={`rounded-lg px-3 py-2 leading-relaxed ${
+            msg.role === "user"
+              ? "bg-blue-600 text-white"
+              : `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
+          }`}
+        >
+          {msg.role === "assistant" ? (
+            <MarkdownContent content={msg.content} />
+          ) : (
+            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+          )}
+        </div>
+        {msg.toolCalls && msg.toolCalls.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {msg.toolCalls.map((tc, j) => (
+              <ToolBadge key={j} tc={tc} compact />
+            ))}
+          </div>
+        )}
+      </div>
+      {msg.role === "user" && (
+        <User size={14} className="shrink-0 mt-1 text-stone-400" />
+      )}
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main ChatPanel
 // ---------------------------------------------------------------------------
 
-/**
- * Project Chat dialog — a conversational interface that can reference
- * selected plans, runs, workspaces, and artifacts.
- *
- * **Invariant:** This component is strictly read-only with respect to
- * execution state. It never directly calls control endpoints
- * (pause/stop/resume) or mutates plan execution data. It only sends
- * chat messages and displays responses.
- */
 export function ChatPanel({
   isOpen,
   projectId,
@@ -275,15 +481,12 @@ export function ChatPanel({
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
 
-  // Reset state when dialog opens with a new project
   useEffect(() => {
     if (!isOpen) return;
     sessionIdRef.current = crypto.randomUUID();
     setAttachedRefs(externalContextRefs);
     setError(null);
-
     if (!projectId) return;
-
     fetch(`${API_BASE}/api/projects/${projectId}/chat/history`)
       .then((r) => (r.ok ? r.json() : { messages: [] }))
       .then((data) => {
@@ -291,26 +494,20 @@ export function ChatPanel({
           setMessages(data.messages);
         }
       })
-      .catch(() => {
-        /* ignore */
-      });
+      .catch(() => { /* ignore */ });
   }, [isOpen, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamBuffer]);
 
-  // Focus input when dialog opens
   useEffect(() => {
     if (isOpen) {
-      // Small delay to let the animation start
       const t = setTimeout(() => inputRef.current?.focus(), 100);
       return () => clearTimeout(t);
     }
   }, [isOpen]);
 
-  // ── Send message ──────────────────────────────────────────────────────
   const sendMessage = useCallback(
     async (overrideText?: string) => {
       const text = (overrideText ?? input).trim();
@@ -328,7 +525,6 @@ export function ChatPanel({
       setActiveToolCalls([]);
 
       const toolCallMap = new Map<string, ToolCallEvent>();
-
       const abort = new AbortController();
       abortRef.current = abort;
 
@@ -342,9 +538,7 @@ export function ChatPanel({
             message: text,
             sessionId,
             contextRefs: snapshotRefs.map((r) => ({
-              kind: r.kind,
-              id: r.id,
-              label: r.label,
+              kind: r.kind, id: r.id, label: r.label,
             })),
           }),
           signal: abort.signal,
@@ -412,8 +606,6 @@ export function ChatPanel({
                   });
                 }
                 setActiveToolCalls(Array.from(toolCallMap.values()));
-                fullText += `\n[Executing: ${event.tool.name}]\n`;
-                setStreamBuffer(fullText);
               }
             } catch {
               // Skip malformed events
@@ -440,10 +632,8 @@ export function ChatPanel({
     }
   };
 
-  // ── Quick action handlers ──────────────────────────────────────────────
   const handleQuickAction = useCallback(
     (action: QuickAction) => {
-      // Check if required context is present
       if (action.requires?.length) {
         const hasRequired = action.requires.some((req) =>
           attachedRefs.some((r) => r.kind === req)
@@ -459,7 +649,6 @@ export function ChatPanel({
     setAttachedRefs((prev) => prev.filter((r) => `${r.kind}:${r.id}` !== refId));
   }, []);
 
-  // ── Determine which quick actions are available ───────────────────────
   const availableQuickActions = QUICK_ACTIONS.filter((action) => {
     if (!action.requires?.length) return true;
     return action.requires.some((req) =>
@@ -467,7 +656,6 @@ export function ChatPanel({
     );
   });
 
-  // ── Render ────────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
@@ -490,9 +678,7 @@ export function ChatPanel({
             <div className={`shrink-0 flex items-center justify-between px-5 h-11 border-b ${BORD}`}>
               <div className="flex items-center gap-2">
                 <Bot size={15} className="text-blue-600 dark:text-blue-400" />
-                <span className={`text-xs font-semibold ${TXT}`}>
-                  Project Chat
-                </span>
+                <span className={`text-xs font-semibold ${TXT}`}>Project Chat</span>
               </div>
               <button
                 onClick={onClose}
@@ -505,9 +691,7 @@ export function ChatPanel({
             {/* Context refs bar */}
             {attachedRefs.length > 0 && (
               <div className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 border-b ${BORD} flex-wrap`}>
-                <span className={`text-[9px] uppercase tracking-widest ${MUT} font-semibold mr-1`}>
-                  Context
-                </span>
+                <span className={`text-[9px] uppercase tracking-widest ${MUT} font-semibold mr-1`}>Context</span>
                 {attachedRefs.map((r) => (
                   <ContextRefPill
                     key={`${r.kind}:${r.id}`}
@@ -553,7 +737,11 @@ export function ChatPanel({
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-xs">
               {messages.length === 0 && !streaming && (
-                <div className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-400 dark:text-stone-500">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-400 dark:text-stone-500"
+                >
                   <Bot size={24} strokeWidth={1.2} />
                   <p className="text-xs text-center">
                     Ask about the project, execution results,
@@ -566,147 +754,57 @@ export function ChatPanel({
                       {attachedRefs.length !== 1 ? "s" : ""} attached
                     </p>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {messages.map((msg, i) => (
-                <div
+                <MessageBubble
                   key={i}
-                  className={`flex gap-2 ${
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {msg.role === "assistant" && (
-                    <Bot
-                      size={14}
-                      className="shrink-0 mt-1 text-blue-600 dark:text-blue-400"
-                    />
-                  )}
-                  <div className="max-w-[85%] space-y-1.5">
-                    {/* Context refs shown for user messages */}
-                    {msg.role === "user" && msg.contextRefs && msg.contextRefs.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-0.5">
-                        {msg.contextRefs.map((r) => (
-                          <ContextRefPill
-                            key={`${r.kind}:${r.id}-${i}`}
-                            ctx={r}
-                            onClick={() => onContextRefClick?.(r)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {/* Message content - markdown rendered */}
-                    <div
-                      className={`rounded-lg px-3 py-2 leading-relaxed ${
-                        msg.role === "user"
-                          ? "bg-blue-600 text-white"
-                          : `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
-                      }`}
-                    >
-                      {msg.role === "assistant" ? (
-                        <MarkdownContent content={msg.content} />
-                      ) : (
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                      )}
-                    </div>
-                    {/* Tool calls */}
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <div className="space-y-1">
-                        {msg.toolCalls.map((tc, j) => (
-                          <div
-                            key={j}
-                            className={`flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-[#252525] rounded px-2 py-1`}
-                          >
-                            {tc.name === "bash" ? (
-                              <Terminal size={10} className="shrink-0" />
-                            ) : tc.name === "edit" || tc.name === "write" ? (
-                              <Code size={10} className="shrink-0" />
-                            ) : (
-                              <Bot size={10} className="shrink-0" />
-                            )}
-                            <span className="font-medium">{tc.name}</span>
-                            <span className="text-stone-400 dark:text-stone-500 truncate">
-                              {typeof tc.args === "object" && tc.args !== null
-                                ? JSON.stringify(tc.args).slice(0, 60)
-                                : ""}
-                            </span>
-                            {tc.status === "success" && (
-                              <CheckCircle2
-                                size={10}
-                                className="ml-auto shrink-0 text-green-500"
-                              />
-                            )}
-                            {tc.status === "error" && (
-                              <XCircle size={10} className="ml-auto shrink-0 text-red-500" />
-                            )}
-                            {tc.status === "running" && (
-                              <Loader2
-                                size={10}
-                                className="ml-auto shrink-0 text-blue-500 animate-spin"
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {msg.role === "user" && (
-                    <User size={14} className="shrink-0 mt-1 text-stone-400" />
-                  )}
-                </div>
+                  msg={msg}
+                  index={i}
+                  onContextRefClick={onContextRefClick}
+                />
               ))}
 
-              {activeToolCalls.length > 0 && (
-                <div className="flex gap-2 justify-start">
-                  <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
-                  <div className="space-y-1">
-                    {activeToolCalls.map((tc, j) => (
-                      <div
-                        key={j}
-                        className={`flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-[#252525] rounded px-2 py-1`}
-                      >
-                        {tc.name === "bash" ? (
-                          <Terminal size={10} className="shrink-0" />
-                        ) : tc.name === "edit" || tc.name === "write" ? (
-                          <Code size={10} className="shrink-0" />
-                        ) : (
-                          <Bot size={10} className="shrink-0" />
-                        )}
-                        <span className="font-medium">{tc.name}</span>
-                        <span className="text-stone-400 dark:text-stone-500 truncate">
-                          {typeof tc.args === "object" && tc.args !== null
-                            ? JSON.stringify(tc.args).slice(0, 60)
-                            : ""}
-                        </span>
-                        {tc.status === "running" && (
-                          <Loader2
-                            size={10}
-                            className="ml-auto shrink-0 text-blue-500 animate-spin"
-                          />
-                        )}
-                        {tc.status === "success" && (
-                          <CheckCircle2
-                            size={10}
-                            className="ml-auto shrink-0 text-green-500"
-                          />
-                        )}
-                        {tc.status === "error" && (
-                          <XCircle size={10} className="ml-auto shrink-0 text-red-500" />
-                        )}
-                      </div>
-                    ))}
+              {/* Streaming message */}
+              {(streamBuffer || streaming) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="flex gap-2 justify-start"
+                >
+                  <Bot
+                    size={14}
+                    className="shrink-0 mt-1 text-blue-600 dark:text-blue-400"
+                  />
+                  <div className={`max-w-[85%] rounded-lg px-3 py-2 leading-relaxed bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}>
+                    <StreamContent
+                      content={streamBuffer}
+                      hasToolCalls={activeToolCalls.length > 0}
+                    />
+                    {streamBuffer.length > 0 && (
+                      <motion.span
+                        className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 align-text-bottom"
+                        animate={{ opacity: [1, 0.3, 1] }}
+                        transition={{ duration: 0.8, repeat: Infinity }}
+                      />
+                    )}
                   </div>
-                </div>
+                </motion.div>
               )}
 
-              {streamBuffer && (
-                <div className="flex gap-2 justify-start">
-                  <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
-                  <div className={`max-w-[85%] rounded-lg px-3 py-2 leading-relaxed bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}>
-                    <MarkdownContent content={streamBuffer} />
-                    <span className="inline-block w-1.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
-                  </div>
-                </div>
+              {/* Live tool call badges */}
+              {streaming && activeToolCalls.length > 0 && !streamBuffer && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-wrap gap-1 pl-7"
+                >
+                  {activeToolCalls.map((tc, j) => (
+                    <ToolBadge key={j} tc={tc} compact />
+                  ))}
+                </motion.div>
               )}
 
               {error && (
@@ -721,7 +819,6 @@ export function ChatPanel({
 
             {/* Input */}
             <div className={`shrink-0 border-t ${BORD} p-4`}>
-              {/* Attached context bar in input area */}
               {attachedRefs.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-2">
                   {attachedRefs.map((r) => (
@@ -763,9 +860,7 @@ export function ChatPanel({
                 </button>
               </div>
               {!projectId && (
-                <p className={`text-[10px] ${MUT} mt-1`}>
-                  Select a project to enable chat
-                </p>
+                <p className={`text-[10px] ${MUT} mt-1`}>Select a project to enable chat</p>
               )}
             </div>
           </motion.div>
