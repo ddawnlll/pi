@@ -160,8 +160,8 @@ export function App() {
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
-  /** Left sidebar tab: "nav" = projects + history, "chat" = project chat */
-  const [leftTab, setLeftTab] = useState<"nav" | "queue" | "chat">("nav");
+  /** Left sidebar tab: "nav" = projects + history */
+  const [leftTab, setLeftTab] = useState<"nav" | "queue">("nav");
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id);
@@ -396,18 +396,7 @@ export function App() {
                 >
                   <ListOrdered size={12} strokeWidth={1.8} /> Queue
                 </button>
-                <button
-                  onClick={() => {
-                    setLeftTab("chat");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                    leftTab === "chat"
-                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
-                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
-                  }`}
-                >
-                  <Bot size={12} strokeWidth={1.8} /> Chat
-                </button>
+
               </div>
 
               {/* Nav tab content */}
@@ -446,21 +435,7 @@ export function App() {
                 <PlanQueueTab projectId={selectedProjectId} />
               )}
 
-              {/* Chat tab content */}
-              {leftTab === "chat" && (
-                <ChatPanel
-                  projectId={selectedProjectId}
-                  onClose={() => setLeftTab("nav")}
-                  contextRefs={chatContextRefs}
-                  onContextRefClick={(ref) => {
-                    if (ref.kind === "run") {
-                      setSelectedPlanExecId(ref.id);
-                    } else if (ref.kind === "workspace") {
-                      setSelectedWorkerId(ref.id);
-                    }
-                  }}
-                />
-              )}
+
             </motion.aside>
           )}
         </AnimatePresence>
@@ -670,25 +645,7 @@ export function App() {
           )}
         </AnimatePresence>
 
-        {/* ── chat overlay ── */}
-        <AnimatePresence>
-          {showChat && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden relative z-20`}
-            >
-              <ChatPanel projectId={selectedProjectId} onClose={() => setShowChat(false)} contextRefs={chatContextRefs}
-                onContextRefClick={(ref) => {
-                  if (ref.kind === "run") {
-                    setSelectedPlanExecId(ref.id);
-                  } else if (ref.kind === "workspace") {
-                    setSelectedWorkerId(ref.id);
-                  }
-                }} />
-            </motion.aside>
-          )}
-        </AnimatePresence>
+
 
         {/* -- artifacts overlay -- */}
         <AnimatePresence>
@@ -730,6 +687,19 @@ export function App() {
         onConfirm={handleRerun}
         executionDetail={executionDetail ?? null}
         loading={rerunning}
+      />
+      <ChatPanel
+        isOpen={showChat}
+        projectId={selectedProjectId}
+        onClose={() => setShowChat(false)}
+        contextRefs={chatContextRefs}
+        onContextRefClick={(ref) => {
+          if (ref.kind === "run") {
+            setSelectedPlanExecId(ref.id);
+          } else if (ref.kind === "workspace") {
+            setSelectedWorkerId(ref.id);
+          }
+        }}
       />
 
       {/* ── git dialog ── */}
