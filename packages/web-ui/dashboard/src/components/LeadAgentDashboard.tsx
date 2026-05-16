@@ -10,7 +10,7 @@
  * - Makes approval requirements clear (AC3)
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
 	AlertCircle,
 	Bot,
@@ -23,7 +23,6 @@ import {
 import { useProposals } from "../hooks/useProposals";
 import { ProposalCard } from "./ProposalCard";
 import { ProposalDetailPanel } from "./ProposalDetailPanel";
-import type { ProposalResponse } from "../types";
 
 // ---------------------------------------------------------------------------
 // Styling tokens (matching App.tsx)
@@ -66,28 +65,22 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 		statusFilter === "all" ? undefined : { status: statusFilter },
 	);
 
-	// Get selected proposal from the list
-	const [selectedProposal, setSelectedProposal] = useState<ProposalResponse | null>(
-		null,
+	// Derive selected proposal from the list — no separate state => no infinite loop
+	const selectedProposal = useMemo(
+		() => proposals.find((p) => p.id === selectedProposalId) ?? null,
+		[proposals, selectedProposalId],
 	);
 
-	// Sync selectedProposal when proposals list changes
-	useMemo(() => {
-		const found = proposals.find((p) => p.id === selectedProposalId) ?? null;
-		setSelectedProposal((prev) => {
-			// If the found proposal is different from current, update
-			if (found?.id !== prev?.id || found?.status !== prev?.status) {
-				return found;
-			}
-			// Keep the previously updated proposal if it matches
-			return prev;
-		});
-	}, [proposals, selectedProposalId]);
-
-	// If the selected proposal is no longer in the list (e.g., filter changed),
-	// clear the selection
-	if (selectedProposalId && !proposals.find((p) => p.id === selectedProposalId)) {
-		setSelectedProposalId(null);
+	// Clear selectedProposalId when the filter removes the proposal from view.
+	// Using a ref to track the last valid ID avoids setting state during render.
+	const lastValidIdRef = useRef<string | null>(null);
+	if (selectedProposalId !== null) {
+		if (proposals.find((p) => p.id === selectedProposalId)) {
+			lastValidIdRef.current = selectedProposalId;
+		} else {
+			// Selection went stale (filter changed) — defer to avoid render-in-render
+			setTimeout(() => setSelectedProposalId(null), 0);
+		}
 	}
 
 	// Counts for filter tabs
@@ -236,8 +229,8 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 				{selectedProposal ? (
 					<ProposalDetailPanel
 						proposal={selectedProposal}
-						onProposalUpdated={(updated) => {
-							setSelectedProposal(updated);
+						onProposalUpdated={() => {
+							// Refetch so the derived selectedProposal updates via useMemo
 							refetch();
 						}}
 					/>
