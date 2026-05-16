@@ -19,6 +19,10 @@
 		"./hooks": {
 			"types": "./dist/core/hooks/index.d.ts",
 			"import": "./dist/core/hooks/index.js"
+		},
+		"./core/extensions/registry.js": {
+			"types": "./dist/core/extensions/registry.d.ts",
+			"import": "./dist/core/extensions/registry.js"
 		}
 	},
 	"files": [

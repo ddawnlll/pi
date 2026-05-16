@@ -74,6 +74,7 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
+import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
@@ -3758,6 +3759,12 @@ await registerScaleRoutes(fastify, getPiDir, getWorkspaceRoot, getSettingsManage
 // ---------------------------------------------------------------------------
 
 await registerProposalRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
+// Extension Routes (P11.P — Extension Lifecycle)
+// ---------------------------------------------------------------------------
+
+await registerExtensionRoutes(fastify);
 
 // ---------------------------------------------------------------------------
 // Health Check
