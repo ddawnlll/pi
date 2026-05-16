@@ -210,6 +210,31 @@ export enum WorkspaceStage {
 }
 
 /**
+ * Workspace dependency specification
+ *
+ * Describes a single dependency of one workspace on another,
+ * including whether it is a hard (blocking) or soft (ordering hint)
+ * dependency, and an optional reason.
+ *
+ * Contract Schema v2.4.0 field.
+ */
+export interface WorkspaceDependency {
+	/** The workspace ID this dependency targets */
+	id: string;
+	/**
+	 * Dependency type:
+	 * - "hard": This workspace cannot start until the target completes.
+	 * - "soft": Ordering hint only; execution is not blocked if the
+	 *   target has not completed.
+	 */
+	type: "hard" | "soft";
+	/** Human-readable reason for this dependency */
+	reason?: string;
+	/** Additional metadata */
+	metadata?: Record<string, unknown>;
+}
+
+/**
  * Workspace capability manifest
  *
  * Defines file boundaries for workspace execution to prevent
@@ -312,6 +337,80 @@ export interface Workspace {
 	 * P9.E field.
 	 */
 	blastRadius?: BlastRadiusConfig;
+
+	/**
+	 * Hard dependency IDs — workspaces that must complete before this
+	 * workspace can start.
+	 *
+	 * When set, these augment or clarify the hard-blocking subset of
+	 * `dependencies`. The DAG computation uses `dependencies` for
+	 * topological ordering; this field provides explicit labeling of
+	 * which deps are hard-blocking.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	hardDeps?: string[];
+
+	/**
+	 * Soft dependency IDs — workspaces that should complete before this
+	 * workspace starts, but are not required. Used for ordering hints
+	 * that do not block execution.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	softDeps?: string[];
+
+	/**
+	 * Set of file paths this workspace reads (but does not write).
+	 *
+	 * Used by the DAG optimizer and scheduler to detect read/write
+	 * conflicts that could prevent safe parallel execution.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	readSet?: string[];
+
+	/**
+	 * Set of file paths this workspace writes (creates or modifies).
+	 *
+	 * Used by the DAG optimizer and scheduler to detect write/write and
+	 * read/write conflicts that could prevent safe parallel execution.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	writeSet?: string[];
+
+	/**
+	 * Set of symbols (function names, type names, variable names) that
+	 * this workspace claims or introduces.
+	 *
+	 * Used by the DAG optimizer to detect symbol-level conflicts and
+	 * to suggest safe reorderings or splits.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	symbolClaims?: string[];
+
+	/**
+	 * Estimated execution duration in milliseconds.
+	 *
+	 * Used by the scheduler and DAG optimizer to compute expected
+	 * wall-clock time and to detect load imbalance.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	estimatedDurationMs?: number;
+
+	/**
+	 * Whether this workspace is a candidate for splitting into smaller
+	 * sub-workspaces.
+	 *
+	 * When true, the DAG optimizer may propose splitting this workspace
+	 * to improve parallelism or reduce serialized tail length.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	splitCandidate?: boolean;
 }
 
 // ---------------------------------------------------------------------------

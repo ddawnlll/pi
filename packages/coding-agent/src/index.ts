@@ -196,6 +196,7 @@ export {
 	validateWorkspaceQueue,
 	type Workspace,
 	type WorkspaceCapabilityManifest,
+	type WorkspaceDependency,
 	type WorkspaceQueue,
 } from "./core/workspace-schema.js";
 export {

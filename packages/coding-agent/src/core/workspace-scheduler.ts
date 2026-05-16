@@ -9,6 +9,7 @@ import type { PlanState } from "./plan-state.js";
 import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "./worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
+import type { Scheduler } from "./scheduler.js";
 
 /**
  * Reason a workspace was skipped (not selected for scheduling)
@@ -122,7 +123,7 @@ export interface FileLockConflict {
  * - Capability manifest boundary enforcement
  * - Cycle detection
  */
-export class WorkspaceScheduler {
+export class WorkspaceScheduler implements Scheduler {
 	private maxWorkers: number;
 	private fileLocks: Map<string, string>; // file path -> workspace ID
 	/** Batch assignment for each workspace (workspace ID -> batch index). */

@@ -410,7 +410,8 @@ describe("v2.2.0: contract version", () => {
 
 	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.2", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(6);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.4.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(7);
 	});
 
 	it("should validate a queue with contractVersion 2.2.0", () => {
@@ -854,18 +855,19 @@ describe("v2.3.0: contract version acceptance", () => {
 		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.2");
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1, 2.3.2", () => {
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1, 2.3.2, 2.4.0", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(6);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.4.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(7);
 	});
 
-	it("should reject future unsupported version 2.4.0", () => {
-		expect(isAcceptedSchemaVersion("2.4.0")).toBe(false);
+	it("should reject future unsupported version 2.5.0", () => {
+		expect(isAcceptedSchemaVersion("2.5.0")).toBe(false);
 	});
 });
 
@@ -1227,28 +1229,6 @@ describe("v2.3.2: minimal plan validates", () => {
 });
 
 describe("Future unsupported versions still rejected", () => {
-	it("should reject unsupported version 2.4.0", () => {
-		const queue: WorkspaceQueue = {
-			phase: "P2",
-			title: "Test Phase",
-			maxParallelWorkspaces: 3,
-			contractVersion: "2.4.0",
-			workspaces: [
-				{
-					id: "7.A",
-					title: "Task A",
-					dependencies: [],
-					roleBudget: "worker",
-					maxRetries: 3,
-				},
-			],
-		};
-
-		const result = validateWorkspaceQueue(queue);
-		expect(result.valid).toBe(false);
-		expect(result.errors.some((e) => e.type === "invalid_contract_version")).toBe(true);
-	});
-
 	it("should reject unsupported version 3.0.0", () => {
 		const queue: WorkspaceQueue = {
 			phase: "P2",

@@ -21,6 +21,7 @@ import type { PlanState } from "../core/plan-state.js";
 import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "../core/worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "../core/workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "../core/workspace-schema.js";
+import type { Scheduler } from "../core/scheduler.js";
 
 // ---------------------------------------------------------------------------
 // Diagnostics Interfaces
@@ -176,7 +177,7 @@ export interface ResourcePressureMetrics {
  * - AC4: Explains skipped/selected decisions with detailed reasons
  * - AC5: Same-file conflicts are never run unsafely
  */
-export class DynamicParallelScheduler {
+export class DynamicParallelScheduler implements Scheduler {
 	private maxWorkers: number;
 	private effectiveMaxWorkers: number;
 	private isWorktreeMode: boolean;
@@ -745,6 +746,8 @@ export class DynamicParallelScheduler {
 		complete: number;
 		blocked: number;
 		failed: number;
+		activeSlots: number;
+		availableSlots: number;
 	} {
 		const stats = {
 			total: state.workspaces.size,
@@ -753,6 +756,8 @@ export class DynamicParallelScheduler {
 			complete: 0,
 			blocked: 0,
 			failed: 0,
+			activeSlots: 0,
+			availableSlots: 0,
 		};
 
 		for (const ws of Array.from(state.workspaces.values())) {
@@ -774,6 +779,9 @@ export class DynamicParallelScheduler {
 					break;
 			}
 		}
+
+		stats.activeSlots = stats.active;
+		stats.availableSlots = Math.max(0, this.effectiveMaxWorkers - stats.active);
 
 		return stats;
 	}

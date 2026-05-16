@@ -596,6 +596,7 @@ Hard stop execution only for:
       }
     },
     "worktree": {
+      "enabled": true,
       "enabledByDefault": true,
       "root": ".pi/worktrees",
       "quarantineFailedByDefault": true,
@@ -879,7 +880,7 @@ Hard stop execution only for:
         "safeParallelismNotes": "{{ Why this workspace can or cannot run concurrently with others }}"
       },
       "worktree": {
-        "required": false,
+        "required": true,
         "isolationMode": "shared_or_worktree",
         "cleanupPolicy": "quarantine_on_failure"
       },
