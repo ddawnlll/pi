@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code,
@@ -7,6 +7,7 @@ import {
   FileEdit, Eye, Minimize2, ChevronDown, Brain, Plus, MessageSquare,
   Copy, ArrowDown, Maximize2,
   Pencil, RefreshCw, Download, Filter,
+  CheckSquare, Square, ChevronRight,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -203,14 +204,93 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   );
 }
 
+function stripFrontMatter(md: string): string {
+  const lines = md.split("\n");
+  if (lines.length < 3) return md;
+  // YAML front matter: first line ---, second+ lines until closing ---
+  let end = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---") { end = i; break; }
+  }
+  if (end > 0) return lines.slice(end + 1).join("\n");
+  return md;
+}
+
+const CHECKBOX_RE = /^\[([ xX])\]\s*/;
+
+function CheckboxItem({ checked, children }: { checked: boolean; children?: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-1.5 leading-relaxed">
+      <span className={`shrink-0 mt-0.5 ${checked ? "text-green-600 dark:text-green-400" : "text-stone-400 dark:text-stone-500"}`}>
+        {checked ? <CheckSquare size={11} /> : <Square size={11} />}
+      </span>
+      <span className="flex-1">{children}</span>
+    </li>
+  );
+}
+
+function isCheckboxText(text: string): { checked: boolean; rest: string } | null {
+  const m = CHECKBOX_RE.exec(text);
+  if (m) return { checked: m[1].toLowerCase() === "x", rest: text.slice(m[0].length) };
+  return null;
+}
+
+function countTableCols(children: React.ReactNode): number {
+  let firstRow: React.ReactNode | null = null;
+  React.Children.forEach(children, (child) => {
+    if (!firstRow && child && typeof child === "object" && "props" in child) {
+      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
+      if (el.type === "thead") {
+        // Find first tr inside thead
+        React.Children.forEach(el.props.children, (thc) => {
+          if (!firstRow && thc && typeof thc === "object" && "props" in thc) {
+            const thEl = thc as React.ReactElement<{ children?: React.ReactNode }>;
+            if (thEl.type === "tr") firstRow = thEl;
+          }
+        });
+      } else if (el.type === "tr") {
+        firstRow = child;
+      } else if (el.type === "tbody") {
+        // First tr inside tbody
+        React.Children.forEach(el.props.children, (bch) => {
+          if (!firstRow && bch && typeof bch === "object" && "props" in bch) {
+            const bEl = bch as React.ReactElement<{ children?: React.ReactNode }>;
+            if (bEl.type === "tr") firstRow = bch;
+          }
+        });
+      }
+    }
+  });
+  if (firstRow && typeof firstRow === "object" && "props" in firstRow) {
+    const row = firstRow as React.ReactElement<{ children?: React.ReactNode }>;
+    let count = 0;
+    React.Children.forEach(row.props.children, (cell) => {
+      if (cell && typeof cell === "object" && "props" in cell) {
+        const cEl = cell as React.ReactElement;
+        if (cEl.type === "th" || cEl.type === "td") count++;
+      }
+    });
+    return count;
+  }
+  return 0;
+}
+
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
   ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
   ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-  li: ({ children }: { children?: React.ReactNode }) => <li className="leading-relaxed">{children}</li>,
-  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h1>,
-  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-bold mb-1.5 mt-2.5 first:mt-0">{children}</h2>,
-  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-xs font-semibold mb-1 mt-2 first:mt-0">{children}</h3>,
+  li: ({ children, ...props }: { children?: React.ReactNode }) => {
+    // Check if this is a checkbox list item
+    const childArr = React.Children.toArray(children);
+    if (childArr.length === 1 && typeof childArr[0] === "string") {
+      const cb = isCheckboxText(childArr[0] as string);
+      if (cb) return <CheckboxItem checked={cb.checked}>{cb.rest}</CheckboxItem>;
+    }
+    return <li className="leading-relaxed">{children}</li>;
+  },
+  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold mb-2 mt-5 first:mt-0 pb-1 border-b border-[#E8E6E1] dark:border-[#333]">{children}</h1>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-bold mb-1.5 mt-4 first:mt-0">{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-xs font-semibold mb-1 mt-3 first:mt-0">{children}</h3>,
   code: ({ className, children, ...props }: React.ComponentPropsWithoutRef<"code">) => {
     const isInline = !className;
     if (isInline) return <code className="px-1 py-0.5 rounded bg-stone-200/70 dark:bg-[#333] text-[10px] font-mono">{children}</code>;
@@ -221,19 +301,24 @@ const MARKDOWN_COMPONENTS = {
   em: ({ children }: { children?: React.ReactNode }) => <em className="italic">{children}</em>,
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline hover:no-underline">{children}</a>,
   blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-stone-300 dark:border-stone-600 pl-3 italic mb-2">{children}</blockquote>,
-  hr: () => <hr className="my-3 border-[#E8E6E1] dark:border-[#333]" />,
-  table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="overflow-x-auto mb-3 rounded-lg border border-[#E8E6E1] dark:border-[#333]">
-      <div className="text-[8px] uppercase tracking-wider text-stone-400 px-2 py-0.5 bg-stone-50 dark:bg-[#1a1a1a] border-b border-[#E8E6E1] dark:border-[#333]">Table (scroll sideways)</div>
-      <table className="w-full text-xs border-collapse">{children}</table>
-    </div>
-  ),
+  hr: () => <hr className="my-2 border-[#E8E6E1] dark:border-[#333]" />,
+  table: ({ children }: { children?: React.ReactNode }) => {
+    // Count columns from thead or first tr
+    const colCount = countTableCols(children);
+    return (
+      <div className="overflow-x-auto mb-3 rounded-lg border border-[#E8E6E1] dark:border-[#333]">
+        <div className="text-[8px] uppercase tracking-wider text-stone-400 px-2 py-0.5 bg-stone-50 dark:bg-[#1a1a1a] border-b border-[#E8E6E1] dark:border-[#333]">{colCount} columns &middot; scroll sideways</div>
+        <table className="w-full text-xs border-collapse table-auto">{children}</table>
+      </div>
+    );
+  },
   th: ({ children }: { children?: React.ReactNode }) => <th className="border border-[#E8E6E1] dark:border-[#333] px-2 py-1 bg-stone-100 dark:bg-[#252525] font-semibold text-left">{children}</th>,
   td: ({ children }: { children?: React.ReactNode }) => <td className="border border-[#E8E6E1] dark:border-[#333] px-2 py-1">{children}</td>,
 };
 
 function MarkdownContent({ content }: { content: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]} components={MARKDOWN_COMPONENTS}>{content}</ReactMarkdown>;
+  const clean = content.startsWith("---") ? stripFrontMatter(content) : content;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]} components={MARKDOWN_COMPONENTS}>{clean}</ReactMarkdown>;
 }
 
 function MessageBubble({ msg, index, onContextRefClick, onEdit, onRegenerate, isLastAssistant }: {
@@ -398,6 +483,18 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [renamingSession, setRenamingSession] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [showFileSearch, setShowFileSearch] = useState(false);
+  const [fileQuery, setFileQuery] = useState("");
+  const [fileSearchResults, setFileSearchResults] = useState<Array<{ name: string; path: string; ext: string; dir: string; isDir: boolean }>>([]);
+  const [fileBrowserPath, setFileBrowserPath] = useState("");
+  const [fileBrowserEntries, setFileBrowserEntries] = useState<Array<{ name: string; path: string; isDir: boolean; ext: string; size: number; dir: string }>>([]);
+  const [fileBrowserParent, setFileBrowserParent] = useState("");
+  const [fileSearchLoading, setFileSearchLoading] = useState(false);
+  const [fileSearchActiveIdx, setFileSearchActiveIdx] = useState<number | null>(null);
+  const fileSearchRef = useRef<HTMLDivElement>(null);
+  const fileSearchInputRef = useRef<HTMLInputElement>(null);
+  const fileSearchAbortRef = useRef<AbortController | null>(null);
+  const atSignIndexRef = useRef<number | null>(null); // index of @ in input
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -425,6 +522,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
         e.preventDefault();
         exportChat();
       }
+
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -674,6 +772,46 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
     finally { setStreamBuffer(""); setStreaming(false); abortRef.current = null; }
   }, [input, projectId, streaming, attachedRefs, chatProvider, chatModel]);
 
+  const fetchDirectory = useCallback(async (path: string) => {
+    if (!projectId) return;
+    setFileSearchLoading(true);
+    setFileBrowserPath(path);
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}/files/browse?path=${encodeURIComponent(path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFileBrowserEntries(data.entries ?? []);
+        setFileBrowserParent(data.parentPath ?? "");
+        setFileSearchActiveIdx(null);
+      }
+    } catch {} finally {
+      setFileSearchLoading(false);
+    }
+  }, [projectId]);
+
+  const openFileSearch = useCallback(() => {
+    setShowFileSearch(true);
+    setFileQuery("");
+    setFileSearchResults([]);
+    setFileBrowserPath("");
+    setFileBrowserEntries([]);
+    setFileBrowserParent("");
+    setFileSearchActiveIdx(null);
+    fetchDirectory("");
+    setTimeout(() => fileSearchInputRef.current?.focus(), 50);
+  }, [fetchDirectory]);
+
+  const closeFileSearch = useCallback(() => {
+    setShowFileSearch(false);
+    setFileQuery("");
+    setFileSearchResults([]);
+    setFileBrowserPath("");
+    setFileBrowserEntries([]);
+    setFileBrowserParent("");
+    setFileSearchActiveIdx(null);
+    atSignIndexRef.current = null;
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showSearch) {
       if (e.key === "Enter") { setShowSearch(false); }
@@ -686,6 +824,36 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
         e.preventDefault();
         setInput(messages[lastUserIdx].content);
         setEditingIndex(lastUserIdx);
+      }
+    }
+    if (showFileSearch) {
+      if (e.key === "Escape") { e.preventDefault(); closeFileSearch(); return; }
+      // Use search results when query is active, otherwise browse entries
+      const list = fileQuery.trim() ? fileSearchResults : fileBrowserEntries;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const total = list.length;
+        if (total === 0) return;
+        setFileSearchActiveIdx((prev) => {
+          if (prev === null) return e.key === "ArrowDown" ? 0 : total - 1;
+          const delta = e.key === "ArrowDown" ? 1 : -1;
+          return Math.max(0, Math.min(total - 1, prev + delta));
+        });
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const idx = fileSearchActiveIdx;
+        if (idx === null || idx < 0 || idx >= list.length) return;
+        const entry = list[idx];
+        if (entry.isDir) {
+          fetchDirectory(entry.path);
+          setFileQuery("");
+          setFileSearchResults([]);
+        } else {
+          selectFile(entry);
+        }
+        return;
       }
     }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -731,7 +899,59 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
   const removeAttachedRef = useCallback((refId: string) => setAttachedRefs((prev) => prev.filter((r) => `${r.kind}:${r.id}` !== refId)), []);
   const availableQuickActions = QUICK_ACTIONS.filter((a) => !a.requires?.length || a.requires.some((req) => attachedRefs.some((r) => r.kind === req)));
 
-  // ── Flatten duplicate Minimize2 import ───────────────────────────────
+  const selectFile = useCallback((file: { name: string; path: string; isDir: boolean; ext: string; dir: string }) => {
+    if (file.isDir) { fetchDirectory(file.path); return; }
+    const ref: ContextRef = { kind: "artifact", id: file.path, label: file.path };
+    setAttachedRefs((prev) => {
+      if (prev.some((r) => r.id === file.path)) return prev;
+      return [...prev, ref];
+    });
+    // Remove the @ from input
+    if (atSignIndexRef.current !== null) {
+      const atIdx = atSignIndexRef.current;
+      const beforeAt = input.slice(0, atIdx);
+      // Also eat the query text from @ to cursor if any
+      const cursorPos = inputRef.current?.selectionStart ?? input.length;
+      const afterAt = input.slice(cursorPos);
+      const newInput = beforeAt + afterAt;
+      setInput(newInput);
+      atSignIndexRef.current = null;
+    }
+    closeFileSearch();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [input, closeFileSearch, fetchDirectory]);
+
+  // ── Debounced file search (telescope-style) ──────────────────────────
+  useEffect(() => {
+    if (!showFileSearch || !projectId || !fileQuery.trim()) {
+      setFileSearchResults([]);
+      return;
+    }
+    const id = setTimeout(async () => {
+      if (fileSearchAbortRef.current) fileSearchAbortRef.current.abort();
+      const abort = new AbortController();
+      fileSearchAbortRef.current = abort;
+      setFileSearchLoading(true);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/projects/${projectId}/files/search?q=${encodeURIComponent(fileQuery)}&limit=50`,
+          { signal: abort.signal },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setFileSearchResults(data.files ?? []);
+        }
+      } catch {} finally {
+        if (!abort.signal.aborted) setFileSearchLoading(false);
+      }
+    }, 200);
+    return () => { clearTimeout(id); };
+  }, [fileQuery, showFileSearch, projectId]);
+
+  // Determine which list and active prefix to show
+  const isSearching = fileQuery.trim().length > 0;
+  const activeList = isSearching ? fileSearchResults : fileBrowserEntries;
+  const activeLabel = isSearching ? "Search results" : `/${fileBrowserPath || ""}`;
 
   return (
     <AnimatePresence>
@@ -911,8 +1131,107 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                       {attachedRefs.map((r) => <ContextRefPill key={`input-${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
                     </div>
                   )}
+                  {/* File search popover (telescope: search + browse) */}
+                  <AnimatePresence>
+                    {showFileSearch && (
+                      <motion.div ref={fileSearchRef} initial={{ opacity: 0, y: 4, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                        transition={{ duration: 0.1, ease: "easeOut" }}
+                        className="relative mb-2 z-10">
+                        <div className="absolute bottom-full left-0 right-0 mb-1 max-h-64 overflow-hidden rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] shadow-lg flex flex-col">
+                          {/* Search input */}
+                          <div className="relative shrink-0">
+                            <Search size={11} className={`absolute left-3 top-1/2 -translate-y-1/2 ${MUT}`} />
+                            <input ref={fileSearchInputRef} type="text" value={fileQuery}
+                              onChange={(e) => setFileQuery(e.target.value)}
+                              placeholder="Search files..."
+                              autoFocus
+                              className={`w-full pl-8 pr-3 py-2 text-[11px] bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
+                            />
+                          </div>
+                          {/* Label */}
+                          <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-[#E8E6E1] dark:border-[#333] text-[9px] ${MUT}`}>
+                            {isSearching ? (
+                              <><Search size={9} className="shrink-0" /><span className="font-medium truncate">Search results for &ldquo;{fileQuery}&rdquo;</span></>
+                            ) : (
+                              <><FolderOpen size={9} className="shrink-0" /><span className="font-medium truncate">/{fileBrowserPath || ""}</span></>
+                            )}
+                            {fileSearchLoading && <Loader2 size={8} className="animate-spin ml-auto" />}
+                          </div>
+                          {/* Results list */}
+                          <div className="flex-1 overflow-y-auto min-h-0">
+                            {/* Parent directory entry (only in browse mode) */}
+                            {!isSearching && fileBrowserParent !== undefined && fileBrowserPath && (
+                              <button onClick={() => { fetchDirectory(fileBrowserParent); setFileSearchActiveIdx(-1); }}
+                                onMouseEnter={() => setFileSearchActiveIdx(-1)}
+                                className={`w-full text-left px-3 py-1.5 text-[10px] transition-colors flex items-center gap-2 ${
+                                  fileSearchActiveIdx === -1
+                                    ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
+                                    : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+                                }`}>
+                                <FolderOpen size={10} className="shrink-0" />
+                                <span className="font-medium">..</span>
+                                <span className={`ml-auto text-[9px] ${MUT}`}>parent</span>
+                              </button>
+                            )}
+                            {fileSearchLoading && activeList.length === 0 && (
+                              <div className={`px-3 py-8 flex items-center justify-center text-[10px] ${MUT}`}>
+                                <Loader2 size={10} className="animate-spin mr-1.5" />Searching...
+                              </div>
+                            )}
+                            {!fileSearchLoading && activeList.length === 0 && (
+                              <div className={`px-3 py-8 text-[10px] ${MUT} text-center`}>
+                                {isSearching ? `No files matching &ldquo;${fileQuery}&rdquo;` : "Empty directory"}
+                              </div>
+                            )}
+                            {activeList.map((entry, i) => (
+                              <button key={entry.path} onClick={() => selectFile(entry)}
+                                onMouseEnter={() => setFileSearchActiveIdx(i)}
+                                className={`w-full text-left px-3 py-1.5 text-[10px] transition-colors flex items-center gap-2 ${
+                                  i === fileSearchActiveIdx
+                                    ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
+                                    : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+                                }`}>
+                                {entry.isDir ? (
+                                  <FolderOpen size={10} className={`shrink-0 text-amber-500 dark:text-amber-400`} />
+                                ) : (
+                                  <FileText size={10} className={`shrink-0 ${MUT}`} />
+                                )}
+                                <span className="font-medium truncate">{entry.name}</span>
+                                {'dir' in entry && entry.dir && isSearching && (
+                                  <span className={`${MUT} truncate ml-auto text-[9px]`}>{entry.dir}</span>
+                                )}
+                                {entry.isDir && <ChevronRight size={8} className={`ml-auto shrink-0 ${MUT}`} />}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="flex gap-2 items-end">
-                    <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                    <textarea ref={inputRef} value={input} onChange={(e) => {
+                      const val = e.target.value;
+                      const cursorPos = e.target.selectionStart;
+                      setInput(val);
+                      // Detect @ trigger: the character right before cursor (just typed) is @
+                      // and there is no current file search open
+                      if (!showFileSearch && cursorPos > 0 && val[cursorPos - 1] === "@") {
+                        const prevChar = cursorPos > 1 ? val[cursorPos - 2] : "";
+                        // Only trigger on standalone @ (not @@ or part of another token)
+                        // Also allow when at start of line (after newline)
+                        if (prevChar === "" || prevChar === " " || prevChar === "\n" || prevChar === "\t") {
+                          atSignIndexRef.current = cursorPos - 1;
+                          openFileSearch();
+                        }
+                      }
+                      // Close file search if backspace deletes the @
+                      if (showFileSearch && atSignIndexRef.current !== null) {
+                        const atIdx = atSignIndexRef.current;
+                        if (cursorPos <= atIdx || val.length <= atIdx || val[atIdx] !== "@") {
+                          closeFileSearch();
+                        }
+                      }
+                    }} onKeyDown={handleKeyDown}
                       placeholder={attachedRefs.length > 0 ? `Ask about ${attachedRefs.map((r) => r.kind).join(", ")}...` : "Ask about the project or suggest fixes..."}
                       rows={3} disabled={!projectId || streaming}
                       className={`flex-1 resize-none rounded-lg border ${BORD} ${SURF} px-3 py-2 text-xs ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500 disabled:opacity-50`} />
