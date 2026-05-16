@@ -1,3 +1,30 @@
+// Platform shared types and contracts
+export {
+	AuditLevel,
+	CapabilityLevel,
+	CapabilityPermission,
+	CURRENT_PLATFORM_VERSION,
+	DEFAULT_AUDIT_SPEC,
+	DependencyType,
+	PlanExecutionStatus,
+	PlatformComponent,
+	PlatformVersion,
+	WorkerStage,
+	WorkspaceStage,
+	ValidationIssueSeverity,
+	type AuditSpec,
+	type CapabilityHook,
+	type CapabilityManifest,
+	type CapabilityVersion,
+	type CompatibilitySpec,
+	type ComponentManifest,
+	type ManifestValidationResult,
+	type PlatformManifest,
+	type ValidationIssue,
+	validateCapabilityManifest,
+	validatePlatformManifest,
+} from "./platform/index.js";
+
 // State store interface and implementations
 
 export {
@@ -170,7 +197,6 @@ export {
 	type Workspace,
 	type WorkspaceCapabilityManifest,
 	type WorkspaceQueue,
-	WorkspaceStage,
 } from "./core/workspace-schema.js";
 export {
 	type AuditEntry,
@@ -509,6 +535,69 @@ export {
 	type Skill,
 	type SkillFrontmatter,
 } from "./core/skills.js";
+// P11.E Skill Package Format
+export {
+	createSkillPackage,
+	loadSkillPackage,
+	type SkillPackage,
+	type SkillPackageDependency,
+	type SkillPackageManifest,
+	type SkillPackageValidationError,
+	validateSkillPackageManifest,
+	validateSkillPackageStructure,
+	SKILL_PACKAGE_METADATA_FILE,
+} from "./core/skill-package.js";
+// P11.E Skill Runner
+export {
+	checkCommandCapability,
+	checkFileCapability,
+	executeSkill,
+	type SkillExecutionContext,
+	type SkillExecutionOutput,
+	type SkillPolicyCheckResult,
+	type SkillPolicyConstraints,
+	substituteVariables,
+	validateSkillCommand,
+	validateSkillFileOperation,
+} from "./core/skill-runner.js";
+// P11.E Skill Quality Metadata
+export {
+	formatSkillQualityTable,
+	type ReliabilityRating,
+	type ReliabilityScore,
+	scoreToRating,
+	type SkillQualityApiEntry,
+	type SkillQualityApiResponse,
+	type SkillQualityRecord,
+	type SkillQualitySummary,
+	SkillQualityStore,
+	type SkillTestResult,
+	type SkillTestRun,
+	type SkillUsageStats,
+} from "./core/skill-quality.js";
+// P11.E Skill Output Artifacts
+export {
+	type PlanIntakeSkillArtifact,
+	type ProposalSkillArtifact,
+	type RemediationSkillArtifact,
+	type SkillArtifactStatus,
+	type SkillArtifactType,
+	type SkillOutputArtifact,
+	SkillOutputArtifactStore,
+} from "./core/skill-output-artifact.js";
+// P11.E Skill Package Manager
+export {
+	createSkillPackageManager,
+	formatSkillInvokeResult,
+	formatSkillPackageList,
+	type SkillInvokeResult,
+	type SkillPackageInstallResult,
+	type SkillPackageListEntry,
+	SkillPackageManager,
+	type SkillPackageManagerConfig,
+	type SkillPackageStatus,
+	type SkillTestResultSummary,
+} from "./core/skill-package-manager.js";
 export { createSyntheticSourceInfo } from "./core/source-info.js";
 export {
 	estimateTokensFromMessage,
@@ -641,3 +730,43 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
 export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
 // Shell utilities
 export { getShellConfig } from "./utils/shell.js";
+// P11.A — Platform capability manifest and shared contracts
+export {
+	DEFAULT_PLATFORM_PERMISSION,
+	PLATFORM_CONTRACT_VERSION,
+	PLATFORM_PERMISSIONS,
+	validateManifest,
+} from "./platform/index.js";
+export type {
+	HookLifecycle,
+	HookTrigger,
+	ManifestValidationError,
+	ManifestValidationResult,
+	PlatformAuditAction,
+	PlatformAuditEntry,
+	PlatformAuditPolicy,
+	PlatformAuditResult,
+	PlatformCapabilityManifest,
+	PlatformCompatibility,
+	PlatformExecutionStatus,
+	PlatformFeatureFlag,
+	PlatformHook,
+	PlatformLogStream,
+	PlatformPermission,
+	PlatformPermissionDescriptor,
+	PlatformWorkerStage,
+	PlatformWorkspaceStage,
+} from "./platform/index.js";
+
+// P11 — Orchestrator
+// Proposal generation from scan findings and orchestrator types
+export { createOrchestratorProposalGenerator, OrchestratorProposalGenerator } from "./orchestrator/index.js";
+export type { OrchestratorProposalGeneratorConfig } from "./orchestrator/index.js";
+export type {
+	OrchestratorProposal,
+	PolicyClassification,
+	ProposalEvidenceLink,
+	ProposalGenerationResult,
+	ProposalSourceType,
+	SuggestedNextAction,
+} from "./orchestrator/index.js";

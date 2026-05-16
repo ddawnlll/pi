@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
+import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
@@ -410,6 +411,9 @@ async function executeCleanupAgent(config: {
 			session.dispose();
 		}
 
+		// Kill any orphan child processes left by the cleanup agent session
+		killTrackedDetachedChildren();
+
 		// Unsubscribe before parsing to avoid further event processing
 		if (unsubscribe) {
 			unsubscribe();
@@ -474,6 +478,8 @@ async function executeCleanupAgent(config: {
 				// Non-fatal
 			}
 		}
+		// Kill any orphan child processes left by the failed session
+		killTrackedDetachedChildren();
 		const fallback: CleanupReviewResult = {
 			passed: false,
 			summary: `Cleanup review failed: ${errorMsg}`,
@@ -508,6 +514,8 @@ async function executeCleanupAgent(config: {
 				// Non-fatal
 			}
 		}
+		// Safety net: kill any orphan child processes left by the cleanup agent
+		killTrackedDetachedChildren();
 	}
 }
 

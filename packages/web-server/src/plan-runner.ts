@@ -438,12 +438,48 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		const doctor = createSafetyDoctor();
 		const safetyReport = doctor.validateQueue(parseResult.queue);
 
+		// Check if explicit approval is enabled, which allows self-modification
+		// plans to proceed (the firewall still enforces per-workspace guards).
+		// Read settings.json directly since explicitApproval is not a typed field
+		// in the SettingsManager Settings interface.
+		let isExplicitApproval = false;
+		try {
+			const settingsPath = join(workspaceRoot, ".pi", "settings.json");
+			const settingsRaw = await readFile(settingsPath, "utf-8");
+			const settings = JSON.parse(settingsRaw);
+			isExplicitApproval = settings.explicitApproval === true;
+		} catch {
+			// Non-fatal — fall back to blocking self-modification
+		}
+
 		if (!safetyReport.safe) {
-			return {
-				success: false,
-				errors: safetyReport.critical.map((i) => `[${i.type}] ${i.message}`),
-				warnings: [...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`), ...parseResult.warnings],
-			};
+			// When explicit approval is enabled, demote self-modification criticals
+			// to warnings so the plan can proceed.
+			const remainingCriticals = isExplicitApproval
+				? safetyReport.critical.filter((i) => i.type !== "self_modification")
+				: safetyReport.critical;
+
+			const selfModWarnings = isExplicitApproval
+				? safetyReport.critical
+						.filter((i) => i.type === "self_modification")
+						.map((i) => `[${i.type}] ${i.message} — proceeding because explicitApproval is enabled`)
+				: [];
+
+			if (remainingCriticals.length > 0) {
+				return {
+					success: false,
+					errors: remainingCriticals.map((i) => `[${i.type}] ${i.message}`),
+					warnings: [
+						...selfModWarnings,
+						...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`),
+						...parseResult.warnings,
+					],
+				};
+			}
+
+			// Only self-modification criticals remain and explicit approval is on.
+			// Continue without returning early. The self-modification firewall will
+			// still enforce per-workspace enhanced approval during execution.
 		}
 
 		// Audit log: safety doctor validation result
@@ -1551,6 +1587,26 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		// Already terminal or no state — nothing to do
 		new PiLogger({ planExecId }).info(`Failed to adopt execution ${planExecId}`);
 		return false;
+	}
+
+	// Filter out already-completed workspaces so the background loop doesn't
+	// re-schedule them. This preserves progress across crashes: P11.0 and P11.A
+	// should not be re-executed after recovery.
+	const executorState = executor.getState();
+	const completeWorkspaceIds = new Set<string>();
+	if (executorState) {
+		for (const [wsId, ws] of executorState.workspaces) {
+			if (ws.stage === "complete") {
+				completeWorkspaceIds.add(wsId);
+			}
+		}
+	}
+	if (completeWorkspaceIds.size > 0) {
+		const originalCount = queue.workspaces.length;
+		queue.workspaces = queue.workspaces.filter((w) => !completeWorkspaceIds.has(w.id));
+		new PiLogger({ planExecId }).info(
+			`Filtered out ${completeWorkspaceIds.size} complete workspace(s) from recovery queue (${originalCount} → ${queue.workspaces.length})`,
+		);
 	}
 
 	// Create the execution tracking object

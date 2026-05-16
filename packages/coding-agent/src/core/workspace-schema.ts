@@ -63,6 +63,7 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"2.3.0",
 	"2.3.1",
 	"2.3.2",
+	"2.4.0",
 ]);
 
 /**

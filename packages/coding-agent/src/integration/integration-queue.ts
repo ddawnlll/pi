@@ -524,6 +524,20 @@ export class IntegrationQueue {
 	}
 
 	/**
+	 * Check whether the queue has any unresolved entries (queued, merging,
+	 * validating, blocked, conflict, or failed).
+	 *
+	 * Used by PlanQueueRunner to prevent starting a new plan while the
+	 * integration queue still has work to resolve or complete.
+	 *
+	 * @returns true if there are unresolved entries
+	 */
+	async hasUnresolvedEntries(): Promise<boolean> {
+		await this.loadState();
+		return this.state.entries.some((e) => e.status !== "merged");
+	}
+
+	/**
 	 * Retry a blocked, conflict, or failed queue entry.
 	 *
 	 * Resets the entry status to "queued" so it will be picked up by the

@@ -988,9 +988,9 @@ export class JsonStateStore implements IStateStore {
 				executions[idx].completedAt = new Date().toISOString();
 			}
 			const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
-			const tempPath = `${filePath}.tmp`;
-			await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
-			await fs.rename(tempPath, filePath);
+			// Write directly instead of temp+rename to avoid race conditions
+			// when multiple workers call updateExecutionStatus concurrently.
+			await fs.writeFile(filePath, JSON.stringify(executions, null, 2), "utf-8");
 		}
 	}
 

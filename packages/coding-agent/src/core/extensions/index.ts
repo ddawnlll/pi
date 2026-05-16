@@ -29,6 +29,7 @@ export type {
 	AppendEntryHandler,
 	// App keybindings (for custom editors)
 	AppKeybinding,
+	AuditEvent,
 	AutocompleteProviderFactory,
 	// Events - Tool (ToolCallEvent types)
 	BashToolCallEvent,
@@ -66,8 +67,12 @@ export type {
 	ExtensionFactory,
 	ExtensionFlag,
 	ExtensionHandler,
+	ExtensionPackage,
+	ExtensionPackageManifest,
+	ExtensionPackageState,
 	// Runtime
 	ExtensionRuntime,
+	ExtensionRuntimeState,
 	ExtensionShortcut,
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
@@ -81,6 +86,8 @@ export type {
 	GrepToolCallEvent,
 	GrepToolResultEvent,
 	// Events - Input
+	HealthEvent,
+	HealthStatus,
 	InputEvent,
 	InputEventResult,
 	InputSource,
@@ -105,11 +112,16 @@ export type {
 	// Commands
 	RegisteredCommand,
 	RegisteredTool,
+	RegistryEvent,
+	RegistryEventListener,
+	RegistryEventType,
 	ReplacedSessionContext,
 	ResolvedCommand,
 	// Events - Resources
 	ResourcesDiscoverEvent,
 	ResourcesDiscoverResult,
+	RuntimeHostEvent,
+	RuntimeHostListener,
 	SendMessageHandler,
 	SendUserMessageHandler,
 	SessionBeforeCompactEvent,
@@ -170,3 +182,11 @@ export {
 	isWriteToolResult,
 } from "./types.js";
 export { wrapRegisteredTool, wrapRegisteredTools } from "./wrapper.js";
+export { ExtensionRegistry } from "./registry.js";
+export { RuntimeHost } from "./runtime-host.js";
+export {
+	isPiVersionCompatible,
+	isValidSemver,
+	satisfies,
+	validateManifest,
+} from "./validate.js";

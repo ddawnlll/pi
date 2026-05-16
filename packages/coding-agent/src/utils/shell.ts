@@ -1,7 +1,135 @@
 import { existsSync } from "node:fs";
 import { delimiter } from "node:path";
-import { spawn, spawnSync } from "child_process";
+// eslint-disable-next-line no-restricted-imports
+import child_process, { spawn, spawnSync } from "child_process";
 import { getBinDir } from "../config.js";
+
+// ---------------------------------------------------------------------------
+// Global validation process lock
+//
+// Hard security layer: intercepts ALL child_process.spawn calls at the
+// Node.js runtime level. When a validation command (vitest, npm test, etc.)
+// is spawned, it is queued behind any already-running validation command.
+//
+// This catches spawns from ANY code path — bash tool, bash-executor, direct
+// execSync/exec, npm scripts, third-party tools — regardless of whether
+// they go through the bash-executor.ts validation lock.
+// ---------------------------------------------------------------------------
+
+/**
+ * Commands matching any of these prefixes are considered validation commands.
+ * Validation commands are serialized globally via the spawn lock.
+ */
+const VALIDATION_COMMAND_PREFIXES: readonly string[] = [
+	"vitest",
+	"npx vitest",
+	"npm test",
+	"npm run test",
+	"npm run typecheck",
+	"npm run check",
+	"npm run build",
+	"pnpm test",
+	"pnpm run test",
+	"tsc --noEmit",
+	"npx tsc --noEmit",
+	"npx tsgo --noEmit",
+	"vite build",
+];
+
+function isValidationCommand(command: string): boolean {
+	const trimmed = command.trimStart();
+	return VALIDATION_COMMAND_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+}
+
+/**
+ * A fair async mutex for serializing validation command spawns.
+ * Only one validation process may run at a time across the entire process.
+ */
+class ValidationSpawnLock {
+	private _locked = false;
+	private _queue: Array<() => void> = [];
+
+	acquire(): Promise<void> {
+		if (!this._locked) {
+			this._locked = true;
+			return Promise.resolve();
+		}
+		return new Promise((resolve) => {
+			this._queue.push(resolve);
+		});
+	}
+
+	release(): void {
+		const next = this._queue.shift();
+		if (next) {
+			queueMicrotask(next);
+		} else {
+			this._locked = false;
+		}
+	}
+}
+
+const validationSpawnLock = new ValidationSpawnLock();
+
+/**
+ * Install the global spawn interceptor.
+ * Patches child_process.spawn so any validation command (vitest, npm test, etc.)
+ * kills any previously spawned validation process before spawning a new one.
+ *
+ * This is a hard safety net: it runs at the Node.js runtime level and catches
+ * spawns from ANY code path, regardless of whether they go through bash-executor
+ * or the bash tool's validationLock option.
+ *
+ * Auto-installed at module load time.
+ */
+export function installValidationSpawnLock(): void {
+	const origSpawn = child_process.spawn;
+
+	// Already patched — detect by checking if our marker exists
+	if ((child_process as any).__pi_validation_spawn_patched) return;
+
+	const patchedSpawn: typeof origSpawn = function (this: unknown, command: string, argsOrOptions?: any, options?: any) {
+		// Determine the full command string for validation check
+		const fullCommand = Array.isArray(argsOrOptions)
+			? `${command} ${argsOrOptions.join(" ")}`
+			: command;
+
+		if (!isValidationCommand(fullCommand)) {
+			// Not a validation command — pass through immediately
+			return origSpawn.call(this, command as any, argsOrOptions as any, options as any);
+		}
+
+		// Validation command — kill any previously running validation process
+		// before spawning a new one. This is a hard safety net.
+		killTrackedDetachedChildren();
+
+		const spawnResult = origSpawn.call(this, command as any, argsOrOptions as any, options as any);
+
+		// Track this process so it can be killed when a new validation starts
+		// or during cleanup.
+		if (spawnResult.pid) {
+			trackDetachedChildPid(spawnResult.pid);
+
+			// When this process exits, untrack so the slot frees up
+			spawnResult.on("exit", () => {
+				untrackDetachedChildPid(spawnResult.pid!);
+			});
+		}
+
+		return spawnResult;
+	} as typeof origSpawn;
+
+	(child_process as any).spawn = patchedSpawn;
+	(child_process as any).__pi_validation_spawn_patched = true;
+}
+
+/**
+ * Uninstall the global spawn interceptor (for testing only).
+ */
+export function uninstallValidationSpawnLock(): void {
+	(child_process as any).spawn = child_process.spawn;
+	(child_process as any).__pi_validation_spawn_patched = false;
+}
 
 export interface ShellConfig {
 	shell: string;
@@ -162,6 +290,9 @@ export function sanitizeBinaryOutput(str: string): string {
 /**
  * Detached child processes must be tracked so they can be killed on parent
  * shutdown signals (SIGHUP/SIGTERM).
+ *
+ * Also used by the global validation spawn lock to kill competing validation
+ * processes when a new one is spawned.
  */
 const trackedDetachedChildPids = new Set<number>();
 

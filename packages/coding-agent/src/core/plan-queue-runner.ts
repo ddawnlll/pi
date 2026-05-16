@@ -85,6 +85,8 @@ export interface PlanQueueRunnerConfig {
 	stopOnFailure?: boolean;
 	/** Function to check if working tree is dirty (default: git check) */
 	isDirtyFn?: () => Promise<boolean>;
+	/** Function to check if the integration queue has unresolved entries (optional) */
+	isIntegrationQueueDirtyFn?: () => Promise<boolean>;
 	/** Function to execute a single plan (must be provided) */
 	executePlanFn: (entry: PlanQueueEntry) => Promise<{ success: boolean; error?: string }>;
 	/** Function to check if plan gates passed (default: checks execution status) */
@@ -120,6 +122,7 @@ export class PlanQueueRunner {
 	private stateStore: IStateStore;
 	private stopOnFailure: boolean;
 	private isDirtyFn: () => Promise<boolean>;
+	private isIntegrationQueueDirtyFn?: () => Promise<boolean>;
 	private executePlanFn: (entry: PlanQueueEntry) => Promise<{ success: boolean; error?: string }>;
 	private checkGatesFn: (planExecutionId: string) => Promise<boolean>;
 	private stateFilePath: string;
@@ -140,6 +143,7 @@ export class PlanQueueRunner {
 		this.stateStore = config.stateStore;
 		this.stopOnFailure = config.stopOnFailure ?? true;
 		this.isDirtyFn = config.isDirtyFn ?? this.defaultIsDirtyFn.bind(this);
+		this.isIntegrationQueueDirtyFn = config.isIntegrationQueueDirtyFn;
 		this.executePlanFn = config.executePlanFn;
 		this.checkGatesFn = config.checkGatesFn ?? this.defaultCheckGatesFn.bind(this);
 		this.stateFilePath = path.join(this.workspaceRoot, this.piDir, "plan-queue-state.json");
@@ -367,6 +371,22 @@ export class PlanQueueRunner {
 
 				// Dirty tree stops the queue — we cannot proceed until the tree is clean
 				break;
+			}
+
+			// P6.C AC: Check integration queue — do not start next plan until it is clean
+			if (this.isIntegrationQueueDirtyFn) {
+				const isIntegrationDirty = await this.isIntegrationQueueDirtyFn();
+				if (isIntegrationDirty) {
+					next.status = PlanQueueEntryStatus.Blocked;
+					next.blockReason =
+						"Integration queue has unresolved entries: existing plan integration not yet complete";
+					next.completedAt = Date.now();
+					this.activeEntryId = null;
+					await this.saveState();
+
+					// Integration queue not clean stops the queue
+					break;
+				}
 			}
 
 			// P8.E AC2: Check draft execution gate before executing

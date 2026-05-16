@@ -201,19 +201,49 @@ export class WorktreeWorkspaceExecutor {
 	/**
 	 * Ensure the git branch for this worktree exists, based at the current HEAD.
 	 * Creates a lightweight branch if it doesn't exist yet.
+	 *
+	 * Uses a file-level lock to avoid git ref locking conflicts when multiple
+	 * workers create branches concurrently. If the branch already exists,
+	 * it is reset with -f under the same lock.
 	 */
 	private async ensureBranch(cwd: string, baseCommit: string): Promise<void> {
+		// Use a file lock to serialise concurrent branch creation from parallel workers.
+		// Git ref locks are per-process and don't coordinate across concurrent calls.
+		const lockDir = path.join(cwd, ".pi", "worktree-branch-locks");
+		await fs.mkdir(lockDir, { recursive: true });
+		const lockPath = path.join(lockDir, sanitizeForPath(this.planExecutionId) + ".lock");
+
+		// Acquire lock with retry
+		for (let attempt = 1; attempt <= 30; attempt++) {
+			try {
+				await fs.writeFile(lockPath, this.workspaceId, { flag: "wx" });
+				break; // lock acquired
+			} catch {
+				// Lock held by another worker — wait and retry
+				await new Promise((r) => setTimeout(r, 200));
+			}
+		}
+
 		try {
 			// Check if the branch already exists
 			const existing = await git(["branch", "--list", this.branchName], cwd);
 			if (!existing) {
-				// Create a new branch at the base commit
 				await git(["branch", this.branchName, baseCommit], cwd);
+			} else {
+				// Reset existing branch to base commit
+				await git(["branch", "-f", this.branchName, baseCommit], cwd);
 			}
 		} catch (err) {
 			throw new Error(
 				`Failed to create branch ${this.branchName}: ${err instanceof Error ? err.message : String(err)}`,
 			);
+		} finally {
+			// Release lock
+			try {
+				await fs.unlink(lockPath);
+			} catch {
+				// Ignore cleanup errors
+			}
 		}
 	}
 
@@ -284,11 +314,26 @@ export class WorktreeWorkspaceExecutor {
 			};
 		}
 
-		// Ensure the branch exists
-		await this.ensureBranch(this.workspaceRoot, baseCommit);
+		// Acquire a file-level lock around branch + worktree creation to prevent
+		// git ref locking conflicts when multiple workers create worktrees concurrently.
+		const lockDir = path.join(this.workspaceRoot, ".pi", "worktree-create-locks");
+		await fs.mkdir(lockDir, { recursive: true });
+		const lockPath = path.join(lockDir, sanitizeForPath(this.planExecutionId) + ".lock");
 
-		// Create the worktree
+		for (let attempt = 1; attempt <= 60; attempt++) {
+			try {
+				await fs.writeFile(lockPath, this.workspaceId, { flag: "wx" });
+				break;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+
 		try {
+			// Ensure the branch exists
+			await this.ensureBranch(this.workspaceRoot, baseCommit);
+
+			// Create the worktree
 			await git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
 		} catch (err) {
 			return {
@@ -296,6 +341,9 @@ export class WorktreeWorkspaceExecutor {
 				created: false,
 				error: `Failed to create git worktree: ${err instanceof Error ? err.message : String(err)}`,
 			};
+		} finally {
+			// Release lock
+			try { await fs.unlink(lockPath); } catch {}
 		}
 
 		const state: WorktreeState = {

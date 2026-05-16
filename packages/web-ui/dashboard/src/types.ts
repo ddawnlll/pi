@@ -562,3 +562,100 @@ export interface ScaleModeReadiness {
 	maxAllowedWorkers: number;
 	experimentalModeEnabled: boolean;
 }
+
+// =============================================================================
+// Autonomy & Self-Improvement Center Types (P11.N)
+// =============================================================================
+
+/** Orchestrator daemon state. */
+export type OrchestratorStatus =
+	| "running"
+	| "paused"
+	| "stopped"
+	| "error"
+	| "starting";
+
+/** Overall orchestrator health assessment. */
+export type OrchestratorHealthLevel =
+	| "healthy"
+	| "degraded"
+	| "unhealthy"
+	| "unknown";
+
+/** A single scan schedule entry. */
+export interface OrchestratorScan {
+	kind: string;
+	label: string;
+	intervalMs: number;
+	lastScanAt: number | null;
+	nextScanAt: number | null;
+	lastDurationMs: number | null;
+	skipped: boolean;
+	skippedReason: string | null;
+	failureCount: number;
+	backoffUntil: number | null;
+}
+
+/** Budget/rate-limit state for the orchestrator. */
+export interface OrchestratorBudget {
+	/** Total tokens consumed in current window. */
+	consumedTokens: number;
+	/** Maximum tokens allowed in current window. */
+	tokenLimit: number;
+	/** Number of API calls in current window. */
+	consumedCalls: number;
+	/** Maximum API calls allowed in current window. */
+	callLimit: number;
+	/** When the current budget window resets (epoch ms). */
+	windowResetAt: number;
+}
+
+/** Full orchestrator health response from the API. */
+export interface OrchestratorHealth {
+	/** Current orchestrator status. */
+	status: OrchestratorStatus;
+	/** Overall health assessment. */
+	health: OrchestratorHealthLevel;
+	/** When the orchestrator was last started (epoch ms). */
+	startedAt: number | null;
+	/** Uptime in milliseconds. */
+	uptimeMs: number;
+	/** Scan schedules and their state. */
+	scans: OrchestratorScan[];
+	/** Budget/rate-limit state. */
+	budget: OrchestratorBudget | null;
+	/** Recent error messages (max 5). */
+	recentErrors: string[];
+	/** Whether the orchestrator is paused. */
+	paused: boolean;
+	/** Human-readable pause reason, if paused. */
+	pauseReason: string | null;
+	/** Last heartbeat timestamp (epoch ms). */
+	lastHeartbeatAt: number;
+}
+
+/** Request body for orchestrator control actions. */
+export interface OrchestratorActionRequest {
+	action: "pause" | "resume" | "request_scan";
+	scanKind?: string;
+	reason?: string;
+}
+
+/** Response from orchestrator control actions. */
+export interface OrchestratorActionResponse {
+	success: boolean;
+	error?: string;
+	health?: OrchestratorHealth;
+}
+
+/** Autonomy center aggregated data from the API. */
+export interface AutonomyDashboardData {
+	/** Orchestrator health snapshot. */
+	health: OrchestratorHealth;
+	/** Recent proposals from the orchestrator. */
+	proposals: ProposalResponse[];
+	/** Timestamp when this data was fetched (epoch ms). */
+	fetchedAt: number;
+	/** Whether the data is considered stale (>60s old). */
+	stale: boolean;
+}

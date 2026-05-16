@@ -19,5 +19,40 @@
     "description": null,
     "rootPath": null,
     "createdAt": "2026-05-11T18:20:17.020Z"
+  },
+  {
+    "id": "8df0d430-18fb-4ef2-8efd-19b13f79cfe3",
+    "name": "pi-source",
+    "description": null,
+    "rootPath": "/Users/hootie/src/pi",
+    "createdAt": "2026-05-16T12:44:31.848Z"
+  },
+  {
+    "id": "3998e998-b58d-4c05-b7b5-78a2c01cbe82",
+    "name": "pi-src",
+    "description": null,
+    "rootPath": "/Users/hootie/src/pi",
+    "createdAt": "2026-05-16T12:48:50.838Z"
+  },
+  {
+    "id": "16ca797d-f8ee-41ad-87db-b385ab578a9e",
+    "name": "p11-project",
+    "description": null,
+    "rootPath": "/Users/hootie/src/pi",
+    "createdAt": "2026-05-16T14:12:03.259Z"
+  },
+  {
+    "id": "162a2ace-fe22-4450-b442-34862870d2bf",
+    "name": "p11-project2",
+    "description": null,
+    "rootPath": "/Users/hootie/src/pi",
+    "createdAt": "2026-05-16T14:14:11.623Z"
+  },
+  {
+    "id": "bd93f587-220a-4abc-b6f0-b72a4b44c848",
+    "name": "p11-v2",
+    "description": null,
+    "rootPath": "/Users/hootie/src/pi",
+    "createdAt": "2026-05-16T14:20:32.461Z"
   }
 ]

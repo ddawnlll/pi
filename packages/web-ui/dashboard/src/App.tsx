@@ -9,7 +9,8 @@ import {
   Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
-  AlertTriangle, BarChart3, Lightbulb, RefreshCw,
+  AlertTriangle, BarChart3, Lightbulb, RefreshCw, Package, BookOpen,
+  Sliders,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import { usePlanState } from "./hooks/usePlanState";
@@ -20,6 +21,7 @@ import { usePlanEvents } from "./hooks/usePlanEvents";
 import { useToolCallEvents } from "./hooks/useToolCallEvents";
 import { useSettings } from "./hooks/useSettings";
 import { useIntegrationQueueStatus } from "./hooks/useScaleStatus";
+import { useBatchPlan } from "./hooks/useBatchPlan";
 import { useTheme } from "./hooks/useTheme";
 import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
@@ -50,6 +52,14 @@ import { ScaleOverviewStrip } from "./components/ScaleOverviewStrip";
 import { ScaleCockpitPanel } from "./components/ScaleCockpitPanel";
 import { BatchOSDashboard } from "./components/BatchOSDashboard";
 import { LeadAgentDashboard } from "./components/LeadAgentDashboard";
+import { AutonomyCenter } from "./features/autonomy/AutonomyCenter";
+import { ExtensionsManager } from "./components/ExtensionsManager";
+import { SkillsManager } from "./components/SkillsManager";
+import { LeftNav, PlatformSectionHeader, type PlatformNavItem } from "./components/LeftNav";
+import { RegistrySettings } from "./features/settings/RegistrySettings";
+import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
+import { MemoryCockpit } from "./features/memory/MemoryCockpit";
+import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 
 const API_BASE = "";
 
@@ -155,13 +165,51 @@ export function App() {
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [showScaleCockpit, setShowScaleCockpit] = useState(false);
   const [showBatchOS, setShowBatchOS] = useState(false);
+  const [showAutonomy, setShowAutonomy] = useState(false);
   const [showLeadAgent, setShowLeadAgent] = useState(false);
+  const [showExtensions, setShowExtensions] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
+  const [showPlanIntake, setShowPlanIntake] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
+  const [showPolicyAudit, setShowPolicyAudit] = useState(false);
+  const [showRegistrySettings, setShowRegistrySettings] = useState(false);
+  const [platformActiveItem, setPlatformActiveItem] = useState<PlatformNavItem | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
-  /** Left sidebar tab: "nav" = projects + history */
+  /** Left sidebar tab: "nav" = projects + history + platform */
   const [leftTab, setLeftTab] = useState<"nav" | "queue">("nav");
+
+  /** Navigate to a Platform feature, toggling it on/off and coordinating toolbar buttons. */
+  const navigateToPlatform = useCallback((item: PlatformNavItem) => {
+    // Turn off all platform-related screens
+    setShowAutonomy(false);
+    setShowPlanIntake(false);
+    setShowExtensions(false);
+    setShowSkills(false);
+    setShowMemory(false);
+    setShowPolicyAudit(false);
+    setShowRegistrySettings(false);
+    setShowScaleCockpit(false);
+    setShowLeadAgent(false);
+    setShowBatchOS(false);
+    // If clicking the same item, toggle off; otherwise activate
+    if (platformActiveItem !== item) {
+      setPlatformActiveItem(item);
+      switch (item) {
+        case "autonomy": setShowAutonomy(true); break;
+        case "plan_intake": setShowPlanIntake(true); break;
+        case "extensions_skills": setShowExtensions(true); break;
+        case "memory": setShowMemory(true); break;
+        case "policy_audit": setShowPolicyAudit(true); break;
+        case "registry_settings": setShowRegistrySettings(true); break;
+      }
+    } else {
+      setPlatformActiveItem(null);
+    }
+    setMobileNav(null);
+  }, [platformActiveItem]);
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id);
@@ -174,6 +222,7 @@ export function App() {
   const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { data: integrationQueueData } = useIntegrationQueueStatus(hasProjects);
+  const { data: batchPlanData } = useBatchPlan(selectedProjectId, selectedPlanExecId, showBatchOS);
 
   useEffect(() => {
     if (!selectedPlanExecId && executions.length > 0) {
@@ -427,6 +476,14 @@ export function App() {
                       ))
                     )}
                   </div>
+                  <Divider />
+                  <PlatformSectionHeader title="Platform" />
+                  <div className="flex flex-col gap-0.5 overflow-y-auto">
+                    <LeftNav
+                      activeItem={platformActiveItem}
+                      onNavigate={navigateToPlatform}
+                    />
+                  </div>
                 </>
               )}
 
@@ -450,9 +507,13 @@ export function App() {
             <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
             <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
             <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
-            <LabeledBtn icon={Cpu} label="Scale" onClick={() => { setShowScaleCockpit(o => !o); setShowBatchOS(false); }} accent={showScaleCockpit} />
-            <LabeledBtn icon={Lightbulb} label="Lead Agent" onClick={() => { setShowLeadAgent(o => !o); setShowScaleCockpit(false); setShowBatchOS(false); }} accent={showLeadAgent} />
-            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setShowBatchOS(o => !o); setShowScaleCockpit(false); setShowLeadAgent(false); }} accent={showBatchOS} />
+            <LabeledBtn icon={Cpu} label="Scale" onClick={() => { setPlatformActiveItem(null); setShowScaleCockpit(o => !o); setShowBatchOS(false); setShowLeadAgent(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); setShowExtensions(false); setShowSkills(false); }} accent={showScaleCockpit} />
+            <LabeledBtn icon={Lightbulb} label="Lead Agent" onClick={() => { setPlatformActiveItem(null); setShowLeadAgent(o => !o); setShowScaleCockpit(false); setShowBatchOS(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); setShowExtensions(false); setShowSkills(false); }} accent={showLeadAgent} />
+            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setPlatformActiveItem(null); setShowBatchOS(o => !o); setShowScaleCockpit(false); setShowLeadAgent(false); setShowAutonomy(false); setShowExtensions(false); setShowSkills(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); }} accent={showBatchOS} />
+            <LabeledBtn icon={Cpu} label="Autonomy" onClick={() => { setPlatformActiveItem(o => o === 'autonomy' ? null : 'autonomy'); setShowAutonomy(o => !o); setShowScaleCockpit(false); setShowLeadAgent(false); setShowBatchOS(false); setShowExtensions(false); setShowSkills(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); }} accent={showAutonomy} />
+            <LabeledBtn icon={Package} label="Extensions" onClick={() => { setPlatformActiveItem(o => o === 'extensions_skills' ? null : 'extensions_skills'); setShowExtensions(o => !o); setShowSkills(false); setShowScaleCockpit(false); setShowLeadAgent(false); setShowBatchOS(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); }} accent={showExtensions} />
+            <LabeledBtn icon={BookOpen} label="Skills" onClick={() => { setPlatformActiveItem(o => o === 'extensions_skills' ? null : 'extensions_skills'); setShowSkills(o => !o); setShowExtensions(false); setShowScaleCockpit(false); setShowLeadAgent(false); setShowBatchOS(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); }} accent={showSkills} />
+            <LabeledBtn icon={Sliders} label="Registry" onClick={() => { navigateToPlatform('registry_settings'); }} accent={showRegistrySettings} />
             {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
           </div>
 
@@ -517,8 +578,22 @@ export function App() {
             <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
           )}
 
-          {/* scale cockpit (replaces worker detail when active) */}
-          {showLeadAgent ? (
+          {/* P11 feature panels — platform screens */}
+          {showRegistrySettings ? (
+            <RegistrySettings className="flex-1 min-h-0" />
+          ) : showPlanIntake ? (
+            <PlanIntakePanel className="flex-1 min-h-0" />
+          ) : showMemory ? (
+            <MemoryCockpit className="flex-1 min-h-0" />
+          ) : showPolicyAudit ? (
+            <PolicyAuditCenter className="flex-1 min-h-0" />
+          ) : showExtensions ? (
+            <ExtensionsManager className="flex-1 min-h-0" />
+          ) : showSkills ? (
+            <SkillsManager className="flex-1 min-h-0" />
+          ) : showAutonomy ? (
+            <AutonomyCenter className="flex-1 min-h-0" />
+          ) : showLeadAgent ? (
             <LeadAgentDashboard className="flex-1 min-h-0" />
           ) : showScaleCockpit ? (
             <>
@@ -532,7 +607,10 @@ export function App() {
               className="flex-1 min-h-0"
               planStatus={activePlanStatus}
               hasActiveExecution={selectedPlanExecId !== null}
+              workspaces={activeWorkspaces}
+              batchPlan={batchPlanData}
               onControl={(action) => handleControl(action)}
+              onWorkspaceClick={(id) => setSelectedWorkerId(id)}
             />
           ) : (
             <>

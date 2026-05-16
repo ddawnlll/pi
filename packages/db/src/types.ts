@@ -65,6 +65,31 @@ export interface JournalEventRow {
 }
 
 /**
+ * Audit event entry for the Platform Audit Ledger (P11.M).
+ *
+ * Records platform action evaluations with flexible filtering
+ * dimensions and extensible enterprise export support.
+ */
+export interface AuditEventRow {
+	id: string;
+	action: string;
+	status: "allowed" | "denied" | "pending-approval" | "approved" | "rejected" | "rollback";
+	domain: string;
+	actor: string | null;
+	project_id: string | null;
+	capability: string | null;
+	workspace_id: string | null;
+	proposal_id: string | null;
+	extension_id: string | null;
+	skill_id: string | null;
+	memory_source: string | null;
+	reason: string | null;
+	data: Record<string, unknown>;
+	timestamp: string;
+	created_at: string;
+}
+
+/**
  * Chat message entry
  */
 export interface ChatMessageRow {
@@ -120,6 +145,31 @@ export interface ProposalRow {
 // Kysely table definitions
 // =============================================================================
 
+// =============================================================================
+// Memory vector row (P11.F)
+// =============================================================================
+
+/**
+ * Raw memory vector row from the database.
+ */
+export interface MemoryVectorRow {
+	id: string;
+	project_id: string;
+	plan_execution_id: string | null;
+	workspace_id: string | null;
+	capability: string | null;
+	content: string;
+	content_hash: string;
+	embedding: number[] | null;
+	embedding_model: string | null;
+	source_pointer: Record<string, unknown>;
+	freshness: string;
+	safety_classification: string;
+	metadata: Record<string, unknown> | null;
+	created_at: string;
+	updated_at: string;
+}
+
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from "kysely";
 
 export interface ProposalTable {
@@ -141,6 +191,43 @@ export interface ProposalTable {
 	updated_at: Generated<string>;
 }
 
+export interface MemoryVectorTable {
+	id: Generated<string>;
+	project_id: string;
+	plan_execution_id: string | null;
+	workspace_id: string | null;
+	capability: string | null;
+	content: string;
+	content_hash: string;
+	embedding: ColumnType<number[] | null, number[] | null, number[] | null>;
+	embedding_model: string | null;
+	source_pointer: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	freshness: ColumnType<string, string, string | undefined>;
+	safety_classification: ColumnType<string, string, string>;
+	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
+}
+
+export interface AuditEventTable {
+	id: Generated<string>;
+	action: string;
+	status: string;
+	domain: string;
+	actor: string | null;
+	project_id: string | null;
+	capability: string | null;
+	workspace_id: string | null;
+	proposal_id: string | null;
+	extension_id: string | null;
+	skill_id: string | null;
+	memory_source: string | null;
+	reason: string | null;
+	data: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	timestamp: string;
+	created_at: Generated<string>;
+}
+
 export interface Database {
 	projects: ProjectTable;
 	plan_executions: PlanExecutionTable;
@@ -150,6 +237,8 @@ export interface Database {
 	chat_messages: ChatMessageTable;
 	proposals: ProposalTable;
 	plan_revisions: PlanRevisionTable;
+	memory_vectors: MemoryVectorTable;
+	audit_events: AuditEventTable;
 	_migrations: MigrationsTable;
 }
 
@@ -264,6 +353,14 @@ export type ProposalUpdate = Updateable<ProposalTable>;
 
 export type PlanRevision = Selectable<PlanRevisionTable>;
 export type NewPlanRevision = Insertable<PlanRevisionTable>;
+
+export type MemoryVector = Selectable<MemoryVectorTable>;
+export type NewMemoryVector = Insertable<MemoryVectorTable>;
+export type MemoryVectorUpdate = Updateable<MemoryVectorTable>;
+
+export type AuditEvent = Selectable<AuditEventTable>;
+export type NewAuditEvent = Insertable<AuditEventTable>;
+export type AuditEventUpdate = Updateable<AuditEventTable>;
 
 export type ChatMessage = Selectable<ChatMessageTable>;
 export type NewChatMessage = Insertable<ChatMessageTable>;

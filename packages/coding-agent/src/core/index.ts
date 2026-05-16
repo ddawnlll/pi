@@ -35,6 +35,28 @@ export {
 	createAgentSessionServices,
 } from "./agent-session-services.js";
 export { type BashExecutorOptions, type BashResult, executeBashWithOperations } from "./bash-executor.js";
+// P11.G Capability Policy Engine
+export {
+	ACTION_LABELS,
+	type ActionCategory,
+	type ActionCategoryMap,
+	type ActionDomain,
+	type ApprovalRecord,
+	CapabilityPolicyEngine,
+	type CapabilityPolicyEngineConfig,
+	type CapabilityPolicyResult,
+	type CapabilityRule,
+	createCapabilityPolicyEngine,
+	DEFAULT_CAPABILITY_RULES,
+	type ExtensionActionCategory,
+	type MemoryActionCategory,
+	type OptimizerActionCategory,
+	type OrchestratorActionCategory,
+	type PermissionVerdict,
+	type ProtectionLevel,
+	type SkillActionCategory,
+	VERDICT_LABELS,
+} from "./capability-policy-engine.js";
 export type { CompactionResult } from "./compaction/index.js";
 export {
 	CompletionGateRegistry,

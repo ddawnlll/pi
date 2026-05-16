@@ -14,6 +14,7 @@ import {
 	trackDetachedChildPid,
 	untrackDetachedChildPid,
 } from "../../utils/shell.js";
+import { withValidationLock } from "../validation-lock.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
 import { OutputAccumulator } from "./output-accumulator.js";
 import { getTextOutput, invalidArgText, str } from "./render-utils.js";
@@ -148,6 +149,12 @@ export interface BashToolOptions {
 	shellPath?: string;
 	/** Hook to adjust command, cwd, or env before execution */
 	spawnHook?: BashSpawnHook;
+	/**
+	 * If true, validation commands (vitest, npm test, etc.) go through the
+	 * global validation lock so only one validation runs at a time across
+	 * all parallel workers. Default: true.
+	 */
+	validationLock?: boolean;
 }
 
 const BASH_PREVIEW_LINES = 5;
@@ -268,6 +275,7 @@ export function createBashToolDefinition(
 	const ops = options?.operations ?? createLocalBashOperations({ shellPath: options?.shellPath });
 	const commandPrefix = options?.commandPrefix;
 	const spawnHook = options?.spawnHook;
+	const useValidationLock = options?.validationLock ?? true;
 	return {
 		name: "bash",
 		label: "bash",
@@ -364,15 +372,31 @@ export function createBashToolDefinition(
 
 			const appendStatus = (text: string, status: string) => `${text ? `${text}\n\n` : ""}${status}`;
 
-			try {
-				let exitCode: number | null;
-				try {
-					const result = await ops.exec(spawnContext.command, spawnContext.cwd, {
+			// Wrap exec in validation lock so validation commands (vitest, npm test, etc.)
+			// are serialized across all parallel workers.
+			const executeCommand = async (): Promise<{ exitCode: number | null }> => {
+				if (!useValidationLock) {
+					return ops.exec(spawnContext.command, spawnContext.cwd, {
 						onData: handleData,
 						signal,
 						timeout,
 						env: spawnContext.env,
 					});
+				}
+				return withValidationLock(spawnContext.command, undefined, async () => {
+					return ops.exec(spawnContext.command, spawnContext.cwd, {
+						onData: handleData,
+						signal,
+						timeout,
+						env: spawnContext.env,
+					});
+				});
+			};
+
+			try {
+				let exitCode: number | null;
+				try {
+					const result = await executeCommand();
 					exitCode = result.exitCode;
 				} catch (err) {
 					const snapshot = await finishOutput();

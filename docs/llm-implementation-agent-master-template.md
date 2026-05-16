@@ -1,8 +1,8 @@
-# LLM Implementation Agent — Master Template v2.3
+# LLM Implementation Agent — Master Template v2.4
 
-**Version:** 2.3.2  
-**Last Updated:** 2026-05-15  
-**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, and queue-aware optimization with priority metadata.
+**Version:** 2.4.0  
+**Last Updated:** 2026-05-16  
+**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, and v2.4 plan lifecycle semantics (advisory batch previews, auto-computed approved graph, optimization proposals).
 
 ---
 
@@ -15,11 +15,45 @@ This template provides a structured format for implementation plans that can be:
 3. **Previewed interactively** before execution so authors can see the real dependency graph, effective parallelism, safe effective parallelism, and batch plan.
 4. **Executed safely at larger scale** when P6 prerequisites such as git worktree isolation, integration queue, validation lock, and scale-mode readiness pass.
 5. **Optimized for queue efficiency** with priority metadata, queue optimization strategies, and workspace-level queue priority that minimize merge contention and accelerate critical-path delivery.
+6. **Analyzed automatically on upload** with DAG recomputation, bottleneck detection, optimizer proposals, and graph diffs that require approval before execution.
 
 The template balances human authority in Markdown with machine executability in the JSON execution contract.
 
 Markdown explains purpose, risks, scope, rollback, and reasoning.  
-Part 3 JSON is the authoritative execution contract.
+Part 3 JSON is the authoritative execution contract. Authored batch previews are advisory until Pi recomputes and persists the approved graph.
+
+---
+
+## What Changed in v2.4.0
+
+v2.4.0 adds **plan-intake auto-analysis and DAG optimizer** support. Plans uploaded to Pi are now automatically analyzed: DAG recomputed, bottlenecks detected, optimization proposals generated, and graph diffs presented for approval before execution. Authored batch previews become advisory; the computed and approved graph is authoritative.
+
+This version also adds the `planIntake` and `optimizer` sections to Part 3 JSON, defining:
+
+- Auto-normalize, auto-doctor, auto-DAG-analysis, auto-optimization-proposal settings
+- Optimizer objectives (maximize safe parallelism, minimize critical path, etc.)
+- Allowed and forbidden auto-patches
+- Approval gates before applying optimization patches or executing
+- Workspace-split and workspace-merge suggestions as optimizer outputs
+
+The v2.4 lifecycle is:
+
+```text
+Plan uploaded -> Plan intake auto-normalizes -> Auto-doctor -> Auto-DAG analysis ->
+Optimizer proposes improved graph -> User reviews diff -> Approves or rejects patch ->
+Approved graph persisted -> Execution blocked until approval is current
+```
+
+### Key changes
+
+- Added `planExecution.planIntake` with auto-normalize, auto-doctor, auto-DAG, and auto-optimization settings.
+- Added `planExecution.optimizer` with objectives, allowed patches, and forbidden auto-patches.
+- Added `parallelismReview.optimizationReview` with original/proposed graph hashes and diffs.
+- Added `execution_without_dry_run`, `execution_without_approval`, `protected_system_mutation_without_explicit_approval`, `extension_permission_denied`, `skill_permission_denied`, `memory_forbidden_source_indexing`, and `optimizer_patch_without_approval` hard stops.
+- Added doctor warnings for optimizer, extension, skill, and memory violations.
+- Added persisted artifacts for plan-intake analysis, optimizer proposal, graph diffs, registry snapshots, and memory index snapshots.
+- Authored batch previews are now explicitly advisory. The computed and approved graph is authoritative.
+- Updated `contractVersion` to `2.4.0`.
 
 ---
 
@@ -514,7 +548,7 @@ Hard stop execution only for:
 
 ```json
 {
-  "contractVersion": "2.3.2",
+  "contractVersion": "2.4.0",
   "executionBackend": "postgres",
   "project": {
     "name": "{{ project_name }}",
@@ -607,6 +641,51 @@ Hard stop execution only for:
       "warnWhenSafeParallelismBelowDagParallelism": true,
       "warnWhenScaleModePrerequisitesMissing": true,
       "persistApprovedGraph": true
+    },
+    "planIntake": {
+      "enabled": true,
+      "runOnUpload": true,
+      "parserPriority": [
+        "part3_json",
+        "markdown_fallback"
+      ],
+      "autoNormalize": true,
+      "autoDoctor": true,
+      "autoDagAnalysis": true,
+      "autoOptimizationProposal": true,
+      "autoQueuePriorityRecommendation": true,
+      "autoWorkspaceSplitRecommendation": true,
+      "autoDryRunForecast": true,
+      "approvalRequiredBeforeApplyingOptimization": true,
+      "approvalRequiredBeforeExecution": true
+    },
+    "optimizer": {
+      "enabled": true,
+      "mode": "advisory_until_approved",
+      "objectives": [
+        "maximize_safe_effective_parallelism",
+        "minimize_critical_path",
+        "minimize_same_file_conflicts",
+        "minimize_validation_lock_contention",
+        "prioritize_critical_path_queue_merges"
+      ],
+      "allowedPatches": [
+        "dependencies",
+        "parallelGroup",
+        "queuePriority",
+        "canRunWith",
+        "cannotRunWith",
+        "conflictScope",
+        "workspaceSplitSuggestion",
+        "workspaceMergeSuggestion"
+      ],
+      "forbiddenAutoPatches": [
+        "allowedFiles",
+        "forbiddenFiles",
+        "capabilityManifest",
+        "safety.hardStops",
+        "forbiddenCommands"
+      ]
     }
   },
   "controls": {
@@ -633,7 +712,14 @@ Hard stop execution only for:
       "queue_next_plan_while_integration_dirty",
       "scale_mode_approval_stale",
       "worktree_required_for_requested_parallelism",
-      "watch_mode_validation"
+      "watch_mode_validation",
+      "execution_without_dry_run",
+      "execution_without_approval",
+      "protected_system_mutation_without_explicit_approval",
+      "extension_permission_denied",
+      "skill_permission_denied",
+      "memory_forbidden_source_indexing",
+      "optimizer_patch_without_approval"
     ],
     "forbiddenCommands": [
       "git push",
@@ -714,6 +800,19 @@ Hard stop execution only for:
       "bottlenecks": [],
       "blockedParallelismReasons": []
     },
+    "optimizationReview": {
+      "originalGraphHash": null,
+      "proposedGraphHash": null,
+      "approvedGraphHash": null,
+      "originalDagEffectiveParallelism": null,
+      "proposedDagEffectiveParallelism": null,
+      "originalSafeEffectiveParallelism": null,
+      "proposedSafeEffectiveParallelism": null,
+      "criticalPathDelta": null,
+      "serializedTailDelta": null,
+      "suggestions": [],
+      "approvalState": "pending"
+    },
     "editableFields": [
       "workspaces[].dependencies",
       "workspaces[].parallelGroup",
@@ -738,7 +837,11 @@ Hard stop execution only for:
       "queue_optimization_disabled_with_active_priority",
       "queue_priority_mismatch_with_configured_levels",
       "critical_path_workspace_has_low_priority",
-      "queue_optimization_strategy_invalid_for_mode"
+      "queue_optimization_strategy_invalid_for_mode",
+      "optimizer_patch_without_approval",
+      "extension_permission_requires_review",
+      "skill_permission_requires_review",
+      "memory_forbidden_source_indexing"
     ],
     "persistedArtifacts": [
       "dependency_graph",
@@ -750,7 +853,14 @@ Hard stop execution only for:
       "approved_graph_hash",
       "queue_priority_snapshot",
       "queue_optimization_strategy",
-      "queue_reorder_decision_log"
+      "queue_reorder_decision_log",
+      "plan_intake_analysis",
+      "optimizer_proposal",
+      "graph_diff",
+      "extension_registry_snapshot",
+      "skill_registry_snapshot",
+      "memory_index_snapshot",
+      "platform_audit_timeline"
     ]
   },
   "workspaces": [
@@ -825,7 +935,7 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.3.2"` for P6 scale-aware isolated execution with default experimental_6 mode and worktree isolation. `2.3.0` and `2.3.1` remain supported for plans using earlier defaults.
+- **`contractVersion`**: Must be `"2.4.0"` for v2.4 plan-intake and DAG optimizer support. `2.3.0`, `2.3.1`, and `2.3.2` remain supported for plans using earlier defaults.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
@@ -864,6 +974,8 @@ Hard stop execution only for:
 - **`planExecution.integrationQueue.queuePriority`**: Configures queue priority levels. When `enabled`, the queue reorders pending merges by priority before falling back to FIFO within the same priority band. `defaultLevel` sets the priority for workspaces that do not specify an explicit priority. `levels` enumerates valid priority values.
 - **`planExecution.integrationQueue.queueOptimization`**: Configures queue optimization behavior. When `enabled`, the queue applies the selected `strategy` to reorder pending merges within safety constraints. Valid strategies: `priority_then_fifo` (priority first, then submission order), `critical_path_first` (critical-path workspaces merge first), `weighted_shortest_job_first` (smaller changes merge first within priority bands).
 - **`planExecution.validation`**: Defines validation lock, targeted validation, final integration validation, and watch-mode restrictions.
+- **`planExecution.planIntake`**: Defines plan-intake auto-analysis behavior. When `enabled`, plans uploaded to Pi are automatically normalized, doctored, DAG-analyzed, and optimized before execution. `runOnUpload` triggers analysis on upload. `parserPriority` specifies the order of JSON vs Markdown parsing. `autoNormalize` normalizes the contract. `autoDoctor` runs doctor validation. `autoDagAnalysis` recomputes DAG and safe batch preview. `autoOptimizationProposal` generates optimizer suggestions. `autoQueuePriorityRecommendation` recommends queue priorities. `autoWorkspaceSplitRecommendation` suggests workspace splits/merges. `autoDryRunForecast` generates a dry-run forecast. `approvalRequiredBeforeApplyingOptimization` and `approvalRequiredBeforeExecution` gate optimizer patches and execution behind approval.
+- **`planExecution.optimizer`**: Defines the DAG optimizer behavior. `mode` must be `advisory_until_approved` — the optimizer may propose changes but never apply them without approval. `objectives` enumerate optimization goals such as `maximize_safe_effective_parallelism`, `minimize_critical_path`, `minimize_same_file_conflicts`, `minimize_validation_lock_contention`, and `prioritize_critical_path_queue_merges`. `allowedPatches` lists fields the optimizer may propose changing. `forbiddenAutoPatches` lists fields the optimizer must never propose changing.
 
 ---
 
@@ -882,6 +994,7 @@ Hard stop execution only for:
 - **`safeBatchingStrategy`**: Usually `dag_batches_with_p6_safety_constraints`.
 - **`batchPreview`**: Computed preview of topological batches before execution.
 - **`safeBatchPreview`**: Batch preview after P6 safety constraints are applied.
+- **`optimizationReview`**: Records the DAG optimizer proposal state. Contains `originalGraphHash` (hash of the authored graph), `proposedGraphHash` (hash of the optimizer's proposed graph), `approvedGraphHash` (hash of the approved graph after user review), `originalDagEffectiveParallelism`, `proposedDagEffectiveParallelism`, `originalSafeEffectiveParallelism`, `proposedSafeEffectiveParallelism`, `criticalPathDelta` (change in critical path length), `serializedTailDelta` (change in serialized tail length), `suggestions` (array of optimizer suggestion objects), and `approvalState` (one of `pending`, `approved`, `rejected`, `stale`).
 - **`editableFields`**: Fields the interactive editor may patch.
 - **`doctorWarnings`**: Warning categories the doctor should surface.
 - **`persistedArtifacts`**: Artifacts stored for audit and reproducibility.
@@ -1072,7 +1185,7 @@ Queue optimization controls are executor-mediated. The dashboard may display que
 
 ```json
 {
-  "contractVersion": "2.3.2",
+  "contractVersion": "2.4.0",
   "phase": "{{ Phase ID }}",
   "title": "{{ Phase Title }}",
   "primaryGoal": "{{ One sentence summary of the phase goal }}",
@@ -1325,6 +1438,20 @@ Do not treat `dagEffectiveParallelism` as permission to run that many workers. T
 ---
 
 ## Template Changelog
+
+### v2.4.0 (2026-05-16)
+
+- Added plan-intake auto-analysis and DAG optimizer support (`planExecution.planIntake`, `planExecution.optimizer`).
+- Added `parallelismReview.optimizationReview` with original/proposed graph hashes, diffs, and approval state.
+- Added auto-normalize, auto-doctor, auto-DAG-analysis, auto-optimization-proposal, and auto-dry-run settings.
+- Added optimizer objectives, allowed patches, and forbidden auto-patches.
+- Authored batch previews are now explicitly advisory. The computed and approved graph is authoritative.
+- Added hard stops: `execution_without_dry_run`, `execution_without_approval`, `protected_system_mutation_without_explicit_approval`, `extension_permission_denied`, `skill_permission_denied`, `memory_forbidden_source_indexing`, `optimizer_patch_without_approval`.
+- Added doctor warnings for optimizer, extension, skill, and memory violations.
+- Added persisted artifacts for plan-intake analysis, optimizer proposal, graph diffs, registry snapshots, memory index snapshots, and platform audit timeline.
+- Default scale mode remains `experimental_6`.
+- Worktree isolation remains enabled by default.
+- Updated `contractVersion` to `2.4.0`.
 
 ### v2.3.1 (2026-05-14)
 

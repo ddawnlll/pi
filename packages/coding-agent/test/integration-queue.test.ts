@@ -1641,6 +1641,72 @@ describe("Queue Control Actions (6.6.F)", () => {
 			expect(formatted).toContain("Audit Events: 1 logged");
 		});
 	});
+	describe("hasUnresolvedEntries", () => {
+		it("should return false when queue is empty", async () => {
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(false);
+		});
+
+		it("should return true when queue has queued entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+
+		it("should return false when all entries are merged", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "merged";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(false);
+		});
+
+		it("should return true when queue has blocked entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "blocked";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+
+		it("should return true when queue has conflict entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "conflict";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+
+		it("should return true when queue has failed entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "failed";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+
+		it("should return true when queue has merging entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "merging";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+
+		it("should return true when queue has validating entries", async () => {
+			await queue.enqueue("ws-1", "abc123");
+			const state = await queue.getQueueState();
+			state.entries[0].status = "validating";
+			await saveQueueStateDirectly(queue, state);
+			const has = await queue.hasUnresolvedEntries();
+			expect(has).toBe(true);
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------

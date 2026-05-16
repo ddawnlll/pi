@@ -152,6 +152,7 @@ export default defineConfig({
 			"node:os": path.resolve(__dirname, "./src/stubs/os.ts"),
 			"node:path": path.resolve(__dirname, "./src/stubs/path.ts"),
 			"node:crypto": path.resolve(__dirname, "./src/stubs/crypto.ts"),
+			"@earendil-works/pi-coding-agent": path.resolve(__dirname, "../../coding-agent/src/index.ts"),
 		},
 	},
 	optimizeDeps: {

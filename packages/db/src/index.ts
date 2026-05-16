@@ -11,11 +11,18 @@ export { type DbConfig, DEFAULT_DB_CONFIG, loadDbConfig } from "./config.js";
 
 // Connection management
 export { closePool, getClient, getPool, healthCheck, resetPool } from "./connection.js";
+// Forbidden patterns
+export {
+	checkForbiddenPatterns,
+	DEFAULT_FORBIDDEN_PATTERNS,
+	type ForbiddenCheckResult,
+	type ForbiddenPattern,
+	filterForbiddenPaths,
+} from "./forbidden-patterns.js";
 // Transaction helpers
 export { generateId, now, withTransaction } from "./helpers.js";
 // Kysely query layer
 export { closeKysely, getKysely, resetKysely } from "./kysely.js";
-
 // Migrations
 export {
 	getAppliedMigrations,
@@ -28,7 +35,9 @@ export {
 export { NotifyClient, type NotifyEventHandler } from "./notify.js";
 // Repositories
 export {
+	AuditEventRepository,
 	JournalEventRepository,
+	MemoryVectorRepository,
 	PlanExecutionRepository,
 	PlanRevisionRepository,
 	ProjectRepository,
@@ -39,6 +48,10 @@ export {
 
 // Types
 export type {
+	AuditEvent,
+	AuditEventRow,
+	AuditEventTable,
+	AuditEventUpdate,
 	ChatMessage,
 	ChatMessageRow,
 	ChatMessageTable,
@@ -46,8 +59,14 @@ export type {
 	JournalEvent,
 	JournalEventRow,
 	JournalEventTable,
+	MemoryVector,
+	MemoryVectorRow,
+	MemoryVectorTable,
+	MemoryVectorUpdate,
+	NewAuditEvent,
 	NewChatMessage,
 	NewJournalEvent,
+	NewMemoryVector,
 	NewPlanExecution,
 	NewPlanRevision,
 	NewProject,

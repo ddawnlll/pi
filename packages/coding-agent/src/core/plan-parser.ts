@@ -529,7 +529,9 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 	return {
 		phase,
 		title,
-		maxParallelWorkspaces: typeof parsed.maxParallelWorkspaces === "number" ? parsed.maxParallelWorkspaces : 3,
+		maxParallelWorkspaces: typeof parsed.maxParallelWorkspaces === "number"
+			? parsed.maxParallelWorkspaces
+			: (parsed.planExecution?.maxParallelWorkspaces ?? 3),
 		workspaces,
 		contractVersion,
 		planExecution,

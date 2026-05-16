@@ -12,6 +12,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
+import { killTrackedDetachedChildren } from "../utils/shell.js";
 import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
@@ -335,10 +336,12 @@ export class AutonomousExecutor {
 			return false;
 		}
 
-		// Reset any stranded active workspaces back to pending so they get re-scheduled
+		// Reset any stranded active or failed workspaces back to pending
+		// so they get re-scheduled. Failed workspaces from a prior crash
+		// (e.g. worktree creation race) should be retried.
 		let recovered = 0;
 		for (const [wsId, ws] of state.workspaces) {
-			if (ws.stage === WorkspaceStage.Active) {
+			if (ws.stage === WorkspaceStage.Active || ws.stage === WorkspaceStage.Failed) {
 				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
 					reason: "crash-recovery",
 				});
@@ -708,6 +711,9 @@ export class AutonomousExecutor {
 					this.completionGate.markTargetCommandStarted(planExecutionId, workspace.id);
 					this.completionGate.recordCompletion(planExecutionId, workspace.id, 0, true);
 				}
+				// Kill any orphaned child processes (vitest, etc.) that the agent may have
+				// spawned via bash tool and left running after returning COMPLETE.
+				killTrackedDetachedChildren();
 			}
 			// Evaluate via registry to get the live state after mutations above
 			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);

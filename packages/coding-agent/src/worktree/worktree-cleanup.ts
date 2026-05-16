@@ -12,6 +12,7 @@
  */
 
 import { exec as execCb } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { DEFAULT_WORKTREE_ROOT, type WorktreeCleanupResult } from "./worktree-types.js";
@@ -35,49 +36,47 @@ async function gitAsync(args: string[], cwd: string): Promise<string> {
 }
 
 /**
- * Validate that a resolved path is within the allowed worktree root.
+ * Validate a target path is within the allowed root directory.
+ *
+ * Uses `fs.realpathSync.native` on both paths to detect symlink-based
+ * path traversal (e.g., a symlink inside `.pi/worktrees/` pointing outside).
+ * Falls back to `path.resolve` if the path does not exist yet.
+ *
  * Throws if the path escapes the allowed root.
  *
  * AC3: Cleanup refuses paths outside .pi/worktrees.
- *
- * SYMLINK RISK:
- *   `path.resolve()` follows symlinks, so a symlink placed *inside*
- *   `.pi/worktrees/` that points to a path *outside* the root will be
- *   resolved to its real destination and pass this check. An attacker who
- *   can write arbitrary entries can therefore escalate cleanup operations
- *   to arbitrary paths via symlink-in-the-middle.
- *
- *   To fully close this gap, the code would need to:
- *     1. Verify the target path does not traverse through a symlink
- *        (e.g. using `fs.realpath.native()` on each path segment).
- *     2. Or use `fs.realpath.native()` on the fully resolved path and
- *        compare against `fs.realpath.native(allowedRoot)` to catch
- *        any symlink-based external redirection.
- *
- *   For now, this is a known gap that is acceptable because only the
- *   pi agent process writes to `.pi/worktrees/`, not arbitrary users.
  *
  * @param targetPath - The absolute target path to check.
  * @param allowedRoot - The absolute allowed root directory.
  * @throws Error if the path is outside the allowed root.
  */
 function assertPathWithinRoot(targetPath: string, allowedRoot: string): void {
-	// Resolve both paths to eliminate symlinks and relative segments
+	// Resolve both paths to eliminate relative segments
 	const resolvedTarget = path.resolve(targetPath);
 	const resolvedRoot = path.resolve(allowedRoot);
 
-	// NOTE: path.resolve follows symlinks, so a symlink under `.pi/worktrees/`
-	// pointing outside would be resolved to the real external path and pass.
-	// See SYMLINK RISK above.
+	// Resolve real paths via realpath.native to catch symlink-based traversal.
+	// If a path does not exist yet, fall back to the resolved path.
+	let realTarget: string;
+	let realRoot: string;
+	try {
+		realTarget = fs.realpathSync.native(resolvedTarget);
+	} catch {
+		realTarget = resolvedTarget;
+	}
+	try {
+		realRoot = fs.realpathSync.native(resolvedRoot);
+	} catch {
+		realRoot = resolvedRoot;
+	}
 
 	// Normalize trailing separator for comparison
-	const normalizedRoot = resolvedRoot.endsWith(path.sep) ? resolvedRoot : resolvedRoot + path.sep;
-	const normalizedTarget = resolvedTarget.endsWith(path.sep) ? resolvedTarget : resolvedTarget + path.sep;
+	const normalizedRoot = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep;
+	const normalizedTarget = realTarget.endsWith(path.sep) ? realTarget : realTarget + path.sep;
 
 	if (!normalizedTarget.startsWith(normalizedRoot)) {
 		throw new Error(
-			`Cleanup path "${resolvedTarget}" is outside allowed worktree root "${resolvedRoot}". ` +
-				`Refusing to clean up.`,
+			`Cleanup path "${realTarget}" is outside allowed worktree root "${realRoot}". Refusing to clean up.`,
 		);
 	}
 }

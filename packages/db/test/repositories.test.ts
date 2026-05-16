@@ -12,6 +12,7 @@ import { after, before, describe, it } from "node:test";
 import { generateId, now } from "../src/helpers.js";
 import { closeKysely, getKysely } from "../src/kysely.js";
 import { rollbackMigrations, runMigrations } from "../src/migrations/index.js";
+import { AuditEventRepository } from "../src/repositories/audit-event.js";
 import { JournalEventRepository } from "../src/repositories/journal.js";
 import { PlanExecutionRepository } from "../src/repositories/plan-execution.js";
 import { PlanRevisionRepository } from "../src/repositories/plan-revision.js";
@@ -668,5 +669,485 @@ describe("PlanRevisionRepository (P9.G2 revision history)", { skip: !isIntegrati
 			created_by: "test",
 		});
 		assert.strictEqual(rev.version_number, 10);
+	});
+});
+
+describe("AuditEventRepository (P11.M)", { skip: !isIntegration }, () => {
+	let db = null as any;
+	let repo: AuditEventRepository;
+	let projectRepo: ProjectRepository;
+	let projectId: string;
+
+	before(async () => {
+		db = getKysely();
+		await runMigrations(db);
+		repo = new AuditEventRepository(db);
+		projectRepo = new ProjectRepository(db);
+
+		projectId = generateId();
+		await projectRepo.create({
+			id: projectId,
+			name: "audit-test-project",
+			description: "Project for audit event tests",
+			root_path: "/tmp/audit-test",
+			created_at: now(),
+		});
+	});
+
+	after(async () => {
+		await rollbackMigrations(db, 10);
+		await closeKysely();
+	});
+
+	it("creates an audit event with allowed status", async () => {
+		const event = await repo.create({
+			action: "register_tool",
+			status: "allowed",
+			domain: "extension",
+			actor: "test-extension",
+			project_id: projectId,
+			capability: "register_tool",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "my-extension",
+			skill_id: null,
+			memory_source: null,
+			reason: "Extension may register tools for agent use",
+			data: { toolName: "my-tool", version: "1.0.0" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.action, "register_tool");
+		assert.strictEqual(event.status, "allowed");
+		assert.strictEqual(event.domain, "extension");
+		assert.strictEqual(event.actor, "test-extension");
+		assert.strictEqual(event.project_id, projectId);
+		assert.strictEqual(event.extension_id, "my-extension");
+		assert.strictEqual(event.reason, "Extension may register tools for agent use");
+		assert.deepStrictEqual(event.data, { toolName: "my-tool", version: "1.0.0" });
+	});
+
+	it("creates an audit event with denied status", async () => {
+		const event = await repo.create({
+			action: "network_access",
+			status: "denied",
+			domain: "extension",
+			actor: "malicious-extension",
+			project_id: projectId,
+			capability: "network_access",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "bad-extension",
+			skill_id: null,
+			memory_source: null,
+			reason: "Network access is blocked by default",
+			data: { attemptedHost: "evil.com" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.status, "denied");
+		assert.strictEqual(event.extension_id, "bad-extension");
+	});
+
+	it("creates an audit event with pending-approval status", async () => {
+		const event = await repo.create({
+			action: "modify_settings",
+			status: "pending-approval",
+			domain: "extension",
+			actor: "config-extension",
+			project_id: projectId,
+			capability: "modify_settings",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "config-ext",
+			skill_id: null,
+			memory_source: null,
+			reason: "Requires explicit approval to modify settings",
+			data: { setting: "theme", newValue: "dark" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.status, "pending-approval");
+	});
+
+	it("creates an audit event with approved status", async () => {
+		const event = await repo.create({
+			action: "modify_settings",
+			status: "approved",
+			domain: "extension",
+			actor: "admin-user",
+			project_id: projectId,
+			capability: "modify_settings",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "config-ext",
+			skill_id: null,
+			memory_source: null,
+			reason: "Approved by admin",
+			data: { approvedBy: "admin@example.com" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.status, "approved");
+	});
+
+	it("creates an audit event with rejected status", async () => {
+		const event = await repo.create({
+			action: "access_secrets",
+			status: "rejected",
+			domain: "extension",
+			actor: "admin-user",
+			project_id: projectId,
+			capability: "access_secrets",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "secret-ext",
+			skill_id: null,
+			memory_source: null,
+			reason: "Secret access request denied by policy",
+			data: { reason: "insufficient_privilege" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.status, "rejected");
+	});
+
+	it("creates an audit event with rollback status", async () => {
+		const event = await repo.create({
+			action: "apply_proposal",
+			status: "rollback",
+			domain: "optimizer",
+			actor: "system",
+			project_id: projectId,
+			capability: "apply_proposal",
+			workspace_id: "workspace-1",
+			proposal_id: null,
+			extension_id: null,
+			skill_id: null,
+			memory_source: null,
+			reason: "Rollback due to validation failure",
+			data: { originalProposal: "prop-123" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+		assert.strictEqual(event.status, "rollback");
+	});
+
+	it("filters audit events by project", async () => {
+		const events = await repo.getByProject(projectId);
+		assert.ok(events.length >= 5); // At least the 5 events we created above
+	});
+
+	it("filters audit events by capability (scoped to project)", async () => {
+		const events = await repo.query({ capability: "register_tool", projectId });
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].action, "register_tool");
+	});
+
+	it("filters audit events by workspace", async () => {
+		const events = await repo.query({ workspaceId: "workspace-1", projectId });
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].status, "rollback");
+	});
+
+	it("filters audit events by extension", async () => {
+		const events = await repo.query({ extensionId: "my-extension", projectId });
+		assert.strictEqual(events.length, 1);
+	});
+
+	it("filters audit events by skill", async () => {
+		const event = await repo.create({
+			action: "activate",
+			status: "allowed",
+			domain: "skill",
+			actor: "test-agent",
+			project_id: projectId,
+			capability: "activate",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: "code-review-skill",
+			memory_source: null,
+			reason: "Skill activation permitted",
+			data: { skillVersion: "2.0.0" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+
+		const events = await repo.query({ skillId: "code-review-skill", projectId });
+		assert.strictEqual(events.length, 1);
+	});
+
+	it("filters audit events by memory source", async () => {
+		const event = await repo.create({
+			action: "read_memory",
+			status: "allowed",
+			domain: "memory",
+			actor: "test-agent",
+			project_id: projectId,
+			capability: "read_memory",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: null,
+			memory_source: "execution-memory",
+			reason: "Memory read permitted",
+			data: { memoryKey: "prior-runs" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+
+		const events = await repo.query({ memorySource: "execution-memory", projectId });
+		assert.strictEqual(events.length, 1);
+	});
+
+	it("filters audit events by status (scoped to project)", async () => {
+		const events = await repo.query({ status: "denied", projectId });
+		assert.ok(events.length >= 1);
+		for (const ev of events) {
+			assert.strictEqual(ev.status, "denied");
+		}
+	});
+
+	it("filters audit events by domain (scoped to project)", async () => {
+		const events = await repo.query({ domain: "memory", projectId });
+		assert.ok(events.length >= 1);
+		for (const ev of events) {
+			assert.strictEqual(ev.domain, "memory");
+		}
+	});
+
+	it("filters audit events by action (scoped to project)", async () => {
+		const events = await repo.query({ action: "register_tool", projectId });
+		assert.strictEqual(events.length, 1);
+	});
+
+	it("filters audit events by proposal", async () => {
+		// Create a proposal first to satisfy FK constraint
+		const proposalRepo = new ProposalRepository(db);
+		const proposal = await proposalRepo.create({
+			project_id: projectId,
+			proposal_key: `audit-test-prop-${generateId().slice(0, 8)}`,
+			title: "Audit Test Proposal",
+			phase: "remediation",
+			status: "pending",
+			evidence: JSON.stringify({ findings: [] }) as any,
+			audit_trail: JSON.stringify([]) as any,
+			source_artifacts: JSON.stringify([]) as any,
+			submitted_at: now(),
+		});
+
+		const event = await repo.create({
+			action: "approve_proposal",
+			status: "approved",
+			domain: "optimizer",
+			actor: "reviewer",
+			project_id: projectId,
+			capability: "approve_proposal",
+			workspace_id: null,
+			proposal_id: proposal.id,
+			extension_id: null,
+			skill_id: null,
+			memory_source: null,
+			reason: "Proposal approved after review",
+			data: { reviewNotes: "Looks good" },
+			timestamp: now(),
+		});
+		assert.ok(event);
+
+		const events = await repo.query({ proposalId: proposal.id, projectId });
+		assert.strictEqual(events.length, 1);
+	});
+
+	it("supports time-range filtering", async () => {
+		const past = new Date(Date.now() - 86400000).toISOString();
+		const future = new Date(Date.now() + 86400000).toISOString();
+
+		const events = await repo.query({ since: past, until: future });
+		assert.ok(events.length >= 5);
+	});
+
+	it("supports pagination (limit/offset)", async () => {
+		const first = await repo.query({ limit: 2, offset: 0 });
+		assert.ok(first.length <= 2);
+
+		const second = await repo.query({ limit: 2, offset: 2 });
+		assert.ok(second.length <= 2);
+
+		// Ensure ordering is consistent
+		if (first.length === 2 && second.length > 0) {
+			assert.notDeepStrictEqual(first, second);
+		}
+	});
+
+	it("count audit events", async () => {
+		const count = await repo.count({ projectId });
+		assert.ok(count >= 5);
+	});
+
+	it("finds audit event by ID", async () => {
+		// Create an event so we can find it by ID
+		const created = await repo.create({
+			action: "read_memory",
+			status: "denied",
+			domain: "memory",
+			actor: "unauthorized-agent",
+			project_id: projectId,
+			capability: "read_memory",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: null,
+			memory_source: null,
+			reason: "Not authorized",
+			data: {},
+			timestamp: now(),
+		});
+
+		const found = await repo.findById(created.id);
+		assert.ok(found);
+		assert.strictEqual(found.id, created.id);
+		assert.strictEqual(found.status, "denied");
+	});
+
+	it("deletes an audit event", async () => {
+		const created = await repo.create({
+			action: "deactivate",
+			status: "allowed",
+			domain: "skill",
+			actor: "cleanup-agent",
+			project_id: projectId,
+			capability: "deactivate",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: null,
+			memory_source: null,
+			reason: "Cleanup deactivation",
+			data: {},
+			timestamp: now(),
+		});
+
+		const deleted = await repo.delete(created.id);
+		assert.strictEqual(deleted, true);
+
+		const found = await repo.findById(created.id);
+		assert.strictEqual(found, undefined);
+	});
+
+	it("stores flexible JSONB data for enterprise export", async () => {
+		const enterpriseMetadata = {
+			eventId: "audit-123",
+			complianceTags: ["soc2", "hipaa"],
+			environment: "production",
+			region: "us-east-1",
+			correlationId: "corr-456",
+			auditSource: "capability-policy-engine",
+			sourceVersion: "1.0.0",
+			additionalContext: {
+				userAgent: "pi-cli/2.0",
+				requestId: "req-789",
+			},
+		};
+
+		const event = await repo.create({
+			action: "register_command",
+			status: "allowed",
+			domain: "extension",
+			actor: "enterprise-extension",
+			project_id: projectId,
+			capability: "register_command",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: "enterprise-ext",
+			skill_id: null,
+			memory_source: null,
+			reason: "Enterprise extension registered commands",
+			data: enterpriseMetadata,
+			timestamp: now(),
+		});
+
+		assert.ok(event);
+		const d = event.data as Record<string, unknown>;
+		const tags = d.complianceTags as string[];
+		assert.strictEqual(tags[0], "soc2");
+		assert.strictEqual(d.correlationId, "corr-456");
+		const ctx = d.additionalContext as Record<string, unknown>;
+		assert.strictEqual(ctx.requestId, "req-789");
+	});
+
+	it("returns correct event ordering", async () => {
+		// Create 3 events with distinct timestamps
+		const past = new Date(Date.now() - 10000).toISOString();
+		const mid = new Date(Date.now() - 5000).toISOString();
+		const recent = now();
+
+		await repo.create({
+			action: "activate",
+			status: "allowed",
+			domain: "skill",
+			actor: "order-test",
+			project_id: projectId,
+			capability: "activate",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: "order-skill",
+			memory_source: null,
+			reason: "Order test 1",
+			data: {},
+			timestamp: past,
+		});
+		await repo.create({
+			action: "activate",
+			status: "allowed",
+			domain: "skill",
+			actor: "order-test",
+			project_id: projectId,
+			capability: "activate",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: "order-skill",
+			memory_source: null,
+			reason: "Order test 2",
+			data: {},
+			timestamp: mid,
+		});
+		await repo.create({
+			action: "activate",
+			status: "allowed",
+			domain: "skill",
+			actor: "order-test",
+			project_id: projectId,
+			capability: "activate",
+			workspace_id: null,
+			proposal_id: null,
+			extension_id: null,
+			skill_id: "order-skill",
+			memory_source: null,
+			reason: "Order test 3",
+			data: {},
+			timestamp: recent,
+		});
+
+		// Default is desc (most recent first)
+		const desc = await repo.query({
+			skillId: "order-skill",
+			limit: 10,
+		});
+		assert.ok(desc.length >= 3);
+		// Most recent should be first
+		assert.strictEqual(desc[0].reason, "Order test 3");
+
+		// Ascending order
+		const asc = await repo.query({
+			skillId: "order-skill",
+			limit: 10,
+			order: "asc",
+		});
+		assert.ok(asc.length >= 3);
+		// Oldest should be first
+		assert.strictEqual(asc[0].reason, "Order test 1");
 	});
 });

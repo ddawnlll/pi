@@ -37,10 +37,15 @@ import {
   RefreshCw,
   BarChart3,
   ListOrdered,
+  Eye,
+  EyeOff,
   X,
 } from "lucide-react";
 import { useQueueMetrics, useIntegrationQueueStatus, useScaleModeReadiness } from "../hooks/useScaleStatus";
 import type { OptimizerSuggestion } from "../hooks/useScaleStatus";
+import { BatchExplorer } from "./BatchExplorer";
+import type { BatchPlanExplorerData } from "../hooks/useBatchPlan";
+import type { WorkspaceSummary } from "../types";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
@@ -327,6 +332,12 @@ interface BatchOSDashboardProps {
   hasActiveExecution?: boolean;
   /** Callback for sending control commands. */
   onControl?: (action: "pause" | "stop" | "cancel" | "resume") => void;
+  /** Workspace summaries (for mapping stages to batch positions). */
+  workspaces?: WorkspaceSummary[];
+  /** Batch plan data (topological batches + dependency graph). */
+  batchPlan?: BatchPlanExplorerData | null;
+  /** Optional callback when a workspace card is clicked in the explorer. */
+  onWorkspaceClick?: (id: string) => void;
   /** Optional class name. */
   className?: string;
 }
@@ -347,8 +358,12 @@ export function BatchOSDashboard({
   planStatus,
   hasActiveExecution = false,
   onControl,
+  workspaces = [],
+  batchPlan,
+  onWorkspaceClick,
   className,
 }: BatchOSDashboardProps) {
+  const [showBatchExplorer, setShowBatchExplorer] = useState(false);
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQueueMetrics();
   const { data: queueData, isLoading: queueLoading } = useIntegrationQueueStatus();
   const { data: readiness, isLoading: readinessLoading } = useScaleModeReadiness();
@@ -364,6 +379,28 @@ export function BatchOSDashboard({
   const canResume = planStatus === "paused";
   const canPause = planStatus === "running";
   const canStop = planStatus === "running" || planStatus === "paused";
+
+  // Derived: determine currently active and next batch from workspace stages
+  const activeBatchIdx = batchPlan && workspaces.length > 0
+    ? (() => {
+        for (const batch of batchPlan.batches) {
+          if (batch.workspaceIds.some(id => workspaces.find(w => w.id === id)?.stage === "active"))
+            return batch.batchIndex;
+        }
+        return -1;
+      })()
+    : -1;
+  const nextBatchIdx = activeBatchIdx > 0 && batchPlan
+    ? (() => {
+        const sorted = [...batchPlan.batches].sort((a, b) => a.batchIndex - b.batchIndex);
+        const activePos = sorted.findIndex(b => b.batchIndex === activeBatchIdx);
+        for (let i = activePos + 1; i < sorted.length; i++) {
+          if (sorted[i].workspaceIds.some(id => workspaces.find(w => w.id === id)?.stage === "pending"))
+            return sorted[i].batchIndex;
+        }
+        return -1;
+      })()
+    : -1;
 
   // ── Loading state ──
   if (isLoading) {
@@ -383,7 +420,32 @@ export function BatchOSDashboard({
         <Cpu size={18} className={ACC_TXT} />
         <h1 className={`text-sm font-bold ${TXT}`}>Batch Operating System</h1>
         <StatusBadge status={queueStatus} />
+
+        {/* Current / next batch indicators */}
+        {activeBatchIdx > 0 && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Batch {activeBatchIdx}
+          </span>
+        )}
+        {nextBatchIdx > 0 && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-[9px] font-semibold text-blue-700 dark:text-blue-300">
+            Next: Batch {nextBatchIdx}
+          </span>
+        )}
+
         <div className="flex-1" />
+
+        {/* Batch Explorer toggle */}
+        {batchPlan && batchPlan.batches.length > 0 && (
+          <ControlButton
+            icon={showBatchExplorer ? <EyeOff size={12} /> : <Eye size={12} />}
+            label="Explore batches"
+            onClick={() => setShowBatchExplorer((o) => !o)}
+            variant={showBatchExplorer ? "primary" : "ghost"}
+          />
+        )}
+
         {/* Controls — never directly mutate state, only call onControl() */}
         <div className="flex items-center gap-1">
           <ControlButton
@@ -466,6 +528,22 @@ export function BatchOSDashboard({
             <p className={`text-xs ${MUT} py-2`}>No parallelism data available.</p>
           )}
         </div>
+
+        {/* Batch Explorer (collapsible section) */}
+        {showBatchExplorer && (
+          <div className={`${SURF} rounded-lg border ${BORD} p-3`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Eye size={16} className={ACC_TXT} />
+              <h2 className={`text-xs font-semibold uppercase tracking-wider ${TXT}`}>Batch Explorer</h2>
+              <span className={`text-[9px] ${MUT} ml-1`}>animated</span>
+            </div>
+            <BatchExplorer
+              batchPlan={batchPlan ?? null}
+              workspaces={workspaces}
+              onWorkspaceClick={onWorkspaceClick}
+            />
+          </div>
+        )}
 
         {/* Row 2: Queue metrics */}
         {metrics && (

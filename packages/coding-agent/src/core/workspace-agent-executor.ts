@@ -389,7 +389,9 @@ export class WorkspaceAgentExecutor {
 					} else if (event.type === "tool_execution_end") {
 						const pending = pendingToolCalls.get(event.toolCallId);
 						if (pending) {
-							const resultPreview = event.isError ? `error: ${String(event.result).slice(0, 100)}` : "success";
+							const resultPreview = event.isError
+								? `error: ${typeof event.result === "object" && event.result !== null ? JSON.stringify(event.result).slice(0, 100) : String(event.result).slice(0, 100)}`
+								: "success";
 							emitStatus("deciding", `Tool ${pending.toolName}: ${resultPreview}`);
 
 							// Persist tool call to journal

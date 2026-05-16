@@ -879,6 +879,55 @@ fastify.get<{
 });
 
 /**
+ * GET /api/projects/:projectId/plans/:planExecId/batch-plan - Get batch plan for a running execution
+ *
+ * Loads the persisted workspace queue snapshot for the given plan execution
+ * and computes the topological batch plan (batches, dependency graph, effective parallelism).
+ */
+fastify.get<{
+	Params: { projectId: string; planExecId: string };
+}>("/api/projects/:projectId/plans/:planExecId/batch-plan", async (request, reply) => {
+	const { planExecId } = request.params;
+
+	try {
+		const workspaceRoot = getWorkspaceRoot();
+		const piDir = join(workspaceRoot, ".pi");
+		const queuePath = join(piDir, `${planExecId}.workspace-queue.json`);
+
+		let queue;
+		try {
+			const content = await readFile(queuePath, "utf-8");
+			queue = JSON.parse(content);
+		} catch {
+			return reply.code(404).send({
+				success: false,
+				error: "Batch plan not available. Queue snapshot not found.",
+			});
+		}
+
+		const batchPlan = computeBatchPlan(queue);
+
+		return {
+			success: true,
+			batchPlan: {
+				dependencyGraph: batchPlan.dependencyGraph,
+				batches: batchPlan.batches,
+				totalBatches: batchPlan.totalBatches,
+				effectiveParallelism: batchPlan.effectiveParallelism,
+				requestedParallelism: batchPlan.requestedParallelism,
+				parallelismDelta: batchPlan.parallelismDelta,
+				isOverSerialized: batchPlan.isOverSerialized,
+				warnings: batchPlan.warnings,
+				errors: batchPlan.errors,
+			},
+		};
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to get batch plan");
+		return reply.code(500).send({ error: "Failed to get batch plan", message: String(error) });
+	}
+});
+
+/**
  * GET /api/projects/:projectId/plans/:planExecId/events - SSE stream of plan events
  *
  * Uses LISTEN/NOTIFY when PostgreSQL backend is active, falls back to

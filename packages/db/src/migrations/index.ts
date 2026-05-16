@@ -29,6 +29,8 @@ import * as m003 from "./003_add_execution_log.js";
 import * as m004 from "./004_add_chat_messages.js";
 import * as m005 from "./005_add_proposals.js";
 import * as m006 from "./006_add_proposal_source_and_revisions.js";
+import * as m007 from "./007_add_memory_vectors.js";
+import * as m008 from "./008_add_audit_events.js";
 
 /**
  * All registered migrations in version order.
@@ -40,6 +42,8 @@ const migrations: Migration[] = [
 	{ version: 4, name: "add_chat_messages", up: m004.up, down: m004.down },
 	{ version: 5, name: "add_proposals", up: m005.up, down: m005.down },
 	{ version: 6, name: "add_proposal_source_and_revisions", up: m006.up, down: m006.down },
+	{ version: 7, name: "add_memory_vectors", up: m007.up, down: m007.down },
+	{ version: 8, name: "add_audit_events", up: m008.up, down: m008.down },
 ];
 
 /**

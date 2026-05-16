@@ -1565,3 +1565,120 @@ export interface ExtensionError {
 	error: string;
 	stack?: string;
 }
+
+// ============================================================================
+// Extension Package Format
+// ============================================================================
+
+/**
+ * Manifest for an extension package.
+ *
+ * This can be defined either in a standalone `extension.json` file or in
+ * the `pi` field of a `package.json`. The loader/resolver uses this to
+ * discover and load extensions.
+ */
+export interface ExtensionPackageManifest {
+	/** Extension name (must be unique across all registered packages). */
+	name: string;
+	/** Semver version string (e.g. "1.2.3"). */
+	version: string;
+	/** Human-readable description. */
+	description?: string;
+	/** Package author. */
+	author?: string;
+	/** SPDX license identifier. */
+	license?: string;
+	/** Engine compatibility constraints. */
+	engines?: {
+		/** Semver range that the pi host must satisfy (e.g. ">=0.14.0"). */
+		pi?: string;
+	};
+	/** Extension-to-extension dependencies: name -> semver range. */
+	dependencies?: Record<string, string>;
+}
+
+/**
+ * Lifecycle state of a registered extension package.
+ */
+export type ExtensionPackageState =
+	| "registered"
+	| "enabling"
+	| "loaded"
+	| "disabling"
+	| "disabled";
+
+/**
+ * A registered extension package tracked by the registry.
+ */
+export interface ExtensionPackage {
+	/** Parsed manifest. */
+	manifest: ExtensionPackageManifest;
+	/** Absolute path to the package directory. */
+	directory: string;
+	/** Path to the package.json or extension.json that defined this package. */
+	manifestPath: string;
+	/** Current lifecycle state. */
+	state: ExtensionPackageState;
+	/**
+	 * The loaded Extension object, or null when the package is not in the
+	 * "loaded" state.
+	 */
+	extension: Extension | null;
+	/** Error message from the most recent failed transition, if any. */
+	error?: string;
+}
+
+// ============================================================================
+// Registry Events
+// ============================================================================
+
+/** Registry lifecycle event type. */
+export type RegistryEventType =
+	| "registered"
+	| "enabled"
+	| "loaded"
+	| "disabled"
+	| "unloaded"
+	| "error";
+
+/** Event emitted by the ExtensionRegistry. */
+export interface RegistryEvent {
+	type: RegistryEventType;
+	packageName: string;
+	timestamp: number;
+	error?: string;
+}
+
+/** Listener for registry events. */
+export type RegistryEventListener = (event: RegistryEvent) => void;
+
+// ============================================================================
+// Runtime Host Events
+// ============================================================================
+
+/** Runtime host health status. */
+export type HealthStatus = "healthy" | "degraded" | "error";
+
+/** Health event emitted by the RuntimeHost. */
+export interface HealthEvent {
+	type: "health";
+	status: HealthStatus;
+	message: string;
+	timestamp: number;
+	details?: Record<string, unknown>;
+}
+
+/** Audit event emitted by the RuntimeHost. */
+export interface AuditEvent {
+	type: "audit";
+	action: string;
+	packageName?: string;
+	timestamp: number;
+	details?: Record<string, unknown>;
+}
+
+/** Union of all RuntimeHost events. */
+export type RuntimeHostEvent = HealthEvent | AuditEvent;
+
+/** Listener for RuntimeHost events. */
+export type RuntimeHostListener = (event: RuntimeHostEvent) => void;
