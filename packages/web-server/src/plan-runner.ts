@@ -135,6 +135,14 @@ class WorkspaceCompletionBus extends EventEmitter {
 	private lastSignal: WorkspaceCompletionSignal | null = null;
 
 	/**
+	 * Reset the bus for reuse — clears any stale accumulated signal.
+	 * Called when a new execution starts for the same planExecId.
+	 */
+	reset(): void {
+		this.lastSignal = null;
+	}
+
+	/**
 	 * Wait for the next completion or stop signal.
 	 * @returns a signal describing what happened
 	 */
@@ -191,12 +199,16 @@ const completionBuses = new Map<string, WorkspaceCompletionBus>();
 
 /**
  * Get or create a WorkspaceCompletionBus for the given execution.
+ * Resets any stale signal from a previous execution with the same id.
  */
 function getCompletionBus(planExecId: string): WorkspaceCompletionBus {
 	let bus = completionBuses.get(planExecId);
 	if (!bus) {
 		bus = new WorkspaceCompletionBus();
 		completionBuses.set(planExecId, bus);
+	} else {
+		// Clear stale signal from a prior execution with the same id
+		bus.reset();
 	}
 	return bus;
 }

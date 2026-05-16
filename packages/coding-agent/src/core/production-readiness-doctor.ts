@@ -15,8 +15,12 @@
  * execution archive and rendered in the dashboard.
  */
 
-import { execSync } from "node:child_process";
+import { exec as execCb } from "node:child_process";
+import { promisify } from "node:util";
 import { SafetyDoctor, type SafetyIssue } from "./safety-doctor.js";
+
+const execAsync = promisify(execCb);
+
 import { SkillRegistry } from "./skill-registry.js";
 import type { WorkspaceCapabilityManifest, WorkspaceQueue } from "./workspace-schema.js";
 
@@ -117,15 +121,14 @@ export function isBroadScope(pattern: string): boolean {
  * @param cwd - Working directory (repository root)
  * @returns True if there are uncommitted changes, false if clean or not a git repo
  */
-export function isGitDirty(cwd: string): boolean {
+export async function isGitDirty(cwd: string): Promise<boolean> {
 	try {
-		const result = execSync("git status --porcelain", {
+		const { stdout } = await execAsync("git status --porcelain", {
 			cwd,
 			encoding: "utf-8",
-			stdio: ["pipe", "pipe", "pipe"],
 			timeout: 5000,
 		});
-		return result.trim().length > 0;
+		return stdout.trim().length > 0;
 	} catch {
 		// Not a git repo or git not available - treat as clean
 		return false;
@@ -138,12 +141,11 @@ export function isGitDirty(cwd: string): boolean {
  * @param cwd - Working directory
  * @returns True if inside a git repo
  */
-export function isGitRepo(cwd: string): boolean {
+export async function isGitRepo(cwd: string): Promise<boolean> {
 	try {
-		execSync("git rev-parse --is-inside-work-tree", {
+		await execAsync("git rev-parse --is-inside-work-tree", {
 			cwd,
 			encoding: "utf-8",
-			stdio: ["pipe", "pipe", "pipe"],
 			timeout: 5000,
 		});
 		return true;
@@ -181,7 +183,7 @@ export class ProductionReadinessDoctor {
 	 * @param options.skipGitCheck - Skip the git dirty-tree check (useful in CI)
 	 * @returns Full production readiness report
 	 */
-	run(
+	async run(
 		queue: WorkspaceQueue,
 		cwd: string,
 		agentDir: string,
@@ -196,7 +198,7 @@ export class ProductionReadinessDoctor {
 				missingWorkspaceLabels: string[];
 			};
 		},
-	): ProductionReadinessReport {
+	): Promise<ProductionReadinessReport> {
 		const checks: ProductionReadinessCheck[] = [];
 
 		// 1. Safety checks
@@ -210,7 +212,7 @@ export class ProductionReadinessDoctor {
 
 		// 4. Git working-tree cleanliness
 		if (!options?.skipGitCheck) {
-			checks.push(...this.checkGitTree(cwd));
+			checks.push(...(await this.checkGitTree(cwd)));
 		}
 
 		// 5. Schema / structure sanity
@@ -384,10 +386,10 @@ export class ProductionReadinessDoctor {
 	 * @param cwd - Project root directory
 	 * @returns Production readiness check for git tree status
 	 */
-	checkGitTree(cwd: string): ProductionReadinessCheck[] {
+	async checkGitTree(cwd: string): Promise<ProductionReadinessCheck[]> {
 		const checks: ProductionReadinessCheck[] = [];
 
-		if (!isGitRepo(cwd)) {
+		if (!(await isGitRepo(cwd))) {
 			checks.push({
 				name: "Git Working Tree",
 				category: "git_tree",
@@ -397,7 +399,7 @@ export class ProductionReadinessDoctor {
 			return checks;
 		}
 
-		if (isGitDirty(cwd)) {
+		if (await isGitDirty(cwd)) {
 			checks.push({
 				name: "Git Working Tree",
 				category: "git_tree",

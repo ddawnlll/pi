@@ -85,11 +85,11 @@ describe("isBroadScope", () => {
 // ---------------------------------------------------------------------------
 
 describe("isGitRepo", () => {
-	it("should return false for a temp directory that is not a git repo", () => {
+	it("should return false for a temp directory that is not a git repo", async () => {
 		const tmp = join(tmpdir(), `prod-doctor-test-gitrepo-${Date.now()}`);
 		mkdirSync(tmp, { recursive: true });
 		try {
-			expect(isGitRepo(tmp)).toBe(false);
+			expect(await isGitRepo(tmp)).toBe(false);
 		} finally {
 			rmSync(tmp, { recursive: true, force: true });
 		}
@@ -97,24 +97,24 @@ describe("isGitRepo", () => {
 });
 
 describe("isGitDirty", () => {
-	it("should return false for a non-git directory", () => {
+	it("should return false for a non-git directory", async () => {
 		const tmp = join(tmpdir(), `prod-doctor-test-gitdirty-${Date.now()}`);
 		mkdirSync(tmp, { recursive: true });
 		try {
-			expect(isGitDirty(tmp)).toBe(false);
+			expect(await isGitDirty(tmp)).toBe(false);
 		} finally {
 			rmSync(tmp, { recursive: true, force: true });
 		}
 	});
 
-	it("should detect dirty state in a real git repo", () => {
+	it("should detect dirty state in a real git repo", async () => {
 		// Only run this if we are in a git repo
 		const repoRoot = process.cwd();
-		if (!isGitRepo(repoRoot)) return;
+		if (!(await isGitRepo(repoRoot))) return;
 
 		// We can't easily make the repo dirty in test without side effects,
 		// so just check it returns a boolean
-		const result = isGitDirty(repoRoot);
+		const result = await isGitDirty(repoRoot);
 		expect(typeof result).toBe("boolean");
 	});
 });
@@ -142,9 +142,9 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("verdict reporting", () => {
-		it("should report PASS when all checks pass", () => {
+		it("should report PASS when all checks pass", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			expect(["PASS", "WARN", "FAIL"]).toContain(report.verdict);
 			// With a clean queue and skipGitCheck, verdict should be PASS or WARN
@@ -152,7 +152,7 @@ describe("ProductionReadinessDoctor", () => {
 			expect(report.verdict).not.toBe("FAIL");
 		});
 
-		it("should report FAIL when safety issues are critical", () => {
+		it("should report FAIL when safety issues are critical", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -167,13 +167,13 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			expect(report.verdict).toBe("FAIL");
 			expect(report.failCount).toBeGreaterThan(0);
 		});
 
-		it("should report WARN when there are warnings but no failures", () => {
+		it("should report WARN when there are warnings but no failures", async () => {
 			// Security-related workspace without reviewer role triggers safety warning
 			const queue = makeSafeQueue({
 				workspaces: [
@@ -185,7 +185,7 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			// The security ambiguity produces a warning => overall WARN or PASS
 			expect(["PASS", "WARN"]).toContain(report.verdict);
@@ -200,7 +200,7 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("missing required skill", () => {
-		it("should FAIL when required skills are missing", () => {
+		it("should FAIL when required skills are missing", async () => {
 			// Create a skill manifest that declares a required skill that doesn't exist
 			const manifest = {
 				version: 1,
@@ -215,7 +215,7 @@ describe("ProductionReadinessDoctor", () => {
 			writeFileSync(join(agentDir, "skill-manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
 
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			// Should have a FAIL for missing required skills
 			const skillCheck = report.checks.find((c) => c.name === "Required Skills Available");
@@ -230,10 +230,10 @@ describe("ProductionReadinessDoctor", () => {
 			rmSync(join(agentDir, "skill-manifest.json"), { force: true });
 		});
 
-		it("should PASS when no required skills are missing", () => {
+		it("should PASS when no required skills are missing", async () => {
 			// No manifest => no required skills => PASS
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const skillCheck = report.checks.find((c) => c.name === "Required Skills Available");
 			expect(skillCheck).toBeDefined();
@@ -246,7 +246,7 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("broad file scope warning", () => {
-		it("should WARN when workspace has broad canEdit scope", () => {
+		it("should WARN when workspace has broad canEdit scope", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -260,7 +260,7 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
 			expect(scopeCheck).toBeDefined();
@@ -268,7 +268,7 @@ describe("ProductionReadinessDoctor", () => {
 			expect(scopeCheck!.message).toContain("broad file scopes");
 		});
 
-		it("should PASS when workspace has specific canEdit scope", () => {
+		it("should PASS when workspace has specific canEdit scope", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -282,14 +282,14 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
 			expect(scopeCheck).toBeDefined();
 			expect(scopeCheck!.status).toBe("PASS");
 		});
 
-		it("should WARN when workspace uses * (single star) as scope", () => {
+		it("should WARN when workspace uses * (single star) as scope", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -303,19 +303,19 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
 			expect(scopeCheck).toBeDefined();
 			expect(scopeCheck!.status).toBe("WARN");
 		});
 
-		it("should PASS when workspace has no capabilities declared", () => {
+		it("should PASS when workspace has no capabilities declared", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [makeSafeWorkspace()],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
 			expect(scopeCheck).toBeDefined();
@@ -328,7 +328,7 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("dirty working tree", () => {
-		it("should FAIL auto-run readiness when working tree is dirty", () => {
+		it("should FAIL auto-run readiness when working tree is dirty", async () => {
 			// Create a temp git repo and make it dirty to verify autoRunReady = false
 			const { execSync } = require("node:child_process");
 
@@ -344,7 +344,7 @@ describe("ProductionReadinessDoctor", () => {
 				writeFileSync(join(gitTmp, "dirty.txt"), "uncommitted", "utf-8");
 
 				const queue = makeSafeQueue();
-				const report = doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
+				const report = await doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
 
 				const gitCheck = report.checks.find((c) => c.name === "Git Working Tree");
 				expect(gitCheck).toBeDefined();
@@ -355,14 +355,14 @@ describe("ProductionReadinessDoctor", () => {
 			}
 		});
 
-		it("should set autoRunReady to false when git tree is dirty", () => {
+		it("should set autoRunReady to false when git tree is dirty", async () => {
 			// We can test this by creating a check manually and seeing
 			// that a FAIL git check correctly sets autoRunReady.
 			// Use the real doctor but with a directory we control.
 
 			// For a non-git directory, autoRunReady should be based on other checks
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: false });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: false });
 
 			// autoRunReady should be true for a non-git dir (if no other FAIL)
 			if (report.verdict !== "FAIL") {
@@ -370,7 +370,7 @@ describe("ProductionReadinessDoctor", () => {
 			}
 		});
 
-		it("should mark autoRunReady false when a git-tree FAIL exists", () => {
+		it("should mark autoRunReady false when a git-tree FAIL exists", async () => {
 			// Directly test the logic: create a report with git_tree FAIL
 			// by simulating a dirty tree scenario
 			const { execSync } = require("node:child_process");
@@ -388,11 +388,11 @@ describe("ProductionReadinessDoctor", () => {
 				writeFileSync(join(gitTmp, "dirty.txt"), "uncommitted", "utf-8");
 
 				const queue = makeSafeQueue();
-				const report = doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
+				const report = await doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
 
 				// Should detect dirty tree
-				expect(isGitDirty(gitTmp)).toBe(true);
-				expect(isGitRepo(gitTmp)).toBe(true);
+				expect(await isGitDirty(gitTmp)).toBe(true);
+				expect(await isGitRepo(gitTmp)).toBe(true);
 
 				const gitCheck = report.checks.find((c) => c.name === "Git Working Tree");
 				expect(gitCheck).toBeDefined();
@@ -403,7 +403,7 @@ describe("ProductionReadinessDoctor", () => {
 			}
 		});
 
-		it("should have autoRunReady true when git tree is clean", () => {
+		it("should have autoRunReady true when git tree is clean", async () => {
 			const { execSync } = require("node:child_process");
 
 			const gitTmp = join(tmpdir(), `prod-doctor-git-clean-${Date.now()}`);
@@ -419,10 +419,10 @@ describe("ProductionReadinessDoctor", () => {
 				execSync("git add .", { cwd: gitTmp, stdio: "pipe" });
 				execSync("git commit -m init", { cwd: gitTmp, stdio: "pipe" });
 
-				expect(isGitDirty(gitTmp)).toBe(false);
+				expect(await isGitDirty(gitTmp)).toBe(false);
 
 				const queue = makeSafeQueue();
-				const report = doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
+				const report = await doctor.run(queue, gitTmp, gitTmp, { skipGitCheck: false });
 
 				const gitCheck = report.checks.find((c) => c.name === "Git Working Tree");
 				expect(gitCheck).toBeDefined();
@@ -443,9 +443,9 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("report structure for archiving", () => {
-		it("should produce a JSON-serializable report", () => {
+		it("should produce a JSON-serializable report", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			// The report must be serializable to JSON for archiving
 			const json = JSON.stringify(report);
@@ -458,9 +458,9 @@ describe("ProductionReadinessDoctor", () => {
 			expect(parsed.timestamp).toBe(report.timestamp);
 		});
 
-		it("should include byCategory grouping", () => {
+		it("should include byCategory grouping", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			expect(report.byCategory).toBeDefined();
 			expect(report.byCategory.safety).toBeDefined();
@@ -469,9 +469,9 @@ describe("ProductionReadinessDoctor", () => {
 			expect(report.byCategory.schema).toBeDefined();
 		});
 
-		it("should include timestamp", () => {
+		it("should include timestamp", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			expect(report.timestamp).toBeTruthy();
 			// ISO 8601 format
@@ -484,16 +484,16 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("formatProductionReadinessReport", () => {
-		it("should format a PASS report", () => {
+		it("should format a PASS report", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 			const formatted = formatProductionReadinessReport(report);
 
 			expect(formatted).toContain("Production Readiness Doctor");
 			expect(formatted).toContain(report.verdict);
 		});
 
-		it("should format a FAIL report", () => {
+		it("should format a FAIL report", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -521,7 +521,7 @@ describe("ProductionReadinessDoctor", () => {
 			writeFileSync(join(agentDir, "skill-manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
 
 			try {
-				const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+				const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 				const formatted = formatProductionReadinessReport(report);
 
 				expect(formatted).toContain("FAIL");
@@ -536,24 +536,24 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("schema checks", () => {
-		it("should FAIL for workspace without title", () => {
+		it("should FAIL for workspace without title", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [makeSafeWorkspace({ title: "" })],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const titleCheck = report.checks.find((c) => c.name === "Workspace Titles");
 			expect(titleCheck).toBeDefined();
 			expect(titleCheck!.status).toBe("FAIL");
 		});
 
-		it("should WARN for workspace without acceptance criteria", () => {
+		it("should WARN for workspace without acceptance criteria", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [makeSafeWorkspace({ acceptanceCriteria: undefined })],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const criteriaCheck = report.checks.find((c) => c.name === "Acceptance Criteria");
 			expect(criteriaCheck).toBeDefined();
@@ -566,7 +566,7 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("createProductionReadinessDoctor", () => {
-		it("should create a doctor instance", () => {
+		it("should create a doctor instance", async () => {
 			const d = createProductionReadinessDoctor();
 			expect(d).toBeInstanceOf(ProductionReadinessDoctor);
 		});
@@ -577,15 +577,15 @@ describe("ProductionReadinessDoctor", () => {
 	// ---------------------------------------------------------------------------
 
 	describe("edge cases", () => {
-		it("should handle empty workspace list", () => {
+		it("should handle empty workspace list", async () => {
 			const queue = makeSafeQueue({ workspaces: [] });
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			expect(report.verdict).toBe("PASS");
 			expect(report.checks.length).toBeGreaterThan(0);
 		});
 
-		it("should handle workspace with empty capabilities", () => {
+		it("should handle workspace with empty capabilities", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -599,7 +599,7 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			// No broad scopes for empty canEdit
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
@@ -607,16 +607,16 @@ describe("ProductionReadinessDoctor", () => {
 			expect(scopeCheck!.status).toBe("PASS");
 		});
 
-		it("should handle skipGitCheck option", () => {
+		it("should handle skipGitCheck option", async () => {
 			const queue = makeSafeQueue();
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			// No git tree check should be present
 			const gitCheck = report.checks.find((c) => c.name === "Git Working Tree");
 			expect(gitCheck).toBeUndefined();
 		});
 
-		it("should handle multiple workspaces with mixed scopes", () => {
+		it("should handle multiple workspaces with mixed scopes", async () => {
 			const queue = makeSafeQueue({
 				workspaces: [
 					makeSafeWorkspace({
@@ -640,7 +640,7 @@ describe("ProductionReadinessDoctor", () => {
 				],
 			});
 
-			const report = doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
+			const report = await doctor.run(queue, tmpDir, agentDir, { skipGitCheck: true });
 
 			const scopeCheck = report.checks.find((c) => c.name === "File Scope Hygiene");
 			expect(scopeCheck).toBeDefined();

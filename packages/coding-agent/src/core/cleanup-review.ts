@@ -99,22 +99,23 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 	// Logger for this cleanup session — created immediately so we can log before/after memory
 	const log = new PiLogger({ planExecId: planExecutionId });
 
-	// Check memory before starting cleanup agent
-	const memoryCheck = getMemorySnapshot();
-	log.info(`[cleanup] Memory: ${formatMemorySnapshot(memoryCheck)}`);
-
-	if (!canStartWorker("cleanup review agent")) {
-		log.warn("[cleanup] Memory limit exceeded, waiting for memory to become available...");
-		await waitForMemoryAvailable();
-		const afterWait = getMemorySnapshot();
-		log.info(`[cleanup] Memory available after wait: ${formatMemorySnapshot(afterWait)}`);
-	}
-
-	// Acquire the global merge lock — only one cleanup at a time
+	// Acquire the global merge lock first — only one cleanup at a time.
+	// Must acquire BEFORE memory check to avoid TOCTOU: without the lock,
+	// another plan's cleanup could race in and consume the freed memory
+	// between our memory wait and our actual agent execution.
 	const releaseLock = await acquireCleanupLock();
 	log.info(`[cleanup] Acquired cleanup lock`);
 
 	try {
+		const memoryCheck = getMemorySnapshot();
+		log.info(`[cleanup] Memory: ${formatMemorySnapshot(memoryCheck)}`);
+
+		if (!canStartWorker("cleanup review agent")) {
+			log.warn("[cleanup] Memory limit exceeded, waiting for memory to become available...");
+			await waitForMemoryAvailable();
+			const afterWait = getMemorySnapshot();
+			log.info(`[cleanup] Memory available after wait: ${formatMemorySnapshot(afterWait)}`);
+		}
 		const resolvedModel = model ?? getFallbackModel();
 
 		// Create archive directories for cleanup logs (same structure as workers)

@@ -46,13 +46,16 @@
  *       Returns audit trail of queue control actions.
  */
 
-import { execSync } from "node:child_process";
+import { exec as execCb } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { IntegrationQueue } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
+
+const execAsync = promisify(execCb);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -697,18 +700,18 @@ export async function registerScaleRoutes(
 	fastify.get("/api/scale/worktrees", async (_request, reply) => {
 		try {
 			const workspaceRoot = getWorkspaceRoot();
-			const output = execSync("git worktree list", {
+			const { stdout } = await execAsync("git worktree list", {
 				cwd: workspaceRoot,
 				encoding: "utf-8",
 				timeout: 10000,
 			});
 
-			const worktrees = parseGitWorktreeList(output);
+			const worktrees = parseGitWorktreeList(stdout);
 
 			// Check dirty status for each worktree
 			for (const wt of worktrees) {
 				try {
-					const statusOut = execSync("git status --porcelain", {
+					const { stdout: statusOut } = await execAsync("git status --porcelain", {
 						cwd: wt.path,
 						encoding: "utf-8",
 						timeout: 5000,
@@ -868,12 +871,12 @@ export async function registerScaleRoutes(
 			// Get active worktrees
 			let worktrees: WorktreeInfo[];
 			try {
-				const output = execSync("git worktree list", {
+				const { stdout } = await execAsync("git worktree list", {
 					cwd: workspaceRoot,
 					encoding: "utf-8",
 					timeout: 10000,
 				});
-				worktrees = parseGitWorktreeList(output);
+				worktrees = parseGitWorktreeList(stdout);
 			} catch (e) {
 				return reply.code(500).send({
 					error: "Failed to list worktrees",
@@ -905,7 +908,7 @@ export async function registerScaleRoutes(
 
 				if (isWorktreeSafeToPrune(wt, activeQueueIds)) {
 					try {
-						execSync(`git worktree remove "${wt.path}"`, {
+						await execAsync(`git worktree remove "${wt.path}"`, {
 							cwd: workspaceRoot,
 							encoding: "utf-8",
 							timeout: 30000,
@@ -940,12 +943,12 @@ export async function registerScaleRoutes(
 			const workspaceRoot = getWorkspaceRoot();
 
 			// Find the worktree by name
-			const output = execSync("git worktree list", {
+			const { stdout } = await execAsync("git worktree list", {
 				cwd: workspaceRoot,
 				encoding: "utf-8",
 				timeout: 10000,
 			});
-			const worktrees = parseGitWorktreeList(output);
+			const worktrees = parseGitWorktreeList(stdout);
 			const target = worktrees.find(
 				(wt) => wt.name === worktreeName && wt.path !== workspaceRoot && wt.path !== join(workspaceRoot, ".git"),
 			);
@@ -956,7 +959,7 @@ export async function registerScaleRoutes(
 				});
 			}
 
-			execSync(`git worktree remove "${target.path}"`, {
+			await execAsync(`git worktree remove "${target.path}"`, {
 				cwd: workspaceRoot,
 				encoding: "utf-8",
 				timeout: 30000,
