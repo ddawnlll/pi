@@ -38,6 +38,7 @@
  */
 
 import { execSync } from "node:child_process";
+import { readdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
@@ -384,11 +385,17 @@ function getGitDiff(workspaceRoot: string): { filesChanged: GitFileChange[]; err
 
 const fastify = Fastify({
 	logger: true,
+	bodyLimit: 10 * 1024 * 1024, // 10 MB body limit
 });
 
 // CORS for local development
 await fastify.register(fastifyCors, {
-	origin: true,
+	origin: [
+		"http://127.0.0.1:5176", // Vite dev server
+		"http://localhost:5176",
+		"http://127.0.0.1:3000", // API server
+		"http://localhost:3000",
+	],
 });
 
 // WebSocket support
@@ -451,8 +458,14 @@ function _getJsonStateStore(): JsonStateStore {
 	if (store instanceof JsonStateStore) {
 		return store;
 	}
-	// Wrap in JsonStateStore for legacy file access
-	return new JsonStateStore(getWorkspaceRoot());
+	// In PostgreSQL mode, the JSON store is not the primary backend.
+	// Use the shared workspace root path so file-based operations
+	// (like control file writes) land in the correct directory.
+	// Note: this creates a separate instance with its own state;
+	// the control file is only used by the JSON backend's file-watch mechanism.
+	// For the PostgreSQL backend, use stateStore methods directly.
+	const jsonStore = new JsonStateStore(getWorkspaceRoot());
+	return jsonStore;
 }
 
 // ---------------------------------------------------------------------------
@@ -3515,6 +3528,208 @@ function estimateTokensChat(text: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// File Browser Endpoint (Chat file reference via @ trigger)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/projects/:projectId/files/browse - List directory contents in project
+ *
+ * Query params:
+ *   path - subdirectory path relative to project root (default "" = root)
+ *
+ * Returns entries sorted: directories first, then files, alphabetical.
+ */
+fastify.get<{
+	Params: { projectId: string };
+	Querystring: { path?: string };
+}>("/api/projects/:projectId/files/browse", async (request, reply) => {
+	const { projectId } = request.params;
+	const subPath = (request.query.path ?? "").trim();
+
+	try {
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			return reply.code(404).send({ error: "Project not found", entries: [], currentPath: "" });
+		}
+
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+		const targetDir = subPath ? join(workspaceRoot, subPath) : workspaceRoot;
+
+		const { readdirSync, statSync } = await import("fs");
+
+		const parentPath = subPath.includes("/") ? subPath.slice(0, subPath.lastIndexOf("/")) : "";
+		const exclude = new Set([".git", "node_modules", ".pi", "dist", ".next", "build", "target", "__pycache__", ".cache"]);
+
+		let names: string[] = [];
+		try {
+			names = readdirSync(targetDir);
+		} catch {
+			return { entries: [], currentPath: subPath };
+		}
+
+		const entries = names
+			.filter((name) => !name.startsWith(".") || name === ".env.example" || name === ".env.sample")
+			.map((name) => {
+				const full = join(targetDir, name);
+				let isDir = false;
+				let size = 0;
+				try {
+					const st = statSync(full);
+					isDir = st.isDirectory();
+					size = st.isFile() ? st.size : 0;
+				} catch {}
+				const rel = subPath ? `${subPath}/${name}` : name;
+				const ext = isDir ? "" : name.includes(".") ? name.split(".").pop()! : "";
+				return {
+					name,
+					path: rel,
+					isDir,
+					ext,
+					size,
+					dir: subPath,
+				};
+			})
+			// Sort: directories first, then files, alphabetical
+			.sort((a, b) => {
+				if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+				return a.name.localeCompare(b.name);
+			});
+
+		return { entries, currentPath: subPath, parentPath };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to browse files");
+		return { entries: [], currentPath: "", parentPath: "" };
+	}
+});
+
+// ---------------------------------------------------------------------------
+// File Search Endpoint (Chat file reference via @ trigger, telescope-style)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure Node.js recursive file search (no shell commands).
+ * Searches within workspaceRoot for files whose name (case-insensitive)
+ * contains the query string. Excludes common dependency/build directories.
+ */
+function searchFilesRecursive(root: string, query: string, limit: number): Array<{
+	path: string;
+	name: string;
+	ext: string;
+	dir: string;
+	isDir: boolean;
+	size: number;
+}> {
+	const excludeDirs = new Set([".git", "node_modules", ".pi", "dist", ".next", "build", "target", "__pycache__", ".cache"]);
+	const results: Array<{
+		path: string;
+		name: string;
+		ext: string;
+		dir: string;
+		isDir: boolean;
+		size: number;
+	}> = [];
+	const ql = query.toLowerCase();
+
+	function walk(dir: string) {
+		if (results.length >= limit) return;
+
+		let entries: string[];
+		try {
+			entries = readdirSync(dir);
+		} catch {
+			return;
+		}
+
+		for (const entry of entries) {
+			if (results.length >= limit) return;
+
+			// Skip hidden files (except .env.example and .env.sample)
+			if (entry.startsWith(".") && entry !== ".env.example" && entry !== ".env.sample") {
+				continue;
+			}
+
+			const fullPath = join(dir, entry);
+
+			let isDir = false;
+			let size = 0;
+			try {
+				const st = statSync(fullPath);
+				isDir = st.isDirectory();
+				size = st.isFile() ? st.size : 0;
+			} catch {
+				continue;
+			}
+
+			if (isDir) {
+				if (!excludeDirs.has(entry)) {
+					walk(fullPath);
+				}
+			} else if (entry.toLowerCase().includes(ql)) {
+				const rel = root === dir ? entry : join(dir, entry).slice(root.length + 1);
+				const ext = entry.includes(".") ? entry.split(".").pop()! : "";
+				const parentDir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
+				results.push({ path: rel, name: entry, ext, dir: parentDir, isDir: false, size });
+			}
+		}
+	}
+
+	walk(root);
+
+	// Score: exact name match > starts with > contains > directory closeness
+	results.sort((a, b) => {
+		const aName = a.name.toLowerCase();
+		const bName = b.name.toLowerCase();
+		const aExact = aName === ql ? 0 : aName.startsWith(ql) ? 1 : aName.includes(ql) ? 2 : 3;
+		const bExact = bName === ql ? 0 : bName.startsWith(ql) ? 1 : bName.includes(ql) ? 2 : 3;
+		if (aExact !== bExact) return aExact - bExact;
+		return a.path.length - b.path.length;
+	});
+
+	return results.slice(0, limit);
+}
+
+/**
+ * GET /api/projects/:projectId/files/search - Search files in project
+ *
+ * Query params:
+ *   q - search query (required)
+ *   limit - max results (default 50, max 200)
+ *
+ * Returns matching file paths relative to project root, sorted by relevance.
+ * Uses pure Node.js recursive walk — no shell command execution.
+ */
+fastify.get<{
+	Params: { projectId: string };
+	Querystring: { q: string; limit?: string };
+}>("/api/projects/:projectId/files/search", async (request, reply) => {
+	const { projectId } = request.params;
+	const q = (request.query.q ?? "").trim();
+	if (!q) {
+		return reply.code(400).send({ error: "Query is required", files: [] });
+	}
+	const limit = Math.min(200, Math.max(1, parseInt(request.query.limit ?? "50", 10) || 50));
+
+	try {
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			return reply.code(404).send({ error: "Project not found", files: [] });
+		}
+
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+		const files = searchFilesRecursive(workspaceRoot, q, limit);
+
+		return { files };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to search files");
+		return { files: [], error: String(error) };
+	}
+});
+
+// ---------------------------------------------------------------------------
 // Artifact Browser Routes (P5 Workstream 5.C)
 // ---------------------------------------------------------------------------
 
@@ -3613,4 +3828,7 @@ const start = async () => {
 	}
 };
 
-start();
+start().catch((err) => {
+	console.error("[server] Failed to start:", err);
+	process.exit(1);
+});

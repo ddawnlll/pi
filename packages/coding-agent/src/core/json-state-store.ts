@@ -61,9 +61,10 @@ export class JsonStateStore implements IStateStore {
 	private controlFilePath: string;
 	private store: PlanStateStore;
 
-	// In-memory log buffer: Map<planExecId:workspaceId, string[]>
-	private logBuffers: Map<string, string[]> = new Map();
+	// In-memory log buffer: Map<planExecId:workspaceId, { lines: string[]; bytes: number }>
+	private logBuffers: Map<string, { lines: string[]; bytes: number }> = new Map();
 	private readonly MAX_BUFFER_LINES = 1000;
+	private readonly MAX_BUFFER_BYTES = 50 * 1024 * 1024; // 50 MB
 
 	constructor(workspaceRoot: string, config?: JsonStateStoreConfig) {
 		this.workspaceRoot = workspaceRoot;
@@ -733,18 +734,21 @@ export class JsonStateStore implements IStateStore {
 		const key = `${planExecutionId}:${workspaceId}`;
 
 		// Get or create buffer
-		let buffer = this.logBuffers.get(key);
-		if (!buffer) {
-			buffer = [];
-			this.logBuffers.set(key, buffer);
+		let entry = this.logBuffers.get(key);
+		if (!entry) {
+			entry = { lines: [], bytes: 0 };
+			this.logBuffers.set(key, entry);
 		}
 
-		// Add line to buffer
-		buffer.push(logLine);
+		// Add line to buffer and track bytes
+		entry.lines.push(logLine);
+		entry.bytes += Buffer.byteLength(logLine, "utf-8");
 
-		// Trim buffer if it exceeds max size
-		if (buffer.length > this.MAX_BUFFER_LINES) {
-			buffer.shift();
+		// Trim buffer if it exceeds max lines OR max bytes
+		while (entry.lines.length > this.MAX_BUFFER_LINES || entry.bytes > this.MAX_BUFFER_BYTES) {
+			const removed = entry.lines.shift();
+			if (removed === undefined) break;
+			entry.bytes -= Buffer.byteLength(removed, "utf-8");
 		}
 
 		// Persist to file
@@ -798,11 +802,11 @@ export class JsonStateStore implements IStateStore {
 	 */
 	getRecentWorkspaceLogs(planExecutionId: string, workspaceId: string, maxLines = 100): string[] {
 		const key = `${planExecutionId}:${workspaceId}`;
-		const buffer = this.logBuffers.get(key);
-		if (!buffer) {
+		const entry = this.logBuffers.get(key);
+		if (!entry) {
 			return [];
 		}
-		return buffer.slice(-maxLines);
+		return entry.lines.slice(-maxLines);
 	}
 
 	// =========================================================================

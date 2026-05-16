@@ -5,6 +5,7 @@
  * It is only intended for CLI use, not browser environments.
  */
 
+import { randomBytes } from "node:crypto";
 import type { Server } from "node:http";
 import { oauthErrorHtml, oauthSuccessHtml } from "./oauth-page.js";
 import { generatePKCE } from "./pkce.js";
@@ -29,9 +30,8 @@ const CLIENT_ID = decode("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");
 const AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
 const CALLBACK_HOST = process.env.PI_OAUTH_CALLBACK_HOST || "127.0.0.1";
-const CALLBACK_PORT = 53692;
+const CALLBACK_PORT = 0; // OS-assigned; read back via server.address()
 const CALLBACK_PATH = "/callback";
-const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const SCOPES =
 	"org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 async function getNodeApis(): Promise<NodeApis> {
@@ -95,6 +95,13 @@ function formatErrorDetails(error: unknown): string {
 	return String(error);
 }
 
+/**
+ * In-memory map of OAuth state → PKCE verifier.
+ * The state parameter is a separate random value (not the verifier itself)
+ * to avoid leaking the PKCE verifier in the redirect URL.
+ */
+const pkceVerifierByState = new Map<string, string>();
+
 async function startCallbackServer(expectedState: string): Promise<CallbackServerInfo> {
 	const { createServer } = await getNodeApis();
 
@@ -154,9 +161,12 @@ async function startCallbackServer(expectedState: string): Promise<CallbackServe
 		});
 
 		server.listen(CALLBACK_PORT, CALLBACK_HOST, () => {
+			const address = server.address();
+			const assignedPort = typeof address === "object" && address ? address.port : CALLBACK_PORT;
+			const redirectUri = `http://localhost:${assignedPort}${CALLBACK_PATH}`;
 			resolve({
 				server,
-				redirectUri: REDIRECT_URI,
+				redirectUri,
 				cancelWait: () => {
 					settleWait?.(null);
 				},
@@ -226,6 +236,10 @@ async function exchangeAuthorizationCode(
 
 /**
  * Login with Anthropic OAuth (authorization code + PKCE)
+ *
+ * Uses a separate random `state` parameter (not the PKCE verifier) to prevent
+ * leaking the verifier in the OAuth redirect URL. The verifier is looked up
+ * from an in-memory map keyed by state.
  */
 export async function loginAnthropic(options: {
 	onAuth: (info: { url: string; instructions?: string }) => void;
@@ -234,22 +248,38 @@ export async function loginAnthropic(options: {
 	onManualCodeInput?: () => Promise<string>;
 }): Promise<OAuthCredentials> {
 	const { verifier, challenge } = await generatePKCE();
-	const server = await startCallbackServer(verifier);
+	// Separate random state — NOT the verifier — to prevent verifier leakage
+	// in the OAuth redirect URL or browser history.
+	const oauthState = randomBytes(32).toString("hex");
+	pkceVerifierByState.set(oauthState, verifier);
+	const server = await startCallbackServer(oauthState);
 
 	let code: string | undefined;
-	let state: string | undefined;
-	let redirectUriForExchange = REDIRECT_URI;
+	let stateResponse: string | undefined;
+	// Use the OS-assigned port redirect URI from the server callback info
+	let redirectUriForExchange = server.redirectUri;
+
+	/**
+	 * Look up the PKCE verifier from the OAuth state. Throws on mismatch.
+	 */
+	function resolveVerifier(stateParam: string): string {
+		const found = pkceVerifierByState.get(stateParam);
+		if (!found) {
+			throw new Error("OAuth state mismatch: unknown state parameter");
+		}
+		return found;
+	}
 
 	try {
 		const authParams = new URLSearchParams({
 			code: "true",
 			client_id: CLIENT_ID,
 			response_type: "code",
-			redirect_uri: REDIRECT_URI,
+			redirect_uri: server.redirectUri,
 			scope: SCOPES,
 			code_challenge: challenge,
 			code_challenge_method: "S256",
-			state: verifier,
+			state: oauthState,
 		});
 
 		options.onAuth({
@@ -280,15 +310,15 @@ export async function loginAnthropic(options: {
 
 			if (result?.code) {
 				code = result.code;
-				state = result.state;
-				redirectUriForExchange = REDIRECT_URI;
+				stateResponse = result.state;
+				redirectUriForExchange = server.redirectUri;
 			} else if (manualInput) {
 				const parsed = parseAuthorizationInput(manualInput);
-				if (parsed.state && parsed.state !== verifier) {
-					throw new Error("OAuth state mismatch");
+				if (parsed.state) {
+					resolveVerifier(parsed.state); // validates state is known
 				}
 				code = parsed.code;
-				state = parsed.state ?? verifier;
+				stateResponse = parsed.state ?? oauthState;
 			}
 
 			if (!code) {
@@ -298,47 +328,54 @@ export async function loginAnthropic(options: {
 				}
 				if (manualInput) {
 					const parsed = parseAuthorizationInput(manualInput);
-					if (parsed.state && parsed.state !== verifier) {
-						throw new Error("OAuth state mismatch");
+					if (parsed.state) {
+						resolveVerifier(parsed.state);
 					}
 					code = parsed.code;
-					state = parsed.state ?? verifier;
+					stateResponse = parsed.state ?? oauthState;
 				}
 			}
 		} else {
 			const result = await server.waitForCode();
 			if (result?.code) {
 				code = result.code;
-				state = result.state;
-				redirectUriForExchange = REDIRECT_URI;
+				stateResponse = result.state;
+				redirectUriForExchange = server.redirectUri;
 			}
 		}
 
 		if (!code) {
 			const input = await options.onPrompt({
 				message: "Paste the authorization code or full redirect URL:",
-				placeholder: REDIRECT_URI,
+				placeholder: server.redirectUri,
 			});
 			const parsed = parseAuthorizationInput(input);
-			if (parsed.state && parsed.state !== verifier) {
-				throw new Error("OAuth state mismatch");
+			if (parsed.state) {
+				resolveVerifier(parsed.state);
 			}
 			code = parsed.code;
-			state = parsed.state ?? verifier;
+			stateResponse = parsed.state ?? oauthState;
 		}
 
 		if (!code) {
 			throw new Error("Missing authorization code");
 		}
 
-		if (!state) {
+		if (!stateResponse) {
 			throw new Error("Missing OAuth state");
 		}
 
 		options.onProgress?.("Exchanging authorization code for tokens...");
-		return exchangeAuthorizationCode(code, state, verifier, redirectUriForExchange);
+
+		// Resolve verifier from the state response and clean up the mapping
+		const resolvedVerifier = resolveVerifier(stateResponse);
+		pkceVerifierByState.delete(stateResponse);
+
+		return exchangeAuthorizationCode(code, stateResponse, resolvedVerifier, redirectUriForExchange);
 	} finally {
 		server.server.close();
+		// Clean up any leftover mapping in case of error
+		pkceVerifierByState.delete(oauthState);
 	}
 }
 

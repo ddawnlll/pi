@@ -583,6 +583,9 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			completedAt: null,
 		};
 
+		// Register execution in activeExecutions BEFORE releasing the in-flight guard.
+		// This ensures concurrent runPlan() calls see the running execution
+		// and return it instead of starting a duplicate.
 		activeExecutions.set(planExecutionId, execution);
 
 		// Write the meta file so recovery can find the correct plan file
@@ -596,10 +599,9 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			worktreeConfig: worktreeConfig, // persist for crash recovery
 		});
 
-		// Release the in-flight guard immediately after the execution is registered
-		// in activeExecutions, so a concurrent runPlan() call sees it and returns
-		// the existing execution instead of starting a duplicate. The finally block
-		// below still acts as a safety net for early-thrown errors.
+		// Release the in-flight guard AFTER execution is registered in activeExecutions.
+		// The early-return check at the top of runPlan() checks activeExecutions,
+		// so this prevents concurrent runPlan() calls on the same project.
 		inFlightProjects.delete(projectId);
 
 		// Start execution in background (do not await)

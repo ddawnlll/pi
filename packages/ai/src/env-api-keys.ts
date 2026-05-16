@@ -31,6 +31,9 @@ let _procEnvCache: Map<string, string> | null = null;
  * Fallback for https://github.com/oven-sh/bun/issues/27802
  * Bun compiled binaries have an empty `process.env` inside sandbox
  * environments on Linux. We can recover the env from `/proc/self/environ`.
+ *
+ * Reads only the requested key to avoid caching ALL environment variables
+ * (including secrets) in memory.
  */
 function getProcEnv(key: string): string | undefined {
 	if (!process.versions?.bun) return undefined;
@@ -39,23 +42,21 @@ function getProcEnv(key: string): string | undefined {
 	// If process.env already has entries, the bug is not triggered.
 	if (Object.keys(process.env).length > 0) return undefined;
 
-	if (_procEnvCache === null) {
-		_procEnvCache = new Map();
-		try {
-			const { readFileSync } = require("node:fs") as typeof import("node:fs");
-			const data = readFileSync("/proc/self/environ", "utf-8");
-			for (const entry of data.split("\0")) {
-				const idx = entry.indexOf("=");
-				if (idx > 0) {
-					_procEnvCache.set(entry.slice(0, idx), entry.slice(idx + 1));
-				}
+	try {
+		const { readFileSync } = require("node:fs") as typeof import("node:fs");
+		const data = readFileSync("/proc/self/environ", "utf-8");
+		// Search line-by-line for the specific key only
+		for (const entry of data.split("\0")) {
+			const idx = entry.indexOf("=");
+			if (idx > 0 && entry.slice(0, idx) === key) {
+				return entry.slice(idx + 1);
 			}
-		} catch {
-			// /proc/self/environ may not be readable.
 		}
+	} catch {
+		// /proc/self/environ may not be readable.
 	}
 
-	return _procEnvCache.get(key);
+	return undefined;
 }
 
 let cachedVertexAdcCredentialsExists: boolean | null = null;
