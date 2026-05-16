@@ -79,13 +79,19 @@ export interface ExtensionMutationResponse {
 
 async function fetchExtensions(): Promise<ExtensionListResponse> {
 	const r = await fetch(`${API_BASE}/api/extensions`);
-	if (!r.ok) throw new Error(`Failed to fetch extensions: ${r.statusText}`);
+	if (!r.ok) {
+		if (r.status === 404) throw new Error("Extensions not available — API routes not configured on server");
+		throw new Error(`Failed to fetch extensions: ${r.statusText}`);
+	}
 	return r.json();
 }
 
 async function fetchExtensionHealth(): Promise<ExtensionHealthResponse> {
 	const r = await fetch(`${API_BASE}/api/extensions/health`);
-	if (!r.ok) throw new Error(`Failed to fetch extension health: ${r.statusText}`);
+	if (!r.ok) {
+		if (r.status === 404) throw new Error("Extensions not available — API routes not configured on server");
+		throw new Error(`Failed to fetch extension health: ${r.statusText}`);
+	}
 	return r.json();
 }
 
