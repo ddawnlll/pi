@@ -11,14 +11,19 @@
  * plan-summary.md file in .pi/workspaces/ for dashboard consumption.
  */
 
+import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { promisify } from "node:util";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
 import { createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
+
+const execAsync = promisify(execCb);
+
 import type { IStateStore } from "./state-store.js";
 import {
 	canStartWorker,
@@ -194,9 +199,6 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 		// Get git diff for context on what changed
 		let gitDiff = "";
 		try {
-			const { exec } = await import("node:child_process");
-			const { promisify } = await import("node:util");
-			const execAsync = promisify(exec);
 			const diffResult = await execAsync("git diff --stat HEAD", {
 				cwd: workspaceRoot,
 				timeout: 5000,
@@ -337,20 +339,27 @@ async function executeCleanupAgent(config: {
 
 	const settingsManager = SettingsManager.create(workspaceRoot);
 
+	let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | null = null;
+	let unsubscribe: (() => void) | null = null;
+
 	try {
-		const { session } = await createAgentSession({
+		const created = await createAgentSession({
 			cwd: workspaceRoot,
 			model,
 			thinkingLevel: "low",
 			sessionManager,
 			settingsManager,
-			tools: ["read", "write", "edit", "bash", "find", "grep", "ls"],
+			// NOTE: intentionally no bash/write/edit — the cleanup agent only reviews
+			// and summarizes. It must not modify files or run commands.
+			tools: ["read", "find", "grep", "ls"],
 		});
+		session = created.session;
 
 		// Collect output
 		const outputParts: string[] = [];
 
-		const unsubscribe = session.subscribe((event) => {
+		// Single subscription to collect output + detect agent_end
+		unsubscribe = session.subscribe((event) => {
 			// Forward agent session events as worker status updates
 			if (event.type === "agent_start") {
 				emitStatus("executing", "Cleanup agent started");
@@ -379,48 +388,39 @@ async function executeCleanupAgent(config: {
 			}
 		});
 
-		// Wait for agent end
-		let agentCompleted = false;
-		const completionPromise = new Promise<void>((resolve) => {
-			const unsub = session.subscribe((event) => {
-				if (event.type === "agent_end") {
-					agentCompleted = true;
-					unsub();
-					resolve();
-				}
-			});
-			// Hard timeout: if agent hasn't completed within 90 seconds, force-resolve
-			// to avoid hanging the entire cleanup process on a stalled agent.
-			// The dispose() call kills any orphaned child processes via the
-			// killTrackedDetachedChildren() hook added in agent-session.ts.
-			setTimeout(() => {
-				if (!agentCompleted) {
-					agentCompleted = true;
-					unsub();
-					// Dispose kills tracked children (vitest, etc.) via shell.ts exit handler
-					session.dispose();
-					outputParts.push("\n[cleanup] Agent timed out after 90 seconds");
-					resolve();
-				}
-			}, 90_000);
-		});
+		// Adaptive timeout: base 90s + 5s per workspace report. Cap at 300s.
+		const workspaceCount = (config.prompt.match(/^### /gm) || []).length;
+		const timeoutMs = Math.min(90_000 + workspaceCount * 5_000, 300_000);
 
 		await logAndArchive("Sending prompt to cleanup agent...");
 		emitStatus("executing", "Sending prompt to cleanup agent");
 
-		await session.prompt(prompt);
-		if (!agentCompleted) {
-			await completionPromise;
+		// Race prompt execution against the adaptive timeout
+		const result = await Promise.race([
+			session.prompt(prompt).then(() => "completed" as const),
+			timeout(timeoutMs).then(() => "timeout" as const),
+		]);
+
+		if (result === "timeout") {
+			outputParts.push(`\n[cleanup] Agent timed out after ${timeoutMs / 1000}s`);
+			await logAndArchive(`Cleanup agent timed out after ${timeoutMs / 1000}s`);
+			emitStatus("error", `Cleanup agent timed out after ${timeoutMs / 1000}s`);
+			// Dispose kills tracked children (vitest, etc.) via shell.ts exit handler
+			session.dispose();
 		}
 
-		unsubscribe();
+		// Unsubscribe before parsing to avoid further event processing
+		if (unsubscribe) {
+			unsubscribe();
+			unsubscribe = null;
+		}
 
 		// Parse the final output for the structured result
 		const fullOutput = outputParts.join("");
-		const result = parseCleanupResult(fullOutput);
+		const parsed = parseCleanupResult(fullOutput);
 
 		await logAndArchive(
-			`Cleanup result: ${result.passed ? "PASS" : "FAIL"}, issues=${result.issueCount}, files=${result.changedFiles.length}`,
+			`Cleanup result: ${parsed.passed ? "PASS" : "FAIL"}, issues=${parsed.issueCount}, files=${parsed.changedFiles.length}`,
 		);
 
 		// Emit plan_summary journal event
@@ -429,12 +429,12 @@ async function executeCleanupAgent(config: {
 				type: "plan_summary",
 				timestamp: Date.now(),
 				data: {
-					summary: result.summary,
-					issueCount: result.issueCount,
-					issues: result.issues,
-					changedFiles: result.changedFiles,
-					testResults: result.testResults,
-					passed: result.passed,
+					summary: parsed.summary,
+					issueCount: parsed.issueCount,
+					issues: parsed.issues,
+					changedFiles: parsed.changedFiles,
+					testResults: parsed.testResults,
+					passed: parsed.passed,
 					rawOutput: fullOutput.slice(0, 5000),
 				},
 			})
@@ -451,7 +451,7 @@ async function executeCleanupAgent(config: {
 						planTitle: "",
 						phase: "",
 						completedAt: Date.now(),
-						...result,
+						...parsed,
 					},
 					null,
 					2,
@@ -462,9 +462,17 @@ async function executeCleanupAgent(config: {
 			// Non-fatal
 		}
 
-		return result;
+		return parsed;
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error);
+		// Ensure session is always cleaned up on unexpected errors
+		if (session && !(error as any)?._sessionDisposed) {
+			try {
+				session.dispose();
+			} catch {
+				// Non-fatal
+			}
+		}
 		const fallback: CleanupReviewResult = {
 			passed: false,
 			summary: `Cleanup review failed: ${errorMsg}`,
@@ -491,11 +499,32 @@ async function executeCleanupAgent(config: {
 			.catch(() => {});
 
 		return fallback;
+	} finally {
+		if (unsubscribe) {
+			try {
+				unsubscribe();
+			} catch {
+				// Non-fatal
+			}
+		}
 	}
 }
 
 /**
+ * Return a promise that resolves after `ms` milliseconds.
+ */
+function timeout(ms: number): Promise<"timeout"> {
+	return new Promise((resolve) => setTimeout(() => resolve("timeout" as const), ms));
+}
+
+/**
  * Parse the structured CLEANUP_REVIEW_RESULT block from the agent output.
+ *
+ * Uses a state-machine approach per section:
+ *   - Issues: once "Issues:" is seen, every subsequent non-empty line that
+ *     does not start with a known key is accumulated as an issue.
+ *   - Changed files: split on comma, trim each.
+ *   - Verdict: PASS → true, anything else → false.
  */
 function parseCleanupResult(output: string): CleanupReviewResult {
 	const result: CleanupReviewResult = {
@@ -522,52 +551,56 @@ function parseCleanupResult(output: string): CleanupReviewResult {
 
 	const block = output.slice(startIdx + startMarker.length, endIdx).trim();
 
-	// Parse each line
+	// State machine: tracks which section we are in for multi-line fields.
+	// Sections: "summary", "issues", none = ""
+	let section = "";
+
 	for (const line of block.split("\n")) {
 		const trimmed = line.trim();
+		if (!trimmed) continue;
 
 		if (trimmed.startsWith("Summary:")) {
+			section = "summary";
 			result.summary = trimmed.slice("Summary:".length).trim();
 		} else if (trimmed.startsWith("Changed files:")) {
+			section = "";
 			const files = trimmed.slice("Changed files:".length).trim();
 			result.changedFiles = files
 				.split(",")
 				.map((f) => f.trim())
 				.filter(Boolean);
 		} else if (trimmed.startsWith("Issues found:")) {
+			section = "";
 			const count = Number.parseInt(trimmed.slice("Issues found:".length).trim(), 10);
 			result.issueCount = Number.isNaN(count) ? 0 : count;
 		} else if (trimmed.startsWith("Issues:")) {
-			// Issues are on subsequent lines or inline
+			section = "issues";
 			const rest = trimmed.slice("Issues:".length).trim();
 			if (rest && rest !== "None") {
 				result.issues.push(rest);
 			}
+		} else if (trimmed.startsWith("Verdict:")) {
+			section = "";
+			const verdict = trimmed.slice("Verdict:".length).trim();
+			result.passed = verdict === "PASS";
 		} else if (
 			trimmed.startsWith("Tests run:") ||
 			trimmed.startsWith("Tests passed:") ||
 			trimmed.startsWith("Tests failed:")
 		) {
+			section = "";
 			// Track test counts — handled below
-		} else if (trimmed.startsWith("Verdict:")) {
-			const verdict = trimmed.slice("Verdict:".length).trim();
-			result.passed = verdict === "PASS";
-		} else if (trimmed && !trimmed.startsWith("---") && !trimmed.startsWith("*")) {
-			// Additional issue lines not prefixed with "Issues:" but non-empty
-			if (
-				result.issues.length > 0 ||
-				trimmed.includes("error") ||
-				trimmed.includes("warning") ||
-				trimmed.includes("bug") ||
-				trimmed.includes("issue")
-			) {
-				result.issues.push(trimmed);
-			}
+		} else if (section === "summary") {
+			// Multi-line summary: append with space separator
+			result.summary += ` ${trimmed}`;
+		} else if (section === "issues") {
+			// Multi-line issues: accumulate each line as a separate issue
+			result.issues.push(trimmed);
 		}
 	}
 
-	// Re-count issues from the issues array if issues found was 0 but we have issues
-	if (result.issueCount === 0 && result.issues.length > 0) {
+	// Re-count issues from the issues array if the structured count disagreed
+	if (result.issues.length > 0) {
 		result.issueCount = result.issues.length;
 	}
 
@@ -576,15 +609,25 @@ function parseCleanupResult(output: string): CleanupReviewResult {
 
 /**
  * Get a fallback model for the cleanup agent.
+ * Throws if none of the known providers/models are configured.
  */
 function getFallbackModel(): Model<any> {
-	return (
-		getModel("opencode-go", "deepseek-v4-flash") ??
-		getModel("opencode-go", "minimax-m2.7") ??
-		getModel("anthropic", "claude-3-5-haiku-20241022") ??
-		getModel("openai", "gpt-4o-mini") ??
-		getModel("anthropic", "claude-sonnet-4-20250514") ??
-		getModel("openai", "gpt-4o")
+	const models = [
+		getModel("opencode-go" as any, "deepseek-v4-flash" as any),
+		getModel("opencode-go" as any, "minimax-m2.7" as any),
+		getModel("anthropic" as any, "claude-3-5-haiku-20241022" as any),
+		getModel("openai" as any, "gpt-4o-mini" as any),
+		getModel("anthropic" as any, "claude-sonnet-4-20250514" as any),
+		getModel("openai" as any, "gpt-4o" as any),
+	];
+
+	for (const m of models) {
+		if (m) return m;
+	}
+
+	throw new Error(
+		"No model available for cleanup review agent. Configure at least one provider/model (e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENCODE_GO_API_KEY)." +
+			" Tried: opencode-go/deepseek-v4-flash, opencode-go/minimax-m2.7, anthropic/claude-3-5-haiku-20241022, openai/gpt-4o-mini, anthropic/claude-sonnet-4-20250514, openai/gpt-4o",
 	);
 }
 

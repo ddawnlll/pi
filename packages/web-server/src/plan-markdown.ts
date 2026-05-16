@@ -35,6 +35,7 @@ export type PlanMarkdownEvent =
 	  }
 	| { type: "plan-complete" }
 	| { type: "plan-failed" }
+	| { type: "plan-handoff" }
 	| { type: "plan-resumed" }
 	| { type: "plan-retry" };
 
@@ -81,7 +82,7 @@ async function atomicWrite(piDir: string, planExecId: string, content: string): 
 function formatHeader(
 	planExecId: string,
 	startedAt: string,
-	status: "running" | "complete" | "failed",
+	status: "running" | "complete" | "failed" | "awaiting_handoff",
 	completedAt?: string,
 ): string {
 	const lines = [
@@ -118,7 +119,7 @@ function parseHeader(headerBlock: string): Record<string, string> {
 function replaceHeader(
 	content: string,
 	planExecId: string,
-	newStatus: "running" | "complete" | "failed",
+	newStatus: "running" | "complete" | "failed" | "awaiting_handoff",
 	newCompletedAt?: string,
 ): string {
 	// Try to find an existing header block
@@ -265,6 +266,11 @@ export async function updatePlanMarkdown(piDir: string, planExecId: string, even
 		case "plan-retry": {
 			// Revert the header from "failed" back to "running" to reflect the retry.
 			updated = replaceHeader(content, planExecId, "running");
+			break;
+		}
+		case "plan-handoff": {
+			// Entered handoff — set status to "awaiting_handoff".
+			updated = replaceHeader(content, planExecId, "awaiting_handoff");
 			break;
 		}
 	}

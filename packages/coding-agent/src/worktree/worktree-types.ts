@@ -33,11 +33,11 @@ export interface WorktreeState {
 	workspaceId: string;
 	/** Plan execution ID that owns this worktree */
 	planExecutionId: string;
-	/** ISO-8601 timestamp when the worktree was created */
+	/** Epoch ms when the worktree was created */
 	createdAt: number;
 	/** Current lifecycle status */
 	status: WorktreeStatus;
-	/** ISO-8601 timestamp of last status change */
+	/** Epoch ms of last status change */
 	statusChangedAt: number;
 }
 

@@ -8,10 +8,14 @@
  * Delegates cleanup to WorktreeCleanup for safe path-constrained removal.
  */
 
-import { execSync } from "node:child_process";
+import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { promisify } from "node:util";
 import { WorktreeCleanup } from "./worktree-cleanup.js";
+
+const execAsync = promisify(execCb);
+
 import {
 	DEFAULT_WORKTREE_ROOT,
 	type WorktreeCleanupResult,
@@ -22,19 +26,32 @@ import {
 } from "./worktree-types.js";
 
 // ---------------------------------------------------------------------------
+// Persistence helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Relative path (from workspaceRoot/.pi) for the worktree state snapshot.
+ */
+const WORKTREE_STATE_FILE = "worktree-state.json";
+
+interface PersistedState {
+	worktrees: Array<WorktreeState & { diff?: string }>;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command and return stdout trimmed.
+ * Run a git command asynchronously and return stdout trimmed.
  */
-function git(args: string[], cwd: string): string {
-	const result = execSync(`git ${args.join(" ")}`, {
+async function gitAsync(args: string[], cwd: string): Promise<string> {
+	const { stdout } = await execAsync(`git ${args.join(" ")}`, {
 		cwd,
 		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
+		timeout: 30_000,
 	});
-	return result.trim();
+	return stdout.trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +83,83 @@ export class WorktreeManager {
 	}
 
 	/**
+	 * Absolute path to the persistence file.
+	 */
+	private get stateFilePath(): string {
+		return path.join(this.workspaceRoot, ".pi", WORKTREE_STATE_FILE);
+	}
+
+	/**
+	 * Persist current worktree state to disk so it survives process restarts.
+	 */
+	async persistState(): Promise<void> {
+		const data: PersistedState = {
+			worktrees: Array.from(this.worktrees.values()).map((s) => ({
+				...s,
+				diff: this.diffArtifacts.get(this.stateKey(s.planExecutionId, s.workspaceId))?.diff,
+			})),
+		};
+		const dir = path.dirname(this.stateFilePath);
+		await fs.mkdir(dir, { recursive: true });
+		await fs.writeFile(this.stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+	}
+
+	/**
+	 * Reload worktree state from disk, restoring in-memory maps.
+	 * Useful after process restart / crash recovery.
+	 */
+	async loadState(): Promise<void> {
+		try {
+			const raw = await fs.readFile(this.stateFilePath, "utf-8");
+			const data: PersistedState = JSON.parse(raw);
+			for (const entry of data.worktrees) {
+				const key = this.stateKey(entry.planExecutionId, entry.workspaceId);
+				this.worktrees.set(key, {
+					worktreePath: entry.worktreePath,
+					baseCommit: entry.baseCommit,
+					branchName: entry.branchName,
+					workspaceId: entry.workspaceId,
+					planExecutionId: entry.planExecutionId,
+					createdAt: entry.createdAt,
+					status: entry.status,
+					statusChangedAt: entry.statusChangedAt,
+				});
+				if (entry.diff) {
+					this.diffArtifacts.set(key, {
+						planExecutionId: entry.planExecutionId,
+						workspaceId: entry.workspaceId,
+						diff: entry.diff,
+						generatedAt: entry.statusChangedAt,
+					});
+				}
+			}
+		} catch {
+			// No persisted state — that's fine
+		}
+	}
+
+	/**
+	 * Reconcile in-memory state against actual git worktrees on disk.
+	 * Removes entries whose worktree directories no longer exist (e.g.
+	 * manually deleted or cleaned up by another process).
+	 */
+	async reconcileFromDisk(): Promise<void> {
+		const toRemove: string[] = [];
+		for (const [key, state] of this.worktrees) {
+			try {
+				await fs.access(state.worktreePath);
+			} catch {
+				// Worktree directory is gone
+				toRemove.push(key);
+			}
+		}
+		for (const key of toRemove) {
+			this.worktrees.delete(key);
+			this.diffArtifacts.delete(key);
+		}
+	}
+
+	/**
 	 * The absolute path to the worktree storage root.
 	 */
 	get worktreeStorageRoot(): string {
@@ -81,6 +175,7 @@ export class WorktreeManager {
 	register(state: WorktreeState): void {
 		const key = this.stateKey(state.planExecutionId, state.workspaceId);
 		this.worktrees.set(key, { ...state });
+		this.persistState().catch(() => {});
 	}
 
 	/**
@@ -97,6 +192,7 @@ export class WorktreeManager {
 		} else {
 			this.worktrees.set(key, { ...state });
 		}
+		this.persistState().catch(() => {});
 	}
 
 	/**
@@ -112,13 +208,16 @@ export class WorktreeManager {
 
 	/**
 	 * List all tracked worktrees, optionally filtered by plan execution ID.
+	 * Uses a snapshot of the worktrees map for thread safety.
 	 *
 	 * @param planExecutionId - Optional filter to show only worktrees for a given plan.
 	 * @returns Array of worktree list entries with status.
 	 */
 	list(planExecutionId?: string): WorktreeListEntry[] {
 		const entries: WorktreeListEntry[] = [];
-		for (const [, state] of this.worktrees) {
+		// Snapshot the map to avoid mid-iteration mutation issues
+		const snapshot = Array.from(this.worktrees.entries());
+		for (const [, state] of snapshot) {
 			if (planExecutionId && state.planExecutionId !== planExecutionId) {
 				continue;
 			}
@@ -144,8 +243,9 @@ export class WorktreeManager {
 	/**
 	 * Generate a diff artifact for a completed worktree.
 	 * Compares the worktree's HEAD against the base commit and stores
-	 * the unified diff. The diff artifact is also persisted to disk
-	 * under `.pi/worktrees/{planExecId}/{workspaceId}/diff.patch`.
+	 * the unified diff. The diff artifact is persisted to disk
+	 * under `.pi/executions/{planExecId}/worktrees/{workspaceId}.patch`
+	 * — outside the worktree directory so it survives cleanup.
 	 *
 	 * AC2: Completed worktree produces diff artifact.
 	 *
@@ -167,7 +267,7 @@ export class WorktreeManager {
 			await fs.access(worktreeDir);
 
 			// Generate unified diff from base commit to HEAD in the worktree
-			const diffOutput = git(["diff", state.baseCommit, "HEAD"], worktreeDir);
+			const diffOutput = await gitAsync(["diff", state.baseCommit, "HEAD"], worktreeDir);
 
 			const artifact: WorktreeDiffArtifact = {
 				planExecutionId,
@@ -176,11 +276,11 @@ export class WorktreeManager {
 				generatedAt: Date.now(),
 			};
 
-			// Persist the diff artifact to disk
+			// Persist diff artifact OUTSIDE the worktree so it survives cleanup
 			if (diffOutput) {
-				const diffDir = path.dirname(worktreeDir);
-				await fs.mkdir(diffDir, { recursive: true });
-				const diffPath = path.join(worktreeDir, "diff.patch");
+				const artifactDir = path.join(this.workspaceRoot, ".pi", "executions", planExecutionId, "worktrees");
+				await fs.mkdir(artifactDir, { recursive: true });
+				const diffPath = path.join(artifactDir, `${workspaceId}.patch`);
 				await fs.writeFile(diffPath, diffOutput, "utf-8");
 				artifact.diffPath = diffPath;
 			}
@@ -291,9 +391,9 @@ export class WorktreeManager {
 		const result = await cleanup.removeWorktree(state.worktreePath, state.branchName);
 
 		if (result.success) {
-			// Update status to completed (if not already) since it's been cleaned up
 			state.status = "completed";
 			state.statusChangedAt = Date.now();
+			this.persistState().catch(() => {});
 		}
 
 		return result;
@@ -327,6 +427,7 @@ export class WorktreeManager {
 		if (result.success) {
 			state.status = "completed";
 			state.statusChangedAt = Date.now();
+			this.persistState().catch(() => {});
 		}
 
 		return result;
@@ -334,6 +435,7 @@ export class WorktreeManager {
 
 	/**
 	 * Count worktrees by status.
+	 * Uses a snapshot of the worktrees map for thread safety.
 	 *
 	 * @param planExecutionId - Optional filter by plan execution ID.
 	 * @returns Record of status to count.
@@ -347,7 +449,9 @@ export class WorktreeManager {
 			quarantined: 0,
 		};
 
-		for (const [, state] of this.worktrees) {
+		// Snapshot the map to avoid mid-iteration mutation issues
+		const snapshot = Array.from(this.worktrees.entries());
+		for (const [, state] of snapshot) {
 			if (planExecutionId && state.planExecutionId !== planExecutionId) continue;
 			counts[state.status]++;
 		}
@@ -361,6 +465,8 @@ export class WorktreeManager {
 	clear(): void {
 		this.worktrees.clear();
 		this.diffArtifacts.clear();
+		// Also remove the persisted state file
+		fs.unlink(this.stateFilePath).catch(() => {});
 	}
 
 	/**

@@ -42,6 +42,8 @@ export interface ExecutionMeta {
 	startedAt: number;
 	/** Approved preview metadata persisted for crash recovery (AC2). */
 	approvedPreview?: ApprovedPreviewMetadata;
+	/** Worktree isolation config persisted for crash recovery. */
+	worktreeConfig?: { enabled: true };
 }
 
 export interface ActiveExecution {
@@ -85,8 +87,9 @@ const executionWorkspaceRoots = new Map<string, string>();
  */
 const META_FILE_SUFFIX = ".meta.json";
 
-// TTL for completed executions (30 minutes)
-const EXECUTION_TTL_MS = 30 * 60 * 1000;
+// TTL for completed executions (default 30 minutes, configurable via env var)
+// PI_EXECUTION_TTL_MINUTES overrides the default.
+const EXECUTION_TTL_MS = (Number.parseInt(process.env.PI_EXECUTION_TTL_MINUTES ?? "", 10) || 30) * 60 * 1000;
 
 // Map to track cleanup timers
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
@@ -319,7 +322,8 @@ function updateExecutionStatus(planExecId: string, status: ActiveExecution["stat
 			exec.completedAt = Date.now();
 
 			// Delete snapshot files (meta + workspace queue)
-			deleteExecutionSnapshots(planExecId);
+			// Fire-and-forget with explicit catch so failures don't propagate
+			deleteExecutionSnapshots(planExecId).catch(() => {});
 
 			// Schedule cleanup after TTL
 			scheduleExecutionCleanup(planExecId);
@@ -503,7 +507,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			: undefined;
 
 		// P6.A: Extract worktree config from parsed plan execution settings
-		const worktreeConfig =
+		const worktreeConfig: { enabled: true } | undefined =
 			parseResult.queue.planExecution?.worktree?.enabled === true ? { enabled: true } : undefined;
 
 		const executor = new AutonomousExecutor(stateStore, {
@@ -541,6 +545,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			phase: parseResult.queue.phase,
 			startedAt: execution.startedAt,
 			approvedPreview: approvedPreviewMetadata, // AC2: persist approved preview metadata
+			worktreeConfig: worktreeConfig, // persist for crash recovery
 		});
 
 		// Release the in-flight guard immediately after the execution is registered
@@ -1139,7 +1144,7 @@ async function executePlanInBackground(
 		// 1. All workspaces passed + cleanup passed → auto-commit + mark complete
 		// 2. All workspaces passed but cleanup has issues → handoff for review
 		// 3. Some workspaces failed → mark as failed
-		const cleanupPassed = cleanupResult?.passed !== false;
+		const cleanupPassed = cleanupResult?.passed === true;
 		const canAutoComplete = failedCount === 0 && cleanupPassed;
 
 		// Common: log final summary, update plan markdown, append audit/narrative
@@ -1171,7 +1176,13 @@ async function executePlanInBackground(
 
 		// Update living plan markdown
 		try {
-			const mdType = canAutoComplete ? "plan-complete" : finalStatus === "failed" ? "plan-failed" : "plan-complete";
+			const mdType = canAutoComplete
+				? "plan-complete"
+				: finalStatus === "failed"
+					? "plan-failed"
+					: finalStatus === "awaiting_handoff"
+						? "plan-handoff"
+						: "plan-complete";
 			await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: mdType });
 		} catch (error) {
 			await log(
@@ -1428,6 +1439,9 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		return false;
 	}
 
+	// Load meta file once — used for plan file lookup, worktree config, and approved preview
+	const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+
 	// Try to load the persisted workspace queue
 	let queue = await loadWorkspaceQueue(workspaceRoot, planExecId);
 
@@ -1436,8 +1450,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		new PiLogger({ planExecId }).info(`No queue snapshot found for ${planExecId}, attempting to parse plan file`);
 		const plansDir = join(piDir, "plans");
 
-		// Check meta file first for the exact plan file to use
-		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+		// Use the plan file referenced in the meta file
 		let planContent: string | null = null;
 
 		if (meta?.planFile) {
@@ -1484,8 +1497,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	// Re-use the same max-workers from the original plan
 	const maxWorkers = queue.maxParallelWorkspaces || 3;
 
-	// AC1 + AC2: Restore approved preview metadata from the persisted meta file
-	const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+	// AC1 + AC2: Restore approved preview metadata from the already-loaded meta file
 	const approvedPreviewFromMeta = meta?.approvedPreview;
 
 	// If no persisted metadata, compute fresh from queue (fallback)
@@ -1508,10 +1520,14 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		}
 	}
 
+	// Restore worktree config from meta (for crash recovery AC3)
+	const recoveredWorktreeConfig = meta?.worktreeConfig;
+
 	const executor = new AutonomousExecutor(stateStore, {
 		workspaceRoot,
 		projectId,
 		maxWorkers,
+		worktree: recoveredWorktreeConfig,
 		skipProjectManagement: false,
 		enableRealExecution: true,
 		approvedPreview: approvedPreviewForRecovery,

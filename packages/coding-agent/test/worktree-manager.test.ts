@@ -371,7 +371,7 @@ describe("WorktreeManager", () => {
 
 		const entries = manager.list();
 		expect(entries[0].diffArtifact).toBeTruthy();
-		expect(entries[0].diffArtifact).toContain("diff.patch");
+		expect(entries[0].diffArtifact).toContain(".patch");
 	});
 
 	it("AC2: generateDiffArtifact returns undefined for untracked worktree", async () => {

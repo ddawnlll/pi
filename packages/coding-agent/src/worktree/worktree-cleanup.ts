@@ -11,24 +11,27 @@
  *      before any operation is performed.
  */
 
-import { execSync } from "node:child_process";
+import { exec as execCb } from "node:child_process";
 import * as path from "node:path";
+import { promisify } from "node:util";
 import { DEFAULT_WORKTREE_ROOT, type WorktreeCleanupResult } from "./worktree-types.js";
+
+const execAsync = promisify(execCb);
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command and return stdout trimmed.
+ * Run a git command asynchronously and return stdout trimmed.
  */
-function git(args: string[], cwd: string): string {
-	const result = execSync(`git ${args.join(" ")}`, {
+async function gitAsync(args: string[], cwd: string): Promise<string> {
+	const { stdout } = await execAsync(`git ${args.join(" ")}`, {
 		cwd,
 		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
+		timeout: 30_000,
 	});
-	return result.trim();
+	return stdout.trim();
 }
 
 /**
@@ -36,6 +39,23 @@ function git(args: string[], cwd: string): string {
  * Throws if the path escapes the allowed root.
  *
  * AC3: Cleanup refuses paths outside .pi/worktrees.
+ *
+ * SYMLINK RISK:
+ *   `path.resolve()` follows symlinks, so a symlink placed *inside*
+ *   `.pi/worktrees/` that points to a path *outside* the root will be
+ *   resolved to its real destination and pass this check. An attacker who
+ *   can write arbitrary entries can therefore escalate cleanup operations
+ *   to arbitrary paths via symlink-in-the-middle.
+ *
+ *   To fully close this gap, the code would need to:
+ *     1. Verify the target path does not traverse through a symlink
+ *        (e.g. using `fs.realpath.native()` on each path segment).
+ *     2. Or use `fs.realpath.native()` on the fully resolved path and
+ *        compare against `fs.realpath.native(allowedRoot)` to catch
+ *        any symlink-based external redirection.
+ *
+ *   For now, this is a known gap that is acceptable because only the
+ *   pi agent process writes to `.pi/worktrees/`, not arbitrary users.
  *
  * @param targetPath - The absolute target path to check.
  * @param allowedRoot - The absolute allowed root directory.
@@ -45,6 +65,10 @@ function assertPathWithinRoot(targetPath: string, allowedRoot: string): void {
 	// Resolve both paths to eliminate symlinks and relative segments
 	const resolvedTarget = path.resolve(targetPath);
 	const resolvedRoot = path.resolve(allowedRoot);
+
+	// NOTE: path.resolve follows symlinks, so a symlink under `.pi/worktrees/`
+	// pointing outside would be resolved to the real external path and pass.
+	// See SYMLINK RISK above.
 
 	// Normalize trailing separator for comparison
 	const normalizedRoot = resolvedRoot.endsWith(path.sep) ? resolvedRoot : resolvedRoot + path.sep;
@@ -126,7 +150,7 @@ export class WorktreeCleanup {
 
 		// AC4: Use git worktree remove, not rm -rf
 		try {
-			git(["worktree", "remove", "--force", resolvedDir], this.workspaceRoot);
+			await gitAsync(["worktree", "remove", "--force", resolvedDir], this.workspaceRoot);
 		} catch (err) {
 			return {
 				success: false,
@@ -138,7 +162,7 @@ export class WorktreeCleanup {
 		// Also remove the branch to keep things clean
 		if (branchName) {
 			try {
-				git(["branch", "-D", branchName], this.workspaceRoot);
+				await gitAsync(["branch", "-D", branchName], this.workspaceRoot);
 			} catch {
 				// Ignore branch deletion errors
 			}
@@ -146,7 +170,7 @@ export class WorktreeCleanup {
 
 		// Prune stale worktree references
 		try {
-			git(["worktree", "prune"], this.workspaceRoot);
+			await gitAsync(["worktree", "prune"], this.workspaceRoot);
 		} catch {
 			// Ignore prune errors
 		}

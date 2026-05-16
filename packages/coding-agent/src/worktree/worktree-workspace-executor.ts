@@ -9,10 +9,14 @@
  * When worktree mode is disabled, falls back to P5.5 shared-working-tree behavior.
  */
 
-import { execSync } from "node:child_process";
+import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { promisify } from "node:util";
 import type { HashedPacket } from "../core/role-packets.js";
+
+const execAsync = promisify(execCb);
+
 import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "../core/workspace-agent-executor.js";
 import {
 	DEFAULT_WORKTREE_CONFIG,
@@ -29,15 +33,15 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command and return stdout trimmed.
+ * Run a git command asynchronously and return stdout trimmed.
  */
-function git(args: string[], cwd: string): string {
-	const result = execSync(`git ${args.join(" ")}`, {
+async function git(args: string[], cwd: string): Promise<string> {
+	const { stdout } = await execAsync(`git ${args.join(" ")}`, {
 		cwd,
 		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
+		timeout: 30_000,
 	});
-	return result.trim();
+	return stdout.trim();
 }
 
 /**
@@ -173,9 +177,9 @@ export class WorktreeWorkspaceExecutor {
 	 * Get the base commit (HEAD) of the main workspace.
 	 * Throws if the workspace root is not a git repository.
 	 */
-	private getBaseCommit(cwd: string): string {
+	private async getBaseCommit(cwd: string): Promise<string> {
 		try {
-			return git(["rev-parse", "HEAD"], cwd);
+			return await git(["rev-parse", "HEAD"], cwd);
 		} catch (err) {
 			throw new Error(`Failed to get base commit in ${cwd}: ${err instanceof Error ? err.message : String(err)}`);
 		}
@@ -198,13 +202,13 @@ export class WorktreeWorkspaceExecutor {
 	 * Ensure the git branch for this worktree exists, based at the current HEAD.
 	 * Creates a lightweight branch if it doesn't exist yet.
 	 */
-	private ensureBranch(cwd: string, baseCommit: string): void {
+	private async ensureBranch(cwd: string, baseCommit: string): Promise<void> {
 		try {
 			// Check if the branch already exists
-			const existing = git(["branch", "--list", this.branchName], cwd);
+			const existing = await git(["branch", "--list", this.branchName], cwd);
 			if (!existing) {
 				// Create a new branch at the base commit
-				git(["branch", this.branchName, baseCommit], cwd);
+				await git(["branch", this.branchName, baseCommit], cwd);
 			}
 		} catch (err) {
 			throw new Error(
@@ -246,7 +250,7 @@ export class WorktreeWorkspaceExecutor {
 				const gitFileContent = await fs.readFile(gitFilePath, "utf-8");
 				if (gitFileContent.startsWith("gitdir:")) {
 					// Worktree already exists, return its state (reconstructed)
-					const baseCommit = this.getBaseCommit(this.workspaceRoot);
+					const baseCommit = await this.getBaseCommit(this.workspaceRoot);
 					const state: WorktreeState = {
 						worktreePath: worktreeDir,
 						baseCommit,
@@ -271,7 +275,7 @@ export class WorktreeWorkspaceExecutor {
 		// Get the base commit
 		let baseCommit: string;
 		try {
-			baseCommit = this.getBaseCommit(this.workspaceRoot);
+			baseCommit = await this.getBaseCommit(this.workspaceRoot);
 		} catch (err) {
 			return {
 				state: null as unknown as WorktreeState,
@@ -281,11 +285,11 @@ export class WorktreeWorkspaceExecutor {
 		}
 
 		// Ensure the branch exists
-		this.ensureBranch(this.workspaceRoot, baseCommit);
+		await this.ensureBranch(this.workspaceRoot, baseCommit);
 
 		// Create the worktree
 		try {
-			git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
+			await git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
 		} catch (err) {
 			return {
 				state: null as unknown as WorktreeState,
@@ -333,10 +337,10 @@ export class WorktreeWorkspaceExecutor {
 		}
 
 		try {
-			git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
+			await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
 			// Also remove the branch to keep things clean
 			try {
-				git(["branch", "-D", this.branchName], this.workspaceRoot);
+				await git(["branch", "-D", this.branchName], this.workspaceRoot);
 			} catch {
 				// Ignore branch deletion errors
 			}
@@ -350,7 +354,7 @@ export class WorktreeWorkspaceExecutor {
 
 		// Prune stale worktree references
 		try {
-			git(["worktree", "prune"], this.workspaceRoot);
+			await git(["worktree", "prune"], this.workspaceRoot);
 		} catch {
 			// Ignore prune errors
 		}
