@@ -22,6 +22,9 @@ import { PiLogger } from "../utils/logger.js";
 import type { OrchestratorProposal } from "./orchestrator-types.js";
 import { OrchestratorProposalGenerator } from "./orchestrator-proposal-generator.js";
 import { MutationGuard } from "./mutation-guard.js";
+import { ProposalInbox } from "../core/proposal-inbox.js";
+import type { PlannerOutput } from "../core/planner.js";
+import type { WorkspaceQueue } from "../core/workspace-schema.js";
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -59,6 +62,8 @@ export interface OrchestratorDaemonState {
 export interface OrchestratorDaemonConfig {
 	/** Working directory */
 	cwd: string;
+	/** .pi directory (for proposal persistence) */
+	piDir: string;
 	/** Whether we are in autonomous mode */
 	isAutonomous?: boolean;
 	/** Scan interval in milliseconds (default: 5 minutes) */
@@ -86,6 +91,7 @@ export class OrchestratorDaemon {
 	private readonly config: Required<OrchestratorDaemonConfig>;
 	private readonly generator: OrchestratorProposalGenerator;
 	private readonly guard: MutationGuard;
+	private readonly inbox: ProposalInbox;
 	private status: DaemonStatus = "stopped";
 	private startedAt: string | null = null;
 	private lastScanAt: string | null = null;
@@ -100,6 +106,7 @@ export class OrchestratorDaemon {
 	constructor(config: OrchestratorDaemonConfig) {
 		this.config = {
 			cwd: config.cwd,
+			piDir: config.piDir,
 			isAutonomous: config.isAutonomous ?? false,
 			scanIntervalMs: config.scanIntervalMs ?? DEFAULT_SCAN_INTERVAL_MS,
 			maxProposalsPerScan: config.maxProposalsPerScan ?? DEFAULT_MAX_PROPOSALS_PER_SCAN,
@@ -110,6 +117,7 @@ export class OrchestratorDaemon {
 			maxProposals: this.config.maxProposalsPerScan,
 		});
 		this.guard = new MutationGuard();
+		this.inbox = new ProposalInbox(this.config.piDir);
 	}
 
 	/**
@@ -302,6 +310,55 @@ export class OrchestratorDaemon {
 			// 4. Generate proposals from detection-like observations
 			const healthProposals = await this.scanProjectHealth();
 			proposals.push(...healthProposals);
+
+			// Submit proposals to the inbox for dashboard visibility
+			for (const proposal of proposals) {
+				try {
+					// Create a minimal WorkspaceQueue for the proposal
+					const queue: WorkspaceQueue = {
+						phase: "auto_scan",
+						title: `Auto-generated: ${proposal.title}`,
+						maxParallelWorkspaces: 1,
+						workspaces: [],
+					};
+					const plannerOutput: PlannerOutput = {
+						success: true,
+						summary: proposal.description,
+						optimizedBatches: [],
+						criticalPath: { path: [], length: 1, dependencies: {}, batchCount: 1, bottleneckImpact: "" },
+						plannerWarnings: [],
+						plannerSuggestions: [],
+						predictedParallelism: { requested: 1, effective: 1, totalBatches: 1, resourceUtilizationPercent: 100, bottlenecks: [], parallelismHeadroom: false, saturationPoint: 1 },
+						batchPlan: {
+							totalBatches: 1,
+							effectiveParallelism: 1,
+							requestedParallelism: 1,
+							batches: [{ batchIndex: 1, workspaceIds: [], width: 0 }],
+							criticalPathLength: 1,
+							isOverSerialized: false,
+							warnings: [],
+							errors: [],
+							parallelismDelta: 0,
+							serializedTailLength: 0,
+							blockExplanations: [],
+						},
+					};
+					await this.inbox.submitProposal(
+						proposal.title,
+						"auto_scan",
+						queue,
+						plannerOutput,
+						{
+							actor: "orchestrator",
+							overallRisk: proposal.risk as any,
+							overallConfidence: proposal.confidence as any,
+						},
+					);
+					log.info(`Submitted proposal to inbox: ${proposal.title}`);
+				} catch (err) {
+					log.error(`Failed to submit proposal to inbox: ${err}`);
+				}
+			}
 
 			// Callback with new proposals
 			if (proposals.length > 0 && this.onProposalsCallback) {

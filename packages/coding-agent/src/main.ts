@@ -832,6 +832,7 @@ function startOrchestratorDaemon(_settingsManager: SettingsManager, cwd: string)
 
 	const daemon = new OrchestratorDaemon({
 		cwd,
+		piDir: require("node:path").join(cwd, ".pi"),
 		isAutonomous: false,
 		scanIntervalMs: 5 * 60 * 1000, // Every 5 minutes
 	});
