@@ -49,6 +49,7 @@ import {
 	detectStateStoreBackend,
 	JsonStateStore,
 	parsePlan,
+	runCleanupReview,
 } from "@earendil-works/pi-coding-agent";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
@@ -2967,6 +2968,63 @@ fastify.get<{
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to get plan summary");
 		return reply.code(500).send({ error: "Failed to get plan summary", message: String(error) });
+	}
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /api/projects/:projectId/plans/:planExecId/rerun-cleanup - Rerun cleanup review
+ *
+ * Re-triggers the cleanup/review agent for a plan execution that may have
+ * produced a partial or failed summary. Reads the persisted workspace queue
+ * and calls runCleanupReview again, overwriting any existing plan-summary.json.
+ */
+fastify.post<{
+	Params: { projectId: string; planExecId: string };
+}>("/api/projects/:projectId/plans/:planExecId/rerun-cleanup", async (request, reply) => {
+	const { planExecId } = request.params;
+
+	try {
+		const workspaceRoot = getWorkspaceRoot();
+		const stateStore = getStateStore();
+
+		// Load the persisted workspace queue
+		const queuePath = join(workspaceRoot, ".pi", `${planExecId}.workspace-queue.json`);
+		let queue: any;
+		try {
+			const content = await readFile(queuePath, "utf-8");
+			queue = JSON.parse(content);
+		} catch {
+			return reply.code(404).send({
+				error: "Workspace queue not found. The execution data may have been cleaned up.",
+			});
+		}
+
+		// Resolve model: reuse the original model if available
+		let model: any = undefined;
+		try {
+			const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+			// model is optional — runCleanupReview falls back to getFallbackModel()
+		} catch {
+			// Non-fatal
+		}
+
+		// Run cleanup in background, reply immediately
+		runCleanupReview({
+			workspaceRoot,
+			planExecutionId: planExecId,
+			stateStore,
+			queue,
+			model,
+		}).catch((error: any) => {
+			fastify.log.error({ error, planExecId }, "Background rerun cleanup failed");
+		});
+
+		return { success: true, message: "Cleanup review restarted" };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to rerun cleanup");
+		return reply.code(500).send({ error: "Failed to rerun cleanup", message: String(error) });
 	}
 });
 

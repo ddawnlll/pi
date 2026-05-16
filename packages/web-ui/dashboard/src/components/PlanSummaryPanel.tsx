@@ -11,8 +11,8 @@
  * Fetches from /api/projects/:projectId/plans/:planExecId/summary
  */
 
-import { useEffect, useState } from "react";
-import { CheckCircle, XCircle, AlertTriangle, FileCode, Beaker, ListChecks, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CheckCircle, XCircle, AlertTriangle, FileCode, Beaker, ListChecks, Sparkles, RotateCw } from "lucide-react";
 
 interface PlanSummaryData {
   planExecutionId: string;
@@ -44,17 +44,16 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
   const [data, setData] = useState<PlanSummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState(false);
 
-  useEffect(() => {
+  const fetchSummary = useCallback(() => {
     if (!projectId || !planExecId) {
       setData(null);
       setLoading(false);
       return;
     }
-
     setLoading(true);
     setError(null);
-
     fetch(`/api/projects/${projectId}/plans/${planExecId}/summary`)
       .then((r) => {
         if (r.status === 404) {
@@ -76,6 +75,31 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         setLoading(false);
       });
   }, [projectId, planExecId]);
+
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
+
+  const handleRerun = async () => {
+    if (!projectId || !planExecId || rerunning) return;
+    setRerunning(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/plans/${planExecId}/rerun-cleanup`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("Rerun cleanup failed:", await res.text());
+      }
+      // Poll for updated summary after a short delay
+      setTimeout(() => {
+        fetchSummary();
+        setRerunning(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Rerun cleanup error:", err);
+      setRerunning(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -122,6 +146,19 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
               {new Date(data.completedAt).toLocaleTimeString()}
             </span>
           )}
+          <button
+            onClick={handleRerun}
+            disabled={rerunning}
+            className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+              rerunning
+                ? "text-stone-400 dark:text-stone-600 cursor-not-allowed"
+                : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]"
+            }`}
+            title="Rerun cleanup review"
+          >
+            <RotateCw size={11} className={rerunning ? "animate-spin" : ""} />
+            {rerunning ? "Running..." : "Rerun"}
+          </button>
         </div>
       </div>
 
