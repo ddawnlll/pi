@@ -744,3 +744,48 @@ export type {
 	ProposalSourceType,
 	SuggestedNextAction,
 } from "./orchestrator/index.js";
+
+// P11.C — Plan Intake Analyzer
+export {
+	analyzePlanIntake,
+	approveIntakeProposal,
+	formatPlanIntakeAnalysis,
+	type IntakeBottleneck,
+	type IntakeDiagnostic,
+	type IntakeSeverity,
+	type IntakeStatus,
+	type PlanIntakeAnalysis,
+	rejectIntakeProposal,
+	type SerializedTailInfo,
+} from "./core/plan-intake-analyzer.js";
+
+// P11.I — Graph Diff and Approval Engine
+export {
+	applyApprovedGraphPatch,
+	approveGraph,
+	checkApprovalStaleness,
+	computeGraphHash,
+	createGraphApproval,
+	formatApprovalRecord,
+	formatGraphDiff,
+	generateGraphDiff,
+	type GraphApprovalRecord,
+	type GraphDiff,
+	type GraphDiffEntry,
+	type MetricsComparison,
+	markApprovalStale,
+	rejectGraph,
+} from "./core/graph-diff-engine.js";
+
+// P11.M — Platform Audit Ledger
+export {
+	type AuditEventFilter,
+	type AuditSummary,
+	type PlatformAuditCategory,
+	type PlatformAuditEvent,
+	type PlatformAuditOutcome,
+	type PlatformAuditSeverity,
+	PlatformAuditLedger,
+	getPlatformAuditLedger,
+	resetPlatformAuditLedger,
+} from "./core/platform-audit-ledger.js";

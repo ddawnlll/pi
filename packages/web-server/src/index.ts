@@ -3767,6 +3767,13 @@ await registerProposalRoutes(fastify, getPiDir, getWorkspaceRoot);
 await registerExtensionRoutes(fastify);
 
 // ---------------------------------------------------------------------------
+// Skill Routes (P11.K — Skill Lifecycle)
+// ---------------------------------------------------------------------------
+
+const { registerSkillRoutes } = await import("./skills-routes.js");
+registerSkillRoutes(fastify);
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 

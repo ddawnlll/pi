@@ -321,3 +321,54 @@ export {
 	rewriteToNonWatch,
 	validateCommand,
 } from "./watch-mode-guard.js";
+
+// P11.C — Plan Intake Analyzer
+export {
+	analyzePlanIntake,
+	approveIntakeProposal,
+	formatPlanIntakeAnalysis,
+	type IntakeBottleneck,
+	type IntakeDiagnostic,
+	type IntakeSeverity,
+	type IntakeStatus,
+	type PlanIntakeAnalysis,
+	type PlanIntakeOptions,
+	rejectIntakeProposal,
+	type SerializedTailInfo,
+} from "./plan-intake-analyzer.js";
+
+// P11.I — Graph Diff and Approval Engine
+export {
+	applyApprovedGraphPatch,
+	approveGraph,
+	type ApprovalAuditEntry,
+	type ApprovalStalenessCheck,
+	checkApprovalStaleness,
+	computeGraphHash,
+	createGraphApproval,
+	type DiffChangeType,
+	formatApprovalRecord,
+	formatGraphDiff,
+	generateGraphDiff,
+	type GraphApprovalRecord,
+	type GraphDiff,
+	type GraphDiffEntry,
+	type MetricsComparison,
+	markApprovalStale,
+	rejectGraph,
+	type SafetyCheck,
+	type SafetyCheckReason,
+} from "./graph-diff-engine.js";
+
+// P11.M — Platform Audit Ledger
+export {
+	type AuditEventFilter,
+	type AuditSummary,
+	type PlatformAuditCategory,
+	type PlatformAuditEvent,
+	type PlatformAuditOutcome,
+	type PlatformAuditSeverity,
+	PlatformAuditLedger,
+	getPlatformAuditLedger,
+	resetPlatformAuditLedger,
+} from "./platform-audit-ledger.js";
