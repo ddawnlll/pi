@@ -1,8 +1,8 @@
-# LLM Implementation Agent — Master Template v2.4
+# LLM Implementation Agent — Master Template v2.5
 
-**Version:** 2.4.0  
+**Version:** 2.5.0  
 **Last Updated:** 2026-05-16  
-**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, and v2.4 plan lifecycle semantics (advisory batch previews, auto-computed approved graph, optimization proposals).
+**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, v2.4 plan lifecycle semantics (advisory batch previews, auto-computed approved graph, optimization proposals), and v2.5 continuous (batchless) scheduling with worktree pool and critical-path priority.
 
 ---
 
@@ -14,13 +14,31 @@ This template provides a structured format for implementation plans that can be:
 2. **Parsed by Pi** for autonomous multi-agent execution.
 3. **Previewed interactively** before execution so authors can see the real dependency graph, effective parallelism, safe effective parallelism, and batch plan.
 4. **Executed safely at larger scale** when P6 prerequisites such as git worktree isolation, integration queue, validation lock, and scale-mode readiness pass.
-5. **Optimized for queue efficiency** with priority metadata, queue optimization strategies, and workspace-level queue priority that minimize merge contention and accelerate critical-path delivery.
-6. **Analyzed automatically on upload** with DAG recomputation, bottleneck detection, optimizer proposals, and graph diffs that require approval before execution.
+5. **Executed with continuous (batchless) scheduling** — no batch barriers, all 6 worktree slots filled immediately, priority-based refill as workspaces complete.
+6. **Optimized for queue efficiency** with priority metadata, queue optimization strategies, and workspace-level queue priority that minimize merge contention and accelerate critical-path delivery.
+7. **Analyzed automatically on upload** with DAG recomputation, bottleneck detection, optimizer proposals, and graph diffs that require approval before execution.
 
 The template balances human authority in Markdown with machine executability in the JSON execution contract.
 
 Markdown explains purpose, risks, scope, rollback, and reasoning.  
 Part 3 JSON is the authoritative execution contract. Authored batch previews are advisory until Pi recomputes and persists the approved graph.
+
+---
+
+## What Changed in v2.5.0
+
+v2.5.0 makes **continuous (batchless) scheduling** the default execution mode. The scheduler no longer waits for entire batches to complete before starting new workspaces.
+
+Key changes:
+- **Continuous scheduling**: All 6 worktree slots filled immediately at plan start. Each workspace completion triggers immediate slot refill with the highest-priority ready workspace.
+- **No batch barrier**: Workspaces from different topological batches run simultaneously. Batch previews are advisory/display only.
+- **Critical-path priority**: Bottleneck nodes (high downstream blocking count) are scheduled before leaf nodes.
+- **Worktree pool**: 6 prewarmed slots at plan start. Workspaces acquire/release leases instead of creating worktrees on the hot path.
+- **GlobalReadyQueue**: Batch-barrier-free ready queue with priority sort.
+- **Priority scorer**: `criticalPathRemaining * 100 + downstreamBlockingCount * 20 + ageBoost * 5 - conflictRiskPenalty`.
+- Added `planExecution.scheduling.continuous` field (default: `true`).
+- Added `planExecution.worktree.prewarmCount` (default: `6`).
+- Updated `contractVersion` to `2.5.0`.
 
 ---
 
@@ -561,6 +579,11 @@ Hard stop execution only for:
     "title": "{{ Short Title }}",
     "mode": "autonomous",
     "maxParallelWorkspaces": 3,
+    "scheduling": {
+      "continuous": true,
+      "slotCount": 6,
+      "priorityStrategy": "critical_path_first"
+    },
     "stateBackend": "postgres",
     "jsonFallbackEnabled": true,
     "dashboardEnabled": true,
@@ -936,7 +959,7 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.4.0"` for v2.4 plan-intake and DAG optimizer support. `2.3.0`, `2.3.1`, and `2.3.2` remain supported for plans using earlier defaults.
+- **`contractVersion`**: Must be `"2.5.0"` for v2.5 continuous scheduling support. `2.3.0`, `2.3.1`, `2.3.2`, and `2.4.0` remain supported for plans using earlier defaults.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
@@ -991,9 +1014,9 @@ Hard stop execution only for:
 - **`safeEffectiveParallelism`**: The actual safe parallelism after applying P6 constraints such as worktree readiness, file overlap, symbol overlap, validation lock pressure, integration queue serialization, risk level, and scale-mode prerequisites.
 - **`preflightStatus`**: One of `required`, `approved`, `not_required`, `failed`.
 - **`approvalState`**: One of `pending`, `approved`, `rejected`, `stale`.
-- **`batchingStrategy`**: Usually `dag_topological_batches`.
-- **`safeBatchingStrategy`**: Usually `dag_batches_with_p6_safety_constraints`.
-- **`batchPreview`**: Computed preview of topological batches before execution.
+- **`batchingStrategy`**: Usually `dag_topological_batches`. **Advisory/display only** — scheduler uses continuous (batchless) scheduling.
+- **`safeBatchingStrategy`**: Usually `dag_batches_with_p6_safety_constraints`. **Advisory/display only**.
+- **`batchPreview`**: Computed preview of topological batches before execution. **Display only** — scheduler does not wait for batch completion.
 - **`safeBatchPreview`**: Batch preview after P6 safety constraints are applied.
 - **`optimizationReview`**: Records the DAG optimizer proposal state. Contains `originalGraphHash` (hash of the authored graph), `proposedGraphHash` (hash of the optimizer's proposed graph), `approvedGraphHash` (hash of the approved graph after user review), `originalDagEffectiveParallelism`, `proposedDagEffectiveParallelism`, `originalSafeEffectiveParallelism`, `proposedSafeEffectiveParallelism`, `criticalPathDelta` (change in critical path length), `serializedTailDelta` (change in serialized tail length), `suggestions` (array of optimizer suggestion objects), and `approvalState` (one of `pending`, `approved`, `rejected`, `stale`).
 - **`editableFields`**: Fields the interactive editor may patch.
@@ -1107,6 +1130,9 @@ Pi's `doctor` command validates the execution contract against these rules:
 49. If `queueOptimization.enabled` is false but `queuePriority.enabled` is true, doctor must warn that priority metadata exists but no optimization strategy is active.
 50. If `queueOptimization.strategy` is `critical_path_first`, the critical path must be computed from the approved dependency graph; workspaces on the critical path must be identifiable.
 51. If queue optimization is enabled and queue configuration changes mid-execution, the change must be validated before taking effect.
+52. If `planExecution.scheduling.continuous` is `true` (default), the scheduler MUST NOT use batch barriers. All `maxParallelWorkspaces` slots must be filled immediately and refilled as workspaces complete.
+53. Batch previews (`batchPreview`, `safeBatchPreview`) are advisory/display only when continuous scheduling is enabled. The scheduler must not wait for batch completion.
+54. If `planExecution.scheduling.slotCount` is set, the worktree pool must prewarm that many slots at plan start.
 
 ---
 
@@ -1198,6 +1224,8 @@ Queue optimization controls are executor-mediated. The dashboard may display que
   "requiresIntegrationQueue": true,
   "queueOptimizationEnabled": true,
   "queueOptimizationStrategy": "priority_then_fifo",
+  "continuousScheduling": true,
+  "continuousSlotCount": 6,
   "safeEffectiveParallelismTarget": 2,
   "notInScope": [
     "{{ Thing explicitly not in scope }}"

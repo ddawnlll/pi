@@ -19,6 +19,7 @@ import * as readline from "node:readline";
 import chalk from "chalk";
 import { AutoCommit } from "../core/auto-commit.js";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";
+import { ContinuousExecutor } from "../core/continuous-executor.js";
 import {
 	archiveDryRunReport,
 	archiveOriginalPlan,
@@ -44,6 +45,7 @@ import {
 	validateWorkerConcurrency,
 	type WorkerConcurrencySettings,
 } from "../core/worker-concurrency.js";
+import type { Workspace } from "../core/workspace-schema.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
 
 /**
@@ -771,12 +773,17 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 			console.log("");
 		}
 
-		// Execute workspaces autonomously
+		// Execute workspaces autonomously using ContinuousExecutor
+		// No Promise.all batch barrier — slots are filled continuously
+		// as each workspace completes.
 		let completedCount = 0;
 		let failedCount = 0;
+		let shouldStop = false;
 
-		while (!executor.isExecutionComplete()) {
-			// 1. Control check at top of while loop before getNextWorkspaces
+		const continuousExecutor = new ContinuousExecutor({ concurrency: effectiveWorkers });
+
+		while (!executor.isExecutionComplete() && !shouldStop) {
+			// 1. Control check at top of while loop
 			const control = await executor.checkControlRequest();
 			if (control) {
 				const state = executor.getState();
@@ -803,6 +810,7 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 						if (!json) {
 							console.log(chalk.yellow("⏹ Plan stopped while paused"));
 						}
+						shouldStop = true;
 						break;
 					}
 					if (!json) {
@@ -814,11 +822,10 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 					if (!json) {
 						console.log(chalk.yellow("⏹ Plan stopped"));
 					}
+					shouldStop = true;
 					break;
 				}
 			}
-
-			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
 
 			// P7.G: Check for workspaces blocked by preflight requirements.
 			// When workspaces require preflight approval, prompt the user
@@ -829,7 +836,7 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 				const stats = executor.getStatistics();
 				const isStuck = stats && stats.active === 0 && state?.status === "running";
 
-				if (isStuck && nextWorkspaces.length === 0) {
+				if (isStuck) {
 					// All active slots are idle and no workspaces can proceed —
 					// show preflight approval prompt
 					console.log("");
@@ -902,39 +909,48 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 					// Reload state after preflight decisions
 					await executor.loadState();
 					continue;
-				} else if (isStuck) {
+				} else if (verbose) {
 					// Some workspaces are active, but preflight-blocked workspaces remain
-					if (verbose) {
-						console.log(
-							chalk.dim(`
+					console.log(
+						chalk.dim(`
   ${preflightBlocked.length} workspace(s) awaiting preflight approval.
   Run pi plan approve <ws-id> to approve a workspace.
   Run pi plan reject <ws-id> [reason] to reject.`),
-						);
-					}
+					);
 				}
 			}
 
-			if (nextWorkspaces.length === 0) {
-				// No workspaces ready - check if we're blocked
-				const stats = executor.getStatistics();
-				const state = executor.getState();
-				// 3. Deadlock check gated on state.status === running
-				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
-					if (!json) {
-						console.error(chalk.red("\n✗ Execution blocked - no workspaces can proceed"));
+			// Run continuous execution phase.
+			// The ContinuousExecutor fills all concurrency slots immediately
+			// and continuously refills them as each workspace completes,
+			// eliminating the Promise.all batch barrier.
+			// If pause/stop is requested during execution, the getReadyWorkspaces
+			// callback detects it and stops dispatching new workspaces.
+			const summary = await continuousExecutor.executeAll(
+				parseResult.queue.workspaces as Workspace[],
+				async (workspaces) => {
+					// Check for control requests inside the callback so
+					// pause/stop is responsive even during continuous execution.
+					const control = await executor.checkControlRequest();
+					if (control) {
+						if (control.action === "stop") {
+							continuousExecutor.abort();
+							return [];
+						}
+						if (control.action === "pause") {
+							// Don't dispatch new workspaces, let in-flight finish
+							return [];
+						}
 					}
-					await executor.failPlan("Execution blocked - dependency deadlock");
-					return PlanExitCode.ExecutionError;
-				}
-				break;
-			}
+					return await executor.getNextWorkspaces(workspaces);
+				},
+				async (ws, _signal) => {
+					return await executor.executeWorkspace(ws);
+				},
+			);
 
-			// Execute next batch
-			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
-
-			for (const result of results) {
-				if (result.success) {
+			for (const result of summary.results) {
+				if (result.verdict === "COMPLETE") {
 					completedCount++;
 					if (!json) {
 						console.log(chalk.green(`✓ ${result.workspaceId} completed`));
@@ -949,6 +965,25 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 						console.log(chalk.yellow(`⟳ ${result.workspaceId} will retry`));
 					}
 				}
+			}
+
+			// If aborted due to control request, loop back to handle it
+			if (summary.aborted) {
+				continue;
+			}
+
+			// Deadlock check: no workspaces were dispatched and nothing is active
+			if (summary.results.length === 0 && !executor.isExecutionComplete()) {
+				const stats = executor.getStatistics();
+				const state = executor.getState();
+				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
+					if (!json) {
+						console.error(chalk.red("\n✗ Execution blocked - no workspaces can proceed"));
+					}
+					await executor.failPlan("Execution blocked - dependency deadlock");
+					return PlanExitCode.ExecutionError;
+				}
+				break;
 			}
 		}
 
@@ -1232,11 +1267,15 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 			);
 		}
 
-		// Continue execution from the reset state
+		// Continue execution from the reset state using ContinuousExecutor
+		// No Promise.all batch barrier — slots are filled continuously.
 		let completedCount = 0;
 		let failedCount = 0;
+		let shouldStop = false;
 
-		while (!executor.isExecutionComplete()) {
+		const continuousExecutor = new ContinuousExecutor({ concurrency: effectiveWorkers });
+
+		while (!executor.isExecutionComplete() && !shouldStop) {
 			// Control check at top of loop
 			const control = await executor.checkControlRequest();
 			if (control) {
@@ -1261,6 +1300,7 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 						if (!json) {
 							console.log(chalk.yellow("Plan stopped while paused"));
 						}
+						shouldStop = true;
 						break;
 					}
 					if (!json) {
@@ -1272,29 +1312,34 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 					if (!json) {
 						console.log(chalk.yellow("Plan stopped"));
 					}
+					shouldStop = true;
 					break;
 				}
 			}
 
-			const nextWorkspaces = await executor.getNextWorkspaces(parseResult.queue.workspaces);
-
-			if (nextWorkspaces.length === 0) {
-				const stats = executor.getStatistics();
-				const state = executor.getState();
-				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
-					if (!json) {
-						console.error(chalk.red("\nExecution blocked - no workspaces can proceed"));
+			// Run continuous execution phase.
+			const summary = await continuousExecutor.executeAll(
+				parseResult.queue.workspaces as Workspace[],
+				async (workspaces) => {
+					const control = await executor.checkControlRequest();
+					if (control) {
+						if (control.action === "stop") {
+							continuousExecutor.abort();
+							return [];
+						}
+						if (control.action === "pause") {
+							return [];
+						}
 					}
-					await executor.failPlan("Execution blocked - dependency deadlock");
-					return PlanExitCode.ExecutionError;
-				}
-				break;
-			}
+					return await executor.getNextWorkspaces(workspaces);
+				},
+				async (ws, _signal) => {
+					return await executor.executeWorkspace(ws);
+				},
+			);
 
-			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
-
-			for (const result of results) {
-				if (result.success) {
+			for (const result of summary.results) {
+				if (result.verdict === "COMPLETE") {
 					completedCount++;
 					if (!json) {
 						console.log(chalk.green(`+ ${result.workspaceId} completed`));
@@ -1309,6 +1354,25 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 						console.log(chalk.yellow(`${result.workspaceId} will retry`));
 					}
 				}
+			}
+
+			// If aborted due to control request, loop back to handle it
+			if (summary.aborted) {
+				continue;
+			}
+
+			// Deadlock check
+			if (summary.results.length === 0 && !executor.isExecutionComplete()) {
+				const stats = executor.getStatistics();
+				const state = executor.getState();
+				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
+					if (!json) {
+						console.error(chalk.red("\nExecution blocked - no workspaces can proceed"));
+					}
+					await executor.failPlan("Execution blocked - dependency deadlock");
+					return PlanExitCode.ExecutionError;
+				}
+				break;
 			}
 		}
 
@@ -1481,11 +1545,15 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 			console.log("");
 		}
 
-		// Continue execution
+		// Continue execution using ContinuousExecutor
+		// No Promise.all batch barrier — slots are filled continuously.
 		let completedCount = 0;
 		let failedCount = 0;
+		let shouldStop = false;
 
-		while (!executor.isExecutionComplete()) {
+		const continuousExecutor = new ContinuousExecutor();
+
+		while (!executor.isExecutionComplete() && !shouldStop) {
 			// 1. Control check at top of while loop before getNextWorkspaces
 			const control = await executor.checkControlRequest();
 			if (control) {
@@ -1513,6 +1581,7 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 						if (!json) {
 							console.log(chalk.yellow("⏹ Plan stopped while paused"));
 						}
+						shouldStop = true;
 						break;
 					}
 					if (!json) {
@@ -1524,20 +1593,34 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 					if (!json) {
 						console.log(chalk.yellow("⏹ Plan stopped"));
 					}
+					shouldStop = true;
 					break;
 				}
 			}
 
-			const nextWorkspaces = await executor.getNextWorkspaces(workspaces);
+			// Run continuous execution phase.
+			const summary = await continuousExecutor.executeAll(
+				workspaces as Workspace[],
+				async (workspaces) => {
+					const control = await executor.checkControlRequest();
+					if (control) {
+						if (control.action === "stop") {
+							continuousExecutor.abort();
+							return [];
+						}
+						if (control.action === "pause") {
+							return [];
+						}
+					}
+					return await executor.getNextWorkspaces(workspaces);
+				},
+				async (ws, _signal) => {
+					return await executor.executeWorkspace(ws);
+				},
+			);
 
-			if (nextWorkspaces.length === 0) {
-				break;
-			}
-
-			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
-
-			for (const result of results) {
-				if (result.success) {
+			for (const result of summary.results) {
+				if (result.verdict === "COMPLETE") {
 					completedCount++;
 					if (!json) {
 						console.log(chalk.green(`✓ ${result.workspaceId} completed`));
@@ -1548,6 +1631,25 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 						console.error(chalk.red(`✗ ${result.workspaceId} failed: ${result.error}`));
 					}
 				}
+			}
+
+			// If aborted due to control request, loop back to handle it
+			if (summary.aborted) {
+				continue;
+			}
+
+			// Deadlock check
+			if (summary.results.length === 0 && !executor.isExecutionComplete()) {
+				const stats = executor.getStatistics();
+				const state = executor.getState();
+				if (stats && stats.blocked > 0 && stats.active === 0 && state?.status === "running") {
+					if (!json) {
+						console.error(chalk.red("\n✗ Execution blocked - no workspaces can proceed"));
+					}
+					await executor.failPlan("Execution blocked - dependency deadlock");
+					return PlanExitCode.ExecutionError;
+				}
+				break;
 			}
 		}
 

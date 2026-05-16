@@ -9,109 +9,34 @@ import type { PlanState } from "./plan-state.js";
 import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "./worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
-import type { Scheduler } from "./scheduler.js";
+import type {
+	Scheduler,
+	SkipReason,
+	IdleExplanation,
+	SchedulerDiagnostics,
+	SchedulerCapacitySnapshot,
+	SchedulingDecision,
+	FileLockConflict,
+} from "./scheduler.js";
+
+// Re-export scheduler types for backward compatibility with consumers
+// that import from workspace-scheduler.ts
+export type {
+	SkipReason,
+	IdleExplanation,
+	SchedulerDiagnostics,
+	SchedulerCapacitySnapshot,
+	SchedulingDecision,
+	FileLockConflict,
+} from "./scheduler.js";
 
 /**
  * Reason a workspace was skipped (not selected for scheduling)
  */
-export interface SkipReason {
-	/** Workspace ID that was skipped */
-	workspaceId: string;
-	/** Category of skip */
-	category: "dependency" | "file_lock" | "capacity" | "not_pending";
-	/** Human-readable reason */
-	reason: string;
-	/** For dependency skips: list of missing/incomplete dependency IDs */
-	missingDependencyIds?: string[];
-	/** For file-lock skips: conflicting workspace ID */
-	conflictingWorkspaceId?: string;
-	/** For file-lock skips: conflicting file path or glob pattern */
-	conflictingPath?: string;
-	/** Planned batch ID for the workspace (1-based, from approved dependency graph) */
-	batchId?: number;
-}
-
-/**
- * Explanation for why the scheduler is idle (no work started)
- */
-export interface IdleExplanation {
-	/** True when scheduler is idle */
-	isIdle: boolean;
-	/** Reasons the scheduler produced no selected workspaces */
-	reasons: string[];
-}
-
-/**
- * Scheduler capacity diagnostics
- */
-export interface SchedulerDiagnostics {
-	/** Workspaces selected for scheduling */
-	selected: string[];
-	/** Workspaces skipped with detailed reasons */
-	skipped: SkipReason[];
-	/** Idle explanation (when no work was started) */
-	idle: IdleExplanation;
-	/** Capacity snapshot */
-	capacity: SchedulerCapacitySnapshot;
-	/** Batch IDs for scheduled workspaces (workspace ID -> 1-based batch index) */
-	batchIds: Map<string, number>;
-}
-
-/**
- * Snapshot of scheduler capacity for dashboard display
- */
-export interface SchedulerCapacitySnapshot {
-	/** Maximum concurrent workers */
-	maxWorkers: number;
-	/** Currently active workers */
-	activeWorkers: number;
-	/** Available worker slots */
-	availableSlots: number;
-	/** Total workspaces tracked */
-	totalWorkspaces: number;
-	/** Workspaces in pending state */
-	pending: number;
-	/** Workspaces in active state */
-	active: number;
-	/** Workspaces in complete state */
-	complete: number;
-	/** Workspaces in blocked state */
-	blocked: number;
-	/** Workspaces in failed state */
-	failed: number;
-	/** Number of file locks currently held */
-	fileLocks: number;
-	/** Utilization ratio (0-1) */
-	utilization: number;
-}
-
-/**
- * Scheduling decision
- */
-export interface SchedulingDecision {
-	/** Workspaces that can be scheduled now */
-	ready: Workspace[];
-	/** Workspaces that are blocked */
-	blocked: Workspace[];
-	/** Reason for blocking (workspace ID -> reason) */
-	blockReasons: Map<string, string>;
-	/** Diagnostics (selected/skipped/idle detail) */
-	diagnostics: SchedulerDiagnostics;
-	/** Batch IDs for ready workspaces (workspace ID -> 1-based batch index) */
-	readyBatchIds: Map<string, number>;
-}
-
-/**
- * File lock conflict
- */
-export interface FileLockConflict {
-	/** File path */
-	file: string;
-	/** Workspace that owns the file */
-	owner: string;
-	/** Workspace that wants the file */
-	requester: string;
-}
+// Types re-exported from scheduler.ts for backward compatibility.
+// All scheduling-related interfaces (SkipReason, IdleExplanation,
+// SchedulerDiagnostics, SchedulerCapacitySnapshot, SchedulingDecision,
+// FileLockConflict) are now defined in scheduler.ts.
 
 /**
  * Workspace scheduler
@@ -389,6 +314,10 @@ export class WorkspaceScheduler implements Scheduler {
 	private buildDiagnostics(ready: Workspace[], skipped: SkipReason[], state: PlanState): SchedulerDiagnostics {
 		const capacity = this.getCapacitySnapshot(state);
 		const selected = ready.map((w) => w.id);
+		const selectedWithReasons = ready.map((w) => ({
+			workspaceId: w.id,
+			reason: "Dependencies complete, no file conflicts, capacity available",
+		}));
 		const batchIds = new Map<string, number>();
 		for (const ws of ready) {
 			const batchId = this.batchAssignment.get(ws.id);
@@ -420,7 +349,7 @@ export class WorkspaceScheduler implements Scheduler {
 			}
 		}
 
-		return { selected, skipped, idle, capacity, batchIds };
+		return { selected, selectedWithReasons, skipped, idle, capacity, batchIds };
 	}
 
 	/**
@@ -433,6 +362,7 @@ export class WorkspaceScheduler implements Scheduler {
 		const stats = this.getStatistics(state);
 		return {
 			maxWorkers: this.maxWorkers,
+			effectiveMaxWorkers: this.maxWorkers,
 			activeWorkers: stats.active,
 			availableSlots: stats.availableSlots,
 			totalWorkspaces: stats.total,
@@ -443,6 +373,8 @@ export class WorkspaceScheduler implements Scheduler {
 			failed: stats.failed,
 			fileLocks: this.fileLocks.size,
 			utilization: this.maxWorkers > 0 ? stats.active / this.maxWorkers : 0,
+			isWorktreeMode: false,
+			resourcePressure: 0,
 		};
 	}
 
