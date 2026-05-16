@@ -47,6 +47,8 @@ import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.js"
 import { handleConfigCommand, handlePackageCommand } from "./package-manager-cli.js";
 import { handlePlanCommand } from "./plan-command-cli.js";
 import { isLocalPath } from "./utils/paths.js";
+import { OrchestratorDaemon } from "./orchestrator/orchestrator-daemon.js";
+import { PiLogger } from "./utils/logger.js";
 
 /**
  * Read all content from piped stdin.
@@ -780,8 +782,14 @@ export async function main(args: string[], options?: MainOptions) {
 			return;
 		}
 
+		// Start the orchestrator daemon for continuous self-improvement
+		const orchestratorDaemon = startOrchestratorDaemon(runtime.services.settingsManager, runtime.services.cwd);
+
 		printTimings();
 		await interactiveMode.run();
+
+		// Stop orchestrator when interactive mode exits
+		orchestratorDaemon?.stop();
 	} else {
 		printTimings();
 		const exitCode = await runPrintMode(runtime, {
@@ -797,4 +805,49 @@ export async function main(args: string[], options?: MainOptions) {
 		}
 		return;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator Daemon - P11.B
+// ---------------------------------------------------------------------------
+
+/**
+ * Start the orchestrator daemon for continuous self-improvement.
+ *
+ * Runs in the background during interactive sessions, periodically scanning
+ * the project for health signals and generating proposals.
+ *
+ * Returns the daemon instance or null if the environment is not suitable
+ * (e.g., non-interactive mode, headless terminal).
+ */
+function startOrchestratorDaemon(_settingsManager: SettingsManager, cwd: string): OrchestratorDaemon | null {
+	const log = new PiLogger({ module: "main" });
+
+	// Check if the orchestrator is explicitly disabled
+	const disabled = process.env.PI_DISABLE_ORCHESTRATOR?.toLowerCase();
+	if (disabled === "true" || disabled === "1" || disabled === "yes") {
+		log.info("Orchestrator daemon disabled via PI_DISABLE_ORCHESTRATOR");
+		return null;
+	}
+
+	const daemon = new OrchestratorDaemon({
+		cwd,
+		isAutonomous: false,
+		scanIntervalMs: 5 * 60 * 1000, // Every 5 minutes
+	});
+
+	// Register a callback to log generated proposals
+	daemon.onProposals((proposals) => {
+		for (const proposal of proposals) {
+			log.info(`Proposal generated: [${proposal.confidence}] ${proposal.title}`);
+		}
+		if (proposals.length > 0) {
+			log.info(`Orchestrator generated ${proposals.length} new proposal(s)`);
+		}
+	});
+
+	daemon.start();
+	log.info("Orchestrator daemon started (scanning every 5 minutes)");
+
+	return daemon;
 }

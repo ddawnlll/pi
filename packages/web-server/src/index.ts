@@ -3774,6 +3774,20 @@ const { registerSkillRoutes } = await import("./skills-routes.js");
 registerSkillRoutes(fastify);
 
 // ---------------------------------------------------------------------------
+// Memory Routes (P11.Q — Memory Cockpit)
+// ---------------------------------------------------------------------------
+
+const { registerMemoryRoutes } = await import("./memory-routes.js");
+registerMemoryRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
+// Policy & Audit Routes (P11.R — Policy & Audit Center)
+// ---------------------------------------------------------------------------
+
+const { registerPolicyAuditRoutes } = await import("./policy-audit-routes.js");
+registerPolicyAuditRoutes(fastify);
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 

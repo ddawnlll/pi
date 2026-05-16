@@ -14,7 +14,7 @@
  * Conflict scope: packages/web-ui/dashboard/src/features/autonomy/**
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	AlertCircle,
 	Bot,
@@ -105,7 +105,16 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 	const [selectedProposal, setSelectedProposal] =
 		useState<ProposalResponse | null>(null);
 
-	useMemo(() => {
+	useEffect(() => {
+		// Clear selection if proposal no longer in filtered list
+		if (
+			selectedProposalId &&
+			!proposals.find((p) => p.id === selectedProposalId)
+		) {
+			setSelectedProposalId(null);
+			return;
+		}
+
 		const found =
 			proposals.find((p) => p.id === selectedProposalId) ?? null;
 		setSelectedProposal((prev) => {
@@ -115,14 +124,6 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 			return prev;
 		});
 	}, [proposals, selectedProposalId]);
-
-	// Clear selection if proposal no longer in filtered list
-	if (
-		selectedProposalId &&
-		!proposals.find((p) => p.id === selectedProposalId)
-	) {
-		setSelectedProposalId(null);
-	}
 
 	// Counts for filter tabs
 	const counts = useMemo(() => {

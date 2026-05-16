@@ -525,6 +525,13 @@ export {
 	type TransportSetting,
 	type WarningSettings,
 } from "./core/settings-manager.js";
+export {
+	type RegistrySkillEntry,
+	type SkillRecommendation,
+	SkillRegistry,
+	type SkillRegistryResult,
+	SkillResolver,
+} from "./core/skill-registry.js";
 // Skills
 export {
 	formatSkillsForPrompt,

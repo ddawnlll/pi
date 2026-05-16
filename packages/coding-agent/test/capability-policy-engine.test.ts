@@ -14,6 +14,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	ACTION_LABELS,
+	type ActionCategory,
 	type ActionDomain,
 	type CapabilityPolicyEngine,
 	type CapabilityPolicyResult,
@@ -131,7 +132,7 @@ describe("CapabilityPolicyEngine", () => {
 			];
 
 			for (const action of extensionActions) {
-				const result = engine.check("extension", action);
+				const result = engine.check("extension", action as ActionCategory);
 				expect(result.domain).toBe("extension");
 				expect(result.action).toBe(action);
 				expect(result.actionDescription).toBeTruthy();
@@ -151,7 +152,7 @@ describe("CapabilityPolicyEngine", () => {
 			];
 
 			for (const action of skillActions) {
-				const result = engine.check("skill", action);
+				const result = engine.check("skill", action as ActionCategory);
 				expect(result.domain).toBe("skill");
 				expect(result.action).toBe(action);
 				expect(["allowed", "denied", "requires_approval"]).toContain(result.verdict);
@@ -169,7 +170,7 @@ describe("CapabilityPolicyEngine", () => {
 			];
 
 			for (const action of orchActions) {
-				const result = engine.check("orchestrator", action);
+				const result = engine.check("orchestrator", action as ActionCategory);
 				expect(result.domain).toBe("orchestrator");
 				expect(result.action).toBe(action);
 				expect(["allowed", "denied", "requires_approval"]).toContain(result.verdict);
@@ -184,10 +185,10 @@ describe("CapabilityPolicyEngine", () => {
 				"modify_execution_memory",
 				"bulk_export_memory",
 				"modify_planner_memory",
-			];
+			] as const;
 
 			for (const action of memActions) {
-				const result = engine.check("memory", action);
+				const result = engine.check("memory", action as ActionCategory);
 				expect(result.domain).toBe("memory");
 				expect(result.action).toBe(action);
 				expect(["allowed", "denied", "requires_approval"]).toContain(result.verdict);
@@ -202,10 +203,10 @@ describe("CapabilityPolicyEngine", () => {
 				"apply_proposal",
 				"modify_critical_path",
 				"reject_proposal",
-			];
+			] as const;
 
 			for (const action of optActions) {
-				const result = engine.check("optimizer", action);
+				const result = engine.check("optimizer", action as ActionCategory);
 				expect(result.domain).toBe("optimizer");
 				expect(result.action).toBe(action);
 				expect(["allowed", "denied", "requires_approval"]).toContain(result.verdict);
@@ -259,7 +260,7 @@ describe("CapabilityPolicyEngine", () => {
 			// call_tool is allowed normally, but when affecting protected paths
 			// it should flag requires_approval
 			expect(result.protectionLevel).toBe("mutates_protected");
-			expect(result.verdict).toBe("requires_approval" || "allowed");
+			expect(["requires_approval", "allowed"]).toContain(result.verdict);
 		});
 
 		it("should block protected-system mutations in autonomous mode", () => {
@@ -288,7 +289,7 @@ describe("CapabilityPolicyEngine", () => {
 			];
 
 			for (const { domain, action, expectedProtection } of tests) {
-				const result = engine.check(domain, action);
+				const result = engine.check(domain, action as ActionCategory);
 				expect(result.protectionLevel).toBe(expectedProtection);
 			}
 		});
