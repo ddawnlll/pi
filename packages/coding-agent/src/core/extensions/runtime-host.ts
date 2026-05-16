@@ -163,8 +163,9 @@ export class RuntimeHost {
 				error: result.error,
 			});
 		} else {
-			this.emitAudit("extension.register", result.package.manifest.name, {
-				version: result.package.manifest.version,
+				const pkg = result.package!;
+			this.emitAudit("extension.register", pkg.manifest.name, {
+				version: pkg.manifest.version,
 				directory: dir,
 			});
 		}

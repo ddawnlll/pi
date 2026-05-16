@@ -730,33 +730,7 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
 export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
 // Shell utilities
 export { getShellConfig } from "./utils/shell.js";
-// P11.A — Platform capability manifest and shared contracts
-export {
-	DEFAULT_PLATFORM_PERMISSION,
-	PLATFORM_CONTRACT_VERSION,
-	PLATFORM_PERMISSIONS,
-	validateManifest,
-} from "./platform/index.js";
-export type {
-	HookLifecycle,
-	HookTrigger,
-	ManifestValidationError,
-	ManifestValidationResult,
-	PlatformAuditAction,
-	PlatformAuditEntry,
-	PlatformAuditPolicy,
-	PlatformAuditResult,
-	PlatformCapabilityManifest,
-	PlatformCompatibility,
-	PlatformExecutionStatus,
-	PlatformFeatureFlag,
-	PlatformHook,
-	PlatformLogStream,
-	PlatformPermission,
-	PlatformPermissionDescriptor,
-	PlatformWorkerStage,
-	PlatformWorkspaceStage,
-} from "./platform/index.js";
+
 
 // P11 — Orchestrator
 // Proposal generation from scan findings and orchestrator types
