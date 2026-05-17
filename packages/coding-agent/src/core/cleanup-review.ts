@@ -348,7 +348,7 @@ async function executeCleanupAgent(config: {
 		const created = await createAgentSession({
 			cwd: workspaceRoot,
 			model,
-			thinkingLevel: "minimal",
+			thinkingLevel: "off",
 			sessionManager,
 			settingsManager,
 			// NOTE: intentionally no bash/write/edit — the cleanup agent only reviews
