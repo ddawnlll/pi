@@ -94,6 +94,7 @@ export class WorktreeWorkspaceExecutor {
 	private workspaceId: string;
 	private worktreeConfig: WorktreeConfig;
 	private branchName: string;
+	private branchRetryCount = 0;
 	private worktreeState: WorktreeState | null = null;
 	private lastExecutor: WorkspaceAgentExecutor | null = null;
 	private abortController: AbortController | null = null;
@@ -190,11 +191,12 @@ export class WorktreeWorkspaceExecutor {
 	 */
 	private getWorktreeRootDir(): string {
 		const base = this.worktreeConfig.root ?? DEFAULT_WORKTREE_ROOT;
+		const suffix = this.branchRetryCount > 0 ? `-r${this.branchRetryCount}` : "";
 		return path.join(
 			this.workspaceRoot,
 			base,
 			sanitizeForPath(this.planExecutionId),
-			sanitizeForPath(this.workspaceId),
+			sanitizeForPath(this.workspaceId) + suffix,
 		);
 	}
 
@@ -226,12 +228,30 @@ export class WorktreeWorkspaceExecutor {
 
 		try {
 			// Check if the branch already exists
-			const existing = await git(["branch", "--list", this.branchName], cwd);
-			if (!existing) {
-				await git(["branch", this.branchName, baseCommit], cwd);
-			} else {
-				// Reset existing branch to base commit
-				await git(["branch", "-f", this.branchName, baseCommit], cwd);
+			// If conflict persists, increment retry count and use a unique branch name
+			for (let retry = 0; retry < 20; retry++) {
+				const currentBranch = retry === 0 ? this.branchName : `${this.branchName}-r${retry}`;
+				const existing = await git(["branch", "--list", currentBranch], cwd);
+
+				if (!existing) {
+					// Fresh branch — create it
+					await git(["branch", currentBranch, baseCommit], cwd);
+					if (retry > 0) {
+						this.branchName = currentBranch;
+						this.branchRetryCount = retry;
+					}
+					break;
+				}
+
+				// Branch exists. Try to force-reset it. If it's used by a worktree,
+				// skip to next retry with a unique name (preserving the old worktree's work).
+				try {
+					await git(["branch", "-f", currentBranch, baseCommit], cwd);
+					break; // success, no conflict
+				} catch {
+					// Branch is used by another worktree — try next unique name
+					continue;
+				}
 			}
 		} catch (err) {
 			throw new Error(

@@ -18,6 +18,7 @@ import {
 	PiLogger,
 	parsePlan,
 	runCleanupReview,
+	validatePlanTargetCommands,
 	type WorkspaceQueue,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -63,6 +64,7 @@ export interface RunPlanOptions {
 	projectName: string;
 	workspaceRoot: string;
 	planFileName?: string;
+	safetyOverrides?: Record<string, boolean>;
 }
 
 export interface RunPlanResult {
@@ -434,6 +436,33 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			};
 		}
 
+		// Run project stack validation
+		// Checks targetCommand compatibility (e.g., pnpm commands in npm project)
+		const stackValidation = await validatePlanTargetCommands(
+			workspaceRoot,
+			parseResult.queue.workspaces.map((w) => ({ id: w.id, targetCommand: w.targetCommand })),
+		);
+
+		if (!stackValidation.valid) {
+			const stackErrors = stackValidation.diagnostics
+				.filter((d) => d.severity === "error")
+				.map((d) => d.message);
+			return {
+				success: false,
+				errors: [
+					"Project stack validation failed: targetCommand commands are incompatible with this project's tool stack",
+					...stackErrors,
+				],
+				warnings: [
+					`Detected package manager: ${stackValidation.detectedStack.packageManager}`,
+					...stackValidation.diagnostics
+						.filter((d) => d.severity !== "error")
+						.map((d) => d.message),
+					...parseResult.warnings,
+				],
+			};
+		}
+
 		// Run safety doctor
 		const doctor = createSafetyDoctor();
 		const safetyReport = doctor.validateQueue(parseResult.queue);
@@ -452,17 +481,29 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			// Non-fatal — fall back to blocking self-modification
 		}
 
+		// Check dashboard safety overrides (e.g. user ticked "Override: approve anyway")
+		const safetyOverrides = options.safetyOverrides ?? {};
+
 		if (!safetyReport.safe) {
-			// When explicit approval is enabled, demote self-modification criticals
-			// to warnings so the plan can proceed.
-			const remainingCriticals = isExplicitApproval
-				? safetyReport.critical.filter((i) => i.type !== "self_modification")
-				: safetyReport.critical;
+			// Filter out criticals that the user explicitly overrode via dashboard
+			const userOverriddenTypes = Object.entries(safetyOverrides)
+				.filter(([, v]) => v === true)
+				.map(([k]) => k);
+
+			const remainingCriticals = safetyReport.critical.filter(
+				(i) =>
+					!userOverriddenTypes.includes(i.type) &&
+					!(isExplicitApproval && i.type === "self_modification"),
+			);
 
 			const selfModWarnings = isExplicitApproval
 				? safetyReport.critical
 						.filter((i) => i.type === "self_modification")
 						.map((i) => `[${i.type}] ${i.message} — proceeding because explicitApproval is enabled`)
+				: [];
+
+			const overrideWarnings = userOverriddenTypes.length > 0
+				? [`Safety overrides applied: ${userOverriddenTypes.join(", ")} — proceeding with user override`]
 				: [];
 
 			if (remainingCriticals.length > 0) {
@@ -471,13 +512,14 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 					errors: remainingCriticals.map((i) => `[${i.type}] ${i.message}`),
 					warnings: [
 						...selfModWarnings,
+						...overrideWarnings,
 						...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`),
 						...parseResult.warnings,
 					],
 				};
 			}
 
-			// Only self-modification criticals remain and explicit approval is on.
+			// All criticals were overridden or explicitly approved.
 			// Continue without returning early. The self-modification firewall will
 			// still enforce per-workspace enhanced approval during execution.
 		}
@@ -824,7 +866,7 @@ async function executePlanInBackground(
 		let failedCount = 0;
 		let iteration = 0;
 		let planRetryCount = 0;
-		const maxPlanRetries = 3;
+		const maxPlanRetries = 10;
 
 		// Persist the workspace queue for crash recovery
 		await persistWorkspaceQueue(workspaceRoot, planExecId, queue);
@@ -873,6 +915,8 @@ async function executePlanInBackground(
 			if (!exec || exec.status === "stopped" || exec.status === "cancelled") {
 				await log(`Execution cancelled by user`);
 				await executor.failPlan("Execution cancelled by user");
+				// Stop any in-flight active workspaces immediately
+				await executor.stopAllActiveWorkspaces();
 				return;
 			}
 
@@ -1107,10 +1151,10 @@ async function executePlanInBackground(
 
 				if (result.success) {
 					_completedCount++;
-				} else if (result.verdict === "FAILED") {
+				} else if (result.verdict === "FAILED" || result.verdict === "BLOCKED") {
 					failedCount++;
 					// Log the specific error for plan-level diagnostics
-					await log(`  -> ${result.workspaceId} will be retried at plan level if retries remain`);
+					await log(`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level if retries remain`);
 				}
 
 				// Update living plan markdown with workspace result

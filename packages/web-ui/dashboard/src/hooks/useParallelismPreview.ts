@@ -55,6 +55,27 @@ export interface PreviewError {
 	validationErrors?: string[];
 }
 
+/** Checker agent analysis response from the server. */
+export interface CheckerAgentResponse {
+	success: boolean;
+	analysis?: {
+		verdict: "safe" | "risky" | "blocked";
+		summary: string;
+		findings: Array<{
+			severity: "critical" | "warning" | "info";
+			category: string;
+			title: string;
+			description: string;
+			suggestion?: string;
+			workspaceIds?: string[];
+		}>;
+		narrative: string;
+		cached: boolean;
+		analyzedAt: string;
+	};
+	error?: string;
+}
+
 /** Full state of the parallelism preview workflow. */
 export interface ParallelismPreviewState {
 	/** Current workflow stage */
@@ -77,6 +98,12 @@ export interface ParallelismPreviewState {
 	planExecutionId: string | null;
 	/** Fingerprint of the plan content used for the last successful validation */
 	validatedContentFingerprint: string | null;
+	/** Checker agent analysis state */
+	checkerAnalysis: {
+		status: "idle" | "running" | "complete" | "failed";
+		result: CheckerAgentResponse["analysis"] | null;
+		error?: string;
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -184,10 +211,40 @@ async function enqueuePlan(
 	}
 }
 
+async function runCheckerAnalysis(
+	projectId: string,
+	planContent: string,
+): Promise<CheckerAgentResponse> {
+	try {
+		const response = await fetch(
+			`${API_BASE}/api/projects/${projectId}/plans/check`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ planContent }),
+			},
+		);
+		if (!response.ok) {
+			const text = await response.text().catch(() => "");
+			return {
+				success: false,
+				error: `Checker agent request failed (${response.status}): ${text}`,
+			};
+		}
+		return await response.json();
+	} catch (err) {
+		return {
+			success: false,
+			error: String(err),
+		};
+	}
+}
+
 async function approveAndRun(
 	projectId: string,
 	planContent: string,
 	patches: DependencyPatch[],
+	safetyOverrides?: Record<string, boolean>,
 ): Promise<{ success: boolean; planExecutionId?: string; errors?: string[] }> {
 	try {
 		const response = await fetch(
@@ -195,7 +252,7 @@ async function approveAndRun(
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ planContent, patches, approved: true }),
+				body: JSON.stringify({ planContent, patches, approved: true, safetyOverrides }),
 			},
 		);
 		if (!response.ok) {
@@ -261,6 +318,10 @@ export function useParallelismPreview(projectId: string | null) {
 		isApproved: false,
 		planExecutionId: null,
 		validatedContentFingerprint: null,
+		checkerAnalysis: {
+			status: "idle",
+			result: null,
+		},
 	});
 
 	// Track the last plan content string for stale detection
@@ -317,7 +378,23 @@ export function useParallelismPreview(projectId: string | null) {
 					isStale: false,
 					staleReason: null,
 					error: null,
+					checkerAnalysis: {
+						status: "running",
+						result: null,
+					},
 				}));
+
+				// Fire checker agent analysis in background
+				runCheckerAnalysis(projectId, planContent).then((checkerResponse) => {
+					setState((prev) => ({
+						...prev,
+						checkerAnalysis: {
+							status: checkerResponse.success ? "complete" : "failed",
+							result: checkerResponse.analysis ?? null,
+							error: checkerResponse.success ? undefined : checkerResponse.error,
+						},
+					}));
+				});
 
 				return response;
 			} catch (err) {
@@ -541,6 +618,7 @@ export function useParallelismPreview(projectId: string | null) {
 	const run = useCallback(
 		async (
 			planContent: string,
+			safetyOverrides?: Record<string, boolean>,
 		): Promise<{ success: boolean; planExecutionId?: string; errors?: string[] } | null> => {
 			if (!projectId) return null;
 
@@ -587,6 +665,7 @@ export function useParallelismPreview(projectId: string | null) {
 					projectId,
 					planContent,
 					state.appliedPatches,
+					safetyOverrides,
 				);
 
 				if (!result.success) {
@@ -720,6 +799,10 @@ export function useParallelismPreview(projectId: string | null) {
 			isApproved: false,
 			planExecutionId: null,
 			validatedContentFingerprint: null,
+			checkerAnalysis: {
+				status: "idle",
+				result: null,
+			},
 		});
 		lastPlanContentRef.current = null;
 	}, []);
@@ -749,6 +832,8 @@ export function useParallelismPreview(projectId: string | null) {
 		run,
 		/** Queue the plan to run after the current plan */
 		queuePlan,
+		/** Run checker agent analysis on the plan */
+		runCheckerAnalysis: (planContent: string) => runCheckerAnalysis(projectId!, planContent),
 		/** Reset to initial idle state */
 		reset,
 		/** Clear current error */

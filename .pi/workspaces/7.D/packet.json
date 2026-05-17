@@ -3,51 +3,41 @@
     "phaseId": "P2",
     "workspaceId": "7.D",
     "role": "worker",
-    "goal": "Real Execution Validation",
+    "goal": "Agent Tool Injection",
     "allowedFiles": [
-      "docs/p2-1-execution-report.md"
+      "packages/coding-agent/src/extensions/tool-adapter.ts",
+      "packages/coding-agent/src/core/workspace-agent-executor.ts"
     ],
     "forbiddenFiles": [
-      "src/**",
-      "packages/**/src/**",
-      "package.json",
-      "package-lock.json"
+      ".env*"
     ],
     "acceptanceCriteria": [
       {
-        "description": "docs/p2-1-execution-report.md created",
+        "description": "Installed extension appears in agent tool list",
         "verified": false
       },
       {
-        "description": "Documents doctor results",
+        "description": "When agent calls extension tool, it runs in sandbox",
         "verified": false
       },
       {
-        "description": "Documents dry-run results",
+        "description": "Failed extension tool call does not stop the plan",
         "verified": false
       },
       {
-        "description": "Documents status results",
-        "verified": false
-      },
-      {
-        "description": "Documents all validation findings",
-        "verified": false
-      },
-      {
-        "description": "Note: Actual 'pi plan run' execution is manual, not automated in this workspace",
+        "description": "Integration test: WorkspaceAgentExecutor works with extension tool",
         "verified": false
       }
     ],
-    "targetCommand": null,
+    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/tool-adapter.test.ts",
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 197
+      "estimatedInputTokens": 199
     }
   },
-  "hash": "b8d40ca3dd516a476e3a20578860dd75397b09881abd0f1b3962cff19200ed68",
-  "createdAt": 1778511969168
+  "hash": "fba998fb671d2f42d176948a086db38da793d2b8c34e4eb6b8f381b0deaf3d5c",
+  "createdAt": 1779058999622
 }

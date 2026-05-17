@@ -3,48 +3,44 @@
     "phaseId": "P2",
     "workspaceId": "1.D",
     "role": "worker",
-    "goal": "Integration Testing and Verification",
-    "allowedFiles": [],
+    "goal": "WorktreePool",
+    "allowedFiles": [
+      "packages/coding-agent/src/core/worktree-pool.ts",
+      "packages/coding-agent/src/worktree/worktree-manager.ts",
+      "packages/coding-agent/src/worktree/worktree-workspace-executor.ts"
+    ],
     "forbiddenFiles": [],
     "acceptanceCriteria": [
       {
-        "description": "Backend starts successfully on port 5000",
+        "description": "WorktreePool prewarms 6 slots at plan start",
         "verified": false
       },
       {
-        "description": "Health check endpoint returns 200",
+        "description": "acquire() returns in O(1) with no git ops besides checkout",
         "verified": false
       },
       {
-        "description": "GET /api/items returns valid JSON",
+        "description": "release() resets slot to clean state",
         "verified": false
       },
       {
-        "description": "POST /api/items successfully adds items",
+        "description": "Crash recovery reconciles from disk",
         "verified": false
       },
       {
-        "description": "CORS headers present in responses",
-        "verified": false
-      },
-      {
-        "description": "Frontend files are accessible",
-        "verified": false
-      },
-      {
-        "description": "Integration test script created and passes",
+        "description": "All paths constrained under .pi/worktrees/",
         "verified": false
       }
     ],
-    "targetCommand": "bash /tmp/test-python-webserver/test_integration.sh",
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 184
+      "estimatedInputTokens": 210
     }
   },
-  "hash": "f6797bae2c18ce867cd01fa73a9565674a9ba2b43c8ec9425ea0ff1efb965081",
-  "createdAt": 1778610071291
+  "hash": "74c16ae0ce6575269a940c93c13fe03bc6613ee9d9e92d4b9146d56e9b01cba0",
+  "createdAt": 1778965603747
 }

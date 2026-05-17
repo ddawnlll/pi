@@ -18,6 +18,7 @@ import {
 	approveProposal,
 	rejectProposal,
 } from "./dag-optimizer.js";
+import type { PlanStackValidation } from "./project-stack-validator.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 
 // ---------------------------------------------------------------------------
@@ -92,6 +93,8 @@ export interface PlanIntakeAnalysis {
 	analyzedAt: string;
 	/** Whether execution is blocked pending approval */
 	executionBlocked: boolean;
+	/** Project stack validation result, if workspaceRoot was provided */
+	stackValidation?: PlanStackValidation;
 }
 
 /**
@@ -132,6 +135,12 @@ export interface PlanIntakeOptions {
 	authoredBatchCount?: number;
 	/** If provided, compare against this authored parallelism */
 	authoredParallelism?: number;
+	/**
+	 * Absolute path to the project root.
+	 * When provided, runs project stack validation to check targetCommand
+	 * compatibility (e.g., pnpm commands in an npm project).
+	 */
+	workspaceRoot?: string;
 }
 
 // ---------------------------------------------------------------------------

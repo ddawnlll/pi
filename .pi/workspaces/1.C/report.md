@@ -1,11 +1,15 @@
-# Workspace 1.C — Create Frontend HTML/CSS/JS
+# Workspace 1.C — GlobalReadyQueue
 
 **Status:** complete
 **Attempts:** 1
-**Completed:** 2026-05-12T18:20:50.308Z
+**Completed:** 2026-05-16T21:08:10.817Z
 **Duration:** 0s
 
 ## Workspace Details
 - **Role Budget:** worker
-- **Max Retries:** 3
-- **Dependencies:** None
+- **Max Retries:** 2
+- **Dependencies:** 1.A
+
+## Capabilities
+- **Can Edit:** packages/coding-agent/src/core/global-ready-queue.ts
+- **Cannot Edit:** None

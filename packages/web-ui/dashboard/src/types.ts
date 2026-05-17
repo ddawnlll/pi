@@ -514,6 +514,37 @@ export interface ProposalDetailResponse {
 	error?: string;
 }
 
+/** A single target command validation result. */
+export interface TargetCommandValidation {
+	valid: boolean;
+	command: string;
+	message?: string;
+	suggestion?: string;
+}
+
+/** Detected project tool stack. */
+export interface ProjectStackInfo {
+	packageManager: string;
+	npmWorkspaces: boolean;
+	pnpmWorkspaces: boolean;
+	yarnWorkspaces: boolean;
+	usesTurborepo: boolean;
+	testRunner: string | null;
+	buildTool: string | null;
+	scripts: Record<string, string>;
+}
+
+/** Plan stack validation result from the backend. */
+export interface PlanStackValidation {
+	valid: boolean;
+	workspaceResults: Record<string, TargetCommandValidation>;
+	diagnostics: Array<{
+		severity: "error" | "warning" | "info";
+		message: string;
+	}>;
+	detectedStack: ProjectStackInfo;
+}
+
 /** Full response from POST /plans/validate with parallelism preview data. */
 export interface ValidateWithPreviewResponse {
 	success: boolean;
@@ -536,6 +567,8 @@ export interface ValidateWithPreviewResponse {
 	suggestedFixes?: SuggestedFix[];
 	/** Whether the plan requires interactive approval before running */
 	requiresApproval?: boolean;
+	/** Project stack validation result */
+	stackValidation?: PlanStackValidation;
 }
 
 // =============================================================================

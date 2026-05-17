@@ -1,0 +1,761 @@
+# LLM Implementation Agent — P12: Extension Runtime Host + Design System
+
+**Version:** 2.5.0  
+**Last Updated:** 2026-05-17  
+**Purpose:** Extension runtime host (sandbox executor, permission model, agent injection, skill runner) and dashboard design system cleanup (design token unification, theme consistency, typography, mobile).
+
+---
+
+# Part 1 — Phase Plan
+
+## 0. TL;DR / Compact Mental Model
+
+**Phase:** `P12`  
+**One-line goal:** Build a sandbox runtime host that can actually execute extensions and consolidate dashboard's scattered design tokens into a single source.  
+**Why now:** P11 completed the UI shells. P12 puts a real engine behind those shells. Without extension runtime, P11.D/E workspaces are dead code. Without design system cleanup, every new dashboard component will compound token duplication.  
+**Blast radius:** `packages/coding-agent/src/extensions/`, `packages/web-server/src/extensions-routes.ts`, `packages/web-server/src/skills-routes.ts`, `packages/web-ui/dashboard/src/` (60+ component, 35+ hook).  
+**Rollback path:** Extension runtime can be disabled via `extensionRuntime.enabled: false` flag. Design system changes are purely Tailwind class swaps, CSS variables fallback preserved. Each workspace commits independently.  
+**Scale mode:** `experimental_6`  
+**Safe parallelism target:** 3  
+**Done when:** Extension manifest is parsed and runs in sandbox, gets injected into the agent as a tool, skill runner executes steps. Dashboard 60+ components use a single `design-tokens.ts` source, no theme conflicts, 10px table issue resolved.
+
+---
+
+## 1. Header
+
+| Field | Value |
+|---|---|
+| Phase | `P12` |
+| Title | `Extension Runtime Host + Design System` |
+| Status | `Planned` |
+| Last updated | `2026-05-17` |
+| Delivery status | `Not started` |
+| Target environment | `Local` |
+| Primary focus | `Extension sandbox runtime, permission model, skill runner, design token unification` |
+| Product-code changes | `Allowed` |
+| Selected scale mode | `experimental_6` |
+| Requested max workers | `6` |
+| Expected DAG effective parallelism | `3` |
+| Expected safe effective parallelism | `3` |
+| Worktree isolation | `Required` |
+| Integration queue | `Required` |
+
+### 1.1 RACI
+
+| Workstream | R | A | C | I |
+|---|---|---|---|---|
+| P12.A — Manifest Parser + Permission Gate | Pi Agent | Human | — | — |
+| P12.B — Sandbox Executor | Pi Agent | Human | — | — |
+| P12.C — Extension API Bridge | Pi Agent | Human | — | — |
+| P12.D — Agent Tool Injection | Pi Agent | Human | — | — |
+| P12.E — Skill Runner | Pi Agent | Human | — | — |
+| P12.F — Design Tokens + CSS Variables | Pi Agent | Human | — | — |
+| P12.G — Component Migration | Pi Agent | Human | — | — |
+| P12.H — Typography + Mobile Fix | Pi Agent | Human | — | — |
+
+---
+
+## 2. Purpose
+
+The Extension Runtime Host is a critical building block for Pi's platform to reach its "second brain" goal. Currently `ExtensionsManager` and `SkillsManager` are visible in the dashboard and have CRUD endpoints on the backend, but extensions cannot be injected anywhere. You can install an extension but Pi never runs it.
+
+This phase makes extensions truly executable: the manifest is parsed and converted into a capability contract, an isolated context is created using Node.js `vm` module, every API call passes through the permission gate, and successfully validated extensions are injected into the agent's tool list. The skill runner sequences multiple extension calls as steps and returns aggregated results.
+
+The Design System cleanup falls under technical debt but has a large impact. `design_summary.md` flagged this as a critical issue. `SURF`, `BORD`, `TXT`, `MUT` constants are duplicated across 15+ files. `Header.tsx` and `ControlButtons.tsx` use the old gray palette while `App.tsx` and `WorkerDetail.tsx` use the stone palette. CSS custom properties in `index.css` are defined but no component consumes them. A single `design-tokens.ts` + `useThemeTokens()` hook resolves all this clutter.
+
+---
+
+## 3. What Carried Over — Must Stay Stable
+
+* [ ] Plan execution pipeline (`AutonomousExecutor`, `WorkspaceAgentExecutor`) remains unchanged.
+* [ ] Worktree isolation stays active.
+* [ ] Integration queue stays active.
+* [ ] `git push` remains forbidden.
+* [ ] Raw destructive cleanup remains forbidden.
+* [ ] Extension runtime can be disabled — does not break existing agent work.
+* [ ] Existing dashboard components (WorkerDetail, LiveLogTerminal, PlanSummaryPanel) remain unaffected.
+* [ ] All component renders are preserved during `design-tokens.ts` rename/refactor (no visual regression).
+
+---
+
+## 4. Background / What Was Wrong
+
+In P11.D and P11.E, `ExtensionsManager` and `SkillsManager` were completed as UIs. `extensions-routes.ts` provides install/uninstall CRUD, `skills-routes.ts` returns skill listings. But:
+
+- No extension sandbox host — no `vm`, `worker_threads`, or any isolation mechanism.
+- No skill manifest parse engine — no runner to execute skill steps.
+- No permission model — which files and APIs an extension can access is unchecked.
+- No agent tool injection — extensions are never added to `WorkspaceAgentExecutor`'s tool list.
+
+On the Design System side:
+- Token duplication: lines like `const SURF = "bg-stone-900/50"` are copied into every new file.
+- Theme conflict: old gray and new stone palettes mixed. Some components return wrong colors in dark mode.
+- 10px table fonts at the edge of readability.
+- Toolbar overflows on mobile, sidebar absolute overlay assumes desktop-only.
+
+---
+
+## 5. Current Failure State / Known Blockers
+
+* `extension_runtime_host` = `not implemented`
+* `extension_sandbox` = `not implemented`
+* `extension_permission_model` = `not implemented`
+* `extension_agent_injection` = `not implemented`
+* `skill_runner` = `not implemented`
+* `design_token_source` = `duplicated across 15+ files`
+* `theme_consistency` = `gray/stone conflict`
+* `css_variables_usage` = `defined but unused`
+* `worktree_isolation` = `enabled`
+* `integration_queue` = `enabled`
+* `scale_mode_readiness` = `ready`
+
+---
+
+## 6. Risk Register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---:|---:|---|
+| Sandbox escape (vm context) | low | critical | Close global access with `vm.createContext({})`; do not inject `require`, `process`, `fs` |
+| Extension timeout blocks freeze agent | med | high | `worker_threads` + `AbortController` timeout; max 30s per extension call |
+| Design token migration visual regression | med | med | Before/after snapshot per component; visual diff in CI |
+| Skill runner step failure pollutes state | med | med | Each step atomic; failed step rolls back and returns error state |
+| Merge conflicts during component migration | high | low | Each workspace handles separate component groups, conflict area minimized |
+| Permission gate false positive | low | med | Integration tests; explicit allowlist for permitted file paths |
+
+---
+
+## 7. Workstreams
+
+### 7.A — Manifest Parser + Permission Gate
+
+**Goal:** Parse `extension.json` / `skill.json` manifest into a type-safe capability contract. Perform permission check before every runtime call.
+
+**Requirements:**
+* Manifest schema: `name`, `version`, `description`, `permissions.canRead[]`, `permissions.canWrite[]`, `permissions.canCallAPI[]`, `permissions.canRunCommand[]`, `permissions.maxMemoryMB`, `permissions.timeoutMs`
+* `ManifestParser.parse(raw): ExtensionManifest` — validates with zod schema
+* `PermissionGate.check(manifest, action): boolean` — before every API call
+* Forbidden paths: `.env*`, `**/*.pem`, `**/*.key`, secret files
+* Permission violation → hard stop, audit log entry
+
+**Acceptance Criteria:**
+* [ ] Valid manifest is parsed and converted to `ExtensionManifest` type
+* [ ] Missing required fields → throws parse error
+* [ ] Read attempt outside `src/` with `canRead: ["src/**"]` is rejected
+* [ ] Permission violation triggers `extension_permission_denied` hard stop
+* [ ] Unit test coverage ≥ 90%
+
+**Isolation & Parallelism Notes:**
+* No file conflicts with other workstreams — new `src/extensions/` directory
+* `7.B`, `7.C`, `7.D`, `7.E` depend on this workstream — critical path start
+* `queuePriority: critical` — all downstream work depends on this
+
+---
+
+### 7.B — Sandbox Executor
+
+**Goal:** Execute extensions in an isolated context with timeout and memory cap using Node.js `vm` + `worker_threads`.
+
+**Requirements:**
+* `SandboxExecutor.run(manifest, code, input): Promise<SandboxResult>`
+* Close access to `require`, `process`, `__dirname`, `__filename` via `vm.createContext()`
+* Each execution runs in an isolated thread via `worker_threads`
+* `timeoutMs` exceeded → `AbortController.abort()` → `SANDBOX_TIMEOUT` error
+* `maxMemoryMB` enforcement: `--max-old-space-size` worker option
+* Execution result: `{ output, logs, durationMs, memoryUsedMB, exitCode }`
+
+**Acceptance Criteria:**
+* [ ] `console.log` works inside sandbox, safely transmitted to outside
+* [ ] `require('fs')` returns `undefined` inside sandbox
+* [ ] 31-second extension fails with `SANDBOX_TIMEOUT`
+* [ ] Extension exceeding memory limit fails with `SANDBOX_OOM`
+* [ ] Successful execution returns `SandboxResult`
+
+**Isolation & Parallelism Notes:**
+* Depends on `7.A` (needs manifest parse)
+* Can run in parallel with `7.C`, `7.D` (different files)
+* `queuePriority: high`
+
+---
+
+### 7.C — Extension API Bridge
+
+**Goal:** Expose `pi.*` APIs callable from within the sandbox, proxied behind the permission gate.
+
+**Requirements:**
+* `pi.readFile(path)` → `PermissionGate.check(manifest, {type: 'read', path})` → `fs.readFile`
+* `pi.writeFile(path, content)` → permission check → `fs.writeFile`
+* `pi.callLLM(prompt, options)` → permission check → internal LLM call
+* `pi.log(message)` → write to sandbox log buffer (always allowed)
+* `pi.getWorkspaceContext()` → only for extensions with `canReadWorkspaceContext: true`
+* Bridge is injected into sandbox context — `vm.createContext({ pi: bridge })`
+
+**Acceptance Criteria:**
+* [ ] `pi.readFile("src/foo.ts")` works on permitted path
+* [ ] `pi.readFile("../../.env")` returns permission denied
+* [ ] `pi.callLLM()` triggers hard stop on unauthorized extension
+* [ ] All API calls are written to audit log
+
+**Isolation & Parallelism Notes:**
+* Depends on `7.A`, parallel with `7.B`
+* `queuePriority: high`
+
+---
+
+### 7.D — Agent Tool Injection
+
+**Goal:** Dynamically inject successfully validated extensions into `WorkspaceAgentExecutor`'s tool list.
+
+**Requirements:**
+* `ExtensionToolAdapter.toAgentTool(manifest, executor): AgentTool`
+* `WorkspaceAgentExecutor` loads active extensions before starting
+* Tool name: `ext_{extensionId}_{toolName}` format
+* Tool description comes from manifest
+* Tool call → `SandboxExecutor.run()` → result returned to agent
+* On extension failure, tool returns `EXTENSION_FAILED` error (plan continues)
+
+**Acceptance Criteria:**
+* [ ] Installed and active extension appears in agent tool list
+* [ ] When agent calls the tool, it runs in sandbox
+* [ ] Failed extension tool call does not stop the plan, only that tool call fails
+* [ ] Deactivating an extension removes the tool from the list
+
+**Isolation & Parallelism Notes:**
+* Depends on `7.A`, `7.B`, `7.C`
+* Can run in parallel with `7.E`
+* `queuePriority: high`
+
+---
+
+### 7.E — Skill Runner
+
+**Goal:** Execute skill manifest steps sequentially and return aggregated results.
+
+**Requirements:**
+* Skill manifest: `name`, `version`, `steps[]` — each step has `extensionId` + `tool` + `input`
+* `SkillRunner.execute(skillId, context): Promise<SkillResult>`
+* Each step atomic: failed step does partial rollback, returns error state
+* Output piping between steps: step N output can be used as step N+1 input
+* Timeout per step (from manifest), total skill timeout
+* Result: `{ steps: StepResult[], output, durationMs, success }`
+
+**Acceptance Criteria:**
+* [ ] 3-step skill runs successfully, each step result is logged
+* [ ] If step 2 fails, step 3 does not run, partial result is returned
+* [ ] Step output piping works
+* [ ] Skill result is readable via REST API on `skills-routes.ts`
+
+**Isolation & Parallelism Notes:**
+* Depends on `7.D` (needs extension execution)
+* `queuePriority: normal`
+
+---
+
+### 7.F — Design Tokens + CSS Variables
+
+**Goal:** Create a single source for all token constants, linked to CSS variables.
+
+**Requirements:**
+* `packages/web-ui/dashboard/src/tokens/design-tokens.ts`:
+  ```ts
+  export const SURF = { base: "bg-stone-950", panel: "bg-stone-900/50", ... }
+  export const BORD = { default: "border-stone-700/50", strong: "border-stone-600", ... }
+  export const TXT = { primary: "text-stone-100", secondary: "text-stone-400", ... }
+  export const MUT = { hover: "hover:bg-stone-800", active: "active:bg-stone-700", ... }
+  export const RADIUS = { sm: "rounded", md: "rounded-md", lg: "rounded-lg" }
+  ```
+* `index.css` CSS custom properties → synced with Tailwind tokens
+* `useThemeTokens()` hook: light/dark aware, returns token object
+* Type safety: `typeof SURF[keyof typeof SURF]` — wrong key causes compile-time error
+
+**Acceptance Criteria:**
+* [ ] `design-tokens.ts` exports and is importable
+* [ ] `useThemeTokens()` returns correct values in light and dark mode
+* [ ] Gray/stone conflict resolved at token level (single palette)
+* [ ] No `bg-gray-*` Tailwind class remains in dashboard
+
+**Isolation & Parallelism Notes:**
+* Independent from other workstreams — new file
+* `7.G` depends on this workstream
+* `queuePriority: critical` — all migration depends on this
+
+---
+
+### 7.G — Component Migration
+
+**Goal:** Migrate 60+ dashboard components to import from `design-tokens.ts`.
+
+**Requirements:**
+* First, the 10 most used components: `WorkerDetail`, `Header`, `App`, `ControlButtons`, `LiveLogTerminal`, `PlanSummaryPanel`, `ScaleCockpit`, `LeadAgentDashboard`, `BatchOsDashboard`, `WorktreeStatusPanel`
+* Then the remaining 50+ components via automated codemod (`jscodeshift` or sed pattern)
+* Inline string literal token → imported constant in every component
+* Visual regression test: before/after screenshot per component (Playwright)
+* CSS variable disconnect resolved: `index.css` variables are now used in components
+
+**Acceptance Criteria:**
+* [ ] `grep -r "bg-stone\|bg-gray" src/components/` → only returns design-tokens.ts
+* [ ] All components use `useThemeTokens()` or direct token imports
+* [ ] Dark mode consistent across all components
+* [ ] Visual regression tests pass
+
+**Isolation & Parallelism Notes:**
+* Depends on `7.F`
+* First 10 components and remaining 50+ can be split into two (sub-batch)
+* `queuePriority: normal`
+
+---
+
+### 7.H — Typography + Mobile Fix
+
+**Goal:** Increase 10px table fonts to 12px, fix mobile toolbar overflow and sidebar overlay.
+
+**Requirements:**
+* Minimum font size: 12px (including tables) — remove `text-[10px]` class usage
+* Toolbar: `overflow-x-auto` + `flex-shrink-0` for no overflow on mobile
+* Sidebar: `lg:relative` / `absolute` toggle → overlay on mobile, inline on desktop
+* Responsive breakpoint: `lg:` (1024px) as sidebar transition point
+* `MemoryCockpit`, `PolicyAuditCenter` mobile layout test
+
+**Acceptance Criteria:**
+* [ ] No toolbar overflow at 375px viewport
+* [ ] Sidebar toggle works at 375px viewport
+* [ ] No table uses 10px font
+* [ ] Desktop layout unchanged
+
+**Isolation & Parallelism Notes:**
+* Can run in parallel with `7.G` (different files — typography/layout vs tokens)
+* `queuePriority: low`
+
+---
+
+## 8. Combined Implementation Order
+
+```
+Batch 1 (critical path start):
+  7.A — Manifest Parser + Permission Gate
+  7.F — Design Tokens + CSS Variables
+
+Batch 2 (after 7.A and 7.F complete):
+  7.B — Sandbox Executor          (depends on 7.A)
+  7.C — Extension API Bridge      (depends on 7.A, parallel with 7.B)
+  7.G — Component Migration       (depends on 7.F)
+
+Batch 3:
+  7.D — Agent Tool Injection      (depends on 7.A + 7.B + 7.C)
+  7.H — Typography + Mobile Fix   (parallel with 7.G)
+
+Batch 4:
+  7.E — Skill Runner              (depends on 7.D)
+```
+
+Continuous scheduling disregards batch boundaries — ready workspaces start immediately. Batch view is advisory only.
+
+---
+
+## 9. Definition of Done
+
+`P12` complete when ALL are true:
+
+* [ ] Extension manifest parsed and converted to `ExtensionManifest` type
+* [ ] Sandbox executor working with vm + worker_threads
+* [ ] API bridge proxying through permission gate
+* [ ] Agent tool injection working (installed extension visible in agent tool list)
+* [ ] Skill runner successfully executes 3-step skill
+* [ ] `design-tokens.ts` exists, all tokens sourced from it
+* [ ] 60+ components migrated, no gray/stone conflict
+* [ ] Dark mode consistent across all components
+* [ ] Table font minimum 12px
+* [ ] No mobile toolbar overflow, sidebar works
+* [ ] All unit tests passing
+* [ ] Visual regression tests passing
+
+---
+
+## 10. Rollback Playbook
+
+**Trigger conditions:**
+* Sandbox escape detected (security)
+* Agent tool injection breaks existing plan execution
+* Design migration produces visual regression
+
+**Rollback procedure:**
+1. Set `extensionRuntime.enabled: false` flag — extensions disabled, existing executor unaffected
+2. For design migration: each component is an independent commit, revert single file
+3. If `design-tokens.ts` change is reverted: components revert to old inline strings (automated codemod reversed)
+
+---
+
+## 11. What Next Phase Inherits
+
+`P13` inherits:
+* Working extension runtime host
+* Permission-gated API bridge
+* Skill runner infrastructure
+* Clean design token system
+* Mobile-ready dashboard
+
+`P13` may add:
+* Orchestrator daemon (P11.B — most critical gap)
+* Self-improvement loop (P11.H)
+* Organic memory pipeline
+
+---
+
+# Part 2 — Agent Brief
+
+## Mission
+
+Extension Runtime Host: Run extensions in an isolated sandbox, pass every API call through the permission gate, inject successful extensions into the agent tool list, sequence steps with the skill runner.
+
+Design System: Move all dashboard components to a single `design-tokens.ts` source. Resolve gray/stone conflict. Actually use CSS variables. Fix mobile layout.
+
+**Primary security rule:** Sandbox must never directly access the host file system. Every `pi.*` API call is checked against the manifest's permission list. Permission violation → hard stop.
+
+---
+
+## Hard Requirements
+
+1. Sandbox does not expose `require`, `process`, `fs`, `child_process` access.
+2. Extension timeout and memory cap are mandatory.
+3. Permission gate runs before every API call.
+4. Extension agent tool injection does not change the existing `WorkspaceAgentExecutor` interface.
+5. No component uses wrong tokens during design migration.
+6. Gray palette fully transitions to stone palette — no mixed palette.
+7. `git push` forbidden.
+8. Raw destructive cleanup forbidden.
+9. Extension runtime can be disabled via flag.
+10. Skill runner does not stop plan on failed step.
+
+---
+
+## Safety Stops
+
+* Sandbox path escape (write outside `.pi/worktrees`)
+* `extension_permission_denied` — permission gate failure
+* `sandbox_escape_detected` — attempt to escape vm context
+* `skill_runner_infinite_loop` — total timeout exceeded
+* `design_migration_visual_regression` — CI screenshot diff failure
+
+---
+
+# Part 3 — Machine-Readable Execution Contract
+
+```json
+{
+  "contractVersion": "2.5.0",
+  "executionBackend": "json",
+  "project": {
+    "name": "pi-monorepo",
+    "rootPath": ".",
+    "type": "repo",
+    "tags": ["extension-runtime", "design-system"]
+  },
+  "planExecution": {
+    "phase": "P12",
+    "title": "Extension Runtime Host + Design System",
+    "mode": "autonomous",
+    "maxParallelWorkspaces": 6,
+    "scheduling": {
+      "continuous": true,
+      "slotCount": 6,
+      "priorityStrategy": "critical_path_first"
+    },
+    "stateBackend": "json",
+    "jsonFallbackEnabled": true,
+    "dashboardEnabled": true,
+    "autoCommit": true,
+    "autoPush": false,
+    "scale": {
+      "defaultMode": "experimental_6",
+      "selectedMode": "experimental_6",
+      "modes": {
+        "stable_3": { "maxParallelWorkspaces": 3, "worktreeRequired": false, "integrationQueueRequired": false },
+        "experimental_6": {
+          "maxParallelWorkspaces": 6,
+          "worktreeRequired": true,
+          "integrationQueueRequired": true,
+          "validationLockRequired": true,
+          "archiveRequired": true,
+          "completionGateRequired": true
+        }
+      }
+    },
+    "worktree": {
+      "enabled": true,
+      "enabledByDefault": true,
+      "root": ".pi/worktrees",
+      "quarantineFailedByDefault": true,
+      "rawRmRfForbidden": true,
+      "pathScopeRequired": true
+    },
+    "integrationQueue": {
+      "enabled": true,
+      "processOneMergeAtATime": true,
+      "stopOnMergeConflict": true,
+      "requireWorkspaceValidationPass": true,
+      "requireIntegrationValidationPass": true,
+      "gitPushAllowed": false,
+      "queuePriority": {
+        "enabled": true,
+        "defaultLevel": "normal",
+        "levels": ["critical", "high", "normal", "low"]
+      },
+      "queueOptimization": {
+        "enabled": true,
+        "strategy": "critical_path_first",
+        "availableStrategies": ["priority_then_fifo", "critical_path_first", "weighted_shortest_job_first"]
+      }
+    },
+    "validation": {
+      "globalValidationLockRequired": true,
+      "targetedValidationEnabled": true,
+      "finalIntegrationValidationRequired": true,
+      "watchModeForbidden": true
+    },
+    "interactiveParallelismReview": {
+      "enabled": true,
+      "preflightRequired": true,
+      "approvalRequiredBeforeRun": true,
+      "allowDependencyEditing": true,
+      "showEffectiveParallelism": true,
+      "showSafeEffectiveParallelism": true,
+      "showBatchPreview": true,
+      "showSafeBatchPreview": true,
+      "showCriticalPath": true,
+      "showScaleModeReadiness": true,
+      "persistApprovedGraph": true
+    },
+    "planIntake": {
+      "enabled": true,
+      "runOnUpload": true,
+      "autoNormalize": true,
+      "autoDoctor": true,
+      "autoDagAnalysis": true,
+      "autoOptimizationProposal": true,
+      "approvalRequiredBeforeApplyingOptimization": true,
+      "approvalRequiredBeforeExecution": true
+    },
+    "optimizer": {
+      "enabled": true,
+      "mode": "advisory_until_approved",
+      "objectives": [
+        "maximize_safe_effective_parallelism",
+        "minimize_critical_path",
+        "minimize_same_file_conflicts",
+        "prioritize_critical_path_queue_merges"
+      ],
+      "allowedPatches": ["dependencies", "parallelGroup", "queuePriority", "canRunWith", "cannotRunWith"],
+      "forbiddenAutoPatches": ["allowedFiles", "forbiddenFiles", "capabilityManifest", "safety.hardStops"]
+    }
+  },
+  "controls": {
+    "allowPause": true,
+    "allowStop": true,
+    "allowCancel": true,
+    "resumePolicy": "paused_or_stopped_only"
+  },
+  "safety": {
+    "hardStops": [
+      "secrets", "destructive_ops", "forbidden_files",
+      "dependency_cycles", "unapproved_parallelism_review",
+      "worktree_path_escape", "raw_destructive_cleanup",
+      "integration_merge_without_validation", "integration_validation_failure",
+      "merge_conflict_without_handoff", "unsafe_scale_mode",
+      "extension_permission_denied", "sandbox_escape_detected",
+      "watch_mode_validation", "execution_without_approval",
+      "optimizer_patch_without_approval"
+    ],
+    "forbiddenCommands": [
+      "git push", "git push --force", "rm -rf", "npm publish",
+      "vitest --watch", "jest --watch", "npm run dev"
+    ],
+    "forbiddenFiles": [
+      ".env*", "**/*.pem", "**/*.key", "**/*.p12",
+      "**/id_rsa", "**/credentials/**", "**/secrets/**"
+    ]
+  },
+  "parallelismReview": {
+    "requestedMaxParallelWorkspaces": 6,
+    "selectedScaleMode": "experimental_6",
+    "scaleModeReadiness": {
+      "ready": true,
+      "blockedReasons": [],
+      "warnings": ["Integration queue serializes merges after workspace completion."]
+    },
+    "expectedDagEffectiveParallelismMin": 2,
+    "expectedSafeEffectiveParallelismMin": 2,
+    "preflightStatus": "required",
+    "approvalState": "pending",
+    "batchingStrategy": "dag_topological_batches",
+    "batchPreview": {
+      "batches": [
+        { "batch": 1, "workspaceIds": ["7.A", "7.F"], "effectiveParallelism": 2 },
+        { "batch": 2, "workspaceIds": ["7.B", "7.C", "7.G"], "effectiveParallelism": 3 },
+        { "batch": 3, "workspaceIds": ["7.D", "7.H"], "effectiveParallelism": 2 },
+        { "batch": 4, "workspaceIds": ["7.E"], "effectiveParallelism": 1 }
+      ],
+      "overallEffectiveParallelism": 2.0,
+      "criticalPath": ["7.A", "7.B", "7.D", "7.E"],
+      "criticalPathLength": 4,
+      "serializedTailLength": 1
+    },
+    "optimizationReview": {
+      "originalGraphHash": null,
+      "proposedGraphHash": null,
+      "approvedGraphHash": null,
+      "approvalState": "pending"
+    },
+    "editableFields": [
+      "workspaces[].dependencies",
+      "workspaces[].parallelGroup",
+      "workspaces[].integration.queuePriority"
+    ]
+  },
+  "workspaces": [
+    {
+      "id": "7.A",
+      "title": "Manifest Parser + Permission Gate",
+      "dependencies": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "Foundation — all extension workspaces depend on this.",
+      "parallelism": {
+        "expectedBatch": "batch_1",
+        "canRunWith": ["7.F"],
+        "cannotRunWith": [],
+        "conflictScope": ["packages/coding-agent/src/extensions/"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "New directory, no conflict with existing files."
+      },
+      "worktree": { "required": true, "isolationMode": "worktree", "cleanupPolicy": "quarantine_on_failure" },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical path start. 7.B, 7.C, 7.D, 7.E fully depend on this. Must merge first."
+      },
+      "validation": { "profile": "targeted_then_final", "heavyCommandUsesGlobalLock": true, "watchModeForbidden": true },
+      "allowedFiles": ["packages/coding-agent/src/extensions/**"],
+      "forbiddenFiles": [".env*", "**/*.pem", "**/*.key"],
+      "acceptanceCriteria": [
+        "ManifestParser.parse() validates with zod schema",
+        "PermissionGate.check() rejects unauthorized access",
+        "extension_permission_denied hard stop triggered",
+        "Unit test coverage >= 90%"
+      ],
+      "targetCommand": "pnpm test packages/coding-agent/src/extensions/manifest-parser.test.ts",
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": ["packages/coding-agent/src/extensions/"],
+        "cannotEdit": [".env*", "**/*.pem", "**/*.key"],
+        "canRun": ["pnpm test", "pnpm tsc --noEmit"],
+        "cannotRun": ["git push", "rm -rf"]
+      }
+    },
+    {
+      "id": "7.F",
+      "title": "Design Tokens + CSS Variables",
+      "dependencies": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "Independent new file — parallel with other extension workstreams.",
+      "parallelism": {
+        "expectedBatch": "batch_1",
+        "canRunWith": ["7.A"],
+        "cannotRunWith": ["7.G"],
+        "conflictScope": ["packages/web-ui/dashboard/src/tokens/"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "New directory, cannot run in parallel with 7.G because 7.G depends on 7.F."
+      },
+      "worktree": { "required": true, "isolationMode": "worktree", "cleanupPolicy": "quarantine_on_failure" },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "7.G (all component migration) depends on this. Must merge first."
+      },
+      "validation": { "profile": "targeted_then_final", "heavyCommandUsesGlobalLock": false, "watchModeForbidden": true },
+      "allowedFiles": [
+        "packages/web-ui/dashboard/src/tokens/**",
+        "packages/web-ui/dashboard/src/index.css",
+        "packages/web-ui/dashboard/src/hooks/useThemeTokens.ts"
+      ],
+      "forbiddenFiles": [".env*"],
+      "acceptanceCriteria": [
+        "design-tokens.ts exports (SURF, BORD, TXT, MUT, RADIUS)",
+        "useThemeTokens() hook is light/dark aware",
+        "index.css CSS variables synced with design-tokens",
+        "TypeScript compile — no type errors"
+      ],
+      "targetCommand": "pnpm tsc --noEmit -p packages/web-ui/dashboard/tsconfig.json",
+      "roleBudget": "worker",
+      "maxRetries": 2,
+      "riskLevel": "low",
+      "capabilityManifest": {
+        "canEdit": ["packages/web-ui/dashboard/src/tokens/", "packages/web-ui/dashboard/src/hooks/useThemeTokens.ts", "packages/web-ui/dashboard/src/index.css"],
+        "cannotEdit": [".env*"],
+        "canRun": ["pnpm tsc --noEmit", "pnpm build"],
+        "cannotRun": ["git push", "rm -rf"]
+      }
+    },
+    {
+      "id": "7.B",
+      "title": "Sandbox Executor",
+      "dependencies": ["7.A"],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "ManifestParser and PermissionGate come from 7.A.",
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["7.C", "7.G"],
+        "cannotRunWith": [],
+        "conflictScope": ["packages/coding-agent/src/extensions/sandbox/"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "7.C is a different subdirectory, 7.G is a different package — safe parallel."
+      },
+      "worktree": { "required": true, "isolationMode": "worktree", "cleanupPolicy": "quarantine_on_failure" },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "7.D and 7.E depend on this workspace. Prefer early merge."
+      },
+      "validation": { "profile": "targeted_then_final", "heavyCommandUsesGlobalLock": true, "watchModeForbidden": true },
+      "allowedFiles": ["packages/coding-agent/src/extensions/sandbox/**"],
+      "forbiddenFiles": [".env*", "**/*.pem", "**/*.key"],
+      "acceptanceCriteria": [
+        "require is undefined inside vm.createContext()",
+        "Timeout exceeding 31s triggers SANDBOX_TIMEOUT",
+        "Memory limit exceeded triggers SANDBOX_OOM",
+        "Successful execution returns SandboxResult"
+      ],
+      "targetCommand": "pnpm test packages/coding-agent/src/extensions/sandbox-executor.test.ts",
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": ["packages/coding-agent/src/extensions/sandbox/"],
+        "cannotEdit": [".env*", "**/*.pem"],
+        "canRun": ["pnpm test", "pnpm tsc --noEmit"],
+        "cannotRun": ["git push", "rm -rf"]
+      }
+    },
+    {
+      "id": "7.C",
+      "title": "Extension API Bridge",
+      "dependencies": ["7.A"],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Permission gate comes from 7.A.",
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["7.B", "7.G"],
+        "cannotRunWith": [],
+        "conflictScope": ["packages/coding-agent/src/extensions/bridge/"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Separate subdirectory."
+      },
+      "worktree": { "required": true,

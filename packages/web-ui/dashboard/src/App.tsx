@@ -303,6 +303,12 @@ export function App() {
     if (!res.success) showError(res.error || `Failed to ${action}`);
   }, [showError, selectedPlanExecId]);
 
+  const handleStopWorker = useCallback(async (workerId: string) => {
+    // Force stop: stop the entire plan execution (kills all active workers)
+    const res = await sendControlCommand("stop", selectedPlanExecId);
+    if (!res.success) showError(res.error || `Failed to stop worker ${workerId}`);
+  }, [showError, selectedPlanExecId]);
+
   const handleRerun = useCallback(async () => {
     if (!selectedProjectId || !selectedPlanExecId) return;
     setRerunning(true);
@@ -619,7 +625,8 @@ export function App() {
                 <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
                   {workers.map(w => (
                     <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
-                      active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)} />
+                      active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
+                      onStopWorker={(id) => handleStopWorker(id)} />
                   ))}
                 </div>
               )}

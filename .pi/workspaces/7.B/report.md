@@ -1,8 +1,8 @@
-# Workspace 7.B — Add Validation Checklist
+# Workspace 7.B — Sandbox Executor
 
 **Status:** complete
 **Attempts:** 1
-**Completed:** 2026-05-11T18:21:01.392Z
+**Completed:** 2026-05-17T22:58:57.100Z
 **Duration:** 0s
 
 ## Workspace Details
@@ -11,5 +11,5 @@
 - **Dependencies:** 7.A
 
 ## Capabilities
-- **Can Edit:** docs/dogfood-output.md
-- **Cannot Edit:** None
+- **Can Edit:** packages/coding-agent/src/extensions/sandbox/
+- **Cannot Edit:** .env*, **/*.pem

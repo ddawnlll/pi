@@ -411,7 +411,8 @@ describe("v2.2.0: contract version", () => {
 	it("ACCEPTED_SCHEMA_VERSIONS should also contain 2.3.2", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.4.0")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(7);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.5.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(8);
 	});
 
 	it("should validate a queue with contractVersion 2.2.0", () => {
@@ -855,7 +856,7 @@ describe("v2.3.0: contract version acceptance", () => {
 		expect(CONTRACT_SCHEMA_VERSION).toBe("2.3.2");
 	});
 
-	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1, 2.3.2, 2.4.0", () => {
+	it("ACCEPTED_SCHEMA_VERSIONS should contain 2.0.0, 2.1.0, 2.2.0, 2.3.0, 2.3.1, 2.3.2, 2.4.0, 2.5.0", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.0.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.1.0")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.2.0")).toBe(true);
@@ -863,11 +864,12 @@ describe("v2.3.0: contract version acceptance", () => {
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.1")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.3.2")).toBe(true);
 		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.4.0")).toBe(true);
-		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(7);
+		expect(ACCEPTED_SCHEMA_VERSIONS.has("2.5.0")).toBe(true);
+		expect(ACCEPTED_SCHEMA_VERSIONS.size).toBe(8);
 	});
 
-	it("should reject future unsupported version 2.5.0", () => {
-		expect(isAcceptedSchemaVersion("2.5.0")).toBe(false);
+	it("should accept supported version 2.5.0", () => {
+		expect(isAcceptedSchemaVersion("2.5.0")).toBe(true);
 	});
 });
 

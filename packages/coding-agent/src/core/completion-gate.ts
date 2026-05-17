@@ -213,6 +213,15 @@ export function evaluateWorkspaceCompletion(
 		// Determine recommended state
 		let recommendedState: WorkspaceStage = WorkspaceStage.Failed;
 
+		// If targetCommand not passed (not executed or failed), mark as blocked
+		// so agent can retry with an alternative command (up to 10 attempts)
+		const targetCommandBlocked = blockReasons.some(
+			(r) => r.startsWith("Target command"),
+		);
+		if (targetCommandBlocked && !validationState.outOfRetries) {
+			recommendedState = WorkspaceStage.Blocked;
+		}
+
 		// If only test failures but implementation is done, mark as blocked (can retry)
 		if (
 			validationState.implementationFinished &&

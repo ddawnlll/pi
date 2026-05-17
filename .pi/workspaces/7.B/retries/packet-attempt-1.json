@@ -3,34 +3,41 @@
     "phaseId": "P2",
     "workspaceId": "7.B",
     "role": "worker",
-    "goal": "Add Validation Checklist",
+    "goal": "Sandbox Executor",
     "allowedFiles": [
-      "docs/dogfood-output.md"
+      "packages/coding-agent/src/extensions/sandbox/"
     ],
-    "forbiddenFiles": [],
+    "forbiddenFiles": [
+      ".env*",
+      "**/*.pem"
+    ],
     "acceptanceCriteria": [
       {
-        "description": "Checklist section added to docs/dogfood-output.md",
+        "description": "require is undefined inside vm.createContext()",
         "verified": false
       },
       {
-        "description": "Lists all validation points",
+        "description": "Timeout exceeding 31s triggers SANDBOX_TIMEOUT",
         "verified": false
       },
       {
-        "description": "Markdown is valid",
+        "description": "Memory limit exceeded triggers SANDBOX_OOM",
+        "verified": false
+      },
+      {
+        "description": "Successful execution returns SandboxResult",
         "verified": false
       }
     ],
-    "targetCommand": null,
+    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/sandbox-executor.test.ts",
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 146
+      "estimatedInputTokens": 175
     }
   },
-  "hash": "e6f40e25c4f37dda975995eff2a15d900496d12cdc4bb8ac7e518c505a60b337",
-  "createdAt": 1778523661392
+  "hash": "43c23e8bdb081f4955d3e11487a1b8c24eb7987ea68a9b096ab05ec261cb1f08",
+  "createdAt": 1779058690592
 }

@@ -89,6 +89,14 @@ export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-sto
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
 export {
+	type PlanStackValidation,
+	type ProjectStack,
+	type TargetCommandValidation,
+	detectProjectStack,
+	validatePlanTargetCommands,
+	validateTargetCommand,
+} from "./core/project-stack-validator.js";
+export {
 	buildTranscriptSummary,
 	createWorkerTranscriptEvent,
 	generateWorkspaceReport,

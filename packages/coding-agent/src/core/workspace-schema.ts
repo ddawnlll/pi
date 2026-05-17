@@ -667,7 +667,7 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 	// v2.3.0+: Validate maxParallelWorkspaces limits and prerequisites
 	// v2.3.1 inherits all v2.3.0 validation rules
 	const contractVer = queue.contractVersion ?? "2.0.0";
-	const isV230Plus = contractVer === "2.3.0" || contractVer === "2.3.1" || contractVer === "2.3.2" || contractVer === "2.4.0";
+	const isV230Plus = contractVer === "2.3.0" || contractVer === "2.3.1" || contractVer === "2.3.2" || contractVer === "2.4.0" || contractVer === "2.5.0";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({

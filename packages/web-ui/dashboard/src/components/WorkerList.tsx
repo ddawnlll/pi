@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Square } from "lucide-react";
 import type { WorkerInfo } from "../types";
 import { ActivityDot, stageToPulseState } from "./ActivityDot";
 
@@ -6,6 +7,7 @@ interface WorkerListProps {
 	workers: WorkerInfo[];
 	selectedWorkerId: string | null;
 	onSelectWorker: (workerId: string) => void;
+	onStopWorker?: (workerId: string) => void;
 }
 
 function getStageColor(stage: string): string {
@@ -77,22 +79,33 @@ export function WorkerList({
 								transition={{ duration: 0.15 }}
 								layout
 								onClick={() => onSelectWorker(worker.id)}
-								className={`w-full text-left px-3 py-2 text-xs rounded transition-colors ${
+								className={`w-full flex items-center gap-1.5 text-left px-3 py-2 text-xs rounded transition-colors ${
 									selectedWorkerId === worker.id
 										? "bg-blue-700 text-white"
 										: "text-gray-300 hover:bg-gray-700"
 								}`}
 							>
-								<span className="mr-2">
-									<ActivityDot state={stageToPulseState(worker.stage)} />
-								</span>
-								<span className="font-medium">{worker.id}</span>
-								<span className={`ml-2 ${getStageColor(worker.stage)}`}>
+								<ActivityDot state={stageToPulseState(worker.stage)} />
+								<span className="font-medium flex-1">{worker.id}</span>
+								<span className={getStageColor(worker.stage)}>
 									{worker.stage}
 								</span>
-								<span className="text-gray-500 ml-2">
-									&middot; attempt: {worker.attempt}
+								<span className="text-gray-500">
+									attempt: {worker.attempt}
 								</span>
+								{/* Force stop button for active/blocked workers */}
+								{(worker.stage === "active" || worker.stage === "blocked") && onStopWorker && (
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											onStopWorker(worker.id);
+										}}
+										title="Force stop worker"
+										className="ml-1 p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+									>
+										<Square size={10} fill="currentColor" />
+									</button>
+								)}
 							</motion.button>
 						))}
 					</AnimatePresence>

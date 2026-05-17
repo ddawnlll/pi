@@ -1,8 +1,8 @@
-# Workspace 7.E — Stability & Failure Analysis
+# Workspace 7.E — Skill Runner
 
 **Status:** complete
 **Attempts:** 1
-**Completed:** 2026-05-11T15:06:09.170Z
+**Completed:** 2026-05-17T23:16:44.899Z
 **Duration:** 0s
 
 ## Workspace Details
@@ -11,5 +11,5 @@
 - **Dependencies:** 7.D
 
 ## Capabilities
-- **Can Edit:** docs/p2-1-stability-report.md
-- **Cannot Edit:** src/**, packages/**/src/**, package.json, package-lock.json
+- **Can Edit:** packages/coding-agent/src/extensions/skill-runner.ts, packages/web-server/src/skills-routes.ts
+- **Cannot Edit:** .env*

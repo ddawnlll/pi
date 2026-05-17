@@ -3,34 +3,42 @@
     "phaseId": "P2",
     "workspaceId": "7.A",
     "role": "worker",
-    "goal": "Create Dogfood Output Doc",
+    "goal": "Manifest Parser + Permission Gate",
     "allowedFiles": [
-      "docs/dogfood-output.md"
+      "packages/coding-agent/src/extensions/"
     ],
-    "forbiddenFiles": [],
+    "forbiddenFiles": [
+      ".env*",
+      "**/*.pem",
+      "**/*.key"
+    ],
     "acceptanceCriteria": [
       {
-        "description": "docs/dogfood-output.md created",
+        "description": "ManifestParser.parse() validates with zod schema",
         "verified": false
       },
       {
-        "description": "Contains header and introduction",
+        "description": "PermissionGate.check() rejects unauthorized access",
         "verified": false
       },
       {
-        "description": "Markdown is valid",
+        "description": "extension_permission_denied hard stop triggered",
+        "verified": false
+      },
+      {
+        "description": "Unit test coverage >= 90%",
         "verified": false
       }
     ],
-    "targetCommand": null,
+    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/manifest-parser.test.ts",
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 143
+      "estimatedInputTokens": 179
     }
   },
-  "hash": "5155227ce13d914247466c46ec99fd41529586c19b98cce380a66c5e46192f02",
-  "createdAt": 1778523661387
+  "hash": "581e24a912658f6590005349eb6fb256eeb5b4492fe3ab21ac2d507531542770",
+  "createdAt": 1779058598101
 }

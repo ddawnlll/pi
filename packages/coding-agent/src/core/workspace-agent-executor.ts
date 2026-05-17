@@ -10,12 +10,15 @@ import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
+import { getAgentDir } from "../config.js";
+import { ToolAdapter } from "../extensions/tool-adapter.js";
 import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
 import type { HashedPacket } from "./role-packets.js";
 import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
+import { DefaultResourceLoader } from "./resource-loader.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 
@@ -266,6 +269,25 @@ export class WorkspaceAgentExecutor {
 				: ["read", "write", "edit", "bash", "find", "grep", "ls"];
 			log(`Role ${packet.packet.role} — using ${isLeadRole ? "read-only" : "full"} tools: ${tools.join(", ")}`);
 
+			// 7.D: Load extensions and adapt their tools for sandbox isolation
+			log("Loading extension tools...");
+			const resourceLoader = new DefaultResourceLoader({
+				cwd: this.workspaceRoot,
+				agentDir: getAgentDir(),
+				settingsManager,
+			});
+			await resourceLoader.reload();
+			const extensionsResult = resourceLoader.getExtensions();
+			const toolAdapter = new ToolAdapter({
+				extensions: extensionsResult.extensions,
+				sandbox: true,
+			});
+			const { toolDefinitions: customTools, toolNames: extensionToolNames } =
+				toolAdapter.adaptAllTools();
+			if (extensionToolNames.length > 0) {
+				log(`Loaded ${extensionToolNames.length} extension tools: ${extensionToolNames.join(", ")}`);
+			}
+
 			// Create agent session
 			log("Creating agent session...");
 			const sessionResult: CreateAgentSessionResult = await createAgentSession({
@@ -274,7 +296,9 @@ export class WorkspaceAgentExecutor {
 				thinkingLevel: "medium",
 				sessionManager,
 				settingsManager,
-				tools,
+				resourceLoader,
+				tools: [...tools, ...extensionToolNames],
+				customTools,
 			});
 
 			const { session } = sessionResult;

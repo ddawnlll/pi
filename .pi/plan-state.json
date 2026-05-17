@@ -172,5 +172,6 @@
     }
   ],
   "startedAt": 1778941232524,
-  "status": "running"
+  "status": "complete",
+  "completedAt": 1778947374752
 }

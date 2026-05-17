@@ -25,10 +25,14 @@ import {
 } from "lucide-react";
 import { useParallelismPreview } from "../hooks/useParallelismPreview";
 import { ParallelismEditor } from "./ParallelismEditor";
+import {
+	PlanValidationPanel,
+	buildValidationData,
+} from "./PlanValidationPanel";
 import type {
-	DependencyPatch,
-	DependencyGraphNode,
 	BatchPlanResult,
+	DependencyGraphNode,
+	DependencyPatch,
 } from "../types";
 
 interface PlanUploadDialogProps {
@@ -71,6 +75,9 @@ export function PlanUploadDialog({
 	const [error, setError] = useState<string | null>(null);
 	const [showGraphDiff, setShowGraphDiff] = useState(false);
 	const [pendingPatches, setPendingPatches] = useState<DependencyPatch[]>([]);
+	const [fixChatMessages, setFixChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+	const [fixSending, setFixSending] = useState(false);
+	const [safetyOverrides, setSafetyOverrides] = useState<Record<string, boolean>>({});
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,21 +142,28 @@ export function PlanUploadDialog({
 		// If the plan requires approval, ensure it has been approved
 		const requiresApproval =
 			previewState.validationResponse?.requiresApproval ?? false;
-		if (requiresApproval && !previewState.isApproved) {
+
+		// Check safety overrides: if all critical safety items are overridden, skip approval
+		const allSafetyOverridden =
+			previewState.validationResponse?.safety?.critical?.every(
+				(c) => safetyOverrides[c.type],
+			) ?? false;
+
+		if (requiresApproval && !previewState.isApproved && !allSafetyOverridden) {
 			setError(
 				"This plan requires review approval before execution. Click 'Approve & Run' to proceed.",
 			);
 			return;
 		}
 
-		const result = await run(planContent.trim());
+		const result = await run(planContent.trim(), safetyOverrides);
 		if (result?.success && result.planExecutionId) {
 			onExecutionStarted(result.planExecutionId);
 			handleClose();
 		} else if (result?.errors) {
 			setError(result.errors.join("; "));
 		}
-	}, [planContent, previewState.validationResponse, previewState.isApproved, run, handleClose, onExecutionStarted]);
+	}, [planContent, previewState.validationResponse, previewState.isApproved, run, safetyOverrides, handleClose, onExecutionStarted]);
 
 	const handleQueuePlan = useCallback(async () => {
 		if (!planContent.trim()) return;
@@ -202,7 +216,7 @@ export function PlanUploadDialog({
 		}
 
 		// Run with patches
-		const result = await run(planContent.trim());
+		const result = await run(planContent.trim(), safetyOverrides);
 		if (result?.success && result.planExecutionId) {
 			onExecutionStarted(result.planExecutionId);
 			handleClose();
@@ -219,6 +233,184 @@ export function PlanUploadDialog({
 		onExecutionStarted,
 		previewState.error,
 	]);
+
+	const handleFixPlan = useCallback(async (prompt: string) => {
+		if (!planContent.trim()) return;
+
+		setFixChatMessages((prev) => [...prev, { role: "user", content: prompt }]);
+		setFixSending(true);
+
+		try {
+			// Call the plan fix endpoint
+			const response = await fetch(
+				`${import.meta.env.VITE_API_BASE || ""}/api/projects/${projectId}/plans/fix`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						planContent: planContent.trim(),
+						userPrompt: prompt,
+						scope: "validation_fixes",
+					}),
+				},
+			);
+
+			if (!response.ok) {
+				const text = await response.text().catch(() => "");
+				setFixChatMessages((prev) => [
+					...prev,
+					{
+						role: "assistant",
+						content: `Fix request failed (${response.status}): ${text}`,
+					},
+				]);
+				return;
+			}
+
+			const result = await response.json();
+
+			if (result.fixedPlan) {
+				setPlanContent(result.fixedPlan);
+			}
+
+			if (result.explanation) {
+				setFixChatMessages((prev) => [
+					...prev,
+					{
+						role: "assistant",
+						content: result.explanation,
+					},
+				]);
+			}
+
+			// Auto-revalidate after fix
+			if (result.fixedPlan) {
+				await validate(result.fixedPlan);
+			}
+		} catch (err) {
+			setFixChatMessages((prev) => [
+				...prev,
+				{
+					role: "assistant",
+					content: `Error: ${String(err)}`,
+				},
+			]);
+		} finally {
+			setFixSending(false);
+		}
+	}, [planContent, projectId, validate]);
+
+	/** Gather all validation failure/warning messages into a concise prompt. */
+	const buildFixAllPrompt = useCallback((): string => {
+		const parts: string[] = [];
+		const v = previewState.validationResponse;
+		if (!v) return "";
+
+		// Collect failures and warnings from every validation step
+		if (v.stackValidation && !v.stackValidation.valid) {
+			for (const d of v.stackValidation.diagnostics) {
+				parts.push(`[${d.severity}] ${d.message}`);
+			}
+		}
+
+		if (v.safety) {
+			for (const c of v.safety.critical) {
+				parts.push(`[critical] ${c.type}: ${c.message}`);
+			}
+			for (const w of v.safety.warnings) {
+				parts.push(`[warning] ${w.type}: ${w.message}`);
+			}
+		}
+
+		if (v.batchPlan) {
+			for (const e of v.batchPlan.errors) {
+				parts.push(`[error] ${e.message}`);
+			}
+			for (const w of v.batchPlan.warnings) {
+				parts.push(`[warning] ${w.message}`);
+			}
+		}
+
+		if (v.suggestedFixes) {
+			for (const f of v.suggestedFixes) {
+				parts.push(`[fix-suggestion] ${f.category}: ${f.description}`);
+			}
+		}
+
+		if (previewState.checkerAnalysis?.result?.findings) {
+			for (const f of previewState.checkerAnalysis.result.findings) {
+				parts.push(`[checker-${f.severity}] ${f.title}: ${f.description}${f.suggestion ? ` (suggestion: ${f.suggestion})` : ""}`);
+			}
+		}
+
+		const summary = `Fix all of the following validation issues in the plan:\n\n${parts.join("\n")}`;
+		return summary.slice(0, 8000); // keep within token limits
+	}, [previewState.validationResponse, previewState.checkerAnalysis]);
+
+	const handleFixAll = useCallback(async () => {
+		if (!planContent.trim()) return;
+
+		const prompt = buildFixAllPrompt();
+		if (!prompt) {
+			setFixChatMessages((prev) => [
+				...prev,
+				{ role: "assistant", content: "No validation issues to fix." },
+			]);
+			return;
+		}
+
+		// Reuse the handleFixPlan logic with the aggregated prompt
+		setFixChatMessages((prev) => [...prev, { role: "user", content: "Fix all validation issues automatically" }]);
+		setFixSending(true);
+
+		try {
+			const response = await fetch(
+				`${import.meta.env.VITE_API_BASE || ""}/api/projects/${projectId}/plans/fix`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						planContent: planContent.trim(),
+						userPrompt: prompt,
+						scope: "fix_all_validation",
+					}),
+				},
+			);
+
+			if (!response.ok) {
+				const text = await response.text().catch(() => "");
+				setFixChatMessages((prev) => [
+					...prev,
+					{ role: "assistant", content: `Fix All failed (${response.status}): ${text}` },
+				]);
+				return;
+			}
+
+			const result = await response.json();
+
+			if (result.fixedPlan) {
+				setPlanContent(result.fixedPlan);
+			}
+
+			if (result.explanation) {
+				setFixChatMessages((prev) => [
+					...prev,
+					{ role: "assistant", content: result.explanation },
+				]);
+			}
+
+			if (result.fixedPlan) {
+				await validate(result.fixedPlan);
+			}
+		} catch (err) {
+			setFixChatMessages((prev) => [
+				...prev,
+				{ role: "assistant", content: `Error: ${String(err)}` },
+			]);
+		} finally {
+			setFixSending(false);
+		}
+	}, [planContent, projectId, validate, buildFixAllPrompt]);
 
 	const handleApplyPatches = useCallback(
 		async (patches: DependencyPatch[]) => {
@@ -470,6 +662,31 @@ export function PlanUploadDialog({
 										<div>This plan has been approved for execution.</div>
 									</div>
 								</div>
+							)}
+
+							{/* ── Validation Report (shows before preflight) ── */}
+							{previewState.validationResponse?.success && (
+								<PlanValidationPanel
+									data={buildValidationData(
+										previewState.validationResponse.parseResult,
+										previewState.validationResponse.stackValidation,
+										previewState.validationResponse.safety,
+										previewState.validationResponse.batchPlan,
+										previewState.validationResponse.suggestedFixes,
+										previewState.checkerAnalysis,
+									)}
+									className="mb-3"
+									onFixPlan={handleFixPlan}
+									chatState={{
+										sending: fixSending,
+										messages: fixChatMessages,
+									}}
+									safetyOverrides={safetyOverrides}
+									onSafetyOverride={(key, approved) =>
+										setSafetyOverrides((prev) => ({ ...prev, [key]: approved }))
+									}
+									onFixAll={handleFixAll}
+								/>
 							)}
 
 							{/* ── AC 1: Preflight preview ── */}

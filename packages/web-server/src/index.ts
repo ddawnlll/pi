@@ -51,6 +51,7 @@ import {
 	JsonStateStore,
 	parsePlan,
 	runCleanupReview,
+	validatePlanTargetCommands,
 } from "@earendil-works/pi-coding-agent";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
@@ -1765,6 +1766,13 @@ fastify.post<{
 		// Queue is guaranteed non-null because success is true
 		const queue = parseResult.queue!;
 
+		// Run project stack validation
+		const workspaceRoot = getWorkspaceRoot();
+		const stackValidation = await validatePlanTargetCommands(
+			workspaceRoot,
+			queue.workspaces.map((w: { id: string; targetCommand?: string }) => ({ id: w.id, targetCommand: w.targetCommand })),
+		);
+
 		// Run safety doctor
 		const doctor = createSafetyDoctor();
 		const safetyReport = doctor.validateQueue(queue);
@@ -1795,6 +1803,7 @@ fastify.post<{
 				warnings: batchPlan.warnings,
 				errors: batchPlan.errors,
 			},
+			stackValidation,
 			suggestedFixes,
 			warnings: parseResult.warnings,
 			requiresApproval: requiresInteractiveApproval(queue),
@@ -1802,6 +1811,124 @@ fastify.post<{
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to validate plan");
 		return reply.code(500).send({ error: "Failed to validate plan", message: String(error) });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/plans/check - Run checker agent analysis on a plan
+ *
+ * Spawns an LLM-based analysis of the plan's feasibility, risks, and completeness.
+ * Runs AFTER structural validation and BEFORE execution approval.
+ * Returns findings, verdict, and narrative from the checker agent.
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: { planContent: string };
+}>("/api/projects/:projectId/plans/check", async (request, reply) => {
+	const { planContent } = request.body;
+
+	if (!planContent) {
+		return reply.code(400).send({ success: false, error: "Plan content is required" });
+	}
+
+	try {
+		const { runCheckerAgent } = await import("./plan-checker-agent.js");
+		const workspaceRoot = getWorkspaceRoot();
+		const analysis = await runCheckerAgent(planContent, workspaceRoot);
+		return { success: true, analysis };
+	} catch (error) {
+		fastify.log.error({ error }, "Checker agent analysis failed");
+		return reply.code(500).send({ success: false, error: `Checker agent failed: ${error instanceof Error ? error.message : String(error)}` });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/plans/fix - Fix plan based on user prompt
+ *
+ * Uses the LLM to modify the plan according to the user's fix request.
+ * Takes the validation context (failures, findings) and produces a corrected plan.
+ * Returns the fixed plan content and an explanation.
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: { planContent: string; userPrompt: string; scope?: string };
+}>("/api/projects/:projectId/plans/fix", async (request, reply) => {
+	const { planContent, userPrompt, scope } = request.body;
+
+	if (!planContent || !userPrompt) {
+		return reply.code(400).send({ success: false, error: "planContent and userPrompt are required" });
+	}
+
+	try {
+		const ai = await import("@earendil-works/pi-ai");
+		const model = ai.getModel("openai", "gpt-4o");
+
+		const systemPrompt = `You are a plan fixer assistant. The user asked to modify the following plan based on validation feedback.
+
+Scope: ${scope || "validation_fixes"}
+
+User request: ${userPrompt}
+
+Return a JSON object with:
+- "fixedPlan": the complete corrected plan content (full markdown)
+- "explanation": a brief explanation of what was changed and why
+- "appliedFixes": array of strings describing each fix applied
+
+Output ONLY valid JSON, no markdown or code blocks.`;
+
+		const now = Date.now();
+		const stream = ai.streamSimple(model, {
+			messages: [
+				{ role: "user", content: systemPrompt + "\n\n--- PLAN START ---\n" + planContent + "\n--- PLAN END ---", timestamp: now },
+			],
+		});
+
+		let fullContent = "";
+		for await (const event of stream) {
+			if (event.type === "text_delta") {
+				fullContent += event.delta;
+			}
+		}
+
+		if (!fullContent.trim()) {
+			return { success: false, error: "LLM returned empty response" };
+		}
+
+		// Try to parse JSON — may be wrapped in markdown code blocks
+		const jsonMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+		let jsonStr = jsonMatch ? jsonMatch[1] : fullContent;
+
+		let parsed: Record<string, unknown>;
+		try {
+			parsed = JSON.parse(jsonStr);
+		} catch {
+			// Fallback: try to find a top-level { } object
+			const objMatch = fullContent.match(/{[\s\S]*?"fixedPlan"[\s\S]*?}/);
+			if (objMatch) {
+				try {
+					parsed = JSON.parse(objMatch[0]);
+				} catch {
+					throw new Error(`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+				}
+			} else {
+				throw new Error(`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+			}
+		}
+
+		return {
+			success: true,
+			fixedPlan: (parsed.fixedPlan as string) || null,
+			explanation: (parsed.explanation as string) || "Plan fix applied.",
+			appliedFixes: (parsed.appliedFixes as string[]) || [],
+		};
+	} catch (error) {
+		const msg = error instanceof Error ? error.stack || error.message : String(error);
+		fastify.log.error({ error: msg }, "Plan fix failed");
+		console.error("[PlanFix] ERROR:", msg);
+		return reply.code(500).send({
+			success: false,
+			error: msg,
+		});
 	}
 });
 
@@ -1893,10 +2020,10 @@ fastify.patch<{
  */
 fastify.post<{
 	Params: { projectId: string };
-	Body: { planContent: string; planFileName?: string; approved?: boolean };
+	Body: { planContent: string; planFileName?: string; approved?: boolean; safetyOverrides?: Record<string, boolean> };
 }>("/api/projects/:projectId/plans/run", async (request, reply) => {
 	const { projectId } = request.params;
-	const { planContent, planFileName, approved } = request.body;
+	const { planContent, planFileName, approved, safetyOverrides } = request.body;
 
 	if (!planContent) {
 		return reply.code(400).send({ error: "Plan content is required" });
@@ -1938,6 +2065,7 @@ fastify.post<{
 			projectName,
 			workspaceRoot,
 			planFileName,
+			safetyOverrides,
 		});
 
 		if (!result.success) {
@@ -3786,6 +3914,13 @@ registerMemoryRoutes(fastify, getPiDir, getWorkspaceRoot);
 
 const { registerPolicyAuditRoutes } = await import("./policy-audit-routes.js");
 registerPolicyAuditRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Orchestrator Routes (P11.B / P11.H — Orchestrator Health & Proposals)
+// ---------------------------------------------------------------------------
+
+const { registerOrchestratorRoutes } = await import("./orchestrator-routes.js");
+await registerOrchestratorRoutes(fastify, getPiDir, getWorkspaceRoot);
 
 // ---------------------------------------------------------------------------
 // Health Check

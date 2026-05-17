@@ -3,59 +3,41 @@
     "phaseId": "P2",
     "workspaceId": "7.E",
     "role": "worker",
-    "goal": "Stability & Failure Analysis",
+    "goal": "Skill Runner",
     "allowedFiles": [
-      "docs/p2-1-stability-report.md"
+      "packages/coding-agent/src/extensions/skill-runner.ts",
+      "packages/web-server/src/skills-routes.ts"
     ],
     "forbiddenFiles": [
-      "src/**",
-      "packages/**/src/**",
-      "package.json",
-      "package-lock.json"
+      ".env*"
     ],
     "acceptanceCriteria": [
       {
-        "description": "docs/p2-1-stability-report.md created",
+        "description": "3-step skill runs successfully",
         "verified": false
       },
       {
-        "description": "Records token behavior observations",
+        "description": "If step 2 fails, step 3 does not run",
         "verified": false
       },
       {
-        "description": "Records retry behavior observations",
+        "description": "Step output piping works",
         "verified": false
       },
       {
-        "description": "Records scheduler behavior observations",
-        "verified": false
-      },
-      {
-        "description": "Records dashboard behavior observations",
-        "verified": false
-      },
-      {
-        "description": "Records usability friction points",
-        "verified": false
-      },
-      {
-        "description": "Identifies remaining architectural risks",
-        "verified": false
-      },
-      {
-        "description": "Identifies P3 prerequisites",
+        "description": "Skill result readable via skills-routes.ts",
         "verified": false
       }
     ],
-    "targetCommand": null,
+    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/skill-runner.test.ts",
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 213
+      "estimatedInputTokens": 172
     }
   },
-  "hash": "be83c763777e0774c82e6b354d2b8f1ecae52ac0ea443a5bf65a19089b51c0c4",
-  "createdAt": 1778511969170
+  "hash": "6e091f846b8c03a761473650f1e7f7ade09b6241f42e64666e610b702599a61f",
+  "createdAt": 1779059531316
 }

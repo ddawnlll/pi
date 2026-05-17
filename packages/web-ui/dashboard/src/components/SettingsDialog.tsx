@@ -1055,6 +1055,35 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 												</div>
 											</div>
 
+											{/* Safety Override: explicit approval */}
+											<div className="border-t border-gray-700 pt-4 mt-4">
+												<h4 className="text-xs font-medium text-gray-300 mb-3">Safety Override</h4>
+												<div className="flex items-center gap-3">
+													<button
+														type="button"
+														onClick={() => setExplicitApproval(!explicitApproval)}
+														className={`${toggleClass} ${
+															explicitApproval ? toggleActiveClass : toggleInactiveClass
+														}`}
+													>
+														<span
+															className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+																explicitApproval ? "translate-x-[18px]" : "translate-x-[2px]"
+															}`}
+														/>
+													</button>
+													<div>
+														<label className="text-xs text-gray-300 cursor-pointer" onClick={() => setExplicitApproval(!explicitApproval)}>
+															Override Self-Modification Protection
+														</label>
+														<p className="text-[11px] text-gray-500">
+															When enabled, plans that target protected system paths (e.g. Pi source code)
+															will proceed without requiring per-plan approval. Use with caution.
+														</p>
+													</div>
+												</div>
+											</div>
+
 											{/* Warnings for experimental_6 */}
 											{scaleMode === "experimental_6" && (
 												<div className="bg-amber-50 dark:bg-amber-900/10 rounded px-3 py-2">

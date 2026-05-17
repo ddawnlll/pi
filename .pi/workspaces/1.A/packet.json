@@ -3,40 +3,34 @@
     "phaseId": "P2",
     "workspaceId": "1.A",
     "role": "worker",
-    "goal": "Setup Python Environment and Project Structure",
-    "allowedFiles": [],
+    "goal": "Create Scheduler interface",
+    "allowedFiles": [
+      "packages/coding-agent/src/core/scheduler.ts"
+    ],
     "forbiddenFiles": [],
     "acceptanceCriteria": [
       {
-        "description": "Project directory structure created",
+        "description": "Scheduler interface defined in core/scheduler.ts",
         "verified": false
       },
       {
-        "description": "Python virtual environment created in backend/venv",
+        "description": "Both WorkspaceScheduler and DynamicParallelScheduler implement the interface",
         "verified": false
       },
       {
-        "description": "requirements.txt created with Flask and flask-cors",
-        "verified": false
-      },
-      {
-        "description": "Virtual environment activated and dependencies installed",
-        "verified": false
-      },
-      {
-        "description": "README.md created with setup instructions",
+        "description": "Existing tests pass",
         "verified": false
       }
     ],
-    "targetCommand": "test -d /tmp/test-python-webserver/backend/venv && test -f /tmp/test-python-webserver/backend/requirements.txt",
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 181
+      "estimatedInputTokens": 163
     }
   },
-  "hash": "a6eb32c00b12a275c2679ad6523583ec8ab877cf6f3d41d19faa38415ff56723",
-  "createdAt": 1778610027725
+  "hash": "f15730720b7eeee1e4a5780da5874e39cf7d2dbca610a04bedec24e2b53db5b4",
+  "createdAt": 1778965422120
 }

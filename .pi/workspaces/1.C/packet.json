@@ -3,44 +3,38 @@
     "phaseId": "P2",
     "workspaceId": "1.C",
     "role": "worker",
-    "goal": "Create Frontend HTML/CSS/JS",
-    "allowedFiles": [],
+    "goal": "GlobalReadyQueue",
+    "allowedFiles": [
+      "packages/coding-agent/src/core/global-ready-queue.ts"
+    ],
     "forbiddenFiles": [],
     "acceptanceCriteria": [
       {
-        "description": "index.html created with proper structure",
+        "description": "GlobalReadyQueue returns workspaces across batch boundaries",
         "verified": false
       },
       {
-        "description": "style.css created with responsive design",
+        "description": "Priority sort places bottleneck nodes first",
         "verified": false
       },
       {
-        "description": "script.js created with API integration",
+        "description": "Age boost prevents starvation",
         "verified": false
       },
       {
-        "description": "Frontend can display items from API",
-        "verified": false
-      },
-      {
-        "description": "Frontend can add new items via API",
-        "verified": false
-      },
-      {
-        "description": "Error handling implemented",
+        "description": "No batch barrier",
         "verified": false
       }
     ],
-    "targetCommand": "test -f /tmp/test-python-webserver/frontend/index.html && test -f /tmp/test-python-webserver/frontend/style.css && test -f /tmp/test-python-webserver/frontend/script.js",
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 171
+      "estimatedInputTokens": 164
     }
   },
-  "hash": "66e2078be77c7c821a3f821b33da94ff04a662ad80f6984b8e9cfae024f10e4e",
-  "createdAt": 1778610027867
+  "hash": "117125b77cd5360045c741011363f56f8aa68f9ae7bde826dbeda446c674fd24",
+  "createdAt": 1778965603745
 }

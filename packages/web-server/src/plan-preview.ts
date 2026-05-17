@@ -339,12 +339,8 @@ export function computeBatchPlan(queue: WorkspaceQueue): BatchPlanResult {
 		});
 	}
 
-	if (!isOverSerialized && effectiveParallelism > 0 && effectiveParallelism < maxParallel) {
-		warnings.push({
-			type: "low_effective_parallelism",
-			message: `Effective parallelism (${effectiveParallelism}) is below requested (${maxParallel}). Some worker capacity will be unused.`,
-		});
-	}
+	// Parallelism mismatch warnings removed — users may intentionally set higher capacity
+	// for future growth or to handle burst scenarios.
 
 	// Check for single-width batches creating bottlenecks
 	for (const batch of batches) {
@@ -478,15 +474,7 @@ export function generateSuggestedFixes(queue: WorkspaceQueue, batchPlan: BatchPl
 		}
 	}
 
-	// Suggest adjusting parallelism when it's higher than effective
-	if (!batchPlan.isOverSerialized && batchPlan.parallelismDelta > 0 && batchPlan.effectiveParallelism > 0) {
-		fixes.push({
-			id: "fix-parallelism",
-			category: "adjust_parallelism",
-			description: `Lower maxParallelWorkspaces from ${batchPlan.requestedParallelism} to ${batchPlan.effectiveParallelism} to match actual parallelism.`,
-			workspaceIds: queue.workspaces.map((w) => w.id),
-		});
-	}
+	// adjust_parallelism suggestion removed — users may intentionally set higher capacity.
 
 	return fixes;
 }

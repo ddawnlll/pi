@@ -3,34 +3,37 @@
     "phaseId": "P2",
     "workspaceId": "7.C",
     "role": "worker",
-    "goal": "Final Verification Report",
+    "goal": "Extension API Bridge",
     "allowedFiles": [
-      "docs/dogfood-output.md"
+      "packages/coding-agent/src/extensions/bridge/"
     ],
-    "forbiddenFiles": [],
+    "forbiddenFiles": [
+      ".env*",
+      "**/*.pem"
+    ],
     "acceptanceCriteria": [
       {
-        "description": "Verification section added to docs/dogfood-output.md",
+        "description": "pi.readFile() works on permitted path",
         "verified": false
       },
       {
-        "description": "Includes execution summary",
+        "description": "pi.readFile('../.env') returns permission denied",
         "verified": false
       },
       {
-        "description": "Document is complete",
+        "description": "All API calls are written to audit log",
         "verified": false
       }
     ],
-    "targetCommand": null,
+    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/api-bridge.test.ts",
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 147
+      "estimatedInputTokens": 161
     }
   },
-  "hash": "f4995ff0f4b48bdc9e756f0a83248215d54de2698f58c25a9a2079e8f97ff14f",
-  "createdAt": 1778523661396
+  "hash": "72a13d3191031938406982b382da139a6a9b91e681bd67d4fc70c9212eda3ae9",
+  "createdAt": 1779058690591
 }

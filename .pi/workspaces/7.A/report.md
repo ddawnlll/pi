@@ -1,8 +1,8 @@
-# Workspace 7.A — Create Dogfood Output Doc
+# Workspace 7.A — Manifest Parser + Permission Gate
 
 **Status:** complete
 **Attempts:** 1
-**Completed:** 2026-05-11T18:21:01.387Z
+**Completed:** 2026-05-17T22:57:29.550Z
 **Duration:** 0s
 
 ## Workspace Details
@@ -11,5 +11,5 @@
 - **Dependencies:** None
 
 ## Capabilities
-- **Can Edit:** docs/dogfood-output.md
-- **Cannot Edit:** None
+- **Can Edit:** packages/coding-agent/src/extensions/
+- **Cannot Edit:** .env*, **/*.pem, **/*.key
