@@ -309,7 +309,7 @@ function buildCleanupPrompt(
 	parts.push(`Verdict: PASS | FAIL`);
 	parts.push(`END_CLEANUP_REVIEW_RESULT`);
 	parts.push(``);
-	parts.push(`IMPORTANT: Do NOT run any commands. Do NOT edit files or commit. Only review and summarize.`);
+	parts.push(`IMPORTANT: Do NOT run any commands. Do NOT use read/find/grep/ls tools. Do NOT edit files or commit. Only review and summarize. All data is present above.`);
 
 	return parts.join("\n");
 }
@@ -348,7 +348,7 @@ async function executeCleanupAgent(config: {
 		const created = await createAgentSession({
 			cwd: workspaceRoot,
 			model,
-			thinkingLevel: "low",
+			thinkingLevel: "minimal",
 			sessionManager,
 			settingsManager,
 			// NOTE: intentionally no bash/write/edit — the cleanup agent only reviews
@@ -390,9 +390,9 @@ async function executeCleanupAgent(config: {
 			}
 		});
 
-		// Adaptive timeout: base 90s + 5s per workspace report. Cap at 300s.
-		const workspaceCount = (config.prompt.match(/^### /gm) || []).length;
-		const timeoutMs = Math.min(90_000 + workspaceCount * 5_000, 300_000);
+		// Adaptive timeout: base 90s + 10s per workspace report. Cap at 300s.
+		const workspaceCount = (config.prompt.match(/^### /gm) || []).length || 1;
+		const timeoutMs = Math.min(90_000 + workspaceCount * 10_000, 300_000);
 
 		await logAndArchive("Sending prompt to cleanup agent...");
 		emitStatus("executing", "Sending prompt to cleanup agent");
