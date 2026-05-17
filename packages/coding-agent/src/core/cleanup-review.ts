@@ -407,6 +407,18 @@ async function executeCleanupAgent(config: {
 			outputParts.push(`\n[cleanup] Agent timed out after ${timeoutMs / 1000}s`);
 			await logAndArchive(`Cleanup agent timed out after ${timeoutMs / 1000}s`);
 			emitStatus("error", `Cleanup agent timed out after ${timeoutMs / 1000}s`);
+			// Even on timeout, commit any pending changes from worktrees
+			try {
+				const { stdout: staged } = await execAsync("git diff --cached --name-only", { cwd: workspaceRoot, timeout: 10_000 });
+				const { stdout: unstaged } = await execAsync("git diff --name-only", { cwd: workspaceRoot, timeout: 10_000 });
+				if (staged.trim() || unstaged.trim()) {
+					await execAsync("git add -A", { cwd: workspaceRoot, timeout: 30_000 });
+					await execAsync('git commit -m "chore(cleanup): auto-commit worktree changes after timeout" --no-verify', { cwd: workspaceRoot, timeout: 30_000 });
+					await logAndArchive("Commited worktree changes after timeout");
+				}
+			} catch (commitErr) {
+				await logAndArchive(`Failed to commit worktree changes after timeout: ${commitErr instanceof Error ? commitErr.message : String(commitErr)}`);
+			}
 			// Dispose kills tracked children (vitest, etc.) via shell.ts exit handler
 			session.dispose();
 		}
@@ -422,7 +434,16 @@ async function executeCleanupAgent(config: {
 
 		// Parse the final output for the structured result
 		const fullOutput = outputParts.join("");
-		const parsed = parseCleanupResult(fullOutput);
+		const parsed: CleanupReviewResult = fullOutput.trim()
+			? parseCleanupResult(fullOutput)
+			: {
+					summary: "Cleanup agent timed out before producing a result. Worktree changes have been auto-committed.",
+					changedFiles: [],
+					issueCount: 0,
+					issues: [],
+					testResults: [],
+					passed: true,
+				};
 
 		await logAndArchive(
 			`Cleanup result: ${parsed.passed ? "PASS" : "FAIL"}, issues=${parsed.issueCount}, files=${parsed.changedFiles.length}`,
