@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSettings, useProjectMeta } from "../hooks/useSettings";
 import { ScaleModeSettings } from "./ScaleModeSettings";
+import { useAuth } from "../hooks/useAuth";
 import type { Project } from "../types";
 
-type TabId = "general" | "budgets" | "project" | "advanced" | "scale";
+type TabId = "general" | "budgets" | "project" | "auth" | "advanced" | "scale";
 
 const DASHBOARD_THEME_KEY = "pi-dashboard-theme";
 
@@ -410,10 +411,19 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		}
 	};
 
+	const {
+		providers: authProviders,
+		isLoading: authLoading,
+		saveApiKey,
+		removeCredentials,
+		isSaving: authSaving,
+	} = useAuth();
+
 	const tabs: { id: TabId; label: string; changes?: number }[] = [
 		{ id: "general", label: "General", changes: generalChanges },
 		{ id: "budgets", label: "Context Budgets", changes: budgetsChanges },
 		{ id: "project", label: "Project", changes: projectChanges },
+		{ id: "auth", label: "Auth" },
 		{ id: "advanced", label: "Advanced" },
 		{ id: "scale", label: "Scale & Safety", changes: scaleChanges },
 	];
@@ -794,6 +804,38 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 										</div>
 									)}
 
+									{/* Auth Tab */}
+									{activeTab === "auth" && (
+										<div className="space-y-4">
+											<p className="text-xs text-gray-500 mb-3">
+												Configure API keys for each provider. Keys are stored in auth.json.
+											</p>
+											{authLoading ? (
+												<div className="text-gray-500 text-sm py-8 text-center">Loading providers...</div>
+											) : (
+												<div className="space-y-2 max-h-96 overflow-y-auto">
+													{authProviders.length === 0 ? (
+														<p className="text-xs text-gray-500 py-4">No providers available.</p>
+													) : (
+														authProviders.map((p) => (
+															<AuthProviderRow
+																key={p.provider}
+																provider={p}
+																onSave={async (apiKey) => {
+																	await saveApiKey({ provider: p.provider, apiKey });
+																}}
+																onRemove={async () => {
+																	await removeCredentials(p.provider);
+																}}
+																saving={authSaving}
+															/>
+														))
+													)}
+												</div>
+											)}
+										</div>
+									)}
+
 									{/* Advanced Tab */}
 									{activeTab === "advanced" && (
 										<div className="space-y-4">
@@ -1129,5 +1171,117 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 				</motion.div>
 			)}
 		</AnimatePresence>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Auth Provider Row Component
+// ---------------------------------------------------------------------------
+
+interface AuthProviderRowProps {
+	provider: {
+		provider: string;
+		name: string;
+		configured: boolean;
+	};
+	onSave: (apiKey: string) => Promise<void>;
+	onRemove: () => Promise<void>;
+	saving: boolean;
+}
+
+function AuthProviderRow({ provider, onSave, onRemove, saving }: AuthProviderRowProps) {
+	const [showInput, setShowInput] = useState(false);
+	const [apiKey, setApiKey] = useState("");
+	const [saved, setSaved] = useState(false);
+
+	const handleSave = async () => {
+		if (!apiKey.trim()) return;
+		await onSave(apiKey.trim());
+		setApiKey("");
+		setShowInput(false);
+		setSaved(true);
+		setTimeout(() => setSaved(false), 2000);
+	};
+
+	const handleRemove = async () => {
+		await onRemove();
+		setSaved(true);
+		setTimeout(() => setSaved(false), 2000);
+	};
+
+	const inputClass =
+		"flex-1 px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500";
+
+	return (
+		<div className="flex items-center gap-3 p-3 rounded border border-gray-700 bg-gray-800/30">
+			<div className="flex-1 min-w-0">
+				<div className="text-sm font-medium text-gray-200 truncate">
+					{provider.name}
+				</div>
+				<div className="text-[11px] text-gray-500 mt-0.5">
+					{provider.configured ? (
+						<span className="text-green-400">API key configured</span>
+					) : (
+						<span className="text-gray-500">No API key set</span>
+					)}
+				</div>
+			</div>
+			<div className="flex items-center gap-2 shrink-0">
+				{showInput ? (
+					<>
+						<input
+							type="password"
+							value={apiKey}
+							onChange={(e) => setApiKey(e.target.value)}
+							placeholder="Enter API key..."
+							className={inputClass}
+							autoFocus
+							onKeyDown={(e) => {
+								if (e.key === "Enter") handleSave();
+								if (e.key === "Escape") setShowInput(false);
+							}}
+						/>
+						<button
+							onClick={handleSave}
+							disabled={saving || !apiKey.trim()}
+							className="px-2.5 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 transition-colors"
+						>
+							{saving ? "..." : "Save"}
+						</button>
+						<button
+							onClick={() => { setShowInput(false); setApiKey(""); }}
+							className="px-2.5 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+						>
+							Cancel
+						</button>
+					</>
+				) : (
+					<>
+						<button
+							onClick={() => setShowInput(true)}
+							className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
+								provider.configured
+									? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+									: "bg-blue-700 hover:bg-blue-600 text-white"
+							}`}
+						>
+							{provider.configured ? "Update" : "Add Key"}
+						</button>
+						{provider.configured && (
+							<button
+								onClick={handleRemove}
+								disabled={saving}
+								className="px-2.5 py-1.5 text-xs rounded bg-red-800 hover:bg-red-700 text-red-200 disabled:opacity-40 transition-colors"
+							>
+								Remove
+							</button>
+						)}
+					</>
+				)}
+			</div>
+			{saved && (
+				<span className="text-xs text-green-400 shrink-0">Saved</span>
+			)}
+		</div>
 	);
 }

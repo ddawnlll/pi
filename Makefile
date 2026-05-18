@@ -16,6 +16,7 @@ ifneq (,$(wildcard .env))
 endif
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
+AI_DIR        := packages/ai
 SERVER_DIR    := packages/web-server
 DB_DIR        := packages/db
 DASHBOARD_DIR := packages/web-ui/dashboard
@@ -41,6 +42,7 @@ help:
 	@echo "  make db-create     Create the PostgreSQL database only"
 	@echo "  make db-migrate    Run pending migrations only"
 	@echo "  make db-drop       Drop the database (destructive)"
+	@echo "  make pi            Run pi TUI from local dist (dev build)"
 	@echo "  make server        API server (foreground)"
 	@echo "  make dashboard     Dashboard Vite dev server (foreground)"
 	@echo "  make dev           Start both server + dashboard in background"
@@ -63,6 +65,7 @@ install:
 
 build:
 	@echo "Building packages in dependency order..."
+	@cd $(AI_DIR) && npm run build
 	@cd $(DB_DIR) && npm run build
 	@cd $(SERVER_DIR)/../coding-agent && npm run build
 	@cd $(SERVER_DIR) && npm run build
@@ -137,6 +140,18 @@ db-drop:
 	@psql -h $(PGHOST_BOOT) -p $(PGPORT_BOOT) -U $(PGUSER_BOOT) -d postgres -c \
 		"DROP DATABASE IF EXISTS \"$(PGDATABASE_BOOT)\""
 	@echo "Database dropped."
+
+# ── Pi TUI (local dist) ────────────────────────────────────────────────
+
+PI_CLI := packages/coding-agent/dist/cli.js
+
+pi:
+	@if [ ! -f $(PI_CLI) ]; then \
+		echo "Local dist not found. Run 'make build' first."; \
+		exit 1; \
+	fi
+	@echo "Starting pi from local dist..."
+	@cd packages/coding-agent && node dist/cli.js
 
 # ── Server (foreground) ───────────────────────────────────────────────────────
 

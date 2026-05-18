@@ -482,11 +482,66 @@ function createClient(
 				}
 			: headers;
 
+	// Custom fetch wrapper to filter non-standard SSE lines from certain providers
+	// (e.g. NeoTokens sends `data: : reasoning` which the OpenAI SSE parser can't parse as JSON)
+	const customFetch: typeof globalThis.fetch = async (input, init) => {
+		const response = await globalThis.fetch(input, init);
+		if (!response.body) return response;
+
+		const contentType = response.headers.get("content-type") || "";
+		if (!contentType.includes("text/event-stream")) return response;
+
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		const encoder = new TextEncoder();
+
+		const transform = new TransformStream<Uint8Array, Uint8Array>({
+			async transform(chunk, controller) {
+				const text = decoder.decode(chunk, { stream: true });
+				// Filter out lines like `data: : reasoning` that are not valid JSON
+				const filtered = text
+					.split("\n")
+					.filter((line) => !/^data:\s*:/.test(line))
+					.join("\n");
+				if (filtered.length > 0) {
+					controller.enqueue(encoder.encode(filtered));
+				}
+			},
+		});
+
+		// Wrap reader in a ReadableStream and pipe through the transform
+		const stream = new ReadableStream({
+			start(controller) {
+				function push() {
+					reader
+						.read()
+						.then(({ done, value }) => {
+							if (done) {
+								controller.close();
+								return;
+							}
+							controller.enqueue(value);
+							push();
+						})
+						.catch((err) => controller.error(err));
+				}
+				push();
+			},
+		});
+
+		return new Response(stream.pipeThrough(transform), {
+			headers: response.headers,
+			status: response.status,
+			statusText: response.statusText,
+		});
+	};
+
 	return new OpenAI({
 		apiKey,
 		baseURL: isCloudflareProvider(model.provider) ? resolveCloudflareBaseUrl(model) : model.baseUrl,
 		dangerouslyAllowBrowser: true,
 		defaultHeaders,
+		fetch: customFetch,
 	});
 }
 

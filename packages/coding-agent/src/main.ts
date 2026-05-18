@@ -5,7 +5,7 @@
  * createAgentSession() options. The SDK does the heavy lifting.
  */
 
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { type ImageContent, modelsAreEqual } from "@earendil-works/pi-ai";
 import { ProcessTerminal, setKeybindings, TUI } from "@earendil-works/pi-tui";
@@ -832,7 +832,7 @@ function startOrchestratorDaemon(_settingsManager: SettingsManager, cwd: string)
 
 	const daemon = new OrchestratorDaemon({
 		cwd,
-		piDir: require("node:path").join(cwd, ".pi"),
+		piDir: join(cwd, ".pi"),
 		isAutonomous: false,
 		scanIntervalMs: 5 * 60 * 1000, // Every 5 minutes
 	});

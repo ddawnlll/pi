@@ -57,6 +57,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
+import { registerAuthRoutes } from "./auth-routes.js";
 import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import { registerPerformanceRoutes } from "./performance-routes.js";
@@ -3930,6 +3931,12 @@ await registerProposalRoutes(fastify, getPiDir, getWorkspaceRoot);
 // ---------------------------------------------------------------------------
 
 await registerExtensionRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Auth Routes (P — Provider API Key Management)
+// ---------------------------------------------------------------------------
+
+registerAuthRoutes(fastify);
 
 // ---------------------------------------------------------------------------
 // Skill Routes (P11.K — Skill Lifecycle)
