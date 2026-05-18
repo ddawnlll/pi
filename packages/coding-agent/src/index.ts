@@ -238,6 +238,23 @@ export {
 	type PlanQueueEntry,
 	PlanQueueEntryStatus,
 } from "./integration/queue-domain.js";
+// P12.5.E — Continuous Ready Queue Foundation: deterministic readiness
+// classification with waiting/blocked reasons for plan queue entries
+export {
+	BLOCKED_REASON_DRAFT_GATE,
+	determineReadyEntries,
+	type EntryReadiness,
+	getEntryWaitingBlockedReason,
+	isEntryReady,
+	type ReadyQueueDetermination,
+	type ReadyQueueEntry,
+	type ReadyQueueState,
+	WAITING_REASON_DIRTY_INTEGRATION,
+	WAITING_REASON_DIRTY_TREE,
+	WAITING_REASON_PRIOR_BLOCKED,
+	WAITING_REASON_PRIOR_FAILED,
+	WAITING_REASON_SAME_PROJECT_ACTIVE,
+} from "./core/continuous-ready-queue.js";
 // Repo scanning and analysis
 export {
 	createRepoHealthScanner,
