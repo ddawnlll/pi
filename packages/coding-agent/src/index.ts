@@ -213,6 +213,31 @@ export {
 	type IntegrationQueueState,
 	type QueueEntry,
 } from "./integration/integration-queue.js";
+// P12.5.A — Queue domain model: two-layer types and clean/dirty classification
+// P12.5.A — Queue domain model: two-layer types and clean/dirty classification
+export {
+	INTEGRATION_CLEAN_STATES,
+	INTEGRATION_DIRTY_STATES,
+	type IntegrationQueueEntry,
+	type IntegrationQueueStatus,
+	type IntegrationQueueTiming,
+	isIntegrationEntryClean,
+	isIntegrationEntryDirty,
+	isIntegrationQueueClean,
+	isIntegrationQueueDirty,
+	isIntegrationStatusClean,
+	isIntegrationStatusDirty,
+	isPlanEntryClean,
+	isPlanEntryDirty,
+	isPlanQueueClean,
+	isPlanQueueDirty,
+	isPlanStatusClean,
+	isPlanStatusDirty,
+	PLAN_CLEAN_STATES,
+	PLAN_DIRTY_STATES,
+	type PlanQueueEntry,
+	PlanQueueEntryStatus,
+} from "./integration/queue-domain.js";
 // Repo scanning and analysis
 export {
 	createRepoHealthScanner,

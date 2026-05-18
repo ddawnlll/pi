@@ -65,6 +65,14 @@ export interface PlanQueueEntry {
 	/** Reason for blocking (if blocked) */
 	blockReason?: string;
 	/**
+	 * Reason the entry is waiting (not yet ready).
+	 * Set when the entry is Pending but cannot become Active yet due to
+	 * queue policy (e.g., another plan for the same project is Active,
+	 * working tree is dirty, integration queue has dirty entries).
+	 * P12.5.E — Continuous Ready Queue Foundation
+	 */
+	waitingReason?: string;
+	/**
 	 * Agent ID of the enqueuing agent (P8.E).
 	 * When set, draft gate checks use this to enforce lead agent restrictions.
 	 */

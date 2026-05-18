@@ -372,6 +372,135 @@ describe("PlanQueueRunner", () => {
 		});
 	});
 
+	describe("integration queue cleanliness gate", () => {
+		it("should block next plan when integration queue has dirty entries", async () => {
+			let integrationDirtyCallCount = 0;
+
+			const gatedRunner = new PlanQueueRunner({
+				workspaceRoot: TEST_DIR,
+				stateStore,
+				isDirtyFn: async () => false,
+				isIntegrationQueueDirtyFn: async () => {
+					integrationDirtyCallCount++;
+					// Return dirty on the second call (before second plan)
+					if (integrationDirtyCallCount >= 2) {
+						return true;
+					}
+					return false;
+				},
+				executePlanFn: async (entry: PlanQueueEntry) => {
+					entry.planExecutionId = `exec-${entry.id}`;
+					return { success: true };
+				},
+				checkGatesFn: async () => true,
+			});
+
+			await gatedRunner.enqueue("proj-1", "/plans/plan1.md");
+			await gatedRunner.enqueue("proj-1", "/plans/plan2.md");
+
+			await gatedRunner.start();
+
+			// First plan should have completed
+			// Second plan should be blocked because integration queue is dirty
+			const entries = gatedRunner.getEntries();
+			expect(entries[0].status).toBe(PlanQueueEntryStatus.Complete);
+			expect(entries[1].status).toBe(PlanQueueEntryStatus.Blocked);
+			expect(entries[1].blockReason).toContain("Integration queue");
+			expect(entries[1].blockReason).toContain("unresolved entries");
+		});
+
+		it("should allow next plan when integration queue is clean", async () => {
+			const gatedRunner = new PlanQueueRunner({
+				workspaceRoot: TEST_DIR,
+				stateStore,
+				isDirtyFn: async () => false,
+				isIntegrationQueueDirtyFn: async () => false, // Always clean
+				executePlanFn: async (entry: PlanQueueEntry) => {
+					entry.planExecutionId = `exec-${entry.id}`;
+					return { success: true };
+				},
+				checkGatesFn: async () => true,
+			});
+
+			await gatedRunner.enqueue("proj-1", "/plans/plan1.md");
+			await gatedRunner.enqueue("proj-1", "/plans/plan2.md");
+
+			await gatedRunner.start();
+
+			const entries = gatedRunner.getEntries();
+			expect(entries[0].status).toBe(PlanQueueEntryStatus.Complete);
+			expect(entries[1].status).toBe(PlanQueueEntryStatus.Complete);
+		});
+
+		it("should set human-readable blocker reason when integration queue is dirty", async () => {
+			const gatedRunner = new PlanQueueRunner({
+				workspaceRoot: TEST_DIR,
+				stateStore,
+				isDirtyFn: async () => false,
+				isIntegrationQueueDirtyFn: async () => true, // Always dirty
+				executePlanFn: async (entry: PlanQueueEntry) => {
+					entry.planExecutionId = `exec-${entry.id}`;
+					return { success: true };
+				},
+				checkGatesFn: async () => true,
+			});
+
+			await gatedRunner.enqueue("proj-1", "/plans/plan1.md");
+
+			await gatedRunner.start();
+
+			const entries = gatedRunner.getEntries();
+			expect(entries[0].status).toBe(PlanQueueEntryStatus.Blocked);
+			expect(entries[0].blockReason).toBeDefined();
+			expect(entries[0].blockReason!.length).toBeGreaterThan(0);
+			expect(entries[0].blockReason).toMatch(/integration/i);
+		});
+
+		it("should produce different blocker reason than dirty working tree", async () => {
+			const integrationGateRunner = new PlanQueueRunner({
+				workspaceRoot: TEST_DIR,
+				stateStore,
+				isDirtyFn: async () => false,
+				isIntegrationQueueDirtyFn: async () => true,
+				executePlanFn: async (entry: PlanQueueEntry) => {
+					entry.planExecutionId = `exec-${entry.id}`;
+					return { success: true };
+				},
+				checkGatesFn: async () => true,
+			});
+
+			await integrationGateRunner.enqueue("proj-1", "/plans/plan1.md");
+			await integrationGateRunner.start();
+
+			const entries = integrationGateRunner.getEntries();
+			expect(entries[0].blockReason).toContain("Integration queue");
+			expect(entries[0].blockReason).not.toContain("Dirty working tree");
+		});
+
+		it("should not block when integration queue dirty check is not configured", async () => {
+			// When isIntegrationQueueDirtyFn is not provided, the gate is not enforced
+			const runner = new PlanQueueRunner({
+				workspaceRoot: TEST_DIR,
+				stateStore,
+				isDirtyFn: async () => false,
+				executePlanFn: async (entry: PlanQueueEntry) => {
+					entry.planExecutionId = `exec-${entry.id}`;
+					return { success: true };
+				},
+				checkGatesFn: async () => true,
+			});
+
+			await runner.enqueue("proj-1", "/plans/plan1.md");
+			await runner.enqueue("proj-1", "/plans/plan2.md");
+
+			await runner.start();
+
+			const entries = runner.getEntries();
+			expect(entries[0].status).toBe(PlanQueueEntryStatus.Complete);
+			expect(entries[1].status).toBe(PlanQueueEntryStatus.Complete);
+		});
+	});
+
 	describe("failed plan stops queue by default", () => {
 		it("should stop queue when a plan fails and stopOnFailure is true", async () => {
 			const executionOrder: string[] = [];

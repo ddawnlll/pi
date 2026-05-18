@@ -16,6 +16,7 @@
 - **Semi-Autonomous Draft Planning (P8.E)**: New `DraftPlanner` that converts approved proposals into non-executable draft plans with lead agent gating. Draft plans must pass normal approval gates before execution. See `packages/coding-agent/src/core/draft-planner.ts`.
 - **Self-Modification Firewall (P8.F)**: New `SelfModificationFirewall` that protects pi's own source code and configuration from autonomous modification. Self-modifying proposals require enhanced explicit approval. See `packages/coding-agent/src/core/self-modification-firewall.ts`.
 - **Lead Agent Dashboard (P8.G)**: New read-only dashboard displaying proposal evidence, status, and audit trail in the web UI. Includes `LeadAgentDashboard`, `ProposalCard`, and `ProposalDetailPanel` components. See `packages/web-ui/dashboard/src/components/`.
+- **Integration Queue Cleanliness Gate (P12.5.D)**: Added `hasDirtyEntries()` method to `IntegrationQueue` using queue-domain clean/dirty classification. Plan queue runner now blocks the next plan when the integration queue has unresolved dirty entries, with human-readable blocker reasons.
 
 ### Fixed
 

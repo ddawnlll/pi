@@ -27,12 +27,16 @@ const execAsync = promisify(execCb);
  * Run a git command asynchronously and return stdout trimmed.
  */
 async function gitAsync(args: string[], cwd: string): Promise<string> {
-	const { stdout } = await execAsync(`git ${args.join(" ")}`, {
-		cwd,
-		encoding: "utf-8",
-		timeout: 30_000,
-	});
-	return stdout.trim();
+	try {
+		const { stdout } = await execAsync(`git ${args.join(" ")}`, {
+			cwd,
+			encoding: "utf-8",
+			timeout: 30_000,
+		});
+		return stdout.trim();
+	} catch {
+		return "";
+	}
 }
 
 /**

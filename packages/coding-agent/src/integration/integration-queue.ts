@@ -28,6 +28,7 @@ import * as path from "node:path";
 import type { Workspace } from "../core/workspace-schema.js";
 import { IntegrationBranch } from "./integration-branch.js";
 import { isMergeConflictError, MergeConflictResolver } from "./merge-conflict-handoff.js";
+import { isIntegrationStatusDirty } from "./queue-domain.js";
 import type { OptimizationResult, ReorderSuggestionResult, ThroughputImpact } from "./queue-optimizer.js";
 import { QueueOptimizer } from "./queue-optimizer.js";
 
@@ -535,6 +536,28 @@ export class IntegrationQueue {
 	async hasUnresolvedEntries(): Promise<boolean> {
 		await this.loadState();
 		return this.state.entries.some((e) => e.status !== "merged");
+	}
+
+	/**
+	 * Check whether the integration queue has any dirty (non-terminal) entries.
+	 *
+	 * Dirty states are "queued", "merging", and "validating" — entries that
+	 * are either waiting to be processed or are actively being processed.
+	 *
+	 * Clean (terminal) states are "merged", "failed", "blocked", and "conflict"
+	 * — entries that have completed processing.
+	 *
+	 * Used by PlanQueueRunner to gate next plan execution: if the integration
+	 * queue has dirty entries, the next plan must wait until all entries reach
+	 * a clean terminal state.
+	 *
+	 * An empty queue is considered clean.
+	 *
+	 * @returns true if there are any dirty (non-terminal) entries
+	 */
+	async hasDirtyEntries(): Promise<boolean> {
+		await this.loadState();
+		return this.state.entries.some((e) => isIntegrationStatusDirty(e.status as any));
 	}
 
 	/**

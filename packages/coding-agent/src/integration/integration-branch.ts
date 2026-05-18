@@ -83,12 +83,16 @@ export interface IntegrationBranchState {
  * Run a git command and return stdout trimmed.
  */
 function git(args: string[], cwd: string): string {
-	const result = execSync(`git ${args.join(" ")}`, {
-		cwd,
-		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
-	});
-	return result.trim();
+	try {
+		const result = execSync(`git ${args.join(" ")}`, {
+			cwd,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		return result.trim();
+	} catch {
+		return "";
+	}
 }
 
 /**
