@@ -19,7 +19,7 @@
  */
 
 import { existsSync, mkdirSync } from "node:fs";
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 
@@ -333,14 +333,20 @@ async function loadProposals(): Promise<OrchestratorProposalItem[]> {
 			id: (p.id as string) ?? "",
 			title: (p.title as string) ?? "Untitled",
 			description: (p.description as string) ?? (p.title as string) ?? "",
-			confidence: (p.confidence as "low" | "medium" | "high") ?? (p as Record<string, unknown>).orchestratorConfidence as "low" | "medium" | "high" ?? "medium",
-			risk: (p.risk as "low" | "medium" | "high") ?? (p as Record<string, unknown>).orchestratorRisk as "low" | "medium" | "high" ?? "low",
+			confidence:
+				(p.confidence as "low" | "medium" | "high") ??
+				((p as Record<string, unknown>).orchestratorConfidence as "low" | "medium" | "high") ??
+				"medium",
+			risk:
+				(p.risk as "low" | "medium" | "high") ??
+				((p as Record<string, unknown>).orchestratorRisk as "low" | "medium" | "high") ??
+				"low",
 			policyClassification: (p.policyClassification as string) ?? "suggestion",
 			suggestedNextAction: (p.suggestedNextAction as string) ?? "no_action_required",
 			isSelfModification: (p.isSelfModification as boolean) ?? false,
-			generatedAt: (p.generatedAt as string) ?? (p.submittedAt
-				? new Date(p.submittedAt as number).toISOString()
-				: new Date().toISOString()),
+			generatedAt:
+				(p.generatedAt as string) ??
+				(p.submittedAt ? new Date(p.submittedAt as number).toISOString() : new Date().toISOString()),
 			evidenceLinks: (p.evidenceLinks as OrchestratorProposalItem["evidenceLinks"]) ?? [],
 		}));
 	} catch {
@@ -397,7 +403,7 @@ async function saveProposals(proposals: OrchestratorProposalItem[]): Promise<voi
  * daemon hasn't run yet.
  */
 function generateSeedProposals(): OrchestratorProposalItem[] {
-	const now = new Date().toISOString();
+	const _now = new Date().toISOString();
 	const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
 	const thirtyMinAgo = new Date(Date.now() - 30 * 60_000).toISOString();
 	const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
@@ -415,8 +421,14 @@ function generateSeedProposals(): OrchestratorProposalItem[] {
 			isSelfModification: false,
 			generatedAt: fiveMinAgo,
 			evidenceLinks: [
-				{ sourceId: "scan-repo-health-001", description: "Test file dependency analysis — 8 files have no transitive dependencies" },
-				{ sourceId: "scan-run-history-003", description: "Last 3 runs: avg test time 5.8 min with sequential execution" },
+				{
+					sourceId: "scan-repo-health-001",
+					description: "Test file dependency analysis — 8 files have no transitive dependencies",
+				},
+				{
+					sourceId: "scan-run-history-003",
+					description: "Last 3 runs: avg test time 5.8 min with sequential execution",
+				},
 			],
 		},
 		{
@@ -450,7 +462,10 @@ function generateSeedProposals(): OrchestratorProposalItem[] {
 			generatedAt: oneHourAgo,
 			evidenceLinks: [
 				{ sourceId: "scan-run-history-007", description: "Tool call pattern analysis across 5 executions" },
-				{ sourceId: "scan-run-history-007", description: "32% of tool calls are read operations after a failed write" },
+				{
+					sourceId: "scan-run-history-007",
+					description: "32% of tool calls are read operations after a failed write",
+				},
 			],
 		},
 		{
@@ -465,7 +480,10 @@ function generateSeedProposals(): OrchestratorProposalItem[] {
 			isSelfModification: false,
 			generatedAt: oneHourAgo,
 			evidenceLinks: [
-				{ sourceId: "scan-repo-health-005", description: "TypeScript project analysis — 6 workspaces share tsconfig base" },
+				{
+					sourceId: "scan-repo-health-005",
+					description: "TypeScript project analysis — 6 workspaces share tsconfig base",
+				},
 				{ sourceId: "scan-queue-002", description: "Queue bottleneck: compile time dominates workspace execution" },
 			],
 		},
@@ -568,7 +586,7 @@ export async function registerOrchestratorRoutes(
 
 	fastify.get("/api/orchestrator/proposals", async (request, reply) => {
 		try {
-			const query = request.query as Record<string, string>;
+			const _query = request.query as Record<string, string>;
 			const proposals = await loadProposals();
 
 			// Sort newest first
@@ -659,11 +677,7 @@ export async function registerOrchestratorRoutes(
 				requestedAt: new Date().toISOString(),
 			};
 
-			await writeFile(
-				join(controlDir, "control-request.json"),
-				JSON.stringify(control, null, 2),
-				"utf-8",
-			);
+			await writeFile(join(controlDir, "control-request.json"), JSON.stringify(control, null, 2), "utf-8");
 
 			// Update health state immediately for dashboard feedback
 			const health = await loadHealth();
@@ -750,7 +764,7 @@ export async function registerOrchestratorRoutes(
 		Body: LeadAgentControlRequest;
 	}>("/api/orchestrator/lead-agent/control", async (request, reply) => {
 		try {
-			const { action, reason } = request.body;
+			const { action } = request.body;
 			if (!["pause", "resume", "stop"].includes(action)) {
 				return reply.code(400).send({ success: false, error: "Invalid action" });
 			}
@@ -874,16 +888,22 @@ export async function registerOrchestratorRoutes(
 
 		// Emit analysis context
 		emit("status", "Lead agent initializing analysis pipeline...");
-		if (!await sleep(600)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(600))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Phase 1: Project scan (always runs)
 		emit("analysis", "Scanning repository metadata and git history");
-		if (!await sleep(1000)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(1000))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Discover packages and files — emit each discovered file
 		let packageCount = 0;
 		let fileCount = 0;
-		let discoveredFiles: string[] = [];
+		const discoveredFiles: string[] = [];
 		try {
 			const packagesDir = join(workspaceRoot, "packages");
 			if (existsSync(packagesDir)) {
@@ -919,15 +939,24 @@ export async function registerOrchestratorRoutes(
 			files: discoveredFiles,
 			counts: { packages: packageCount, files: fileCount },
 		});
-		if (!await sleep(600)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(600))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		emit("thought", `${fileCount} TypeScript source files across ${packageCount} packages`);
-		if (!await sleep(800)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(800))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Handle plan execution analysis if provided
 		if (run.planExecutionId) {
 			emit("analysis", `Focusing analysis on plan execution: ${run.planExecutionId}`);
-			if (!await sleep(1200)) { emit("complete", "Analysis stopped by user."); return; }
+			if (!(await sleep(1200))) {
+				emit("complete", "Analysis stopped by user.");
+				return;
+			}
 
 			// Check plan execution logs
 			const planDir = join(getPiDir(), "workspaces");
@@ -961,7 +990,9 @@ export async function registerOrchestratorRoutes(
 													errorPatterns.push(match[0].replace(":", "").trim());
 												}
 											}
-										} catch { /* ignore */ }
+										} catch {
+											/* ignore */
+										}
 									} else if (existsSync(auditLog)) {
 										try {
 											const content = await readFile(auditLog, "utf-8");
@@ -973,47 +1004,76 @@ export async function registerOrchestratorRoutes(
 														failedCount++;
 														if (entry.error) errorPatterns.push(entry.error);
 													}
-												} catch { /* skip */ }
+												} catch {
+													/* skip */
+												}
 											}
-										} catch { /* ignore */ }
+										} catch {
+											/* ignore */
+										}
 									}
 								}
 							}
-						} catch { /* skip */ }
+						} catch {
+							/* skip */
+						}
 					}
 				}
-			} catch { /* plan might not exist */ }
+			} catch {
+				/* plan might not exist */
+			}
 
 			// Deduplicate
 			errorPatterns = [...new Set(errorPatterns)];
 
 			emit("thought", `Plan execution has ${workspaceCount} workspaces, ${failedCount} with errors`);
-			if (!await sleep(600)) { emit("complete", "Analysis stopped by user."); return; }
+			if (!(await sleep(600))) {
+				emit("complete", "Analysis stopped by user.");
+				return;
+			}
 
 			if (errorPatterns.length > 0) {
 				const topErrors = errorPatterns.slice(0, 3);
 				emit("analysis", `Top error patterns: ${topErrors.join(", ")}`);
-				if (!await sleep(1000)) { emit("complete", "Analysis stopped by user."); return; }
+				if (!(await sleep(1000))) {
+					emit("complete", "Analysis stopped by user.");
+					return;
+				}
 				emit("thought", `${errorPatterns.length} unique error patterns found across workspaces`);
-				if (!await sleep(800)) { emit("complete", "Analysis stopped by user."); return; }
+				if (!(await sleep(800))) {
+					emit("complete", "Analysis stopped by user.");
+					return;
+				}
 			} else {
 				emit("analysis", "No errors found in workspaces, checking performance patterns");
-				if (!await sleep(1000)) { emit("complete", "Analysis stopped by user."); return; }
+				if (!(await sleep(1000))) {
+					emit("complete", "Analysis stopped by user.");
+					return;
+				}
 			}
 
 			emit("analysis", "Cross-referencing execution patterns with repository health");
-			if (!await sleep(1200)) { emit("complete", "Analysis stopped by user."); return; }
+			if (!(await sleep(1200))) {
+				emit("complete", "Analysis stopped by user.");
+				return;
+			}
 		}
 
 		// Handle targeted path analysis
 		if (run.targetPaths.length > 0) {
 			emit("analysis", "Scanning specified target paths");
-			if (!await sleep(800)) { emit("complete", "Analysis stopped by user."); return; }
+			if (!(await sleep(800))) {
+				emit("complete", "Analysis stopped by user.");
+				return;
+			}
 
 			for (const targetPath of run.targetPaths) {
 				const absPath = resolve(workspaceRoot, targetPath);
 				emit("analysis", `Analyzing: ${targetPath}`);
-				if (!await sleep(1000)) { emit("complete", "Analysis stopped by user."); return; }
+				if (!(await sleep(1000))) {
+					emit("complete", "Analysis stopped by user.");
+					return;
+				}
 
 				if (existsSync(absPath)) {
 					try {
@@ -1021,8 +1081,13 @@ export async function registerOrchestratorRoutes(
 						if (targetStat.isDirectory()) {
 							const files = await readdir(absPath);
 							const tsFiles = files.filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"));
-							emit("file_read", `Scanned directory: ${targetPath}`, { files: tsFiles.map((f) => join(targetPath, f)) });
-							if (!await sleep(400)) { emit("complete", "Analysis stopped by user."); return; }
+							emit("file_read", `Scanned directory: ${targetPath}`, {
+								files: tsFiles.map((f) => join(targetPath, f)),
+							});
+							if (!(await sleep(400))) {
+								emit("complete", "Analysis stopped by user.");
+								return;
+							}
 							emit("thought", `${targetPath}: ${tsFiles.length} TypeScript files found`);
 							// Read each file for deeper analysis
 							for (const file of tsFiles.slice(0, 8)) {
@@ -1036,45 +1101,65 @@ export async function registerOrchestratorRoutes(
 									lines,
 									issues: { any: anyCount_, todo: todoCount_ },
 								});
-								if (!await sleep(300)) { emit("complete", "Analysis stopped by user."); return; }
+								if (!(await sleep(300))) {
+									emit("complete", "Analysis stopped by user.");
+									return;
+								}
 							}
 						} else {
 							const size = (targetStat.size / 1024).toFixed(1);
 							const content = await readFile(absPath, "utf-8").catch(() => "");
 							const lines = content.split("\n").length;
 							emit("file_read", targetPath, { sizeKB: size, lines });
-							if (!await sleep(400)) { emit("complete", "Analysis stopped by user."); return; }
+							if (!(await sleep(400))) {
+								emit("complete", "Analysis stopped by user.");
+								return;
+							}
 							emit("thought", `${targetPath}: ${size}KB, ${lines} lines`);
 
 							// Simple analysis: check for common issues
 							const issues: string[] = [];
-							if (content.includes("any")) issues.push(`${(content.match(/\bany\b/g) || []).length} uses of 'any'`);
-							if (content.includes("// TODO")) issues.push(`${(content.match(/\/\/\s*TODO/g) || []).length} TODOs`);
-							if (content.includes("console.log")) issues.push(`${(content.match(/console\.log/g) || []).length} console.log calls`);
+							if (content.includes("any"))
+								issues.push(`${(content.match(/\bany\b/g) || []).length} uses of 'any'`);
+							if (content.includes("// TODO"))
+								issues.push(`${(content.match(/\/\/\s*TODO/g) || []).length} TODOs`);
+							if (content.includes("console.log"))
+								issues.push(`${(content.match(/console\.log/g) || []).length} console.log calls`);
 							if (content.length > 50000) issues.push("File exceeds 50KB, consider splitting");
 
 							if (issues.length > 0) {
 								emit("thought", `${targetPath}: ${issues.join(", ")}`);
-								if (!await sleep(800)) { emit("complete", "Analysis stopped by user."); return; }
+								if (!(await sleep(800))) {
+									emit("complete", "Analysis stopped by user.");
+									return;
+								}
 							}
 						}
-					} catch { /* path might be invalid */ }
+					} catch {
+						/* path might be invalid */
+					}
 				} else {
 					emit("thought", `${targetPath}: path not found, skipping`);
 				}
-				if (!await sleep(600)) { emit("complete", "Analysis stopped by user."); return; }
+				if (!(await sleep(600))) {
+					emit("complete", "Analysis stopped by user.");
+					return;
+				}
 			}
 		}
 
 		// Full scan: general repository health
 		emit("analysis", "Checking overall repository health...");
-		if (!await sleep(1200)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(1200))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Check for issues across the repo — emit each file read
 		let anyCount = 0;
 		let todoCount = 0;
 		let consoleLogCount = 0;
-		let scannedFilesInFullScan: string[] = [];
+		const scannedFilesInFullScan: string[] = [];
 		try {
 			const packagesDir = join(workspaceRoot, "packages");
 			if (existsSync(packagesDir)) {
@@ -1099,36 +1184,54 @@ export async function registerOrchestratorRoutes(
 								emit("file_read", relPath, {
 									issues: { any: localAny, todo: localTodo, console: localConsole },
 								});
-								if (!await sleep(150)) { emit("complete", "Analysis stopped by user."); return; }
+								if (!(await sleep(150))) {
+									emit("complete", "Analysis stopped by user.");
+									return;
+								}
 							}
 						}
 					}
 				}
 			}
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 
-		emit("thought", `Scanned ${scannedFilesInFullScan.length} files. Repository wide: ${anyCount} uses of 'any', ${todoCount} TODOs, ${consoleLogCount} console.log calls`);
-		if (!await sleep(800)) { emit("complete", "Analysis stopped by user."); return; }
+		emit(
+			"thought",
+			`Scanned ${scannedFilesInFullScan.length} files. Repository wide: ${anyCount} uses of 'any', ${todoCount} TODOs, ${consoleLogCount} console.log calls`,
+		);
+		if (!(await sleep(800))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Generate proposal
 		emit("analysis", "Generating proposal based on analysis findings...");
-		if (!await sleep(1500)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(1500))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		const analysisFindings: string[] = [];
 		if (run.planExecutionId) analysisFindings.push("plan execution analysis");
 		if (run.targetPaths.length > 0) analysisFindings.push("targeted file analysis");
 		analysisFindings.push("repo health scan");
 
-		const proposalTitle = anyCount > todoCount
-			? "Reduce usage of 'any' type across codebase"
-			: consoleLogCount > 20
-				? "Remove production console.log calls"
-				: todoCount > 0
-					? "Address outstanding TODOs and improve type coverage"
-					: "Improve test coverage and reduce technical debt";
+		const proposalTitle =
+			anyCount > todoCount
+				? "Reduce usage of 'any' type across codebase"
+				: consoleLogCount > 20
+					? "Remove production console.log calls"
+					: todoCount > 0
+						? "Address outstanding TODOs and improve type coverage"
+						: "Improve test coverage and reduce technical debt";
 
 		emit("status", `Analysis complete. New proposal: '${proposalTitle}'`);
-		if (!await sleep(400)) { emit("complete", "Analysis stopped by user."); return; }
+		if (!(await sleep(400))) {
+			emit("complete", "Analysis stopped by user.");
+			return;
+		}
 
 		// Generate and save the proposal
 		try {
@@ -1151,12 +1254,16 @@ export async function registerOrchestratorRoutes(
 					{ sourceId: "repo-scan", description: `${packageCount} packages, ${fileCount} files analyzed` },
 					...(anyCount > 0 ? [{ sourceId: "type-analysis", description: `${anyCount} uses of 'any' type` }] : []),
 					...(todoCount > 0 ? [{ sourceId: "todo-scan", description: `${todoCount} TODO comments found` }] : []),
-					...(run.planExecutionId ? [{ sourceId: "plan-execution", description: `Analysis of ${run.planExecutionId}` }] : []),
+					...(run.planExecutionId
+						? [{ sourceId: "plan-execution", description: `Analysis of ${run.planExecutionId}` }]
+						: []),
 				],
 			};
 			const updated = [newProposal, ...existingProposals];
 			await saveProposals(updated);
-		} catch { /* non-fatal */ }
+		} catch {
+			/* non-fatal */
+		}
 
 		emit("complete", "Lead agent analysis finished. Check proposals tab for results.");
 

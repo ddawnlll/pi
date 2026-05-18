@@ -444,9 +444,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		);
 
 		if (!stackValidation.valid) {
-			const stackErrors = stackValidation.diagnostics
-				.filter((d) => d.severity === "error")
-				.map((d) => d.message);
+			const stackErrors = stackValidation.diagnostics.filter((d) => d.severity === "error").map((d) => d.message);
 			return {
 				success: false,
 				errors: [
@@ -455,9 +453,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				],
 				warnings: [
 					`Detected package manager: ${stackValidation.detectedStack.packageManager}`,
-					...stackValidation.diagnostics
-						.filter((d) => d.severity !== "error")
-						.map((d) => d.message),
+					...stackValidation.diagnostics.filter((d) => d.severity !== "error").map((d) => d.message),
 					...parseResult.warnings,
 				],
 			};
@@ -491,9 +487,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				.map(([k]) => k);
 
 			const remainingCriticals = safetyReport.critical.filter(
-				(i) =>
-					!userOverriddenTypes.includes(i.type) &&
-					!(isExplicitApproval && i.type === "self_modification"),
+				(i) => !userOverriddenTypes.includes(i.type) && !(isExplicitApproval && i.type === "self_modification"),
 			);
 
 			const selfModWarnings = isExplicitApproval
@@ -502,9 +496,10 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 						.map((i) => `[${i.type}] ${i.message} — proceeding because explicitApproval is enabled`)
 				: [];
 
-			const overrideWarnings = userOverriddenTypes.length > 0
-				? [`Safety overrides applied: ${userOverriddenTypes.join(", ")} — proceeding with user override`]
-				: [];
+			const overrideWarnings =
+				userOverriddenTypes.length > 0
+					? [`Safety overrides applied: ${userOverriddenTypes.join(", ")} — proceeding with user override`]
+					: [];
 
 			if (remainingCriticals.length > 0) {
 				return {
@@ -1154,7 +1149,9 @@ async function executePlanInBackground(
 				} else if (result.verdict === "FAILED" || result.verdict === "BLOCKED") {
 					failedCount++;
 					// Log the specific error for plan-level diagnostics
-					await log(`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level if retries remain`);
+					await log(
+						`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level if retries remain`,
+					);
 				}
 
 				// Update living plan markdown with workspace result

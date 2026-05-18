@@ -12,15 +12,9 @@
  * - Tracks approval state transitions through audit events
  */
 
-import { computeBatchPlan, type BatchPlanResult } from "./dag-analyzer.js";
-import {
-	type DependencyPatch,
-	type DependencyPatchPlan,
-	type DependencyPatchPreview,
-	previewDependencyPatchPlan,
-	validateDependencyPatchPlan,
-} from "./dependency-patch.js";
-import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
+import { type BatchPlanResult, computeBatchPlan } from "./dag-analyzer.js";
+import { type DependencyPatchPlan, validateDependencyPatchPlan } from "./dependency-patch.js";
+import type { WorkspaceQueue } from "./workspace-schema.js";
 
 // ---------------------------------------------------------------------------
 // Graph Diff Types
@@ -29,7 +23,15 @@ import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 /**
  * The type of change in a graph diff.
  */
-export type DiffChangeType = "dependency_added" | "dependency_removed" | "workspace_added" | "workspace_removed" | "workspace_split" | "batch_reordered" | "queue_priority_changed" | "conflict_scope_changed";
+export type DiffChangeType =
+	| "dependency_added"
+	| "dependency_removed"
+	| "workspace_added"
+	| "workspace_removed"
+	| "workspace_split"
+	| "batch_reordered"
+	| "queue_priority_changed"
+	| "conflict_scope_changed";
 
 /**
  * A single diff entry between original and optimized graphs.
@@ -263,7 +265,7 @@ export function computeGraphHash(queue: WorkspaceQueue): string {
 	let hash = 0;
 	for (let i = 0; i < data.length; i++) {
 		const char = data.charCodeAt(i);
-		hash = ((hash << 5) - hash) + char;
+		hash = (hash << 5) - hash + char;
 		hash |= 0; // Convert to 32bit integer
 	}
 
@@ -412,10 +414,7 @@ export function generateGraphDiff(
 /**
  * Compute a before/after metrics comparison between two batch plans.
  */
-function computeMetricsComparison(
-	original: BatchPlanResult,
-	optimized: BatchPlanResult,
-): MetricsComparison {
+function computeMetricsComparison(original: BatchPlanResult, optimized: BatchPlanResult): MetricsComparison {
 	const originalSerializedTailLength = computeSerializedTailLength(original);
 	const optimizedSerializedTailLength = computeSerializedTailLength(optimized);
 
@@ -427,9 +426,8 @@ function computeMetricsComparison(
 
 	// Expected speedup: ratio of original batches to optimized batches
 	// If optimized has fewer batches, speedup > 1.0
-	const expectedSpeedup = optimized.totalBatches > 0
-		? Number((original.totalBatches / optimized.totalBatches).toFixed(2))
-		: 1.0;
+	const expectedSpeedup =
+		optimized.totalBatches > 0 ? Number((original.totalBatches / optimized.totalBatches).toFixed(2)) : 1.0;
 
 	// Build summary
 	const parts: string[] = [];
@@ -629,10 +627,7 @@ export function createGraphApproval(
  * @param actor - Who approved
  * @returns Updated approval record
  */
-export function approveGraph(
-	record: GraphApprovalRecord,
-	actor: string,
-): GraphApprovalRecord {
+export function approveGraph(record: GraphApprovalRecord, actor: string): GraphApprovalRecord {
 	if (record.status !== "pending") {
 		throw new Error(`Cannot approve graph in status "${record.status}". Only "pending" approvals can be approved.`);
 	}
@@ -661,11 +656,7 @@ export function approveGraph(
  * @param reason - Reason for rejection
  * @returns Updated approval record
  */
-export function rejectGraph(
-	record: GraphApprovalRecord,
-	actor: string,
-	reason: string,
-): GraphApprovalRecord {
+export function rejectGraph(record: GraphApprovalRecord, actor: string, reason: string): GraphApprovalRecord {
 	if (record.status !== "pending") {
 		throw new Error(`Cannot reject graph in status "${record.status}". Only "pending" approvals can be rejected.`);
 	}
@@ -733,7 +724,7 @@ export function checkApprovalStaleness(
 	const graphChanged = currentHash !== record.originalGraphHash;
 	const phaseChanged = currentQueue.phase !== record.phase;
 
-	let isValid = record.status === "approved" && !graphChanged && !phaseChanged;
+	const isValid = record.status === "approved" && !graphChanged && !phaseChanged;
 	let staleReason: string | undefined;
 
 	if (record.status !== "approved") {
@@ -811,11 +802,21 @@ export function formatGraphDiff(diff: GraphDiff): string {
 
 	// Metrics
 	lines.push("--- Metrics Comparison ---");
-	lines.push(`  Batches:              ${diff.metrics.originalBatchCount} -> ${diff.metrics.optimizedBatchCount} (${diff.metrics.batchCountDelta >= 0 ? "+" : ""}${diff.metrics.batchCountDelta})`);
-	lines.push(`  Effective parallelism: ${diff.metrics.originalParallelism} -> ${diff.metrics.optimizedParallelism} (${diff.metrics.parallelismDelta >= 0 ? "+" : ""}${diff.metrics.parallelismDelta})`);
-	lines.push(`  Safe parallelism:     ${diff.metrics.originalSafeParallelism} -> ${diff.metrics.optimizedSafeParallelism} (${diff.metrics.safeParallelismDelta >= 0 ? "+" : ""}${diff.metrics.safeParallelismDelta})`);
-	lines.push(`  Critical path:        ${diff.metrics.originalCriticalPathLength} -> ${diff.metrics.optimizedCriticalPathLength} (${diff.metrics.criticalPathDelta >= 0 ? "+" : ""}${diff.metrics.criticalPathDelta})`);
-	lines.push(`  Serialized tail:      ${diff.metrics.originalSerializedTailLength} -> ${diff.metrics.optimizedSerializedTailLength} (${diff.metrics.serializedTailDelta >= 0 ? "+" : ""}${diff.metrics.serializedTailDelta})`);
+	lines.push(
+		`  Batches:              ${diff.metrics.originalBatchCount} -> ${diff.metrics.optimizedBatchCount} (${diff.metrics.batchCountDelta >= 0 ? "+" : ""}${diff.metrics.batchCountDelta})`,
+	);
+	lines.push(
+		`  Effective parallelism: ${diff.metrics.originalParallelism} -> ${diff.metrics.optimizedParallelism} (${diff.metrics.parallelismDelta >= 0 ? "+" : ""}${diff.metrics.parallelismDelta})`,
+	);
+	lines.push(
+		`  Safe parallelism:     ${diff.metrics.originalSafeParallelism} -> ${diff.metrics.optimizedSafeParallelism} (${diff.metrics.safeParallelismDelta >= 0 ? "+" : ""}${diff.metrics.safeParallelismDelta})`,
+	);
+	lines.push(
+		`  Critical path:        ${diff.metrics.originalCriticalPathLength} -> ${diff.metrics.optimizedCriticalPathLength} (${diff.metrics.criticalPathDelta >= 0 ? "+" : ""}${diff.metrics.criticalPathDelta})`,
+	);
+	lines.push(
+		`  Serialized tail:      ${diff.metrics.originalSerializedTailLength} -> ${diff.metrics.optimizedSerializedTailLength} (${diff.metrics.serializedTailDelta >= 0 ? "+" : ""}${diff.metrics.serializedTailDelta})`,
+	);
 	lines.push(`  Expected speedup:     ${diff.metrics.expectedSpeedup}x`);
 	lines.push(`  Summary: ${diff.metrics.summary}`);
 	lines.push("");
@@ -870,15 +871,21 @@ export function formatApprovalRecord(record: GraphApprovalRecord): string {
 	lines.push(`  Approved graph hash: ${record.approvedGraphHash}`);
 	lines.push("");
 	lines.push("  Metrics at approval:");
-	lines.push(`    Batches: ${record.approvedMetrics.originalBatchCount} -> ${record.approvedMetrics.optimizedBatchCount}`);
-	lines.push(`    Parallelism: ${record.approvedMetrics.originalParallelism} -> ${record.approvedMetrics.optimizedParallelism}`);
+	lines.push(
+		`    Batches: ${record.approvedMetrics.originalBatchCount} -> ${record.approvedMetrics.optimizedBatchCount}`,
+	);
+	lines.push(
+		`    Parallelism: ${record.approvedMetrics.originalParallelism} -> ${record.approvedMetrics.optimizedParallelism}`,
+	);
 	lines.push(`    Expected speedup: ${record.approvedMetrics.expectedSpeedup}x`);
 	lines.push("");
 
 	if (record.auditTrail.length > 0) {
 		lines.push("  Audit Trail:");
 		for (const entry of record.auditTrail) {
-			lines.push(`    [${entry.timestamp}] ${entry.action} by ${entry.actor}${entry.detail ? `: ${entry.detail}` : ""}`);
+			lines.push(
+				`    [${entry.timestamp}] ${entry.action} by ${entry.actor}${entry.detail ? `: ${entry.detail}` : ""}`,
+			);
 		}
 	}
 

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SkillOutputArtifactStore, type SkillOutputArtifact } from "../src/core/skill-output-artifact.js";
+import { SkillOutputArtifactStore } from "../src/core/skill-output-artifact.js";
 import type { SkillExecutionOutput } from "../src/core/skill-runner.js";
 
 describe("skill-output-artifact", () => {
@@ -59,7 +59,7 @@ describe("skill-output-artifact", () => {
 		});
 
 		it("should persist artifact to disk", () => {
-			const artifact = store.attach("plan_intake", "plan-persist", "test-skill", sampleOutput);
+			const _artifact = store.attach("plan_intake", "plan-persist", "test-skill", sampleOutput);
 			// The artifact is persisted in skill-outputs subdirectory
 			expect(existsSync(join(archiveDir, "skill-outputs"))).toBe(true);
 		});

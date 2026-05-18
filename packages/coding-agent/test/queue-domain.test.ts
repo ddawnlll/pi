@@ -28,6 +28,7 @@ import {
 	isPlanStatusDirty,
 	PLAN_CLEAN_STATES,
 	PLAN_DIRTY_STATES,
+	type PlanQueueEntry,
 	PlanQueueEntryStatus,
 } from "../src/integration/queue-domain.js";
 
@@ -526,9 +527,7 @@ describe("Integration queue aggregate clean/dirty", () => {
 	});
 
 	it("isIntegrationQueueDirty returns true for a merging entry", () => {
-		const entries: IntegrationQueueEntry[] = [
-			{ workspaceId: "a", status: "merging", commitHash: "a1", queuedAt: 1 },
-		];
+		const entries: IntegrationQueueEntry[] = [{ workspaceId: "a", status: "merging", commitHash: "a1", queuedAt: 1 }];
 		expect(isIntegrationQueueDirty(entries)).toBe(true);
 	});
 

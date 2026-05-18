@@ -13,7 +13,6 @@ import {
 	determineReadyEntries,
 	getEntryWaitingBlockedReason,
 	isEntryReady,
-	type ReadyQueueDetermination,
 	type ReadyQueueState,
 	WAITING_REASON_DIRTY_INTEGRATION,
 	WAITING_REASON_DIRTY_TREE,
@@ -261,9 +260,7 @@ describe("AC3: Blocked reasons are emitted", () => {
 	});
 
 	it("should emit blocked reason with fallback when blockReason is not set", () => {
-		const entries = [
-			makeEntry("e1", "proj-1", PlanQueueEntryStatus.Blocked),
-		];
+		const entries = [makeEntry("e1", "proj-1", PlanQueueEntryStatus.Blocked)];
 		const result = determineReadyEntries(entries, EMPTY_STATE);
 
 		expect(result.blocked).toHaveLength(1);
@@ -271,9 +268,7 @@ describe("AC3: Blocked reasons are emitted", () => {
 	});
 
 	it("should emit blocked reason for draft gate blocked entries", () => {
-		const entries = [
-			makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending),
-		];
+		const entries = [makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending)];
 		const state: ReadyQueueState = {
 			...EMPTY_STATE,
 			draftGateBlocked: new Map([["e1", "Draft plan cannot be executed by non-lead agent"]]),
@@ -360,9 +355,7 @@ describe("Edge cases", () => {
 	});
 
 	it("draft gate blocked takes priority over dirty tree", () => {
-		const entries = [
-			makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending),
-		];
+		const entries = [makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending)];
 		const state: ReadyQueueState = {
 			isDirty: true,
 			hasDirtyIntegrationEntries: false,
@@ -464,9 +457,7 @@ describe("Determinism across multiple runs", () => {
 	});
 
 	it("should produce different results for different state", () => {
-		const entries = [
-			makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending),
-		];
+		const entries = [makeEntry("e1", "proj-1", PlanQueueEntryStatus.Pending)];
 
 		const cleanResult = determineReadyEntries(entries, EMPTY_STATE);
 		const dirtyResult = determineReadyEntries(entries, { ...EMPTY_STATE, isDirty: true });

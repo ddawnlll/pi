@@ -60,8 +60,6 @@ describe("ApiBridge", () => {
 		expect(content).toBe("console.log('hello');");
 	});
 
-
-
 	// -----------------------------------------------------------------------
 	// AC 2: pi.readFile('../.env') returns permission denied
 	// -----------------------------------------------------------------------

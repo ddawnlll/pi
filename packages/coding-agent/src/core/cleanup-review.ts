@@ -309,7 +309,9 @@ function buildCleanupPrompt(
 	parts.push(`Verdict: PASS | FAIL`);
 	parts.push(`END_CLEANUP_REVIEW_RESULT`);
 	parts.push(``);
-	parts.push(`IMPORTANT: Do NOT run any commands. Do NOT use read/find/grep/ls tools. Do NOT edit files or commit. Only review and summarize. All data is present above.`);
+	parts.push(
+		`IMPORTANT: Do NOT run any commands. Do NOT use read/find/grep/ls tools. Do NOT edit files or commit. Only review and summarize. All data is present above.`,
+	);
 
 	return parts.join("\n");
 }
@@ -409,15 +411,26 @@ async function executeCleanupAgent(config: {
 			emitStatus("error", `Cleanup agent timed out after ${timeoutMs / 1000}s`);
 			// Even on timeout, commit any pending changes from worktrees
 			try {
-				const { stdout: staged } = await execAsync("git diff --cached --name-only", { cwd: workspaceRoot, timeout: 10_000 });
-				const { stdout: unstaged } = await execAsync("git diff --name-only", { cwd: workspaceRoot, timeout: 10_000 });
+				const { stdout: staged } = await execAsync("git diff --cached --name-only", {
+					cwd: workspaceRoot,
+					timeout: 10_000,
+				});
+				const { stdout: unstaged } = await execAsync("git diff --name-only", {
+					cwd: workspaceRoot,
+					timeout: 10_000,
+				});
 				if (staged.trim() || unstaged.trim()) {
 					await execAsync("git add -A", { cwd: workspaceRoot, timeout: 30_000 });
-					await execAsync('git commit -m "chore(cleanup): auto-commit worktree changes after timeout" --no-verify', { cwd: workspaceRoot, timeout: 30_000 });
+					await execAsync(
+						'git commit -m "chore(cleanup): auto-commit worktree changes after timeout" --no-verify',
+						{ cwd: workspaceRoot, timeout: 30_000 },
+					);
 					await logAndArchive("Commited worktree changes after timeout");
 				}
 			} catch (commitErr) {
-				await logAndArchive(`Failed to commit worktree changes after timeout: ${commitErr instanceof Error ? commitErr.message : String(commitErr)}`);
+				await logAndArchive(
+					`Failed to commit worktree changes after timeout: ${commitErr instanceof Error ? commitErr.message : String(commitErr)}`,
+				);
 			}
 			// Dispose kills tracked children (vitest, etc.) via shell.ts exit handler
 			session.dispose();

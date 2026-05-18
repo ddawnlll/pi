@@ -263,6 +263,7 @@ export class JsonStateStore implements IStateStore {
 	// =========================================================================
 
 	async appendJournal(_planExecutionId: string, event: JournalEvent): Promise<void> {
+		this.store.setCurrentPlanExecutionId(_planExecutionId);
 		await this.store.appendJournal(event);
 	}
 

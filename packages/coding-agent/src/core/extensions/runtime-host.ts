@@ -12,12 +12,12 @@
  */
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ImageContent, Model } from "@earendil-works/pi-ai";
-import { type EventBus, createEventBus } from "../event-bus.js";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import { createEventBus, type EventBus } from "../event-bus.js";
 
 import type { BuildSystemPromptOptions } from "../system-prompt.js";
+import type { ExtensionRegistry } from "./registry.js";
 import { type ExtensionRunner, emitSessionShutdownEvent } from "./runner.js";
-import { ExtensionRegistry } from "./registry.js";
 import type {
 	AuditEvent,
 	Extension,
@@ -27,7 +27,6 @@ import type {
 	ExtensionContextActions,
 	ExtensionError,
 	ExtensionPackage,
-	ExtensionRuntime,
 	ExtensionShortcut,
 	ExtensionUIContext,
 	HealthEvent,
@@ -39,7 +38,6 @@ import type {
 	ProviderConfig,
 	RegisteredTool,
 	ResourcesDiscoverEvent,
-	RuntimeHostEvent,
 	RuntimeHostListener,
 	SessionShutdownEvent,
 	ToolCallEvent,
@@ -76,11 +74,7 @@ export class RuntimeHost {
 	private healthStatus: HealthStatus = "healthy";
 	private _shutdownInitiated = false;
 
-	constructor(
-		runner: ExtensionRunner,
-		registry: ExtensionRegistry,
-		options: RuntimeHostOptions = {},
-	) {
+	constructor(runner: ExtensionRunner, registry: ExtensionRegistry, options: RuntimeHostOptions = {}) {
 		this.runner = runner;
 		this.registry = registry;
 		this.eventBus = options.eventBus ?? createEventBus();
@@ -150,9 +144,7 @@ export class RuntimeHost {
 	 * Register an extension package from a directory.
 	 * Audits the registration.
 	 */
-	registerFromDirectory(
-		dir: string,
-	): ReturnType<ExtensionRegistry["registerFromDirectory"]> {
+	registerFromDirectory(dir: string): ReturnType<ExtensionRegistry["registerFromDirectory"]> {
 		const result = this.registry.registerFromDirectory(dir);
 		if (result.error) {
 			this.emitHealth("degraded", `Extension registration failed: ${result.error}`, {
@@ -163,7 +155,7 @@ export class RuntimeHost {
 				error: result.error,
 			});
 		} else {
-				const pkg = result.package!;
+			const pkg = result.package!;
 			this.emitAudit("extension.register", pkg.manifest.name, {
 				version: pkg.manifest.version,
 				directory: dir,
@@ -198,9 +190,7 @@ export class RuntimeHost {
 	 * Transitions from registered/disabled -> loaded.
 	 * Audits and emits health events.
 	 */
-	async enable(
-		name: string,
-	): Promise<{ success: true; extension: Extension } | { success: false; error: string }> {
+	async enable(name: string): Promise<{ success: true; extension: Extension } | { success: false; error: string }> {
 		this.emitAudit("extension.enabling", name);
 		const result = await this.registry.enable(name);
 
@@ -224,9 +214,7 @@ export class RuntimeHost {
 	 * Transitions from loaded -> disabled.
 	 * Audits and emits health events.
 	 */
-	async disable(
-		name: string,
-	): Promise<{ success: true } | { success: false; error: string }> {
+	async disable(name: string): Promise<{ success: true } | { success: false; error: string }> {
 		this.emitAudit("extension.disabling", name);
 		const result = await this.registry.disable(name);
 
@@ -246,9 +234,7 @@ export class RuntimeHost {
 	 * Disables first if loaded, then removes entirely.
 	 * Audits and emits health events.
 	 */
-	async unregister(
-		name: string,
-	): Promise<{ success: true } | { success: false; error: string }> {
+	async unregister(name: string): Promise<{ success: true } | { success: false; error: string }> {
 		this.emitAudit("extension.unregistering", name);
 		const result = await this.registry.unregister(name);
 
@@ -413,7 +399,9 @@ export class RuntimeHost {
 		return this.runner.emit(event as never);
 	}
 
-	async emitMessageEnd(event: MessageEndEvent): Promise<import("@earendil-works/pi-agent-core").AgentMessage | undefined> {
+	async emitMessageEnd(
+		event: MessageEndEvent,
+	): Promise<import("@earendil-works/pi-agent-core").AgentMessage | undefined> {
 		return this.runner.emitMessageEnd(event);
 	}
 
@@ -457,11 +445,7 @@ export class RuntimeHost {
 		return this.runner.emitResourcesDiscover(cwd, reason);
 	}
 
-	async emitInput(
-		text: string,
-		images: ImageContent[] | undefined,
-		source: InputSource,
-	): Promise<InputEventResult> {
+	async emitInput(text: string, images: ImageContent[] | undefined, source: InputSource): Promise<InputEventResult> {
 		return this.runner.emitInput(text, images, source);
 	}
 
@@ -517,11 +501,7 @@ export class RuntimeHost {
 		this.emitHealth(status, message, details);
 	}
 
-	private emitHealth(
-		status: HealthStatus,
-		message: string,
-		details?: Record<string, unknown>,
-	): void {
+	private emitHealth(status: HealthStatus, message: string, details?: Record<string, unknown>): void {
 		const event: HealthEvent = {
 			type: "health",
 			status,
@@ -539,11 +519,7 @@ export class RuntimeHost {
 		}
 	}
 
-	private emitAudit(
-		action: string,
-		packageName?: string,
-		details?: Record<string, unknown>,
-	): void {
+	private emitAudit(action: string, packageName?: string, details?: Record<string, unknown>): void {
 		const event: AuditEvent = {
 			type: "audit",
 			action,

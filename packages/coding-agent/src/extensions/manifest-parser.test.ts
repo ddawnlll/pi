@@ -8,9 +8,9 @@
  * - >= 90% unit test coverage
  */
 
-import { describe, it, expect } from "vitest";
-import { ManifestParser, ManifestValidationError, PermissionDeniedError, type ParsedExtensionPackageManifest } from "./manifest-parser.js";
-import { PermissionGate, PermissionGateError, type PermissionCheckResult } from "./permission-gate.js";
+import { describe, expect, it } from "vitest";
+import { ManifestParser, ManifestValidationError, PermissionDeniedError } from "./manifest-parser.js";
+import { PermissionGate, PermissionGateError } from "./permission-gate.js";
 
 // ============================================================================
 // Fixtures

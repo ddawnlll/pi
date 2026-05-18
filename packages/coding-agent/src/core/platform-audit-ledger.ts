@@ -245,13 +245,9 @@ export class PlatformAuditLedger {
 			.slice(0, 10)
 			.map(([actor, count]) => ({ actor, count }));
 
-		const recentApprovals = this.events.filter(
-			(e) => e.outcome === "approved" || e.outcome === "allowed",
-		).length;
+		const recentApprovals = this.events.filter((e) => e.outcome === "approved" || e.outcome === "allowed").length;
 
-		const recentDenials = this.events.filter(
-			(e) => e.outcome === "denied" || e.outcome === "rejected",
-		).length;
+		const recentDenials = this.events.filter((e) => e.outcome === "denied" || e.outcome === "rejected").length;
 
 		return {
 			totalEvents: this.events.length,
@@ -440,10 +436,7 @@ export class PlatformAuditLedger {
 	/**
 	 * Record a graph approval event.
 	 */
-	recordGraphApproval(
-		record: GraphApprovalRecord,
-		actor: string,
-	): PlatformAuditEvent {
+	recordGraphApproval(record: GraphApprovalRecord, actor: string): PlatformAuditEvent {
 		return this.record({
 			category: "approval",
 			severity: record.status === "rejected" ? "warning" : "info",

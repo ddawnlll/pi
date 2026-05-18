@@ -21,7 +21,7 @@
  *   GET  /api/skills/quality          - Get skill quality metadata
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 
@@ -232,7 +232,7 @@ export function registerSkillRoutes(fastify: FastifyInstance): void {
 				return { error: `Skill "${id}" no longer available` };
 			}
 
-			const beforeVersion = state[idx].version;
+			const _beforeVersion = state[idx].version;
 			state[idx] = {
 				...state[idx],
 				version: latest.version,
@@ -478,13 +478,17 @@ export function registerSkillRoutes(fastify: FastifyInstance): void {
 					lastTestTimestamp: lastTest?.timestamp ?? null,
 					totalInvocations,
 					successfulInvocations,
-					failureRate: totalInvocations > 0
-						? Number(((totalInvocations - successfulInvocations) / totalInvocations * 100).toFixed(1))
-						: 0,
+					failureRate:
+						totalInvocations > 0
+							? Number((((totalInvocations - successfulInvocations) / totalInvocations) * 100).toFixed(1))
+							: 0,
 					testCount: skill.tests.length,
-					avgDurationMs: skill.invocations.length > 0
-						? Math.round(skill.invocations.reduce((sum, i) => sum + i.durationMs, 0) / skill.invocations.length)
-						: 0,
+					avgDurationMs:
+						skill.invocations.length > 0
+							? Math.round(
+									skill.invocations.reduce((sum, i) => sum + i.durationMs, 0) / skill.invocations.length,
+								)
+							: 0,
 				};
 			});
 

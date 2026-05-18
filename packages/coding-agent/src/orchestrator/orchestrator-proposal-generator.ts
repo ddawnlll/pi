@@ -23,7 +23,7 @@
  * @packageDocumentation
  */
 
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { DetectionResult } from "../core/detection-types.js";
 import { SelfModificationFirewall } from "../core/self-modification-firewall.js";
 import type { HealthSignal, ScanResult } from "../repo-scanner/repo-health-signal.js";
@@ -113,9 +113,7 @@ export class OrchestratorProposalGenerator {
 		const generated: OrchestratorProposal[] = [];
 		let duplicateCount = 0;
 
-		log.info(
-			`Generating proposals from scan result with ${scanResult.signals.length} signals`,
-		);
+		log.info(`Generating proposals from scan result with ${scanResult.signals.length} signals`);
 
 		for (const signal of scanResult.signals) {
 			if (generated.length >= this.maxProposals) {
@@ -146,9 +144,7 @@ export class OrchestratorProposalGenerator {
 		const newCount = generated.length;
 		const duration = Date.now() - startTime;
 
-		log.info(
-			`Generated ${newCount} new proposals (${duplicateCount} duplicates skipped) in ${duration}ms`,
-		);
+		log.info(`Generated ${newCount} new proposals (${duplicateCount} duplicates skipped) in ${duration}ms`);
 
 		if (errors.length > 0) {
 			log.warn(`Encountered ${errors.length} error(s) during proposal generation`);
@@ -258,7 +254,12 @@ export class OrchestratorProposalGenerator {
 	 */
 	private signalProposalToOrchestratorProposal(
 		signal: HealthSignal,
-		signalProposal: { description: string; targetFiles: string[]; effort: "trivial" | "small" | "medium" | "large"; autoFixable: boolean },
+		signalProposal: {
+			description: string;
+			targetFiles: string[];
+			effort: "trivial" | "small" | "medium" | "large";
+			autoFixable: boolean;
+		},
 	): OrchestratorProposal {
 		const affectedPaths = this.normalizePaths(signalProposal.targetFiles);
 		const evidenceLinks = this.buildEvidenceLinks(signal);
@@ -328,11 +329,7 @@ export class OrchestratorProposalGenerator {
 		const risk = this.severityToRisk(signal.severity);
 
 		// Determine suggested next action
-		const suggestedNextAction = this.determineAction(
-			false,
-			smCheck.hasSelfModification,
-			signal.severity,
-		);
+		const suggestedNextAction = this.determineAction(false, smCheck.hasSelfModification, signal.severity);
 
 		return {
 			id: `prop-${contentHash.slice(0, 12)}`,
@@ -404,9 +401,7 @@ export class OrchestratorProposalGenerator {
 			generatedAt: new Date().toISOString(),
 			affectedPaths,
 			autoFixable: !!detection.suggestedFix && !detection.isUnsafe,
-			effort: detection.estimatedEffort
-				? this.effortFromString(detection.estimatedEffort)
-				: "medium",
+			effort: detection.estimatedEffort ? this.effortFromString(detection.estimatedEffort) : "medium",
 		};
 	}
 
@@ -552,11 +547,7 @@ export class OrchestratorProposalGenerator {
 	/**
 	 * Determine suggested next action based on proposal properties.
 	 */
-	private determineAction(
-		autoFixable: boolean,
-		isSelfModification: boolean,
-		severity: string,
-	): SuggestedNextAction {
+	private determineAction(autoFixable: boolean, isSelfModification: boolean, severity: string): SuggestedNextAction {
 		if (isSelfModification) {
 			return "flag_for_review";
 		}

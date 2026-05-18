@@ -14,11 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { AuditLevel, PlatformComponent } from "../platform/types.js";
 import { PiLogger } from "../utils/logger.js";
-import type {
-	MutationCategory,
-	MutationGuardSnapshot,
-	PolicyEvent,
-} from "./orchestrator-types.js";
+import type { MutationCategory, MutationGuardSnapshot, PolicyEvent } from "./orchestrator-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants

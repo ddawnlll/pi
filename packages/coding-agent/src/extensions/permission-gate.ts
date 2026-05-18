@@ -62,6 +62,7 @@ export class PermissionGateError extends Error {
  * Extensions declare permissions in their manifest. The PermissionGate
  * enforces that an extension cannot use capabilities it hasn't declared.
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: API surface - imported as class by consumers
 export class PermissionGate {
 	/**
 	 * Check whether an extension has declared a specific permission.
@@ -70,10 +71,7 @@ export class PermissionGate {
 	 * @param permission - The permission ID to check (e.g. "network", "filesystem", "bash")
 	 * @returns A PermissionCheckResult indicating if access is allowed
 	 */
-	static check(
-		manifest: ParsedExtensionPackageManifest,
-		permission: string,
-	): PermissionCheckResult {
+	static check(manifest: ParsedExtensionPackageManifest, permission: string): PermissionCheckResult {
 		const extensionName = manifest.name;
 
 		// If the manifest declares no permissions, all access is denied by default
@@ -87,9 +85,7 @@ export class PermissionGate {
 		}
 
 		// Check if the requested permission is in the declared list
-		const declaredPermission = manifest.permissions.find(
-			(p) => p.id === permission,
-		);
+		const declaredPermission = manifest.permissions.find((p) => p.id === permission);
 
 		if (!declaredPermission) {
 			return {
@@ -115,10 +111,7 @@ export class PermissionGate {
 	 * @param permission - The permission ID to check (e.g. "network", "filesystem", "bash")
 	 * @throws {PermissionGateError} If the permission is not declared
 	 */
-	static require(
-		manifest: ParsedExtensionPackageManifest,
-		permission: string,
-	): void {
+	static require(manifest: ParsedExtensionPackageManifest, permission: string): void {
 		const result = PermissionGate.check(manifest, permission);
 		if (!result.allowed) {
 			throw new PermissionGateError(permission, manifest.name);

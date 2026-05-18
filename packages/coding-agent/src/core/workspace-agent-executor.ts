@@ -16,9 +16,9 @@ import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.j
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
+import { DefaultResourceLoader } from "./resource-loader.js";
 import type { HashedPacket } from "./role-packets.js";
 import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
-import { DefaultResourceLoader } from "./resource-loader.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 
@@ -282,8 +282,7 @@ export class WorkspaceAgentExecutor {
 				extensions: extensionsResult.extensions,
 				sandbox: true,
 			});
-			const { toolDefinitions: customTools, toolNames: extensionToolNames } =
-				toolAdapter.adaptAllTools();
+			const { toolDefinitions: customTools, toolNames: extensionToolNames } = toolAdapter.adaptAllTools();
 			if (extensionToolNames.length > 0) {
 				log(`Loaded ${extensionToolNames.length} extension tools: ${extensionToolNames.join(", ")}`);
 			}

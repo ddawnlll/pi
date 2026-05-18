@@ -79,9 +79,9 @@ export interface PlanStackValidation {
 // ---------------------------------------------------------------------------
 
 const PNPM_FILTER_PATTERN = /--filter\s+\S+/;
-const PNPM_RECURSIVE_PATTERN = /pnpm\s+(test|run|exec|build|add|remove|update)/;
+const _PNPM_RECURSIVE_PATTERN = /pnpm\s+(test|run|exec|build|add|remove|update)/;
 const NPM_WORKSPACE_PATTERN = /--workspace\s+\S+|--workspaces\b/;
-const YARN_WORKSPACE_PATTERN = /yarn\s+(workspace|workspaces)\s/;
+const _YARN_WORKSPACE_PATTERN = /yarn\s+(workspace|workspaces)\s/;
 
 /**
  * Map of package manager to its unique command prefixes.
@@ -216,10 +216,7 @@ export async function detectProjectStack(workspaceRoot: string): Promise<Project
  * @param stack - Detected project stack
  * @returns Validation result
  */
-export function validateTargetCommand(
-	command: string,
-	stack: ProjectStack,
-): TargetCommandValidation {
+export function validateTargetCommand(command: string, stack: ProjectStack): TargetCommandValidation {
 	const trimmed = command.trim();
 
 	if (!trimmed) {

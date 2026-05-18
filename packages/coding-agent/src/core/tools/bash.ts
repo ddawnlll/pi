@@ -14,8 +14,8 @@ import {
 	trackDetachedChildPid,
 	untrackDetachedChildPid,
 } from "../../utils/shell.js";
-import { withValidationLock } from "../validation-lock.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import { withValidationLock } from "../validation-lock.js";
 import { OutputAccumulator } from "./output-accumulator.js";
 import { getTextOutput, invalidArgText, str } from "./render-utils.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";

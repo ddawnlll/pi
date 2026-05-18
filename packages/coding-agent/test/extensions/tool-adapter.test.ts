@@ -8,19 +8,19 @@
  * 4. Integration test: WorkspaceAgentExecutor works with extension tool
  */
 
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Extension } from "../../src/core/extensions/index.js";
 import { createExtensionRuntime, loadExtensionFromFactory } from "../../src/core/extensions/loader.js";
 import { createSyntheticSourceInfo } from "../../src/core/source-info.js";
 import { adaptExtensionTools, ToolAdapter } from "../../src/extensions/tool-adapter.js";
-import { createHarness } from "../suite/harness.js";
 import type { Harness } from "../suite/harness.js";
+import { createHarness } from "../suite/harness.js";
 
 // ============================================================================
 // Helpers
@@ -28,10 +28,10 @@ import type { Harness } from "../suite/harness.js";
 
 /** Create an Extension with a single tool for testing. */
 function createTestExtension(
-	toolFn: Function = (async () => ({
+	toolFn: (...args: any[]) => any = async () => ({
 		content: [{ type: "text" as const, text: "ok" }],
 		details: {},
-	})) as Function,
+	}),
 ): Extension {
 	const ext: Extension = {
 		path: "<test>",
@@ -64,32 +64,29 @@ function createTestExtension(
 }
 
 /** Create an Extension with multiple tools for testing. */
-function createMultiToolExtension(
-	name: string,
-	toolCount: number,
-): Extension {
+function createMultiToolExtension(name: string, toolCount: number): Extension {
 	const tools = new Map<string, { definition: any; sourceInfo: any }>();
 	for (let i = 1; i <= toolCount; i++) {
-		const toolName = name + "-tool-" + i;
+		const toolName = `${name}-tool-${i}`;
 		tools.set(toolName, {
 			definition: {
 				name: toolName,
-				label: name + " Tool " + i,
-				description: "Tool " + i + " from extension " + name,
+				label: `${name} Tool ${i}`,
+				description: `Tool ${i} from extension ${name}`,
 				parameters: Type.Object({}),
 				execute: async () => ({
-					content: [{ type: "text" as const, text: name + ":" + i }],
+					content: [{ type: "text" as const, text: `${name}:${i}` }],
 					details: {},
 				}),
 			},
-			sourceInfo: createSyntheticSourceInfo("<" + name + ">", { source: "test" }),
+			sourceInfo: createSyntheticSourceInfo(`<${name}>`, { source: "test" }),
 		});
 	}
 
 	return {
-		path: "<" + name + ">",
-		resolvedPath: "<" + name + ">",
-		sourceInfo: createSyntheticSourceInfo("<" + name + ">", { source: "test" }),
+		path: `<${name}>`,
+		resolvedPath: `<${name}>`,
+		sourceInfo: createSyntheticSourceInfo(`<${name}>`, { source: "test" }),
 		handlers: new Map(),
 		tools,
 		messageRenderers: new Map(),
@@ -115,9 +112,7 @@ function testExtensionContext(): any {
 }
 
 /** Extract text from a tool result content array. */
-function getContentText(result: {
-	content: Array<{ type: string; text?: string }>;
-}): string {
+function getContentText(result: { content: Array<{ type: string; text?: string }> }): string {
 	const first = result.content[0];
 	return first && first.type === "text" ? (first.text ?? "") : "";
 }
@@ -177,9 +172,7 @@ describe("ToolAdapter", () => {
 			const adapter = new ToolAdapter({ extensions: [extension], sandbox: false });
 			const result = adapter.adaptAllTools();
 
-			expect(result.toolDefinitions[0]!.parameters).toEqual(
-				Type.Object({ message: Type.Optional(Type.String()) }),
-			);
+			expect(result.toolDefinitions[0]!.parameters).toEqual(Type.Object({ message: Type.Optional(Type.String()) }));
 		});
 	});
 
@@ -195,7 +188,7 @@ describe("ToolAdapter", () => {
 						? String(params.message)
 						: "default";
 				return {
-					content: [{ type: "text" as const, text: "hello " + msg }],
+					content: [{ type: "text" as const, text: `hello ${msg}` }],
 					details: { msg },
 				};
 			};
@@ -205,7 +198,13 @@ describe("ToolAdapter", () => {
 			const result = adapter.adaptAllTools();
 
 			const toolDef = result.toolDefinitions[0]!;
-			const execResult = await toolDef.execute("call-1", { message: "world" }, undefined, undefined, testExtensionContext());
+			const execResult = await toolDef.execute(
+				"call-1",
+				{ message: "world" },
+				undefined,
+				undefined,
+				testExtensionContext(),
+			);
 
 			expect(execResult.content).toHaveLength(1);
 			expect(getContentText(execResult)).toBe("hello world");
@@ -266,9 +265,7 @@ describe("ToolAdapter", () => {
 
 			const extension = createTestExtension(async (_toolCallId: string, params: unknown) => {
 				const shouldFail =
-					typeof params === "object" && params !== null && "fail" in params
-						? Boolean(params.fail)
-						: false;
+					typeof params === "object" && params !== null && "fail" in params ? Boolean(params.fail) : false;
 				if (shouldFail) {
 					throw new Error("tool failed as expected");
 				}
@@ -281,7 +278,13 @@ describe("ToolAdapter", () => {
 			const toolDef = result.toolDefinitions[0]!;
 
 			// First call fails
-			const failResult = await toolDef.execute("call-1", { fail: true }, undefined, undefined, testExtensionContext());
+			const failResult = await toolDef.execute(
+				"call-1",
+				{ fail: true },
+				undefined,
+				undefined,
+				testExtensionContext(),
+			);
 			expect(getContentText(failResult)).toContain("tool failed as expected");
 
 			// Second call after failure should still work
@@ -339,7 +342,8 @@ describe("ToolAdapter", () => {
 			// This tool will reference undefined globals in the sandbox
 			const extension = createTestExtension(async () => {
 				// Use eval to avoid compile-time detection of undeclared variable
-				(eval as any)("undefinedVar");
+				// biome-ignore lint/security/noGlobalEval: intentional test of sandbox
+				eval("undefinedVar");
 				return { content: [{ type: "text" as const, text: "never reached" }], details: {} };
 			});
 
@@ -356,10 +360,9 @@ describe("ToolAdapter", () => {
 
 		it("should pass params correctly to sandboxed tool", async () => {
 			const extension = createTestExtension(async (_toolCallId: string, params: unknown) => {
-				const val =
-					typeof params === "object" && params !== null && "value" in params ? String(params.value) : "";
+				const val = typeof params === "object" && params !== null && "value" in params ? String(params.value) : "";
 				return {
-					content: [{ type: "text" as const, text: "received:" + val }],
+					content: [{ type: "text" as const, text: `received:${val}` }],
 					details: {},
 				};
 			});
@@ -368,7 +371,13 @@ describe("ToolAdapter", () => {
 			const result = adapter.adaptAllTools();
 
 			const toolDef = result.toolDefinitions[0]!;
-			const execResult = await toolDef.execute("call-1", { value: "hello" }, undefined, undefined, testExtensionContext());
+			const execResult = await toolDef.execute(
+				"call-1",
+				{ value: "hello" },
+				undefined,
+				undefined,
+				testExtensionContext(),
+			);
 
 			expect(getContentText(execResult)).toBe("received:hello");
 		});
@@ -399,7 +408,7 @@ describe("ToolAdapter", () => {
 		});
 
 		it("should adapt extension tools that were loaded via loadExtensionFromFactory", async () => {
-			const tempDir = join(tmpdir(), "pi-tool-adapter-factory-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+			const tempDir = join(tmpdir(), `pi-tool-adapter-factory-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 			mkdirSync(tempDir, { recursive: true });
 
 			try {
@@ -420,7 +429,7 @@ describe("ToolAdapter", () => {
 										? String(params.input)
 										: "";
 								return {
-									content: [{ type: "text" as const, text: "factory:" + input }],
+									content: [{ type: "text" as const, text: `factory:${input}` }],
 									details: {},
 								};
 							},
@@ -464,13 +473,13 @@ describe("ToolAdapter", () => {
 						? String(params.message)
 						: "default";
 				return {
-					content: [{ type: "text" as const, text: "echo:" + msg }],
+					content: [{ type: "text" as const, text: `echo:${msg}` }],
 					details: { msg },
 				};
 			});
 
 			const adapter = new ToolAdapter({ extensions: [extension], sandbox: false });
-			const { toolDefinitions: customTools, toolNames } = adapter.adaptAllTools();
+			adapter.adaptAllTools();
 
 			// Create a harness with the custom tools passed as base tools
 			const agentTool: AgentTool = {
@@ -484,7 +493,7 @@ describe("ToolAdapter", () => {
 							? String(params.message)
 							: "default";
 					return {
-						content: [{ type: "text" as const, text: "echo:" + msg }],
+						content: [{ type: "text" as const, text: `echo:${msg}` }],
 						details: { msg },
 					};
 				},
@@ -514,10 +523,9 @@ describe("ToolAdapter", () => {
 			// Create an extension that works in sandbox
 			const extension = createTestExtension(async (_toolCallId: string, params: unknown) => {
 				// Sandbox-safe: no require, no process
-				const val =
-					typeof params === "object" && params !== null && "value" in params ? String(params.value) : "";
+				const val = typeof params === "object" && params !== null && "value" in params ? String(params.value) : "";
 				return {
-					content: [{ type: "text" as const, text: "sb:" + val }],
+					content: [{ type: "text" as const, text: `sb:${val}` }],
 					details: {},
 				};
 			});
@@ -526,7 +534,13 @@ describe("ToolAdapter", () => {
 			const { toolDefinitions: customTools } = adapter.adaptAllTools();
 
 			// Execute the tool via the adapter-wrapped function directly
-			const result = await customTools[0]!.execute("call-1", { value: "sandbox-test" }, undefined, undefined, testExtensionContext());
+			const result = await customTools[0]!.execute(
+				"call-1",
+				{ value: "sandbox-test" },
+				undefined,
+				undefined,
+				testExtensionContext(),
+			);
 
 			expect(getContentText(result)).toBe("sb:sandbox-test");
 		});

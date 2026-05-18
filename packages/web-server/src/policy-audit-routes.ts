@@ -43,7 +43,14 @@ export function registerPolicyAuditRoutes(fastify: FastifyInstance): void {
 			totalDenied: denied,
 			totalPending: pending,
 			activeApprovals: pending,
-			protectedSystems: ["Executor", "Validator", "Policy Engine", "Queue Manager", "Planner", "Orchestrator Runtime"],
+			protectedSystems: [
+				"Executor",
+				"Validator",
+				"Policy Engine",
+				"Queue Manager",
+				"Planner",
+				"Orchestrator Runtime",
+			],
 		};
 	}
 

@@ -8,11 +8,11 @@ export {
 	ExtensionPackageManifestSchema,
 	ManifestParser,
 	ManifestValidationError,
-	PermissionDeniedError,
 	type ParsedExtensionPackageManifest,
+	PermissionDeniedError,
 } from "./manifest-parser.js";
 export {
+	type PermissionCheckResult,
 	PermissionGate,
 	PermissionGateError,
-	type PermissionCheckResult,
 } from "./permission-gate.js";

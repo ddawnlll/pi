@@ -25,7 +25,7 @@ if (typeof process !== "undefined" && (process.versions?.node || process.version
 
 import type { KnownProvider } from "./types.js";
 
-let _procEnvCache: Map<string, string> | null = null;
+const _procEnvCache: Map<string, string> | null = null;
 
 /**
  * Fallback for https://github.com/oven-sh/bun/issues/27802

@@ -144,9 +144,7 @@ export class ApiBridge {
 			// Check path traversal: the resolved path must be within the allowed base
 			// We append path.sep to the base to prevent prefix attacks
 			// (e.g. base="/workspace", resolved="/workspace-extra/file")
-			const baseWithSep = this.allowedBase.endsWith(path.sep)
-				? this.allowedBase
-				: this.allowedBase + path.sep;
+			const baseWithSep = this.allowedBase.endsWith(path.sep) ? this.allowedBase : this.allowedBase + path.sep;
 
 			if (resolvedPath !== this.allowedBase && !resolvedPath.startsWith(baseWithSep)) {
 				throw new ApiBridgePermissionError(
@@ -172,11 +170,7 @@ export class ApiBridge {
 	 * audit log. If the operation throws, the error is captured in the
 	 * audit entry before re-throwing.
 	 */
-	private async trackAsync<T>(
-		method: string,
-		args: unknown[],
-		fn: () => Promise<T>,
-	): Promise<T> {
+	private async trackAsync<T>(method: string, args: unknown[], fn: () => Promise<T>): Promise<T> {
 		const startTime = Date.now();
 		const entry: AuditEntry = {
 			timestamp: new Date().toISOString(),

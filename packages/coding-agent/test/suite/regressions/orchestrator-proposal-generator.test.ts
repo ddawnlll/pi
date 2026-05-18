@@ -12,13 +12,13 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { DetectionResult } from "../../../src/core/detection-types.js";
-import type { HealthSignal, ScanResult, SignalSeverity } from "../../../src/repo-scanner/repo-health-signal.js";
 import {
 	createOrchestratorProposalGenerator,
-	OrchestratorProposalGenerator,
+	type OrchestratorProposalGenerator,
 } from "../../../src/orchestrator/orchestrator-proposal-generator.js";
+import type { HealthSignal, ScanResult, SignalSeverity } from "../../../src/repo-scanner/repo-health-signal.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,7 +30,9 @@ function makeTempDir(): string {
 	return dir;
 }
 
-function makeSignal(overrides: Partial<HealthSignal> & { id: string; title: string; severity: SignalSeverity }): HealthSignal {
+function makeSignal(
+	overrides: Partial<HealthSignal> & { id: string; title: string; severity: SignalSeverity },
+): HealthSignal {
 	return {
 		id: overrides.id,
 		title: overrides.title,
@@ -306,9 +308,24 @@ describe("OrchestratorProposalGenerator", () => {
 
 		it("should include confidence derived from signal severity", () => {
 			const signals: HealthSignal[] = [
-				makeSignal({ id: "s1", title: "Error signal", severity: "error", proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s2", title: "Warning signal", severity: "warning", proposals: [{ description: "Fix warning", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s3", title: "Info signal", severity: "info", proposals: [{ description: "Fix info", targetFiles: [], effort: "small", autoFixable: false }] }),
+				makeSignal({
+					id: "s1",
+					title: "Error signal",
+					severity: "error",
+					proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s2",
+					title: "Warning signal",
+					severity: "warning",
+					proposals: [{ description: "Fix warning", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s3",
+					title: "Info signal",
+					severity: "info",
+					proposals: [{ description: "Fix info", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
 			];
 
 			const scanResult = makeScanResult(signals);
@@ -321,9 +338,24 @@ describe("OrchestratorProposalGenerator", () => {
 
 		it("should include risk level derived from signal severity", () => {
 			const signals: HealthSignal[] = [
-				makeSignal({ id: "s4", title: "Error signal", severity: "error", proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s5", title: "Warning signal", severity: "warning", proposals: [{ description: "Fix warning", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s6", title: "Info signal", severity: "info", proposals: [{ description: "Fix info", targetFiles: [], effort: "small", autoFixable: false }] }),
+				makeSignal({
+					id: "s4",
+					title: "Error signal",
+					severity: "error",
+					proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s5",
+					title: "Warning signal",
+					severity: "warning",
+					proposals: [{ description: "Fix warning", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s6",
+					title: "Info signal",
+					severity: "info",
+					proposals: [{ description: "Fix info", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
 			];
 
 			const scanResult = makeScanResult(signals);
@@ -336,9 +368,27 @@ describe("OrchestratorProposalGenerator", () => {
 
 		it("should include policy classification mapped from health category", () => {
 			const signals: HealthSignal[] = [
-				makeSignal({ id: "s7", title: "Type error", severity: "error", category: "typecheck", proposals: [{ description: "Fix type", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s8", title: "Cycle", severity: "error", category: "dependency_graph", proposals: [{ description: "Fix cycle", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s9", title: "Safety", severity: "error", category: "safety", proposals: [{ description: "Fix safety", targetFiles: [], effort: "small", autoFixable: false }] }),
+				makeSignal({
+					id: "s7",
+					title: "Type error",
+					severity: "error",
+					category: "typecheck",
+					proposals: [{ description: "Fix type", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s8",
+					title: "Cycle",
+					severity: "error",
+					category: "dependency_graph",
+					proposals: [{ description: "Fix cycle", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s9",
+					title: "Safety",
+					severity: "error",
+					category: "safety",
+					proposals: [{ description: "Fix safety", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
 			];
 
 			const scanResult = makeScanResult(signals);
@@ -351,9 +401,24 @@ describe("OrchestratorProposalGenerator", () => {
 
 		it("should include suggested next action", () => {
 			const signals: HealthSignal[] = [
-				makeSignal({ id: "s10", title: "Error auto-fixable", severity: "error", proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: true }] }),
-				makeSignal({ id: "s11", title: "Error not auto-fixable", severity: "error", proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }] }),
-				makeSignal({ id: "s12", title: "Info signal", severity: "info", proposals: [{ description: "Info", targetFiles: [], effort: "small", autoFixable: false }] }),
+				makeSignal({
+					id: "s10",
+					title: "Error auto-fixable",
+					severity: "error",
+					proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: true }],
+				}),
+				makeSignal({
+					id: "s11",
+					title: "Error not auto-fixable",
+					severity: "error",
+					proposals: [{ description: "Fix error", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
+				makeSignal({
+					id: "s12",
+					title: "Info signal",
+					severity: "info",
+					proposals: [{ description: "Info", targetFiles: [], effort: "small", autoFixable: false }],
+				}),
 			];
 
 			const scanResult = makeScanResult(signals);
@@ -795,10 +860,7 @@ describe("OrchestratorProposalGenerator", () => {
 					proposals: [
 						{
 							description: "Extract shared dependency into separate module",
-							targetFiles: [
-								"packages/core/src/module-a.ts",
-								"packages/core/src/module-b.ts",
-							],
+							targetFiles: ["packages/core/src/module-a.ts", "packages/core/src/module-b.ts"],
 							effort: "medium",
 							autoFixable: false,
 						},
@@ -869,9 +931,7 @@ describe("OrchestratorProposalGenerator", () => {
 			expect(detectionProposals.proposals[0].sourceType).toBe("detection");
 
 			// Different hashes since they use different source IDs
-			expect(scanProposals.proposals[0].contentHash).not.toBe(
-				detectionProposals.proposals[0].contentHash,
-			);
+			expect(scanProposals.proposals[0].contentHash).not.toBe(detectionProposals.proposals[0].contentHash);
 		});
 	});
 });

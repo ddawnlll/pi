@@ -16,7 +16,6 @@
  */
 
 import { PiLogger } from "@earendil-works/pi-coding-agent";
-import { streamSimple } from "@earendil-works/pi-ai";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -144,9 +143,10 @@ export async function runCheckerAgent(
 function buildCheckerPrompt(planContent: string, workspaceRoot: string): string {
 	// Truncate plan content if too long
 	const maxPlanLength = 30_000;
-	const truncatedPlan = planContent.length > maxPlanLength
-		? planContent.slice(0, maxPlanLength) + "\n\n[...plan truncated...]"
-		: planContent;
+	const truncatedPlan =
+		planContent.length > maxPlanLength
+			? `${planContent.slice(0, maxPlanLength)}\n\n[...plan truncated...]`
+			: planContent;
 
 	return `Analyze the following implementation plan for feasibility, risks, and completeness.
 
@@ -160,17 +160,14 @@ ${truncatedPlan}
 /**
  * Call the LLM and parse the structured response.
  */
-async function callCheckerLLM(
-	userPrompt: string,
-	config?: CheckerAgentConfig,
-): Promise<CheckerAnalysis> {
+async function callCheckerLLM(userPrompt: string, config?: CheckerAgentConfig): Promise<CheckerAnalysis> {
 	try {
 		const ai = await import("@earendil-works/pi-ai");
 		const model = ai.getModel("openai", (config?.model || "gpt-4o") as "gpt-4o");
 
 		const now = Date.now();
 		const messages: import("@earendil-works/pi-ai").Message[] = [
-			{ role: "user", content: CHECKER_SYSTEM_PROMPT + "\n\n" + userPrompt, timestamp: now },
+			{ role: "user", content: `${CHECKER_SYSTEM_PROMPT}\n\n${userPrompt}`, timestamp: now },
 		];
 
 		const stream = ai.streamSimple(model, { messages });
@@ -188,7 +185,8 @@ async function callCheckerLLM(
 				verdict: "risky",
 				summary: "LLM returned empty response",
 				findings: [],
-				narrative: "The checker agent received an empty response from the LLM. This may indicate a provider issue or timeout.",
+				narrative:
+					"The checker agent received an empty response from the LLM. This may indicate a provider issue or timeout.",
 				cached: false,
 				analyzedAt: new Date().toISOString(),
 			};
@@ -196,7 +194,7 @@ async function callCheckerLLM(
 
 		// Try to parse JSON — strip markdown code fences if present
 		const jsonMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-		let jsonStr = jsonMatch ? jsonMatch[1] : fullContent;
+		const jsonStr = jsonMatch ? jsonMatch[1] : fullContent;
 
 		// Attempt to extract JSON from free-form text if raw parse fails
 		let parsed: Record<string, unknown>;
@@ -209,10 +207,14 @@ async function callCheckerLLM(
 				try {
 					parsed = JSON.parse(objMatch[0]);
 				} catch {
-					throw new Error(`Cannot parse LLM response as JSON. Raw content (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+					throw new Error(
+						`Cannot parse LLM response as JSON. Raw content (${fullContent.length} chars): ${fullContent.slice(0, 500)}`,
+					);
 				}
 			} else {
-				throw new Error(`Cannot parse LLM response as JSON. Raw content (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+				throw new Error(
+					`Cannot parse LLM response as JSON. Raw content (${fullContent.length} chars): ${fullContent.slice(0, 500)}`,
+				);
 			}
 		}
 
@@ -239,7 +241,8 @@ async function callCheckerLLM(
 					suggestion: "Review the plan manually or check LLM provider configuration",
 				},
 			],
-			narrative: "The automated checker agent could not complete its analysis due to an LLM error. The structural validation results (parsing, stack, safety, DAG) are still available.",
+			narrative:
+				"The automated checker agent could not complete its analysis due to an LLM error. The structural validation results (parsing, stack, safety, DAG) are still available.",
 			cached: false,
 			analyzedAt: new Date().toISOString(),
 		};

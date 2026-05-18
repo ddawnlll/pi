@@ -1,28 +1,28 @@
 // Platform shared types and contracts
 export {
 	AuditLevel,
-	CapabilityLevel,
-	CapabilityPermission,
-	CURRENT_PLATFORM_VERSION,
-	DEFAULT_AUDIT_SPEC,
-	DependencyType,
-	PlanExecutionStatus,
-	PlatformComponent,
-	PlatformVersion,
-	WorkerStage,
-	WorkspaceStage,
-	ValidationIssueSeverity,
 	type AuditSpec,
 	type CapabilityHook,
+	CapabilityLevel,
 	type CapabilityManifest,
+	CapabilityPermission,
 	type CapabilityVersion,
 	type CompatibilitySpec,
 	type ComponentManifest,
+	CURRENT_PLATFORM_VERSION,
+	DEFAULT_AUDIT_SPEC,
+	DependencyType,
 	type ManifestValidationResult,
+	PlanExecutionStatus,
+	PlatformComponent,
 	type PlatformManifest,
+	PlatformVersion,
 	type ValidationIssue,
+	ValidationIssueSeverity,
 	validateCapabilityManifest,
 	validatePlatformManifest,
+	WorkerStage,
+	WorkspaceStage,
 } from "./platform/index.js";
 
 // State store interface and implementations
@@ -48,6 +48,23 @@ export {
 	evaluateWorkspaceCompletionWithGovernance,
 	type GovernanceLedgerCompletionResult,
 } from "./core/completion-gate.js";
+// P12.5.E — Continuous Ready Queue Foundation: deterministic readiness
+// classification with waiting/blocked reasons for plan queue entries
+export {
+	BLOCKED_REASON_DRAFT_GATE,
+	determineReadyEntries,
+	type EntryReadiness,
+	getEntryWaitingBlockedReason,
+	isEntryReady,
+	type ReadyQueueDetermination,
+	type ReadyQueueEntry,
+	type ReadyQueueState,
+	WAITING_REASON_DIRTY_INTEGRATION,
+	WAITING_REASON_DIRTY_TREE,
+	WAITING_REASON_PRIOR_BLOCKED,
+	WAITING_REASON_PRIOR_FAILED,
+	WAITING_REASON_SAME_PROJECT_ACTIVE,
+} from "./core/continuous-ready-queue.js";
 export { DatabaseStateStore, type DatabaseStateStoreConfig } from "./core/database-state-store.js";
 export {
 	type ArchiveInitResult,
@@ -89,14 +106,6 @@ export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-sto
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
 export {
-	type PlanStackValidation,
-	type ProjectStack,
-	type TargetCommandValidation,
-	detectProjectStack,
-	validatePlanTargetCommands,
-	validateTargetCommand,
-} from "./core/project-stack-validator.js";
-export {
 	buildTranscriptSummary,
 	createWorkerTranscriptEvent,
 	generateWorkspaceReport,
@@ -118,6 +127,14 @@ export {
 	type ProductionReadinessReport,
 	type ProductionReadinessVerdict,
 } from "./core/production-readiness-doctor.js";
+export {
+	detectProjectStack,
+	type PlanStackValidation,
+	type ProjectStack,
+	type TargetCommandValidation,
+	validatePlanTargetCommands,
+	validateTargetCommand,
+} from "./core/project-stack-validator.js";
 // Remediation runtime (P9.A) — also exports P9.G3 approvals & budget recording
 // P9.G3 adds: ApprovalChain, ApprovalChainEntry, ChangeRequest,
 // SelfModificationApproval, budgetSnapshot on events, approval chain tracing
@@ -238,23 +255,6 @@ export {
 	type PlanQueueEntry,
 	PlanQueueEntryStatus,
 } from "./integration/queue-domain.js";
-// P12.5.E — Continuous Ready Queue Foundation: deterministic readiness
-// classification with waiting/blocked reasons for plan queue entries
-export {
-	BLOCKED_REASON_DRAFT_GATE,
-	determineReadyEntries,
-	type EntryReadiness,
-	getEntryWaitingBlockedReason,
-	isEntryReady,
-	type ReadyQueueDetermination,
-	type ReadyQueueEntry,
-	type ReadyQueueState,
-	WAITING_REASON_DIRTY_INTEGRATION,
-	WAITING_REASON_DIRTY_TREE,
-	WAITING_REASON_PRIOR_BLOCKED,
-	WAITING_REASON_PRIOR_FAILED,
-	WAITING_REASON_SAME_PROJECT_ACTIVE,
-} from "./core/continuous-ready-queue.js";
 // Repo scanning and analysis
 export {
 	createRepoHealthScanner,
@@ -478,6 +478,23 @@ export {
 } from "./core/file-policy.js";
 // Footer data provider (git branch + extension statuses - data not otherwise available to extensions)
 export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.js";
+// P11.I — Graph Diff and Approval Engine
+export {
+	applyApprovedGraphPatch,
+	approveGraph,
+	checkApprovalStaleness,
+	computeGraphHash,
+	createGraphApproval,
+	formatApprovalRecord,
+	formatGraphDiff,
+	type GraphApprovalRecord,
+	type GraphDiff,
+	type GraphDiffEntry,
+	generateGraphDiff,
+	type MetricsComparison,
+	markApprovalStale,
+	rejectGraph,
+} from "./core/graph-diff-engine.js";
 export { convertToLlm } from "./core/messages.js";
 export { ModelRegistry } from "./core/model-registry.js";
 export type {
@@ -489,6 +506,31 @@ export type {
 	ResolvedResource,
 } from "./core/package-manager.js";
 export { DefaultPackageManager } from "./core/package-manager.js";
+// P11.C — Plan Intake Analyzer
+export {
+	analyzePlanIntake,
+	approveIntakeProposal,
+	formatPlanIntakeAnalysis,
+	type IntakeBottleneck,
+	type IntakeDiagnostic,
+	type IntakeSeverity,
+	type IntakeStatus,
+	type PlanIntakeAnalysis,
+	rejectIntakeProposal,
+	type SerializedTailInfo,
+} from "./core/plan-intake-analyzer.js";
+// P11.M — Platform Audit Ledger
+export {
+	type AuditEventFilter,
+	type AuditSummary,
+	getPlatformAuditLedger,
+	type PlatformAuditCategory,
+	type PlatformAuditEvent,
+	PlatformAuditLedger,
+	type PlatformAuditOutcome,
+	type PlatformAuditSeverity,
+	resetPlatformAuditLedger,
+} from "./core/platform-audit-ledger.js";
 export {
 	AUTONOMY_LEVEL_RANK,
 	type AutonomyClassification,
@@ -576,63 +618,6 @@ export {
 	type TransportSetting,
 	type WarningSettings,
 } from "./core/settings-manager.js";
-export {
-	type RegistrySkillEntry,
-	type SkillRecommendation,
-	SkillRegistry,
-	type SkillRegistryResult,
-	SkillResolver,
-} from "./core/skill-registry.js";
-// Skills
-export {
-	formatSkillsForPrompt,
-	type LoadSkillsFromDirOptions,
-	type LoadSkillsResult,
-	loadSkills,
-	loadSkillsFromDir,
-	type Skill,
-	type SkillFrontmatter,
-} from "./core/skills.js";
-// P11.E Skill Package Format
-export {
-	createSkillPackage,
-	loadSkillPackage,
-	type SkillPackage,
-	type SkillPackageDependency,
-	type SkillPackageManifest,
-	type SkillPackageValidationError,
-	validateSkillPackageManifest,
-	validateSkillPackageStructure,
-	SKILL_PACKAGE_METADATA_FILE,
-} from "./core/skill-package.js";
-// P11.E Skill Runner
-export {
-	checkCommandCapability,
-	checkFileCapability,
-	executeSkill,
-	type SkillExecutionContext,
-	type SkillExecutionOutput,
-	type SkillPolicyCheckResult,
-	type SkillPolicyConstraints,
-	substituteVariables,
-	validateSkillCommand,
-	validateSkillFileOperation,
-} from "./core/skill-runner.js";
-// P11.E Skill Quality Metadata
-export {
-	formatSkillQualityTable,
-	type ReliabilityRating,
-	type ReliabilityScore,
-	scoreToRating,
-	type SkillQualityApiEntry,
-	type SkillQualityApiResponse,
-	type SkillQualityRecord,
-	type SkillQualitySummary,
-	SkillQualityStore,
-	type SkillTestResult,
-	type SkillTestRun,
-	type SkillUsageStats,
-} from "./core/skill-quality.js";
 // P11.E Skill Output Artifacts
 export {
 	type PlanIntakeSkillArtifact,
@@ -643,6 +628,18 @@ export {
 	type SkillOutputArtifact,
 	SkillOutputArtifactStore,
 } from "./core/skill-output-artifact.js";
+// P11.E Skill Package Format
+export {
+	createSkillPackage,
+	loadSkillPackage,
+	SKILL_PACKAGE_METADATA_FILE,
+	type SkillPackage,
+	type SkillPackageDependency,
+	type SkillPackageManifest,
+	type SkillPackageValidationError,
+	validateSkillPackageManifest,
+	validateSkillPackageStructure,
+} from "./core/skill-package.js";
 // P11.E Skill Package Manager
 export {
 	createSkillPackageManager,
@@ -656,6 +653,51 @@ export {
 	type SkillPackageStatus,
 	type SkillTestResultSummary,
 } from "./core/skill-package-manager.js";
+// P11.E Skill Quality Metadata
+export {
+	formatSkillQualityTable,
+	type ReliabilityRating,
+	type ReliabilityScore,
+	type SkillQualityApiEntry,
+	type SkillQualityApiResponse,
+	type SkillQualityRecord,
+	SkillQualityStore,
+	type SkillQualitySummary,
+	type SkillTestResult,
+	type SkillTestRun,
+	type SkillUsageStats,
+	scoreToRating,
+} from "./core/skill-quality.js";
+export {
+	type RegistrySkillEntry,
+	type SkillRecommendation,
+	SkillRegistry,
+	type SkillRegistryResult,
+	SkillResolver,
+} from "./core/skill-registry.js";
+// P11.E Skill Runner
+export {
+	checkCommandCapability,
+	checkFileCapability,
+	executeSkill,
+	type SkillExecutionContext,
+	type SkillExecutionOutput,
+	type SkillPolicyCheckResult,
+	type SkillPolicyConstraints,
+	substituteVariables,
+	validateSkillCommand,
+	validateSkillFileOperation,
+} from "./core/skill-runner.js";
+// Skills
+export {
+	formatSkillsForPrompt,
+	type LoadSkillsFromDirOptions,
+	type LoadSkillsResult,
+	loadSkills,
+	loadSkillsFromDir,
+	type Skill,
+	type SkillFrontmatter,
+} from "./core/skills.js";
 export { createSyntheticSourceInfo } from "./core/source-info.js";
 export {
 	estimateTokensFromMessage,
@@ -782,68 +824,21 @@ export {
 	Theme,
 	type ThemeColor,
 } from "./modes/interactive/theme/theme.js";
-// Clipboard utilities
-export { copyToClipboard } from "./utils/clipboard.js";
-export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
-// Shell utilities
-export { getShellConfig } from "./utils/shell.js";
-
-
-// P11 — Orchestrator
-// Proposal generation from scan findings and orchestrator types
-export { createOrchestratorProposalGenerator, OrchestratorProposalGenerator } from "./orchestrator/index.js";
-export type { OrchestratorProposalGeneratorConfig } from "./orchestrator/index.js";
 export type {
 	OrchestratorProposal,
+	OrchestratorProposalGeneratorConfig,
 	PolicyClassification,
 	ProposalEvidenceLink,
 	ProposalGenerationResult,
 	ProposalSourceType,
 	SuggestedNextAction,
 } from "./orchestrator/index.js";
-
-// P11.C — Plan Intake Analyzer
-export {
-	analyzePlanIntake,
-	approveIntakeProposal,
-	formatPlanIntakeAnalysis,
-	type IntakeBottleneck,
-	type IntakeDiagnostic,
-	type IntakeSeverity,
-	type IntakeStatus,
-	type PlanIntakeAnalysis,
-	rejectIntakeProposal,
-	type SerializedTailInfo,
-} from "./core/plan-intake-analyzer.js";
-
-// P11.I — Graph Diff and Approval Engine
-export {
-	applyApprovedGraphPatch,
-	approveGraph,
-	checkApprovalStaleness,
-	computeGraphHash,
-	createGraphApproval,
-	formatApprovalRecord,
-	formatGraphDiff,
-	generateGraphDiff,
-	type GraphApprovalRecord,
-	type GraphDiff,
-	type GraphDiffEntry,
-	type MetricsComparison,
-	markApprovalStale,
-	rejectGraph,
-} from "./core/graph-diff-engine.js";
-
-// P11.M — Platform Audit Ledger
-export {
-	type AuditEventFilter,
-	type AuditSummary,
-	type PlatformAuditCategory,
-	type PlatformAuditEvent,
-	type PlatformAuditOutcome,
-	type PlatformAuditSeverity,
-	PlatformAuditLedger,
-	getPlatformAuditLedger,
-	resetPlatformAuditLedger,
-} from "./core/platform-audit-ledger.js";
+// P11 — Orchestrator
+// Proposal generation from scan findings and orchestrator types
+export { createOrchestratorProposalGenerator, OrchestratorProposalGenerator } from "./orchestrator/index.js";
+// Clipboard utilities
+export { copyToClipboard } from "./utils/clipboard.js";
+export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
+export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
+// Shell utilities
+export { getShellConfig } from "./utils/shell.js";

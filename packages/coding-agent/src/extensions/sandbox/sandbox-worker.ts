@@ -121,9 +121,7 @@ function run(): void {
 
 		// Resource limits are enforced inside the worker via
 		// vm.Script.runInContext() resourceLimits option.
-		const resourceLimits = data.maxMemoryMB
-			? { maxOldGenerationSizeMb: data.maxMemoryMB }
-			: undefined;
+		const resourceLimits = data.maxMemoryMB ? { maxOldGenerationSizeMb: data.maxMemoryMB } : undefined;
 
 		// resourceLimits is supported at runtime in Node.js 22 but
 		// @types/node doesn't include it in RunningScriptOptions.

@@ -8,7 +8,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Skill } from "../src/core/skills.js";
 import {
 	checkCommandCapability,
 	checkFileCapability,
@@ -19,6 +18,7 @@ import {
 	validateSkillCommand,
 	validateSkillFileOperation,
 } from "../src/core/skill-runner.js";
+import type { Skill } from "../src/core/skills.js";
 import type { WorkspaceCapabilityManifest } from "../src/core/workspace-schema.js";
 
 describe("skill-runner", () => {

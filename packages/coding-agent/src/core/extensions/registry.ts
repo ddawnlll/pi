@@ -13,30 +13,18 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createEventBus, type EventBus } from "../event-bus.js";
-import type { SourceInfo } from "../source-info.js";
-import { createSyntheticSourceInfo } from "../source-info.js";
-import {
-	createExtensionRuntime,
-	loadExtensionFromFactory,
-	loadExtensions,
-} from "./loader.js";
+import { createExtensionRuntime, loadExtensions } from "./loader.js";
 import type {
 	Extension,
-	ExtensionAPI,
 	ExtensionFactory,
 	ExtensionPackage,
 	ExtensionPackageManifest,
-	ExtensionPackageState,
 	ExtensionRuntime,
 	RegistryEvent,
 	RegistryEventListener,
 	RegistryEventType,
 } from "./types.js";
-import {
-	getPiVersion,
-	isPiVersionCompatible,
-	validateManifest,
-} from "./validate.js";
+import { getPiVersion, isPiVersionCompatible, validateManifest } from "./validate.js";
 
 /**
  * Resolve and read the pi subsection from a package.json or extension.json.
@@ -197,9 +185,7 @@ export class ExtensionRegistry {
 					}
 				: undefined,
 			dependencies: rawDeps
-				? Object.fromEntries(
-						Object.entries(rawDeps).map(([k, v]) => [k, String(v)]),
-					)
+				? Object.fromEntries(Object.entries(rawDeps).map(([k, v]) => [k, String(v)]))
 				: undefined,
 		};
 
@@ -278,9 +264,7 @@ export class ExtensionRegistry {
 	 * Transitions the package from "registered" or "disabled" to "loaded".
 	 * Validates dependencies are satisfied before loading.
 	 */
-	async enable(
-		name: string,
-	): Promise<{ success: true; extension: Extension } | { success: false; error: string }> {
+	async enable(name: string): Promise<{ success: true; extension: Extension } | { success: false; error: string }> {
 		const pkg = this.packages.get(name);
 		if (!pkg) {
 			return { success: false, error: `Package '${name}' is not registered` };
@@ -361,9 +345,7 @@ export class ExtensionRegistry {
 	 * Transitions the package from "loaded" to "disabled".
 	 * The extension data is preserved but will not receive events.
 	 */
-	async disable(
-		name: string,
-	): Promise<{ success: true } | { success: false; error: string }> {
+	async disable(name: string): Promise<{ success: true } | { success: false; error: string }> {
 		const pkg = this.packages.get(name);
 		if (!pkg) {
 			return { success: false, error: `Package '${name}' is not registered` };
@@ -409,9 +391,7 @@ export class ExtensionRegistry {
 	 *
 	 * Disables it first if loaded, then removes it entirely.
 	 */
-	async unregister(
-		name: string,
-	): Promise<{ success: true } | { success: false; error: string }> {
+	async unregister(name: string): Promise<{ success: true } | { success: false; error: string }> {
 		const pkg = this.packages.get(name);
 		if (!pkg) {
 			return { success: false, error: `Package '${name}' is not registered` };
@@ -497,15 +477,10 @@ export class ExtensionRegistry {
 	/**
 	 * Load an inline factory extension.
 	 */
-	private async loadFactory(factory: ExtensionFactory, pkg: ExtensionPackage): Promise<Extension> {
+	private async loadFactory(factory: ExtensionFactory, _pkg: ExtensionPackage): Promise<Extension> {
 		const runtime = createExtensionRuntime();
 		const { loadExtensionFromFactory } = await import("./loader.js");
-		const extension = await loadExtensionFromFactory(
-			factory,
-			this.cwd,
-			this.eventBus,
-			runtime,
-		);
+		const extension = await loadExtensionFromFactory(factory, this.cwd, this.eventBus, runtime);
 		return extension;
 	}
 
@@ -513,7 +488,7 @@ export class ExtensionRegistry {
 	 * Load an extension from its package directory.
 	 */
 	private async loadFromDirectory(pkg: ExtensionPackage): Promise<Extension> {
-		const { discoverAndLoadExtensions } = await import("./loader.js");
+		await import("./loader.js");
 
 		// Check for package.json with entry point, or index.ts/js
 		const dir = pkg.directory;
@@ -546,7 +521,7 @@ export class ExtensionRegistry {
 		}
 
 		// Load via existing loader
-		const runtime = createExtensionRuntime();
+		const _runtime = createExtensionRuntime();
 		const result = await loadExtensions(entryPoints, this.cwd, this.eventBus);
 
 		if (result.errors.length > 0) {

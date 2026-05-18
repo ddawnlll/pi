@@ -10,7 +10,7 @@
  * - Query by project, plan, workspace, capability
  */
 
-import { sql, type Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import type { Database } from "../types.js";
 
 /**
@@ -47,11 +47,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
 	`.execute(db);
 
 	// Indexes for common query patterns
-	await db.schema
-		.createIndex("idx_memory_vectors_project_id")
-		.on("memory_vectors")
-		.column("project_id")
-		.execute();
+	await db.schema.createIndex("idx_memory_vectors_project_id").on("memory_vectors").column("project_id").execute();
 
 	await db.schema
 		.createIndex("idx_memory_vectors_plan_execution_id")
@@ -59,17 +55,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
 		.column("plan_execution_id")
 		.execute();
 
-	await db.schema
-		.createIndex("idx_memory_vectors_workspace_id")
-		.on("memory_vectors")
-		.column("workspace_id")
-		.execute();
+	await db.schema.createIndex("idx_memory_vectors_workspace_id").on("memory_vectors").column("workspace_id").execute();
 
-	await db.schema
-		.createIndex("idx_memory_vectors_capability")
-		.on("memory_vectors")
-		.column("capability")
-		.execute();
+	await db.schema.createIndex("idx_memory_vectors_capability").on("memory_vectors").column("capability").execute();
 
 	await db.schema
 		.createIndex("idx_memory_vectors_safety")
@@ -77,17 +65,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
 		.column("safety_classification")
 		.execute();
 
-	await db.schema
-		.createIndex("idx_memory_vectors_freshness")
-		.on("memory_vectors")
-		.column("freshness")
-		.execute();
+	await db.schema.createIndex("idx_memory_vectors_freshness").on("memory_vectors").column("freshness").execute();
 
-	await db.schema
-		.createIndex("idx_memory_vectors_content_hash")
-		.on("memory_vectors")
-		.column("content_hash")
-		.execute();
+	await db.schema.createIndex("idx_memory_vectors_content_hash").on("memory_vectors").column("content_hash").execute();
 
 	// Partial unique index on content_hash per project for deduplication
 	await db.schema

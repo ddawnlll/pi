@@ -10,8 +10,8 @@
 import {
 	AuditLevel,
 	CapabilityLevel,
-	CapabilityPermission,
 	type CapabilityManifest,
+	CapabilityPermission,
 	type CompatibilitySpec,
 	type ManifestValidationResult,
 	type PlatformManifest,

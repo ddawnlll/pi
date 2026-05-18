@@ -231,6 +231,82 @@ describe("JsonStateStore", () => {
 	});
 
 	describe("journal", () => {
+		it("creates transcript events from workspace journal events", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "test",
+				title: "Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					{
+						id: "ws1",
+						title: "WS 1",
+						dependencies: [],
+						roleBudget: "worker",
+						maxRetries: 3,
+					},
+				],
+			};
+
+			const execId = await store.initializeState("p1", queue);
+
+			// Append a workspace-status journal event (has workspaceId => triggers transcript creation)
+			await store.appendJournal(execId, {
+				type: "worker_status",
+				timestamp: Date.now(),
+				workspaceId: "ws1",
+				data: { status: "executing", message: "Starting analysis" },
+			});
+
+			// The transcript ndjson file should have been created
+			const transcriptPath = path.join(
+				TEST_DIR,
+				".pi",
+				"executions",
+				execId,
+				"workspaces",
+				"ws1",
+				"transcript.ndjson",
+			);
+			const content = await fs.readFile(transcriptPath, "utf-8");
+			const lines = content.trim().split("\n").filter(Boolean);
+			expect(lines.length).toBeGreaterThan(0);
+
+			// Verify the transcript event structure
+			const transcriptEvent = JSON.parse(lines[0]);
+			expect(transcriptEvent.type).toBe("worker_status");
+			expect(transcriptEvent.workspaceId).toBe("ws1");
+			expect(transcriptEvent.summary).toBeDefined();
+			expect(transcriptEvent.summary).toContain("ws1");
+			expect(transcriptEvent.data).toBeDefined();
+			expect(transcriptEvent.data.status).toBe("executing");
+
+			// readWorkerTranscriptEvents should also return the event
+			const events = await store.readWorkerTranscriptEvents(execId, "ws1");
+			expect(events.length).toBe(1);
+			expect(events[0].type).toBe("worker_status");
+			expect(events[0].summary).toContain("ws1");
+		});
+
+		it("does not create transcript events for events without workspaceId", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "test",
+				title: "Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [],
+			};
+
+			const execId = await store.initializeState("p1", queue);
+			await store.appendJournal(execId, {
+				type: "plan_start",
+				timestamp: Date.now(),
+				data: { phase: "test" },
+			});
+
+			// No workspaceId means no transcript events for any workspace
+			const events = await store.readWorkerTranscriptEvents(execId, "nonexistent");
+			expect(events).toEqual([]);
+		});
+
 		it("appends and reads journal events", async () => {
 			const queue: WorkspaceQueue = {
 				phase: "test",

@@ -9,17 +9,16 @@
  * triggers analysis, and execution remains blocked until graph approval is current.
  */
 
-import { computeBatchPlan, type BatchPlanResult } from "./dag-analyzer.js";
+import { type BatchPlanResult, computeBatchPlan } from "./dag-analyzer.js";
 import {
 	analyzeOptimizationOpportunities,
+	approveProposal,
 	type DagOptimizationResult,
 	formatOptimizationResult,
-	type OptimizationProposal,
-	approveProposal,
 	rejectProposal,
 } from "./dag-optimizer.js";
 import type { PlanStackValidation } from "./project-stack-validator.js";
-import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
+import type { WorkspaceQueue } from "./workspace-schema.js";
 
 // ---------------------------------------------------------------------------
 // Plan Intake Analysis Types
@@ -43,13 +42,7 @@ export interface IntakeDiagnostic {
 /**
  * Status of the plan intake lifecycle.
  */
-export type IntakeStatus =
-	| "pending"
-	| "analyzing"
-	| "awaiting_approval"
-	| "approved"
-	| "rejected"
-	| "stale";
+export type IntakeStatus = "pending" | "analyzing" | "awaiting_approval" | "approved" | "rejected" | "stale";
 
 /**
  * Bottleneck information detected during plan intake.
@@ -162,10 +155,7 @@ export interface PlanIntakeOptions {
  * @param options - Analysis options
  * @returns Plan intake analysis result
  */
-export function analyzePlanIntake(
-	queue: WorkspaceQueue,
-	options?: PlanIntakeOptions,
-): PlanIntakeAnalysis {
+export function analyzePlanIntake(queue: WorkspaceQueue, options?: PlanIntakeOptions): PlanIntakeAnalysis {
 	const diagnostics: IntakeDiagnostic[] = [];
 	const bottlenecks: IntakeBottleneck[] = [];
 
@@ -255,10 +245,7 @@ export function analyzePlanIntake(
  * A serialized tail occurs when the last few batches each contain only
  * one workspace, indicating unnecessary serialization at the end of the plan.
  */
-function detectSerializedTail(
-	batchPlan: BatchPlanResult,
-	queue: WorkspaceQueue,
-): SerializedTailInfo | null {
+function detectSerializedTail(batchPlan: BatchPlanResult, queue: WorkspaceQueue): SerializedTailInfo | null {
 	if (batchPlan.batches.length < 2) return null;
 
 	// Find the trailing single-width batches
@@ -299,10 +286,7 @@ function detectSerializedTail(
  * The critical path is the longest chain of dependent workspaces
  * that determines the minimum execution time.
  */
-function computeCriticalPath(
-	batchPlan: BatchPlanResult,
-	queue: WorkspaceQueue,
-): CriticalPathInfo {
+function computeCriticalPath(batchPlan: BatchPlanResult, queue: WorkspaceQueue): CriticalPathInfo {
 	if (batchPlan.criticalPathLength === 0) {
 		return {
 			workspaceIds: [],
@@ -413,7 +397,8 @@ function detectBottlenecks(
 			source: "batch_plan",
 			reason: "Effective parallelism is 1, meaning workspaces run sequentially despite available capacity",
 			impact: "Maximum performance penalty — no parallel execution",
-			suggestion: "Review workspace dependency graph for unnecessary serialization. Look for transitive dependencies and single-width batches.",
+			suggestion:
+				"Review workspace dependency graph for unnecessary serialization. Look for transitive dependencies and single-width batches.",
 			severity: "error",
 		});
 	}
@@ -427,9 +412,10 @@ function detectBottlenecks(
 				source: wsId,
 				reason: `Workspace "${ws?.title ?? wsId}" is the only workspace in batch ${batch.batchIndex}`,
 				impact: `All other batches must wait for this workspace to complete before proceeding`,
-				suggestion: ws?.acceptanceCriteria && ws.acceptanceCriteria.length > 1
-					? `Consider splitting "${wsId}" into ${ws.acceptanceCriteria.length} parallel workspaces (one per acceptance criterion)`
-					: `Check if "${wsId}" can be parallelized or combined with another batch`,
+				suggestion:
+					ws?.acceptanceCriteria && ws.acceptanceCriteria.length > 1
+						? `Consider splitting "${wsId}" into ${ws.acceptanceCriteria.length} parallel workspaces (one per acceptance criterion)`
+						: `Check if "${wsId}" can be parallelized or combined with another batch`,
 				severity: "warning",
 			});
 		}
@@ -442,7 +428,8 @@ function detectBottlenecks(
 	if (hasValidationWorkspace) {
 		diagnostics.push({
 			severity: "info",
-			message: "Validation workspace detected. Global validation lock may create a bottleneck if multiple validation workspaces run sequentially.",
+			message:
+				"Validation workspace detected. Global validation lock may create a bottleneck if multiple validation workspaces run sequentially.",
 			code: "validation_bottleneck",
 		});
 	}
@@ -453,7 +440,8 @@ function detectBottlenecks(
 			source: "batch_plan",
 			reason: `Requested parallelism (${batchPlan.requestedParallelism}) exceeds effective parallelism (${batchPlan.effectiveParallelism})`,
 			impact: `${batchPlan.requestedParallelism - batchPlan.effectiveParallelism} worker slots will be idle`,
-			suggestion: "Reduce requested parallelism or restructure workspace dependencies to increase effective parallelism",
+			suggestion:
+				"Reduce requested parallelism or restructure workspace dependencies to increase effective parallelism",
 			severity: "info",
 		});
 	}
@@ -567,13 +555,8 @@ export function formatPlanIntakeAnalysis(analysis: PlanIntakeAnalysis): string {
 /**
  * Approve an optimization proposal within the plan intake lifecycle.
  */
-export function approveIntakeProposal(
-	analysis: PlanIntakeAnalysis,
-	proposalId: string,
-): PlanIntakeAnalysis {
-	const updatedProposals = analysis.optimization.proposals.map((p) =>
-		p.id === proposalId ? approveProposal(p) : p,
-	);
+export function approveIntakeProposal(analysis: PlanIntakeAnalysis, proposalId: string): PlanIntakeAnalysis {
+	const updatedProposals = analysis.optimization.proposals.map((p) => (p.id === proposalId ? approveProposal(p) : p));
 
 	const updatedOptimization = {
 		...analysis.optimization,
@@ -622,10 +605,7 @@ export function rejectIntakeProposal(
 /**
  * Create an empty optimization result (when skipping optimization).
  */
-function createEmptyOptimizationResult(
-	queue: WorkspaceQueue,
-	batchPlan: BatchPlanResult,
-): DagOptimizationResult {
+function createEmptyOptimizationResult(queue: WorkspaceQueue, batchPlan: BatchPlanResult): DagOptimizationResult {
 	return {
 		queue,
 		proposals: [],

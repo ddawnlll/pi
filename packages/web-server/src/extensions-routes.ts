@@ -14,8 +14,7 @@
  *   POST   /api/extensions/disable  Disable an enabled extension
  */
 
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ExtensionRegistry } from "@earendil-works/pi-coding-agent/core/extensions/registry.js";
 import type { FastifyInstance } from "fastify";
@@ -93,11 +92,17 @@ function appendAudit(entry: Omit<AuditEntry, "timestamp">): void {
 /**
  * Convert an ExtensionPackage from the registry to the frontend ExtensionInfo shape.
  */
-function packageToInfo(
-	pkg: { manifest: { name: string; version?: string }; directory: string; state: string; error?: string; extension?: unknown },
-): ExtensionInfo {
+function packageToInfo(pkg: {
+	manifest: { name: string; version?: string };
+	directory: string;
+	state: string;
+	error?: string;
+	extension?: unknown;
+}): ExtensionInfo {
 	const isInline = pkg.directory === "<inline>";
-	const isLocal = !isInline && (pkg.directory.startsWith(".") || pkg.directory.startsWith("/") || !pkg.directory.includes("node_modules"));
+	const isLocal =
+		!isInline &&
+		(pkg.directory.startsWith(".") || pkg.directory.startsWith("/") || !pkg.directory.includes("node_modules"));
 	return {
 		source: pkg.manifest.name,
 		scope: isInline ? "user" : isLocal ? "project" : "user",
@@ -115,9 +120,18 @@ function packageToInfo(
  * For npm/git sources, returns a placeholder — the actual install is simulated.
  */
 async function resolveSource(source: string, cwd: string): Promise<string> {
-	if (source.startsWith("npm:") || source.startsWith("git:") || source.startsWith("http://") || source.startsWith("https://")) {
+	if (
+		source.startsWith("npm:") ||
+		source.startsWith("git:") ||
+		source.startsWith("http://") ||
+		source.startsWith("https://")
+	) {
 		// For remote sources, create a tracking entry in the extensions directory
-		const extName = source.replace(/^(npm:|git:|https?:\/\/)/, "").split("/").pop() ?? source;
+		const extName =
+			source
+				.replace(/^(npm:|git:|https?:\/\/)/, "")
+				.split("/")
+				.pop() ?? source;
 		const extDir = join(getExtensionsDir(cwd), extName);
 		await mkdir(extDir, { recursive: true });
 		// Write a source manifest so we can track it
@@ -146,7 +160,9 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			return { extensions, count: extensions.length };
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to list extensions");
-			return reply.code(500).send({ error: "Failed to list extensions", code: "INTERNAL_ERROR", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to list extensions", code: "INTERNAL_ERROR", detail: String(error) });
 		}
 	});
 
@@ -174,7 +190,9 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			};
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to get extension health");
-			return reply.code(500).send({ error: "Failed to get extension health", code: "INTERNAL_ERROR", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to get extension health", code: "INTERNAL_ERROR", detail: String(error) });
 		}
 	});
 
@@ -201,8 +219,16 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			// Register from directory
 			const result = registry.registerFromDirectory(extDir);
 			if (result.error || !result.package) {
-				appendAudit({ action: "install", source, scope: local ? "project" : "user", success: false, error: result.error ?? "Unknown error" });
-				return reply.code(400).send({ error: result.error ?? "Registration returned no package", code: "REGISTRATION_FAILED" });
+				appendAudit({
+					action: "install",
+					source,
+					scope: local ? "project" : "user",
+					success: false,
+					error: result.error ?? "Unknown error",
+				});
+				return reply
+					.code(400)
+					.send({ error: result.error ?? "Registration returned no package", code: "REGISTRATION_FAILED" });
 			}
 
 			const pkg = result.package;
@@ -210,11 +236,23 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			// Enable the extension
 			const enableResult = await registry.enable(pkg.manifest.name);
 			if (!enableResult.success) {
-				appendAudit({ action: "install", source, scope: local ? "project" : "user", success: false, error: enableResult.error });
+				appendAudit({
+					action: "install",
+					source,
+					scope: local ? "project" : "user",
+					success: false,
+					error: enableResult.error,
+				});
 				return reply.code(400).send({ error: enableResult.error, code: "ENABLE_FAILED" });
 			}
 
-			appendAudit({ action: "install", source, scope: local ? "project" : "user", success: true, detail: `Installed ${pkg.manifest.name}@${pkg.manifest.version}` });
+			appendAudit({
+				action: "install",
+				source,
+				scope: local ? "project" : "user",
+				success: true,
+				detail: `Installed ${pkg.manifest.name}@${pkg.manifest.version}`,
+			});
 
 			const response: ExtensionMutationResponse = {
 				success: true,
@@ -225,8 +263,16 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			return reply.code(201).send(response);
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to install extension");
-			appendAudit({ action: "install", source, scope: local ? "project" : "user", success: false, error: String(error) });
-			return reply.code(500).send({ error: "Failed to install extension", code: "INSTALL_FAILED", detail: String(error) });
+			appendAudit({
+				action: "install",
+				source,
+				scope: local ? "project" : "user",
+				success: false,
+				error: String(error),
+			});
+			return reply
+				.code(500)
+				.send({ error: "Failed to install extension", code: "INSTALL_FAILED", detail: String(error) });
 		}
 	});
 
@@ -303,15 +349,18 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			const response: ExtensionMutationResponse = {
 				success: errors.length === 0,
 				source: source ?? "*",
-				message: errors.length > 0
-					? `Updated ${updated.length} extension(s), ${errors.length} failed`
-					: `Updated ${updated.length} extension(s)`,
+				message:
+					errors.length > 0
+						? `Updated ${updated.length} extension(s), ${errors.length} failed`
+						: `Updated ${updated.length} extension(s)`,
 				fallback: errors.length > 0 ? errors.join("; ") : undefined,
 			};
 			return response;
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to update extension");
-			return reply.code(500).send({ error: "Failed to update extension", code: "UPDATE_FAILED", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to update extension", code: "UPDATE_FAILED", detail: String(error) });
 		}
 	});
 
@@ -365,7 +414,9 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			return response;
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to rollback extension");
-			return reply.code(500).send({ error: "Failed to rollback extension", code: "ROLLBACK_FAILED", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to rollback extension", code: "ROLLBACK_FAILED", detail: String(error) });
 		}
 	});
 
@@ -402,7 +453,9 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			return response;
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to enable extension");
-			return reply.code(500).send({ error: "Failed to enable extension", code: "ENABLE_FAILED", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to enable extension", code: "ENABLE_FAILED", detail: String(error) });
 		}
 	});
 
@@ -439,7 +492,9 @@ export async function registerExtensionRoutes(fastify: FastifyInstance): Promise
 			return response;
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to disable extension");
-			return reply.code(500).send({ error: "Failed to disable extension", code: "DISABLE_FAILED", detail: String(error) });
+			return reply
+				.code(500)
+				.send({ error: "Failed to disable extension", code: "DISABLE_FAILED", detail: String(error) });
 		}
 	});
 }

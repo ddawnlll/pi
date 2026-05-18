@@ -8,11 +8,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	formatSkillQualityTable,
-	scoreToRating,
-	SkillQualityStore,
 	type SkillQualityRecord,
-	type SkillTestResult,
+	SkillQualityStore,
 	type SkillTestRun,
+	scoreToRating,
 } from "../src/core/skill-quality.js";
 
 describe("skill-quality", () => {

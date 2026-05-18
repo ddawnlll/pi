@@ -217,7 +217,7 @@ export class WorktreeWorkspaceExecutor {
 		// Git ref locks are per-process and don't coordinate across concurrent calls.
 		const lockDir = path.join(cwd, ".pi", "worktree-branch-locks");
 		await fs.mkdir(lockDir, { recursive: true });
-		const lockPath = path.join(lockDir, sanitizeForPath(this.planExecutionId) + ".lock");
+		const lockPath = path.join(lockDir, `${sanitizeForPath(this.planExecutionId)}.lock`);
 
 		// Acquire lock with retry
 		for (let attempt = 1; attempt <= 30; attempt++) {
@@ -252,10 +252,7 @@ export class WorktreeWorkspaceExecutor {
 				try {
 					await git(["branch", "-f", currentBranch, baseCommit], cwd);
 					break; // success, no conflict
-				} catch {
-					// Branch is used by another worktree — try next unique name
-					continue;
-				}
+				} catch {}
 			}
 		} catch (err) {
 			throw new Error(
@@ -342,7 +339,7 @@ export class WorktreeWorkspaceExecutor {
 		// git ref locking conflicts when multiple workers create worktrees concurrently.
 		const lockDir = path.join(this.workspaceRoot, ".pi", "worktree-create-locks");
 		await fs.mkdir(lockDir, { recursive: true });
-		const lockPath = path.join(lockDir, sanitizeForPath(this.planExecutionId) + ".lock");
+		const lockPath = path.join(lockDir, `${sanitizeForPath(this.planExecutionId)}.lock`);
 
 		for (let attempt = 1; attempt <= 60; attempt++) {
 			try {
@@ -367,7 +364,9 @@ export class WorktreeWorkspaceExecutor {
 			};
 		} finally {
 			// Release lock
-			try { await fs.unlink(lockPath); } catch {}
+			try {
+				await fs.unlink(lockPath);
+			} catch {}
 		}
 
 		const state: WorktreeState = {

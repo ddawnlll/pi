@@ -100,7 +100,9 @@ describe("MemoryVectorRepository", { skip: !isIntegration }, () => {
 			project_id: projectId,
 			content: "Semantic search implementation",
 			content_hash: "semantic001",
-			embedding: Array(1536).fill(0).map((_, i) => Math.sin(i) * 0.1),
+			embedding: Array(1536)
+				.fill(0)
+				.map((_, i) => Math.sin(i) * 0.1),
 			embedding_model: "text-embedding-3-small",
 			source_pointer: { path: "src/vector-search.ts" },
 			freshness: now(),

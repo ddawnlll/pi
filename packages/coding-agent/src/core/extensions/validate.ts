@@ -112,7 +112,6 @@ function parseRange(range: string): ((v: Semver) => boolean) | null {
 					return cmp < 0;
 				case "!=":
 					return cmp !== 0;
-				case "=":
 				default:
 					return cmp === 0;
 			}
@@ -258,9 +257,7 @@ export function isValidSemver(version: string): boolean {
  * Validate an extension package manifest.
  * Returns an error string if invalid, or null if valid.
  */
-export function validateManifest(
-	manifest: Record<string, unknown>,
-): string | null {
+export function validateManifest(manifest: Record<string, unknown>): string | null {
 	if (!manifest.name || typeof manifest.name !== "string") {
 		return "Manifest must have a 'name' field (string)";
 	}

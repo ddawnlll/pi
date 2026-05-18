@@ -483,6 +483,7 @@ describe("formatSchedulingDecision", () => {
 			readyBatchIds: new Map(),
 			diagnostics: {
 				selected: ["7.A"],
+				selectedWithReasons: [{ workspaceId: "7.A", reason: "Ready" }],
 				skipped: [
 					{
 						workspaceId: "7.B",
@@ -495,6 +496,9 @@ describe("formatSchedulingDecision", () => {
 				batchIds: new Map(),
 				capacity: {
 					maxWorkers: 3,
+					effectiveMaxWorkers: 3,
+					isWorktreeMode: false,
+					resourcePressure: 0,
 					activeWorkers: 0,
 					availableSlots: 3,
 					totalWorkspaces: 2,

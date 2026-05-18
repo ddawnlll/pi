@@ -10,10 +10,10 @@
  * all explicitly `undefined`.
  */
 
-import { Worker } from "node:worker_threads";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 
 // ============================================================================
 // Constants
@@ -92,6 +92,7 @@ function getWorkerPath(): string {
  * Uses `worker_threads` for process-level isolation (memory limits) and
  * `vm.createContext()` for JavaScript-level isolation (no `require`, etc.).
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: API surface - imported as class by consumers
 export class SandboxExecutor {
 	/**
 	 * Execute arbitrary code in a sandboxed environment.
@@ -101,11 +102,7 @@ export class SandboxExecutor {
 	 * @param options - Execution options (timeout, memory limits)
 	 * @returns Promise resolving to a SandboxResult
 	 */
-	static async run(
-		code: string,
-		input?: unknown,
-		options: SandboxExecutorOptions = {},
-	): Promise<SandboxResult> {
+	static async run(code: string, input?: unknown, options: SandboxExecutorOptions = {}): Promise<SandboxResult> {
 		const startTime = performance.now();
 		const workerPath = getWorkerPath();
 		const timeoutMs = options.timeoutMs ?? 31000;
@@ -144,57 +141,65 @@ export class SandboxExecutor {
 			}
 
 			// Successful or errored completion from the worker
-			worker.on("message", (msg: { success: boolean; output: unknown; logs?: SandboxLog[]; error?: Record<string, unknown> | string }) => {
-				if (completed) return;
-				completed = true;
-				if (timeoutHandle) clearTimeout(timeoutHandle);
+			worker.on(
+				"message",
+				(msg: {
+					success: boolean;
+					output: unknown;
+					logs?: SandboxLog[];
+					error?: Record<string, unknown> | string;
+				}) => {
+					if (completed) return;
+					completed = true;
+					if (timeoutHandle) clearTimeout(timeoutHandle);
 
-				const durationMs = Math.round(performance.now() - startTime);
+					const durationMs = Math.round(performance.now() - startTime);
 
-				if (msg.success) {
-					resolve({
-						success: true,
-						output: msg.output,
-						logs: msg.logs ?? [],
-						durationMs,
-						exitCode: 0,
-					});
-				} else {
-					const errorMessage =
-						typeof msg.error === "string"
-							? msg.error
-							: (msg.error?.message as string | undefined) ?? "Unknown sandbox error";
-					const errorCode =
-						typeof msg.error === "object" && msg.error !== null
-							? (msg.error.code as string | undefined)
-							: undefined;
-
-					// The worker does NOT set a timeout on vm.Script.runInContext().
-					// The only timeout is the main-thread one above. So if the worker
-					// reports ERR_SCRIPT_EXECUTION_TIMEOUT and a memory limit was set,
-					// it must be from vm.Script resource limits (OOM).
-					if (options.maxMemoryMB && errorCode === "ERR_SCRIPT_EXECUTION_TIMEOUT") {
+					if (msg.success) {
 						resolve({
-							success: false,
-							output: undefined,
+							success: true,
+							output: msg.output,
 							logs: msg.logs ?? [],
 							durationMs,
-							exitCode: 137,
-							error: "Memory limit exceeded",
-							errorType: SANDBOX_OOM,
+							exitCode: 0,
 						});
 					} else {
-						resolve({
-							success: false,
-							output: undefined,
-							logs: msg.logs ?? [],
-							durationMs,
-							exitCode: 1,
-							error: errorMessage,
-						});
+						const errorMessage =
+							typeof msg.error === "string"
+								? msg.error
+								: ((msg.error?.message as string | undefined) ?? "Unknown sandbox error");
+						const errorCode =
+							typeof msg.error === "object" && msg.error !== null
+								? (msg.error.code as string | undefined)
+								: undefined;
+
+						// The worker does NOT set a timeout on vm.Script.runInContext().
+						// The only timeout is the main-thread one above. So if the worker
+						// reports ERR_SCRIPT_EXECUTION_TIMEOUT and a memory limit was set,
+						// it must be from vm.Script resource limits (OOM).
+						if (options.maxMemoryMB && errorCode === "ERR_SCRIPT_EXECUTION_TIMEOUT") {
+							resolve({
+								success: false,
+								output: undefined,
+								logs: msg.logs ?? [],
+								durationMs,
+								exitCode: 137,
+								error: "Memory limit exceeded",
+								errorType: SANDBOX_OOM,
+							});
+						} else {
+							resolve({
+								success: false,
+								output: undefined,
+								logs: msg.logs ?? [],
+								durationMs,
+								exitCode: 1,
+								error: errorMessage,
+							});
+						}
 					}
-				}
-			});
+				},
+			);
 
 			// Runtime error from worker (e.g., worker crashed with OOM or other error)
 			worker.on("error", (err: Error) => {

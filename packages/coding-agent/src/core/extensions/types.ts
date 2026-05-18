@@ -1600,12 +1600,7 @@ export interface ExtensionPackageManifest {
 /**
  * Lifecycle state of a registered extension package.
  */
-export type ExtensionPackageState =
-	| "registered"
-	| "enabling"
-	| "loaded"
-	| "disabling"
-	| "disabled";
+export type ExtensionPackageState = "registered" | "enabling" | "loaded" | "disabling" | "disabled";
 
 /**
  * A registered extension package tracked by the registry.
@@ -1633,13 +1628,7 @@ export interface ExtensionPackage {
 // ============================================================================
 
 /** Registry lifecycle event type. */
-export type RegistryEventType =
-	| "registered"
-	| "enabled"
-	| "loaded"
-	| "disabled"
-	| "unloaded"
-	| "error";
+export type RegistryEventType = "registered" | "enabled" | "loaded" | "disabled" | "unloaded" | "error";
 
 /** Event emitted by the ExtensionRegistry. */
 export interface RegistryEvent {

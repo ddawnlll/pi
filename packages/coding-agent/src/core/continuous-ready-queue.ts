@@ -100,42 +100,36 @@ export interface ReadyQueueState {
  * Reason string emitted when an entry is waiting because another plan
  * for the same project is currently active.
  */
-export const WAITING_REASON_SAME_PROJECT_ACTIVE =
-	"Waiting for active plan in same project to complete";
+export const WAITING_REASON_SAME_PROJECT_ACTIVE = "Waiting for active plan in same project to complete";
 
 /**
  * Reason string emitted when an entry is waiting because the working
  * tree is dirty.
  */
-export const WAITING_REASON_DIRTY_TREE =
-	"Waiting for working tree to become clean (uncommitted changes)";
+export const WAITING_REASON_DIRTY_TREE = "Waiting for working tree to become clean (uncommitted changes)";
 
 /**
  * Reason string emitted when an entry is waiting because the integration
  * queue has unresolved dirty entries.
  */
-export const WAITING_REASON_DIRTY_INTEGRATION =
-	"Waiting for integration queue to resolve";
+export const WAITING_REASON_DIRTY_INTEGRATION = "Waiting for integration queue to resolve";
 
 /**
  * Reason string emitted when an entry is waiting because a prior plan
  * in the same project failed and stopOnFailure is enabled.
  */
-export const WAITING_REASON_PRIOR_FAILED =
-	"Waiting: prior plan in same project failed (stop-on-failure)";
+export const WAITING_REASON_PRIOR_FAILED = "Waiting: prior plan in same project failed (stop-on-failure)";
 
 /**
  * Reason string emitted when an entry is waiting because a prior plan
  * in the same project is blocked.
  */
-export const WAITING_REASON_PRIOR_BLOCKED =
-	"Waiting: prior plan in same project is blocked";
+export const WAITING_REASON_PRIOR_BLOCKED = "Waiting: prior plan in same project is blocked";
 
 /**
  * Reason string emitted when an entry is blocked by the draft gate.
  */
-export const BLOCKED_REASON_DRAFT_GATE =
-	"Blocked by draft execution gate";
+export const BLOCKED_REASON_DRAFT_GATE = "Blocked by draft execution gate";
 
 // ---------------------------------------------------------------------------
 // Deterministic Readiness Determination
@@ -176,10 +170,7 @@ export const BLOCKED_REASON_DRAFT_GATE =
  * @param state   - External state snapshot for deterministic evaluation.
  * @returns Deterministic readiness classification.
  */
-export function determineReadyEntries(
-	entries: PlanQueueEntry[],
-	state: ReadyQueueState,
-): ReadyQueueDetermination {
+export function determineReadyEntries(entries: PlanQueueEntry[], state: ReadyQueueState): ReadyQueueDetermination {
 	const ready: ReadyQueueEntry[] = [];
 	const waiting: ReadyQueueEntry[] = [];
 	const blocked: ReadyQueueEntry[] = [];
@@ -333,11 +324,7 @@ export function determineReadyEntries(
  * @param state    - External state snapshot.
  * @returns The readiness classification for the entry.
  */
-export function isEntryReady(
-	entry: PlanQueueEntry,
-	entries: PlanQueueEntry[],
-	state: ReadyQueueState,
-): boolean {
+export function isEntryReady(entry: PlanQueueEntry, entries: PlanQueueEntry[], state: ReadyQueueState): boolean {
 	const result = determineReadyEntries(entries, state);
 	return result.ready.some((r) => r.entry.id === entry.id);
 }

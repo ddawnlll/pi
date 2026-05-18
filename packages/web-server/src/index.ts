@@ -38,9 +38,8 @@
  */
 
 import { execSync } from "node:child_process";
-import { readdirSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import { readdir, readFile, watch, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -58,6 +57,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
+import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import { registerPerformanceRoutes } from "./performance-routes.js";
 import {
@@ -75,7 +75,6 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
-import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
@@ -910,7 +909,7 @@ fastify.get<{
 		const piDir = join(workspaceRoot, ".pi");
 		const queuePath = join(piDir, `${planExecId}.workspace-queue.json`);
 
-		let queue;
+		let queue: any;
 		try {
 			const content = await readFile(queuePath, "utf-8");
 			queue = JSON.parse(content);
@@ -1770,7 +1769,10 @@ fastify.post<{
 		const workspaceRoot = getWorkspaceRoot();
 		const stackValidation = await validatePlanTargetCommands(
 			workspaceRoot,
-			queue.workspaces.map((w: { id: string; targetCommand?: string }) => ({ id: w.id, targetCommand: w.targetCommand })),
+			queue.workspaces.map((w: { id: string; targetCommand?: string }) => ({
+				id: w.id,
+				targetCommand: w.targetCommand,
+			})),
 		);
 
 		// Run safety doctor
@@ -1838,7 +1840,10 @@ fastify.post<{
 		return { success: true, analysis };
 	} catch (error) {
 		fastify.log.error({ error }, "Checker agent analysis failed");
-		return reply.code(500).send({ success: false, error: `Checker agent failed: ${error instanceof Error ? error.message : String(error)}` });
+		return reply.code(500).send({
+			success: false,
+			error: `Checker agent failed: ${error instanceof Error ? error.message : String(error)}`,
+		});
 	}
 });
 
@@ -1879,7 +1884,11 @@ Output ONLY valid JSON, no markdown or code blocks.`;
 		const now = Date.now();
 		const stream = ai.streamSimple(model, {
 			messages: [
-				{ role: "user", content: systemPrompt + "\n\n--- PLAN START ---\n" + planContent + "\n--- PLAN END ---", timestamp: now },
+				{
+					role: "user",
+					content: `${systemPrompt}\n\n--- PLAN START ---\n${planContent}\n--- PLAN END ---`,
+					timestamp: now,
+				},
 			],
 		});
 
@@ -1896,7 +1905,7 @@ Output ONLY valid JSON, no markdown or code blocks.`;
 
 		// Try to parse JSON — may be wrapped in markdown code blocks
 		const jsonMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-		let jsonStr = jsonMatch ? jsonMatch[1] : fullContent;
+		const jsonStr = jsonMatch ? jsonMatch[1] : fullContent;
 
 		let parsed: Record<string, unknown>;
 		try {
@@ -1908,10 +1917,14 @@ Output ONLY valid JSON, no markdown or code blocks.`;
 				try {
 					parsed = JSON.parse(objMatch[0]);
 				} catch {
-					throw new Error(`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+					throw new Error(
+						`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`,
+					);
 				}
 			} else {
-				throw new Error(`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`);
+				throw new Error(
+					`Cannot parse LLM response as JSON. Raw (${fullContent.length} chars): ${fullContent.slice(0, 500)}`,
+				);
 			}
 		}
 
@@ -3144,9 +3157,9 @@ fastify.post<{
 		}
 
 		// Resolve model: reuse the original model if available
-		let model: any = undefined;
+		let model: any;
 		try {
-			const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+			const _meta = await loadExecutionMeta(workspaceRoot, planExecId);
 			// model is optional — runCleanupReview falls back to getFallbackModel()
 		} catch {
 			// Non-fatal
@@ -3689,7 +3702,17 @@ fastify.get<{
 		const { readdirSync, statSync } = await import("fs");
 
 		const parentPath = subPath.includes("/") ? subPath.slice(0, subPath.lastIndexOf("/")) : "";
-		const exclude = new Set([".git", "node_modules", ".pi", "dist", ".next", "build", "target", "__pycache__", ".cache"]);
+		const _exclude = new Set([
+			".git",
+			"node_modules",
+			".pi",
+			"dist",
+			".next",
+			"build",
+			"target",
+			"__pycache__",
+			".cache",
+		]);
 
 		let names: string[] = [];
 		try {
@@ -3742,7 +3765,11 @@ fastify.get<{
  * Searches within workspaceRoot for files whose name (case-insensitive)
  * contains the query string. Excludes common dependency/build directories.
  */
-function searchFilesRecursive(root: string, query: string, limit: number): Array<{
+function searchFilesRecursive(
+	root: string,
+	query: string,
+	limit: number,
+): Array<{
 	path: string;
 	name: string;
 	ext: string;
@@ -3750,7 +3777,17 @@ function searchFilesRecursive(root: string, query: string, limit: number): Array
 	isDir: boolean;
 	size: number;
 }> {
-	const excludeDirs = new Set([".git", "node_modules", ".pi", "dist", ".next", "build", "target", "__pycache__", ".cache"]);
+	const excludeDirs = new Set([
+		".git",
+		"node_modules",
+		".pi",
+		"dist",
+		".next",
+		"build",
+		"target",
+		"__pycache__",
+		".cache",
+	]);
 	const results: Array<{
 		path: string;
 		name: string;

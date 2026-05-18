@@ -9,14 +9,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { analyzePlanIntake } from "../../../src/core/plan-intake-analyzer.js";
 import {
-	generateGraphDiff,
-	createGraphApproval,
 	approveGraph,
-	computeGraphHash,
 	checkApprovalStaleness,
+	computeGraphHash,
+	createGraphApproval,
+	generateGraphDiff,
 } from "../../../src/core/graph-diff-engine.js";
+import { analyzePlanIntake } from "../../../src/core/plan-intake-analyzer.js";
 import { getPlatformAuditLedger, resetPlatformAuditLedger } from "../../../src/core/platform-audit-ledger.js";
 import type { Workspace, WorkspaceQueue } from "../../../src/core/workspace-schema.js";
 

@@ -11,11 +11,7 @@
 
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import {
-	checkForbiddenPatterns,
-	type ForbiddenPattern,
-	filterForbiddenPaths,
-} from "../src/forbidden-patterns.js";
+import { checkForbiddenPatterns, type ForbiddenPattern, filterForbiddenPaths } from "../src/forbidden-patterns.js";
 
 describe("checkForbiddenPatterns", () => {
 	// -----------------------------------------------------------------------

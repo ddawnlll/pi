@@ -44,11 +44,11 @@ import { runMigrations, showDeprecationWarnings } from "./migrations.js";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.js";
 import { ExtensionSelectorComponent } from "./modes/interactive/components/extension-selector.js";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.js";
+import { OrchestratorDaemon } from "./orchestrator/orchestrator-daemon.js";
 import { handleConfigCommand, handlePackageCommand } from "./package-manager-cli.js";
 import { handlePlanCommand } from "./plan-command-cli.js";
-import { isLocalPath } from "./utils/paths.js";
-import { OrchestratorDaemon } from "./orchestrator/orchestrator-daemon.js";
 import { PiLogger } from "./utils/logger.js";
+import { isLocalPath } from "./utils/paths.js";
 
 /**
  * Read all content from piped stdin.

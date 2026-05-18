@@ -9,8 +9,8 @@
  * - console.log works inside sandbox, safely transmitted to outside
  */
 
-import { describe, it, expect } from "vitest";
-import { SandboxExecutor, SANDBOX_TIMEOUT, SANDBOX_OOM, type SandboxResult } from "./sandbox/sandbox-executor.js";
+import { describe, expect, it } from "vitest";
+import { SANDBOX_OOM, SANDBOX_TIMEOUT, SandboxExecutor } from "./sandbox/sandbox-executor.js";
 
 // ============================================================================
 // Sandbox Isolation
@@ -49,7 +49,9 @@ describe("SandboxExecutor", () => {
 		});
 
 		it("require('fs') should return undefined inside sandbox", async () => {
-			const result = await SandboxExecutor.run("typeof require !== 'undefined' ? require('fs') : 'require is undefined'");
+			const result = await SandboxExecutor.run(
+				"typeof require !== 'undefined' ? require('fs') : 'require is undefined'",
+			);
 			expect(result.success).toBe(true);
 			expect(result.output).toBe("require is undefined");
 		});
@@ -109,11 +111,7 @@ describe("SandboxExecutor", () => {
 		}, 15000);
 
 		it("should return SANDBOX_TIMEOUT with errorType for long-running code", async () => {
-			const result = await SandboxExecutor.run(
-				"while(true) {}",
-				undefined,
-				{ timeoutMs: 500 },
-			);
+			const result = await SandboxExecutor.run("while(true) {}", undefined, { timeoutMs: 500 });
 			expect(result.success).toBe(false);
 			expect(result.errorType).toBe(SANDBOX_TIMEOUT);
 			expect(result.error).toContain("timed out");

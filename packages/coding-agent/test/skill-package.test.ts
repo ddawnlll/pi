@@ -159,9 +159,7 @@ describe("skill-package", () => {
 			expect(existsSync(join(pkgDir, "SKILL.md"))).toBe(true);
 
 			// Verify the manifest content
-			const manifest = JSON.parse(
-				readFileSync(join(pkgDir, "skill-package.json"), "utf-8"),
-			);
+			const manifest = JSON.parse(readFileSync(join(pkgDir, "skill-package.json"), "utf-8"));
 			expect(manifest.name).toBe("my-skill");
 			expect(manifest.description).toBe("My custom skill");
 			expect(manifest.version).toBe("0.1.0");

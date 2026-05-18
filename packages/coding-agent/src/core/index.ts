@@ -205,6 +205,28 @@ export {
 	type LedgerSource,
 	type LedgerSummary,
 } from "./governance-ledger.js";
+// P11.I — Graph Diff and Approval Engine
+export {
+	type ApprovalAuditEntry,
+	type ApprovalStalenessCheck,
+	applyApprovedGraphPatch,
+	approveGraph,
+	checkApprovalStaleness,
+	computeGraphHash,
+	createGraphApproval,
+	type DiffChangeType,
+	formatApprovalRecord,
+	formatGraphDiff,
+	type GraphApprovalRecord,
+	type GraphDiff,
+	type GraphDiffEntry,
+	generateGraphDiff,
+	type MetricsComparison,
+	markApprovalStale,
+	rejectGraph,
+	type SafetyCheck,
+	type SafetyCheckReason,
+} from "./graph-diff-engine.js";
 export {
 	detectFailureSignals,
 	type FailureSignal,
@@ -213,6 +235,20 @@ export {
 	recordExitCodeFailure,
 	scanLogLines,
 } from "./log-failure-detector.js";
+// P11.C — Plan Intake Analyzer
+export {
+	analyzePlanIntake,
+	approveIntakeProposal,
+	formatPlanIntakeAnalysis,
+	type IntakeBottleneck,
+	type IntakeDiagnostic,
+	type IntakeSeverity,
+	type IntakeStatus,
+	type PlanIntakeAnalysis,
+	type PlanIntakeOptions,
+	rejectIntakeProposal,
+	type SerializedTailInfo,
+} from "./plan-intake-analyzer.js";
 export {
 	findMissingWorkspaceLabels,
 	type ParsedSource,
@@ -243,6 +279,18 @@ export {
 	type RebatchingRecommendation,
 	type RiskModelUpdate,
 } from "./planner-feedback-loop.js";
+// P11.M — Platform Audit Ledger
+export {
+	type AuditEventFilter,
+	type AuditSummary,
+	getPlatformAuditLedger,
+	type PlatformAuditCategory,
+	type PlatformAuditEvent,
+	PlatformAuditLedger,
+	type PlatformAuditOutcome,
+	type PlatformAuditSeverity,
+	resetPlatformAuditLedger,
+} from "./platform-audit-ledger.js";
 // Proposal Inbox — P8.B
 export {
 	type ActionProposalResult,
@@ -321,54 +369,3 @@ export {
 	rewriteToNonWatch,
 	validateCommand,
 } from "./watch-mode-guard.js";
-
-// P11.C — Plan Intake Analyzer
-export {
-	analyzePlanIntake,
-	approveIntakeProposal,
-	formatPlanIntakeAnalysis,
-	type IntakeBottleneck,
-	type IntakeDiagnostic,
-	type IntakeSeverity,
-	type IntakeStatus,
-	type PlanIntakeAnalysis,
-	type PlanIntakeOptions,
-	rejectIntakeProposal,
-	type SerializedTailInfo,
-} from "./plan-intake-analyzer.js";
-
-// P11.I — Graph Diff and Approval Engine
-export {
-	applyApprovedGraphPatch,
-	approveGraph,
-	type ApprovalAuditEntry,
-	type ApprovalStalenessCheck,
-	checkApprovalStaleness,
-	computeGraphHash,
-	createGraphApproval,
-	type DiffChangeType,
-	formatApprovalRecord,
-	formatGraphDiff,
-	generateGraphDiff,
-	type GraphApprovalRecord,
-	type GraphDiff,
-	type GraphDiffEntry,
-	type MetricsComparison,
-	markApprovalStale,
-	rejectGraph,
-	type SafetyCheck,
-	type SafetyCheckReason,
-} from "./graph-diff-engine.js";
-
-// P11.M — Platform Audit Ledger
-export {
-	type AuditEventFilter,
-	type AuditSummary,
-	type PlatformAuditCategory,
-	type PlatformAuditEvent,
-	type PlatformAuditOutcome,
-	type PlatformAuditSeverity,
-	PlatformAuditLedger,
-	getPlatformAuditLedger,
-	resetPlatformAuditLedger,
-} from "./platform-audit-ledger.js";

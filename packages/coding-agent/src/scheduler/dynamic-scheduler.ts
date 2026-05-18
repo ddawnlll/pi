@@ -18,27 +18,27 @@
  */
 
 import type { PlanState } from "../core/plan-state.js";
+import type {
+	FileLockConflict,
+	IdleExplanation,
+	Scheduler,
+	SchedulerCapacitySnapshot,
+	SchedulerDiagnostics,
+	SchedulingDecision,
+	SkipReason,
+} from "../core/scheduler.js";
 import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "../core/worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "../core/workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "../core/workspace-schema.js";
-import type {
-	Scheduler,
-	SkipReason,
-	IdleExplanation,
-	SchedulerCapacitySnapshot,
-	SchedulerDiagnostics,
-	SchedulingDecision,
-	FileLockConflict,
-} from "../core/scheduler.js";
 
 // Re-export scheduler types for backward compatibility
 export type {
-	SkipReason,
+	FileLockConflict,
 	IdleExplanation,
 	SchedulerCapacitySnapshot,
 	SchedulerDiagnostics,
 	SchedulingDecision,
-	FileLockConflict,
+	SkipReason,
 } from "../core/scheduler.js";
 
 // ---------------------------------------------------------------------------

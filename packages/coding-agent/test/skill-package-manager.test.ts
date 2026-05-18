@@ -71,7 +71,11 @@ describe("skill-package-manager", () => {
 			hasTests: options?.hasTests ?? false,
 		};
 		writeFileSync(join(dir, "skill-package.json"), JSON.stringify(manifest, null, 2), "utf-8");
-		writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\n${description}\n`, "utf-8");
+		writeFileSync(
+			join(dir, "SKILL.md"),
+			`---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\n${description}\n`,
+			"utf-8",
+		);
 
 		if (options?.hasTests) {
 			const testsDir = join(dir, "tests");
@@ -222,7 +226,11 @@ describe("skill-package-manager", () => {
 		it("should pass template variables", () => {
 			const src = createTestPackage("template-skill", "Uses variables", "1.0.0", join(cwd, "sources"));
 			// Write a SKILL.md with template variable
-			writeFileSync(join(src, "SKILL.md"), `---\nname: template-skill\ndescription: Uses variables\n---\n\nHello {{name}}!`, "utf-8");
+			writeFileSync(
+				join(src, "SKILL.md"),
+				`---\nname: template-skill\ndescription: Uses variables\n---\n\nHello {{name}}!`,
+				"utf-8",
+			);
 			manager.remove("template-skill"); // in case it was loaded
 			manager.install(src);
 
@@ -315,9 +323,15 @@ describe("skill-package-manager", () => {
 		});
 
 		it("should update quality after test run", () => {
-			const src = createTestPackage("quality-test-skill", "Tracks quality from tests", "1.0.0", join(cwd, "sources"), {
-				hasTests: true,
-			});
+			const src = createTestPackage(
+				"quality-test-skill",
+				"Tracks quality from tests",
+				"1.0.0",
+				join(cwd, "sources"),
+				{
+					hasTests: true,
+				},
+			);
 			manager.install(src);
 
 			manager.test("quality-test-skill");

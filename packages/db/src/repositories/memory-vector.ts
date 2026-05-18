@@ -8,7 +8,7 @@
  * available, and falls back to keyword-based text matching when it is not.
  */
 
-import { sql, type Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { generateId, now } from "../helpers.js";
 import type { Database, MemoryVector, MemoryVectorUpdate, NewMemoryVector } from "../types.js";
 
@@ -135,11 +135,7 @@ export class MemoryVectorRepository {
 	 * @returns The memory vector, or null if not found
 	 */
 	async findById(id: string): Promise<MemoryVector | null> {
-		const result = await this.db
-			.selectFrom("memory_vectors")
-			.selectAll()
-			.where("id", "=", id)
-			.executeTakeFirst();
+		const result = await this.db.selectFrom("memory_vectors").selectAll().where("id", "=", id).executeTakeFirst();
 
 		return result ?? null;
 	}
@@ -286,14 +282,20 @@ export class MemoryVectorRepository {
 
 		// If we have an embedding AND pgvector is available, use dedicated vector path
 		if (embedding && embedding.length > 0 && (await this.checkVectorExtension())) {
-			return this.vectorSearch(projectId, planExecutionId, workspaceId, capability, safetyClassification, embedding, limit, offset);
+			return this.vectorSearch(
+				projectId,
+				planExecutionId,
+				workspaceId,
+				capability,
+				safetyClassification,
+				embedding,
+				limit,
+				offset,
+			);
 		}
 
 		// Build a Kysely query with all filters
-		let query = this.db
-			.selectFrom("memory_vectors")
-			.selectAll()
-			.where("project_id", "=", projectId);
+		let query = this.db.selectFrom("memory_vectors").selectAll().where("project_id", "=", projectId);
 
 		if (planExecutionId) {
 			query = query.where("plan_execution_id", "=", planExecutionId);
@@ -312,9 +314,7 @@ export class MemoryVectorRepository {
 		if (searchQuery && searchQuery.trim().length > 0) {
 			// Get all matching rows with full-text search filter
 			const results = await query
-				.where(
-					sql<boolean>`to_tsvector('english', content) @@ plainto_tsquery('english', ${searchQuery})`,
-				)
+				.where(sql<boolean>`to_tsvector('english', content) @@ plainto_tsquery('english', ${searchQuery})`)
 				.execute();
 
 			// Score each result by keyword overlap
@@ -329,11 +329,7 @@ export class MemoryVectorRepository {
 		}
 
 		// No search — return results ordered by freshness
-		const results = await query
-			.orderBy("freshness", "desc")
-			.limit(limit)
-			.offset(offset)
-			.execute();
+		const results = await query.orderBy("freshness", "desc").limit(limit).offset(offset).execute();
 
 		return results.map((row) => ({
 			memory: row,
@@ -450,15 +446,85 @@ export class MemoryVectorRepository {
 	 */
 	private tokenize(text: string): Set<string> {
 		const stopWords = new Set([
-			"the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-			"have", "has", "had", "do", "does", "did", "will", "would", "could",
-			"should", "may", "might", "shall", "can", "to", "of", "in", "for",
-			"on", "with", "at", "by", "from", "and", "or", "but", "not", "no",
-			"nor", "so", "if", "as", "this", "that", "these", "those", "it",
-			"its", "my", "your", "our", "their", "his", "her", "all", "each",
-			"every", "both", "more", "some", "any", "about", "into", "over",
-			"after", "before", "between", "under", "above", "below", "up",
-			"down", "out", "off", "than", "then", "once", "here", "there",
+			"the",
+			"a",
+			"an",
+			"is",
+			"are",
+			"was",
+			"were",
+			"be",
+			"been",
+			"being",
+			"have",
+			"has",
+			"had",
+			"do",
+			"does",
+			"did",
+			"will",
+			"would",
+			"could",
+			"should",
+			"may",
+			"might",
+			"shall",
+			"can",
+			"to",
+			"of",
+			"in",
+			"for",
+			"on",
+			"with",
+			"at",
+			"by",
+			"from",
+			"and",
+			"or",
+			"but",
+			"not",
+			"no",
+			"nor",
+			"so",
+			"if",
+			"as",
+			"this",
+			"that",
+			"these",
+			"those",
+			"it",
+			"its",
+			"my",
+			"your",
+			"our",
+			"their",
+			"his",
+			"her",
+			"all",
+			"each",
+			"every",
+			"both",
+			"more",
+			"some",
+			"any",
+			"about",
+			"into",
+			"over",
+			"after",
+			"before",
+			"between",
+			"under",
+			"above",
+			"below",
+			"up",
+			"down",
+			"out",
+			"off",
+			"than",
+			"then",
+			"once",
+			"here",
+			"there",
 		]);
 
 		const words = text

@@ -18,13 +18,13 @@
  * @packageDocumentation
  */
 
-import { PiLogger } from "../utils/logger.js";
-import type { OrchestratorProposal } from "./orchestrator-types.js";
-import { OrchestratorProposalGenerator } from "./orchestrator-proposal-generator.js";
-import { MutationGuard } from "./mutation-guard.js";
-import { ProposalInbox } from "../core/proposal-inbox.js";
 import type { PlannerOutput } from "../core/planner.js";
+import { ProposalInbox } from "../core/proposal-inbox.js";
 import type { WorkspaceQueue } from "../core/workspace-schema.js";
+import { PiLogger } from "../utils/logger.js";
+import { MutationGuard } from "./mutation-guard.js";
+import { OrchestratorProposalGenerator } from "./orchestrator-proposal-generator.js";
+import type { OrchestratorProposal } from "./orchestrator-types.js";
 
 // ---------------------------------------------------------------------------
 // Logger
@@ -328,7 +328,15 @@ export class OrchestratorDaemon {
 						criticalPath: { path: [], length: 1, dependencies: {}, batchCount: 1, bottleneckImpact: "" },
 						plannerWarnings: [],
 						plannerSuggestions: [],
-						predictedParallelism: { requested: 1, effective: 1, totalBatches: 1, resourceUtilizationPercent: 100, bottlenecks: [], parallelismHeadroom: false, saturationPoint: 1 },
+						predictedParallelism: {
+							requested: 1,
+							effective: 1,
+							totalBatches: 1,
+							resourceUtilizationPercent: 100,
+							bottlenecks: [],
+							parallelismHeadroom: false,
+							saturationPoint: 1,
+						},
 						batchPlan: {
 							totalBatches: 1,
 							effectiveParallelism: 1,
@@ -343,17 +351,11 @@ export class OrchestratorDaemon {
 							blockExplanations: [],
 						},
 					};
-					await this.inbox.submitProposal(
-						proposal.title,
-						"auto_scan",
-						queue,
-						plannerOutput,
-						{
-							actor: "orchestrator",
-							overallRisk: proposal.risk as any,
-							overallConfidence: proposal.confidence as any,
-						},
-					);
+					await this.inbox.submitProposal(proposal.title, "auto_scan", queue, plannerOutput, {
+						actor: "orchestrator",
+						overallRisk: proposal.risk as any,
+						overallConfidence: proposal.confidence as any,
+					});
 					log.info(`Submitted proposal to inbox: ${proposal.title}`);
 				} catch (err) {
 					log.error(`Failed to submit proposal to inbox: ${err}`);
@@ -374,9 +376,9 @@ export class OrchestratorDaemon {
 			log.info(`Scan #${this.scanCount} completed in ${duration}ms: ${proposals.length} proposal(s)`);
 
 			if (proposals.length > 0) {
-				proposals.forEach((p) =>
-					log.info(`  Proposal: [${p.confidence}] ${p.title}`),
-				);
+				for (const p of proposals) {
+					log.info(`  Proposal: [${p.confidence}] ${p.title}`);
+				}
 			}
 		} catch (error) {
 			this.lastError = `Scan #${this.scanCount} failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -517,7 +519,7 @@ export class OrchestratorDaemon {
 	 */
 	private async scanProjectHealth(): Promise<OrchestratorProposal[]> {
 		try {
-			const { existsSync, readdirSync } = await import("node:fs");
+			const { existsSync } = await import("node:fs");
 			const { join } = await import("node:path");
 
 			const observations: string[] = [];

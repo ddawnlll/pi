@@ -10,6 +10,7 @@ export {
 	loadExtensionFromFactory,
 	loadExtensions,
 } from "./loader.js";
+export { ExtensionRegistry } from "./registry.js";
 export type {
 	ExtensionErrorListener,
 	ForkHandler,
@@ -19,6 +20,7 @@ export type {
 	SwitchSessionHandler,
 } from "./runner.js";
 export { ExtensionRunner } from "./runner.js";
+export { RuntimeHost } from "./runtime-host.js";
 export type {
 	AfterProviderResponseEvent,
 	AgentEndEvent,
@@ -181,12 +183,10 @@ export {
 	isToolCallEventType,
 	isWriteToolResult,
 } from "./types.js";
-export { wrapRegisteredTool, wrapRegisteredTools } from "./wrapper.js";
-export { ExtensionRegistry } from "./registry.js";
-export { RuntimeHost } from "./runtime-host.js";
 export {
 	isPiVersionCompatible,
 	isValidSemver,
 	satisfies,
 	validateManifest,
 } from "./validate.js";
+export { wrapRegisteredTool, wrapRegisteredTools } from "./wrapper.js";

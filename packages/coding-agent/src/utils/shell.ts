@@ -69,7 +69,7 @@ class ValidationSpawnLock {
 	}
 }
 
-const validationSpawnLock = new ValidationSpawnLock();
+const _validationSpawnLock = new ValidationSpawnLock();
 
 /**
  * Install the global spawn interceptor.
@@ -88,11 +88,14 @@ export function installValidationSpawnLock(): void {
 	// Already patched — detect by checking if our marker exists
 	if ((child_process as any).__pi_validation_spawn_patched) return;
 
-	const patchedSpawn: typeof origSpawn = function (this: unknown, command: string, argsOrOptions?: any, options?: any) {
+	const patchedSpawn: typeof origSpawn = function (
+		this: unknown,
+		command: string,
+		argsOrOptions?: any,
+		options?: any,
+	) {
 		// Determine the full command string for validation check
-		const fullCommand = Array.isArray(argsOrOptions)
-			? `${command} ${argsOrOptions.join(" ")}`
-			: command;
+		const fullCommand = Array.isArray(argsOrOptions) ? `${command} ${argsOrOptions.join(" ")}` : command;
 
 		if (!isValidationCommand(fullCommand)) {
 			// Not a validation command — pass through immediately

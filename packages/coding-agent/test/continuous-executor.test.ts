@@ -3,9 +3,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+import type { WorkspaceExecutionResult } from "../src/core/autonomous-executor.js";
 import { ContinuousExecutor } from "../src/core/continuous-executor.js";
 import type { Workspace } from "../src/core/workspace-schema.js";
-import type { WorkspaceExecutionResult } from "../src/core/autonomous-executor.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,7 +96,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					currentConcurrency++;
 					peakConcurrency = Math.max(peakConcurrency, currentConcurrency);
@@ -125,7 +125,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					concurrencyLog.push(6); // We always expect 6 slots busy.
 					await new Promise((r) => setTimeout(r, 5));
@@ -147,7 +147,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					await new Promise((r) => setTimeout(r, 5));
 					return successResult(ws.id);
@@ -168,7 +168,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					if (ws.id === "C") {
 						await new Promise((r) => setTimeout(r, 1));
@@ -190,16 +190,12 @@ describe("ContinuousExecutor", () => {
 		});
 
 		it("includes failed and blocked workspaces in results", async () => {
-			const workspaces = [
-				makeWorkspace("ok"),
-				makeWorkspace("fail"),
-				makeWorkspace("block"),
-			];
+			const workspaces = [makeWorkspace("ok"), makeWorkspace("fail"), makeWorkspace("block")];
 			const scheduler = new TestScheduler(workspaces);
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					await new Promise((r) => setTimeout(r, 5));
 					if (ws.id === "fail") {
@@ -244,7 +240,7 @@ describe("ContinuousExecutor", () => {
 
 			const executePromise = executor.executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, signal) => {
 					// Block the first workspace on a gate so we can abort.
 					if (ws.id === "ws-0") {
@@ -297,7 +293,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await executor.executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					await new Promise((r) => setTimeout(r, 5));
 					return successResult(ws.id);
@@ -320,7 +316,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					current++;
 					peakConcurrency = Math.max(peakConcurrency, current);
@@ -346,7 +342,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => {
+				async (_ws) => {
 					const next = scheduler.getReady();
 					return next;
 				},
@@ -428,7 +424,7 @@ describe("ContinuousExecutor", () => {
 
 			const summary = await new ContinuousExecutor({ concurrency: 6 }).executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, _signal) => {
 					concurrencyAtEachStart.push(scheduler.handedOut);
 					await new Promise((r) => setTimeout(r, 5));
@@ -457,7 +453,7 @@ describe("ContinuousExecutor", () => {
 
 			const executePromise = executor.executeAll(
 				workspaces,
-				async (ws) => scheduler.getReady(),
+				async (_ws) => scheduler.getReady(),
 				async (ws, signal) => {
 					if (ws.id === "ws-0") {
 						await firstGate.promise;

@@ -107,6 +107,7 @@ export class PermissionDeniedError extends Error {
 /**
  * Parses and validates extension package manifests using a Zod schema.
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: API surface - imported as class by consumers
 export class ManifestParser {
 	/**
 	 * Parse and validate an unknown value as an extension package manifest.
@@ -119,13 +120,8 @@ export class ManifestParser {
 		const result = ExtensionPackageManifestSchema.safeParse(input);
 
 		if (!result.success) {
-			const messages = result.error.issues.map(
-				(issue) => `${issue.path.join(".")}: ${issue.message}`,
-			);
-			throw new ManifestValidationError(
-				`Manifest validation failed:\n${messages.join("\n")}`,
-				result.error.issues,
-			);
+			const messages = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+			throw new ManifestValidationError(`Manifest validation failed:\n${messages.join("\n")}`, result.error.issues);
 		}
 
 		return result.data;
@@ -135,12 +131,12 @@ export class ManifestParser {
 	 * Parse and validate an unknown value as an extension package manifest.
 	 * Returns the validated manifest if successful, or null if validation fails.
 	 */
-	static safeParse(input: unknown): { success: true; data: ParsedExtensionPackageManifest } | { success: false; error: ManifestValidationError } {
+	static safeParse(
+		input: unknown,
+	): { success: true; data: ParsedExtensionPackageManifest } | { success: false; error: ManifestValidationError } {
 		const result = ExtensionPackageManifestSchema.safeParse(input);
 		if (!result.success) {
-			const messages = result.error.issues.map(
-				(issue) => `${issue.path.join(".")}: ${issue.message}`,
-			);
+			const messages = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
 			return {
 				success: false,
 				error: new ManifestValidationError(
