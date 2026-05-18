@@ -14,15 +14,35 @@ import { type Kysely, sql } from "kysely";
 import type { Database } from "../types.js";
 
 /**
+ * Check whether the pgvector extension is available.
+ */
+async function hasVectorExtension(db: Kysely<Database>): Promise<boolean> {
+	try {
+		const result = await sql<{ name: string }>`
+			SELECT extname AS name FROM pg_extension WHERE extname = 'vector'
+		`.execute(db);
+		return result.rows.length > 0;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Apply the migration.
  */
 export async function up(db: Kysely<Database>): Promise<void> {
-	// Enable pgvector extension if available (graceful fallback)
+	// Try to enable pgvector extension if available
 	try {
 		await sql`CREATE EXTENSION IF NOT EXISTS vector`.execute(db);
 	} catch {
-		// pgvector extension not available; store will fall back to text-based matching
-		console.warn("[db] pgvector extension not available, vector search will use text fallback");
+		// pgvector extension not available
+	}
+
+	const vectorAvailable = await hasVectorExtension(db);
+	const embeddingColumnType = vectorAvailable ? "vector(1536)" : "real[]";
+
+	if (!vectorAvailable) {
+		console.warn("[db] pgvector extension not available, embedding column will use real[] fallback");
 	}
 
 	// Memory vectors table — use raw SQL for pgvector column type support
@@ -35,7 +55,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
 			capability VARCHAR(255),
 			content TEXT NOT NULL,
 			content_hash VARCHAR(64) NOT NULL,
-			embedding vector(1536),
+			embedding ${sql.raw(embeddingColumnType)},
 			embedding_model VARCHAR(100),
 			source_pointer JSONB NOT NULL DEFAULT '{}',
 			freshness TIMESTAMPTZ NOT NULL DEFAULT NOW(),
