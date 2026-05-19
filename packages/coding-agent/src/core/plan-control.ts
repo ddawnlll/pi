@@ -123,7 +123,10 @@ export class PlanControlManager {
 		// File-based fallback
 		try {
 			const content = await fs.readFile(this.controlFilePath, "utf-8");
-			return JSON.parse(content);
+			const parsed = JSON.parse(content);
+			// Treat null/empty marker as "no control request"
+			if (parsed === null) return null;
+			return parsed as PlanControlState;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return null;
@@ -145,12 +148,17 @@ export class PlanControlManager {
 			throw new Error("No control backend configured");
 		}
 
-		// File-based fallback
+		// File-based fallback: write an empty control marker atomically
+		// instead of using fs.unlink (which is non-atomic and can leave stale files).
+		// An empty/null marker prevents stale control requests from being picked up
+		// on restart after a crash during unlink.
 		try {
-			await fs.unlink(this.controlFilePath);
+			const tempPath = `${this.controlFilePath}.tmp`;
+			await fs.writeFile(tempPath, JSON.stringify(null), "utf-8");
+			await fs.rename(tempPath, this.controlFilePath);
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-				// Already cleared
+				// Directory doesn't exist — already cleared
 				return;
 			}
 			throw error;

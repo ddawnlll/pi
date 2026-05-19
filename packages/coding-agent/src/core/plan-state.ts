@@ -443,6 +443,10 @@ export class PlanStateStore {
 			}
 
 			await fs.rename(tempPath, this.stateFilePath);
+
+			// Create a .bak copy for crash recovery
+			const bakPath = `${this.stateFilePath}.bak`;
+			await fs.copyFile(this.stateFilePath, bakPath).catch(() => {});
 		} finally {
 			release();
 		}

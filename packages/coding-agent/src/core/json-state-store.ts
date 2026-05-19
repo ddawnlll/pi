@@ -436,6 +436,9 @@ export class JsonStateStore implements IStateStore {
 		const tempPath = `${this.controlFilePath}.tmp`;
 		await fs.writeFile(tempPath, JSON.stringify(controlState, null, 2), "utf-8");
 		await fs.rename(tempPath, this.controlFilePath);
+
+		// Create a .bak copy for crash recovery
+		await fs.copyFile(this.controlFilePath, `${this.controlFilePath}.bak`).catch(() => {});
 	}
 
 	async readControlRequest(_planExecutionId: string): Promise<PlanControlState | null> {
@@ -943,7 +946,13 @@ export class JsonStateStore implements IStateStore {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return [];
 			}
-			throw error;
+			// If JSON parse failed, try reading from .bak backup
+			try {
+				const bakContent = await fs.readFile(`${this.projectsFilePath}.bak`, "utf-8");
+				return JSON.parse(bakContent) as ProjectEntry[];
+			} catch {
+				throw error;
+			}
 		}
 	}
 
@@ -979,7 +988,13 @@ export class JsonStateStore implements IStateStore {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return [];
 			}
-			throw error;
+			// If JSON parse failed, try reading from .bak backup
+			try {
+				const bakContent = await fs.readFile(`${filePath}.bak`, "utf-8");
+				return JSON.parse(bakContent);
+			} catch {
+				throw error;
+			}
 		}
 	}
 
@@ -1002,11 +1017,15 @@ export class JsonStateStore implements IStateStore {
 		const tempPath = `${filePath}.tmp`;
 		await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
 		await fs.rename(tempPath, filePath);
+
+		// Create a .bak copy for crash recovery
+		await fs.copyFile(filePath, `${filePath}.bak`).catch(() => {});
 	}
 
 	/**
 	 * Update execution status in tracking.
 	 * Uses atomic write with temp+rename and a mutex to prevent race conditions.
+	 * Also maintains a .bak copy for crash recovery.
 	 */
 	private executionStatusMutex: Promise<void> = Promise.resolve();
 
@@ -1029,6 +1048,9 @@ export class JsonStateStore implements IStateStore {
 				const tempPath = `${filePath}.tmp`;
 				await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
 				await fs.rename(tempPath, filePath);
+
+				// Create a .bak copy for crash recovery
+				await fs.copyFile(filePath, `${filePath}.bak`).catch(() => {});
 			}
 		} finally {
 			release();
