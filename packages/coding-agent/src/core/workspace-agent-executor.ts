@@ -712,13 +712,15 @@ export class WorkspaceAgentExecutor {
 			const report = this.generateReport(session, finalVerdict);
 			log(`Execution completed with verdict: ${finalVerdict}`);
 
-			// Write logs to file if path provided
+			// Flush buffered output to disk before returning, even on abort.
+			// This ensures partial work artifacts are not lost on cancellation.
+			if (this.logPath) {
+				await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
+			}
+
 			// P4.6.3: Check if aborted mid-execution
 			if (this.abortController?.signal.aborted) {
 				log("Execution aborted during finalization");
-				if (this.logPath) {
-					await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
-				}
 				return {
 					success: false,
 					verdict: "FAILED",
@@ -726,10 +728,6 @@ export class WorkspaceAgentExecutor {
 					error: "Execution aborted by user",
 					logs,
 				};
-			}
-
-			if (this.logPath) {
-				await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
 			}
 
 			return {
