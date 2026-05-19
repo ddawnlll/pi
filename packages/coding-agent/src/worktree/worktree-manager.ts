@@ -347,6 +347,7 @@ export class WorktreeManager {
 
 		state.status = "failed";
 		state.statusChangedAt = Date.now();
+		await this.persistState();
 	}
 
 	/**
@@ -367,6 +368,7 @@ export class WorktreeManager {
 
 		state.status = "quarantined";
 		state.statusChangedAt = Date.now();
+		await this.persistState();
 	}
 
 	/**
@@ -410,6 +412,11 @@ export class WorktreeManager {
 	 * AC3: Cleanup refuses paths outside .pi/worktrees.
 	 * AC4: Cleanup does not use raw destructive commands.
 	 *
+	 * The status remains "quarantined" even after cleanup — the "preserved
+	 * for review" promise was fulfilled by keeping the worktree alive until
+	 * this method was called. Setting status to "completed" would falsely
+	 * indicate the worktree finished normally.
+	 *
 	 * @param planExecutionId - Plan execution ID.
 	 * @param workspaceId - Workspace ID.
 	 * @returns Cleanup result.
@@ -429,12 +436,49 @@ export class WorktreeManager {
 		const result = await cleanup.removeWorktree(state.worktreePath, state.branchName);
 
 		if (result.success) {
-			state.status = "completed";
 			state.statusChangedAt = Date.now();
 			this.persistState().catch(() => {});
 		}
 
 		return result;
+	}
+
+	/**
+	 * Save all active worktrees for a plan execution and quarantine them.
+	 *
+	 * For each active worktree:
+	 *   1. Generates a diff artifact (saved outside the worktree directory)
+	 *   2. Marks it as quarantined (preserved on disk for review)
+	 *   3. Persists updated state
+	 *
+	 * Call this BEFORE stopAllActiveWorkspaces() to ensure no work is lost
+	 * when a plan is stopped or cancelled mid-execution.
+	 *
+	 * @param planExecutionId - Plan execution ID.
+	 * @returns Number of worktrees saved and quarantined.
+	 */
+	async saveAndQuarantineActiveWorktrees(planExecutionId: string): Promise<number> {
+		const snapshot = Array.from(this.worktrees.entries());
+		let saved = 0;
+
+		for (const [key, state] of snapshot) {
+			if (state.planExecutionId !== planExecutionId) continue;
+			if (state.status !== "active" && state.status !== "created") continue;
+
+			// Generate diff artifact first (saves outside worktree directory)
+			await this.generateDiffArtifact(planExecutionId, state.workspaceId);
+
+			// Quarantine: preserve on disk, mark in state
+			state.status = "quarantined";
+			state.statusChangedAt = Date.now();
+			saved++;
+		}
+
+		if (saved > 0) {
+			await this.persistState();
+		}
+
+		return saved;
 	}
 
 	/**

@@ -830,6 +830,43 @@ export class AutonomousExecutor {
 	 *
 	 * @returns Control state if a control request is pending, null otherwise
 	 */
+	/**
+	 * Abort active workspaces and reset them back to Pending so they will
+	 * be re-executed when the plan is resumed.
+	 */
+	private async abortAndResetActiveWorkspaces(planExecutionId: string): Promise<void> {
+		// Collect workspace IDs that are currently active BEFORE aborting
+		const state = this.currentPlanState;
+		const activeIds: string[] = [];
+		if (state) {
+			for (const [wsId, ws] of state.workspaces) {
+				if (ws.stage === "active") {
+					activeIds.push(wsId);
+				}
+			}
+		}
+
+		// Abort all in-flight agent executions
+		await this.stopAllActiveWorkspaces();
+
+		// Transition any aborted workspaces back to Pending so they
+		// are re-scheduled on resume. After stopAllActiveWorkspaces(),
+		// the abort handler in executeWorkspace transitions them to
+		// Failed (or Blocked) via the completion gate. We reset them
+		// to Pending so the plan doesn't need rerun before continuing.
+		for (const wsId of activeIds) {
+			await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+				reason: "paused-abort",
+			});
+		}
+
+		// Reload state cache after transitions
+		const updatedState = await this.stateStore.loadState(planExecutionId);
+		if (updatedState) {
+			this.currentPlanState = updatedState;
+		}
+	}
+
 	async checkControlRequest(): Promise<PlanControlState | null> {
 		const planExecutionId = this.planExecutionId;
 		if (!planExecutionId) return null;
@@ -848,29 +885,45 @@ export class AutonomousExecutor {
 		switch (control.action) {
 			case "pause":
 				if (state.status === "running") {
-					// Check if there are active workspaces
-					const activeCount = Array.from(state.workspaces.values()).filter((ws) => ws.stage === "active").length;
+					const activeIds: string[] = [];
+					for (const [wsId, ws] of state.workspaces) {
+						if (ws.stage === "active") {
+							activeIds.push(wsId);
+						}
+					}
 
-					if (activeCount === 0) {
+					if (activeIds.length === 0) {
 						// No active workspaces, pause immediately
 						await this.stateStore.pausePlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
+					} else {
+						// Abort active workspaces and reset them to Pending
+						await this.abortAndResetActiveWorkspaces(planExecutionId);
+						await this.stateStore.pausePlan(planExecutionId, control.reason);
+						await this.stateStore.clearControlRequest(planExecutionId);
 					}
-					// Otherwise, keep control request and let active workspaces finish
 				}
 				break;
 
 			case "stop":
 				if (state.status === "running" || state.status === "paused") {
-					// Check if there are active workspaces
-					const activeCount = Array.from(state.workspaces.values()).filter((ws) => ws.stage === "active").length;
+					const activeIds: string[] = [];
+					for (const [wsId, ws] of state.workspaces) {
+						if (ws.stage === "active") {
+							activeIds.push(wsId);
+						}
+					}
 
-					if (activeCount === 0) {
+					if (activeIds.length === 0) {
 						// No active workspaces, stop immediately
 						await this.stateStore.stopPlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
+					} else {
+						// Abort active workspaces and reset them to Pending
+						await this.abortAndResetActiveWorkspaces(planExecutionId);
+						await this.stateStore.stopPlan(planExecutionId, control.reason);
+						await this.stateStore.clearControlRequest(planExecutionId);
 					}
-					// Otherwise, keep control request and let active workspaces finish
 				}
 				break;
 
@@ -1478,10 +1531,39 @@ export class AutonomousExecutor {
 	}
 
 	/**
+	 * Save diff artifacts from the active worktree (if any) before stopping.
+	 *
+	 * Must be called BEFORE stopAllActiveWorkspaces() to capture the state
+	 * of the in-flight worktree before the agent is aborted and the worktree
+	 * directory becomes stale.
+	 *
+	 * The diff is persisted to `.pi/executions/{planExecId}/worktrees/{wsId}.patch`
+	 * — outside the worktree directory so it survives cleanup.
+	 *
+	 * Note: since AutonomousExecutor shares a single WorkspaceAgentExecutor
+	 * across all workspaces (sequential per-slot), this only captures the
+	 * last active worktree. For true concurrent worktree isolation, each
+	 * parallel worker would need its own executor.
+	 *
+	 * @returns 1 if a worktree artifact was saved, 0 otherwise.
+	 */
+	async saveAllWorktreeArtifactsBeforeStop(): Promise<number> {
+		if (!this.agentExecutor?.isWorktreeModeEnabled) {
+			return 0;
+		}
+
+		const artifact = await this.agentExecutor.saveWorktreeArtifactsBeforeStop();
+		return artifact ? 1 : 0;
+	}
+
+	/**
 	 * P4.6.3: Abort all in-flight workspace executions.
 	 * Each active WorkspaceAgentExecutor receives an abort signal,
 	 * causing the in-flight execute() promise to resolve with FAILED.
 	 * Then waits for all promises to settle.
+	 *
+	 * IMPORTANT: Call saveAllWorktreeArtifactsBeforeStop() BEFORE this
+	 * method to preserve in-progress worktree changes.
 	 */
 	async stopAllActiveWorkspaces(): Promise<void> {
 		// Abort the agent executor first (sends signal to in-flight LLM calls)

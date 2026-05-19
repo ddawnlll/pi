@@ -12,7 +12,7 @@ import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../config.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
-import type { WorktreeConfig, WorktreeState } from "../worktree/worktree-types.js";
+import type { WorktreeConfig, WorktreeState, WorktreeDiffArtifact } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
@@ -181,6 +181,73 @@ export class WorkspaceAgentExecutor {
 		if (this.worktreeExecutor) {
 			this.worktreeExecutor.setPlanExecutionId(id);
 		}
+	}
+
+	/**
+	 * Save artifacts from the active worktree (if any) before stopping.
+	 *
+	 * Generates a diff artifact for the worktree and quarantines it so the
+	 * worktree directory is preserved on disk for review. The diff is saved
+	 * outside the worktree directory so it survives cleanup.
+	 *
+	 * Call this BEFORE abort() when stopping a plan mid-execution to avoid
+	 * losing in-progress work.
+	 *
+	 * @returns The generated diff artifact, or undefined if no worktree was active.
+	 */
+	async saveWorktreeArtifactsBeforeStop(): Promise<WorktreeDiffArtifact | undefined> {
+		if (!this.worktreeExecutor || !this.worktreeExecutor.currentWorktreeState) {
+			return undefined;
+		}
+
+		const ws = this.worktreeExecutor.currentWorktreeState;
+		const worktreeDir = ws.worktreePath;
+
+		// Check the worktree directory still exists
+		try {
+			await fs.access(worktreeDir);
+		} catch {
+			return undefined;
+		}
+
+		// Generate diff from base commit to HEAD
+		const { exec: execCb } = await import("node:child_process");
+		const { promisify } = await import("node:util");
+		const execAsync = promisify(execCb);
+
+		let diffOutput = "";
+		try {
+			const { stdout } = await execAsync(`git diff ${ws.baseCommit} HEAD`, {
+				cwd: worktreeDir,
+				encoding: "utf-8",
+				timeout: 30_000,
+			});
+			diffOutput = stdout.trim();
+		} catch {
+			// Diff failed — still quarantine the worktree so the on-disk state is preserved
+		}
+
+		const artifact: WorktreeDiffArtifact = {
+			planExecutionId: this.planExecutionId ?? "",
+			workspaceId: ws.workspaceId,
+			diff: diffOutput,
+			generatedAt: Date.now(),
+		};
+
+		// Persist diff artifact outside the worktree directory
+		if (diffOutput && this.planExecutionId) {
+			try {
+				const artifactDir = path.join(this.workspaceRoot, ".pi", "executions", this.planExecutionId, "worktrees");
+				await fs.mkdir(artifactDir, { recursive: true });
+				const diffPath = path.join(artifactDir, `${ws.workspaceId}.patch`);
+				await fs.writeFile(diffPath, diffOutput, "utf-8");
+				artifact.diffPath = diffPath;
+			} catch {
+				// Non-fatal
+			}
+		}
+
+		return artifact;
 	}
 
 	/**

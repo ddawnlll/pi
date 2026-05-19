@@ -20,6 +20,7 @@ import {
 	runCleanupReview,
 	validatePlanTargetCommands,
 	type WorkspaceQueue,
+	WorkspaceStage,
 } from "@earendil-works/pi-coding-agent";
 import {
 	appendAuditEntry,
@@ -915,9 +916,55 @@ async function executePlanInBackground(
 			if (!exec || exec.status === "stopped" || exec.status === "cancelled") {
 				await log(`Execution cancelled by user`);
 				await executor.failPlan("Execution cancelled by user");
+				// Save worktree artifacts before aborting agents (Bug #4 fix)
+				const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+				if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
 				// Stop any in-flight active workspaces immediately
 				await executor.stopAllActiveWorkspaces();
 				return;
+			}
+
+			// Check if externally paused (e.g. via dashboard API which calls
+			// stateStore.pausePlan() directly). When paused with active workers,
+			// abort them immediately and reset to pending for resume.
+			const planStateCheck = executor.getState();
+			if (planStateCheck && planStateCheck.status === "paused") {
+				await log(`Plan paused by external signal`);
+				// Abort active workspaces and reset to pending
+				const activeIds: string[] = [];
+				for (const [wsId, ws] of planStateCheck.workspaces) {
+					if (ws.stage === "active") {
+						activeIds.push(wsId);
+					}
+				}
+				if (activeIds.length > 0) {
+					// Save worktree artifacts before aborting agents (Bug #4 fix)
+					const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+					if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before pause`);
+					await executor.stopAllActiveWorkspaces();
+					for (const wsId of activeIds) {
+						await executor.getStateStore().transitionWorkspace(planExecId, wsId, WorkspaceStage.Pending, {
+							reason: "paused-abort",
+						});
+					}
+					await executor.loadState();
+				}
+				updateExecutionStatus(planExecId, "paused");
+				await log(`Plan paused, waiting for resume or stop event...`);
+				const signal = await completionBus.nextCompletion();
+				await executor.loadState();
+				const finalState = executor.getState();
+				if (
+					!signal.continue_ ||
+					!finalState ||
+					finalState.status === "stopped" ||
+					finalState.status === "cancelled"
+				) {
+					await log(`Execution stopped while paused`);
+					return;
+				}
+				await log(`Plan resumed, continuing execution...`);
+				continue;
 			}
 
 			// 1. Control check at top of while loop before getNextWorkspaces
@@ -959,6 +1006,9 @@ async function executePlanInBackground(
 					const planState = executor.getState();
 					if (planState && planState.status === "stopped") {
 						await log(`Stopping execution: ${control.reason || "no reason"}`);
+						// Save worktree artifacts before aborting agents (Bug #4 fix)
+						const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+						if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
 						await executor.stopAllActiveWorkspaces();
 						updateExecutionStatus(planExecId, "stopped", control.reason);
 						return;
@@ -1030,6 +1080,9 @@ async function executePlanInBackground(
 						signal = await completionBus.nextCompletion();
 					}
 					if (!signal.continue_) {
+						// Save worktree artifacts before returning (Bug #4 fix)
+						const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+						if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
 						await log(`Execution stopped while waiting for active workspaces`);
 						return;
 					}
@@ -1337,6 +1390,13 @@ async function executePlanInBackground(
 		const errorMsg = error instanceof Error ? error.message : String(error);
 		await log(`\n=== Execution Error ===`);
 		await log(`Fatal error: ${errorMsg}`);
+		// Save worktree artifacts before the error propagates (Bug #4 fix)
+		try {
+			const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+			if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before error termination`);
+		} catch {
+			// Non-fatal
+		}
 		// Update living plan markdown to failed state on unexpected error
 		try {
 			await updatePlanMarkdown(join(workspaceRoot, ".pi"), planExecId, { type: "plan-failed" });
