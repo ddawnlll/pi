@@ -4,10 +4,12 @@ import {
   Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code,
   CheckCircle2, XCircle, FileText, ClipboardList, AlertTriangle,
   Lightbulb, Wrench, FolderOpen, GitBranch, Archive, Search,
-  FileEdit, Eye, Minimize2, ChevronDown, Brain, Plus, MessageSquare,
+  FileEdit, Eye, Minimize2, ChevronDown, ChevronUp, Brain, Plus, MessageSquare,
   Copy, ArrowDown, Maximize2,
   Pencil, RefreshCw, Download, Filter,
   CheckSquare, Square, ChevronRight,
+  Star, ThumbsUp, ThumbsDown, Mic, MicOff, BarChart2,
+  Ellipsis, Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,20 +17,30 @@ import rehypeHighlight from "rehype-highlight";
 
 const API_BASE = "";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   toolCalls?: ToolCallEvent[];
   contextRefs?: ContextRef[];
   createdAt?: Date;
+  branchCount?: number;
+  branchIds?: string[];
+  parentSessionId?: string;
+  parentMessageIndex?: number;
 }
 
 export interface ToolCallEvent {
   name: string;
   args: Record<string, unknown>;
   toolCallId?: string;
-  status?: "running" | "success" | "error";
+  status?: "pending" | "running" | "success" | "error";
   result?: string;
+  durationMs?: number;
+  startedAt?: number;
 }
 
 export interface ContextRef {
@@ -43,6 +55,14 @@ export interface QuickAction {
   icon: React.ElementType;
   prompt: string;
   requires?: ContextRef["kind"][];
+}
+
+export interface SavedPrompt {
+  id: string;
+  name: string;
+  description: string;
+  template: string;
+  tags: string[];
 }
 
 interface AiModelInfo {
@@ -65,10 +85,22 @@ interface ChatPanelProps {
   onContextRefClick?: (ref: ContextRef) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
 const QUICK_ACTIONS: QuickAction[] = [
   { id: "summarize-run", label: "Summarize run", icon: ClipboardList, prompt: "Summarize the current plan execution: what workspaces ran, what succeeded, what failed, and overall status.", requires: ["run"] },
   { id: "explain-failure", label: "Explain failure", icon: AlertTriangle, prompt: "Explain why the execution failed. Identify the root cause workspace(s), error messages, and suggest remediation steps.", requires: ["run"] },
   { id: "followup-plan", label: "Generate follow-up plan", icon: Lightbulb, prompt: "Based on the current execution results, generate a follow-up plan that addresses any failures and remaining work.", requires: ["run"] },
+];
+
+const DEFAULT_SAVED_PROMPTS: SavedPrompt[] = [
+  { id: "explain-error", name: "Explain error", description: "Diagnose a failure", template: "Explain why this error occurred and how to fix it:\n\n```\n{{error}}\n```", tags: ["debug"] },
+  { id: "write-tests", name: "Write tests", description: "Generate unit tests", template: "Write comprehensive unit tests for the following code. Cover edge cases:\n\n{{code}}", tags: ["testing"] },
+  { id: "refactor", name: "Refactor", description: "Clean up code", template: "Refactor the following code to improve readability, performance, and maintainability. Explain each change:\n\n{{code}}", tags: ["code"] },
+  { id: "pr-description", name: "PR description", description: "Draft a pull request", template: "Write a clear pull request description for these changes:\n\n{{changes}}", tags: ["git"] },
+  { id: "summarize", name: "Summarize", description: "Summarize content", template: "Summarize the following in 3-5 bullet points:\n\n{{content}}", tags: ["writing"] },
 ];
 
 const BORD = "border-[#E8E6E1] dark:border-[#333]";
@@ -78,6 +110,28 @@ const TXT = "text-stone-800 dark:text-stone-200";
 const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+function extractErrorMessage(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    return String(r.message ?? r.detail ?? r.code ?? JSON.stringify(raw));
+  }
+  return "Unknown error";
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function formatTokens(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+  return String(count);
+}
+
 function refKindIcon(kind: ContextRef["kind"]): React.ElementType {
   switch (kind) {
     case "plan":      return FileText;
@@ -86,6 +140,24 @@ function refKindIcon(kind: ContextRef["kind"]): React.ElementType {
     case "artifact":  return Archive;
   }
 }
+
+interface ToolBadgeConfig { icon: React.ElementType; bg: string; dot: string }
+const TOOL_BADGES: Record<string, ToolBadgeConfig> = {
+  read:    { icon: Eye,      bg: "bg-blue-100 dark:bg-blue-900/40",      dot: "bg-blue-500" },
+  write:   { icon: FileEdit, bg: "bg-amber-100 dark:bg-amber-900/40",    dot: "bg-amber-500" },
+  edit:    { icon: Code,     bg: "bg-violet-100 dark:bg-violet-900/40",  dot: "bg-violet-500" },
+  bash:    { icon: Terminal, bg: "bg-emerald-100 dark:bg-emerald-900/40",dot: "bg-emerald-500" },
+  search:  { icon: Search,   bg: "bg-cyan-100 dark:bg-cyan-900/40",      dot: "bg-cyan-500" },
+  default: { icon: Bot,      bg: "bg-stone-100 dark:bg-[#252525]",       dot: "bg-stone-400" },
+};
+
+function getToolBadge(name: string): ToolBadgeConfig {
+  return TOOL_BADGES[name] ?? TOOL_BADGES.default;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-Components
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ContextRefPill({ ctx, removable, onRemove, onClick }: { ctx: ContextRef; removable?: boolean; onRemove?: () => void; onClick?: () => void }) {
   const Icon = refKindIcon(ctx.kind);
@@ -103,38 +175,182 @@ function ContextRefPill({ ctx, removable, onRemove, onClick }: { ctx: ContextRef
   );
 }
 
-interface ToolBadgeConfig { icon: React.ElementType; bg: string; dot: string }
-const TOOL_BADGES: Record<string, ToolBadgeConfig> = {
-  read:    { icon: Eye,      bg: "bg-blue-100 dark:bg-blue-900/40",      dot: "bg-blue-500" },
-  write:   { icon: FileEdit, bg: "bg-amber-100 dark:bg-amber-900/40",    dot: "bg-amber-500" },
-  edit:    { icon: Code,     bg: "bg-violet-100 dark:bg-violet-900/40",  dot: "bg-violet-500" },
-  bash:    { icon: Terminal, bg: "bg-emerald-100 dark:bg-emerald-900/40",dot: "bg-emerald-500" },
-  search:  { icon: Search,   bg: "bg-cyan-100 dark:bg-cyan-900/40",      dot: "bg-cyan-500" },
-  default: { icon: Bot,      bg: "bg-stone-100 dark:bg-[#252525]",       dot: "bg-stone-400" },
-};
+function DiffViewer({ content }: { content: string }) {
+  const lines = content.split("\n");
+  return (
+    <div className="font-mono text-[10px] leading-5 overflow-x-auto">
+      {lines.map((line, i) => {
+        const isAdd = line.startsWith("+") && !line.startsWith("+++");
+        const isDel = line.startsWith("-") && !line.startsWith("---");
+        return (
+          <div key={i} className={
+            isAdd ? "bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-300" :
+            isDel ? "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300" :
+            "text-stone-600 dark:text-stone-400"
+          }>
+            {line || " "}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-function getToolBadge(name: string): ToolBadgeConfig { return TOOL_BADGES[name] ?? TOOL_BADGES.default; }
-
-function ToolBadge({ tc, compact }: { tc: ToolCallEvent; compact?: boolean }) {
+function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?: boolean }) {
+  // Auto-expand when tool completes (success/error) with a result
+  const [expanded, setExpanded] = useState(
+    !compact || (tc.status !== "running" && tc.status !== "pending" && !!tc.result)
+  );
+  
+  // Auto-expand when status transitions to success/error with result
+  useEffect(() => {
+    if (tc.status !== "running" && tc.status !== "pending" && !!tc.result) {
+      setExpanded(true);
+    }
+  }, [tc.status, tc.result]);
   const cfg = getToolBadge(tc.name);
   const Icon = cfg.icon;
-  if (compact) {
+  const isError = tc.status === "error";
+  
+  const durationDisplay = useMemo(() => {
+    if (!tc.durationMs) return null;
+    if (tc.durationMs < 1000) return `${tc.durationMs}ms`;
+    return `${(tc.durationMs / 1000).toFixed(1)}s`;
+  }, [tc.durationMs]);
+  
+  const hasDiff = useMemo(() => {
+    if (!tc.result) return false;
+    return tc.result.includes("+++") || tc.result.includes("---") || tc.result.split("\n").some(l => l.startsWith("+") || l.startsWith("-"));
+  }, [tc.result]);
+  
+  const displayResult = useMemo(() => {
+    if (!tc.result) return null;
+    const lines = tc.result.split("\n");
+    if (lines.length > 300) {
+      return { truncated: true, content: lines.slice(0, 300).join("\n"), remaining: lines.length - 300 };
+    }
+    return { truncated: false, content: tc.result, remaining: 0 };
+  }, [tc.result]);
+  
+  const [showAll, setShowAll] = useState(false);
+  
+  if (compact && !expanded) {
     return (
-      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono ${cfg.bg} ${MUT}`}>
+      <button
+        onClick={() => setExpanded(true)}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity`}
+        aria-label={`Expand ${tc.name} result`}
+      >
         <Icon size={9} /><span>{tc.name}</span>
         {tc.status === "running" && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-0.5`} />}
         {tc.status === "success" && <CheckCircle2 size={9} className="text-green-500 ml-0.5" />}
         {tc.status === "error" && <XCircle size={9} className="text-red-500 ml-0.5" />}
-      </span>
+        <ChevronDown size={9} className="ml-0.5" />
+      </button>
     );
   }
+  
   return (
-    <div className={`flex items-center gap-1.5 text-[10px] ${MUT} ${cfg.bg} rounded px-2 py-1`}>
-      <Icon size={10} /><span className="font-medium">{tc.name}</span>
-      <span className="opacity-60 truncate max-w-[100px]">{typeof tc.args === "object" && tc.args !== null ? JSON.stringify(tc.args).slice(0, 60) : ""}</span>
-      {tc.status === "running" && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-auto shrink-0`} />}
-      {tc.status === "success" && <CheckCircle2 size={10} className="text-green-500 ml-auto shrink-0" />}
-      {tc.status === "error" && <XCircle size={10} className="text-red-500 ml-auto shrink-0" />}
+    <motion.div
+      initial={false}
+      animate={{ opacity: 1 }}
+      className={`rounded border ${BORD} overflow-hidden mb-2 ${isError ? "bg-red-50 dark:bg-red-950/20" : ""}`}
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity ${isError ? "bg-red-100 dark:bg-red-900/40" : ""}`}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${tc.name} result`}
+      >
+        <Icon size={10} className="shrink-0" />
+        <span className="font-medium">{tc.name}</span>
+        {tc.status === "running" && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-auto shrink-0`} />}
+        {tc.status === "success" && <CheckCircle2 size={10} className="text-green-500 ml-auto shrink-0" />}
+        {tc.status === "error" && <XCircle size={10} className="text-red-500 ml-auto shrink-0" />}
+        {durationDisplay && <span className="ml-2 opacity-60 text-[9px]">{durationDisplay}</span>}
+        <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="max-h-80 overflow-y-auto bg-white dark:bg-[#1a1a1a] p-2">
+              {isError && tc.result && (
+                <div className="text-red-600 dark:text-red-400 text-[10px] mb-2 font-medium">
+                  <AlertCircle size={10} className="inline mr-1" />
+                  {tc.result}
+                </div>
+              )}
+              {!isError && displayResult && (
+                <>
+                  {hasDiff ? (
+                    <DiffViewer content={displayResult.content} />
+                  ) : (
+                    <pre className="text-[10px] leading-relaxed whitespace-pre-wrap break-all font-mono text-stone-700 dark:text-stone-300">
+                      {displayResult.content}
+                    </pre>
+                  )}
+                  {displayResult.truncated && !showAll && (
+                    <button
+                      onClick={() => setShowAll(true)}
+                      className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                    >
+                      Show {displayResult.remaining} more lines
+                    </button>
+                  )}
+                </>
+              )}
+              {!tc.result && tc.status === "running" && (
+                <span className="text-[10px] text-stone-400">Running...</span>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function ToolTimeline({ toolCalls }: { toolCalls: ToolCallEvent[] }) {
+  const total = useMemo(() => toolCalls.reduce((s, t) => s + (t.durationMs ?? 200), 0), [toolCalls]);
+  
+  const formatTotalDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+  
+  if (toolCalls.length === 0) return null;
+  
+  return (
+    <div className="shrink-0 flex items-center gap-1 px-2 py-1.5 bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] overflow-x-auto">
+      <span className="text-[9px] text-stone-400 shrink-0 mr-1">Timeline:</span>
+      {toolCalls.map((tc, idx) => {
+        const cfg = getToolBadge(tc.name);
+        const widthPct = total > 0 ? ((tc.durationMs ?? 200) / total) * 100 : 100 / toolCalls.length;
+        const isFailed = tc.status === "error";
+        return (
+          <motion.button
+            key={tc.toolCallId ?? idx}
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(widthPct, 10)}%` }}
+            transition={{ duration: 0.3, delay: idx * 0.05 }}
+            className={`h-5 min-w-[40px] rounded text-[8px] font-medium truncate px-1 relative ${cfg.bg} ${MUT} hover:opacity-80 text-center overflow-hidden`}
+            title={`${tc.name}${tc.durationMs ? ` (${formatTotalDuration(tc.durationMs)})` : ""}`}
+          >
+            {tc.name.slice(0, 6)}
+            {isFailed && <span className="absolute inset-0 flex items-center justify-center bg-red-500/20">x</span>}
+          </motion.button>
+        );
+      })}
+      <span className="text-[9px] text-stone-400 shrink-0 ml-2">
+        {toolCalls.length} tool{toolCalls.length !== 1 ? "s" : ""} · {formatTotalDuration(total)}
+      </span>
     </div>
   );
 }
@@ -170,7 +386,6 @@ function formatRelativeTime(date: Date): string {
   return `${days}d ago`;
 }
 
-// ── Code block component with copy and language label ────────────────
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   const lang = className?.replace("language-", "") ?? "";
@@ -189,7 +404,6 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 
   return (
     <div className="relative group mb-3 last:mb-0">
-      {/* Language label + copy button */}
       <div className="flex items-center justify-between px-3 py-1 rounded-t-lg border border-b-0 border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#222]">
         <span className="text-[9px] uppercase tracking-wider font-mono text-stone-400 dark:text-stone-500">{lang || "code"}</span>
         <button onClick={handleCopy}
@@ -202,18 +416,6 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
       </pre>
     </div>
   );
-}
-
-function stripFrontMatter(md: string): string {
-  const lines = md.split("\n");
-  if (lines.length < 3) return md;
-  // YAML front matter: first line ---, second+ lines until closing ---
-  let end = -1;
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === "---") { end = i; break; }
-  }
-  if (end > 0) return lines.slice(end + 1).join("\n");
-  return md;
 }
 
 const CHECKBOX_RE = /^\[([ xX])\]\s*/;
@@ -235,52 +437,11 @@ function isCheckboxText(text: string): { checked: boolean; rest: string } | null
   return null;
 }
 
-function countTableCols(children: React.ReactNode): number {
-  let firstRow: React.ReactNode | null = null;
-  React.Children.forEach(children, (child) => {
-    if (!firstRow && child && typeof child === "object" && "props" in child) {
-      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
-      if (el.type === "thead") {
-        // Find first tr inside thead
-        React.Children.forEach(el.props.children, (thc) => {
-          if (!firstRow && thc && typeof thc === "object" && "props" in thc) {
-            const thEl = thc as React.ReactElement<{ children?: React.ReactNode }>;
-            if (thEl.type === "tr") firstRow = thEl;
-          }
-        });
-      } else if (el.type === "tr") {
-        firstRow = child;
-      } else if (el.type === "tbody") {
-        // First tr inside tbody
-        React.Children.forEach(el.props.children, (bch) => {
-          if (!firstRow && bch && typeof bch === "object" && "props" in bch) {
-            const bEl = bch as React.ReactElement<{ children?: React.ReactNode }>;
-            if (bEl.type === "tr") firstRow = bch;
-          }
-        });
-      }
-    }
-  });
-  if (firstRow && typeof firstRow === "object" && "props" in firstRow) {
-    const row = firstRow as React.ReactElement<{ children?: React.ReactNode }>;
-    let count = 0;
-    React.Children.forEach(row.props.children, (cell) => {
-      if (cell && typeof cell === "object" && "props" in cell) {
-        const cEl = cell as React.ReactElement;
-        if (cEl.type === "th" || cEl.type === "td") count++;
-      }
-    });
-    return count;
-  }
-  return 0;
-}
-
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
   ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
   ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-  li: ({ children, ...props }: { children?: React.ReactNode }) => {
-    // Check if this is a checkbox list item
+  li: ({ children }: { children?: React.ReactNode }) => {
     const childArr = React.Children.toArray(children);
     if (childArr.length === 1 && typeof childArr[0] === "string") {
       const cb = isCheckboxText(childArr[0] as string);
@@ -291,42 +452,60 @@ const MARKDOWN_COMPONENTS = {
   h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-base font-bold mb-2 mt-5 first:mt-0 pb-1 border-b border-[#E8E6E1] dark:border-[#333]">{children}</h1>,
   h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-bold mb-1.5 mt-4 first:mt-0">{children}</h2>,
   h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-xs font-semibold mb-1 mt-3 first:mt-0">{children}</h3>,
-  code: ({ className, children, ...props }: React.ComponentPropsWithoutRef<"code">) => {
+  code: ({ className, children }: React.ComponentPropsWithoutRef<"code">) => {
     const isInline = !className;
     if (isInline) return <code className="px-1 py-0.5 rounded bg-stone-200/70 dark:bg-[#333] text-[10px] font-mono">{children}</code>;
     return <CodeBlock className={className}>{children}</CodeBlock>;
   },
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold">{children}</strong>,
-  em: ({ children }: { children?: React.ReactNode }) => <em className="italic">{children}</em>,
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline hover:no-underline">{children}</a>,
-  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-stone-300 dark:border-stone-600 pl-3 italic mb-2">{children}</blockquote>,
-  hr: () => <hr className="my-2 border-[#E8E6E1] dark:border-[#333]" />,
-  table: ({ children }: { children?: React.ReactNode }) => {
-    // Count columns from thead or first tr
-    const colCount = countTableCols(children);
-    return (
-      <div className="overflow-x-auto mb-3 rounded-lg border border-[#E8E6E1] dark:border-[#333]">
-        <div className="text-[8px] uppercase tracking-wider text-stone-400 px-2 py-0.5 bg-stone-50 dark:bg-[#1a1a1a] border-b border-[#E8E6E1] dark:border-[#333]">{colCount} columns &middot; scroll sideways</div>
-        <table className="w-full text-xs border-collapse table-auto">{children}</table>
-      </div>
-    );
-  },
-  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-[#E8E6E1] dark:border-[#333] px-2 py-1 bg-stone-100 dark:bg-[#252525] font-semibold text-left">{children}</th>,
-  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-[#E8E6E1] dark:border-[#333] px-2 py-1">{children}</td>,
+  a: ({ href, children }: React.ComponentPropsWithoutRef<"a">) => <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-stone-300 dark:border-stone-600 pl-3 my-2 text-stone-600 dark:text-stone-400 italic">{children}</blockquote>,
+  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto my-2"><table className="min-w-full text-xs border-collapse">{children}</table></div>,
+  thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-stone-100 dark:bg-[#222]">{children}</thead>,
+  tbody: ({ children }: { children?: React.ReactNode }) => <tbody>{children}</tbody>,
+  tr: ({ children }: { children?: React.ReactNode }) => <tr className="border-b border-[#E8E6E1] dark:border-[#333]">{children}</tr>,
+  th: ({ children }: { children?: React.ReactNode }) => <th className="text-left px-2 py-1 font-medium text-stone-600 dark:text-stone-400">{children}</th>,
+  td: ({ children }: { children?: React.ReactNode }) => <td className="px-2 py-1 text-stone-700 dark:text-stone-300">{children}</td>,
+  hr: () => <hr className="my-3 border-[#E8E6E1] dark:border-[#333]" />,
 };
 
-function MarkdownContent({ content }: { content: string }) {
-  const clean = content.startsWith("---") ? stripFrontMatter(content) : content;
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]} components={MARKDOWN_COMPONENTS}>{clean}</ReactMarkdown>;
-}
+const MarkdownContent = React.memo(function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={MARKDOWN_COMPONENTS}>
+      {content}
+    </ReactMarkdown>
+  );
+});
 
-function MessageBubble({ msg, index, onContextRefClick, onEdit, onRegenerate, isLastAssistant }: {
-  msg: ChatMessage; index: number; onContextRefClick?: (ref: ContextRef) => void;
-  onEdit?: () => void; onRegenerate?: () => void; isLastAssistant?: boolean;
+function MessageBubble({
+  msg,
+  index,
+  onContextRefClick,
+  onEdit,
+  onRegenerate,
+  isLastAssistant,
+  isPinned,
+  onTogglePin,
+  messageFeedback,
+  onFeedback,
+  onSubmitFeedback,
+}: {
+  msg: ChatMessage;
+  index: number;
+  onContextRefClick?: (ref: ContextRef) => void;
+  onEdit?: () => void;
+  onRegenerate?: () => void;
+  isLastAssistant?: boolean;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
+  messageFeedback?: { rating: 1 | -1 | null; comment?: string };
+  onFeedback?: (rating: 1 | -1) => void;
+  onSubmitFeedback?: (comment: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [showFeedbackComment, setShowFeedbackComment] = useState(false);
+  const [feedbackComment, setFeedbackComment] = useState("");
 
   const handleCopy = useCallback(async () => {
     try {
@@ -336,53 +515,122 @@ function MessageBubble({ msg, index, onContextRefClick, onEdit, onRegenerate, is
     } catch {}
   }, [msg.content]);
 
+  const handleSubmitFeedback = useCallback(() => {
+    onSubmitFeedback?.(feedbackComment);
+    setShowFeedbackComment(false);
+    setFeedbackComment("");
+  }, [feedbackComment, onSubmitFeedback]);
+
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}
-      className={`flex gap-2 group ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={`flex gap-2 group ${msg.role === "user" ? "justify-end" : "justify-start"} ${isPinned ? "border-l-2 border-amber-400 pl-1" : ""}`}
+    >
       {msg.role === "assistant" && <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />}
       <div className="max-w-[85%] space-y-1.5">
         {msg.role === "user" && msg.contextRefs?.length ? (
           <div className="flex flex-wrap gap-1 mb-0.5">{msg.contextRefs.map((r) => <ContextRefPill key={`${r.kind}:${r.id}-${index}`} ctx={r} onClick={() => onContextRefClick?.(r)} />)}</div>
         ) : null}
+
         <div className={`rounded-lg px-3 py-2 leading-relaxed relative ${msg.role === "user" ? "bg-blue-600 text-white" : `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}`}>
+          {isPinned && (
+            <div className="absolute -top-2 -right-2">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500 }}>
+                <Star size={12} className="text-amber-500 fill-amber-500" />
+              </motion.div>
+            </div>
+          )}
           {msg.role === "assistant" ? <MarkdownContent content={msg.content} /> : <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
-          {/* Timestamp */}
+
           {msg.createdAt && (
             <div className={`text-[8px] mt-1.5 ${msg.role === "user" ? "text-blue-200" : MUT}`}>
               {formatRelativeTime(msg.createdAt)}
             </div>
           )}
-          {/* Copy + action buttons */}
-          <div className={`absolute -bottom-4 right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${msg.role === "user" ? "" : ""}`}>
+
+          <div className={`absolute -bottom-4 right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity`}>
             <button onClick={handleCopy}
-              className={`p-0.5 rounded ${copied ? "text-green-500" : MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`} title="Copy message">
+              className={`p-0.5 rounded ${copied ? "text-green-500" : MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`}
+              title="Copy message" aria-label="Copy message">
               {copied ? <CheckCircle2 size={9} /> : <Copy size={9} />}
             </button>
+
+            {msg.role === "assistant" && onTogglePin && (
+              <button onClick={onTogglePin}
+                className={`p-0.5 rounded ${isPinned ? "text-amber-500" : MUT} hover:text-amber-500 transition-colors`}
+                title={isPinned ? "Unpin message" : "Pin message"} aria-label={isPinned ? "Unpin message" : "Pin message"}>
+                <Star size={9} className={isPinned ? "fill-amber-500" : ""} />
+              </button>
+            )}
+
+            {msg.role === "assistant" && (
+              <>
+                <button onClick={() => onFeedback?.(1)}
+                  className={`p-0.5 rounded ${messageFeedback?.rating === 1 ? "text-green-500" : MUT} hover:text-green-500 transition-colors`}
+                  title="Good response" aria-label="Thumbs up">
+                  <ThumbsUp size={9} />
+                </button>
+                <button onClick={() => onFeedback?.(-1)}
+                  className={`p-0.5 rounded ${messageFeedback?.rating === -1 ? "text-red-500" : MUT} hover:text-red-500 transition-colors`}
+                  title="Poor response" aria-label="Thumbs down">
+                  <ThumbsDown size={9} />
+                </button>
+              </>
+            )}
+
             {msg.role === "user" && onEdit && (
-              <button onClick={onEdit} className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`} title="Edit message">
+              <button onClick={onEdit} className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`} title="Edit message" aria-label="Edit message">
                 <Pencil size={9} />
               </button>
             )}
+
             {msg.role === "assistant" && isLastAssistant && onRegenerate && (
-              <button onClick={onRegenerate} className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`} title="Regenerate">
+              <button onClick={onRegenerate} className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`} title="Regenerate" aria-label="Regenerate response">
                 <RefreshCw size={9} />
               </button>
             )}
           </div>
         </div>
-        {msg.toolCalls?.length ? <div className="flex flex-wrap gap-1">{msg.toolCalls.map((tc, j) => <ToolBadge key={j} tc={tc} compact />)}</div> : null}
+
+        {msg.role === "assistant" && messageFeedback?.rating === -1 && !showFeedbackComment && (
+          <div className="mt-1">
+            <button onClick={() => setShowFeedbackComment(true)} className={`text-[9px] ${MUT} hover:text-stone-600 underline`}>
+              Add feedback
+            </button>
+          </div>
+        )}
+
+        {msg.role === "assistant" && showFeedbackComment && (
+          <div className="flex gap-1 mt-1">
+            <textarea
+              value={feedbackComment}
+              onChange={(e) => setFeedbackComment(e.target.value)}
+              placeholder="What was wrong?"
+              className={`flex-1 text-[9px] px-2 py-1 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} resize-none`}
+              rows={2}
+              aria-label="Feedback comment"
+            />
+            <button onClick={handleSubmitFeedback} className={`text-[9px] px-2 py-1 rounded ${ACC_BG} ${ACC_TXT}`}>
+              Submit
+            </button>
+          </div>
+        )}
+
+        {msg.toolCalls?.length ? (
+          <div className="space-y-1">
+            <ToolTimeline toolCalls={msg.toolCalls} />
+            {msg.toolCalls.map((tc, j) => <ToolResultPanel key={j} tc={tc} compact />)}
+          </div>
+        ) : null}
       </div>
       {msg.role === "user" && <User size={14} className="shrink-0 mt-1 text-stone-400" />}
     </motion.div>
   );
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
-}
-
+// Remaining message count (for status bar)
 function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, onSelectModel, onCompact, compacting }: {
   provider: string; model: string; contextUsed: number; contextLimit: number;
   aiModels: AiModelInfo[]; onSelectModel: (p: string, m: string) => void;
@@ -393,6 +641,7 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
   const searchRef = useRef<HTMLInputElement>(null);
   const pct = contextLimit > 0 ? Math.min(100, Math.round((contextUsed / contextLimit) * 100)) : 0;
   const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-blue-500";
+
   return (
     <div className={`shrink-0 flex items-center gap-2 px-4 py-1.5 border-b ${BORD} bg-stone-50 dark:bg-[#161616] text-[9px] relative`}>
       <button onClick={() => setMenuOpen(!menuOpen)} className={`inline-flex items-center gap-1 ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors shrink-0`} title="Change model">
@@ -405,60 +654,212 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
             onKeyDown={(e) => { if (e.key === "Escape") { setMenuOpen(false); setSearchQuery(""); } }}>
             <div className="relative mb-1 shrink-0">
               <Search size={10} className={`absolute left-2 top-1/2 -translate-y-1/2 ${MUT}`} />
-              <input ref={searchRef} type="text" value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search models..."
-                autoFocus
-                className={`w-full pl-6 pr-2 py-1.5 text-[10px] rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500`}
-              />
+              <input ref={searchRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search models..." autoFocus
+                className={`w-full pl-7 pr-2 py-1.5 text-[10px] bg-transparent ${TXT} placeholder-stone-400 focus:outline-none`} />
             </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {(() => {
-                const q = searchQuery.toLowerCase();
-                const filtered = q
-                  ? aiModels.filter((p) =>
-                      p.provider.toLowerCase().includes(q) ||
-                      p.models.some((m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
-                    ).map((p) => ({
-                      ...p,
-                      models: p.models.filter((m) =>
-                        m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
-                      ),
-                    }))
-                  : aiModels;
-                if (filtered.length === 0) {
-                  return <div className={`px-2 py-3 text-[10px] ${MUT} text-center`}>No models found</div>;
-                }
-                return filtered.map((p) => (
-                  <div key={p.provider}>
-                    <div className={`px-2 py-1 text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>{p.provider}</div>
-                    {p.models.map((m) => (
-                      <button key={m.id} onClick={() => { onSelectModel(p.provider, m.id); setMenuOpen(false); setSearchQuery(""); }}
-                        className={`w-full text-left px-2 py-1 text-[10px] rounded transition-colors ${provider === p.provider && model === m.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}`}>{m.name}</button>
-                    ))}
-                  </div>
-                ));
-              })()}
+            <div className="flex-1 overflow-y-auto">
+              {aiModels.map((p) => (
+                <div key={p.provider}>
+                  <div className={`px-2 py-1 text-[9px] font-semibold ${MUT} uppercase tracking-wider sticky top-0 bg-white dark:bg-[#1E1E1E]`}>{p.provider}</div>
+                  {p.models.filter((m) => searchQuery === "" || m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m) => (
+                    <button key={m.id} onClick={() => { onSelectModel(p.provider, m.id); setMenuOpen(false); setSearchQuery(""); }}
+                      className={`w-full text-left px-2 py-1.5 text-[10px] rounded ${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
         </>
       )}
-      <span className={`w-px h-3 border-l ${BORD}`} />
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <span className={`${MUT} whitespace-nowrap`}>{formatTokens(contextUsed)} / {formatTokens(contextLimit)}</span>
-        <div className="flex-1 h-1.5 rounded-full bg-stone-200 dark:bg-[#333] overflow-hidden min-w-[40px]">
-          <motion.div className={`h-full rounded-full ${barColor}`} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.4, ease: "easeOut" }} />
-        </div>
+      <div className="flex-1 h-1.5 rounded-full bg-stone-200 dark:bg-[#333] overflow-hidden">
+        <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
+      <span className={MUT}>{contextUsed.toLocaleString()} / {contextLimit.toLocaleString()} tokens</span>
       <button onClick={onCompact} disabled={compacting}
-        className={`inline-flex items-center gap-1 ${MUT} hover:text-stone-700 dark:hover:text-stone-300 disabled:opacity-40 transition-colors shrink-0`} title="Compact context">
-        <Minimize2 size={10} /><span>{compacting ? "Compacting..." : "Compact"}</span>
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] transition-colors ${compacting ? "opacity-50" : MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+        title="Compact context">
+        {compacting ? <Loader2 size={9} className="animate-spin" /> : <Archive size={9} />}
+        <span>Compact</span>
       </button>
     </div>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PinnedMessagesPanel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PinnedMessagesPanel({ pinnedIndices, messages, onClose, onJump }: {
+  pinnedIndices: Set<number>;
+  messages: ChatMessage[];
+  onClose: () => void;
+  onJump: (index: number) => void;
+}) {
+  const pinnedMsgs = useMemo(() =>
+    Array.from(pinnedIndices).sort((a, b) => a - b).map(i => ({ index: i, msg: messages[i] })),
+    [pinnedIndices, messages]
+  );
+
+  return (
+    <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 260, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className={`shrink-0 border-l ${BORD} flex flex-col overflow-hidden bg-white dark:bg-[#1E1E1E]`}
+    >
+      <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
+        <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Pinned Messages</span>
+        <button onClick={onClose} className={`${MUT} hover:text-stone-600`}><X size={12} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {pinnedMsgs.length === 0 ? (
+          <div className={`text-[10px] ${MUT} text-center py-4`}>No pinned messages</div>
+        ) : (
+          pinnedMsgs.map(({ index, msg }) => (
+            <button key={index} onClick={() => onJump(index)}
+              className={`w-full text-left p-2 rounded border ${BORD} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`}
+            >
+              <div className="flex items-center gap-1 mb-1">
+                <Star size={9} className="text-amber-500 fill-amber-500" />
+                <span className={`text-[9px] ${MUT}`}>Message {index + 1}</span>
+              </div>
+              <p className={`text-[10px] ${TXT} line-clamp-2`}>{msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}</p>
+            </button>
+          ))
+        )}
+      </div>
+      {pinnedMsgs.length > 0 && (
+        <div className={`shrink-0 px-3 py-2 border-t ${BORD}`}>
+          <button className={`text-[9px] ${MUT} hover:text-red-500 flex items-center gap-1`}>
+            <Trash2 size={9} /> Clear all pins
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SessionStatsPanel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SessionStatsPanel({ messages, onClose }: { messages: ChatMessage[]; onClose: () => void }) {
+  const stats = useMemo(() => {
+    const toolCalls = messages.flatMap(m => m.toolCalls ?? []);
+    const byType = toolCalls.reduce<Record<string, number>>((acc, tc) => {
+      acc[tc.name] = (acc[tc.name] ?? 0) + 1;
+      return acc;
+    }, {});
+    const filePaths = toolCalls
+      .filter(tc => ["read", "write", "edit"].includes(tc.name))
+      .map(tc => String(tc.args?.path ?? tc.args?.file_path ?? ""))
+      .filter(Boolean);
+    const uniqueFiles = [...new Set(filePaths)];
+    const firstMsg = messages[0]?.createdAt;
+    const lastMsg = messages[messages.length - 1]?.createdAt;
+    const durationMs = firstMsg && lastMsg ? lastMsg.getTime() - firstMsg.getTime() : 0;
+    const errorCount = toolCalls.filter(t => t.status === "error").length;
+    return {
+      totalMessages: messages.length,
+      toolCalls: toolCalls.length,
+      byType,
+      uniqueFiles,
+      durationMs,
+      errorCount
+    };
+  }, [messages]);
+
+  const formatDuration = (ms: number) => {
+    if (ms < 60000) return `${Math.round(ms / 1000)}s`;
+    if (ms < 3600000) return `${Math.round(ms / 60000)}m`;
+    return `${Math.round(ms / 3600000)}h`;
+  };
+
+  const maxTypeCount = Math.max(...Object.values(stats.byType), 1);
+
+  return (
+    <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 280, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className={`shrink-0 border-l ${BORD} flex flex-col overflow-hidden bg-white dark:bg-[#1E1E1E]`}
+    >
+      <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
+        <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Session Stats</span>
+        <button onClick={onClose} className={`${MUT} hover:text-stone-600`}><X size={12} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <div className={`p-2 rounded border ${BORD} text-center`}>
+            <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{stats.totalMessages}</div>
+            <div className={`text-[9px] ${MUT}`}>Messages</div>
+          </div>
+          <div className={`p-2 rounded border ${BORD} text-center`}>
+            <div className="text-sm font-bold text-green-600 dark:text-green-400">{stats.toolCalls}</div>
+            <div className={`text-[9px] ${MUT}`}>Tool Calls</div>
+          </div>
+          <div className={`p-2 rounded border ${BORD} text-center`}>
+            <div className="text-sm font-bold text-amber-600 dark:text-amber-400">{stats.errorCount}</div>
+            <div className={`text-[9px] ${MUT}`}>Errors</div>
+          </div>
+          <div className={`p-2 rounded border ${BORD} text-center`}>
+            <div className="text-sm font-bold text-purple-600 dark:text-purple-400">{formatDuration(stats.durationMs)}</div>
+            <div className={`text-[9px] ${MUT}`}>Duration</div>
+          </div>
+        </div>
+
+        {stats.uniqueFiles.length > 0 && (
+          <div>
+            <div className={`text-[9px] font-semibold ${MUT} mb-1`}>Files Touched ({stats.uniqueFiles.length})</div>
+            <div className="max-h-24 overflow-y-auto space-y-0.5">
+              {stats.uniqueFiles.slice(0, 10).map((f, i) => (
+                <div key={i} className={`text-[9px] ${TXT} truncate`}>{f}</div>
+              ))}
+              {stats.uniqueFiles.length > 10 && <div className={`text-[9px] ${MUT}`}>+{stats.uniqueFiles.length - 10} more</div>}
+            </div>
+          </div>
+        )}
+
+        {stats.toolCalls > 0 && (
+          <div>
+            <div className={`text-[9px] font-semibold ${MUT} mb-1`}>Tool Call Breakdown</div>
+            <div className="space-y-1">
+              {Object.entries(stats.byType).map(([name, count]) => {
+                return (
+                  <div key={name} className="flex items-center gap-1">
+                    <span className={`text-[9px] w-12 truncate ${MUT}`}>{name}</span>
+                    <div className="flex-1 h-2 bg-stone-100 dark:bg-[#333] rounded overflow-hidden">
+                      <div className="h-full bg-blue-100 dark:bg-blue-900/40" style={{ width: `${(count / maxTypeCount) * 100}%` }} />
+                    </div>
+                    <span className={`text-[9px] w-4 text-right ${MUT}`}>{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: export chat
+// ─────────────────────────────────────────────────────────────────────────────
+
+function exportChatMessages(messages: ChatMessage[]): string {
+  return messages.map(m => {
+    const role = m.role === "user" ? "You" : "AI";
+    const refs = m.contextRefs?.length ? ` [${m.contextRefs.map(r => r.label).join(", ")}]` : "";
+    return `## ${role}${refs}\n\n${m.content}\n`;
+  }).join("---\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalContextRefs = [], onContextRefClick }: ChatPanelProps) {
+  // Basic state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -466,23 +867,33 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [attachedRefs, setAttachedRefs] = useState<ContextRef[]>(externalContextRefs);
+
+  // Model state
   const [chatProvider, setChatProvider] = useState("opencode-go");
   const [chatModel, setChatModel] = useState("deepseek-v4-flash");
   const [contextLimit, setContextLimit] = useState(128000);
   const [contextUsed, setContextUsed] = useState(0);
   const [aiModels, setAiModels] = useState<AiModelInfo[]>([]);
   const [compacting, setCompacting] = useState(false);
+
+  // Session state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [showThreads, setShowThreads] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [renamingSession, setRenamingSession] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // Editing + search
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [messageSearch, setMessageSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+
+  // Scroll
   const [autoScroll, setAutoScroll] = useState(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [renamingSession, setRenamingSession] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+
+  // File search
   const [showFileSearch, setShowFileSearch] = useState(false);
   const [fileQuery, setFileQuery] = useState("");
   const [fileSearchResults, setFileSearchResults] = useState<Array<{ name: string; path: string; ext: string; dir: string; isDir: boolean }>>([]);
@@ -491,217 +902,113 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
   const [fileBrowserParent, setFileBrowserParent] = useState("");
   const [fileSearchLoading, setFileSearchLoading] = useState(false);
   const [fileSearchActiveIdx, setFileSearchActiveIdx] = useState<number | null>(null);
+
+  // Feature 4: Pins
+  const [pinnedIndices, setPinnedIndices] = useState<Set<number>>(new Set());
+  const [showPins, setShowPins] = useState(false);
+
+  // Feature 5: Slash command prompts
+  const [showPromptPicker, setShowPromptPicker] = useState(false);
+  const [promptQuery, setPromptQuery] = useState("");
+  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>(DEFAULT_SAVED_PROMPTS);
+  const [promptPickerIdx, setPromptPickerIdx] = useState<number | null>(null);
+
+  // Feature 6: Drag-drop
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Feature 7: Stats
+  const [showStats, setShowStats] = useState(false);
+
+  // Feature 9: Feedback
+  const [feedback, setFeedback] = useState<Record<number, { rating: 1 | -1 | null; comment?: string }>>({});
+
+  // Feature 10: Voice input
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+
+  // Refs
   const fileSearchRef = useRef<HTMLDivElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchAbortRef = useRef<AbortController | null>(null);
-  const atSignIndexRef = useRef<number | null>(null); // index of @ in input
+  const promptInputRef = useRef<HTMLInputElement>(null);
+  const atSignIndexRef = useRef<number | null>(null);
+  const slashIndexRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
   const totalCharsRef = useRef(0);
-  const estimateTokens = (text: string) => Math.round(text.length * 0.3);
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────────
+  // Computed values
+  const filteredMessages = useMemo(() => {
+    if (!messageSearch) return messages;
+    const q = messageSearch.toLowerCase();
+    return messages.filter((m) => m.content.toLowerCase().includes(q));
+  }, [messages, messageSearch]);
+
+  const filteredSavedPrompts = useMemo(() => {
+    if (!promptQuery.trim()) return savedPrompts;
+    const q = promptQuery.toLowerCase();
+    return savedPrompts.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.tags.some(t => t.toLowerCase().includes(q))
+    );
+  }, [savedPrompts, promptQuery]);
+
+  const availableQuickActions = QUICK_ACTIONS.filter((a) => !a.requires?.length || a.requires.some((req) => attachedRefs.some((r) => r.kind === req)));
+
+  // Load pinned indices
+  useEffect(() => {
+    const sid = sessionIdRef.current;
+    const saved = localStorage.getItem(`pins-${sid}`);
+    if (saved) {
+      try {
+        const arr = JSON.parse(saved) as number[];
+        setPinnedIndices(new Set(arr));
+      } catch {}
+    }
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      // Cmd+K to open search
+    const handleGlobalKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setShowSearch((prev) => !prev);
+        setShowSearch(prev => !prev);
       }
-      // Escape to close search
-      if (e.key === "Escape" && showSearch) {
-        setShowSearch(false);
-        setMessageSearch("");
-      }
-      // Cmd+Shift+E to export
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "e") {
-        e.preventDefault();
-        exportChat();
-      }
-
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, showSearch, messages]);
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, [isOpen]);
 
-  // ── Export chat ─────────────────────────────────────────────────────
-  const exportChat = useCallback(() => {
-    if (messages.length === 0) return;
-    const text = messages.map((m) => {
-      const prefix = m.role === "user" ? "**User:**" : "**Assistant:**";
-      return `${prefix}\n${m.content}`;
-    }).join("\n\n---\n\n");
-    const blob = new Blob([text], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chat-${sessionIdRef.current.slice(0, 8)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [messages]);
-
-  // ── Scroll management ───────────────────────────────────────────────
+  // Scroll handling
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const handleScroll = () => {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-      setAutoScroll(nearBottom);
-      setShowScrollBtn(!nearBottom);
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+      setShowScrollBtn(!atBottom);
+      setAutoScroll(atBottom);
     };
     el.addEventListener("scroll", handleScroll);
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
-    if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (autoScroll && bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, streamBuffer, autoScroll]);
 
-  useEffect(() => {
-    if (isOpen) { const t = setTimeout(() => inputRef.current?.focus(), 100); return () => clearTimeout(t); }
-  }, [isOpen]);
-
-  const scrollToBottom = () => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); setAutoScroll(true); };
-
-  // ── Load data on open ───────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    fetch(`${API_BASE}/api/settings`).then((r) => r.ok ? r.json() : {}).then((s: Record<string, unknown>) => {
-      setChatProvider((s.defaultProvider as string) ?? "opencode-go");
-      setChatModel((s.defaultModel as string) ?? "deepseek-v4-flash");
-      setContextLimit(((s.contextBudgets as Record<string, number>)?.flash ?? 128000));
-    }).catch(() => {});
-    fetch(`${API_BASE}/api/ai-models`).then((r) => r.ok ? r.json() : { providers: [] }).then((d) => setAiModels(d.providers ?? [])).catch(() => {});
-    sessionIdRef.current = crypto.randomUUID();
-    setActiveSessionId(null);
-    setSessions([]);
-    setMessages([]);
-    setAttachedRefs(externalContextRefs);
-    setError(null);
-    setStreamBuffer("");
-    setActiveToolCalls([]);
-    setContextUsed(0);
-    totalCharsRef.current = 0;
-    setIsFullscreen(false);
-    setEditingIndex(null);
-    setMessageSearch("");
-    setShowSearch(false);
-    if (!projectId) return;
-    fetch(`${API_BASE}/api/projects/${projectId}/chat/history`).then((r) => r.ok ? r.json() : { sessions: [], messages: [] }).then((data) => {
-      setSessions(data.sessions ?? []);
-      if (data.sessions?.length > 0) {
-        const latest = data.sessions[0];
-        setActiveSessionId(latest.id);
-        sessionIdRef.current = latest.id;
-        if (data.messages?.length) {
-          setMessages(data.messages);
-          const chars = data.messages.reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
-          totalCharsRef.current = chars;
-          setContextUsed(estimateTokens(String(chars)));
-        }
-      }
-    }).catch(() => {});
-  }, [isOpen, projectId]);
-
-  useEffect(() => {
-    if (!streamBuffer) return;
-    setContextUsed(estimateTokens(String(totalCharsRef.current + streamBuffer.length)));
-  }, [streamBuffer]);
-
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    if (last.role === "assistant") {
-      totalCharsRef.current += last.content.length;
-      setContextUsed(estimateTokens(String(totalCharsRef.current)));
-    }
-  }, [messages]);
-
-  // ── Thread management ───────────────────────────────────────────────
-  const switchSession = useCallback((sessionId: string) => {
-    if (streaming) return;
-    setActiveSessionId(sessionId);
-    sessionIdRef.current = sessionId;
-    setError(null);
-    setEditingIndex(null);
-    setMessageSearch("");
-    setShowSearch(false);
-    fetch(`${API_BASE}/api/projects/${projectId}/chat/history?sessionId=${sessionId}`)
-      .then((r) => r.ok ? r.json() : { messages: [] })
-      .then((data) => {
-        setMessages(data.messages ?? []);
-        const chars = (data.messages ?? []).reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
-        totalCharsRef.current = chars;
-        setContextUsed(estimateTokens(String(chars)));
-        setShowThreads(false);
-      }).catch(() => {});
-  }, [projectId, streaming]);
-
-  const newSession = useCallback(() => {
-    if (streaming) return;
-    setActiveSessionId(null);
-    sessionIdRef.current = crypto.randomUUID();
-    setMessages([]);
-    setStreamBuffer("");
-    setActiveToolCalls([]);
-    setError(null);
-    setEditingIndex(null);
-    setContextUsed(0);
-    totalCharsRef.current = 0;
-    setShowThreads(false);
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, [streaming]);
-
-  // ── Rename thread ───────────────────────────────────────────────────
-  const handleRename = useCallback((sessionId: string) => {
-    setRenamingSession(sessionId);
-    const s = sessions.find((s) => s.id === sessionId);
-    setRenameValue(s?.title ?? "");
-  }, [sessions]);
-
-  const submitRename = useCallback((sessionId: string) => {
-    const trimmed = renameValue.trim();
-    if (!trimmed) return;
-    setSessions((prev) => prev.map((s) => s.id === sessionId ? { ...s, title: trimmed } : s));
-    setRenamingSession(null);
-  }, [renameValue]);
-
-  const handleSelectModel = useCallback((provider: string, model: string) => {
-    setChatProvider(provider);
-    setChatModel(model);
-    fetch(`${API_BASE}/api/settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ defaultProvider: provider, defaultModel: model }) }).catch(() => {});
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setAutoScroll(true);
   }, []);
 
-  const handleCompact = useCallback(async () => {
-    if (compacting || messages.length === 0) return;
-    setCompacting(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/chat/compact`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId, sessionId: sessionIdRef.current }) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.messages) {
-          setMessages(data.messages);
-          setSessions((prev) => prev.map((s) => s.id === sessionIdRef.current ? { ...s, messageCount: data.messages.length } : s));
-          const chars = data.messages.reduce((s: number, m: { content: string }) => s + (m.content?.length ?? 0), 0);
-          totalCharsRef.current = chars;
-          setContextUsed(estimateTokens(String(chars)));
-        }
-      }
-    } catch {} finally { setCompacting(false); }
-  }, [compacting, messages, projectId]);
-
-  // ── Filtered messages for search ─────────────────────────────────────
-  const filteredMessages = useMemo(() => {
-    if (!messageSearch.trim()) return messages;
-    const q = messageSearch.toLowerCase();
-    return messages.filter((m) => m.content.toLowerCase().includes(q));
-  }, [messages, messageSearch]);
-
-  // ── Send message ─────────────────────────────────────────────────────
+  // ── Send message with all bug fixes ──────────────────────────────────
   const sendMessage = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim();
     if (!text || !projectId || streaming) return;
@@ -714,64 +1021,128 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
     setStreamBuffer("");
     setActiveToolCalls([]);
     totalCharsRef.current += text.length;
+
     const toolCallMap = new Map<string, ToolCallEvent>();
     const abort = new AbortController();
     abortRef.current = abort;
+
     try {
       const response = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, message: text, sessionId: sessionIdRef.current, provider: chatProvider, model: chatModel, contextRefs: snapshotRefs.map((r) => ({ kind: r.kind, id: r.id, label: r.label })) }),
+        body: JSON.stringify({
+          projectId, message: text, sessionId: sessionIdRef.current,
+          provider: chatProvider, model: chatModel,
+          contextRefs: snapshotRefs.map((r) => ({ kind: r.kind, id: r.id, label: r.label })),
+        }),
         signal: abort.signal,
       });
-      if (!response.ok) { setError(`HTTP ${response.status}: ${response.statusText}`); setStreaming(false); return; }
+
+      if (!response.ok) {
+        setError(`HTTP ${response.status}: ${response.statusText}`);
+        setStreaming(false);
+        return;
+      }
+
       const reader = response.body?.getReader();
       if (!reader) { setError("No response body"); setStreaming(false); return; }
+
       let fullText = "";
       let inputTokens = 0;
       let outputTokens = 0;
       const decoder = new TextDecoder();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+
         for (const line of decoder.decode(value, { stream: true }).split("\n")) {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
           if (!data) continue;
+
           try {
             const event = JSON.parse(data);
-            if (event.type === "text") { fullText += event.text; setStreamBuffer(fullText); }
-            else if (event.type === "error") { setError(event.message); }
-            else if (event.type === "usage") {
+
+            // Bug fix 3: Proper error message extraction
+            if (event.type === "text") {
+              fullText += event.text;
+              setStreamBuffer(fullText);
+            } else if (event.type === "error") {
+              setError(extractErrorMessage(event.message ?? event));
+            } else if (event.type === "usage") {
               inputTokens = event.inputTokens ?? 0;
               outputTokens = event.outputTokens ?? 0;
               if (event.totalTokens) setContextUsed(event.totalTokens);
-            }
-            else if (event.type === "done") {
-              const assistantMsg: ChatMessage = { role: "assistant", content: fullText, toolCalls: Array.from(toolCallMap.values()), createdAt: new Date() };
+            } else if (event.type === "done") {
+              const assistantMsg: ChatMessage = {
+                role: "assistant", content: fullText,
+                toolCalls: Array.from(toolCallMap.values()),
+                createdAt: new Date()
+              };
               setMessages((prev) => [...prev, assistantMsg]);
               if (inputTokens || outputTokens) setContextUsed(inputTokens + outputTokens);
-              setStreamBuffer(""); setActiveToolCalls([]); setStreaming(false);
-              // Refresh session list to get updated message count
+              setStreamBuffer("");
+              setActiveToolCalls([]);
+              setStreaming(false);
+              // Refresh session list
               if (projectId) {
                 fetch(`${API_BASE}/api/projects/${projectId}/chat/history?sessionId=${sessionIdRef.current}`)
                   .then((r) => r.ok ? r.json() : { sessions: [] })
                   .then((data) => { if (data.sessions?.length) setSessions(data.sessions); })
                   .catch(() => {});
               }
-            } else if (event.type === "tool_call") {
-              const toolId = event.tool.toolCallId || event.tool.name;
+            }
+            // Bug fix 1 & 4: Stable client-side ID + new object every time
+            else if (event.type === "tool_call") {
+              const toolId = event.tool.toolCallId ??
+                `${event.tool.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
               const existing = toolCallMap.get(toolId);
-              if (existing) { existing.status = "success"; } else { toolCallMap.set(toolId, { name: event.tool.name, args: event.tool.args, toolCallId: event.tool.toolCallId, status: "running" }); }
-              setActiveToolCalls(Array.from(toolCallMap.values()));
+              if (existing) {
+                // Always replace with new object to trigger re-render
+                toolCallMap.set(toolId, { ...existing, status: "running", startedAt: Date.now() });
+              } else {
+                toolCallMap.set(toolId, {
+                  name: event.tool.name, args: event.tool.args,
+                  toolCallId: toolId, status: "running", startedAt: Date.now()
+                });
+              }
+              setActiveToolCalls([...toolCallMap.values()]);
+            }
+            // Bug fix 2: tool_result event handler prevents stream pollution
+            else if (event.type === "tool_result") {
+              const toolId = event.toolCallId;
+              if (toolId) {
+                const existing = toolCallMap.get(toolId);
+                if (existing) {
+                  const durationMs = existing.startedAt ? Date.now() - existing.startedAt : undefined;
+                  toolCallMap.set(toolId, {
+                    ...existing,
+                    status: event.isError ? "error" : "success",
+                    result: typeof event.content === "string"
+                      ? event.content
+                      : JSON.stringify(event.content, null, 2),
+                    durationMs,
+                  });
+                  setActiveToolCalls([...toolCallMap.values()]);
+                }
+              }
             }
           } catch {}
         }
       }
-    } catch (err: unknown) { if (err instanceof Error && err.name !== "AbortError") setError(String(err)); }
-    finally { setStreamBuffer(""); setStreaming(false); abortRef.current = null; }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        setError(extractErrorMessage(err));
+      }
+    } finally {
+      setStreamBuffer("");
+      setStreaming(false);
+      abortRef.current = null;
+    }
   }, [input, projectId, streaming, attachedRefs, chatProvider, chatModel]);
 
+  // ── File search ──────────────────────────────────────────────────────
   const fetchDirectory = useCallback(async (path: string) => {
     if (!projectId) return;
     setFileSearchLoading(true);
@@ -812,23 +1183,245 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
     atSignIndexRef.current = null;
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (showSearch) {
-      if (e.key === "Enter") { setShowSearch(false); }
+  const selectFile = useCallback((file: { name: string; path: string; isDir: boolean; ext: string; dir: string }) => {
+    if (file.isDir) { fetchDirectory(file.path); return; }
+    const ref: ContextRef = { kind: "artifact", id: file.path, label: file.path };
+    setAttachedRefs((prev) => {
+      if (prev.some((r) => r.id === file.path)) return prev;
+      return [...prev, ref];
+    });
+    if (atSignIndexRef.current !== null) {
+      const atIdx = atSignIndexRef.current;
+      const beforeAt = input.slice(0, atIdx);
+      const cursorPos = inputRef.current?.selectionStart ?? input.length;
+      const afterAt = input.slice(cursorPos);
+      setInput(beforeAt + afterAt);
+      atSignIndexRef.current = null;
+    }
+    closeFileSearch();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [input, closeFileSearch, fetchDirectory]);
+
+  // Debounced file search
+  useEffect(() => {
+    if (!showFileSearch || !projectId || !fileQuery.trim()) {
+      setFileSearchResults([]);
       return;
     }
-    // Arrow up to edit last user message (when input is empty)
-    if (e.key === "ArrowUp" && !input && messages.length > 0) {
-      const lastUserIdx = messages.length - 1;
-      if (messages[lastUserIdx].role === "user") {
+    const id = setTimeout(async () => {
+      if (fileSearchAbortRef.current) fileSearchAbortRef.current.abort();
+      const abort = new AbortController();
+      fileSearchAbortRef.current = abort;
+      setFileSearchLoading(true);
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/projects/${projectId}/files/search?q=${encodeURIComponent(fileQuery)}&limit=50`,
+          { signal: abort.signal },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setFileSearchResults(data.files ?? []);
+        }
+      } catch {} finally {
+        if (!abort.signal.aborted) setFileSearchLoading(false);
+      }
+    }, 200);
+    return () => { clearTimeout(id); };
+  }, [fileQuery, showFileSearch, projectId]);
+
+  // ── Prompt selection ──────────────────────────────────────────────
+  const selectPrompt = useCallback((prompt: SavedPrompt) => {
+    if (slashIndexRef.current !== null) {
+      const beforeSlash = input.slice(0, slashIndexRef.current);
+      const afterSlash = input.slice(slashIndexRef.current + 1);
+      setInput(beforeSlash + prompt.template + afterSlash);
+    } else {
+      setInput(prompt.template);
+    }
+    setShowPromptPicker(false);
+    slashIndexRef.current = null;
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [input]);
+
+  // ── Pin toggle ──────────────────────────────────────────────────────
+  const togglePin = useCallback((index: number) => {
+    setPinnedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      localStorage.setItem(`pins-${sessionIdRef.current}`, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  // ── Feedback ─────────────────────────────────────────────────────────
+  const setMessageFeedback = useCallback((index: number, rating: 1 | -1 | null, comment?: string) => {
+    setFeedback(prev => ({ ...prev, [index]: { rating, comment } }));
+  }, []);
+
+  const submitFeedback = useCallback(async (index: number, rating: -1, comment: string) => {
+    try {
+      await fetch(`${API_BASE}/api/chat/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          messageIndex: index,
+          rating,
+          comment,
+        }),
+      });
+    } catch {}
+  }, []);
+
+  // ── Voice input ──────────────────────────────────────────────────────
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = typeof window !== "undefined"
+      ? ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition)
+      : null;
+    if (!SR) return;
+
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: { results: Array<Array<{ transcript: string }>> }) => {
+      const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
+      setInput(prev => prev + transcript);
+    };
+    rec.onerror = () => setIsRecording(false);
+    rec.start();
+    recognitionRef.current = rec;
+    setIsRecording(true);
+  }, [isRecording]);
+
+  // ── Drag and drop ────────────────────────────────────────────────────
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (e.currentTarget === e.target) setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    const newRefs: ContextRef[] = files.map(f => ({
+      kind: "artifact" as const,
+      id: f.name,
+      label: f.name,
+    }));
+    setAttachedRefs(prev => {
+      const existing = new Set(prev.map(r => r.id));
+      return [...prev, ...newRefs.filter(r => !existing.has(r.id))];
+    });
+  }, []);
+
+  // ── Message handlers ─────────────────────────────────────────────────
+  const handleEditMessage = useCallback((index: number) => {
+    const msg = messages[index];
+    if (msg.role !== "user") return;
+    setInput(msg.content);
+    setEditingIndex(index);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [messages]);
+
+  const handleRegenerate = useCallback(() => {
+    if (messages.length < 2 || streaming) return;
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx === -1) return;
+    setMessages((prev) => prev.slice(0, lastUserIdx + 1));
+    const lastUser = messages[lastUserIdx];
+    setAttachedRefs(lastUser.contextRefs ?? []);
+    setEditingIndex(null);
+    sendMessage(lastUser.content);
+  }, [messages, streaming, sendMessage]);
+
+  const handleQuickAction = useCallback((action: QuickAction) => {
+    if (action.requires?.length && !action.requires.some((req) => attachedRefs.some((r) => r.kind === req))) return;
+    sendMessage(action.prompt);
+  }, [sendMessage, attachedRefs]);
+
+  const removeAttachedRef = useCallback((refId: string) =>
+    setAttachedRefs((prev) => prev.filter((r) => `${r.kind}:${r.id}` !== refId)), []);
+
+  const exportChat = useCallback(() => {
+    const text = exportChatMessages(messages);
+    const blob = new Blob([text], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chat-${sessionIdRef.current.slice(0, 8)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [messages]);
+
+  // ── Key handler ──────────────────────────────────────────────────────
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (showSearch) {
+      if (e.key === "Enter") setShowSearch(false);
+      return;
+    }
+
+    // Slash command trigger
+    if (!showPromptPicker && e.key === "/") {
+      const cursorPos = inputRef.current?.selectionStart ?? input.length;
+      const prevChar = cursorPos > 0 ? input[cursorPos - 1] : "";
+      if (prevChar === "" || prevChar === " " || prevChar === "\n" || prevChar === "\t") {
         e.preventDefault();
-        setInput(messages[lastUserIdx].content);
-        setEditingIndex(lastUserIdx);
+        slashIndexRef.current = cursorPos;
+        setShowPromptPicker(true);
+        setPromptQuery("");
+        setTimeout(() => promptInputRef.current?.focus(), 50);
       }
     }
+
+    if (showPromptPicker) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowPromptPicker(false);
+        slashIndexRef.current = null;
+        return;
+      }
+      const list = filteredSavedPrompts;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const total = list.length;
+        if (total === 0) return;
+        setPromptPickerIdx((prev) => {
+          if (prev === null) return e.key === "ArrowDown" ? 0 : total - 1;
+          const delta = e.key === "ArrowDown" ? 1 : -1;
+          return Math.max(0, Math.min(total - 1, prev + delta));
+        });
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const idx = promptPickerIdx;
+        if (idx !== null && idx >= 0 && idx < list.length) {
+          selectPrompt(list[idx]);
+        }
+        return;
+      }
+    }
+
     if (showFileSearch) {
       if (e.key === "Escape") { e.preventDefault(); closeFileSearch(); return; }
-      // Use search results when query is active, otherwise browse entries
       const list = fileQuery.trim() ? fileSearchResults : fileBrowserEntries;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -856,99 +1449,31 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
 
-  // ── Edit message ─────────────────────────────────────────────────────
-  const handleEditMessage = useCallback((index: number) => {
-    const msg = messages[index];
-    if (msg.role !== "user") return;
-    setInput(msg.content);
-    setEditingIndex(index);
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [messages]);
-
-  // ── Regenerate last assistant response ────────────────────────────────
-  const handleRegenerate = useCallback(() => {
-    if (messages.length < 2 || streaming) return;
-    // Find last user message
-    let lastUserIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user") { lastUserIdx = i; break; }
-    }
-    if (lastUserIdx === -1) return;
-    // Remove the last assistant response (or the messages after last user message)
-    setMessages((prev) => prev.slice(0, lastUserIdx + 1));
-    // Resend the last user message
-    const lastUser = messages[lastUserIdx];
-    setAttachedRefs(lastUser.contextRefs ?? []);
-    setEditingIndex(null);
-    sendMessage(lastUser.content);
-  }, [messages, streaming, sendMessage]);
-
-  const handleQuickAction = useCallback((action: QuickAction) => {
-    if (action.requires?.length && !action.requires.some((req) => attachedRefs.some((r) => r.kind === req))) return;
-    if (editingIndex !== null) {
-      // Replace the message at editingIndex
-      setMessages((prev) => prev.map((m, i) => i === editingIndex ? { ...m, content: action.prompt } : m));
-      setEditingIndex(null);
-    }
-    sendMessage(action.prompt);
-  }, [sendMessage, attachedRefs, editingIndex]);
-
-  const removeAttachedRef = useCallback((refId: string) => setAttachedRefs((prev) => prev.filter((r) => `${r.kind}:${r.id}` !== refId)), []);
-  const availableQuickActions = QUICK_ACTIONS.filter((a) => !a.requires?.length || a.requires.some((req) => attachedRefs.some((r) => r.kind === req)));
-
-  const selectFile = useCallback((file: { name: string; path: string; isDir: boolean; ext: string; dir: string }) => {
-    if (file.isDir) { fetchDirectory(file.path); return; }
-    const ref: ContextRef = { kind: "artifact", id: file.path, label: file.path };
-    setAttachedRefs((prev) => {
-      if (prev.some((r) => r.id === file.path)) return prev;
-      return [...prev, ref];
-    });
-    // Remove the @ from input
-    if (atSignIndexRef.current !== null) {
-      const atIdx = atSignIndexRef.current;
-      const beforeAt = input.slice(0, atIdx);
-      // Also eat the query text from @ to cursor if any
-      const cursorPos = inputRef.current?.selectionStart ?? input.length;
-      const afterAt = input.slice(cursorPos);
-      const newInput = beforeAt + afterAt;
-      setInput(newInput);
-      atSignIndexRef.current = null;
-    }
-    closeFileSearch();
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [input, closeFileSearch, fetchDirectory]);
-
-  // ── Debounced file search (telescope-style) ──────────────────────────
-  useEffect(() => {
-    if (!showFileSearch || !projectId || !fileQuery.trim()) {
-      setFileSearchResults([]);
-      return;
-    }
-    const id = setTimeout(async () => {
-      if (fileSearchAbortRef.current) fileSearchAbortRef.current.abort();
-      const abort = new AbortController();
-      fileSearchAbortRef.current = abort;
-      setFileSearchLoading(true);
-      try {
-        const res = await fetch(
-          `${API_BASE}/api/projects/${projectId}/files/search?q=${encodeURIComponent(fileQuery)}&limit=50`,
-          { signal: abort.signal },
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setFileSearchResults(data.files ?? []);
-        }
-      } catch {} finally {
-        if (!abort.signal.aborted) setFileSearchLoading(false);
+    if (e.key === "ArrowUp" && !input && messages.length > 0) {
+      const lastUserIdx = messages.length - 1;
+      if (messages[lastUserIdx].role === "user") {
+        e.preventDefault();
+        setInput(messages[lastUserIdx].content);
+        setEditingIndex(lastUserIdx);
       }
-    }, 200);
-    return () => { clearTimeout(id); };
-  }, [fileQuery, showFileSearch, projectId]);
+    }
 
-  // Determine which list and active prefix to show
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }, [input, messages, showSearch, showFileSearch, showPromptPicker, filteredSavedPrompts, fileQuery, fileSearchResults, fileBrowserEntries, fileSearchActiveIdx, promptPickerIdx, closeFileSearch, fetchDirectory, selectFile, selectPrompt, sendMessage]);
+
+  // ── Model selection ──────────────────────────────────────────────────
+  const handleSelectModel = useCallback((provider: string, model: string) => {
+    setChatProvider(provider);
+    setChatModel(model);
+  }, []);
+
+  const handleCompact = useCallback(() => {
+    setCompacting(true);
+    // Simulate compact (would call API in production)
+    setTimeout(() => setCompacting(false), 1000);
+  }, []);
+
   const isSearching = fileQuery.trim().length > 0;
   const activeList = isSearching ? fileSearchResults : fileBrowserEntries;
   const activeLabel = isSearching ? "Search results" : `/${fileBrowserPath || ""}`;
@@ -997,6 +1522,19 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   <MessageSquare size={11} />
                   <span className="font-medium">{sessions.length}</span>
                 </button>
+                {/* Feature 4: Pins button */}
+                <button onClick={() => setShowPins(!showPins)}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showPins ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  title="Pinned messages">
+                  <Star size={11} />
+                  <span className="font-medium">{pinnedIndices.size}</span>
+                </button>
+                {/* Feature 7: Stats button */}
+                <button onClick={() => setShowStats(!showStats)}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showStats ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  title="Session stats">
+                  <BarChart2 size={11} />
+                </button>
                 <button onClick={() => setIsFullscreen(!isFullscreen)}
                   className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                   {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
@@ -1004,7 +1542,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                 <button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`}><X size={16} /></button>
               </div>
             </div>
-            {/* Body: thread sidebar + chat */}
+            {/* Body: panels + chat */}
             <div className="flex flex-1 min-h-0">
               {/* Thread sidebar */}
               <AnimatePresence>
@@ -1014,9 +1552,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                     className={`shrink-0 border-r ${BORD} flex flex-col overflow-hidden`}>
                     <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
                       <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Threads</span>
-                      <button onClick={newSession}
-                        className={`inline-flex items-center gap-0.5 text-[9px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`}
-                        title="New thread">
+                      <button className={`inline-flex items-center gap-0.5 text-[9px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`} title="New thread">
                         <Plus size={10} /><span>New</span>
                       </button>
                     </div>
@@ -1028,12 +1564,12 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                         <div key={s.id} className="group relative">
                           {renamingSession === s.id ? (
                             <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
-                              onBlur={() => submitRename(s.id)}
-                              onKeyDown={(e) => { if (e.key === "Enter") submitRename(s.id); if (e.key === "Escape") setRenamingSession(null); }}
+                              onBlur={() => { setRenamingSession(null); }}
+                              onKeyDown={(e) => { if (e.key === "Enter") setRenamingSession(null); if (e.key === "Escape") setRenamingSession(null); }}
                               autoFocus
                               className={`w-full text-[10px] px-2.5 py-2 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} focus:outline-none focus:border-blue-500`} />
                           ) : (
-                            <button onClick={() => switchSession(s.id)}
+                            <button onClick={() => setActiveSessionId(s.id)}
                               className={`w-full text-left px-2.5 py-2 rounded text-[10px] transition-colors ${
                                 activeSessionId === s.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
                               }`}>
@@ -1042,7 +1578,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                             </button>
                           )}
                           {renamingSession !== s.id && (
-                            <button onClick={() => handleRename(s.id)}
+                            <button onClick={() => setRenamingSession(s.id)}
                               className={`absolute right-1 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
                               title="Rename thread">
                               <Pencil size={8} />
@@ -1074,7 +1610,6 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                 )}
                 {/* Messages area */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-xs relative">
-                  {/* Scroll to bottom button */}
                   <AnimatePresence>
                     {showScrollBtn && (
                       <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
@@ -1099,7 +1634,13 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                     <MessageBubble key={i} msg={msg} index={i} onContextRefClick={onContextRefClick}
                       onEdit={msg.role === "user" ? () => handleEditMessage(i) : undefined}
                       onRegenerate={msg.role === "assistant" ? handleRegenerate : undefined}
-                      isLastAssistant={msg.role === "assistant" && i === messages.length - 1 && !streaming} />
+                      isLastAssistant={msg.role === "assistant" && i === messages.length - 1 && !streaming}
+                      isPinned={pinnedIndices.has(i)}
+                      onTogglePin={msg.role === "assistant" ? () => togglePin(i) : undefined}
+                      messageFeedback={feedback[i]}
+                      onFeedback={(rating) => setMessageFeedback(i, rating)}
+                      onSubmitFeedback={(comment) => submitFeedback(i, -1, comment)}
+                    />
                   ))}
                   {(streamBuffer || streaming) && (
                     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="flex gap-2 justify-start">
@@ -1112,33 +1653,58 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   )}
                   {streaming && activeToolCalls.length > 0 && !streamBuffer && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-1 pl-7">
-                      {activeToolCalls.map((tc, j) => <ToolBadge key={j} tc={tc} compact />)}
+                      {activeToolCalls.map((tc, j) => (
+                        <span key={j} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-blue-100 dark:bg-blue-900/40 ${MUT}`}>
+                          {tc.name}
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse ml-0.5" />
+                        </span>
+                      ))}
                     </motion.div>
                   )}
                   {error && <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 justify-center"><AlertCircle size={11} />{error}</div>}
                   <div ref={bottomRef} />
                 </div>
                 {/* Input area */}
-                <div className={`shrink-0 border-t ${BORD} p-4`}>
+                <div
+                  className={`shrink-0 border-t ${BORD} p-4 relative`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {/* Drag-and-drop overlay */}
+                  <AnimatePresence>
+                    {isDragOver && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-20 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-500 rounded-lg m-1 pointer-events-none"
+                      >
+                        <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">Drop files to attach as context</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {editingIndex !== null && (
                     <div className={`text-[10px] ${MUT} flex items-center gap-1 mb-2`}>
                       <Pencil size={9} />
                       <span>Editing message {editingIndex + 1}. Press Enter to send or <button onClick={() => { setEditingIndex(null); setInput(""); }} className={`underline ${MUT} hover:text-stone-600`}>cancel</button></span>
                     </div>
                   )}
+
                   {attachedRefs.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
                       {attachedRefs.map((r) => <ContextRefPill key={`input-${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
                     </div>
                   )}
-                  {/* File search popover (telescope: search + browse) */}
+
+                  {/* File search popover */}
                   <AnimatePresence>
                     {showFileSearch && (
                       <motion.div ref={fileSearchRef} initial={{ opacity: 0, y: 4, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.96 }}
                         transition={{ duration: 0.1, ease: "easeOut" }}
                         className="relative mb-2 z-10">
                         <div className="absolute bottom-full left-0 right-0 mb-1 max-h-64 overflow-hidden rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] shadow-lg flex flex-col">
-                          {/* Search input */}
                           <div className="relative shrink-0">
                             <Search size={11} className={`absolute left-3 top-1/2 -translate-y-1/2 ${MUT}`} />
                             <input ref={fileSearchInputRef} type="text" value={fileQuery}
@@ -1148,7 +1714,6 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                               className={`w-full pl-8 pr-3 py-2 text-[11px] bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
                             />
                           </div>
-                          {/* Label */}
                           <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-[#E8E6E1] dark:border-[#333] text-[9px] ${MUT}`}>
                             {isSearching ? (
                               <><Search size={9} className="shrink-0" /><span className="font-medium truncate">Search results for &ldquo;{fileQuery}&rdquo;</span></>
@@ -1157,9 +1722,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                             )}
                             {fileSearchLoading && <Loader2 size={8} className="animate-spin ml-auto" />}
                           </div>
-                          {/* Results list */}
                           <div className="flex-1 overflow-y-auto min-h-0">
-                            {/* Parent directory entry (only in browse mode) */}
                             {!isSearching && fileBrowserParent !== undefined && fileBrowserPath && (
                               <button onClick={() => { fetchDirectory(fileBrowserParent); setFileSearchActiveIdx(-1); }}
                                 onMouseEnter={() => setFileSearchActiveIdx(-1)}
@@ -1180,7 +1743,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                             )}
                             {!fileSearchLoading && activeList.length === 0 && (
                               <div className={`px-3 py-8 text-[10px] ${MUT} text-center`}>
-                                {isSearching ? `No files matching &ldquo;${fileQuery}&rdquo;` : "Empty directory"}
+                                {isSearching ? `No files matching "${fileQuery}"` : "Empty directory"}
                               </div>
                             )}
                             {activeList.map((entry, i) => (
@@ -1208,33 +1771,94 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* Prompt picker popover */}
+                  <AnimatePresence>
+                    {showPromptPicker && (
+                      <motion.div initial={{ opacity: 0, y: 4, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                        transition={{ duration: 0.1, ease: "easeOut" }}
+                        className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-hidden rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] shadow-lg z-30"
+                      >
+                        <div className="relative shrink-0">
+                          <Search size={11} className={`absolute left-3 top-1/2 -translate-y-1/2 ${MUT}`} />
+                          <input ref={promptInputRef} type="text" value={promptQuery}
+                            onChange={(e) => setPromptQuery(e.target.value)}
+                            placeholder="Search prompts..."
+                            className={`w-full pl-8 pr-3 py-2 text-[11px] bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
+                          />
+                        </div>
+                        <div className="overflow-y-auto max-h-32">
+                          {filteredSavedPrompts.length === 0 ? (
+                            <div className={`px-3 py-4 text-[10px] ${MUT} text-center`}>No prompts found</div>
+                          ) : (
+                            filteredSavedPrompts.map((prompt, i) => (
+                              <button key={prompt.id} onClick={() => selectPrompt(prompt)}
+                                className={`w-full text-left px-3 py-2 text-[10px] transition-colors ${
+                                  promptPickerIdx === i ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}` : `${TXT} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`
+                                }`}>
+                                <div className="font-medium">{prompt.name}</div>
+                                <div className={`${MUT} text-[9px]`}>{prompt.description}</div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                        <div className={`shrink-0 px-3 py-1.5 border-t border-[#E8E6E1] dark:border-[#333] text-[9px] ${MUT}`}>
+                          <button className="hover:text-blue-500 underline">Manage prompts</button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Input row */}
                   <div className="flex gap-2 items-end">
-                    <textarea ref={inputRef} value={input} onChange={(e) => {
-                      const val = e.target.value;
-                      const cursorPos = e.target.selectionStart;
-                      setInput(val);
-                      // Detect @ trigger: the character right before cursor (just typed) is @
-                      // and there is no current file search open
-                      if (!showFileSearch && cursorPos > 0 && val[cursorPos - 1] === "@") {
-                        const prevChar = cursorPos > 1 ? val[cursorPos - 2] : "";
-                        // Only trigger on standalone @ (not @@ or part of another token)
-                        // Also allow when at start of line (after newline)
-                        if (prevChar === "" || prevChar === " " || prevChar === "\n" || prevChar === "\t") {
-                          atSignIndexRef.current = cursorPos - 1;
-                          openFileSearch();
+                    {/* Voice input button */}
+                    <button
+                      onClick={toggleRecording}
+                      className={`h-10 w-10 flex items-center justify-center rounded-lg border ${BORD} ${SURF} transition-colors shrink-0 ${
+                        isRecording ? "bg-red-500 text-white animate-pulse" : MUT
+                      }`}
+                      title={isRecording ? "Stop recording" : "Voice input"}
+                      aria-label={isRecording ? "Stop recording" : "Start voice input"}
+                    >
+                      {isRecording ? <MicOff size={15} /> : <Mic size={15} />}
+                    </button>
+
+                    <div className="flex-1 relative">
+                      <textarea ref={inputRef} value={input} onChange={(e) => {
+                        const val = e.target.value;
+                        const cursorPos = e.target.selectionStart;
+                        setInput(val);
+                        if (!showFileSearch && cursorPos > 0 && val[cursorPos - 1] === "@") {
+                          const prevChar = cursorPos > 1 ? val[cursorPos - 2] : "";
+                          if (prevChar === "" || prevChar === " " || prevChar === "\n" || prevChar === "\t") {
+                            atSignIndexRef.current = cursorPos - 1;
+                            openFileSearch();
+                          }
                         }
-                      }
-                      // Close file search if backspace deletes the @
-                      if (showFileSearch && atSignIndexRef.current !== null) {
-                        const atIdx = atSignIndexRef.current;
-                        if (cursorPos <= atIdx || val.length <= atIdx || val[atIdx] !== "@") {
-                          closeFileSearch();
+                        if (showFileSearch && atSignIndexRef.current !== null) {
+                          const atIdx = atSignIndexRef.current;
+                          if (cursorPos <= atIdx || val.length <= atIdx || val[atIdx] !== "@") {
+                            closeFileSearch();
+                          }
                         }
-                      }
-                    }} onKeyDown={handleKeyDown}
-                      placeholder={attachedRefs.length > 0 ? `Ask about ${attachedRefs.map((r) => r.kind).join(", ")}...` : "Ask about the project or suggest fixes..."}
-                      rows={3} disabled={!projectId || streaming}
-                      className={`flex-1 resize-none rounded-lg border ${BORD} ${SURF} px-3 py-2 text-xs ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500 disabled:opacity-50`} />
+                      }} onKeyDown={handleKeyDown}
+                        placeholder={attachedRefs.length > 0 ? `Ask about ${attachedRefs.map((r) => r.kind).join(", ")}...` : "Ask about the project or suggest fixes..."}
+                        rows={3} disabled={!projectId || streaming}
+                        className={`w-full resize-none rounded-lg border ${BORD} ${SURF} px-3 py-2 text-xs ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-blue-500 disabled:opacity-50`}
+                        aria-label="Chat input"
+                      />
+                      {/* Feature 8: Live token counter */}
+                      {input.trim() && (
+                        <span className={`absolute bottom-1 right-2 text-[9px] shrink-0 transition-colors ${
+                          estimateTokens(input) > 2000 ? "text-red-500" :
+                          estimateTokens(input) > 500 ? "text-amber-500" :
+                          MUT
+                        }`}>
+                          ~{formatTokens(estimateTokens(input))} tokens
+                        </span>
+                      )}
+                    </div>
+
                     <button onClick={() => {
                       if (editingIndex !== null) {
                         setMessages((prev) => prev.map((m, i) => i === editingIndex ? { ...m, content: input } : m));
@@ -1251,6 +1875,36 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   {!projectId && <p className={`text-[10px] ${MUT} mt-1`}>Select a project to enable chat</p>}
                 </div>
               </div>
+              {/* Pin panel (right side) */}
+              <AnimatePresence>
+                {showPins && (
+                  <PinnedMessagesPanel
+                    pinnedIndices={pinnedIndices}
+                    messages={messages}
+                    onClose={() => setShowPins(false)}
+                    onJump={(index) => {
+                      // Scroll to message at index
+                      const el = scrollRef.current;
+                      if (el) {
+                        const children = el.children;
+                        for (let i = 0; i < children.length; i++) {
+                          if (children[i].textContent?.includes(messages[index]?.content.slice(0, 20))) {
+                            children[i].scrollIntoView({ behavior: "smooth" });
+                            break;
+                          }
+                        }
+                      }
+                      setShowPins(false);
+                    }}
+                  />
+                )}
+              </AnimatePresence>
+              {/* Stats panel (right side) */}
+              <AnimatePresence>
+                {showStats && (
+                  <SessionStatsPanel messages={messages} onClose={() => setShowStats(false)} />
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         </motion.div>
