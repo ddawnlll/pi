@@ -17,6 +17,27 @@ import type { HashedPacket } from "../core/role-packets.js";
 
 const execAsync = promisify(execCb);
 
+// ---------------------------------------------------------------------------
+// Global worktree operation mutex
+// Prevents concurrent git worktree add/remove operations that could conflict.
+// ---------------------------------------------------------------------------
+const worktreeMutex: { promise: Promise<void>; release: (() => void) | null } = {
+	promise: Promise.resolve(),
+	release: null,
+};
+
+async function acquireWorktreeMutex(): Promise<void> {
+	await worktreeMutex.promise;
+	return new Promise<void>((resolve) => {
+		worktreeMutex.promise = new Promise<void>((innerResolve) => {
+			worktreeMutex.release = () => {
+				innerResolve();
+				resolve();
+			};
+		});
+	});
+}
+
 import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "../core/workspace-agent-executor.js";
 import {
 	DEFAULT_WORKTREE_CONFIG,
@@ -335,21 +356,9 @@ export class WorktreeWorkspaceExecutor {
 			};
 		}
 
-		// Acquire a file-level lock around branch + worktree creation to prevent
-		// git ref locking conflicts when multiple workers create worktrees concurrently.
-		const lockDir = path.join(this.workspaceRoot, ".pi", "worktree-create-locks");
-		await fs.mkdir(lockDir, { recursive: true });
-		const lockPath = path.join(lockDir, `${sanitizeForPath(this.planExecutionId)}.lock`);
-
-		for (let attempt = 1; attempt <= 60; attempt++) {
-			try {
-				await fs.writeFile(lockPath, this.workspaceId, { flag: "wx" });
-				break;
-			} catch {
-				await new Promise((r) => setTimeout(r, 500));
-			}
-		}
-
+		// Acquire global worktree mutex to prevent concurrent git worktree operations
+		// that could cause ref locking conflicts.
+		await acquireWorktreeMutex();
 		try {
 			// Ensure the branch exists
 			await this.ensureBranch(this.workspaceRoot, baseCommit);
@@ -363,10 +372,7 @@ export class WorktreeWorkspaceExecutor {
 				error: `Failed to create git worktree: ${err instanceof Error ? err.message : String(err)}`,
 			};
 		} finally {
-			// Release lock
-			try {
-				await fs.unlink(lockPath);
-			} catch {}
+			worktreeMutex.release?.();
 		}
 
 		const state: WorktreeState = {
@@ -407,6 +413,7 @@ export class WorktreeWorkspaceExecutor {
 			return; // Don't remove, just mark as quarantined
 		}
 
+		await acquireWorktreeMutex();
 		try {
 			await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
 			// Also remove the branch to keep things clean
@@ -421,6 +428,8 @@ export class WorktreeWorkspaceExecutor {
 				`[worktree-executor] Failed to remove worktree ${worktreeDir}:`,
 				err instanceof Error ? err.message : String(err),
 			);
+		} finally {
+			worktreeMutex.release?.();
 		}
 
 		// Prune stale worktree references

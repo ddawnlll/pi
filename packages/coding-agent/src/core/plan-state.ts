@@ -6,6 +6,7 @@
  * Journal is stored in .pi/execution-journal.ndjson (append-only, crash-safe).
  */
 
+import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { EditStrategyAuditSummary } from "./edit-audit-events.js";
@@ -271,8 +272,16 @@ export class PlanStateStore {
 	private stateFilePath: string;
 	private journalFilePath: string;
 
-	/** Mutex to serialize concurrent saveState() calls (race: #1) */
+	/** Mutex to serialize concurrent saveState() calls */
 	private saveMutex: Promise<void> = Promise.resolve();
+
+	/**
+	 * Mutex to serialize concurrent state read-modify-write cycles.
+	 * Prevents race conditions where two concurrent transitionWorkspace
+	 * calls modify in-memory state simultaneously, then both call
+	 * saveState, and the last one's write overwrites the first.
+	 */
+	private stateModificationMutex: Promise<void> = Promise.resolve();
 
 	constructor(workspaceRoot: string, piDir = ".pi") {
 		this.stateFilePath = path.join(workspaceRoot, piDir, "plan-state.json");
@@ -322,7 +331,40 @@ export class PlanStateStore {
 	async loadState(): Promise<PlanState | null> {
 		try {
 			const content = await fs.readFile(this.stateFilePath, "utf-8");
-			const parsed = JSON.parse(content);
+
+			// Handle corrupted JSON gracefully — try to parse, fall back to journal recovery
+			let parsed: Record<string, unknown>;
+			try {
+				parsed = JSON.parse(content);
+			} catch (parseError) {
+				console.error(
+					`[plan-state] Corrupted state file, attempting journal recovery: ${this.stateFilePath}`,
+					parseError,
+				);
+
+				// Attempt to reconstruct state from journal
+				const journal = await this.readJournal();
+				if (journal.length > 0) {
+					const recovered = this.recoverStateFromJournal(journal);
+					if (recovered) {
+						console.error(
+							`[plan-state] Recovered state from journal with ${recovered.workspaces.size} workspaces`,
+						);
+						this.state = recovered;
+						return this.state;
+					}
+				}
+
+				// If journal recovery fails, attempt to read backup file
+				const backupPath = `${this.stateFilePath}.bak`;
+				try {
+					const backupContent = await fs.readFile(backupPath, "utf-8");
+					parsed = JSON.parse(backupContent);
+					console.error(`[plan-state] Recovered state from backup file`);
+				} catch {
+					throw new Error(`Corrupted state file and no recoverable backup/journal: ${this.stateFilePath}`);
+				}
+			}
 
 			// Convert workspaces array to Map
 			const workspaces = new Map<string, WorkspaceState>();
@@ -340,7 +382,7 @@ export class PlanStateStore {
 			this.state = {
 				...parsed,
 				workspaces,
-			};
+			} as PlanState;
 
 			return this.state;
 		} catch (error) {
@@ -377,9 +419,29 @@ export class PlanStateStore {
 				workspaces: Array.from(this.state.workspaces.values()),
 			};
 
+			// Validate serializability before writing — catch circular refs / non-serializable values
+			let serialized: string;
+			try {
+				serialized = JSON.stringify(serializable, null, 2);
+			} catch (serializeError) {
+				throw new Error(
+					`Failed to serialize plan state: ${serializeError instanceof Error ? serializeError.message : String(serializeError)}`,
+				);
+			}
+
 			// Atomic write: write to unique temp file, then rename
 			const tempPath = `${this.stateFilePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
-			await fs.writeFile(tempPath, JSON.stringify(serializable, null, 2), "utf-8");
+			await fs.writeFile(tempPath, serialized, "utf-8");
+
+			// fsync the temp file before renaming — ensures data is on disk
+			try {
+				const fd = fsSync.openSync(tempPath, "r");
+				fsSync.fsyncSync(fd);
+				fsSync.closeSync(fd);
+			} catch (fsyncError) {
+				console.error(`[plan-state] Failed to fsync state temp file: ${tempPath}`, fsyncError);
+			}
+
 			await fs.rename(tempPath, this.stateFilePath);
 		} finally {
 			release();
@@ -403,6 +465,16 @@ export class PlanStateStore {
 		// Append as NDJSON (one JSON object per line)
 		const line = `${JSON.stringify(event)}\n`;
 		await fs.appendFile(this.journalFilePath, line, "utf-8");
+
+		// fsync to ensure data is flushed to disk before returning
+		try {
+			const fd = fsSync.openSync(this.journalFilePath, "r");
+			fsSync.fsyncSync(fd);
+			fsSync.closeSync(fd);
+		} catch {
+			// fsync failure should not break execution — warn instead
+			console.error(`[plan-state] Failed to fsync journal: ${this.journalFilePath}`);
+		}
 
 		// Archive transcript event for workspace-level timeline
 		// Requires planExecutionId — infer from the journal path structure
@@ -454,25 +526,188 @@ export class PlanStateStore {
 	}
 
 	/**
+	 * Attempt to recover plan state from journal events.
+	 * Replays journal events in order to reconstruct the latest plan state.
+	 *
+	 * @param journal - Journal events to replay
+	 * @returns Reconstructed PlanState or null if not possible
+	 */
+	private recoverStateFromJournal(journal: JournalEvent[]): PlanState | null {
+		if (journal.length === 0) return null;
+
+		const workspaces = new Map<string, WorkspaceState>();
+		let phase = "unknown";
+		let title = "";
+		let status: PlanState["status"] = "running";
+		let startedAt = 0;
+		let completedAt: number | undefined;
+		let handoffStartedAt: number | undefined;
+		let resumedAt: number | undefined;
+
+		for (const event of journal) {
+			switch (event.type) {
+				case "plan_start": {
+					phase = (event.data?.phase as string) ?? phase;
+					title = (event.data?.title as string) ?? title;
+					startedAt = event.timestamp;
+					status = "running";
+					break;
+				}
+				case "plan_complete": {
+					status = "complete";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "plan_failed": {
+					status = "failed";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "plan_paused": {
+					status = "paused";
+					break;
+				}
+				case "plan_stopped": {
+					status = "stopped";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "plan_cancelled": {
+					status = "cancelled";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "plan_resumed": {
+					status = "running";
+					resumedAt = event.timestamp;
+					break;
+				}
+				case "plan_handoff": {
+					status = "awaiting_handoff";
+					handoffStartedAt = event.timestamp;
+					break;
+				}
+				case "plan_handoff_committed": {
+					status = "complete";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "plan_handoff_discard": {
+					status = "failed";
+					completedAt = event.timestamp;
+					break;
+				}
+				case "workspace_start": {
+					if (event.workspaceId) {
+						const existing = workspaces.get(event.workspaceId) ?? {
+							workspaceId: event.workspaceId,
+							stage: WorkspaceStage.Pending,
+							attempts: 0,
+						};
+						existing.stage = WorkspaceStage.Active;
+						existing.startedAt = event.timestamp;
+						workspaces.set(event.workspaceId, existing);
+					}
+					break;
+				}
+				case "workspace_complete": {
+					if (event.workspaceId) {
+						const existing = workspaces.get(event.workspaceId) ?? {
+							workspaceId: event.workspaceId,
+							stage: WorkspaceStage.Pending,
+							attempts: 0,
+						};
+						existing.stage = WorkspaceStage.Complete;
+						existing.completedAt = event.timestamp;
+						workspaces.set(event.workspaceId, existing);
+					}
+					break;
+				}
+				case "workspace_failed": {
+					if (event.workspaceId) {
+						const existing = workspaces.get(event.workspaceId) ?? {
+							workspaceId: event.workspaceId,
+							stage: WorkspaceStage.Pending,
+							attempts: 0,
+						};
+						existing.stage = WorkspaceStage.Failed;
+						existing.completedAt = event.timestamp;
+						if (event.data?.error) existing.error = event.data.error as string;
+						workspaces.set(event.workspaceId, existing);
+					}
+					break;
+				}
+				case "workspace_blocked": {
+					if (event.workspaceId) {
+						const existing = workspaces.get(event.workspaceId) ?? {
+							workspaceId: event.workspaceId,
+							stage: WorkspaceStage.Pending,
+							attempts: 0,
+						};
+						existing.stage = WorkspaceStage.Blocked;
+						workspaces.set(event.workspaceId, existing);
+					}
+					break;
+				}
+				case "retry_attempt": {
+					if (event.workspaceId) {
+						const existing = workspaces.get(event.workspaceId);
+						if (existing) {
+							existing.attempts = (event.data?.attempt as number) ?? existing.attempts + 1;
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		if (startedAt === 0) return null;
+
+		return {
+			phase,
+			title,
+			workspaces: workspaces.size > 0 ? workspaces : new Map(),
+			startedAt,
+			completedAt,
+			status,
+			handoffStartedAt,
+			resumedAt,
+		};
+	}
+
+	/**
 	 * Update workspace state
 	 *
 	 * @param workspaceId - Workspace ID
 	 * @param updates - State updates
 	 */
 	async updateWorkspaceState(workspaceId: string, updates: Partial<WorkspaceState>): Promise<void> {
-		if (!this.state) {
-			throw new Error("State not initialized");
+		// Serialize the entire read-modify-write cycle to prevent race conditions.
+		// Without this, two concurrent calls can both read state, modify it,
+		// then call saveState — the last write overwrites the first.
+		await this.stateModificationMutex;
+		let release!: () => void;
+		this.stateModificationMutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		try {
+			if (!this.state) {
+				throw new Error("State not initialized");
+			}
+
+			const current = this.state.workspaces.get(workspaceId);
+			if (!current) {
+				throw new Error(`Workspace not found: ${workspaceId}`);
+			}
+
+			const updated = { ...current, ...updates };
+			this.state.workspaces.set(workspaceId, updated);
+
+			await this.saveState();
+		} finally {
+			release();
 		}
-
-		const current = this.state.workspaces.get(workspaceId);
-		if (!current) {
-			throw new Error(`Workspace not found: ${workspaceId}`);
-		}
-
-		const updated = { ...current, ...updates };
-		this.state.workspaces.set(workspaceId, updated);
-
-		await this.saveState();
 	}
 
 	/**

@@ -145,7 +145,9 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 		};
 
 		const emitStatus = (status: string, message?: string) => {
-			stateStore.emitWorkerStatus?.(planExecutionId, "_cleanup", status, message).catch(() => {});
+			stateStore.emitWorkerStatus?.(planExecutionId, "_cleanup", status, message).catch((err) => {
+				console.error(`[cleanup-review] Failed to emit worker status:`, err);
+			});
 			log.info(`[cleanup] Worker status: ${status}${message ? `: ${message}` : ""}`);
 		};
 
@@ -158,7 +160,9 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 				timestamp: Date.now(),
 				data: { message: "Cleanup review started" },
 			})
-			.catch(() => {});
+			.catch((err) => {
+				console.error(`[cleanup-review] Failed to append cleanup journal event:`, err);
+			});
 
 		await archiveRawLog(`[${new Date().toISOString()}] Cleanup review started - acquired merge lock`);
 
@@ -477,7 +481,9 @@ async function executeCleanupAgent(config: {
 					rawOutput: fullOutput.slice(0, 5000),
 				},
 			})
-			.catch(() => {});
+			.catch((err) => {
+				console.error(`[cleanup-review] Failed to append plan_summary journal event:`, err);
+			});
 
 		// Write summary to file for dashboard consumption, scoped to plan execution
 		try {
@@ -537,7 +543,9 @@ async function executeCleanupAgent(config: {
 					passed: false,
 				},
 			})
-			.catch(() => {});
+			.catch((err) => {
+				console.error(`[cleanup-review] Failed to append fallback plan_summary:`, err);
+			});
 
 		return fallback;
 	} finally {

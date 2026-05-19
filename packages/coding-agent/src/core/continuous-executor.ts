@@ -48,13 +48,17 @@ class SerialMutex {
 	async runExclusive<T>(fn: () => Promise<T>): Promise<T> {
 		await this.current;
 		let release: () => void;
+		let released = false;
 		this.current = new Promise<void>((resolve) => {
 			release = resolve;
 		});
 		try {
 			return await fn();
 		} finally {
-			release!();
+			if (!released) {
+				released = true;
+				release!();
+			}
 		}
 	}
 }

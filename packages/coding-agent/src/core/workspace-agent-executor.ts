@@ -12,7 +12,7 @@ import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../config.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
-import type { WorktreeConfig, WorktreeState, WorktreeDiffArtifact } from "../worktree/worktree-types.js";
+import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
@@ -678,7 +678,9 @@ export class WorkspaceAgentExecutor {
 									false,
 									content.substring(0, 200),
 								)
-								.catch(() => {});
+								.catch((err) => {
+									console.error(`[workspace-agent-executor] Failed to emit validation:`, err);
+								});
 						}
 						if (typeof this.stateStore.emitWorkerDecisionSummary === "function") {
 							await this.stateStore
@@ -688,7 +690,9 @@ export class WorkspaceAgentExecutor {
 									`Task failed: ${content.substring(0, 200)}`,
 									"FAILED",
 								)
-								.catch(() => {});
+								.catch((err) => {
+									console.error(`[workspace-agent-executor] Failed to emit worker decision summary:`, err);
+								});
 						}
 					}
 				} else {

@@ -169,10 +169,14 @@ export class AutoCommit {
 			};
 		}
 
+		// Track files that were staged so we can unstage on failure
+		const stagedFiles: string[] = [];
+
 		try {
 			// Stage files
 			for (const file of validation.filesToCommit) {
 				await execAsync(`git add "${file}"`, { cwd: this.workspaceRoot });
+				stagedFiles.push(file);
 			}
 
 			// Generate commit message
@@ -184,8 +188,8 @@ export class AutoCommit {
 			const { stdout } = await execAsync(`git commit -m "${commitMessage}"`, { cwd: this.workspaceRoot });
 
 			// Extract commit hash
-			const hashMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
-			const commitHash = hashMatch ? hashMatch[1] : undefined;
+			const hashMatch = stdout.match(/\[([\w-]+) ([a-f0-9]+)\]/);
+			const commitHash = hashMatch ? hashMatch[2] : undefined;
 
 			return {
 				success: true,
@@ -194,6 +198,18 @@ export class AutoCommit {
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			// Rollback: unstage files that were staged before the failure
+			if (stagedFiles.length > 0) {
+				try {
+					// Use git restore --staged to unstage without losing changes
+					for (const file of stagedFiles) {
+						await execAsync(`git restore --staged "${file}"`, { cwd: this.workspaceRoot }).catch(() => {});
+					}
+				} catch {
+					// Rollback failure is non-fatal — files remain staged
+				}
+			}
 
 			// Check if error is "nothing to commit"
 			if (errorMessage.includes("nothing to commit")) {

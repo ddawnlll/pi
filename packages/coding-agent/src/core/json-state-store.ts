@@ -72,6 +72,29 @@ export class JsonStateStore implements IStateStore {
 		this.projectsFilePath = path.join(workspaceRoot, this.piDir, "projects.json");
 		this.controlFilePath = path.join(workspaceRoot, this.piDir, "plan-control.json");
 		this.store = new PlanStateStore(workspaceRoot, this.piDir);
+
+		// Clean up stale .tmp files from previous crashes on startup
+		this.cleanupStaleTempFiles().catch(() => {});
+	}
+
+	/**
+	 * Clean up stale temporary files left behind by previous crashes.
+	 * Scans .pi/ for any .tmp files that may have been left from interrupted
+	 * atomic write sequences (write to temp, then rename).
+	 */
+	private async cleanupStaleTempFiles(): Promise<void> {
+		try {
+			const piDirPath = path.join(this.workspaceRoot, this.piDir);
+			const entries = await fs.readdir(piDirPath).catch(() => [] as string[]);
+			for (const entry of entries) {
+				if (entry.endsWith(".tmp")) {
+					const fullPath = path.join(piDirPath, entry);
+					await fs.unlink(fullPath).catch(() => {});
+				}
+			}
+		} catch {
+			// Non-fatal — cleanup is best-effort
+		}
 	}
 
 	getBackendType(): StateStoreBackend {
@@ -983,19 +1006,32 @@ export class JsonStateStore implements IStateStore {
 
 	/**
 	 * Update execution status in tracking.
+	 * Uses atomic write with temp+rename and a mutex to prevent race conditions.
 	 */
+	private executionStatusMutex: Promise<void> = Promise.resolve();
+
 	private async updateExecutionStatus(planExecutionId: string, status: string): Promise<void> {
-		const executions = await this.readExecutionTracking();
-		const idx = executions.findIndex((e) => e.id === planExecutionId);
-		if (idx !== -1) {
-			executions[idx].status = status;
-			if (["complete", "failed", "stopped", "cancelled"].includes(status)) {
-				executions[idx].completedAt = new Date().toISOString();
+		await this.executionStatusMutex;
+		let release!: () => void;
+		this.executionStatusMutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		try {
+			const executions = await this.readExecutionTracking();
+			const idx = executions.findIndex((e) => e.id === planExecutionId);
+			if (idx !== -1) {
+				executions[idx].status = status;
+				if (["complete", "failed", "stopped", "cancelled"].includes(status)) {
+					executions[idx].completedAt = new Date().toISOString();
+				}
+				const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
+				const tempPath = `${filePath}.tmp`;
+				await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
+				await fs.rename(tempPath, filePath);
 			}
-			const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
-			// Write directly instead of temp+rename to avoid race conditions
-			// when multiple workers call updateExecutionStatus concurrently.
-			await fs.writeFile(filePath, JSON.stringify(executions, null, 2), "utf-8");
+		} finally {
+			release();
 		}
 	}
 

@@ -105,7 +105,10 @@ export class WorktreeManager {
 		};
 		const dir = path.dirname(this.stateFilePath);
 		await fs.mkdir(dir, { recursive: true });
-		await fs.writeFile(this.stateFilePath, JSON.stringify(data, null, 2), "utf-8");
+		// Atomic write: write to temp file, then rename
+		const tempPath = `${this.stateFilePath}.tmp`;
+		await fs.writeFile(tempPath, JSON.stringify(data, null, 2), "utf-8");
+		await fs.rename(tempPath, this.stateFilePath);
 	}
 
 	/**

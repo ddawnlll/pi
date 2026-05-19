@@ -336,6 +336,10 @@ export class AutonomousExecutor {
 			return false;
 		}
 
+		// Reset scheduler caches (fileLocks, batchAssignment, batches) to prevent
+		// stale locks from previous execution from blocking workspace scheduling.
+		this.scheduler.reset();
+
 		// Reset any stranded active or failed workspaces back to pending
 		// so they get re-scheduled. Failed workspaces from a prior crash
 		// (e.g. worktree creation race) should be retried.
@@ -835,11 +839,12 @@ export class AutonomousExecutor {
 	 * be re-executed when the plan is resumed.
 	 */
 	private async abortAndResetActiveWorkspaces(planExecutionId: string): Promise<void> {
-		// Collect workspace IDs that are currently active BEFORE aborting
+		// Collect workspace IDs that are currently active BEFORE aborting.
+		// Snapshot to prevent concurrent modification during iteration.
 		const state = this.currentPlanState;
 		const activeIds: string[] = [];
 		if (state) {
-			for (const [wsId, ws] of state.workspaces) {
+			for (const [wsId, ws] of Array.from(state.workspaces)) {
 				if (ws.stage === "active") {
 					activeIds.push(wsId);
 				}
@@ -885,8 +890,9 @@ export class AutonomousExecutor {
 		switch (control.action) {
 			case "pause":
 				if (state.status === "running") {
+					// Snapshot workspaces to prevent concurrent modification during iteration
 					const activeIds: string[] = [];
-					for (const [wsId, ws] of state.workspaces) {
+					for (const [wsId, ws] of Array.from(state.workspaces)) {
 						if (ws.stage === "active") {
 							activeIds.push(wsId);
 						}
@@ -907,8 +913,9 @@ export class AutonomousExecutor {
 
 			case "stop":
 				if (state.status === "running" || state.status === "paused") {
+					// Snapshot workspaces to prevent concurrent modification during iteration
 					const activeIds: string[] = [];
-					for (const [wsId, ws] of state.workspaces) {
+					for (const [wsId, ws] of Array.from(state.workspaces)) {
 						if (ws.stage === "active") {
 							activeIds.push(wsId);
 						}

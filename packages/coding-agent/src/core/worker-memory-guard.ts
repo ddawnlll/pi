@@ -67,6 +67,23 @@ let _isPolling = false;
 let _refuseCooldownUntil = 0;
 const REFUSE_COOLDOWN_MS = 3000;
 
+/**
+ * Callback invoked before the memory guard refuses a new worker.
+ * Allows callers to flush state before the guard triggers abort.
+ * The callback is expected to be quick — it runs synchronously inside canStartWorker.
+ */
+let _onBeforeRefuse: (() => void) | null = null;
+
+/**
+ * Register a callback that runs before the memory guard refuses a new worker.
+ * Useful for flushing in-memory state to disk before potential abort.
+ *
+ * @param cb - Callback to invoke before refusal
+ */
+export function setOnBeforeRefuse(cb: (() => void) | null): void {
+	_onBeforeRefuse = cb;
+}
+
 // ---------------------------------------------------------------------------
 // Configuration API
 // ---------------------------------------------------------------------------
@@ -206,6 +223,10 @@ export function canStartWorker(reason: string): boolean {
 			`[memory-guard] Refusing to start ${reason}: system memory ${formatBytes(snapshot.systemUsedBytes)} ` +
 				`exceeds ${formatBytes(currentSystemLimit())} limit (${snapshot.systemUtilizationPercent}% used)`,
 		);
+
+		// Invoke pre-refuse callback (e.g., for state flush) before returning
+		_onBeforeRefuse?.();
+
 		_refuseCooldownUntil = now + REFUSE_COOLDOWN_MS;
 		_startPollingIfNearLimit(snapshot);
 		return false;
