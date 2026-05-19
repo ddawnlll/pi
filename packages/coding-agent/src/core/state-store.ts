@@ -22,11 +22,15 @@ export type ControlAction = "pause" | "stop" | "cancel" | "resume";
 
 /**
  * Control request state.
+ * The planExecutionId ties the request to a specific execution so that
+ * stale control requests from previous crashes are not picked up on restart.
  */
 export interface PlanControlState {
 	action: ControlAction;
 	requestedAt: number;
 	reason?: string;
+	/** Execution-specific identifier to prevent cross-execution contamination */
+	planExecutionId?: string;
 }
 
 /**

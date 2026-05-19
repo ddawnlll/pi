@@ -27,6 +27,8 @@ export interface PlanControlState {
 	requestedAt: number;
 	/** Optional reason for the control action */
 	reason?: string;
+	/** Execution-specific identifier to prevent cross-execution contamination */
+	planExecutionId?: string;
 }
 
 /**
@@ -96,6 +98,7 @@ export class PlanControlManager {
 			action,
 			requestedAt: Date.now(),
 			reason,
+			planExecutionId: this.planExecutionId ?? undefined,
 		};
 
 		const piDir = path.dirname(this.controlFilePath);
@@ -126,7 +129,14 @@ export class PlanControlManager {
 			const parsed = JSON.parse(content);
 			// Treat null/empty marker as "no control request"
 			if (parsed === null) return null;
-			return parsed as PlanControlState;
+			const control = parsed as PlanControlState;
+			// Reject control requests that don't match the current execution ID.
+			// This prevents stale control requests from a previous crash from
+			// being picked up after restart.
+			if (control.planExecutionId && this.planExecutionId && control.planExecutionId !== this.planExecutionId) {
+				return null;
+			}
+			return control;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return null;

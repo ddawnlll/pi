@@ -428,6 +428,7 @@ export class JsonStateStore implements IStateStore {
 			action,
 			requestedAt: Date.now(),
 			reason,
+			planExecutionId: _planExecutionId,
 		};
 
 		const piDirPath = path.dirname(this.controlFilePath);
@@ -444,7 +445,15 @@ export class JsonStateStore implements IStateStore {
 	async readControlRequest(_planExecutionId: string): Promise<PlanControlState | null> {
 		try {
 			const content = await fs.readFile(this.controlFilePath, "utf-8");
-			return JSON.parse(content) as PlanControlState;
+			const parsed = JSON.parse(content) as PlanControlState;
+			// Reject control requests that don't match the current execution ID.
+			// This prevents stale control requests from a previous crash from
+			// being picked up by a new execution after restart.
+			if (parsed.planExecutionId && parsed.planExecutionId !== _planExecutionId) {
+				return null;
+			}
+			// Legacy requests (no executionId) are still accepted for backward compatibility
+			return parsed;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return null;

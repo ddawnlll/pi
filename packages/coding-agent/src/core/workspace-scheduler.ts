@@ -85,11 +85,14 @@ export class WorkspaceScheduler implements Scheduler {
 		const readyBatchIds = new Map<string, number>();
 		const skipped: SkipReason[] = [];
 
-		// Release stale file locks from workspaces that are no longer active.
-		// This prevents completed/failed workspaces from blocking subsequent
-		// workspaces that share the same canEdit paths (e.g., "src/**").
+		// Release stale file locks from workspaces in terminal states (failed, blocked,
+		// cancelled) but NOT from completed workspaces. Completed workspaces may have
+		// outputs that dependent workspaces still need to read. Releasing locks immediately
+		// after completion could let a newly-started workspace edit the same files before
+		// dependents have had a chance to read them.
+		const terminalNonComplete = new Set([WorkspaceStage.Failed, WorkspaceStage.Blocked]);
 		for (const [wsId, wsState] of state.workspaces) {
-			if (wsState.stage !== WorkspaceStage.Active) {
+			if (terminalNonComplete.has(wsState.stage)) {
 				this.releaseLocksByWorkspaceId(wsId);
 			}
 		}

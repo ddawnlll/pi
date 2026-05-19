@@ -140,6 +140,10 @@ export class WorktreeManager {
 					});
 				}
 			}
+
+			// Reconcile against actual disk state — remove entries for worktrees
+			// that no longer exist (manually deleted, cleaned up by another process, etc.)
+			await this.reconcileFromDisk();
 		} catch {
 			// No persisted state — that's fine
 		}
@@ -323,12 +327,18 @@ export class WorktreeManager {
 		const state = this.worktrees.get(key);
 		if (!state) return undefined;
 
+		if (generateDiff) {
+			// Generate the diff FIRST, then update state. This ensures the diff
+			// is captured before we mark the worktree as completed, preventing
+			// inconsistency if a crash occurs between the two operations.
+			const artifact = await this.generateDiffArtifact(planExecutionId, workspaceId);
+			state.status = "completed";
+			state.statusChangedAt = Date.now();
+			return artifact;
+		}
+
 		state.status = "completed";
 		state.statusChangedAt = Date.now();
-
-		if (generateDiff) {
-			return this.generateDiffArtifact(planExecutionId, workspaceId);
-		}
 		return undefined;
 	}
 
@@ -394,6 +404,13 @@ export class WorktreeManager {
 				path: "",
 				error: `Worktree not found for ${planExecutionId}/${workspaceId}`,
 			};
+		}
+
+		// Ensure the diff artifact is preserved before cleaning up the worktree.
+		// If a diff was already generated, verify it's archived in diffArtifacts.
+		const diffKey = this.stateKey(planExecutionId, workspaceId);
+		if (!this.diffArtifacts.has(diffKey)) {
+			this.generateDiffArtifact(planExecutionId, workspaceId).catch(() => {});
 		}
 
 		const cleanup = new WorktreeCleanup(this.workspaceRoot, this.worktreeRoot);

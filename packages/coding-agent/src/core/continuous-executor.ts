@@ -161,15 +161,30 @@ export class ContinuousExecutor {
 			}
 		};
 
+		// Track idle iterations to detect spinning and apply backoff.
+		let idleIterations = 0;
+
 		// Atomically pick the next ready workspace that has not yet been
 		// dispatched. Serialized via mutex to prevent races between
 		// concurrent fill/drain operations.
+		// Includes backoff to prevent CPU spin when getReadyWorkspaces
+		// repeatedly returns already-started workspaces.
 		const getNext = async (): Promise<Workspace | null> => {
 			return mutex.runExclusive(async () => {
 				if (signal.aborted) return null;
 				const ready = await getReadyWorkspaces(workspaces);
 				const next = ready.find((ws) => !started.has(ws.id));
-				if (next) started.add(next.id);
+				if (next) {
+					started.add(next.id);
+					idleIterations = 0;
+				} else if (ready.length > 0) {
+					// All ready workspaces are already started (unlikely but possible).
+					// Apply exponential backoff to prevent CPU spinning.
+					idleIterations++;
+					if (idleIterations > 20) {
+						await new Promise((r) => setTimeout(r, Math.min(idleIterations * 10, 1000)));
+					}
+				}
 				return next ?? null;
 			});
 		};

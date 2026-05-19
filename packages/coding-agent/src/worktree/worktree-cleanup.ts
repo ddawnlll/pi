@@ -151,6 +151,19 @@ export class WorktreeCleanup {
 			};
 		}
 
+		// AC3: Re-validate path immediately before the operation to mitigate
+		// TOCTOU (time-of-check-time-of-use) races where a symlink is swapped
+		// between validation and execution.
+		try {
+			this.validatePath(resolvedDir);
+		} catch (err) {
+			return {
+				success: false,
+				path: resolvedDir,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+
 		// AC4: Use git worktree remove, not rm -rf
 		try {
 			await gitAsync(["worktree", "remove", "--force", resolvedDir], this.workspaceRoot);

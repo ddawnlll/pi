@@ -17,7 +17,7 @@ import {
 	WorkspaceExecutionRepository,
 	WorkspaceLogRepository,
 } from "@earendil-works/pi-db";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
 import type {
@@ -157,53 +157,66 @@ export class DatabaseStateStore implements IStateStore {
 	async initializeState(projectId: string, queue: WorkspaceQueue): Promise<string> {
 		const nowISO = now();
 		const planExecutionId = generateId();
-
-		// Create plan execution row
-		await this.planExecutionRepo.create({
-			id: planExecutionId,
-			project_id: projectId,
-			phase: queue.phase,
-			title: queue.title,
-			status: "running",
-			started_at: nowISO,
-			completed_at: null,
-		});
-
-		// Create workspace execution rows
 		const wsEntries: Map<string, WorkspaceEntry> = new Map();
-		for (const workspace of queue.workspaces) {
-			const wsExecId = generateId();
-			await this.workspaceExecutionRepo.create({
-				id: wsExecId,
-				plan_execution_id: planExecutionId,
-				workspace_id: workspace.id,
-				title: workspace.title,
-				stage: "pending",
-				attempts: 0,
-				error_message: null,
-				started_at: null,
-				completed_at: null,
-				metadata: null,
-			});
-			wsEntries.set(workspace.id, {
-				id: wsExecId,
-				workspaceId: workspace.id,
-				stage: WS.Pending,
-				attempts: 0,
-			});
-		}
 
-		// Create initial journal event
-		await this.journalEventRepo.create({
-			id: generateId(),
-			plan_execution_id: planExecutionId,
-			workspace_execution_id: null,
-			event_type: "plan_start",
-			timestamp: nowISO,
-			data: { phase: queue.phase, title: queue.title },
+		// Wrap multi-table initialization in a transaction to ensure atomicity.
+		// If the process crashes or any step fails, all changes are rolled back.
+		await this.db.transaction().execute(async (trx: Transaction<Database>) => {
+			// Create plan execution row
+			await trx
+				.insertInto("plan_executions")
+				.values({
+					id: planExecutionId,
+					project_id: projectId,
+					phase: queue.phase,
+					title: queue.title,
+					status: "running" as const,
+					started_at: nowISO,
+					completed_at: null,
+				})
+				.execute();
+
+			// Create workspace execution rows
+			for (const workspace of queue.workspaces) {
+				const wsExecId = generateId();
+				await trx
+					.insertInto("workspace_executions")
+					.values({
+						id: wsExecId,
+						plan_execution_id: planExecutionId,
+						workspace_id: workspace.id,
+						title: workspace.title,
+						stage: "pending" as const,
+						attempts: 0,
+						error_message: null,
+						started_at: null,
+						completed_at: null,
+						metadata: null,
+					})
+					.execute();
+
+				wsEntries.set(workspace.id, {
+					id: wsExecId,
+					workspaceId: workspace.id,
+					stage: WS.Pending,
+					attempts: 0,
+				});
+			}
+
+			// Create initial journal event
+			await trx
+				.insertInto("journal_events")
+				.values({
+					id: generateId(),
+					plan_execution_id: planExecutionId,
+					workspace_execution_id: null,
+					event_type: "plan_start" as const,
+					timestamp: nowISO,
+					data: { phase: queue.phase, title: queue.title },
+				})
+				.execute();
 		});
 
-		// Cache state
 		this.cache.set(planExecutionId, {
 			id: planExecutionId,
 			projectId,

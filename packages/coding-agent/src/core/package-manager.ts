@@ -1719,13 +1719,25 @@ export class DefaultPackageManager implements PackageManager {
 		}
 		mkdirSync(dirname(targetDir), { recursive: true });
 
-		await this.runCommand("git", ["clone", source.repo, targetDir]);
-		if (source.ref) {
-			await this.runCommand("git", ["checkout", source.ref], { cwd: targetDir });
-		}
-		const packageJsonPath = join(targetDir, "package.json");
-		if (existsSync(packageJsonPath)) {
-			await this.runNpmCommand(this.getGitDependencyInstallArgs(), { cwd: targetDir });
+		try {
+			await this.runCommand("git", ["clone", source.repo, targetDir]);
+			if (source.ref) {
+				await this.runCommand("git", ["checkout", source.ref], { cwd: targetDir });
+			}
+			const packageJsonPath = join(targetDir, "package.json");
+			if (existsSync(packageJsonPath)) {
+				await this.runNpmCommand(this.getGitDependencyInstallArgs(), { cwd: targetDir });
+			}
+		} catch (error) {
+			// Rollback: remove partially installed directory on failure
+			// to prevent leaving the system in an inconsistent state
+			// (e.g., git clone succeeded but npm install failed).
+			try {
+				rmSync(targetDir, { recursive: true, force: true });
+			} catch {
+				// Rollback cleanup failure is non-fatal
+			}
+			throw error;
 		}
 	}
 
