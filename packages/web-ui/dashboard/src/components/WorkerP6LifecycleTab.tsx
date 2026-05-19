@@ -288,7 +288,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
           )}
 
           {/* Conflict entry (clickable handoff) */}
-          {isConflict && queueEntry?.mergeConflict && (
+          {isConflict && queueEntry?.mergeConflict && queueEntry?.entry && (
             <div>
               <button
                 onClick={() => openConflictHandoff(queueEntry.mergeConflict!, queueEntry.entry!)}
@@ -360,8 +360,8 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
                 <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
                   {isQuarantined ? "In Quarantine" : "Not Quarantined"}
                 </span>
-                {quarantineState!.reason && (
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState!.reason}</p>
+                {quarantineState.reason && (
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState.reason}</p>
                 )}
               </div>
             </div>
@@ -372,20 +372,20 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
                 <span className="text-emerald-600 dark:text-emerald-400 text-sm">&#10003;</span>
                 <div>
                   <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Cleanup Performed</span>
-                  {quarantineState!.cleanedAt && (
+                  {quarantineState.cleanedAt && (
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                      Cleaned at: {formatTs(quarantineState!.cleanedAt)}
+                      Cleaned at: {formatTs(quarantineState.cleanedAt)}
                     </p>
                   )}
-                  {quarantineState!.cleanupDetails && (
-                    <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState!.cleanupDetails}</p>
+                  {quarantineState.cleanupDetails && (
+                    <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState.cleanupDetails}</p>
                   )}
                 </div>
               </div>
             )}
 
             {/* Cleanup pending */}
-            {quarantineState!.cleanupPending && !hasCleanup && (
+            {quarantineState.cleanupPending && !hasCleanup && (
               <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded px-2.5 py-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
                 <span className="text-xs text-blue-700 dark:text-blue-300">Cleanup pending...</span>
@@ -393,9 +393,9 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
             )}
 
             {/* Cleanup error */}
-            {quarantineState!.cleanupError && (
+            {quarantineState.cleanupError && (
               <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-900 whitespace-pre-wrap break-words">
-                Cleanup error: {quarantineState!.cleanupError}
+                Cleanup error: {quarantineState.cleanupError}
               </div>
             )}
           </div>

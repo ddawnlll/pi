@@ -28,9 +28,14 @@ export function useWorkerTranscript({ planExecId, workspaceId }: UseWorkerTransc
 	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const reconnectDelayRef = useRef(1000);
 	const connectedWsRef = useRef<string | null>(null);
+	// Track latest props so setTimeout callback always reads the current values
+	const paramsRef = useRef({ planExecId, workspaceId });
+	paramsRef.current = { planExecId, workspaceId };
 
 	const connect = useCallback(() => {
-		if (!planExecId || !workspaceId) {
+		const { planExecId: currPlanExecId, workspaceId: currWorkspaceId } = paramsRef.current;
+
+		if (!currPlanExecId || !currWorkspaceId) {
 			setEvents([]);
 			setIsConnected(false);
 			return;
@@ -43,13 +48,13 @@ export function useWorkerTranscript({ planExecId, workspaceId }: UseWorkerTransc
 		}
 
 		// Clear events on workspace switch
-		if (connectedWsRef.current !== workspaceId) {
+		if (connectedWsRef.current !== currWorkspaceId) {
 			setEvents([]);
 			setError(null);
-			connectedWsRef.current = workspaceId;
+			connectedWsRef.current = currWorkspaceId;
 		}
 
-		const url = `${API_BASE}/api/transcript/${planExecId}/${workspaceId}`;
+		const url = `${API_BASE}/api/transcript/${currPlanExecId}/${currWorkspaceId}`;
 		const source = new EventSource(url);
 		sourceRef.current = source;
 
@@ -88,7 +93,7 @@ export function useWorkerTranscript({ planExecId, workspaceId }: UseWorkerTransc
 				connect();
 			}, reconnectDelayRef.current);
 		};
-	}, [planExecId, workspaceId]);
+	}, []); // Empty deps: connect always reads latest props via paramsRef
 
 	useEffect(() => {
 		reconnectDelayRef.current = 1000;

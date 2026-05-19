@@ -42,8 +42,11 @@ export function PlanSummary({ planState }: PlanSummaryProps) {
 }
 
 function formatElapsed(state: PlanState): string {
+  if (state.startedAt == null) {
+    return "Not started";
+  }
   const now = Date.now();
-  const start = state.startedAt ?? now;
+  const start = state.startedAt;
   const end = state.completedAt ?? now;
   const ms = end - start;
   const seconds = Math.max(0, Math.floor(ms / 1000));

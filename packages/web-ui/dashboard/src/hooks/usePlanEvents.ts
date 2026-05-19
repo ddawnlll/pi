@@ -12,6 +12,7 @@ interface UsePlanEventsOptions {
 export function usePlanEvents({ projectId, planExecId }: UsePlanEventsOptions) {
 	const [events, setEvents] = useState<JournalEvent[]>([]);
 	const sourceRef = useRef<EventSource | null>(null);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const connect = useCallback(() => {
 		if (sourceRef.current) {
@@ -45,13 +46,17 @@ export function usePlanEvents({ projectId, planExecId }: UsePlanEventsOptions) {
 			console.error("Plan events SSE error, reconnecting...");
 			source.close();
 			sourceRef.current = null;
-			setTimeout(connect, 5000);
+			reconnectTimerRef.current = setTimeout(connect, 5000);
 		};
 	}, [projectId, planExecId]);
 
 	useEffect(() => {
 		connect();
 		return () => {
+			if (reconnectTimerRef.current) {
+				clearTimeout(reconnectTimerRef.current);
+				reconnectTimerRef.current = null;
+			}
 			if (sourceRef.current) {
 				sourceRef.current.close();
 				sourceRef.current = null;

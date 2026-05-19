@@ -152,9 +152,16 @@ export function useWorkspaceLogStream(
 		}
 	}, [planExecId, workspaceId]);
 
+	// Track the previous workspaceId to only reset backoff on actual workspace change
+	const prevWorkspaceIdRef = useRef<string | null>(null);
+
 	useEffect(() => {
-		// Reset reconnect state when switching workspaces
-		reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
+		// Only reset backoff and lines on actual workspace switch, not on every effect run
+		if (prevWorkspaceIdRef.current !== workspaceId) {
+			reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
+			prevWorkspaceIdRef.current = workspaceId;
+		}
+
 		connectedWsRef.current = null;
 
 		// Clear any pending reconnect
@@ -180,7 +187,7 @@ export function useWorkspaceLogStream(
 				current.close(1000, "Component unmount");
 			}
 		};
-	}, [connect]);
+	}, [connect, workspaceId]);
 
 	return { lines, isConnected, isReconnecting, error };
 }

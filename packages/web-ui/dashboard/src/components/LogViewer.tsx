@@ -37,12 +37,20 @@ export function LogViewer({
 		userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 40;
 	};
 
+	// Reset user-scrolled state and scroll to bottom when stream or worker changes
+	useEffect(() => {
+		userScrolledUpRef.current = false;
+		if (scrollRef.current) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		}
+	}, [activeStream, selectedWorkerId]);
+
 	// Auto-scroll when new lines arrive (if user hasn't scrolled up)
 	useEffect(() => {
 		if (!userScrolledUpRef.current && scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [lines.length, activeStream, selectedWorkerId]);
+	}, [lines.length]);
 
 	if (!selectedWorkerId) {
 		return (
@@ -87,7 +95,7 @@ export function LogViewer({
 					<div className="text-gray-500">No logs yet...</div>
 				) : (
 					lines.map((line, i) => (
-						<div key={i} className="whitespace-pre-wrap break-words">
+						<div key={`${line}-${i}`} className="whitespace-pre-wrap break-words">
 							{line}
 						</div>
 					))
