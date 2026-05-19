@@ -229,12 +229,12 @@ export function buildValidationData(
 		details: safety
 			? [
 					...safety.critical.map((c) => ({
-						label: `[${c.type}]`,
+						label: c.type,
 						status: "fail" as const,
 						message: c.message,
 					})),
 					...safety.warnings.map((w) => ({
-						label: `[${w.type}]`,
+						label: w.type,
 						status: "warn" as const,
 						message: w.message,
 					})),
