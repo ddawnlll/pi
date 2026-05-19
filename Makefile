@@ -151,7 +151,7 @@ pi:
 		exit 1; \
 	fi
 	@echo "Starting pi from local dist..."
-	@cd packages/coding-agent && node dist/cli.js
+	@node packages/coding-agent/dist/cli.js
 
 # ── Server (foreground) ───────────────────────────────────────────────────────
 

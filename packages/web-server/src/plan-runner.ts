@@ -407,6 +407,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	try {
 		// Validate workspaceRoot before any filesystem operations
 		if (!workspaceRoot || workspaceRoot.trim() === "") {
+			inFlightProjects.delete(projectId);
 			return {
 				success: false,
 				errors: ["workspaceRoot is required but was not provided"],
@@ -416,6 +417,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		// Ensure workspaceRoot is an absolute path
 		const path = await import("node:path");
 		if (!path.isAbsolute(workspaceRoot)) {
+			inFlightProjects.delete(projectId);
 			return {
 				success: false,
 				errors: [`workspaceRoot must be an absolute path, got: ${workspaceRoot}`],
@@ -429,6 +431,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		const parseResult = parsePlan(planContent);
 
 		if (!parseResult.success || !parseResult.queue) {
+			inFlightProjects.delete(projectId);
 			return {
 				success: false,
 				errors: parseResult.errors.length > 0 ? parseResult.errors : ["Failed to parse plan"],
@@ -444,6 +447,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		);
 
 		if (!stackValidation.valid) {
+			inFlightProjects.delete(projectId);
 			const stackErrors = stackValidation.diagnostics.filter((d) => d.severity === "error").map((d) => d.message);
 			return {
 				success: false,
@@ -502,6 +506,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 					: [];
 
 			if (remainingCriticals.length > 0) {
+				inFlightProjects.delete(projectId);
 				return {
 					success: false,
 					errors: remainingCriticals.map((i) => `[${i.type}] ${i.message}`),
