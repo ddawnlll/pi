@@ -78,6 +78,18 @@ export class WorkspaceAgentExecutor {
 	private worktreeConfig?: WorktreeConfig;
 	/** P6.A: The worktree executor, created when worktree mode is enabled. */
 	private worktreeExecutor: WorktreeWorkspaceExecutor | null = null;
+
+	/**
+	 * Get all worktree states for recovery reconciliation.
+	 * @returns Array of worktree states
+	 */
+	getWorktreeStates(): WorktreeState[] {
+		if (!this.worktreeExecutor) {
+			return [];
+		}
+		return this.worktreeExecutor.getAllWorktreeStates?.() ?? [];
+	}
+
 	/** P4.6.3: AbortController for the current execution, created per execute() call. */
 	private abortController: AbortController | null = null;
 

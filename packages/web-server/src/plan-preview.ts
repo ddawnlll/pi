@@ -142,6 +142,9 @@ export function detectCycles(workspaces: Workspace[]): { hasCycle: boolean; cycl
 	// 0 = unvisited, 1 = in progress, 2 = done
 	const state = new Map<string, number>();
 	const path: string[] = [];
+	// Stores the neighbor that was found in-progress when a cycle is detected.
+	// This is the node that *starts* the cycle in the path.
+	let cycleBackEdgeNeighbor: string | null = null;
 
 	function dfs(nodeId: string): boolean {
 		state.set(nodeId, 1);
@@ -151,8 +154,10 @@ export function detectCycles(workspaces: Workspace[]): { hasCycle: boolean; cycl
 		for (const neighbor of neighbors) {
 			const neighborState = state.get(neighbor);
 			if (neighborState === 1) {
-				// Cycle found
-				const _cycleStart = path.indexOf(neighbor);
+				// Cycle found — neighbor is the node that is already in the current path.
+				// Record it so the caller can reconstruct the cycle, then return true
+				// WITHOUT popping nodeId from path (so path retains the full traversal).
+				cycleBackEdgeNeighbor = neighbor;
 				return true;
 			}
 			if (neighborState === undefined || neighborState === 0) {
@@ -169,12 +174,17 @@ export function detectCycles(workspaces: Workspace[]): { hasCycle: boolean; cycl
 
 	for (const ws of workspaces) {
 		if (state.get(ws.id) === undefined || state.get(ws.id) === 0) {
+			cycleBackEdgeNeighbor = null;
 			if (dfs(ws.id)) {
-				// Extract the cycle from path
-				const lastNode = path[path.length - 1];
-				const cycleStart = path.indexOf(lastNode);
-				const cycle = path.slice(cycleStart);
-				cycle.push(lastNode);
+				// dfs returned true without popping the last node from path.
+				// path now contains: [..., cycleStart, ..., lastNode]
+				// where cycleBackEdgeNeighbor is the node that was in-progress
+				// when the back-edge was found. We need to slice from that point.
+				const cycleStartIdx = cycleBackEdgeNeighbor !== null
+					? path.indexOf(cycleBackEdgeNeighbor)
+					: path.indexOf(path[path.length - 1]);
+				const cycle = path.slice(cycleStartIdx);
+				cycle.push(cycle[0]); // close the cycle: A -> B -> C -> A
 				return { hasCycle: true, cycle };
 			}
 		}

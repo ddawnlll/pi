@@ -155,6 +155,18 @@ export class WorktreeWorkspaceExecutor {
 	}
 
 	/**
+	 * Get all worktree states tracked by this executor.
+	 * For the single-executor pattern, this returns the current workspace's state.
+	 * In a more complex setup with per-workspace executors, would return all.
+	 */
+	getAllWorktreeStates(): WorktreeState[] {
+		if (this.worktreeState) {
+			return [this.worktreeState];
+		}
+		return [];
+	}
+
+	/**
 	 * Get the worktree path, if worktree mode is active.
 	 */
 	get worktreePath(): string | null {

@@ -120,6 +120,9 @@ function estimateContextUsed(logContent: string): number {
 	return Math.ceil(logContent.length / 4);
 }
 
+// Bug #8 fix: make git timeouts configurable via env var, with a larger default
+const GIT_TIMEOUT_MS = Number(process.env.GIT_TIMEOUT_MS) || 5000;
+
 /**
  * Get git info for a workspace by checking its working directory.
  */
@@ -128,14 +131,14 @@ function getGitInfo(workspaceRoot: string): { branch?: string; dirty?: boolean; 
 		const branch = execSync("git rev-parse --abbrev-ref HEAD", {
 			cwd: workspaceRoot,
 			encoding: "utf-8",
-			timeout: 2000,
+			timeout: GIT_TIMEOUT_MS,
 			stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 
 		const status = execSync("git status --porcelain", {
 			cwd: workspaceRoot,
 			encoding: "utf-8",
-			timeout: 2000,
+			timeout: GIT_TIMEOUT_MS,
 			stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 
@@ -144,7 +147,7 @@ function getGitInfo(workspaceRoot: string): { branch?: string; dirty?: boolean; 
 		const logOutput = execSync("git log --oneline -5", {
 			cwd: workspaceRoot,
 			encoding: "utf-8",
-			timeout: 2000,
+			timeout: GIT_TIMEOUT_MS,
 			stdio: ["ignore", "pipe", "ignore"],
 		}).trim();
 
@@ -2322,6 +2325,26 @@ fastify.post<{
 	const { projectId } = request.params;
 	const body = request.body;
 	const queue = getOrCreateQueue(projectId);
+
+	// Bug #11 fix: validate request body structure before processing
+	if (!body || typeof body !== "object") {
+		return reply.code(400).send({ error: "Request body must be a JSON object" });
+	}
+
+	const rawPlans = body.plans;
+	if (rawPlans !== undefined && !Array.isArray(rawPlans)) {
+		return reply.code(400).send({ error: "plans must be an array if provided" });
+	}
+	if (rawPlans !== undefined) {
+		for (let i = 0; i < rawPlans.length; i++) {
+			if (!rawPlans[i] || typeof rawPlans[i].planContent !== "string" || rawPlans[i].planContent.trim() === "") {
+				return reply.code(400).send({ error: `plans[${i}] must have a non-empty planContent string` });
+			}
+		}
+	}
+	if (body.planContent !== undefined && (typeof body.planContent !== "string" || body.planContent.trim() === "")) {
+		return reply.code(400).send({ error: "planContent must be a non-empty string if provided" });
+	}
 
 	// Support single or multi-plan upload
 	const plans: Array<{ planContent: string; planFileName?: string }> =

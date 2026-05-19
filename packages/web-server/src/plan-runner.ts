@@ -97,6 +97,25 @@ const EXECUTION_TTL_MS = (Number.parseInt(process.env.PI_EXECUTION_TTL_MINUTES ?
 // Map to track cleanup timers
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
+// Bug #9 fix: clear all cleanup timers on shutdown to prevent memory leaks
+function clearAllCleanupTimers(): void {
+	for (const timer of cleanupTimers.values()) {
+		clearTimeout(timer);
+	}
+	cleanupTimers.clear();
+}
+
+// Register shutdown handlers to clean up timers
+process.on("beforeExit", () => {
+	clearAllCleanupTimers();
+});
+process.on("SIGINT", () => {
+	clearAllCleanupTimers();
+});
+process.on("SIGTERM", () => {
+	clearAllCleanupTimers();
+});
+
 // ---------------------------------------------------------------------------
 // WorkspaceCompletionBus - Event-driven workspace completion signaling
 // ---------------------------------------------------------------------------
@@ -136,6 +155,9 @@ class WorkspaceCompletionSignal {
 class WorkspaceCompletionBus extends EventEmitter {
 	private pendingNext: { resolve: (value: WorkspaceCompletionSignal) => void } | null = null;
 	private lastSignal: WorkspaceCompletionSignal | null = null;
+	// Bug #7 fix: use a simple mutex flag to prevent races between
+	// nextCompletion() and signalCompletion()
+	private busy = false;
 
 	/**
 	 * Reset the bus for reuse — clears any stale accumulated signal.
@@ -150,7 +172,11 @@ class WorkspaceCompletionBus extends EventEmitter {
 	 * @returns a signal describing what happened
 	 */
 	async nextCompletion(): Promise<WorkspaceCompletionSignal> {
-		// If a signal was previously sent, consume it immediately
+		// Busy-wait briefly if signalCompletion is in progress
+		while (this.busy) {
+			await new Promise((r) => setTimeout(r, 10));
+		}
+		// If a signal was previously sent, consume it atomically
 		if (this.lastSignal !== null) {
 			const signal = this.lastSignal;
 			this.lastSignal = null;
@@ -163,34 +189,49 @@ class WorkspaceCompletionBus extends EventEmitter {
 
 	/** Signal that a workspace completed */
 	signalCompletion(): void {
-		if (this.pendingNext) {
-			const resolve = this.pendingNext.resolve;
-			this.pendingNext = null;
-			resolve(WorkspaceCompletionSignal.complete());
-		} else {
-			this.lastSignal = WorkspaceCompletionSignal.complete();
+		this.busy = true;
+		try {
+			if (this.pendingNext) {
+				const resolve = this.pendingNext.resolve;
+				this.pendingNext = null;
+				resolve(WorkspaceCompletionSignal.complete());
+			} else {
+				this.lastSignal = WorkspaceCompletionSignal.complete();
+			}
+		} finally {
+			this.busy = false;
 		}
 	}
 
 	/** Signal stop - resolves any pending nextCompletion */
 	signalStop(): void {
-		if (this.pendingNext) {
-			const resolve = this.pendingNext.resolve;
-			this.pendingNext = null;
-			resolve(WorkspaceCompletionSignal.stop());
-		} else {
-			this.lastSignal = WorkspaceCompletionSignal.stop();
+		this.busy = true;
+		try {
+			if (this.pendingNext) {
+				const resolve = this.pendingNext.resolve;
+				this.pendingNext = null;
+				resolve(WorkspaceCompletionSignal.stop());
+			} else {
+				this.lastSignal = WorkspaceCompletionSignal.stop();
+			}
+		} finally {
+			this.busy = false;
 		}
 	}
 
 	/** Signal wake - wakes without semantic meaning, e.g. pause has been written */
 	signalWake(): void {
-		if (this.pendingNext) {
-			const resolve = this.pendingNext.resolve;
-			this.pendingNext = null;
-			resolve(WorkspaceCompletionSignal.wake());
-		} else {
-			this.lastSignal = WorkspaceCompletionSignal.wake();
+		this.busy = true;
+		try {
+			if (this.pendingNext) {
+				const resolve = this.pendingNext.resolve;
+				this.pendingNext = null;
+				resolve(WorkspaceCompletionSignal.wake());
+			} else {
+				this.lastSignal = WorkspaceCompletionSignal.wake();
+			}
+		} finally {
+			this.busy = false;
 		}
 	}
 }
@@ -1715,6 +1756,33 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		new PiLogger({ planExecId }).info(
 			`Filtered out ${completeWorkspaceIds.size} complete workspace(s) from recovery queue (${originalCount} → ${queue.workspaces.length})`,
 		);
+	}
+
+	// Worktree recovery: reconcile existing worktrees from disk with execution state
+	// This identifies orphaned worktrees from the previous run that need attention
+	if (recoveredWorktreeConfig?.enabled) {
+		try {
+			const loadedWorktrees = await executor.loadWorktreeManagerState();
+			if (loadedWorktrees > 0) {
+				new PiLogger({ planExecId }).info(`Loaded ${loadedWorktrees} worktree(s) from persisted state`);
+			}
+
+			// Reconcile: find worktrees for this execution that are no longer in the queue
+			const activeWorktreeStates = executor.getWorktreeStates();
+			const workspaceIdsInQueue = new Set(queue.workspaces.map((w) => w.id));
+			const orphanedWorktrees = activeWorktreeStates.filter((wt) => !workspaceIdsInQueue.has(wt.workspaceId));
+
+			if (orphanedWorktrees.length > 0) {
+				new PiLogger({ planExecId }).warn(
+					`Found ${orphanedWorktrees.length} orphaned worktree(s) from previous run: ${orphanedWorktrees
+						.map((wt) => wt.workspaceId)
+						.join(", ")}. These will be ignored during this recovery.`,
+				);
+			}
+		} catch (error) {
+			// Non-fatal - recovery can still proceed without worktree reconciliation
+			new PiLogger({ planExecId }).warn(`Worktree reconciliation failed: ${error}, continuing recovery`);
+		}
 	}
 
 	// Create the execution tracking object

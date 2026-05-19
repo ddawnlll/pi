@@ -42,6 +42,20 @@ Key changes:
 
 ---
 
+## What Changed in v2.5.1
+
+v2.5.1 adds **worktree state persistence and crash recovery** support. When worktree isolation mode is enabled, worktree state is persisted to `.pi/worktree-state.json` so it can be recovered after a server crash.
+
+Key changes:
+- **Worktree state persistence**: WorktreeManager persists worktree states to `.pi/worktree-state.json` after each state change.
+- **Crash recovery reconciliation**: On server restart, `resumeStrandedExecutions()` loads persisted worktree state and reconciles orphaned worktrees.
+- **Orphan detection**: If a worktree exists on disk but its workspace is no longer in the execution queue, it's logged as orphaned and skipped during recovery.
+- **Diff preservation**: Worktree diff artifacts are saved to `.pi/executions/{planExecId}/worktrees/{wsId}.patch` before stopping, surviving worktree cleanup.
+- The ` recuperación` process filters out already-completed workspaces to avoid re-execution.
+- Added worktree reconciliation logging: number of worktrees loaded, orphaned worktree IDs.
+
+---
+
 ## What Changed in v2.4.0
 
 v2.4.0 adds **plan-intake auto-analysis and DAG optimizer** support. Plans uploaded to Pi are now automatically analyzed: DAG recomputed, bottlenecks detected, optimization proposals generated, and graph diffs presented for approval before execution. Authored batch previews become advisory; the computed and approved graph is authoritative.
@@ -884,7 +898,8 @@ Hard stop execution only for:
       "extension_registry_snapshot",
       "skill_registry_snapshot",
       "memory_index_snapshot",
-      "platform_audit_timeline"
+      "platform_audit_timeline",
+      "worktree_state"
     ]
   },
   "workspaces": [

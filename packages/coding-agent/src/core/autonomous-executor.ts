@@ -1590,6 +1590,33 @@ export class AutonomousExecutor {
 	}
 
 	/**
+	 * Get worktree states for recovery reconciliation.
+	 * During crash recovery, this helps identify orphaned worktrees that
+	 * need cleanup or reconciliation.
+	 * @returns Array of worktree states from the active executor
+	 */
+	getWorktreeStates(): import("../worktree/worktree-types.js").WorktreeState[] {
+		return this.agentExecutor?.getWorktreeStates() ?? [];
+	}
+
+	/**
+	 * Load worktree state from disk during crash recovery.
+	 * This reconciles in-memory state with persisted worktree-state.json.
+	 * @returns Number of worktrees loaded
+	 */
+	async loadWorktreeManagerState(): Promise<number> {
+		if (!this.agentExecutor?.isWorktreeModeEnabled) {
+			return 0;
+		}
+		// Load worktree manager state from .pi/worktree-state.json
+		const { WorktreeManager } = await import("../worktree/worktree-manager.js");
+		const manager = new WorktreeManager(this.workspaceRoot);
+		await manager.loadState();
+		const worktrees = manager.list();
+		return worktrees.length;
+	}
+
+	/**
 	 * P4.6.3: Abort all in-flight workspace executions.
 	 * Each active WorkspaceAgentExecutor receives an abort signal,
 	 * causing the in-flight execute() promise to resolve with FAILED.

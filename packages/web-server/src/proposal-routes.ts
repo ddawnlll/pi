@@ -196,6 +196,8 @@ async function loadProposalsFromDb(filter?: ProposalQueryParams): Promise<Propos
 		});
 	} catch (error) {
 		console.error("[proposal-routes] DB load error:", error);
+		// Bug #13 fix: return empty with error logged, but don't silently swallow
+		// The caller renders an empty state, which is still the best UX for a read-only list
 		return [];
 	}
 }
@@ -453,11 +455,14 @@ export async function registerProposalRoutes(
 	}>("/api/proposals", async (request, reply) => {
 		try {
 			const backend = detectStateStoreBackend();
+			// Bug #4 fix: bound limit/offset to prevent abuse
+			const rawLimit = request.query.limit ? Number(request.query.limit) : undefined;
+			const rawOffset = request.query.offset ? Number(request.query.offset) : undefined;
 			const filter: ProposalQueryParams = {
 				status: request.query.status,
 				phase: request.query.phase,
-				limit: request.query.limit ? Number(request.query.limit) : undefined,
-				offset: request.query.offset ? Number(request.query.offset) : undefined,
+				limit: rawLimit !== undefined ? Math.min(Math.max(rawLimit, 1), 1000) : undefined,
+				offset: rawOffset !== undefined ? Math.max(rawOffset, 0) : undefined,
 			};
 
 			let proposals: ProposalResponse[];

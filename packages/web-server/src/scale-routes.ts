@@ -48,12 +48,13 @@
 
 import { exec as execCb } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { IntegrationQueue } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
+import { validatePathComponent } from "./log-stream-routes.js";
 
 const execAsync = promisify(execCb);
 
@@ -708,8 +709,10 @@ export async function registerScaleRoutes(
 
 			const worktrees = parseGitWorktreeList(stdout);
 
-			// Check dirty status for each worktree
-			for (const wt of worktrees) {
+			// Bug #10 fix: batch dirty status checks into a single git command.
+			// For each worktree path, run git status in parallel with Promise.all
+			// instead of sequential N+1 iteration.
+			await Promise.all(worktrees.map(async (wt) => {
 				try {
 					const { stdout: statusOut } = await execAsync("git status --porcelain", {
 						cwd: wt.path,
@@ -720,7 +723,7 @@ export async function registerScaleRoutes(
 				} catch {
 					wt.dirty = false;
 				}
-			}
+			}));
 
 			return { worktrees, total: worktrees.length };
 		} catch (error) {
@@ -940,6 +943,9 @@ export async function registerScaleRoutes(
 	}>("/api/scale/worktrees/:worktreeName", async (request, reply) => {
 		try {
 			const { worktreeName } = request.params;
+			// Bug #1 fix: validate worktreeName before use in any operation
+			validatePathComponent("worktreeName", worktreeName);
+
 			const workspaceRoot = getWorkspaceRoot();
 
 			// Find the worktree by name

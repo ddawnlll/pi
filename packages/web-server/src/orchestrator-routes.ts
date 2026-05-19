@@ -91,36 +91,35 @@ export interface OrchestratorActionResponse {
 }
 
 // ---------------------------------------------------------------------------
-// File paths (use injected piDir from route registration)
+// Config (injected from route registration, stored locally per invocation)
 // ---------------------------------------------------------------------------
 
-let _piDir = "";
-
-function getPiDir(): string {
-	return _piDir;
+interface OrchestratorConfig {
+	piDir: string;
 }
 
-function setPiDir(dir: string): void {
-	_piDir = dir;
-	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-}
+function createOrchestratorHelpers(cfg: OrchestratorConfig) {
+	const { piDir } = cfg;
 
-function getOrchestratorDir(): string {
-	const dir = join(getPiDir(), "orchestrator");
-	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-	return dir;
-}
+	function getOrchestratorDir(): string {
+		const dir = join(piDir, "orchestrator");
+		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+		return dir;
+	}
 
-function getHealthPath(): string {
-	return join(getOrchestratorDir(), "health.json");
-}
+	function getHealthPath(): string {
+		return join(getOrchestratorDir(), "health.json");
+	}
 
-function getProposalsPath(): string {
-	return join(getPiDir(), "proposals", "index.json");
+	function getProposalsPath(): string {
+		return join(piDir, "proposals", "index.json");
+	}
+
+	return { piDir, getOrchestratorDir, getHealthPath, getProposalsPath };
 }
 
 // ---------------------------------------------------------------------------
-// Health data helpers
+// Health data helpers (all accept piDir parameter — no global mutable state)
 // ---------------------------------------------------------------------------
 
 function generateDefaultHealth(): OrchestratorHealth {
@@ -290,12 +289,13 @@ function generateRunningHealth(): OrchestratorHealth {
 	};
 }
 
-async function loadHealth(): Promise<OrchestratorHealth> {
+async function loadHealth(piDir: string): Promise<OrchestratorHealth> {
 	try {
-		const path = getHealthPath();
+		const helpers = createOrchestratorHelpers({ piDir });
+		const path = helpers.getHealthPath();
 		if (!existsSync(path)) {
 			const health = generateDefaultHealth();
-			await saveHealth(health);
+			await saveHealth(piDir, health);
 			return health;
 		}
 		const content = await readFile(path, "utf-8");
@@ -305,11 +305,13 @@ async function loadHealth(): Promise<OrchestratorHealth> {
 	}
 }
 
-async function saveHealth(health: OrchestratorHealth): Promise<void> {
-	await writeFile(getHealthPath(), JSON.stringify(health, null, 2), "utf-8");
+async function saveHealth(piDir: string, health: OrchestratorHealth): Promise<void> {
+	const helpers = createOrchestratorHelpers({ piDir });
+	await writeFile(helpers.getHealthPath(), JSON.stringify(health, null, 2), "utf-8");
 }
 
-async function loadProposals(): Promise<OrchestratorProposalItem[]> {
+async function loadProposals(piDir: string): Promise<OrchestratorProposalItem[]> {
+	const { getOrchestratorDir, getProposalsPath } = createOrchestratorHelpers({ piDir });
 	// First try to load from orchestrator-specific proposal file
 	const orchestratorPropsPath = join(getOrchestratorDir(), "proposals.json");
 	if (existsSync(orchestratorPropsPath)) {
@@ -354,14 +356,15 @@ async function loadProposals(): Promise<OrchestratorProposalItem[]> {
 	}
 }
 
-async function saveProposals(proposals: OrchestratorProposalItem[]): Promise<void> {
+async function saveProposals(piDir: string, proposals: OrchestratorProposalItem[]): Promise<void> {
+	const { getOrchestratorDir, getProposalsPath } = createOrchestratorHelpers({ piDir });
 	// Save to orchestrator-specific path (rich format)
 	const orchDir = getOrchestratorDir();
 	const data = { proposals, total: proposals.length };
 	await writeFile(join(orchDir, "proposals.json"), JSON.stringify(data, null, 2), "utf-8");
 
 	// Also save to legacy proposals path for backward compat
-	const piProposalsDir = join(getPiDir(), "proposals");
+	const piProposalsDir = join(piDir, "proposals");
 	if (!existsSync(piProposalsDir)) mkdirSync(piProposalsDir, { recursive: true });
 	const legacyProposals = proposals.map((s) => ({
 		id: s.id,
@@ -511,14 +514,17 @@ export async function registerOrchestratorRoutes(
 	}
 	// Ensure directory exists
 	mkdirSync(resolvedPiDir, { recursive: true });
-	setPiDir(resolvedPiDir);
+
+	// Bug #2 & #3 fix: use closure-based config instead of module-level `_piDir`
+	const cfg = createOrchestratorHelpers({ piDir: resolvedPiDir });
+	const { piDir, getOrchestratorDir, getHealthPath, getProposalsPath } = cfg;
 	// -----------------------------------------------------------------------
 	// GET /api/orchestrator/health — Orchestrator daemon health snapshot
 	// -----------------------------------------------------------------------
 
 	fastify.get("/api/orchestrator/health", async (_request, reply) => {
 		try {
-			const health = await loadHealth();
+			const health = await loadHealth(piDir);
 			return reply.send({ success: true, health });
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to load orchestrator health");
@@ -544,7 +550,7 @@ export async function registerOrchestratorRoutes(
 		});
 
 		// Send initial health snapshot
-		const initialHealth = await loadHealth();
+		const initialHealth = await loadHealth(piDir);
 		reply.raw.write(`data: ${JSON.stringify({ type: "health", health: initialHealth })}\n\n`);
 
 		// Poll health file every 10s for changes
@@ -557,13 +563,13 @@ export async function registerOrchestratorRoutes(
 					const stat = await import("node:fs/promises").then((m) => m.stat(path));
 					if (stat.mtimeMs !== lastKnownMtime) {
 						lastKnownMtime = stat.mtimeMs;
-						const health = await loadHealth();
+						const health = await loadHealth(piDir);
 						reply.raw.write(`data: ${JSON.stringify({ type: "health", health })}\n\n`);
 					}
 				} else {
 					// Health file doesn't exist yet — send default and write it
 					const health = generateDefaultHealth();
-					await saveHealth(health);
+					await saveHealth(piDir, health);
 					reply.raw.write(`data: ${JSON.stringify({ type: "health", health })}\n\n`);
 				}
 			} catch {
@@ -587,7 +593,7 @@ export async function registerOrchestratorRoutes(
 	fastify.get("/api/orchestrator/proposals", async (request, reply) => {
 		try {
 			const _query = request.query as Record<string, string>;
-			const proposals = await loadProposals();
+			const proposals = await loadProposals(piDir);
 
 			// Sort newest first
 			proposals.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
@@ -617,14 +623,14 @@ export async function registerOrchestratorRoutes(
 	fastify.post("/api/orchestrator/seed-proposals", async (_request, reply) => {
 		try {
 			// Only seed if there are no existing proposals
-			const existing = await loadProposals();
+			const existing = await loadProposals(piDir);
 			if (existing.length === 0) {
 				const seeds = generateSeedProposals();
-				await saveProposals(seeds);
+				await saveProposals(piDir, seeds);
 
 				// Update health to running since we have data
 				const health = generateRunningHealth();
-				await saveHealth(health);
+				await saveHealth(piDir, health);
 
 				return reply.send({
 					success: true,
@@ -680,7 +686,7 @@ export async function registerOrchestratorRoutes(
 			await writeFile(join(controlDir, "control-request.json"), JSON.stringify(control, null, 2), "utf-8");
 
 			// Update health state immediately for dashboard feedback
-			const health = await loadHealth();
+			const health = await loadHealth(piDir);
 			if (action === "pause") {
 				health.paused = true;
 				health.pauseReason = reason ?? null;
@@ -694,7 +700,7 @@ export async function registerOrchestratorRoutes(
 			} else if (action === "request_scan") {
 				health.lastHeartbeatAt = Date.now();
 			}
-			await saveHealth(health);
+			await saveHealth(piDir, health);
 
 			return reply.send({
 				success: true,
@@ -718,19 +724,19 @@ export async function registerOrchestratorRoutes(
 
 	async function autoSeedIfNeeded(): Promise<void> {
 		try {
-			const proposals = await loadProposals();
+			const proposals = await loadProposals(piDir);
 			if (proposals.length === 0) {
 				const seeds = generateSeedProposals();
-				await saveProposals(seeds);
+				await saveProposals(piDir, seeds);
 
 				const health = generateRunningHealth();
-				await saveHealth(health);
+				await saveHealth(piDir, health);
 			} else {
 				// Ensure health file exists
 				const healthPath = getHealthPath();
 				if (!existsSync(healthPath)) {
 					const health = generateRunningHealth();
-					await saveHealth(health);
+					await saveHealth(piDir, health);
 				}
 			}
 		} catch {
@@ -860,7 +866,7 @@ export async function registerOrchestratorRoutes(
 			return;
 		}
 
-		const workspaceRoot = resolve(getPiDir(), "..");
+		const workspaceRoot = resolve(piDir, "..");
 
 		// Helper: emit event
 		const emit = (type: string, content: string, extra?: Record<string, unknown>) => {
@@ -959,7 +965,7 @@ export async function registerOrchestratorRoutes(
 			}
 
 			// Check plan execution logs
-			const planDir = join(getPiDir(), "workspaces");
+			const planDir = join(piDir, "workspaces");
 			let workspaceCount = 0;
 			let failedCount = 0;
 			let errorPatterns: string[] = [];
@@ -1235,7 +1241,7 @@ export async function registerOrchestratorRoutes(
 
 		// Generate and save the proposal
 		try {
-			const existingProposals = await loadProposals();
+			const existingProposals = await loadProposals(piDir);
 			const newProposal: OrchestratorProposalItem = {
 				id: `lead-prop-${Date.now()}`,
 				title: proposalTitle,
@@ -1260,7 +1266,7 @@ export async function registerOrchestratorRoutes(
 				],
 			};
 			const updated = [newProposal, ...existingProposals];
-			await saveProposals(updated);
+			await saveProposals(piDir, updated);
 		} catch {
 			/* non-fatal */
 		}
