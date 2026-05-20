@@ -1122,6 +1122,21 @@ export class PlanStateStore {
 	 * @param workspaceId - Workspace ID
 	 * @returns Array of worker transcript events
 	 */
+	async getWorkspaceIdsWithTranscript(planExecutionId: string): Promise<string[]> {
+		// For PlanStateStore (JSON filesystem backend), discover workspace
+		// directories under .pi/executions/{planExecId}/workspaces/
+		const execDir = path.join(path.dirname(this.journalFilePath), "executions", planExecutionId, "workspaces");
+		try {
+			const entries = await fs.readdir(execDir, { withFileTypes: true });
+			return entries
+				.filter((e) => e.isDirectory())
+				.map((e) => e.name)
+				.filter((name) => name !== "_plan");
+		} catch {
+			return [];
+		}
+	}
+
 	async readWorkerTranscriptEvents(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]> {
 		const transcriptFilePath = path.join(
 			path.dirname(this.journalFilePath),

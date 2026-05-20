@@ -2961,6 +2961,28 @@ fastify.get<{
 		return [];
 	};
 
+	// Helper: read transcript events from state store for a given workspace
+	// (used for DB backend where events are stored in-memory, not ndjson files)
+	const readStateStoreEvents = async (wsId: string): Promise<Array<{ line: string; timestamp: number }>> => {
+		const result: Array<{ line: string; timestamp: number }> = [];
+		try {
+			const stateStore = getStateStore();
+			if (typeof (stateStore as any).readWorkerTranscriptEvents === "function") {
+				const events = await (stateStore as any).readWorkerTranscriptEvents(planExecId, wsId);
+				if (Array.isArray(events)) {
+					for (const evt of events) {
+						const line = JSON.stringify(evt);
+						const ts = evt.timestamp ?? 0;
+						result.push({ line, timestamp: ts });
+					}
+				}
+			}
+		} catch {
+			// Ignore
+		}
+		return result;
+	};
+
 	// Helper: read all transcript + plan events and merge chronologically
 	// Returns array of { line, timestamp } objects
 	const readAllEvents = (): Array<{ line: string; timestamp: number }> => {
@@ -2999,22 +3021,59 @@ fastify.get<{
 		return result;
 	};
 
-	// Send existing events
+	// Send existing events (file-based and state store)
 	const allEvents = readAllEvents();
 	let lastSentCount = 0;
+	const lastStateStoreCounts = new Map<string, number>();
+
+	// Send file-based events first
 	for (const evt of allEvents) {
 		reply.raw.write(`data: ${evt.line}\n\n`);
 		lastSentCount++;
 	}
 
-	if (allEvents.length === 0) {
-		reply.raw.write(`data: __NO_TRANSCRIPT__\n\n`);
-	}
+	// Also emit any state-store transcript events not yet in ndjson files.
+	// The state store (DB backend) may have workspace IDs in its internal log
+	// buffers that don't correspond to filesystem directories yet.
+	// We discover them by trying readWorkerTranscriptEvents for workspaces found
+	// on the filesystem, plus any IDs we can infer from the plan state.
+	(async () => {
+		const fileWsIds = new Set(listWorkspaceDirs().filter((id) => id !== "_plan"));
+		const allWsIds = new Set(fileWsIds);
+
+		// Discover workspace IDs with transcript events from the state store
+		try {
+			const stateStore = getStateStore();
+			if (typeof (stateStore as any).getWorkspaceIdsWithTranscript === "function") {
+				const stateWsIds: string[] = await (stateStore as any).getWorkspaceIdsWithTranscript(planExecId);
+				for (const id of stateWsIds) allWsIds.add(id);
+			}
+		} catch {
+			// Ignore
+		}
+
+		for (const wsId of allWsIds) {
+			const stateEvents = await readStateStoreEvents(wsId);
+			if (stateEvents.length > 0) {
+				lastStateStoreCounts.set(wsId, stateEvents.length);
+				for (const evt of stateEvents) {
+					if (!allEvents.some((e) => e.line === evt.line && e.timestamp === evt.timestamp)) {
+						reply.raw.write(`data: ${evt.line}\n\n`);
+						lastSentCount++;
+					}
+				}
+			}
+		}
+
+		if (lastSentCount === 0) {
+			reply.raw.write(`data: __NO_TRANSCRIPT__\n\n`);
+		}
+	})().catch(() => {});
 
 	// Poll for new events every 2 seconds
 	let lastWorkspaceCount = listWorkspaceDirs().length;
 
-	const pollInterval = setInterval(() => {
+	const pollInterval = setInterval(async () => {
 		try {
 			// Check for new workspace directories that appeared
 			const currentWorkspaces = listWorkspaceDirs();
@@ -3022,6 +3081,7 @@ fastify.get<{
 				lastWorkspaceCount = currentWorkspaces.length;
 			}
 
+			// Poll file-based events
 			const currentEvents = readAllEvents();
 			if (currentEvents.length > lastSentCount) {
 				const newEvents = currentEvents.slice(lastSentCount);
@@ -3029,6 +3089,21 @@ fastify.get<{
 					reply.raw.write(`data: ${evt.line}\n\n`);
 				}
 				lastSentCount = currentEvents.length;
+			}
+
+			// Also poll state store for DB-backend transcript events
+			for (const wsId of currentWorkspaces) {
+				if (wsId === "_plan") continue;
+				const stateEvents = await readStateStoreEvents(wsId);
+				const prevCount = lastStateStoreCounts.get(wsId) ?? 0;
+				if (stateEvents.length > prevCount) {
+					const newEvents = stateEvents.slice(prevCount);
+					for (const evt of newEvents) {
+						reply.raw.write(`data: ${evt.line}\n\n`);
+						lastSentCount++;
+					}
+					lastStateStoreCounts.set(wsId, stateEvents.length);
+				}
 			}
 		} catch {
 			// Ignore poll errors

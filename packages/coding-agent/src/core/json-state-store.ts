@@ -859,6 +859,10 @@ export class JsonStateStore implements IStateStore {
 		await this.store.appendWorkerTranscriptEvent(planExecutionId, workspaceId, event);
 	}
 
+	async getWorkspaceIdsWithTranscript(planExecutionId: string): Promise<string[]> {
+		return this.store.getWorkspaceIdsWithTranscript(planExecutionId);
+	}
+
 	async readWorkerTranscriptEvents(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]> {
 		return this.store.readWorkerTranscriptEvents(planExecutionId, workspaceId);
 	}

@@ -20,6 +20,7 @@ import {
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
+import { buildTranscriptSummary, createWorkerTranscriptEvent } from "./plan-state.js";
 import type {
 	ControlAction,
 	IStateStore,
@@ -995,6 +996,18 @@ export class DatabaseStateStore implements IStateStore {
 		}
 	}
 
+	async getWorkspaceIdsWithTranscript(planExecutionId: string): Promise<string[]> {
+		const ids: string[] = [];
+		const prefix = `${planExecutionId}:`;
+		for (const key of this.logBuffers.keys()) {
+			if (key.startsWith(prefix)) {
+				const wsId = key.slice(prefix.length);
+				if (wsId) ids.push(wsId);
+			}
+		}
+		return ids;
+	}
+
 	async readWorkerTranscriptEvents(
 		planExecutionId: string,
 		workspaceId: string,
@@ -1021,13 +1034,17 @@ export class DatabaseStateStore implements IStateStore {
 		status: string,
 		message?: string,
 	): Promise<void> {
-		const event: import("./plan-state.js").JournalEvent = {
+		const event: JournalEvent = {
 			type: "worker_status",
 			timestamp: Date.now(),
 			workspaceId,
 			data: { status, message: message ?? undefined },
 		};
 		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
 	}
 
 	async emitWorkerDecisionSummary(
@@ -1036,13 +1053,17 @@ export class DatabaseStateStore implements IStateStore {
 		summary: string,
 		verdict: string,
 	): Promise<void> {
-		const event: import("./plan-state.js").JournalEvent = {
+		const event: JournalEvent = {
 			type: "worker_decision_summary",
 			timestamp: Date.now(),
 			workspaceId,
 			data: { summary, verdict },
 		};
 		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
 	}
 
 	async emitValidation(
@@ -1052,13 +1073,17 @@ export class DatabaseStateStore implements IStateStore {
 		passed: boolean,
 		details?: string,
 	): Promise<void> {
-		const event: import("./plan-state.js").JournalEvent = {
+		const event: JournalEvent = {
 			type: "validation",
 			timestamp: Date.now(),
 			workspaceId,
 			data: { criterion, passed, details: details ?? undefined },
 		};
 		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
 	}
 
 	async emitBlocker(
@@ -1067,12 +1092,16 @@ export class DatabaseStateStore implements IStateStore {
 		reason: string,
 		dependencies?: string[],
 	): Promise<void> {
-		const event: import("./plan-state.js").JournalEvent = {
+		const event: JournalEvent = {
 			type: "blocker",
 			timestamp: Date.now(),
 			workspaceId,
 			data: { reason, dependencies: dependencies ?? undefined },
 		};
 		await this.appendJournal(planExecutionId, event);
+		const transcriptEvent = createWorkerTranscriptEvent(event, buildTranscriptSummary(event));
+		if (transcriptEvent) {
+			await this.appendWorkerTranscriptEvent(planExecutionId, workspaceId, transcriptEvent);
+		}
 	}
 }

@@ -540,6 +540,9 @@ export interface IStateStore {
 	 */
 	readWorkerTranscriptEvents?(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]>;
 
+	/** List workspace IDs that have transcript events for a given plan execution. */
+	getWorkspaceIdsWithTranscript?(planExecutionId: string): Promise<string[]>;
+
 	/**
 	 * Emit a worker_status event to journal and transcript.
 	 *
