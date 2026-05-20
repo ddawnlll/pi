@@ -164,6 +164,11 @@ export class IntegrationQueue {
 	private branch: IntegrationBranch;
 	private state: IntegrationQueueState;
 	private stateFilePath: string;
+	/**
+	 * Workspace dependency map: workspaceId -> array of dependency workspace IDs.
+	 * Set via setWorkspaceDependencies() before processing if dependency ordering is needed.
+	 */
+	private workspaceDependencies: Map<string, string[]> = new Map();
 
 	/**
 	 * @param workspaceRoot - Root directory of the workspace (git repo)
@@ -190,6 +195,17 @@ export class IntegrationQueue {
 	 */
 	get integrationBranch(): IntegrationBranch {
 		return this.branch;
+	}
+
+	/**
+	 * Set workspace dependency information for dependency-order-aware merge processing.
+	 * This should be called before processing starts if you need the queue to respect
+	 * workspace dependencies (i.e., don't merge a workspace before its dependencies).
+	 *
+	 * @param dependencies - Map from workspace ID to array of dependency workspace IDs
+	 */
+	setWorkspaceDependencies(dependencies: Map<string, string[]>): void {
+		this.workspaceDependencies = dependencies;
 	}
 
 	/**
@@ -312,61 +328,123 @@ export class IntegrationQueue {
 			return { processed: false };
 		}
 
+		// Guard: dependency ordering — find the first queued entry whose dependencies
+		// (if any) have all been merged. This prevents out-of-order merging that could
+		// break downstream workspaces.
+		const eligibleEntry = this.findEligibleEntry(nextEntry);
+		if (!eligibleEntry) {
+			// No eligible entry found — all queued entries have unmet dependencies.
+			// Return without processing to avoid blocking the queue indefinitely
+			// on an entry whose dependencies may never arrive.
+			return { processed: false };
+		}
+
+		// If the original first entry was not eligible, reset it to queued and use the eligible one
+		if (eligibleEntry.workspaceId !== nextEntry.workspaceId) {
+			nextEntry.status = "queued";
+			await this.saveState();
+		}
+
+		return this.processEntry(eligibleEntry);
+	}
+
+	/**
+	 * Find the first queue entry whose dependencies are all merged.
+	 * If the first queued entry has no dependencies or all deps are merged,
+	 * it is returned directly. Otherwise, scan for a later entry that can proceed.
+	 *
+	 * @param firstQueued - The first queued entry found by processNext()
+	 * @returns An eligible entry, or undefined if none found
+	 */
+	private findEligibleEntry(firstQueued: QueueEntry): QueueEntry | undefined {
+		const deps = this.workspaceDependencies.get(firstQueued.workspaceId);
+		const allMerged = (workspaceId: string): boolean => {
+			const entryDeps = this.workspaceDependencies.get(workspaceId);
+			if (!entryDeps || entryDeps.length === 0) return true;
+			for (const depId of entryDeps) {
+				const depEntry = this.state.entries.find((e) => e.workspaceId === depId);
+				if (!depEntry || depEntry.status !== "merged") return false;
+			}
+			return true;
+		};
+
+		// If firstQueued has no dependencies or its deps are merged, it's eligible
+		if (!deps || deps.length === 0 || allMerged(firstQueued.workspaceId)) {
+			return firstQueued;
+		}
+
+		// First queued entry has unmet dependencies — find another queued entry that can proceed
+		// (this respects topological order: workspaces that depend on nothing get merged first)
+		for (const entry of this.state.entries) {
+			if (entry.status === "queued" && allMerged(entry.workspaceId)) {
+				return entry;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Process a single entry through merge, validation, and finalization.
+	 * The entry is marked "merging", cherry-picked into the integration branch,
+	 * validated if a validation command is configured, and finalized.
+	 *
+	 * @param entry - The queue entry to process
+	 * @returns Processing result
+	 */
+	private async processEntry(entry: QueueEntry): Promise<{ processed: boolean; entry?: QueueEntry }> {
 		// Begin processing
 		this.state.isProcessing = true;
-		this.state.currentWorkspaceId = nextEntry.workspaceId;
-		nextEntry.status = "merging";
-		nextEntry.processedAt = Date.now();
+		this.state.currentWorkspaceId = entry.workspaceId;
+		entry.status = "merging";
+		entry.processedAt = Date.now();
 		await this.saveState();
 
 		try {
 			// AC1: Merge one workspace at a time into integration branch
 			await this.branch.ensureBranch();
-			const mergeEntry = await this.branch.mergeWorkspace(nextEntry.workspaceId, nextEntry.commitHash);
+			const mergeEntry = await this.branch.mergeWorkspace(entry.workspaceId, entry.commitHash);
 
 			// Update queue state from merge result
-			nextEntry.status = "merged";
-			nextEntry.mergedAt = mergeEntry.mergedAt;
+			entry.status = "merged";
+			entry.mergedAt = mergeEntry.mergedAt;
 
 			// AC4: Run integration validation after merge
-			if (nextEntry.validationCommand) {
-				nextEntry.status = "validating";
-				nextEntry.validationStartedAt = Date.now();
+			if (entry.validationCommand) {
+				entry.status = "validating";
+				entry.validationStartedAt = Date.now();
 				await this.saveState();
 
-				const validationResult = await this.branch.runValidation(
-					nextEntry.workspaceId,
-					nextEntry.validationCommand,
-				);
+				const validationResult = await this.branch.runValidation(entry.workspaceId, entry.validationCommand);
 
-				nextEntry.validationPassed = validationResult.passed;
-				nextEntry.validationOutput = validationResult.output;
+				entry.validationPassed = validationResult.passed;
+				entry.validationOutput = validationResult.output;
 
 				if (validationResult.passed) {
-					nextEntry.status = "merged";
+					entry.status = "merged";
 
 					// AC5: Record merge result
-					const updatedMergeEntry = this.branch.getMergeStatus(nextEntry.workspaceId);
+					const updatedMergeEntry = this.branch.getMergeStatus(entry.workspaceId);
 					if (updatedMergeEntry) {
 						await this.branch.recordResult(updatedMergeEntry);
 					}
 				} else {
 					// AC3: Failed validation blocks merge
-					nextEntry.status = "blocked";
-					nextEntry.error = `Validation failed: ${nextEntry.validationCommand}`;
+					entry.status = "blocked";
+					entry.error = `Validation failed: ${entry.validationCommand}`;
 
 					// Record the blocked result
-					const blockedMergeEntry = this.branch.getMergeStatus(nextEntry.workspaceId);
+					const blockedMergeEntry = this.branch.getMergeStatus(entry.workspaceId);
 					if (blockedMergeEntry) {
 						await this.branch.recordResult(blockedMergeEntry);
 					}
 				}
 			} else {
 				// No validation command — mark as merged
-				nextEntry.status = "merged";
+				entry.status = "merged";
 
 				// AC5: Record merge result
-				const updatedMergeEntry = this.branch.getMergeStatus(nextEntry.workspaceId);
+				const updatedMergeEntry = this.branch.getMergeStatus(entry.workspaceId);
 				if (updatedMergeEntry) {
 					await this.branch.recordResult(updatedMergeEntry);
 				}
@@ -377,26 +455,26 @@ export class IntegrationQueue {
 			// AC1: Detect merge conflict — does not silently fail or mark complete
 			if (isMergeConflictError(errorMessage)) {
 				// AC2: Write conflict artifact
-				nextEntry.status = "conflict";
-				nextEntry.error = errorMessage;
+				entry.status = "conflict";
+				entry.error = errorMessage;
 
 				try {
 					const resolver = new MergeConflictResolver(this.workspaceRoot);
 					const { artifact, filePath } = await resolver.detectAndRecordConflict(
-						nextEntry.workspaceId,
-						nextEntry.commitHash,
+						entry.workspaceId,
+						entry.commitHash,
 						errorMessage,
 					);
 
-					nextEntry.conflictArtifactPath = filePath;
-					nextEntry.conflictFiles = artifact.conflictedFiles.map((f) => f.filePath);
+					entry.conflictArtifactPath = filePath;
+					entry.conflictFiles = artifact.conflictedFiles.map((f) => f.filePath);
 				} catch {
 					// Best-effort artifact writing
 				}
 
 				// Record the conflict result in branch state
 				try {
-					const conflictMergeEntry = this.branch.getMergeStatus(nextEntry.workspaceId);
+					const conflictMergeEntry = this.branch.getMergeStatus(entry.workspaceId);
 					if (conflictMergeEntry) {
 						await this.branch.recordResult(conflictMergeEntry);
 					}
@@ -404,12 +482,12 @@ export class IntegrationQueue {
 					// Best-effort
 				}
 			} else {
-				nextEntry.status = "failed";
-				nextEntry.error = errorMessage;
+				entry.status = "failed";
+				entry.error = errorMessage;
 
 				// Record the failed result
 				try {
-					const failedMergeEntry = this.branch.getMergeStatus(nextEntry.workspaceId);
+					const failedMergeEntry = this.branch.getMergeStatus(entry.workspaceId);
 					if (failedMergeEntry) {
 						await this.branch.recordResult(failedMergeEntry);
 					}
@@ -420,13 +498,13 @@ export class IntegrationQueue {
 		} finally {
 			// Set completedAt and compute timing metrics when entry reaches a terminal state
 			if (
-				nextEntry.status === "merged" ||
-				nextEntry.status === "failed" ||
-				nextEntry.status === "blocked" ||
-				nextEntry.status === "conflict"
+				entry.status === "merged" ||
+				entry.status === "failed" ||
+				entry.status === "blocked" ||
+				entry.status === "conflict"
 			) {
-				nextEntry.completedAt = Date.now();
-				nextEntry.timingMetrics = this.computeTimingMetrics(nextEntry);
+				entry.completedAt = Date.now();
+				entry.timingMetrics = this.computeTimingMetrics(entry);
 			}
 
 			// Release processing lock
@@ -435,7 +513,7 @@ export class IntegrationQueue {
 			await this.saveState();
 		}
 
-		return { processed: true, entry: nextEntry };
+		return { processed: true, entry };
 	}
 
 	/**

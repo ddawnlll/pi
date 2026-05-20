@@ -65,6 +65,7 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"2.3.2",
 	"2.4.0",
 	"2.5.0",
+	"2.5.1",
 ]);
 
 /**
@@ -360,6 +361,21 @@ export interface Workspace {
 	 * Contract Schema v2.4.0 field.
 	 */
 	softDeps?: string[];
+
+	/**
+	 * Workspace IDs that this workspace cannot run concurrently with.
+	 *
+	 * When set, the scheduler will not schedule this workspace in parallel
+	 * with any of the listed workspaces. This is a hard constraint — if a
+	 * peer from cannotRunWith is currently Active, this workspace will be
+	 * blocked until that peer completes.
+	 *
+	 * Unlike dependencies, cannotRunWith does not impose ordering; the
+	 * workspaces will run one after the other but in any order.
+	 *
+	 * Contract Schema v2.4.0 field.
+	 */
+	cannotRunWith?: string[];
 
 	/**
 	 * Set of file paths this workspace reads (but does not write).
@@ -672,7 +688,8 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		contractVer === "2.3.1" ||
 		contractVer === "2.3.2" ||
 		contractVer === "2.4.0" ||
-		contractVer === "2.5.0";
+		contractVer === "2.5.0" ||
+		contractVer === "2.5.1";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({

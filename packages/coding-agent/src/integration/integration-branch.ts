@@ -115,14 +115,27 @@ function getCurrentBranch(cwd: string): string {
 }
 
 /**
- * Check if there are uncommitted changes.
+ * Check if there are uncommitted changes and throw if found.
+ *
+ * @param cwd - Working directory
+ * @throws Error if uncommitted changes exist
  */
-function _hasUncommittedChanges(cwd: string): boolean {
+export function assertNoUncommittedChanges(cwd: string): void {
 	try {
 		const status = git(["status", "--porcelain"], cwd);
-		return status.length > 0;
-	} catch {
-		return true;
+		if (status.length > 0) {
+			throw new Error(
+				"Cannot perform git operation: there are uncommitted changes in the working directory. " +
+					"Please commit or stash your changes before proceeding.\n" +
+					"Uncommitted files:\n" +
+					status,
+			);
+		}
+	} catch (error) {
+		if (error instanceof Error && error.message.includes("Cannot perform git operation")) {
+			throw error;
+		}
+		// If git fails for other reasons, allow operation to proceed
 	}
 }
 
@@ -196,6 +209,9 @@ export class IntegrationBranch {
 		await this.loadState();
 
 		if (!branchExists(this.branchName, this.workspaceRoot)) {
+			// Guard: Check for uncommitted changes before any git checkout
+			assertNoUncommittedChanges(this.workspaceRoot);
+
 			// Create the integration branch from baseBranch
 			const currentBranch = getCurrentBranch(this.workspaceRoot);
 
@@ -250,6 +266,9 @@ export class IntegrationBranch {
 		const currentBranch = getCurrentBranch(this.workspaceRoot);
 
 		try {
+			// Guard: Check for uncommitted changes before any git checkout
+			assertNoUncommittedChanges(this.workspaceRoot);
+
 			// Switch to integration branch
 			git(["checkout", this.branchName], this.workspaceRoot);
 
@@ -327,6 +346,9 @@ export class IntegrationBranch {
 		let passed = false;
 
 		try {
+			// Guard: Check for uncommitted changes before any git checkout
+			assertNoUncommittedChanges(this.workspaceRoot);
+
 			// Switch to integration branch
 			git(["checkout", this.branchName], this.workspaceRoot);
 

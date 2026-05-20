@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PlanStateStore } from "../src/core/plan-state.js";
 import type { Workspace, WorkspaceQueue } from "../src/core/workspace-schema.js";
 import {
+	assertNoUncommittedChanges,
 	formatIntegrationBranchState,
 	formatMergeEntry,
 	IntegrationBranch,
@@ -77,6 +78,39 @@ describe("IntegrationBranch", () => {
 
 		await branch.ensureBranch();
 		expect(branch.exists()).toBe(true);
+	});
+
+	it("assertNoUncommittedChanges: throws when uncommitted changes exist", async () => {
+		const hasGit = await checkGitAvailable(TEST_DIR);
+		if (!hasGit) {
+			console.warn("Skipping git-dependent test: git not available or repo not initialized");
+			return;
+		}
+
+		// Make a change without committing
+		await fs.writeFile(path.join(TEST_DIR, "untracked.txt"), "dirty", "utf-8");
+
+		expect(() => assertNoUncommittedChanges(TEST_DIR)).toThrow("uncommitted changes");
+	});
+
+	it("assertNoUncommittedChanges: does not throw when repo is clean", async () => {
+		const hasGit = await checkGitAvailable(TEST_DIR);
+		if (!hasGit) {
+			console.warn("Skipping git-dependent test: git not available or repo not initialized");
+			return;
+		}
+
+		// All changes from previous tests are already committed (initial commit)
+		// Ensure clean by committing any pending changes
+		const { execSync } = await import("node:child_process");
+		try {
+			execSync("git add -A", { cwd: TEST_DIR, stdio: "ignore" });
+			execSync("git commit -m 'cleanup' --allow-empty", { cwd: TEST_DIR, stdio: "ignore" });
+		} catch {
+			// Ok
+		}
+
+		expect(() => assertNoUncommittedChanges(TEST_DIR)).not.toThrow();
 	});
 
 	it("should record merge entries and allow retrieval", async () => {
@@ -465,6 +499,64 @@ describe("IntegrationQueue", () => {
 		const processed = await queue.processAll();
 		// Should process one entry (the merge will fail without git)
 		expect(processed.length).toBeGreaterThanOrEqual(0);
+	});
+
+	it("processNext: respects dependency ordering when set via setWorkspaceDependencies", async () => {
+		// Create a queue with entries where B depends on A
+		const state = await queue.getQueueState();
+		state.entries.push(
+			{
+				workspaceId: "B",
+				status: "queued",
+				commitHash: "hash-b",
+				queuedAt: Date.now(),
+			},
+			{
+				workspaceId: "A",
+				status: "queued",
+				commitHash: "hash-a",
+				queuedAt: Date.now(),
+			},
+		);
+		await saveQueueStateDirectly(queue, state);
+
+		// B depends on A
+		const deps = new Map<string, string[]>([
+			["B", ["A"]],
+			["A", []],
+		]);
+		queue.setWorkspaceDependencies(deps);
+
+		// processNext should skip B (A not yet merged) and pick A instead
+		const result = await queue.processNext();
+
+		expect(result.processed).toBe(true);
+		expect(result.entry?.workspaceId).toBe("A");
+
+		// After A is processed, check the queue state
+		const updatedState = await queue.getQueueState();
+		const entryB = updatedState.entries.find((e) => e.workspaceId === "B");
+		// B should still be queued (or something else, depending on merge outcome)
+		expect(entryB).toBeDefined();
+	});
+
+	it("processNext: returns processed=false when no eligible entry due to dependencies", async () => {
+		// Create a queue with a single entry that has an unmet dependency not in the queue
+		const state = await queue.getQueueState();
+		state.entries.push({
+			workspaceId: "A",
+			status: "queued",
+			commitHash: "hash-a",
+			queuedAt: Date.now(),
+		});
+		await saveQueueStateDirectly(queue, state);
+
+		// A depends on "MISSING" which is not in the queue
+		const deps = new Map<string, string[]>([["A", ["MISSING"]]]);
+		queue.setWorkspaceDependencies(deps);
+
+		const result = await queue.processNext();
+		expect(result.processed).toBe(false);
 	});
 
 	// ---- format functions ----

@@ -15,7 +15,14 @@ export interface SkipReason {
 	/** Workspace ID that was skipped */
 	workspaceId: string;
 	/** Category of skip */
-	category: "dependency" | "file_lock" | "capacity" | "not_pending" | "preflight_required" | "resource_pressure";
+	category:
+		| "dependency"
+		| "file_lock"
+		| "capacity"
+		| "not_pending"
+		| "preflight_required"
+		| "resource_pressure"
+		| "cannot_run_with";
 	/** Human-readable reason */
 	reason: string;
 	/** For dependency skips: list of missing/incomplete dependency IDs */

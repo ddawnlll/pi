@@ -2665,6 +2665,10 @@ async function startNextInQueue(projectId: string): Promise<boolean> {
 		}
 
 		nextEntry.planExecId = result.planExecId ?? null;
+
+		// Start background watcher to auto-advance queue when plan completes
+		watchQueueEntryCompletion(projectId, nextEntry);
+
 		return true;
 	} catch (error) {
 		nextEntry.status = "failed";
@@ -2672,6 +2676,60 @@ async function startNextInQueue(projectId: string): Promise<boolean> {
 		nextEntry.completedAt = Date.now();
 		return false;
 	}
+}
+
+/**
+ * Watch a queue entry for plan completion and auto-advance the queue.
+ *
+ * Polls the execution status every 5 seconds. When the plan reaches a
+ * terminal state (complete/failed/cancelled/stopped), marks the queue
+ * entry accordingly and starts the next pending entry.
+ */
+function watchQueueEntryCompletion(projectId: string, entry: PlanQueueEntry): void {
+	const planExecId = entry.planExecId;
+	if (!planExecId) return;
+
+	const intervalId = setInterval(() => {
+		const execution = getActiveExecution(planExecId);
+
+		// Execution not found or in a terminal state — advance queue
+		if (!execution) {
+			clearInterval(intervalId);
+			// Execution was cleaned up but queue entry still active — mark complete
+			const queue = getOrCreateQueue(projectId);
+			const qe = queue.entries.find((e) => e.entryId === entry.entryId);
+			if (qe && qe.status === "active") {
+				qe.status = "complete";
+				qe.completedAt = Date.now();
+			}
+			// Start the next queued plan
+			startNextInQueue(projectId).catch(() => {});
+			return;
+		}
+
+		if (
+			execution.status === "complete" ||
+			execution.status === "failed" ||
+			execution.status === "cancelled" ||
+			execution.status === "stopped"
+		) {
+			clearInterval(intervalId);
+
+			const queue = getOrCreateQueue(projectId);
+			const qe = queue.entries.find((e) => e.entryId === entry.entryId);
+			if (qe && qe.status === "active") {
+				qe.status = execution.status === "complete" ? "complete" : "failed";
+				qe.completedAt = execution.completedAt ?? Date.now();
+				qe.error = execution.error ?? null;
+			}
+
+			// Start the next queued plan (unless stopAfterCurrent is set)
+			startNextInQueue(projectId).catch(() => {});
+		}
+	}, 5_000);
+
+	// Clean up interval if it outlives the process (defensive)
+	setTimeout(() => clearInterval(intervalId), 24 * 60 * 60 * 1000).unref();
 }
 
 /**

@@ -202,6 +202,28 @@ export class WorkspaceScheduler implements Scheduler {
 				continue;
 			}
 
+			// AC6: Check cannotRunWith — if any cannotRunWith peer is currently Active,
+			// block this workspace until that peer completes.
+			if (workspace.cannotRunWith && workspace.cannotRunWith.length > 0) {
+				const activePeer = workspace.cannotRunWith.find((peerId) => {
+					const peerState = state.workspaces.get(peerId);
+					return peerState?.stage === WorkspaceStage.Active;
+				});
+				if (activePeer) {
+					blocked.push(workspace);
+					const runWithReason = `Workspace cannot run concurrently with "${activePeer}" (currently Active)`;
+					blockReasons.set(workspace.id, runWithReason);
+					skipped.push({
+						workspaceId: workspace.id,
+						category: "cannot_run_with",
+						reason: runWithReason,
+						conflictingWorkspaceId: activePeer,
+						batchId: this.batchAssignment.get(workspace.id),
+					});
+					continue;
+				}
+			}
+
 			// Check capacity
 			if (ready.length >= availableSlots) {
 				capacityReached.value = true;

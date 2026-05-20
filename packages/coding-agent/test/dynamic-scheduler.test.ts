@@ -591,6 +591,96 @@ describe("DynamicParallelScheduler — AC5: Same-file conflicts not run unsafely
 	});
 });
 
+describe("DynamicParallelScheduler — AC6: cannotRunWith enforcement", () => {
+	let scheduler: DynamicParallelScheduler;
+
+	beforeEach(() => {
+		scheduler = new DynamicParallelScheduler(3);
+	});
+
+	function makeWorkspaceWithExclusions(id: string, deps: string[] = [], cannotRunWith: string[] = []): Workspace {
+		return {
+			id,
+			title: `Task ${id}`,
+			dependencies: deps,
+			roleBudget: "worker",
+			maxRetries: 3,
+			cannotRunWith,
+		};
+	}
+
+	it("AC6: blocks workspace when its cannotRunWith peer is Active", () => {
+		const workspaces: Workspace[] = [
+			makeWorkspaceWithExclusions("w1", [], ["w2"]),
+			makeWorkspaceWithExclusions("w2", [], ["w1"]),
+		];
+		// w2 is already active
+		const state = makeState([
+			["w1", WorkspaceStage.Pending],
+			["w2", WorkspaceStage.Active],
+		]);
+
+		const decision = scheduler.getNextWorkspaces(workspaces, state);
+
+		expect(decision.ready).toHaveLength(0);
+		expect(decision.blocked).toHaveLength(1);
+		expect(decision.blocked[0].id).toBe("w1");
+		// Verify the skip reason includes "cannot_run_with"
+		const w1Skip = decision.diagnostics.skipped.find((s) => s.workspaceId === "w1");
+		expect(w1Skip).toBeDefined();
+		expect(w1Skip!.category).toBe("cannot_run_with");
+		expect(w1Skip!.conflictingWorkspaceId).toBe("w2");
+	});
+
+	it("AC6: does not block workspace when cannotRunWith peer is not Active", () => {
+		const workspaces: Workspace[] = [
+			makeWorkspaceWithExclusions("w1", [], ["w2"]),
+			makeWorkspaceWithExclusions("w2", [], ["w1"]),
+		];
+		// Neither is active yet
+		const state = makeState([
+			["w1", WorkspaceStage.Pending],
+			["w2", WorkspaceStage.Pending],
+		]);
+
+		const decision = scheduler.getNextWorkspaces(workspaces, state);
+
+		// Both can be scheduled (they're mutually exclusive but neither is active yet)
+		expect(decision.ready).toHaveLength(2);
+	});
+
+	it("AC6: does not block workspace without cannotRunWith", () => {
+		const workspaces: Workspace[] = [makeWorkspace("w1"), makeWorkspace("w2")];
+		const state = makeState([
+			["w1", WorkspaceStage.Pending],
+			["w2", WorkspaceStage.Active],
+		]);
+
+		const decision = scheduler.getNextWorkspaces(workspaces, state);
+
+		// w1 has no cannotRunWith, so it should be scheduled even with w2 active
+		expect(decision.ready).toHaveLength(1);
+		expect(decision.ready[0].id).toBe("w1");
+	});
+
+	it("AC6: cannotRunWith peer in Complete state does not block", () => {
+		const workspaces: Workspace[] = [
+			makeWorkspaceWithExclusions("w1", [], ["w2"]),
+			makeWorkspaceWithExclusions("w2", [], ["w1"]),
+		];
+		const state = makeState([
+			["w1", WorkspaceStage.Pending],
+			["w2", WorkspaceStage.Complete],
+		]);
+
+		const decision = scheduler.getNextWorkspaces(workspaces, state);
+
+		// w2 is complete, so w1 should be allowed to run
+		expect(decision.ready).toHaveLength(1);
+		expect(decision.ready[0].id).toBe("w1");
+	});
+});
+
 describe("DynamicParallelScheduler — Diagnostics formatting", () => {
 	let scheduler: DynamicParallelScheduler;
 
