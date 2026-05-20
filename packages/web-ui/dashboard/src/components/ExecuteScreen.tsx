@@ -82,99 +82,19 @@ function StatusLabel({ status }: { status: FileExecutionState["status"] }) {
 // Workspace progress bar
 // ---------------------------------------------------------------------------
 
-function WorkspaceBar({
-	total,
-	active,
-	complete,
-	failed,
-	blocked,
-	pending,
-}: {
-	total: number;
-	active: number;
-	complete: number;
-	failed: number;
-	blocked: number;
-	pending: number;
-}) {
-	if (total === 0) return null;
 
-	const pct = (v: number) => (v / total) * 100;
-
-	return (
-		<div className="flex items-center gap-1.5 mt-1.5">
-			<div className="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden flex">
-				{complete > 0 && (
-					<div
-						className="h-full bg-emerald-500 transition-all duration-500"
-						style={{ width: `${pct(complete)}%` }}
-					/>
-				)}
-				{active > 0 && (
-					<div
-						className="h-full bg-blue-500 transition-all duration-500"
-						style={{ width: `${pct(active)}%` }}
-					/>
-				)}
-				{failed > 0 && (
-					<div
-						className="h-full bg-red-500 transition-all duration-500"
-						style={{ width: `${pct(failed)}%` }}
-					/>
-				)}
-				{blocked > 0 && (
-					<div
-						className="h-full bg-amber-500 transition-all duration-500"
-						style={{ width: `${pct(blocked)}%` }}
-					/>
-				)}
-			</div>
-			<span className="text-[9px] text-gray-500 tabular-nums shrink-0">
-				{complete + failed}/{total}
-			</span>
-		</div>
-	);
-}
 
 // ---------------------------------------------------------------------------
-// Workspace progress counts as tags
+// Helpers — workspace ID abbreviation
 // ---------------------------------------------------------------------------
 
-function WorkspaceCounts({
-	pending,
-	active,
-	complete,
-	failed,
-	blocked,
-}: {
-	pending: number;
-	active: number;
-	complete: number;
-	failed: number;
-	blocked: number;
-}) {
-	const tags: Array<{ label: string; count: number; cls: string }> = [];
-
-	if (complete > 0) tags.push({ label: "done", count: complete, cls: "text-emerald-400 border-emerald-800 bg-emerald-900/20" });
-	if (active > 0) tags.push({ label: "active", count: active, cls: "text-blue-400 border-blue-800 bg-blue-900/20" });
-	if (pending > 0) tags.push({ label: "pending", count: pending, cls: "text-gray-500 border-gray-700 bg-gray-800/50" });
-	if (failed > 0) tags.push({ label: "failed", count: failed, cls: "text-red-400 border-red-800 bg-red-900/20" });
-	if (blocked > 0) tags.push({ label: "blocked", count: blocked, cls: "text-amber-400 border-amber-800 bg-amber-900/20" });
-
-	if (tags.length === 0) return null;
-
-	return (
-		<div className="flex items-center gap-1 flex-wrap mt-1">
-			{tags.map((t) => (
-				<span
-					key={t.label}
-					className={`text-[9px] px-1.5 py-0.5 rounded border ${t.cls}`}
-				>
-					{t.count} {t.label}
-				</span>
-			))}
-		</div>
-	);
+/**
+ * Shorten a workspace ID for display: show first 8 chars + last 4 chars.
+ * Keeps the ID scannable while saving horizontal space.
+ */
+function shortWsId(id: string): string {
+	if (id.length <= 16) return id;
+	return `${id.slice(0, 8)}..${id.slice(-4)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,197 +117,248 @@ function wsStatus(ws: WorkspaceSummary): "pending" | "active" | "complete" | "fa
 	return "pending";
 }
 
-// Status color config
+// Status color config with distinct border + dot colors
 const WS_STATUS = {
-	pending: { bg: "bg-gray-800", border: "border-gray-700", text: "text-gray-500", label: "pending", labelCls: "text-gray-400" },
-	active: { bg: "bg-blue-900/40", border: "border-blue-600", text: "text-blue-200", label: "active", labelCls: "text-blue-300" },
-	complete: { bg: "bg-emerald-900/40", border: "border-emerald-600", text: "text-emerald-200", label: "done", labelCls: "text-emerald-300" },
-	failed: { bg: "bg-red-900/40", border: "border-red-600", text: "text-red-200", label: "failed", labelCls: "text-red-300" },
-	blocked: { bg: "bg-amber-900/40", border: "border-amber-600", text: "text-amber-200", label: "blocked", labelCls: "text-amber-300" },
+	pending: { dot: "bg-gray-600", border: "border-gray-700", text: "text-gray-400", label: "pending" },
+	active: { dot: "bg-blue-400", border: "border-blue-600", text: "text-blue-100", label: "active" },
+	complete: { dot: "bg-emerald-400", border: "border-emerald-700", text: "text-emerald-100", label: "done" },
+	failed: { dot: "bg-red-400", border: "border-red-700", text: "text-red-100", label: "failed" },
+	blocked: { dot: "bg-amber-400", border: "border-amber-700", text: "text-amber-100", label: "blocked" },
 } as const;
 
-function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
-	// Build workspace lookup: id -> status
-	const wsMap = useMemo(() => {
-		const m = new Map<string, WorkspaceSummary>();
-		for (const ws of workspaces) {
-			m.set(ws.id, ws);
-		}
-		return m;
-	}, [workspaces]);
+/** Compute batch-level progress from workspace list + batch plan. Returns enhanced batch data + current batch index. */
+function useBatchProgress(batchPlan: BatchPlanResult, workspaces: WorkspaceSummary[]) {
+	return useMemo(() => {
+		const wsMap = new Map<string, WorkspaceSummary>();
+		for (const ws of workspaces) wsMap.set(ws.id, ws);
 
-	// Resolve workspace status for each batch
-	const batchStatuses = useMemo(() => {
-		return batchPlan.batches.map((batch) => {
+		const batches = batchPlan.batches.map((batch) => {
 			const items = batch.workspaceIds.map((wsId) => {
 				const ws = wsMap.get(wsId);
 				const status = ws ? wsStatus(ws) : "pending";
-				return { wsId, status, title: ws?.id ?? wsId };
+				return { wsId, status };
 			});
 
-			// Determine batch-level progress
-			const done = items.filter((i) => i.status === "complete").length;
-			const active = items.filter((i) => i.status === "active").length;
-			const failed = items.filter((i) => i.status === "failed").length;
-			const blocked = items.filter((i) => i.status === "blocked").length;
-			const pending = items.filter((i) => i.status === "pending").length;
-			const total = items.length;
-
-			// A batch is "current" if it has active workspaces or
-			// is the first batch not yet fully completed
-			const isActive = active > 0;
-			const isComplete = done + failed === total;
+			const counts = {
+				total: items.length,
+				done: items.filter((i) => i.status === "complete").length,
+				active: items.filter((i) => i.status === "active").length,
+				failed: items.filter((i) => i.status === "failed").length,
+				blocked: items.filter((i) => i.status === "blocked").length,
+				pending: items.filter((i) => i.status === "pending").length,
+			};
 
 			return {
 				batchIndex: batch.batchIndex,
 				items,
-				done,
-				active,
-				failed,
-				blocked,
-				pending,
-				total,
-				isActive,
-				isComplete,
+				...counts,
+				isActive: counts.active > 0,
+				isComplete: counts.done + counts.failed === counts.total,
 			};
 		});
-	}, [batchPlan, wsMap]);
 
-	// Determine current batch (first non-complete with active, or first non-complete)
-	const currentBatchIndex = useMemo(() => {
-		const activeBatch = batchStatuses.find((b) => b.isActive);
-		if (activeBatch) return activeBatch.batchIndex;
-		const firstIncomplete = batchStatuses.find((b) => !b.isComplete);
-		return firstIncomplete?.batchIndex ?? -1;
-	}, [batchStatuses]);
+		const activeBatch = batches.find((b) => b.isActive);
+		const currentBatchIndex = activeBatch
+			? activeBatch.batchIndex
+			: batches.find((b) => !b.isComplete)?.batchIndex ?? -1;
 
-	if (batchPlan.batches.length === 0) return null;
+		// Summary counts across all batches
+		const summary = {
+			total: batches.reduce((s, b) => s + b.total, 0),
+			done: batches.reduce((s, b) => s + b.done, 0),
+			active: batches.reduce((s, b) => s + b.active, 0),
+			failed: batches.reduce((s, b) => s + b.failed, 0),
+			blocked: batches.reduce((s, b) => s + b.blocked, 0),
+			pending: batches.reduce((s, b) => s + b.pending, 0),
+		};
+
+		return { batches, currentBatchIndex, summary };
+	}, [batchPlan, workspaces]);
+}
+
+/**
+ * Compact step indicator — a horizontal row of step dots.
+ * Used in the collapsed plan row to show progress at a glance.
+ */
+function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
+	const { batches, currentBatchIndex, summary } = useBatchProgress(batchPlan, workspaces);
+
+	if (batches.length === 0) return null;
+
+	const pct = summary.total > 0 ? Math.round(((summary.done + summary.failed) / summary.total) * 100) : 0;
 
 	return (
-		<div className="space-y-1.5 mt-2">
-			{/* Legend */}
-			<div className="flex items-center gap-3 text-[8px] text-gray-500 pb-1 border-b border-gray-800 mb-1">
-				<span className="font-semibold uppercase tracking-wider">Batch DAG</span>
-				{batchPlan.batches.length > 1 && (
-					<>
-						{batchPlan.effectiveParallelism > 1 ? (
-							<span>Tiered · max {batchPlan.effectiveParallelism} parallel</span>
-						) : (
-							<span>Sequential</span>
-						)}
-					</>
-				)}
-				<span className="ml-auto">
-					{batchPlan.totalBatches} batch{batchPlan.totalBatches > 1 ? "es" : ""}
+		<div className="flex items-center gap-2 mt-1.5">
+			{/* Step dots */}
+			<div className="flex items-center gap-0.5">
+				{batches.map((b) => {
+					let cls = "bg-gray-700";
+					let label = `${b.batchIndex}: pending`;
+					if (b.batchIndex === currentBatchIndex) {
+						cls = "bg-blue-500 ring-1 ring-blue-400";
+						label = `${b.batchIndex}: running`;
+					} else if (b.isComplete) {
+						cls = "bg-emerald-600";
+						label = `${b.batchIndex}: done`;
+					} else if (b.failed > 0) {
+						cls = "bg-red-600";
+						label = `${b.batchIndex}: failed`;
+					}
+					return (
+						<span
+							key={b.batchIndex}
+							className={`inline-block w-1.5 h-1.5 rounded-full transition-colors ${cls}`}
+							title={label}
+						/>
+					);
+				})}
+			</div>
+
+			{/* Current step label */}
+			{currentBatchIndex > 0 ? (
+				<span className="text-[9px] text-blue-400 font-medium">
+					Step {currentBatchIndex}/{batches.length}
+					{summary.active > 0 && (
+						<span className="text-gray-500 font-normal">
+							· {summary.active} active
+						</span>
+					)}
 				</span>
+			) : batches.length > 0 ? (
+				<span className="text-[9px] text-gray-500">
+					{batches.length} step{batches.length > 1 ? "s" : ""} · {pct}%
+				</span>
+			) : null}
+		</div>
+	);
+}
+
+/**
+ * DagExecutionView — expanded DAG visualization showing all batches
+ * with workspace cards, status colors, and progress bars.
+ */
+function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
+	const { batches, currentBatchIndex } = useBatchProgress(batchPlan, workspaces);
+
+	if (batches.length === 0) return null;
+
+	return (
+		<div className="mt-2 border border-gray-800 rounded bg-gray-900/50 p-2">
+			{/* Header */}
+			<div className="flex items-center gap-2 text-[10px] text-gray-500 mb-1.5 pb-1.5 border-b border-gray-800">
+				{batchPlan.effectiveParallelism > 1 ? (
+					<Layers size={10} className="text-blue-400 shrink-0" />
+				) : (
+					<GitMerge size={10} className="text-purple-400 shrink-0" />
+				)}
+				<span className="font-medium text-gray-300">
+					{batchPlan.effectiveParallelism > 1
+						? `${batchPlan.effectiveParallelism}-wide tiered`
+						: "Sequential"}
+				</span>
+				<span className="text-gray-600">·</span>
+				<span>{batches.length} step{batches.length > 1 ? "s" : ""}</span>
 			</div>
 
 			{/* Batch rows */}
-			{batchStatuses.map((batch) => {
-				const isCurrent = batch.batchIndex === currentBatchIndex;
+			<div className="space-y-1">
+				{batches.map((batch) => {
+					const isCurrent = batch.batchIndex === currentBatchIndex;
 
-				// Batch progress bar color
-				const batchBarColor = batch.failed > 0
-					? "bg-red-500"
-					: batch.isActive
-						? "bg-blue-500"
-						: batch.isComplete
-							? "bg-emerald-500"
-							: "bg-gray-700";
+					return (
+						<div
+							key={batch.batchIndex}
+							className={`pl-2 border-l-2 transition-colors ${
+								isCurrent
+									? "border-blue-500 bg-blue-900/15 rounded-sm"
+									: batch.isComplete
+										? "border-emerald-700"
+										: "border-gray-700"
+							}`}
+						>
+							{/* Batch header */}
+							<div className="flex items-center gap-2 py-0.5">
+								<span
+									className={`text-[10px] font-bold shrink-0 ${
+										isCurrent
+											? "text-blue-300"
+											: batch.isComplete
+												? "text-emerald-400"
+												: "text-gray-500"
+									}`}
+								>
+									Step {batch.batchIndex}
+								</span>
 
-				const batchPct = batch.total > 0
-					? ((batch.done + batch.failed) / batch.total) * 100
-					: 0;
+								{/* Mini progress bar */}
+								{batch.total > 0 && (
+									<>
+										<div className="w-16 h-1 rounded-full bg-gray-800 overflow-hidden">
+											<div
+												className={`h-full rounded-full transition-all duration-500 ${
+													batch.failed > 0
+														? "bg-red-500"
+														: isCurrent
+															? "bg-blue-500"
+															: batch.isComplete
+																? "bg-emerald-500"
+																: "bg-gray-700"
+												}`}
+												style={{
+													width: `${((batch.done + batch.failed) / batch.total) * 100}%`,
+												}}
+											/>
+										</div>
+										<span className="text-[9px] text-gray-500 tabular-nums">
+											{batch.done + batch.failed}/{batch.total}
+										</span>
+									</>
+								)}
 
-				return (
-					<div
-						key={batch.batchIndex}
-						className={`pl-3 border-l-2 transition-colors ${
-							isCurrent
-								? "border-blue-500 bg-blue-900/10 rounded"
-								: batch.isComplete
-									? "border-emerald-700"
-									: "border-gray-700"
-						}`}
-					>
-						{/* Batch header */}
-						<div className="flex items-center gap-2 py-1">
-							<span
-								className={`text-[10px] font-bold shrink-0 ${
-									isCurrent
-										? "text-blue-300"
-										: batch.isComplete
-											? "text-emerald-400"
-											: "text-gray-500"
-								}`}
-							>
-								Step {batch.batchIndex}
-							</span>
-
-							{/* Mini progress bar */}
-							<div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden max-w-[100px]">
-								<div
-									className={`h-full rounded-full transition-all duration-500 ${batchBarColor}`}
-									style={{ width: `${Math.min(batchPct, 100)}%` }}
-								/>
+								{isCurrent && (
+									<span className="text-[9px] text-blue-400 font-semibold ml-auto flex items-center gap-1">
+										<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+										Running
+									</span>
+								)}
 							</div>
 
-							{/* Counts */}
-							<span className="text-[9px] text-gray-500 tabular-nums">
-								{batch.done + batch.failed}/{batch.total}
-								{batch.active > 0 && (
-									<span className="text-blue-400 ml-1">· {batch.active} active</span>
-								)}
-							</span>
-
-							{isCurrent && (
-								<span className="text-[8px] uppercase tracking-wider font-bold text-blue-400 ml-auto">
-									Running
-								</span>
+							{/* Workspace cards row */}
+							{batch.items.length > 0 && (
+								<div className="flex flex-wrap items-center gap-1 pb-1">
+									{batch.items.map((item, idx) => {
+										const cfg = WS_STATUS[item.status];
+										const isRunning = item.status === "active";
+										return (
+											<>
+												{idx > 0 && batchPlan.effectiveParallelism === 1 && (
+													<ArrowRight size={5} className="text-gray-700 shrink-0" />
+												)}
+												<span
+													className={`inline-flex items-center gap-1 text-[9px] px-1 py-0.5 rounded-sm border ${
+														cfg.border
+													} ${cfg.text} ${
+														isRunning
+															? "bg-blue-900/50 shadow-[0_0_4px_rgba(59,130,246,0.4)]"
+															: ""
+													}`}
+													title={`${item.wsId} \u2014 ${cfg.label}`}
+												>
+													<span
+														className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+															cfg.dot
+														} ${isRunning ? "animate-pulse" : ""}`}
+													/>
+													{shortWsId(item.wsId)}
+												</span>
+											</>
+										);
+									})}
+								</div>
 							)}
 						</div>
-
-						{/* Workspace cards row */}
-						{batch.items.length > 0 && (
-							<div className="flex flex-wrap items-center gap-1 pb-1.5">
-								{batch.items.map((item, idx) => {
-									const cfg = WS_STATUS[item.status];
-									return (
-										<>
-											{idx > 0 && batchPlan.effectiveParallelism === 1 && (
-												<ArrowRight size={6} className="text-gray-700 shrink-0" />
-											)}
-											<span
-												className={`text-[9px] px-1.5 py-0.5 rounded-sm border ${cfg.bg} ${cfg.border} ${cfg.text} ${
-													item.status === "active" ? "animate-pulse" : ""
-												}`}
-												title={`${item.wsId} \u2014 ${cfg.label}`}
-											>
-												{item.wsId.length > 16
-													? item.wsId.slice(0, 14) + ".."
-													: item.wsId}
-											</span>
-										</>
-									);
-								})}
-							</div>
-						)}
-					</div>
-				);
-			})}
-
-			{/* Legend mini */}
-			<div className="flex items-center gap-2 text-[8px] text-gray-600 pt-0.5">
-				<span className="inline-block w-2 h-2 rounded bg-blue-600" />
-				active
-				<span className="inline-block w-2 h-2 rounded bg-emerald-600 ml-1" />
-				done
-				<span className="inline-block w-2 h-2 rounded bg-red-600 ml-1" />
-				failed
-				<span className="inline-block w-2 h-2 rounded bg-amber-600 ml-1" />
-				blocked
-				<span className="inline-block w-2 h-2 rounded bg-gray-700 ml-1" />
-				pending
+					);
+				})}
 			</div>
 		</div>
 	);
@@ -421,6 +392,44 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 	const hasWorkspaceData = stats && stats.total > 0;
 	const hasDagData = exec.batchPlan && workspaces.length > 0;
 
+	// Inline summary bar for collapsed/fallback views
+	const SummaryBar = () => {
+		if (!stats || stats.total === 0) return null;
+		const pct = (v: number) => (v / stats.total) * 100;
+		return (
+			<div className="flex items-center gap-1.5 mt-1">
+				<div className="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden flex">
+					{stats.complete > 0 && <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct(stats.complete)}%` }} />}
+					{stats.active > 0 && <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct(stats.active)}%` }} />}
+					{stats.failed > 0 && <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${pct(stats.failed)}%` }} />}
+					{stats.blocked > 0 && <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${pct(stats.blocked)}%` }} />}
+				</div>
+				<span className="text-[9px] text-gray-500 tabular-nums shrink-0">
+					{stats.complete + stats.failed}/{stats.total}
+				</span>
+			</div>
+		);
+	};
+
+	// Inline status tags for fallback view (no DAG)
+	const StatusTags = () => {
+		if (!stats) return null;
+		const tags: Array<{ label: string; count: number; cls: string }> = [];
+		if (stats.complete > 0) tags.push({ label: "done", count: stats.complete, cls: "text-emerald-400 border-emerald-800 bg-emerald-900/20" });
+		if (stats.active > 0) tags.push({ label: "active", count: stats.active, cls: "text-blue-400 border-blue-800 bg-blue-900/20" });
+		if (stats.pending > 0) tags.push({ label: "pending", count: stats.pending, cls: "text-gray-500 border-gray-700 bg-gray-800/50" });
+		if (stats.failed > 0) tags.push({ label: "failed", count: stats.failed, cls: "text-red-400 border-red-800 bg-red-900/20" });
+		if (stats.blocked > 0) tags.push({ label: "blocked", count: stats.blocked, cls: "text-amber-400 border-amber-800 bg-amber-900/20" });
+		if (tags.length === 0) return null;
+		return (
+			<div className="flex items-center gap-1 flex-wrap mt-1">
+				{tags.map((t) => (
+					<span key={t.label} className={`text-[9px] px-1.5 py-0.5 rounded border ${t.cls}`}>{t.count} {t.label}</span>
+				))}
+			</div>
+		);
+	};
+
 	return (
 		<div
 			className={`border-b border-gray-700 last:border-b-0 transition-colors ${
@@ -433,112 +442,71 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 							: ""
 			}`}
 		>
-			{/* ── Header row (always visible) ── */}
+			{/* Header row */}
 			<div
 				className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none"
 				onClick={() => (hasWorkspaceData ? setExpanded(!expanded) : undefined)}
 			>
-				{/* Expand indicator */}
 				{hasWorkspaceData ? (
-					expanded ? (
-						<ChevronDown size={10} className="text-gray-500 shrink-0" />
-					) : (
-						<ChevronRight size={10} className="text-gray-500 shrink-0" />
-					)
+					expanded ? <ChevronDown size={10} className="text-gray-500 shrink-0" /> : <ChevronRight size={10} className="text-gray-500 shrink-0" />
 				) : (
 					<div className="w-[10px] shrink-0" />
 				)}
 
-				{/* Status icon */}
 				<StatusIcon status={exec.status} />
 
-				{/* File name + workspace counts */}
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
-						<p className="text-xs text-gray-200 truncate font-medium">
-							{exec.fileName}
-						</p>
-						{/* Execution mode badge */}
+						<p className="text-xs text-gray-200 truncate font-medium">{exec.fileName}</p>
 						{exec.isSequential && (
-							<span className="text-[9px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 shrink-0">
-								after prev
-							</span>
+							<span className="text-[9px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 shrink-0">after prev</span>
 						)}
 					</div>
-					{exec.error && (
-						<p className="text-[10px] text-red-400 mt-0.5">{exec.error}</p>
-					)}
-					{/* Workspace progress counts (collapsed view) */}
+					{exec.error && <p className="text-[10px] text-red-400 mt-0.5">{exec.error}</p>}
+
+					{/* Collapsed: unified bar + step dots */}
 					{hasWorkspaceData && !expanded && (
-						<WorkspaceCounts
-							pending={stats.pending}
-							active={stats.active}
-							complete={stats.complete}
-							failed={stats.failed}
-							blocked={stats.blocked}
-						/>
-					)}
-					{/* Workspace mini bar (collapsed view) */}
-					{hasWorkspaceData && !expanded && (
-						<WorkspaceBar
-							total={stats.total}
-							active={stats.active}
-							complete={stats.complete}
-							failed={stats.failed}
-							blocked={stats.blocked}
-							pending={stats.pending}
-						/>
+						<>
+							<SummaryBar />
+							{hasDagData && (
+								<StepDots batchPlan={exec.batchPlan!} workspaces={workspaces} />
+							)}
+						</>
 					)}
 				</div>
 
-				{/* Status label */}
 				<StatusLabel status={exec.status} />
 			</div>
 
-			{/* ── Expanded workspace detail ── */}
+			{/* Expanded workspace detail */}
 			{expanded && hasWorkspaceData && (
 				<div className="px-10 pb-3 space-y-1.5">
-					<div className="flex items-center gap-2 text-[10px] text-gray-500">
-						<span>Total: {stats.total} workspaces</span>
-						<span className="text-gray-700">|</span>
-						<WorkspaceBar
-							total={stats.total}
-							active={stats.active}
-							complete={stats.complete}
-							failed={stats.failed}
-							blocked={stats.blocked}
-							pending={stats.pending}
-						/>
-					</div>
-					<WorkspaceCounts
-						pending={stats.pending}
-						active={stats.active}
-						complete={stats.complete}
-						failed={stats.failed}
-						blocked={stats.blocked}
-					/>
-					{/* Extra stats when available */}
-					{stats.requestedWorkers !== undefined && (
+					{/* DAG visualization (preferred) */}
+					{hasDagData ? (
+						<DagExecutionView batchPlan={exec.batchPlan!} workspaces={workspaces} />
+					) : (
+						<>
+							<div className="flex items-center gap-2 text-[10px] text-gray-500">
+								<span>{stats!.total} workspaces</span>
+								<span className="text-gray-700">|</span>
+								<div className="flex-1 max-w-[120px]"><SummaryBar /></div>
+							</div>
+							<StatusTags />
+						</>
+					)}
+
+					{/* Worker stats */}
+					{stats!.requestedWorkers !== undefined && (
 						<div className="flex items-center gap-2 text-[9px] text-gray-600 mt-1">
-							<span>Requested workers: {stats.requestedWorkers}</span>
-							{stats.maxAllowedWorkers !== undefined && (
-								<>
-									<span className="text-gray-700">|</span>
-									<span>Max allowed: {stats.maxAllowedWorkers}</span>
-								</>
-							)}
-							{stats.safeEffectiveParallelism !== undefined && (
-								<>
-									<span className="text-gray-700">|</span>
-									<span>Effective: {stats.safeEffectiveParallelism}</span>
-								</>
-							)}
+							<span>Requested workers: {stats!.requestedWorkers}</span>
+							{stats!.maxAllowedWorkers !== undefined && <><span className="text-gray-700">|</span><span>Max allowed: {stats!.maxAllowedWorkers}</span></>}
+							{stats!.safeEffectiveParallelism !== undefined && <><span className="text-gray-700">|</span><span>Effective: {stats!.safeEffectiveParallelism}</span></>}
 						</div>
 					)}
 					{/* Bottleneck reasons */}
-					{stats.bottleneckReasons && stats.bottleneckReasons.length > 0 && (
+					{stats!.bottleneckReasons && stats!.bottleneckReasons.length > 0 && (
 						<div className="mt-1 space-y-0.5">
-							{stats.bottleneckReasons.map((r, i) => (
+							{stats!.bottleneckReasons.map((r, i) => (
 								<p key={i} className="text-[9px] text-amber-500 flex items-center gap-1">
 									<AlertTriangle size={8} className="shrink-0" />
 									{r}
