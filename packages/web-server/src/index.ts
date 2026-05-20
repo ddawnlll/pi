@@ -2847,6 +2847,149 @@ fastify.get<{
 	});
 });
 
+// -----------------------------------------------------------------------
+// GET /api/transcript/:planExecId - Plan-level aggregate transcript SSE
+//
+// Aggregates transcript events from all workspaces plus plan-level
+// narrative events, merged in chronological order. Streams new events
+// in real-time via SSE.
+//
+// This is the primary endpoint the dashboard uses for the live transcript
+// panel in the plan upload wizard's execute step.
+// -----------------------------------------------------------------------
+
+fastify.get<{
+	Params: { planExecId: string };
+}>("/api/transcript/:planExecId", async (request, reply) => {
+	const { planExecId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+	const workspacesDir = join(workspaceRoot, ".pi", "executions", planExecId, "workspaces");
+
+	reply.raw.writeHead(200, {
+		"Content-Type": "text/event-stream",
+		"Cache-Control": "no-cache",
+		Connection: "keep-alive",
+	});
+
+	// Helper: read ndjson lines from a file
+	const readNdjsonLines = (filePath: string): string[] => {
+		try {
+			if (existsSync(filePath)) {
+				const content = readFileSync(filePath, "utf-8");
+				return content.split("\n").filter(Boolean);
+			}
+		} catch {
+			// Ignore
+		}
+		return [];
+	};
+
+	// Helper: list workspace directories
+	const listWorkspaceDirs = (): string[] => {
+		try {
+			if (existsSync(workspacesDir)) {
+				return readdirSync(workspacesDir).filter((name) => {
+					const fullPath = join(workspacesDir, name);
+					try {
+						return statSync(fullPath).isDirectory();
+					} catch {
+						return false;
+					}
+				});
+			}
+		} catch {
+			// Ignore
+		}
+		return [];
+	};
+
+	// Helper: read all transcript + plan events and merge chronologically
+	// Returns array of { line, timestamp } objects
+	const readAllEvents = (): Array<{ line: string; timestamp: number }> => {
+		const result: Array<{ line: string; timestamp: number }> = [];
+		const workspaceDirs = listWorkspaceDirs();
+
+		// Read transcript.ndjson from each workspace
+		for (const wsId of workspaceDirs) {
+			if (wsId === "_plan") continue; // handled below
+			const tLines = readNdjsonLines(join(workspacesDir, wsId, "transcript.ndjson"));
+			for (const line of tLines) {
+				try {
+					const parsed = JSON.parse(line);
+					const ts = parsed.timestamp ?? 0;
+					result.push({ line, timestamp: ts });
+				} catch {
+					result.push({ line, timestamp: 0 });
+				}
+			}
+		}
+
+		// Read plan-level narrative events from _plan workspace
+		const planNarrativeLines = readNdjsonLines(join(workspacesDir, "_plan", "narrative.ndjson"));
+		for (const line of planNarrativeLines) {
+			try {
+				const parsed = JSON.parse(line);
+				const ts = parsed.timestamp ?? parsed.timestamp ?? Date.now();
+				result.push({ line, timestamp: ts });
+			} catch {
+				result.push({ line, timestamp: Date.now() });
+			}
+		}
+
+		// Sort by timestamp
+		result.sort((a, b) => a.timestamp - b.timestamp);
+		return result;
+	};
+
+	// Send existing events
+	const allEvents = readAllEvents();
+	let lastSentCount = 0;
+	for (const evt of allEvents) {
+		reply.raw.write(`data: ${evt.line}\n\n`);
+		lastSentCount++;
+	}
+
+	if (allEvents.length === 0) {
+		reply.raw.write(`data: __NO_TRANSCRIPT__\n\n`);
+	}
+
+	// Poll for new events every 2 seconds
+	let lastWorkspaceCount = listWorkspaceDirs().length;
+
+	const pollInterval = setInterval(() => {
+		try {
+			// Check for new workspace directories that appeared
+			const currentWorkspaces = listWorkspaceDirs();
+			if (currentWorkspaces.length !== lastWorkspaceCount) {
+				lastWorkspaceCount = currentWorkspaces.length;
+			}
+
+			const currentEvents = readAllEvents();
+			if (currentEvents.length > lastSentCount) {
+				const newEvents = currentEvents.slice(lastSentCount);
+				for (const evt of newEvents) {
+					reply.raw.write(`data: ${evt.line}\n\n`);
+				}
+				lastSentCount = currentEvents.length;
+			}
+		} catch {
+			// Ignore poll errors
+		}
+	}, 2000);
+
+	request.raw.on("close", () => {
+		clearInterval(pollInterval);
+	});
+
+	// Keep-alive heartbeat
+	const heartbeat = setInterval(() => {
+		reply.raw.write(": heartbeat\n\n");
+	}, 15_000);
+	request.raw.on("close", () => {
+		clearInterval(heartbeat);
+	});
+});
+
 /**
  * GET /api/logs/:planExecId/:workspaceId/recent - Get recent workspace logs
  */

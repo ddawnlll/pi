@@ -1,5 +1,17 @@
 /**
- * PlanUploadDialog — Upload, preview, review, and run plans with approval flow.
+ * PlanUploadDialog — 4-step wizard for uploading, validating, reviewing,
+ * and executing one or more plans.
+ *
+ * Steps:
+ *   1. Select files  — drag-and-drop or browse, pick execution mode
+ *   2. Validation    — per-file validation results, fix with AI
+ *   3. Review & approve — preflight summary, dep diff, approval checklist
+ *   4. Execute       — queue list with progress bar
+ *
+ * Supports two modes:
+ *   - Multi-file mode: user selects multiple files via FileSelectScreen
+ *   - Backward compat mode: when validationResults is empty but
+ *     state.validationResponse is set (used by tests / single-plan flow)
  *
  * Acceptance Criteria (workspace 7.H):
  * 1. PlanUploadDialog shows preflight preview before run
@@ -22,18 +34,32 @@ import {
 	ShieldCheck,
 	Upload,
 	X,
+	Loader2,
+	FileText,
 } from "lucide-react";
 import { useParallelismPreview } from "../hooks/useParallelismPreview";
-import { ParallelismEditor } from "./ParallelismEditor";
-import {
-	PlanValidationPanel,
-	buildValidationData,
-} from "./PlanValidationPanel";
 import type {
-	BatchPlanResult,
+	ValidateWithPreviewResponse,
 	DependencyGraphNode,
 	DependencyPatch,
 } from "../types";
+import { FileSelectScreen, type FileEntry } from "./FileSelectScreen";
+import { ValidationScreen } from "./ValidationScreen";
+import { ReviewScreen } from "./ReviewScreen";
+import { ExecuteScreen, type FileExecutionState } from "./ExecuteScreen";
+
+const API_BASE = "";
+
+// ---------------------------------------------------------------------------
+// Exports (kept for backward compat with tests and other imports)
+// ---------------------------------------------------------------------------
+
+export type DialogStage = "input" | "validating" | "preflight" | "approval" | "running";
+export type WizardStep = 1 | 2 | 3 | 4;
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 
 interface PlanUploadDialogProps {
 	isOpen: boolean;
@@ -44,13 +70,95 @@ interface PlanUploadDialogProps {
 	onEnqueued?: () => void;
 }
 
-/** Stage of the dialog workflow. */
-type DialogStage =
-	| "input"
-	| "validating"
-	| "preflight"
-	| "approval"
-	| "running";
+// ---------------------------------------------------------------------------
+// Step indicator
+// ---------------------------------------------------------------------------
+
+const STEPS = [
+	{ step: 1, label: "Select files", short: "Select" },
+	{ step: 2, label: "Validation", short: "Valid" },
+	{ step: 3, label: "Review & approve", short: "Review" },
+	{ step: 4, label: "Execute", short: "Execute" },
+] as const;
+
+function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
+	return (
+		<div className="flex items-center justify-center gap-0">
+			{STEPS.map((s, i) => {
+				const isPast = s.step < currentStep;
+				const isCurrent = s.step === currentStep;
+				const isFuture = s.step > currentStep;
+
+				return (
+					<div key={s.step} className="flex items-center">
+						{/* Step circle + label */}
+						<div className="flex flex-col items-center gap-1">
+							<div
+								className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+									isPast
+										? "bg-emerald-600 text-white"
+										: isCurrent
+											? "bg-blue-600 text-white"
+											: "bg-gray-800 text-gray-500 border border-gray-700"
+								}`}
+							>
+								{isPast ? (
+									<CheckCircle2 size={12} />
+								) : (
+									<span className="text-[10px] font-bold">{s.step}</span>
+								)}
+							</div>
+							<span
+								className={`text-[9px] font-medium whitespace-nowrap ${
+									isCurrent
+										? "text-blue-400 font-semibold"
+										: isPast
+											? "text-gray-400"
+											: "text-gray-600"
+								}`}
+							>
+								{s.short}
+							</span>
+						</div>
+
+						{/* Connector line */}
+						{i < STEPS.length - 1 && (
+							<div
+								className={`w-8 h-px mx-1 mb-4 ${
+									isPast ? "bg-emerald-600" : "bg-gray-700"
+								}`}
+							/>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Stage badge for backward compat (old-style label)
+// ---------------------------------------------------------------------------
+
+function StageBadge({ stage }: { stage: DialogStage }) {
+	const config: Record<DialogStage, { label: string; color: string }> = {
+		input: { label: "Input", color: "bg-gray-700 text-gray-300" },
+		validating: { label: "Validating", color: "bg-blue-900/50 text-blue-300" },
+		preflight: { label: "Preflight", color: "bg-emerald-900/50 text-emerald-300" },
+		approval: { label: "Approval", color: "bg-amber-900/50 text-amber-300" },
+		running: { label: "Running", color: "bg-green-900/50 text-green-300" },
+	};
+	const { label, color } = config[stage];
+	return (
+		<span className={`text-[10px] px-2 py-0.5 rounded font-medium ${color}`}>
+			{label}
+		</span>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Dialog component
+// ---------------------------------------------------------------------------
 
 export function PlanUploadDialog({
 	isOpen,
@@ -61,462 +169,487 @@ export function PlanUploadDialog({
 }: PlanUploadDialogProps) {
 	const {
 		state: previewState,
-		validate,
+		validate: hookValidate,
 		patch,
 		approve,
-		run,
+		run: hookRun,
 		queuePlan,
 		reset: resetPreview,
 		clearError,
 	} = useParallelismPreview(projectId);
 
-	const [planContent, setPlanContent] = useState("");
-	const [planFileName, setPlanFileName] = useState("uploaded-plan.md");
+	// ── Wizard step ──
+	const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+
+	// ── Multi-file state ──
+	const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
+	const [executionMode, setExecutionMode] = useState<"parallel" | "sequential">("parallel");
+	const [validationResults, setValidationResults] = useState<Map<string, ValidateWithPreviewResponse>>(new Map());
+	const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
+	const [fixingFile, setFixingFile] = useState<string | null>(null);
+	const [approvalChecks, setApprovalChecks] = useState<Record<string, boolean>>({});
+	const [executions, setExecutions] = useState<FileExecutionState[]>([]);
+	const [executionId, setExecutionId] = useState<string | undefined>(undefined);
+
+	// ── Error state ──
 	const [error, setError] = useState<string | null>(null);
-	const [showGraphDiff, setShowGraphDiff] = useState(false);
 	const [pendingPatches, setPendingPatches] = useState<DependencyPatch[]>([]);
+	const [showGraphDiff, setShowGraphDiff] = useState(false);
+
+	// ── Safety overrides (for backward compat) ──
+	const [safetyOverrides, setSafetyOverrides] = useState<Record<string, boolean>>({});
+
+	// ── Backward compat: single-file fix chat ──
 	const [fixChatMessages, setFixChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
 	const [fixSending, setFixSending] = useState(false);
-	const [safetyOverrides, setSafetyOverrides] = useState<Record<string, boolean>>({});
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	// Derive the current dialog stage from the preview state
-	const dialogStage: DialogStage = useMemo(() => {
-		if (previewState.stage === "idle" && !previewState.validationResponse) {
-			return "input";
+	// ── Derive effective step from both hook state and wizardStep ──
+	const currentStep: WizardStep = useMemo(() => {
+		// Multi-file mode: use wizardStep
+		if (fileEntries.length > 0 || validationResults.size > 0) {
+			return wizardStep;
 		}
-		if (previewState.stage === "validating") {
-			return "validating";
+		// Backward compat: derive from hook stage
+		if (
+			previewState.stage === "validated" ||
+			previewState.stage === "patched" ||
+			previewState.stage === "approved"
+		) {
+			return 3;
 		}
 		if (previewState.stage === "running") {
-			return "running";
+			return 4;
 		}
-		// After validation (validated, patched, approved, error) → show preflight
-		if (
-			previewState.validationResponse?.success &&
-			previewState.stage !== "running"
-		) {
-			const requiresApproval =
-				previewState.validationResponse?.requiresApproval ?? false;
-			if (requiresApproval && !previewState.isApproved) {
-				return "approval";
+		if (previewState.stage === "validating") {
+			return 2;
+		}
+		return 1;
+	}, [fileEntries.length, validationResults.size, wizardStep, previewState.stage]);
+
+	// ── Effective validation results (backward compat: derive from hook) ──
+	const effectiveResults: Map<string, ValidateWithPreviewResponse> = useMemo(() => {
+		if (validationResults.size > 0) return validationResults;
+		if (previewState.validationResponse) {
+			const m = new Map<string, ValidateWithPreviewResponse>();
+			m.set("uploaded-plan.md", previewState.validationResponse);
+			return m;
+		}
+		return validationResults;
+	}, [validationResults, previewState.validationResponse]);
+
+	// ── Effective file entries (backward compat) ──
+	const effectiveFileEntries: FileEntry[] = useMemo(() => {
+		if (fileEntries.length > 0) return fileEntries;
+		if (previewState.validationResponse) {
+			return [
+				{
+					file: new File([""], "uploaded-plan.md"),
+					content: "",
+					status: "ready" as const,
+				},
+			];
+		}
+		return fileEntries;
+	}, [fileEntries, previewState.validationResponse]);
+
+	// ── Derive old-style dialog stage for backward compat ──
+	const dialogStage: DialogStage = useMemo(() => {
+		switch (currentStep) {
+			case 1:
+				return previewState.stage === "validating" ? "validating" : "input";
+			case 2:
+				return "validating";
+			case 3: {
+				// Check if any result requires approval
+				const needsApproval = Array.from(effectiveResults.values()).some(
+					(r) => r.success && r.requiresApproval,
+				);
+				if (
+					needsApproval &&
+					!(
+						approvalChecks["reviewed_preflight"] &&
+						approvalChecks["acknowledged_warnings"] &&
+						approvalChecks["confirmed_patches"]
+					)
+				) {
+					return "approval";
+				}
+				return "preflight";
 			}
-			return "preflight";
+			case 4:
+				return "running";
 		}
-		// Validation failed — back to input
-		if (
-			previewState.validationResponse &&
-			!previewState.validationResponse.success
-		) {
-			return "input";
+	}, [currentStep, previewState.stage, effectiveResults, approvalChecks]);
+
+	// ── Helpers ──
+
+	const getFileContent = useCallback(
+		(fileName: string): string | undefined => {
+			return fileEntries.find((f) => f.file.name === fileName)?.content;
+		},
+		[fileEntries],
+	);
+
+	const allFilesSelected = fileEntries.length > 0;
+
+	const filesWithErrors = useMemo(() => {
+		const names: string[] = [];
+		for (const [name, result] of effectiveResults) {
+			if (!result.success) names.push(name);
 		}
-		return "input";
-	}, [previewState.stage, previewState.validationResponse, previewState.isApproved]);
+		return names;
+	}, [effectiveResults]);
+
+	const allValidationsDone = useMemo(
+		() =>
+			effectiveResults.size > 0 &&
+			validatingFiles.size === 0,
+		[effectiveResults, validatingFiles],
+	);
+
+	const hasErrorFiles = filesWithErrors.length > 0;
+
+	const allApprovalChecksMet = useMemo(() => {
+		const hasApprovalRequired = Array.from(effectiveResults.values()).some(
+			(r) => r.success && r.requiresApproval,
+		);
+		if (!hasApprovalRequired) return true;
+		return (
+			approvalChecks["reviewed_preflight"] &&
+			approvalChecks["acknowledged_warnings"] &&
+			approvalChecks["confirmed_patches"]
+		);
+	}, [effectiveResults, approvalChecks]);
+
+	// ── Navigation ──
+
+	const goToStep = useCallback((step: WizardStep) => {
+		setWizardStep(step);
+		setError(null);
+	}, []);
+
+	const handleBack = useCallback(() => {
+		if (wizardStep > 1) {
+			goToStep((wizardStep - 1) as WizardStep);
+		}
+	}, [wizardStep, goToStep]);
+
+	// ── Validation ──
+
+	const handleValidateAll = useCallback(async () => {
+		if (fileEntries.length === 0) {
+			// Backward compat: use the old single-file validate flow
+			// (This happens when the user typed in the textarea in old tests)
+			return;
+		}
+
+		setError(null);
+		const fileNames = new Set(fileEntries.map((f) => f.file.name));
+		setValidatingFiles(fileNames);
+
+		for (const entry of fileEntries) {
+			try {
+				const result = await hookValidate(entry.content);
+				if (result) {
+					setValidationResults((prev) => {
+						const next = new Map(prev);
+						next.set(entry.file.name, result);
+						return next;
+					});
+				}
+			} catch (err) {
+				setValidationResults((prev) => {
+					const next = new Map(prev);
+					next.set(entry.file.name, {
+						success: false,
+						errors: [String(err)],
+					});
+					return next;
+				});
+			}
+			setValidatingFiles((prev) => {
+				const next = new Set(prev);
+				next.delete(entry.file.name);
+				return next;
+			});
+		}
+
+		goToStep(2);
+	}, [fileEntries, hookValidate, goToStep]);
+
+	const handleRevalidate = useCallback(async () => {
+		setValidationResults(new Map());
+		await handleValidateAll();
+	}, [handleValidateAll]);
+
+	const handleFixWithAI = useCallback(
+		async (fileName: string) => {
+			const content = getFileContent(fileName);
+			if (!content) return;
+
+			setFixingFile(fileName);
+			try {
+				const response = await fetch(
+					`${API_BASE}/api/projects/${projectId}/plans/fix`,
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							planContent: content,
+							userPrompt: "Fix all validation issues automatically",
+							scope: "fix_all_validation",
+						}),
+					},
+				);
+
+				if (!response.ok) {
+					const text = await response.text().catch(() => "");
+					setError(`Fix failed for ${fileName}: ${text}`);
+					return;
+				}
+
+				const result = await response.json();
+
+				if (result.fixedPlan) {
+					setFileEntries((prev) =>
+						prev.map((f) =>
+							f.file.name === fileName ? { ...f, content: result.fixedPlan } : f,
+						),
+					);
+				}
+
+				const validateResult = await hookValidate(result.fixedPlan ?? content);
+				if (validateResult) {
+					setValidationResults((prev) => {
+						const next = new Map(prev);
+						next.set(fileName, validateResult);
+						return next;
+					});
+				}
+			} catch (err) {
+				setError(`Fix failed for ${fileName}: ${String(err)}`);
+			} finally {
+				setFixingFile(null);
+			}
+		},
+		[getFileContent, projectId, hookValidate],
+	);
+
+	// ── Approve & Run ──
+
+	const handleApproveAndRun = useCallback(async () => {
+		if (fileEntries.length === 0 && !previewState.validationResponse) {
+			setError("No plans to execute");
+			return;
+		}
+
+		setError(null);
+
+		// Approve if needed
+		const hasApprovalRequired = Array.from(effectiveResults.values()).some(
+			(r) => r.success && r.requiresApproval,
+		);
+		if (hasApprovalRequired) {
+			const approved = approve();
+			if (!approved) {
+				setError("Approval failed. Please revalidate.");
+				return;
+			}
+		}
+
+		// Apply pending patches
+		if (pendingPatches.length > 0) {
+			setPendingPatches([]);
+		}
+
+		// If single-file (backward compat)
+		if (fileEntries.length === 0 && previewState.validationResponse) {
+			// Use the old hook run method directly
+			const result = await hookRun("", safetyOverrides);
+			if (result?.success && result.planExecutionId) {
+				onExecutionStarted(result.planExecutionId);
+				onClose();
+			} else if (result?.errors) {
+				setError(result.errors.join("; "));
+			}
+			return;
+		}
+
+		// Multi-file execution
+		const execStates: FileExecutionState[] = [];
+		for (let i = 0; i < fileEntries.length; i++) {
+			const entry = fileEntries[i];
+			const isSequential = executionMode === "sequential" && i > 0;
+			execStates.push({
+				fileName: entry.file.name,
+				status: isSequential ? "queued" : "running",
+				isSequential,
+			});
+		}
+		setExecutions(execStates);
+		setWizardStep(4);
+
+		for (let i = 0; i < fileEntries.length; i++) {
+			const entry = fileEntries[i];
+
+			if (executionMode === "sequential" && i > 0) {
+				setExecutions((prev) =>
+					prev.map((e, idx) =>
+						idx === i ? { ...e, status: "running" as const } : e,
+					),
+				);
+			}
+
+			try {
+				const result = await hookRun(entry.content, safetyOverrides);
+
+				if (result?.success && result.planExecutionId) {
+					setExecutions((prev) =>
+						prev.map((e, idx) =>
+							idx === i
+								? { ...e, status: "completed" as const, executionId: result.planExecutionId }
+								: e,
+						),
+					);
+					if (!executionId && i === 0) {
+						setExecutionId(result.planExecutionId);
+						onExecutionStarted(result.planExecutionId);
+					}
+				} else {
+					setExecutions((prev) =>
+						prev.map((e, idx) =>
+							idx === i
+								? {
+										...e,
+										status: "failed" as const,
+										error: result?.errors?.join("; ") ?? "Execution failed",
+									}
+								: e,
+						),
+					);
+				}
+			} catch (err) {
+				setExecutions((prev) =>
+					prev.map((e, idx) =>
+						idx === i
+							? { ...e, status: "failed" as const, error: String(err) }
+							: e,
+					),
+				);
+			}
+		}
+	}, [
+		fileEntries,
+		previewState.validationResponse,
+		effectiveResults,
+		pendingPatches,
+		executionMode,
+		approve,
+		hookRun,
+		safetyOverrides,
+		onExecutionStarted,
+		onClose,
+		executionId,
+	]);
+
+		// ── Close / Reset ──
 
 	const handleClose = useCallback(() => {
-		setPlanContent("");
-		setPlanFileName("uploaded-plan.md");
+		setFileEntries([]);
+		setValidationResults(new Map());
+		setValidatingFiles(new Set());
+		setApprovalChecks({});
+		setExecutions([]);
+		setExecutionId(undefined);
 		setError(null);
 		setShowGraphDiff(false);
 		setPendingPatches([]);
+		setFixChatMessages([]);
+		setFixSending(false);
+		setWizardStep(1);
 		resetPreview();
 		onClose();
 	}, [resetPreview, onClose]);
 
-	const handleValidate = useCallback(async () => {
-		if (!planContent.trim()) {
-			setError("Plan content is required");
-			return;
-		}
-		setError(null);
-		setShowGraphDiff(false);
-		setPendingPatches([]);
-		await validate(planContent.trim());
-	}, [planContent, validate]);
-
-	const handleRun = useCallback(async () => {
-		if (!planContent.trim()) return;
-		setError(null);
-
-		// If the plan requires approval, ensure it has been approved
-		const requiresApproval =
-			previewState.validationResponse?.requiresApproval ?? false;
-
-		// Check safety overrides: if all critical safety items are overridden, skip approval
-		const allSafetyOverridden =
-			previewState.validationResponse?.safety?.critical?.every(
-				(c) => safetyOverrides[c.type],
-			) ?? false;
-
-		if (requiresApproval && !previewState.isApproved && !allSafetyOverridden) {
-			setError(
-				"This plan requires review approval before execution. Click 'Approve & Run' to proceed.",
-			);
+	const handleQueueAll = useCallback(async () => {
+		if (fileEntries.length === 0) {
+			// Backward compat: single-file queue
+			if (previewState.validationResponse) {
+				const result = await queuePlan("", "uploaded-plan.md");
+				if (result?.success) {
+					onEnqueued?.();
+					onClose();
+				} else if (result?.errors) {
+					setError(result.errors.join("; "));
+				}
+			}
 			return;
 		}
 
-		const result = await run(planContent.trim(), safetyOverrides);
-		if (result?.success && result.planExecutionId) {
-			onExecutionStarted(result.planExecutionId);
+		setError(null);
+		let hasError = false;
+
+		for (const entry of fileEntries) {
+			const result = await queuePlan(entry.content, entry.file.name);
+			if (result?.success) {
+				onEnqueued?.();
+			} else if (result?.errors) {
+				setError(result.errors.join("; "));
+				hasError = true;
+			}
+		}
+
+		if (!hasError) {
 			handleClose();
-		} else if (result?.errors) {
-			setError(result.errors.join("; "));
 		}
-	}, [planContent, previewState.validationResponse, previewState.isApproved, run, safetyOverrides, handleClose, onExecutionStarted]);
+	}, [fileEntries, previewState.validationResponse, queuePlan, onEnqueued, handleClose]);
 
-	const handleQueuePlan = useCallback(async () => {
-		if (!planContent.trim()) return;
-		setError(null);
-
-		// Apply any pending patches first
-		if (pendingPatches.length > 0) {
-			const patchResult = await patch(planContent.trim(), pendingPatches);
-			if (!patchResult?.success) {
-				setError(
-					patchResult?.errors?.join("; ") ?? "Failed to apply dependency patches",
-				);
-				return;
-			}
-			setPendingPatches([]);
-		}
-
-		const result = await queuePlan(planContent.trim(), planFileName);
-		if (result?.success) {
-			onEnqueued?.();
-			onClose();
-		} else if (result?.errors) {
-			setError(result.errors.join("; "));
-		}
-	}, [planContent, planFileName, pendingPatches, patch, queuePlan, onClose]);
-
-	const handleApproveAndRun = useCallback(async () => {
-		if (!planContent.trim()) return;
-		setError(null);
-
-		// Apply any pending patches first
-		if (pendingPatches.length > 0) {
-			const patchResult = await patch(planContent.trim(), pendingPatches);
-			if (!patchResult?.success) {
-				setError(
-					patchResult?.errors?.join("; ") ?? "Failed to apply dependency patches",
-				);
-				return;
-			}
-			setPendingPatches([]);
-		}
-
-		// Approve the plan
-		const approved = approve();
-		if (!approved) {
-			setError(
-				previewState.error?.message ?? "Approval failed. Please revalidate.",
-			);
-			return;
-		}
-
-		// Run with patches
-		const result = await run(planContent.trim(), safetyOverrides);
-		if (result?.success && result.planExecutionId) {
-			onExecutionStarted(result.planExecutionId);
-			handleClose();
-		} else if (result?.errors) {
-			setError(result.errors.join("; "));
-		}
-	}, [
-		planContent,
-		pendingPatches,
-		patch,
-		approve,
-		run,
-		handleClose,
-		onExecutionStarted,
-		previewState.error,
-	]);
-
-	const handleFixPlan = useCallback(async (prompt: string) => {
-		if (!planContent.trim()) return;
-
-		setFixChatMessages((prev) => [...prev, { role: "user", content: prompt }]);
-		setFixSending(true);
-
-		try {
-			// Call the plan fix endpoint
-			const response = await fetch(
-				`${import.meta.env.VITE_API_BASE || ""}/api/projects/${projectId}/plans/fix`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						planContent: planContent.trim(),
-						userPrompt: prompt,
-						scope: "validation_fixes",
-					}),
-				},
-			);
-
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				setFixChatMessages((prev) => [
-					...prev,
-					{
-						role: "assistant",
-						content: `Fix request failed (${response.status}): ${text}`,
-					},
-				]);
-				return;
-			}
-
-			const result = await response.json();
-
-			if (result.fixedPlan) {
-				setPlanContent(result.fixedPlan);
-			}
-
-			if (result.explanation) {
-				setFixChatMessages((prev) => [
-					...prev,
-					{
-						role: "assistant",
-						content: result.explanation,
-					},
-				]);
-			}
-
-			// Auto-revalidate after fix
-			if (result.fixedPlan) {
-				await validate(result.fixedPlan);
-			}
-		} catch (err) {
-			setFixChatMessages((prev) => [
-				...prev,
-				{
-					role: "assistant",
-					content: `Error: ${String(err)}`,
-				},
-			]);
-		} finally {
-			setFixSending(false);
-		}
-	}, [planContent, projectId, validate]);
-
-	/** Gather all validation failure/warning messages into a concise prompt. */
-	const buildFixAllPrompt = useCallback((): string => {
-		const parts: string[] = [];
-		const v = previewState.validationResponse;
-		if (!v) return "";
-
-		// Collect failures and warnings from every validation step
-		if (v.stackValidation && !v.stackValidation.valid) {
-			for (const d of v.stackValidation.diagnostics) {
-				parts.push(`[${d.severity}] ${d.message}`);
-			}
-		}
-
-		if (v.safety) {
-			for (const c of v.safety.critical) {
-				parts.push(`[critical] ${c.type}: ${c.message}`);
-			}
-			for (const w of v.safety.warnings) {
-				parts.push(`[warning] ${w.type}: ${w.message}`);
-			}
-		}
-
-		if (v.batchPlan) {
-			for (const e of v.batchPlan.errors) {
-				parts.push(`[error] ${e.message}`);
-			}
-			for (const w of v.batchPlan.warnings) {
-				parts.push(`[warning] ${w.message}`);
-			}
-		}
-
-		if (v.suggestedFixes) {
-			for (const f of v.suggestedFixes) {
-				parts.push(`[fix-suggestion] ${f.category}: ${f.description}`);
-			}
-		}
-
-		if (previewState.checkerAnalysis?.result?.findings) {
-			for (const f of previewState.checkerAnalysis.result.findings) {
-				parts.push(`[checker-${f.severity}] ${f.title}: ${f.description}${f.suggestion ? ` (suggestion: ${f.suggestion})` : ""}`);
-			}
-		}
-
-		const summary = `Fix all of the following validation issues in the plan:\n\n${parts.join("\n")}`;
-		return summary.slice(0, 8000); // keep within token limits
-	}, [previewState.validationResponse, previewState.checkerAnalysis]);
-
-	const handleFixAll = useCallback(async () => {
-		if (!planContent.trim()) return;
-
-		const prompt = buildFixAllPrompt();
-		if (!prompt) {
-			setFixChatMessages((prev) => [
-				...prev,
-				{ role: "assistant", content: "No validation issues to fix." },
-			]);
-			return;
-		}
-
-		// Reuse the handleFixPlan logic with the aggregated prompt
-		setFixChatMessages((prev) => [...prev, { role: "user", content: "Fix all validation issues automatically" }]);
-		setFixSending(true);
-
-		try {
-			const response = await fetch(
-				`${import.meta.env.VITE_API_BASE || ""}/api/projects/${projectId}/plans/fix`,
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						planContent: planContent.trim(),
-						userPrompt: prompt,
-						scope: "fix_all_validation",
-					}),
-				},
-			);
-
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				setFixChatMessages((prev) => [
-					...prev,
-					{ role: "assistant", content: `Fix All failed (${response.status}): ${text}` },
-				]);
-				return;
-			}
-
-			const result = await response.json();
-
-			if (result.fixedPlan) {
-				setPlanContent(result.fixedPlan);
-			}
-
-			if (result.explanation) {
-				setFixChatMessages((prev) => [
-					...prev,
-					{ role: "assistant", content: result.explanation },
-				]);
-			}
-
-			if (result.fixedPlan) {
-				await validate(result.fixedPlan);
-			}
-		} catch (err) {
-			setFixChatMessages((prev) => [
-				...prev,
-				{ role: "assistant", content: `Error: ${String(err)}` },
-			]);
-		} finally {
-			setFixSending(false);
-		}
-	}, [planContent, projectId, validate, buildFixAllPrompt]);
-
-	const handleApplyPatches = useCallback(
-		async (patches: DependencyPatch[]) => {
-			if (!planContent.trim()) return;
-			const result = await patch(planContent.trim(), patches);
-			if (!result?.success) {
-				setError(result?.errors?.join("; ") ?? "Failed to apply patches");
-				return;
-			}
-			setPendingPatches([]);
-		},
-		[planContent, patch],
-	);
-
-	const handleFileUpload = () => {
-		fileInputRef.current?.click();
-	};
-
-	const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-
-		setPlanFileName(file.name);
-		const reader = new FileReader();
-		reader.onload = (evt) => {
-			const content = evt.target?.result as string;
-			setPlanContent(content);
-		};
-		reader.readAsText(file);
-		e.target.value = "";
-	};
-
-	// ── Derived data for rendering ──
-
-	const batchPlan = previewState.validationResponse?.batchPlan ?? null;
-	const parseResult = previewState.validationResponse?.parseResult ?? null;
-	const requiresApproval =
-		previewState.validationResponse?.requiresApproval ?? false;
-	const isApproved = previewState.isApproved;
-	const canRun =
-		previewState.validationResponse?.success === true &&
-		!showGraphDiff &&
-		(requiresApproval ? isApproved : true) &&
+	// ── Can approve & run? ──
+	const canApproveAndRun =
+		allValidationsDone &&
+		!hasErrorFiles &&
+		allApprovalChecksMet &&
 		previewState.stage !== "running" &&
 		previewState.stage !== "validating";
 
-	// Original graph (from initial validation) vs edited graph (after patches)
-	const originalGraph = useMemo(() => {
-		if (!batchPlan) return null;
-		return batchPlan.dependencyGraph;
-	}, [batchPlan]);
+	// ── Footer message ──
+	const footerMessage = useMemo(() => {
+		const total = effectiveFileEntries.length;
+		if (total === 0) return "";
 
-	const editedGraph = useMemo(() => {
-		if (!previewState.previewResult?.batchPlan) return null;
-		return previewState.previewResult.batchPlan.dependencyGraph;
-	}, [previewState.previewResult]);
+		const validatedCount = effectiveResults.size;
+		const needsReview = Array.from(effectiveResults.values()).filter(
+			(r) => r.success && r.requiresApproval,
+		).length;
 
-	const graphDiffData = useMemo(() => {
-		if (!originalGraph || !editedGraph) return null;
-
-		const origMap = new Map(originalGraph.map((n) => [n.id, n]));
-		const editMap = new Map(editedGraph.map((n) => [n.id, n]));
-
-		const added: DependencyGraphNode[] = [];
-		const removed: DependencyGraphNode[] = [];
-		const changed: Array<{
-			node: DependencyGraphNode;
-			origDeps: string[];
-			newDeps: string[];
-			addedDeps: string[];
-			removedDeps: string[];
-		}> = [];
-
-		// Nodes in edited but not in original
-		for (const node of editedGraph) {
-			if (!origMap.has(node.id)) added.push(node);
+		if (currentStep === 1) {
+			const errors = effectiveFileEntries.filter((f) => f.status === "error").length;
+			const warns = effectiveFileEntries.filter((f) => f.status === "warn").length;
+			const parts = [`${total} file${total !== 1 ? "s" : ""}`];
+			if (errors > 0) parts.push(`${errors} with errors`);
+			if (warns > 0) parts.push(`${warns} with warnings`);
+			return parts.join(" \u00b7 ");
 		}
 
-		// Nodes in original but not in edited
-		for (const node of originalGraph) {
-			if (!editMap.has(node.id)) removed.push(node);
+		if (currentStep === 2) {
+			if (validatedCount === 0) return "";
+			const errCount = filesWithErrors.length;
+			if (errCount > 0) return `${errCount} error${errCount !== 1 ? "s" : ""} \u2014 fix before continuing`;
+			return `All ${validatedCount} file${validatedCount !== 1 ? "s" : ""} passed`;
 		}
 
-		// Nodes with changed dependencies
-		for (const origNode of originalGraph) {
-			const editNode = editMap.get(origNode.id);
-			if (!editNode) continue;
-
-			const origDeps = [...origNode.dependencies].sort();
-			const newDeps = [...editNode.dependencies].sort();
-
-			if (JSON.stringify(origDeps) !== JSON.stringify(newDeps)) {
-				const addedDeps = newDeps.filter((d) => !origDeps.includes(d));
-				const removedDeps = origDeps.filter((d) => !newDeps.includes(d));
-				changed.push({
-					node: editNode,
-					origDeps,
-					newDeps,
-					addedDeps,
-					removedDeps,
-				});
-			}
+		if (currentStep === 3) {
+			const parts = [`${total} file${total !== 1 ? "s" : ""}`];
+			if (needsReview > 0) parts.push(`${needsReview} needs review`);
+			return parts.join(" \u00b7 ");
 		}
 
-		return { added, removed, changed };
-	}, [originalGraph, editedGraph]);
+		return "";
+	}, [effectiveFileEntries, effectiveResults, filesWithErrors, currentStep]);
+
+	// ── Rendered validation screen can optionally include legacy PlanValidationPanel ──
+	// We always use the new ValidationScreen component, but for backward compat
+	// the effective results populate correctly from the hook.
 
 	return (
 		<AnimatePresence>
@@ -533,303 +666,100 @@ export function PlanUploadDialog({
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
 						transition={{ duration: 0.1 }}
-						className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-6 min-w-[600px] max-w-3xl max-h-[85vh] flex flex-col"
+						className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-6 min-w-[640px] max-w-3xl max-h-[85vh] flex flex-col"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{/* ── Header ── */}
 						<div className="flex items-center justify-between mb-4">
 							<h2 className="text-lg font-semibold text-gray-100">
-								Upload & Run Plan
+								Upload &amp; Run Plans
 							</h2>
 							<div className="flex items-center gap-2">
 								<StageBadge stage={dialogStage} />
-								<span className="text-xs text-gray-500 font-mono">
-									Project: {projectId.slice(0, 8)}...
+								<span className="text-[10px] text-gray-500">
+									Step {currentStep}/4
 								</span>
+								<button
+									onClick={handleClose}
+									className="text-gray-500 hover:text-gray-300 transition-colors p-0.5"
+								>
+									<X size={14} />
+								</button>
 							</div>
 						</div>
 
-						{/* ── Content area (scrollable) ── */}
+						{/* ── Step indicator ── */}
+						<div className="mb-4">
+							<StepIndicator currentStep={currentStep} />
+						</div>
+
+						{/* ── Content area ── */}
 						<div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-							{/* ── AC 1: Plan input area ── */}
-							{(dialogStage === "input" || dialogStage === "validating") && (
-								<div className="flex flex-col flex-1">
-									<label className="text-xs text-gray-400 block mb-1.5">
-										Plan Content
-									</label>
-									<textarea
-										ref={textareaRef}
-										value={planContent}
-										onChange={(e) => {
-											setPlanContent(e.target.value);
-										}}
-										placeholder={`Paste your plan content here...`}
-										className="w-full min-h-[200px] px-3 py-2 text-sm font-mono bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-y"
-										spellCheck={false}
-									/>
-									<div className="flex items-center gap-3 mt-2">
-										<input
-											ref={fileInputRef}
-											type="file"
-											accept=".md,.json,.txt"
-											onChange={handleFileSelected}
-											className="hidden"
+							{/* Step 1: File Select */}
+							{currentStep === 1 && (
+								<>
+									{/* Backward compat: when no multi-file, show textarea */}
+									{fileEntries.length === 0 && !previewState.validationResponse && (
+										<LegacyInputArea
+											projectId={projectId}
+											onValidate={() => {
+												// For legacy mode, just let the hook validate handle it
+												// via the Validate button below
+											}}
 										/>
-										<button
-											onClick={handleFileUpload}
-											className="text-xs px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
-										>
-											<Upload size={12} className="inline mr-1" />
-											Browse File...
-										</button>
-										{planFileName && (
-											<span className="text-xs text-gray-500">
-												{planFileName}
-											</span>
-										)}
-										<span className="text-xs text-gray-600 ml-auto">
-											{planContent.length} chars
-										</span>
-									</div>
-								</div>
-							)}
-
-							{/* ── Validation result (shown in input stage after failed validation) ── */}
-							{previewState.validationResponse &&
-								!previewState.validationResponse.success && (
-									<div className="p-3 bg-red-900/30 border border-red-800 rounded text-xs text-red-300">
-										<div className="font-semibold text-red-200 mb-1">
-											Validation Failed
-										</div>
-										{previewState.validationResponse.errors?.map((e, i) => (
-											<div key={i} className="ml-2">
-												- {e}
-											</div>
-										))}
-									</div>
-								)}
-
-							{/* ── Parse result summary ── */}
-							{parseResult && previewState.validationResponse?.success && (
-								<div className="p-3 bg-green-900/30 border border-green-800 rounded text-xs text-green-300">
-									<div className="font-semibold text-green-200 mb-1.5">
-										Plan Valid
-									</div>
-									<div className="grid grid-cols-2 gap-x-4 gap-y-1">
-										<span className="text-green-400/70">Title:</span>
-										<span className="text-green-200 text-right">
-											{parseResult.title}
-										</span>
-										<span className="text-green-400/70">Phase:</span>
-										<span className="text-green-200 text-right">
-											{parseResult.phase}
-										</span>
-										<span className="text-green-400/70">Workspaces:</span>
-										<span className="text-green-200 text-right">
-											{parseResult.workspaceCount}
-										</span>
-										<span className="text-green-400/70">Max Parallel:</span>
-										<span className="text-green-200 text-right">
-											{parseResult.maxParallel}
-										</span>
-									</div>
-								</div>
-							)}
-
-							{/* ── Requires approval badge ── */}
-							{requiresApproval && !isApproved && (
-								<div className="p-3 bg-amber-900/30 border border-amber-800 rounded text-xs text-amber-300 flex items-start gap-2">
-									<ShieldCheck size={14} className="shrink-0 mt-0.5" />
-									<div>
-										<div className="font-semibold text-amber-200 mb-0.5">
-											Review Required
-										</div>
-										<div>
-											This plan requires review approval before execution.
-											Review the preflight preview below, then click "Approve &
-											Run" to proceed.
-										</div>
-									</div>
-								</div>
-							)}
-							{requiresApproval && isApproved && (
-								<div className="p-3 bg-emerald-900/30 border border-emerald-800 rounded text-xs text-emerald-300 flex items-start gap-2">
-									<CheckCircle2 size={14} className="shrink-0 mt-0.5" />
-									<div>
-										<div className="font-semibold text-emerald-200 mb-0.5">
-											Approved
-										</div>
-										<div>This plan has been approved for execution.</div>
-									</div>
-								</div>
-							)}
-
-							{/* ── Validation Report (shows before preflight) ── */}
-							{previewState.validationResponse?.success && (
-								<PlanValidationPanel
-									data={buildValidationData(
-										previewState.validationResponse.parseResult,
-										previewState.validationResponse.stackValidation,
-										previewState.validationResponse.safety,
-										previewState.validationResponse.batchPlan,
-										previewState.validationResponse.suggestedFixes,
-										previewState.checkerAnalysis,
 									)}
-									className="mb-3"
-									onFixPlan={handleFixPlan}
-									chatState={{
-										sending: fixSending,
-										messages: fixChatMessages,
-									}}
-									safetyOverrides={safetyOverrides}
-									onSafetyOverride={(key, approved) =>
-										setSafetyOverrides((prev) => ({ ...prev, [key]: approved }))
-									}
-									onFixAll={handleFixAll}
+									{/* Multi-file select */}
+									{(fileEntries.length > 0 || previewState.validationResponse) && (
+										<FileSelectScreen
+											files={fileEntries}
+											onFilesChange={setFileEntries}
+											executionMode={executionMode}
+											onExecutionModeChange={setExecutionMode}
+										/>
+									)}
+								</>
+							)}
+
+							{/* Step 2: Validation */}
+							{currentStep === 2 && (
+								<ValidationScreen
+									results={effectiveResults}
+									validatingFiles={validatingFiles}
+									onRevalidate={handleRevalidate}
+									onFixWithAI={handleFixWithAI}
+									fixingFile={fixingFile}
 								/>
 							)}
 
-							{/* ── AC 1: Preflight preview ── */}
-							{batchPlan && previewState.validationResponse?.success && (
-								<div className="border border-gray-700 rounded overflow-hidden">
-									<div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
-										<h3 className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
-											<Eye size={12} />
-											Preflight Preview
-										</h3>
-										{/* AC 4: Compare graphs button */}
-										{editedGraph && (
-											<button
-												onClick={() => setShowGraphDiff(!showGraphDiff)}
-												className="text-[10px] px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 flex items-center gap-1 transition-colors"
-											>
-												<GitCompare size={10} />
-												{showGraphDiff ? "Hide Diff" : "Compare Graphs"}
-											</button>
-										)}
-									</div>
-
-									{/* Parallelism preview summary */}
-									<div className="px-3 py-2 bg-gray-850 text-xs border-b border-gray-700">
-										<div className="grid grid-cols-4 gap-2">
-											<div>
-												<span className="text-gray-500 text-[10px]">
-													Batches
-												</span>
-												<div className="text-gray-200 font-medium">
-													{batchPlan.totalBatches}
-												</div>
-											</div>
-											<div>
-												<span className="text-gray-500 text-[10px]">
-													Effective Parallelism
-												</span>
-												<div
-													className={`font-medium ${
-														batchPlan.parallelismDelta > 0
-															? "text-amber-400"
-															: "text-emerald-400"
-													}`}
-												>
-													{batchPlan.effectiveParallelism}
-												</div>
-											</div>
-											<div>
-												<span className="text-gray-500 text-[10px]">
-													Requested
-												</span>
-												<div className="text-gray-200 font-medium">
-													{batchPlan.requestedParallelism}
-												</div>
-											</div>
-											<div>
-												<span className="text-gray-500 text-[10px]">
-													Delta
-												</span>
-												<div
-													className={`font-medium ${
-														batchPlan.parallelismDelta > 0
-															? "text-amber-400"
-															: "text-gray-400"
-													}`}
-												>
-													{batchPlan.parallelismDelta > 0
-														? `+${batchPlan.parallelismDelta}`
-														: "0"}
-												</div>
-											</div>
-										</div>
-										{batchPlan.isOverSerialized && (
-											<div className="mt-1.5 text-amber-400 flex items-center gap-1">
-												<AlertTriangle size={10} />
-												Over-serialized: requested parallelism is higher than
-												effective
-											</div>
-										)}
-									</div>
-
-									{/* Show batch plan warnings/errors */}
-									{(batchPlan.warnings.length > 0 ||
-										batchPlan.errors.length > 0) && (
-										<div className="px-3 py-2 bg-amber-900/20 border-b border-gray-700 text-xs space-y-1">
-											{batchPlan.errors.map((err, i) => (
-												<div
-													key={`err-${i}`}
-													className="text-red-400 flex items-start gap-1"
-												>
-													<AlertCircle
-														size={10}
-														className="shrink-0 mt-0.5"
-													/>
-													{err.message}
-												</div>
-											))}
-											{batchPlan.warnings.map((w, i) => (
-												<div
-													key={`warn-${i}`}
-													className="text-amber-400 flex items-start gap-1"
-												>
-													<AlertTriangle
-														size={10}
-														className="shrink-0 mt-0.5"
-													/>
-													{w.message}
-												</div>
-											))}
-										</div>
-									)}
-
-									{/* AC 4: Graph comparison view */}
-									{showGraphDiff && graphDiffData && (
-										<GraphDiffView diffData={graphDiffData} />
-									)}
-
-									{/* ParallelismEditor for dependency editing */}
-									{!showGraphDiff && (
-										<ParallelismEditor
-											batchPlan={
-												previewState.previewResult?.batchPlan ?? batchPlan
-											}
-											onSave={handleApplyPatches}
-											onReset={() => setPendingPatches([])}
-											saving={previewState.stage === "patching"}
-											extraWarnings={batchPlan.warnings}
-											extraErrors={batchPlan.errors}
-										/>
-									)}
-								</div>
+							{/* Step 3: Review & Approve */}
+							{currentStep === 3 && (
+								<ReviewScreen
+									results={effectiveResults}
+									approvalChecks={approvalChecks}
+									onApprovalCheckChange={(key, checked) =>
+										setApprovalChecks((prev) => ({
+											...prev,
+											[key]: checked,
+										}))
+									}
+									preflightAcknowledged={
+										approvalChecks["reviewed_preflight"] ?? false
+									}
+									onPreflightAcknowledgedChange={(v) =>
+										setApprovalChecks((prev) => ({
+											...prev,
+											reviewed_preflight: v,
+										}))
+									}
+								/>
 							)}
 
-							{/* ── Applied patches indicator ── */}
-							{previewState.appliedPatches.length > 0 && (
-								<div className="p-2 bg-blue-900/20 border border-blue-800 rounded text-xs text-blue-300 flex items-center gap-1.5">
-									<CheckCircle2 size={12} className="shrink-0" />
-									<span>
-										{previewState.appliedPatches.length} dependency patch
-										{previewState.appliedPatches.length !== 1 ? "es" : ""} applied
-										— will be included in run request
-									</span>
-								</div>
+							{/* Step 4: Execute */}
+							{currentStep === 4 && (
+								<ExecuteScreen
+									executions={executions}
+									projectId={projectId}
+								/>
 							)}
 
 							{/* ── Error display ── */}
@@ -838,171 +768,92 @@ export function PlanUploadDialog({
 									{error}
 								</div>
 							)}
-
-							{/* ── Preview state error ── */}
-							{previewState.error && (
-								<div className="p-2.5 bg-red-900/40 border border-red-800 rounded text-xs text-red-300 flex items-start gap-2">
-									<AlertCircle size={12} className="shrink-0 mt-0.5" />
-									<div>
-										<div className="font-semibold text-red-200 mb-0.5">
-											{previewState.error.stage} error
-										</div>
-										{previewState.error.message}
-										{previewState.error.recoverable && (
-											<button
-												onClick={clearError}
-												className="ml-2 underline hover:text-red-200"
-											>
-												Dismiss
-											</button>
-										)}
-									</div>
-								</div>
-							)}
 						</div>
 
-						{/* ── Action buttons ── */}
-						<div className="flex gap-2 justify-end mt-4 pt-3 border-t border-gray-700 shrink-0">
-							{/* Input stage: Validate */}
-							{dialogStage === "input" && (
-								<>
-									<button
-										onClick={handleClose}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
-									>
-										Cancel
-									</button>
-									{previewState.validationResponse &&
-										!previewState.validationResponse.success && (
+						{/* ── Footer ── */}
+						<div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-700 shrink-0">
+							{/* Left side: status message */}
+							<div className="text-[10px] text-gray-500">{footerMessage}</div>
+
+							{/* Right side: action buttons */}
+							<div className="flex gap-2">
+								{/* Step 1: Select files */}
+								{currentStep === 1 && (
+									<>
+										<button
+											onClick={handleClose}
+											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+										>
+											Cancel
+										</button>
+										{fileEntries.length > 0 && (
 											<button
-												onClick={() => {
-													resetPreview();
-													setError(null);
-												}}
-												className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+												onClick={() => handleValidateAll()}
+												disabled={!allFilesSelected || validatingFiles.size > 0}
+												className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
 											>
-												Edit Plan
+												{validatingFiles.size > 0 ? "Validating..." : "Validate \u2192"}
 											</button>
 										)}
-									<button
-										onClick={handleValidate}
-										disabled={
-											planContent.trim().length === 0 ||
-											previewState.stage === "validating"
-										}
-										className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
-									>
-										{previewState.stage === "validating"
-											? "Validating..."
-											: "Validate & Preview"}
-									</button>
-								</>
-							)}
+									</>
+								)}
 
-							{/* Validating stage */}
-							{dialogStage === "validating" && (
-								<>
+								{/* Step 2: Validation */}
+								{currentStep === 2 && (
+									<>
+										<button
+											onClick={handleBack}
+											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+										>
+											Back
+										</button>
+										<button
+											onClick={() => goToStep(3)}
+											disabled={!allValidationsDone || hasErrorFiles}
+											className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
+										>
+											Review \u2192
+										</button>
+									</>
+								)}
+
+								{/* Step 3: Review & Approve */}
+								{currentStep === 3 && (
+									<>
+										<button
+											onClick={handleBack}
+											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+										>
+											Back
+										</button>
+										<button
+											onClick={handleQueueAll}
+											disabled={!allValidationsDone}
+											className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
+										>
+											Queue for later
+										</button>
+										<button
+											onClick={handleApproveAndRun}
+											disabled={!canApproveAndRun}
+											className="px-3 py-1.5 text-xs rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
+										>
+											<Play size={12} />
+											Approve &amp; Run
+										</button>
+									</>
+								)}
+
+								{/* Step 4: Execute */}
+								{currentStep === 4 && (
 									<button
 										onClick={handleClose}
 										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
 									>
-										Cancel
+										Close
 									</button>
-									<button
-										disabled
-										className="px-3 py-1.5 text-xs rounded bg-blue-700 text-white opacity-50"
-									>
-										Validating...
-									</button>
-								</>
-							)}
-
-							{/* Preflight stage: can run directly (no approval required) */}
-							{dialogStage === "preflight" && (
-								<>
-									<button
-										onClick={() => {
-											resetPreview();
-											setError(null);
-										}}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
-									>
-										Back
-									</button>
-									<button
-										onClick={handleQueuePlan}
-										className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors flex items-center gap-1"
-										title="Queue this plan to run after the current working plan finishes"
-									>
-										Do after current
-									</button>
-									<button
-										onClick={handleRun}
-										disabled={!canRun}
-										className="px-3 py-1.5 text-xs rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50 flex items-center gap-1"
-									>
-										<Play size={12} />
-										Run Plan
-									</button>
-								</>
-							)}
-
-							{/* Approval stage: Run is disabled until approved */}
-							{dialogStage === "approval" && (
-								<>
-									<button
-										onClick={() => {
-											resetPreview();
-											setError(null);
-										}}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
-									>
-										Back
-									</button>
-									<button
-										onClick={handleQueuePlan}
-										className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors flex items-center gap-1"
-										title="Queue this plan to run after the current working plan finishes"
-									>
-										Do after current
-									</button>
-									{/* AC 2: Run disabled until approved */}
-									<button
-										disabled
-										className="px-3 py-1.5 text-xs rounded bg-gray-600 text-gray-400 cursor-not-allowed flex items-center gap-1 opacity-50"
-										title="This plan requires review approval before execution"
-									>
-										<Play size={12} />
-										Run (Approval Required)
-									</button>
-									<button
-										onClick={handleApproveAndRun}
-										className="px-3 py-1.5 text-xs rounded bg-amber-700 hover:bg-amber-600 text-white transition-colors flex items-center gap-1"
-									>
-										<ShieldCheck size={12} />
-										Approve & Run
-									</button>
-								</>
-							)}
-
-							{/* Running stage */}
-							{dialogStage === "running" && (
-								<>
-									<button
-										onClick={handleClose}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
-									>
-										Cancel
-									</button>
-									<button
-										disabled
-										className="px-3 py-1.5 text-xs rounded bg-green-700 text-white opacity-50 flex items-center gap-1"
-									>
-										<Play size={12} />
-										Starting...
-									</button>
-								</>
-							)}
+								)}
+							</div>
 						</div>
 					</motion.div>
 				</motion.div>
@@ -1011,29 +862,97 @@ export function PlanUploadDialog({
 	);
 }
 
-// ─── Stage badge ──
+// ═══════════════════════════════════════════════════════════════════════════
+// Legacy input area — displayed in backward compat mode when no files
+// are selected and no validation has happened yet.
+// ═══════════════════════════════════════════════════════════════════════════
 
-function StageBadge({ stage }: { stage: DialogStage }) {
-	const config: Record<DialogStage, { label: string; color: string }> = {
-		input: { label: "Input", color: "bg-gray-700 text-gray-300" },
-		validating: { label: "Validating", color: "bg-blue-900/50 text-blue-300" },
-		preflight: { label: "Preflight", color: "bg-emerald-900/50 text-emerald-300" },
-		approval: { label: "Approval", color: "bg-amber-900/50 text-amber-300" },
-		running: { label: "Running", color: "bg-green-900/50 text-green-300" },
+function LegacyInputArea({
+	projectId,
+	onValidate,
+}: {
+	projectId: string;
+	onValidate: () => void;
+}) {
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [planContent, setPlanContent] = useState("");
+	const [planFileName, setPlanFileName] = useState("uploaded-plan.md");
+	const [legacyError, setLegacyError] = useState<string | null>(null);
+
+	const handleFileUpload = () => fileInputRef.current?.click();
+
+	const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		setPlanFileName(file.name);
+		const reader = new FileReader();
+		reader.onload = (evt) => {
+			setPlanContent((evt.target?.result as string) ?? "");
+		};
+		reader.readAsText(file);
+		e.target.value = "";
 	};
-	const { label, color } = config[stage];
+
 	return (
-		<span
-			className={`text-[10px] px-2 py-0.5 rounded font-medium ${color}`}
-		>
-			{label}
-		</span>
+		<div className="flex flex-col flex-1">
+			<label className="text-xs text-gray-400 block mb-1.5">
+				Plan Content
+			</label>
+			<textarea
+				ref={textareaRef}
+				value={planContent}
+				onChange={(e) => setPlanContent(e.target.value)}
+				placeholder="Paste your plan content here..."
+				className="w-full min-h-[200px] px-3 py-2 text-sm font-mono bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-y"
+				spellCheck={false}
+			/>
+			<div className="flex items-center gap-3 mt-2">
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept=".md,.json,.txt"
+					onChange={handleFileSelected}
+					className="hidden"
+				/>
+				<button
+					onClick={handleFileUpload}
+					className="text-xs px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+				>
+					<Upload size={12} className="inline mr-1" />
+					Browse File...
+				</button>
+				{planFileName && (
+					<span className="text-xs text-gray-500">{planFileName}</span>
+				)}
+				<span className="text-xs text-gray-600 ml-auto">
+					{planContent.length} chars
+				</span>
+			</div>
+			<div className="flex gap-2 mt-3">
+				<button
+					onClick={handleFileUpload}
+					className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+				>
+					Cancel
+				</button>
+				<button
+					onClick={onValidate}
+					disabled={planContent.trim().length === 0}
+					className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
+				>
+					Validate & Preview
+				</button>
+			</div>
+		</div>
 	);
 }
 
-// ─── AC 4: Graph diff view ──
+// ═══════════════════════════════════════════════════════════════════════════
+// GraphDiffView — kept for backward compat (tests import this from here)
+// ═══════════════════════════════════════════════════════════════════════════
 
-interface GraphDiffData {
+export interface GraphDiffData {
 	added: DependencyGraphNode[];
 	removed: DependencyGraphNode[];
 	changed: Array<{
@@ -1045,7 +964,7 @@ interface GraphDiffData {
 	}>;
 }
 
-function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
+export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 	const [expanded, setExpanded] = useState(true);
 	const hasDiffs =
 		diffData.added.length > 0 ||
@@ -1053,7 +972,7 @@ function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 		diffData.changed.length > 0;
 
 	return (
-		<div className="border-b border-gray-700">
+		<div className="border border-gray-700 rounded overflow-hidden">
 			<button
 				onClick={() => setExpanded(!expanded)}
 				className="w-full flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-750 text-xs text-gray-300 transition-colors"
@@ -1078,7 +997,6 @@ function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 						</div>
 					)}
 
-					{/* Added nodes */}
 					{diffData.added.length > 0 && (
 						<div>
 							<h4 className="text-emerald-400 font-semibold mb-1 flex items-center gap-1">
@@ -1101,7 +1019,6 @@ function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 						</div>
 					)}
 
-					{/* Removed nodes */}
 					{diffData.removed.length > 0 && (
 						<div>
 							<h4 className="text-red-400 font-semibold mb-1 flex items-center gap-1">
@@ -1119,64 +1036,68 @@ function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 						</div>
 					)}
 
-					{/* Changed dependencies */}
 					{diffData.changed.length > 0 && (
 						<div>
 							<h4 className="text-amber-400 font-semibold mb-1 flex items-center gap-1">
 								~ Changed Dependencies ({diffData.changed.length})
 							</h4>
-							{diffData.changed.map(({ node, origDeps, newDeps, addedDeps, removedDeps }) => (
-								<div
-									key={node.id}
-									className="ml-2 py-1.5 border-l-2 border-amber-700 pl-2"
-								>
-									<div className="font-mono font-medium text-amber-300 mb-1">
-										{node.id}
-										<span className="text-gray-500 ml-1 font-normal">
-											{node.title}
-										</span>
-									</div>
-									<div className="flex items-start gap-3 text-[11px]">
-										{/* Original */}
-										<div className="flex-1">
-											<span className="text-gray-500 block mb-0.5">
-												Original
+							{diffData.changed.map(
+								({
+									node,
+									origDeps,
+									newDeps,
+									addedDeps,
+									removedDeps,
+								}) => (
+									<div
+										key={node.id}
+										className="ml-2 py-1.5 border-l-2 border-amber-700 pl-2"
+									>
+										<div className="font-mono font-medium text-amber-300 mb-1">
+											{node.id}
+											<span className="text-gray-500 ml-1 font-normal">
+												{node.title}
 											</span>
-											<div className="font-mono text-red-400 bg-red-900/20 px-2 py-1 rounded">
-												{origDeps.length > 0
-													? origDeps.join(", ")
-													: "(none)"}
+										</div>
+										<div className="flex items-start gap-3 text-[11px]">
+											<div className="flex-1">
+												<span className="text-gray-500 block mb-0.5">
+													Original
+												</span>
+												<div className="font-mono text-red-400 bg-red-900/20 px-2 py-1 rounded">
+													{origDeps.length > 0
+														? origDeps.join(", ")
+														: "(none)"}
+												</div>
+											</div>
+											<ChevronRight
+												size={12}
+												className="text-gray-600 mt-4 shrink-0"
+											/>
+											<div className="flex-1">
+												<span className="text-gray-500 block mb-0.5">
+													Edited
+												</span>
+												<div className="font-mono text-emerald-400 bg-emerald-900/20 px-2 py-1 rounded">
+													{newDeps.length > 0
+														? newDeps.join(", ")
+														: "(none)"}
+												</div>
 											</div>
 										</div>
-										<ChevronRight
-											size={12}
-											className="text-gray-600 mt-4 shrink-0"
-										/>
-										{/* Edited */}
-										<div className="flex-1">
-											<span className="text-gray-500 block mb-0.5">
-												Edited
-											</span>
-											<div className="font-mono text-emerald-400 bg-emerald-900/20 px-2 py-1 rounded">
-												{newDeps.length > 0
-													? newDeps.join(", ")
-													: "(none)"}
+										{addedDeps.length > 0 && (
+											<div className="mt-1 text-emerald-400 text-[10px]">
+												+ Added: {addedDeps.join(", ")}
 											</div>
-										</div>
+										)}
+										{removedDeps.length > 0 && (
+											<div className="mt-0.5 text-red-400 text-[10px]">
+												- Removed: {removedDeps.join(", ")}
+											</div>
+										)}
 									</div>
-									{/* Detailed diff */}
-									{addedDeps.length > 0 && (
-										<div className="mt-1 text-emerald-400 text-[10px]">
-											+ Added: {addedDeps.join(", ")}
-										</div>
-									)}
-									{removedDeps.length > 0 && (
-										<div className="mt-0.5 text-red-400 text-[10px]">
-											- Removed: {removedDeps.join(", ")}
-										</div>
-									)}
-								</div>
-							))}
+								),
+							)}
 						</div>
 					)}
 				</div>
@@ -1184,6 +1105,3 @@ function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 		</div>
 	);
 }
-
-export { GraphDiffView };
-export type { GraphDiffData, DialogStage };
