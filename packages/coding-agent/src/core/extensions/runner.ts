@@ -224,6 +224,10 @@ const noOpUIContext: ExtensionUIContext = {
 export class ExtensionRunner {
 	private extensions: Extension[];
 	private runtime: ExtensionRuntime;
+
+	getExtensionRuntime(): ExtensionRuntime {
+		return this.runtime;
+	}
 	private uiContext: ExtensionUIContext;
 	private cwd: string;
 	private sessionManager: SessionManager;

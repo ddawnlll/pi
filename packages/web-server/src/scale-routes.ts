@@ -48,7 +48,7 @@
 
 import { exec as execCb } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
@@ -712,18 +712,20 @@ export async function registerScaleRoutes(
 			// Bug #10 fix: batch dirty status checks into a single git command.
 			// For each worktree path, run git status in parallel with Promise.all
 			// instead of sequential N+1 iteration.
-			await Promise.all(worktrees.map(async (wt) => {
-				try {
-					const { stdout: statusOut } = await execAsync("git status --porcelain", {
-						cwd: wt.path,
-						encoding: "utf-8",
-						timeout: 5000,
-					});
-					wt.dirty = statusOut.trim().length > 0;
-				} catch {
-					wt.dirty = false;
-				}
-			}));
+			await Promise.all(
+				worktrees.map(async (wt) => {
+					try {
+						const { stdout: statusOut } = await execAsync("git status --porcelain", {
+							cwd: wt.path,
+							encoding: "utf-8",
+							timeout: 5000,
+						});
+						wt.dirty = statusOut.trim().length > 0;
+					} catch {
+						wt.dirty = false;
+					}
+				}),
+			);
 
 			return { worktrees, total: worktrees.length };
 		} catch (error) {

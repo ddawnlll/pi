@@ -351,7 +351,7 @@ export class RuntimeHost {
 		this.runner.bindCore(actions, contextActions, providerActions);
 
 		// Share the runtime with the registry
-		this.registry.setRuntime(this.runner["runtime"]);
+		this.registry.setRuntime(this.runner.getExtensionRuntime());
 
 		this.emitAudit("runtime.bindCore");
 	}

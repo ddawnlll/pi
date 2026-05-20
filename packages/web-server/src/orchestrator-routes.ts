@@ -517,7 +517,7 @@ export async function registerOrchestratorRoutes(
 
 	// Bug #2 & #3 fix: use closure-based config instead of module-level `_piDir`
 	const cfg = createOrchestratorHelpers({ piDir: resolvedPiDir });
-	const { piDir, getOrchestratorDir, getHealthPath, getProposalsPath } = cfg;
+	const { piDir, getOrchestratorDir, getHealthPath } = cfg;
 	// -----------------------------------------------------------------------
 	// GET /api/orchestrator/health — Orchestrator daemon health snapshot
 	// -----------------------------------------------------------------------

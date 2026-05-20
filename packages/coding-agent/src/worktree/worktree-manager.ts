@@ -481,7 +481,7 @@ export class WorktreeManager {
 		const snapshot = Array.from(this.worktrees.entries());
 		let saved = 0;
 
-		for (const [key, state] of snapshot) {
+		for (const [_key, state] of snapshot) {
 			if (state.planExecutionId !== planExecutionId) continue;
 			if (state.status !== "active" && state.status !== "created") continue;
 
