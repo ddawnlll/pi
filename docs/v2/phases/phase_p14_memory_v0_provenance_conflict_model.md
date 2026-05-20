@@ -1,25 +1,25 @@
-# Phase P14 — Memory V0, Provenance & Conflict Model
+# Phase P14 - Memory V0, Provenance & Conflict Model
 
-**Template:** LLM Implementation Agent — Master Template v2.5  
-**Version:** 2.5.1  
-**Created:** 2026-05-19  
-**Package manager:** npm only  
-**Status:** Authoritative Implementation  
+**Template:** LLM Implementation Agent - Master Template v2.5
+**Version:** 2.5.1
+**Created:** 2026-05-19
+**Package manager:** npm only
+**Status:** Authoritative Implementation
 **Last Updated:** 2026-05-19
 
 ---
 
-# Part 1 — Phase Plan
+# Part 1 - Phase Plan
 
 ## 0. TL;DR / Compact Mental Model
 
-**Phase:** `P14`  
-**One-line goal:** Create durable, typed, provenance-backed memory with lifecycle states, scoring, conflict detection, and correction flow.  
-**Why now:** P13 can observe and produce candidate signals. P14 turns those candidates into safe memory without allowing stale or conflicting memories to silently drive decisions. This is Milestone 1a — "Pi Remembers".  
-**Blast radius:** Memory schema, lifecycle, scoring, conflict detection, correction flow; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`, and V2 docs/tests.  
-**Rollback path:** Disable newly added V2 capability flags (`MEMORY_ENABLED=false`), keep deterministic stores read-only, revert phase commits independently, fall back to prior behavior.  
-**Scale mode:** `experimental_6`  
-**Safe parallelism target:** 3  
+**Phase:** `P14`
+**One-line goal:** Create durable, typed, provenance-backed memory with lifecycle states, scoring, conflict detection, and correction flow.
+**Why now:** P13 can observe and produce candidate signals. P14 turns those candidates into safe memory without allowing stale or conflicting memories to silently drive decisions. This is Milestone 1a - "Pi Remembers".
+**Blast radius:** Memory schema, lifecycle, scoring, conflict detection, correction flow; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`, and V2 docs/tests.
+**Rollback path:** Disable newly added V2 capability flags (`MEMORY_ENABLED=false`), keep deterministic stores read-only, revert phase commits independently, fall back to prior behavior.
+**Scale mode:** `stable_3`
+**Safe parallelism target:** 3
 **Done when:** P14 exit criteria pass, npm validation passes, memory persists correctly, conflict detection triggers, API returns data.
 
 ---
@@ -35,8 +35,8 @@
 | Delivery status | `Not started` |
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Memory schema, lifecycle, scoring, conflict detection, correction flow` |
-| Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
+| Product-code changes | `Allowed - Pi runtime/dashboard/tests/docs only` |
+| Selected scale mode | `stable_3` |
 | Requested max workers | `3` |
 | Expected DAG effective parallelism | `3` |
 | Expected safe effective parallelism | `3` |
@@ -47,14 +47,14 @@
 
 | Workstream | R (Responsible) | A (Accountable) | C (Consulted) | I (Informed) |
 |---|---|---|---|---|
-| P14.A — Memory Domain Model | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.B — Memory Store | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.C — Memory Lifecycle Engine | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.D — Memory Scoring Engine | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.E — Conflict Detection | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.F — Memory Correction API | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.G — Memory Review UI Primitive | Pi Worker Agent | User / owner | Reviewer | User |
-| P14.H — P14 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.A - Memory Domain Model | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.B - Memory Store | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.C - Memory Lifecycle Engine | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.D - Memory Scoring Engine | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.E - Conflict Detection | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.F - Memory Correction API | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.G - Memory Review UI Primitive | Pi Worker Agent | User / owner | Reviewer | User |
+| P14.H - P14 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
 
 ---
 
@@ -62,7 +62,7 @@
 
 Create durable, typed, provenance-backed memory with lifecycle states, scoring, conflict detection, and correction flow.
 
-P14 delivers **Milestone 1a — "Pi Remembers"**. Memory is the highest-risk V2 subsystem. Incorrect memory creates incorrect decisions. Therefore, V2 memory must be layered, source-backed, conflict-aware, and correctable by the user.
+P14 delivers **Milestone 1a - "Pi Remembers"**. Memory is the highest-risk V2 subsystem. Incorrect memory creates incorrect decisions. Therefore, V2 memory must be layered, source-backed, conflict-aware, and correctable by the user.
 
 ### 2.1 Three-Layer Memory Model
 
@@ -101,7 +101,7 @@ P14 must come after P13 because:
 
 ---
 
-## 3. What Carried Over — Must Stay Stable
+## 3. What Carried Over - Must Stay Stable
 
 * [x] P13 brain observations and candidate signals
 * [x] P13 timeline and brain API
@@ -127,7 +127,7 @@ P14 must come after P13 because:
 * [ ] The executor remains the source of truth for state transitions.
 ### 3.1 New V2 Constraints Added
 
-* [ ] Memory requires provenance — source references must exist
+* [ ] Memory requires provenance - source references must exist
 * [ ] New memory starts as `candidate` unless policy allows auto-activation
 * [ ] Conflicting memories trigger `disputed` state
 * [ ] Stale memory expires after TTL (default 90 days)
@@ -137,7 +137,7 @@ P14 must come after P13 because:
 
 ## 4. Background / What Was Wrong
 
-Pi V1 had no memory — every execution was isolated. V2 needs memory to:
+Pi V1 had no memory - every execution was isolated. V2 needs memory to:
 - Remember what worked and what failed
 - Store user preferences and goals
 - Enable proposal generation based on past experience
@@ -189,7 +189,7 @@ Pi V1 had no memory — every execution was isolated. V2 needs memory to:
 
 ## 7. Workstreams
 
-### 7.A — Memory Domain Model
+### 7.A - Memory Domain Model
 
 **Goal:** Define MemoryRecord, MemorySourceRef, MemoryLifecycle, MemoryType, MemoryConflict, MemoryScore, MemoryQuery, and schemas.
 
@@ -211,7 +211,7 @@ Pi V1 had no memory — every execution was isolated. V2 needs memory to:
 ```typescript
 // packages/coding-agent/src/brain/memory/types.ts
 
-export type MemoryType = 
+export type MemoryType =
   | 'project_memory'
   | 'architecture_memory'
   | 'plan_memory'
@@ -221,7 +221,7 @@ export type MemoryType =
   | 'idea_memory'
   | 'user_preference_memory';
 
-export type MemoryLifecycle = 
+export type MemoryLifecycle =
   | 'candidate'      // New, awaiting review
   | 'active'         // Approved, influencing decisions
   | 'disputed'       // Contradicted, needs resolution
@@ -310,7 +310,7 @@ export interface MemoryStats {
 
 ---
 
-### 7.B — Memory Store
+### 7.B - Memory Store
 
 **Goal:** Persist memory under `.pi/brain/memory/` with JSON files and index for fast lookup.
 
@@ -361,28 +361,28 @@ export class MemoryStore {
   private config: MemoryStoreConfig;
   private index: MemoryIndex;
   private writeLock: Promise<void>;
-  
+
   constructor(config?: Partial<MemoryStoreConfig>);
-  
+
   // CRUD operations
   async create(memory: MemoryRecord): Promise<MemoryRecord>;
   async get(id: string): Promise<MemoryRecord | null>;
   async update(id: string, updates: Partial<MemoryRecord>): Promise<MemoryRecord>;
   async delete(id: string): Promise<void>;
-  
+
   // Queries
   async query(query: MemoryQuery): Promise<MemoryRecord[]>;
   async findByType(type: MemoryType): Promise<MemoryRecord[]>;
   async findByLifecycle(lifecycle: MemoryLifecycle): Promise<MemoryRecord[]>;
   async findByTag(tag: string): Promise<MemoryRecord[]>;
   async search(text: string, limit?: number): Promise<MemoryRecord[]>;
-  
+
   // Stats
   async getStats(): Promise<MemoryStats>;
-  
+
   // Index management
   async rebuildIndex(): Promise<void>;
-  
+
   // Internal
   private loadIndex(): Promise<MemoryIndex>;
   private saveIndex(): Promise<void>;
@@ -407,7 +407,7 @@ export class MemoryStore {
 
 ---
 
-### 7.C — Memory Lifecycle Engine
+### 7.C - Memory Lifecycle Engine
 
 **Goal:** Manage memory state transitions with policy rules. Handle candidate→active promotion, expiry, supersession, rejection.
 
@@ -451,25 +451,25 @@ export interface LifecycleTransition {
 export class MemoryLifecycleEngine {
   private config: LifecycleConfig;
   private memoryStore: MemoryStore;
-  
+
   constructor(memoryStore: MemoryStore, config?: Partial<LifecycleConfig>);
-  
+
   // State transitions
   async activate(memoryId: string, reason?: string): Promise<MemoryRecord>;
   async deactivate(memoryId: string, reason?: string): Promise<MemoryRecord>;
   async supersede(memoryId: string, replacementId: string): Promise<MemoryRecord>;
   async reject(memoryId: string, reason?: string): Promise<MemoryRecord>;
   async restore(memoryId: string): Promise<MemoryRecord>;
-  
+
   // Scheduled operations
   async checkExpired(): Promise<MemoryRecord[]>;
   async checkNeedsReview(): Promise<MemoryRecord[]>;
   async runExpirationCheck(): Promise<LifecycleTransition[]>;
-  
+
   // Configuration
   setConfig(config: Partial<LifecycleConfig>): void;
   getConfig(): LifecycleConfig;
-  
+
   // Events
   onTransition(callback: (transition: LifecycleTransition) => void): void;
 }
@@ -481,7 +481,7 @@ export class MemoryLifecycleEngine {
 
 ---
 
-### 7.D — Memory Scoring Engine
+### 7.D - Memory Scoring Engine
 
 **Goal:** Calculate confidence, relevance, and conflict scores for memories.
 
@@ -518,20 +518,20 @@ export interface ScoringConfig {
 
 export class MemoryScoringEngine {
   private config: ScoringConfig;
-  
+
   constructor(config?: Partial<ScoringConfig>);
-  
+
   // Score calculation
   calculateConfidence(memory: MemoryRecord): number;
   calculateRelevance(memory: MemoryRecord, query: MemoryQuery): number;
   calculateRecencyScore(memory: MemoryRecord): number;
-  
+
   // Conflict scoring
   calculateConflictScore(memoryA: MemoryRecord, memoryB: MemoryRecord): number;
-  
+
   // Batch scoring
   scoreMemories(memories: MemoryRecord[], query?: MemoryQuery): Map<string, MemoryScore>;
-  
+
   // Configuration
   setConfig(config: Partial<ScoringConfig>): void;
 }
@@ -550,7 +550,7 @@ export class MemoryScoringEngine {
 
 ---
 
-### 7.E — Conflict Detection
+### 7.E - Conflict Detection
 
 **Goal:** Detect contradictory, duplicate, or stale memories, trigger disputed state, support resolution.
 
@@ -592,22 +592,22 @@ export class ConflictDetectionEngine {
   private config: ConflictConfig;
   private memoryStore: MemoryStore;
   private conflictStore: Map<string, MemoryConflict> = new Map();
-  
+
   constructor(memoryStore: MemoryStore, config?: Partial<ConflictConfig>);
-  
+
   // Detection
   async detectConflicts(memory: MemoryRecord): Promise<ConflictAnalysis[]>;
   async runFullDetection(): Promise<MemoryConflict[]>;
-  
+
   // Conflict management
   async getConflicts(): Promise<MemoryConflict[]>;
   async getConflict(id: string): Promise<MemoryConflict | null>;
   async resolveConflict(conflictId: string, winnerId: string, resolution: string): Promise<void>;
   async autoResolveConflict(conflictId: string): Promise<void>;
-  
+
   // Scheduled detection
   async runScheduledDetection(): Promise<MemoryConflict[]>;
-  
+
   // Configuration
   setConfig(config: Partial<ConflictConfig>): void;
 }
@@ -619,7 +619,7 @@ export class ConflictDetectionEngine {
 
 ---
 
-### 7.F — Memory Correction API
+### 7.F - Memory Correction API
 
 **Goal:** REST API for memory CRUD, correction workflow, query.
 
@@ -631,15 +631,15 @@ export class ConflictDetectionEngine {
 * No raw LLM output as memory content (must be validated)
 
 **Acceptance Criteria:**
-* [ ] POST /api/brain/memory — create memory
-* [ ] GET /api/brain/memory — list with filters
-* [ ] GET /api/brain/memory/{id} — get single
-* [ ] PUT /api/brain/memory/{id} — update
-* [ ] DELETE /api/brain/memory/{id} — delete
-* [ ] POST /api/brain/memory/{id}/reject — mark rejected
-* [ ] POST /api/brain/memory/{id}/supersede — create replacement
-* [ ] POST /api/brain/memory/{id}/activate — promote to active
-* [ ] GET /api/brain/memory/stats — memory statistics
+* [ ] POST /api/brain/memory - create memory
+* [ ] GET /api/brain/memory - list with filters
+* [ ] GET /api/brain/memory/{id} - get single
+* [ ] PUT /api/brain/memory/{id} - update
+* [ ] DELETE /api/brain/memory/{id} - delete
+* [ ] POST /api/brain/memory/{id}/reject - mark rejected
+* [ ] POST /api/brain/memory/{id}/supersede - create replacement
+* [ ] POST /api/brain/memory/{id}/activate - promote to active
+* [ ] GET /api/brain/memory/stats - memory statistics
 
 **API Specifications:**
 
@@ -683,7 +683,7 @@ Response: MemoryStats
 
 ---
 
-### 7.G — Memory Review UI Primitive
+### 7.G - Memory Review UI Primitive
 
 **Goal:** Dashboard component for viewing, filtering, editing memories.
 
@@ -717,8 +717,8 @@ packages/web-ui/dashboard/src/components/
 ```
 
 **Dashboard Pages:**
-- `/brain/memory` — memory explorer
-- `/brain/memory/:id` — memory detail
+- `/brain/memory` - memory explorer
+- `/brain/memory/:id` - memory detail
 
 **File Scope:** `packages/web-ui/dashboard/src/components/brain/memory/*.tsx`
 
@@ -726,7 +726,7 @@ packages/web-ui/dashboard/src/components/
 
 ---
 
-### 7.H — P14 Dogfood & Report
+### 7.H - P14 Dogfood & Report
 
 **Goal:** Run P14, create example memories, verify conflict detection, produce dogfood report.
 
@@ -790,26 +790,26 @@ packages/web-ui/dashboard/src/components/
 ## 8. Combined Implementation Order
 
 ```text
-Phase: P14 — Memory V0, Provenance & Conflict Model
+Phase: P14 - Memory V0, Provenance & Conflict Model
 =====================================================
 
 Batch 1 (Foundation):
-  P14.A — Memory Domain Model
+  P14.A - Memory Domain Model
 
 Batch 2 (Storage):
-  P14.B — Memory Store
+  P14.B - Memory Store
 
 Batch 3 (Core Logic):
-  P14.C — Memory Lifecycle Engine
-  P14.D — Memory Scoring Engine
-  P14.E — Conflict Detection
+  P14.C - Memory Lifecycle Engine
+  P14.D - Memory Scoring Engine
+  P14.E - Conflict Detection
 
 Batch 4 (API & UI):
-  P14.F — Memory Correction API
-  P14.G — Memory Review UI Primitive
+  P14.F - Memory Correction API
+  P14.G - Memory Review UI Primitive
 
 Batch 5 (Validation):
-  P14.H — P14 Dogfood & Report
+  P14.H - P14 Dogfood & Report
 ```
 
 **Dependency Rationale:**
@@ -826,14 +826,14 @@ Batch 5 (Validation):
 
 P14 is complete when ALL are true:
 
-* [ ] Memory Domain Model — types compile, all states defined
-* [ ] Memory Store — creates, reads, updates, deletes work
-* [ ] Memory Lifecycle Engine — transitions work correctly
-* [ ] Memory Scoring Engine — scores calculate correctly
-* [ ] Conflict Detection — detects contradictory memories
-* [ ] Memory Correction API — all endpoints work
-* [ ] Memory Review UI — list, detail, edit work
-* [ ] P14 Dogfood Report — complete report generated
+* [ ] Memory Domain Model - types compile, all states defined
+* [ ] Memory Store - creates, reads, updates, deletes work
+* [ ] Memory Lifecycle Engine - transitions work correctly
+* [ ] Memory Scoring Engine - scores calculate correctly
+* [ ] Conflict Detection - detects contradictory memories
+* [ ] Memory Correction API - all endpoints work
+* [ ] Memory Review UI - list, detail, edit work
+* [ ] P14 Dogfood Report - complete report generated
 * [ ] Integration queue is clean or blocked with handoff
 * [ ] No forbidden commands used
 * [ ] Typecheck/build/test pass
@@ -870,11 +870,17 @@ P14 is complete when ALL are true:
 * Goal store
 * Autonomy profile engine
 
-# Part 2 — Agent Brief
+**Vector embedding research note (P14-P15 window):**
+* Vector embedding backend decision is deferred but must be resolved before P19 (dashboard semantic search).
+* Candidates: pgvector (preferred for existing Postgres users), hnswlib-node (in-memory, <50k vectors), LiteLLM embedding proxy.
+* Decision criteria: query latency <100ms p99 at 10k vectors, no external API dependency for core operations, incremental indexing.
+* A dedicated spike should be scheduled in late P14 or early P15 to evaluate options.
+
+# Part 2 - Agent Brief
 
 ## Mission
 
-Implement all P14 — P14 Dogfood & Report — workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
+Implement all P14 - P14 Dogfood & Report - workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
 
 ## Hard Requirements
 
@@ -996,7 +1002,7 @@ parallelism_review:
 
 ---
 
-# Part 3 — Machine-Readable Execution Contract
+# Part 3 - Machine-Readable Execution Contract
 
 **Purpose:** Authoritative execution contract for Pi's multi-agent execution system. Pi parses this JSON to build the execution plan.
 
@@ -1865,7 +1871,7 @@ parallelism_review:
 
 ---
 
-# Part 4 — Machine-Readable Summary
+# Part 4 - Machine-Readable Summary
 
 ```json
 {

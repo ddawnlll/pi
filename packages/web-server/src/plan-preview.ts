@@ -180,9 +180,10 @@ export function detectCycles(workspaces: Workspace[]): { hasCycle: boolean; cycl
 				// path now contains: [..., cycleStart, ..., lastNode]
 				// where cycleBackEdgeNeighbor is the node that was in-progress
 				// when the back-edge was found. We need to slice from that point.
-				const cycleStartIdx = cycleBackEdgeNeighbor !== null
-					? path.indexOf(cycleBackEdgeNeighbor)
-					: path.indexOf(path[path.length - 1]);
+				const cycleStartIdx =
+					cycleBackEdgeNeighbor !== null
+						? path.indexOf(cycleBackEdgeNeighbor)
+						: path.indexOf(path[path.length - 1]);
 				const cycle = path.slice(cycleStartIdx);
 				cycle.push(cycle[0]); // close the cycle: A -> B -> C -> A
 				return { hasCycle: true, cycle };

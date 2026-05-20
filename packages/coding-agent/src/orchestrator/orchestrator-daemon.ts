@@ -290,7 +290,7 @@ export class OrchestratorDaemon {
 	private async runScan(): Promise<OrchestratorProposal[]> {
 		const scanStart = Date.now();
 		this.scanCount++;
-		log.info(`Running scan cycle #${this.scanCount}`);
+		log.debug(`Running scan cycle #${this.scanCount}`);
 
 		const proposals: OrchestratorProposal[] = [];
 
@@ -356,7 +356,7 @@ export class OrchestratorDaemon {
 						overallRisk: proposal.risk as any,
 						overallConfidence: proposal.confidence as any,
 					});
-					log.info(`Submitted proposal to inbox: ${proposal.title}`);
+					log.debug(`Submitted proposal to inbox: ${proposal.title}`);
 				} catch (err) {
 					log.error(`Failed to submit proposal to inbox: ${err}`);
 				}
@@ -373,11 +373,11 @@ export class OrchestratorDaemon {
 			this.nextScanAt = nextScan.toISOString();
 
 			const duration = Date.now() - scanStart;
-			log.info(`Scan #${this.scanCount} completed in ${duration}ms: ${proposals.length} proposal(s)`);
+			log.debug(`Scan #${this.scanCount} completed in ${duration}ms: ${proposals.length} proposal(s)`);
 
 			if (proposals.length > 0) {
 				for (const p of proposals) {
-					log.info(`  Proposal: [${p.confidence}] ${p.title}`);
+					log.debug(`  Proposal: [${p.confidence}] ${p.title}`);
 				}
 			}
 		} catch (error) {

@@ -18,8 +18,8 @@
 **Why now:** P13-P18 built backend. P19 turns server endpoints into composable UI. This is Milestone 3b — "Full Second-Brain UX".  
 **Blast radius:** Complete dashboard rewrite; `packages/web-ui/dashboard` only (no backend changes).  
 **Rollback path:** Remove V2 dashboard routes, fall back to existing dashboard.  
-**Scale mode:** `experimental_6`  
-**Safe parallelism target:** 3  
+**Scale mode:** `stable_6`
+**Safe parallelism target:** 6  
 **Done when:** All 7 pages functional, all endpoints integrated, error/loading/empty states everywhere, navigation works, responsive, dogfood complete.
 
 ---
@@ -33,7 +33,7 @@
 | Status | `Authoritative Implementation` |
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Complete V2 dashboard UX: brain state, proposals, memory, goals, autonomy, reflections, overnight` |
-| Scale mode | `experimental_6` |
+| Scale mode | `stable_6` |
 | Worktree isolation | `Optional` |
 | Integration queue | `Required` |
 
@@ -758,13 +758,20 @@ Implement all P19 — P19 Dogfood & Report — workstreams end-to-end. Create ev
 
 ```yaml
 scale:
-  default_mode: experimental_6
-  selected_mode: experimental_6
+  default_mode: stable_6
+  selected_mode: stable_6
   modes:
     stable_3:
       max_parallel_workspaces: 3
       worktree_required: false
       integration_queue_required: false
+    stable_6:
+      max_parallel_workspaces: 6
+      worktree_required: true
+      integration_queue_required: true
+      validation_lock_required: false
+      archive_required: false
+      completion_gate_required: true
     experimental_6:
       max_parallel_workspaces: 6
       worktree_required: true
@@ -1075,7 +1082,7 @@ parallelism_review:
   },
   "parallelismReview": {
     "requestedMaxParallelWorkspaces": 6,
-    "selectedScaleMode": "experimental_6",
+    "selectedScaleMode": "stable_6",
     "scaleModeReadiness": {
       "ready": true,
       "blockedReasons": [],
@@ -1793,7 +1800,7 @@ parallelism_review:
   "primaryGoal": "Implement and validate the P19 second-brain component.",
   "projectName": "pi-mono",
   "stateBackend": "postgres",
-  "selectedScaleMode": "experimental_6",
+  "selectedScaleMode": "stable_6",
   "maxParallelWorkspaces": 6,
   "requiresWorktreeIsolation": true,
   "requiresIntegrationQueue": true,

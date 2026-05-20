@@ -18,7 +18,7 @@
 **Why now:** P14 has memory, P15 has goals. P16 combines observations + memory + goals into actionable proposals. This is Milestone 2a — "Pi Proposes".  
 **Blast radius:** Proposal generation, scoring, risk assessment, deduplication, cooldown, inbox; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`.  
 **Rollback path:** Disable via `PROPOSALS_ENABLED=false`, pending proposals remain as drafts, no new auto-generation.  
-**Scale mode:** `experimental_6`  
+**Scale mode:** `stable_3`
 **Safe parallelism target:** 3  
 **Done when:** P16 exit criteria pass, proposals generated correctly, scoring matches thresholds, deduplication works, top-3 inbox shows prioritized proposals, integration queue clean.
 
@@ -36,7 +36,7 @@
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Proposals, scoring, risk assessment, deduplication, cooldown, inbox` |
 | Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
+| Selected scale mode | `stable_3` |
 | Requested max workers | `3` |
 | Expected DAG effective parallelism | `3` |
 | Expected safe effective parallelism | `3` |
@@ -556,6 +556,14 @@ export class ProposalScoringEngine {
 
 // Total formula:
 // total = novelty × 0.2 + confidence × 0.3 + urgency × 0.2 + feasibility × 0.3
+
+// Score calibration strategy:
+// Weights are initialized to the vision-default values above.
+// After 50 proposals with user feedback, audit weight effectiveness:
+//   - If confidence score consistently misaligns with user acceptance rate → adjust confidence weight up/down by 0.05.
+//   - If high-novelty proposals are rejected at >60% rate → decrease novelty weight by 0.05.
+//   - If urgency consistently drives acceptance but feasibility is ignored → swap 0.05 weight from feasibility to urgency.
+// Auto-queue threshold (0.7) is conservative by design; bias toward human review until calibration data exists.
 ```
 
 **File Scope:** `packages/coding-agent/src/brain/proposals/scoring.ts`, `packages/coding-agent/test/brain/proposals/scoring.test.ts`

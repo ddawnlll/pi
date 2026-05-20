@@ -840,10 +840,10 @@ function startOrchestratorDaemon(_settingsManager: SettingsManager, cwd: string)
 	// Register a callback to log generated proposals
 	daemon.onProposals((proposals) => {
 		for (const proposal of proposals) {
-			log.info(`Proposal generated: [${proposal.confidence}] ${proposal.title}`);
+			log.debug(`Proposal generated: [${proposal.confidence}] ${proposal.title}`);
 		}
 		if (proposals.length > 0) {
-			log.info(`Orchestrator generated ${proposals.length} new proposal(s)`);
+			log.debug(`Orchestrator generated ${proposals.length} new proposal(s)`);
 		}
 	});
 

@@ -18,7 +18,7 @@
 **Why now:** P16 generates proposals, but proposals alone don't achieve anything — they need to become plans. And after execution, Pi must learn from what happened. P17 closes both gaps. This is Milestone 2b — "Pi Plans & Reflects".  
 **Blast radius:** Plan generation, master template integration, reflection engine, memory update proposals, future suggestions; `packages/coding-agent/src/brain/plan-factory/`, `packages/coding-agent/src/brain/reflection/`, `packages/web-server`, `packages/web-ui/dashboard`.  
 **Rollback path:** Disable via `PLAN_FACTORY_ENABLED=false`, `REFLECTION_ENABLED=false`.  
-**Scale mode:** `experimental_6`  
+**Scale mode:** `stable_3`
 **Safe parallelism target:** 3  
 **Done when:** Plans generated from proposals, master template v2.5.1 used correctly, reflections generated after execution, memory proposals created from reflections, API endpoints functional, dashboard shows reflections, integration queue clean.
 
@@ -36,7 +36,7 @@
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Plan generation, reflection, memory updates, future suggestions` |
 | Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
+| Selected scale mode | `stable_3` |
 | Requested max workers | `3` |
 | Expected DAG effective parallelism | `3` |
 | Expected safe effective parallelism | `3` |

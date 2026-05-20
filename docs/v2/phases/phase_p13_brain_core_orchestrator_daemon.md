@@ -1,26 +1,28 @@
-# Phase P13 — Brain Core Vertical Slice & Orchestrator Daemon
+# Phase P13 - Brain Core Vertical Slice & Orchestrator Daemon
 
-**Template:** LLM Implementation Agent — Master Template v2.5  
-**Version:** 2.5.1  
-**Created:** 2026-05-19  
-**Package manager:** npm only  
-**Status:** Authoritative Implementation  
+**Template:** LLM Implementation Agent - Master Template v2.5
+**Version:** 2.5.1
+**Created:** 2026-05-19
+**Package manager:** npm only
+**Status:** Authoritative Implementation
 **Last Updated:** 2026-05-19
 
 ---
 
-# Part 1 — Phase Plan
+# Part 1 - Phase Plan
 
 ## 0. TL;DR / Compact Mental Model
 
-**Phase:** `P13`  
-**One-line goal:** Build the first usable Brain Core slice: deterministic observations, brain timeline, retry/failure signals, first reflection summary, minimal brain state viewer, and safe daemon lifecycle.  
-**Why now:** P13 ends blind construction. Before memory, proposals, planning, or autonomy can be trusted, Pi must first observe project and execution state with provenance and display what it sees. This is Milestone 0 — "Pi Sees".  
-**Blast radius:** Observation Engine V0, brain timeline, safe daemon, minimal brain viewer; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`, and V2 docs/tests.  
-**Rollback path:** Disable newly added V2 capability flags (`BRAIN_ENABLED=false`), keep deterministic stores read-only, revert phase commits independently, fall back to prior queue/execution behavior.  
-**Scale mode:** `experimental_6`  
-**Safe parallelism target:** 3  
+**Phase:** `P13`
+**One-line goal:** Build the first usable Brain Core slice: deterministic observations, brain timeline, retry/failure signals, first reflection summary, minimal brain state viewer, and safe daemon lifecycle.
+**Why now:** P13 ends blind construction. Before memory, proposals, planning, or autonomy can be trusted, Pi must first observe project and execution state with provenance and display what it sees. This is Milestone 0 - "Pi Sees".
+**Blast radius:** Observation Engine V0, brain timeline, safe daemon, minimal brain viewer; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`, and V2 docs/tests.
+**Rollback path:** Disable newly added V2 capability flags (`BRAIN_ENABLED=false`), keep deterministic stores read-only, revert phase commits independently, fall back to prior queue/execution behavior.
+**Scale mode:** `stable_3`
+**Safe parallelism target:** 3
 **Done when:** P13 exit criteria pass, npm validation passes, integration queue is clean, Brain API returns data, daemon heartbeat confirmed.
+
+> **NOTE**: P13 produces candidate signals but does NOT promote them to active memory. Candidate → active lifecycle is P14's responsibility. P13 outputs are in P14-ready format only.
 
 ---
 
@@ -35,29 +37,29 @@
 | Delivery status | `Not started` |
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Observation Engine V0, brain timeline, safe daemon, minimal brain viewer` |
-| Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
+| Product-code changes | `Allowed - Pi runtime/dashboard/tests/docs only` |
+| Selected scale mode | `stable_3` |
 | Requested max workers | `3` |
 | Expected DAG effective parallelism | `3` |
 | Expected safe effective parallelism | `3` |
-| Worktree isolation | `Optional` |
+| Worktree isolation | `Optional` (enabled when required) |
 | Integration queue | `Required` |
 
 ### 1.1 RACI
 
 | Workstream | R (Responsible) | A (Accountable) | C (Consulted) | I (Informed) |
 |---|---|---|---|---|
-| P13.A — Brain Domain Model | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.B — Brain Timeline Store | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.C — Observation Engine V0 | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.D — Queue Health Observer | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.E — Execution Journal Observer | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.F — Retry/Failure Signal Extractor | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.G — First Reflection Summary | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.H — Safe Brain Daemon Lifecycle | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.I — Brain API Endpoints | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.J — Minimal Brain State Viewer | Pi Worker Agent | User / owner | Reviewer | User |
-| P13.K — P13 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.A - Brain Domain Model | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.B - Brain Timeline Store | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.C - Observation Engine V0 | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.D - Queue Health Observer | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.E - Execution Journal Observer | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.F - Retry/Failure Signal Extractor | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.G - First Reflection Summary | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.H - Safe Brain Daemon Lifecycle | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.I - Brain API Endpoints | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.J - Minimal Brain State Viewer | Pi Worker Agent | User / owner | Reviewer | User |
+| P13.K - P13 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
 
 ---
 
@@ -67,9 +69,9 @@ Build the first usable Brain Core slice: deterministic observations, brain timel
 
 This phase implements one vertical slice of the Pi V2 second-brain roadmap. It follows the V2 principle: **LLM proposes, runtime validates, policy decides, executor acts, audit records**. All safety-critical behavior must remain deterministic and runtime-owned.
 
-P13 delivers **Milestone 0 — "Pi Sees"**. Before memory, proposals, planning, or autonomy can exist, Pi must first observe project and execution state with provenance and display what it sees. This is the foundational observation layer that all subsequent V2 phases depend on.
+P13 delivers **Milestone 0 - "Pi Sees"**. Before memory, proposals, planning, or autonomy can exist, Pi must first observe project and execution state with provenance and display what it sees. This is the foundational observation layer that all subsequent V2 phases depend on.
 
-This phase uses `experimental_6` scale mode for future readiness but targets `3` safe effective parallelism because it changes cognitive/runtime infrastructure and needs stability.
+This phase uses `stable_3` scale mode for conservative execution. P13-P18 target stable_3; P19-P20 may migrate to experimental_6 for full dogfood.
 
 ### 2.1 What P13 Produces
 
@@ -96,7 +98,7 @@ P13 must come first because:
 
 ---
 
-## 3. What Carried Over — Must Stay Stable
+## 3. What Carried Over - Must Stay Stable
 
 * [x] P12.5 plan-level queue and zipped bundle runner
 * [x] Existing execution journal and plan summaries
@@ -192,13 +194,13 @@ Pi V1 can execute plans, but V2 vision requires Pi to **observe, remember, inter
 
 ## 7. Workstreams
 
-### 7.A — Brain Domain Model
+### 7.A - Brain Domain Model
 
 **Goal:** Define BrainObservation, BrainSignal, BrainTimelineEvent, SourceRef, ProvenanceInfo, severity enums, serialization helpers, and test fixtures.
 
 **Requirements:**
 * Implement the scoped capability in runtime-owned TypeScript code
-* Preserve provenance — every observation requires source references
+* Preserve provenance - every observation requires source references
 * Do not allow LLM output to mutate execution, memory, queue, policy, or approval state directly
 * All types must export JSON schema for validation
 
@@ -214,7 +216,7 @@ Pi V1 can execute plans, but V2 vision requires Pi to **observe, remember, inter
 ```typescript
 // packages/coding-agent/src/brain/types.ts
 
-export type SignalType = 
+export type SignalType =
   | 'retry_hotspot'
   | 'failure_pattern'
   | 'queue_blocked'
@@ -286,18 +288,18 @@ export interface BrainTimelineEvent {
 **Isolation & Parallelism Notes:**
 * Workspace ID: `P13.A`
 * Queue priority: `critical`
-* Can run independently — no dependencies
+* Can run independently - no dependencies
 * No file overlap with other workstreams
 
 ---
 
-### 7.B — Brain Timeline Store
+### 7.B - Brain Timeline Store
 
 **Goal:** Persist observations and events to `.pi/brain-timeline.ndjson` with append-only writes, line corruption tolerance, rotation guard, and query API.
 
 **Requirements:**
-* Append-only log — no in-place updates
-* Line corruption tolerance — skip unparseable lines, log error
+* Append-only log - no in-place updates
+* Line corruption tolerance - skip unparseable lines, log error
 * Rotation when file exceeds 100MB
 * Read API with pagination and filtering
 * Thread-safe writes (single writer pattern)
@@ -335,18 +337,18 @@ export class BrainTimelineStore {
   private readonly rotationThreshold: number;
   private readonly maxLineLength: number;
   private writeStream?: fs.WriteStream;
-  
+
   constructor(options: {
     filePath?: string;
     rotationThreshold?: number;
     maxLineLength?: number;
   } = {});
-  
+
   async append(event: BrainTimelineEvent, options?: TimelineWriteOptions): Promise<void>;
   async query(query: TimelineQuery): Promise<BrainTimelineEvent[]>;
   async rotate(): Promise<string>; // returns new file path
   async getStats(): Promise<{ fileSize: number; lineCount: number; oldestEntry?: string; newestEntry?: string }>;
-  
+
   // Internal
   private async ensureWriteStream(): Promise<void>;
   private parseLine(line: string, index: number): BrainTimelineEvent | null;
@@ -359,14 +361,14 @@ export class BrainTimelineStore {
 
 ---
 
-### 7.C — Observation Engine V0
+### 7.C - Observation Engine V0
 
 **Goal:** Collect structured events from repo state, execution state, queues, validation, and user actions. Batch observations and dispatch to timeline.
 
 **Requirements:**
 * Source events from: plan queue, integration queue, execution journal, validation output
 * Batch observations (max 10 per batch) to reduce I/O
-* Apply severity filtering — info events may be filtered
+* Apply severity filtering - info events may be filtered
 * Validate observation completeness before dispatch
 * No recursive observation (observe execution, not observer)
 
@@ -393,25 +395,25 @@ export class ObservationEngine {
   private config: ObservationConfig;
   private buffer: BrainObservation[] = [];
   private flushTimer?: NodeJS.Timeout;
-  
+
   constructor(config?: Partial<ObservationConfig>);
-  
+
   // Collect from specific sources
   async collectFromQueue(): Promise<BrainObservation[]>;
   async collectFromIntegration(): Promise<BrainObservation[]>;
   async collectFromExecution(): Promise<BrainObservation[]>;
   async collectFromValidation(): Promise<BrainObservation[]>;
-  
+
   // Main observation method
   observe(observation: Omit<BrainObservation, 'id' | 'timestamp'>): void;
-  
+
   // Flush buffer to timeline
   async flush(): Promise<void>;
-  
+
   // Lifecycle
   start(): void;
   async stop(): Promise<void>;
-  
+
   // Configuration
   setConfig(config: Partial<ObservationConfig>): void;
   getConfig(): ObservationConfig;
@@ -424,7 +426,7 @@ export class ObservationEngine {
 
 ---
 
-### 7.D — Queue Health Observer
+### 7.D - Queue Health Observer
 
 **Goal:** Monitor plan queue vs integration queue state, detect blocking conditions, emit observations when queue health changes.
 
@@ -458,12 +460,12 @@ export class QueueHealthObserver {
   private state: QueueHealthState;
   private pollInterval: number;
   private threshold: { maxQueueSize: number; maxActivePlans: number };
-  
+
   constructor(options?: { pollInterval?: number; maxQueueSize?: number; maxActivePlans?: number });
-  
+
   async check(): Promise<QueueHealthState>;
   async observeChanges(): Promise<BrainObservation[]>;
-  
+
   // State access
   getState(): QueueHealthState;
   isBlocked(): boolean;
@@ -476,7 +478,7 @@ export class QueueHealthObserver {
 
 ---
 
-### 7.E — Execution Journal Observer
+### 7.E - Execution Journal Observer
 
 **Goal:** Watch execution journal entries, parse workspace outcomes, emit observations about execution patterns.
 
@@ -511,9 +513,9 @@ export interface WorkspaceOutcome {
 export class ExecutionJournalObserver {
   private journalPath: string;
   private lastProcessedTimestamp?: string;
-  
+
   constructor(journalPath?: string);
-  
+
   async scan(): Promise<WorkspaceOutcome[]>;
   async getOutcomesSince(timestamp: string): Promise<WorkspaceOutcome[]>;
   async computeStats(): Promise<{
@@ -523,7 +525,7 @@ export class ExecutionJournalObserver {
     avgDuration: number;
     failureTypes: Record<string, number>;
   }>;
-  
+
   // Observation generation
   async generateObservations(): Promise<BrainObservation[]>;
 }
@@ -535,7 +537,7 @@ export class ExecutionJournalObserver {
 
 ---
 
-### 7.F — Retry/Failure Signal Extractor
+### 7.F - Retry/Failure Signal Extractor
 
 **Goal:** Analyze observation patterns to detect retry hotspots and failure patterns, generate BrainSignal when threshold exceeded.
 
@@ -569,21 +571,21 @@ export class SignalExtractor {
   private config: SignalThresholdConfig;
   private activeSignals: Map<string, BrainSignal> = new Map();
   private observationBuffer: BrainObservation[] = [];
-  
+
   constructor(config?: Partial<SignalThresholdConfig>);
-  
+
   // Process observations for pattern detection
   process(observation: BrainObservation): BrainSignal | null;
-  
+
   // Analyze patterns
   async analyzeRetryPatterns(): Promise<BrainSignal[]>;
   async analyzeFailurePatterns(): Promise<BrainSignal[]>;
-  
+
   // Signal management
   getActiveSignals(): BrainSignal[];
   getSignalById(id: string): BrainSignal | undefined;
   resolveSignal(id: string, resolution: string): void;
-  
+
   // Configuration
   setConfig(config: Partial<SignalThresholdConfig>): void;
 }
@@ -595,7 +597,7 @@ export class SignalExtractor {
 
 ---
 
-### 7.G — First Reflection Summary
+### 7.G - First Reflection Summary
 
 **Goal:** Generate first post-plan reflection summary demonstrating the reflection loop. Post-plan analysis that answers: what ran, what worked, what failed.
 
@@ -649,9 +651,9 @@ export interface ReflectionSummary {
 
 export class FirstReflectionEngine {
   private config: ReflectionConfig;
-  
+
   constructor(config?: Partial<ReflectionConfig>);
-  
+
   async reflect(input: ReflectionInput): Promise<ReflectionSummary>;
   async storeReflection(reflection: ReflectionSummary): Promise<void>;
   async writeMarkdown(reflection: ReflectionSummary): Promise<string>;
@@ -664,7 +666,7 @@ export class FirstReflectionEngine {
 
 ---
 
-### 7.H — Safe Brain Daemon Lifecycle
+### 7.H - Safe Brain Daemon Lifecycle
 
 **Goal:** Brain daemon runs as background process, manages observation intervals, produces heartbeat, handles graceful shutdown.
 
@@ -672,9 +674,10 @@ export class FirstReflectionEngine {
 * Start on Pi startup (after P12.5 core initialized)
 * Stop on graceful shutdown (SIGTERM/SIGINT)
 * Heartbeat event every 60 seconds
-* No recursion — daemon observes, doesn't observe itself infinitely
+* No recursion - daemon observes, doesn't observe itself infinitely
 * No external API calls without policy config
 * Startup validation of required directories
+* **LLM API failure resilience:** daemon must never crash on LLM failures; each cognitive operation degrades independently
 
 **Acceptance Criteria:**
 * [ ] Daemon starts after core initialization
@@ -682,6 +685,9 @@ export class FirstReflectionEngine {
 * [ ] Graceful shutdown completes within 10 seconds
 * [ ] Startup validation checks pass
 * [ ] No memory leaks over extended runtime (tested with 1hr run)
+* [ ] LLM call failure does not crash daemon (tested with mock LLM that throws 100%)
+* [ ] Observation summary failure stores raw observations without summary, retries on next cycle
+* [ ] Reflection generation failure marks reflection as 'delayed', retries on next daemon cycle
 
 **Implementation Details:**
 
@@ -709,17 +715,17 @@ export class BrainDaemon {
   private heartbeatTimer?: NodeJS.Timeout;
   private observationTimer?: NodeJS.Timeout;
   private observationEngine?: ObservationEngine;
-  
+
   constructor(config?: Partial<DaemonConfig>);
-  
+
   // Lifecycle
   async start(): Promise<void>;
   async stop(): Promise<void>;
-  
+
   // State
   getState(): DaemonState;
   isRunning(): boolean;
-  
+
   // Internal
   private heartbeat(): Promise<void>;
   private observe(): Promise<void>;
@@ -733,7 +739,7 @@ export class BrainDaemon {
 
 ---
 
-### 7.I — Brain API Endpoints
+### 7.I - Brain API Endpoints
 
 **Goal:** REST API for brain state, observations, signals, timeline. Integrates with web-server.
 
@@ -797,7 +803,7 @@ Response: {
 
 ---
 
-### 7.J — Minimal Brain State Viewer
+### 7.J - Minimal Brain State Viewer
 
 **Goal:** Dashboard component showing brain state: timeline visualization, signal summary cards, observation counts by severity.
 
@@ -834,7 +840,7 @@ packages/web-ui/dashboard/src/components/
 
 ---
 
-### 7.K — P13 Dogfood & Report
+### 7.K - P13 Dogfood & Report
 
 **Goal:** Run P13 in self-hosting mode, validate all components work together, produce dogfood report.
 
@@ -861,7 +867,7 @@ packages/web-ui/dashboard/src/components/
 # P13 Dogfood Report
 
 ## Environment
-- Pi version: 
+- Pi version:
 - Brain enabled: true
 - Daemon status: running
 
@@ -903,27 +909,27 @@ packages/web-ui/dashboard/src/components/
 ## 8. Combined Implementation Order
 
 ```text
-Phase: P13 — Brain Core Vertical Slice
+Phase: P13 - Brain Core Vertical Slice
 =======================================
 
 Batch 1 (Foundational):
-  P13.A — Brain Domain Model
-  P13.B — Brain Timeline Store
+  P13.A - Brain Domain Model
+  P13.B - Brain Timeline Store
 
 Batch 2 (Observation Layer):
-  P13.C — Observation Engine V0
-  P13.D — Queue Health Observer
-  P13.E — Execution Journal Observer
-  P13.F — Retry/Failure Signal Extractor
+  P13.C - Observation Engine V0
+  P13.D - Queue Health Observer
+  P13.E - Execution Journal Observer
+  P13.F - Retry/Failure Signal Extractor
 
 Batch 3 (Daemon & Integration):
-  P13.G — First Reflection Summary
-  P13.H — Safe Brain Daemon Lifecycle
-  P13.I — Brain API Endpoints
+  P13.G - First Reflection Summary
+  P13.H - Safe Brain Daemon Lifecycle
+  P13.I - Brain API Endpoints
 
 Batch 4 (UI & Final):
-  P13.J — Minimal Brain State Viewer
-  P13.K — P13 Dogfood & Report
+  P13.J - Minimal Brain State Viewer
+  P13.K - P13 Dogfood & Report
 ```
 
 **Dependency Rationale:**
@@ -942,17 +948,17 @@ Batch 4 (UI & Final):
 
 P13 is complete when ALL are true:
 
-* [ ] Brain Domain Model — types compile, tests pass, fixtures created
-* [ ] Brain Timeline Store — append works, query works, rotation works
-* [ ] Observation Engine V0 — collects from all sources, batches correctly
-* [ ] Queue Health Observer — detects blocked queue, emits observations
-* [ ] Execution Journal Observer — parses workspace outcomes, detects patterns
-* [ ] Retry/Failure Signal Extractor — generates signals on threshold
-* [ ] First Reflection Summary — generates reflection after plan completion
-* [ ] Safe Brain Daemon — starts, runs heartbeat, shuts down gracefully
-* [ ] Brain API Endpoints — all endpoints return valid data
-* [ ] Minimal Brain State Viewer — dashboard shows brain state
-* [ ] P13 Dogfood Report — complete report generated
+* [ ] Brain Domain Model - types compile, tests pass, fixtures created
+* [ ] Brain Timeline Store - append works, query works, rotation works
+* [ ] Observation Engine V0 - collects from all sources, batches correctly
+* [ ] Queue Health Observer - detects blocked queue, emits observations
+* [ ] Execution Journal Observer - parses workspace outcomes, detects patterns
+* [ ] Retry/Failure Signal Extractor - generates signals on threshold
+* [ ] First Reflection Summary - generates reflection after plan completion
+* [ ] Safe Brain Daemon - starts, runs heartbeat, shuts down gracefully
+* [ ] Brain API Endpoints - all endpoints return valid data
+* [ ] Minimal Brain State Viewer - dashboard shows brain state
+* [ ] P13 Dogfood Report - complete report generated
 * [ ] Integration queue is clean or intentionally blocked with handoff
 * [ ] No forbidden commands or files were used
 * [ ] Typecheck/build/test requirements passed
@@ -1000,11 +1006,11 @@ P13 is complete when ALL are true:
 
 ---
 
-# Part 2 — Agent Brief
+# Part 2 - Agent Brief
 
 ## Mission
 
-Implement all P13 — P13 Dogfood & Report — workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
+Implement all P13 - P13 Dogfood & Report - workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
 
 ## Hard Requirements
 
@@ -1126,7 +1132,7 @@ parallelism_review:
 
 ---
 
-# Part 3 — Machine-Readable Execution Contract
+# Part 3 - Machine-Readable Execution Contract
 
 **Purpose:** Authoritative execution contract for Pi's multi-agent execution system. Pi parses this JSON to build the execution plan.
 
@@ -2063,7 +2069,7 @@ parallelism_review:
 
 ---
 
-# Part 4 — Machine-Readable Summary
+# Part 4 - Machine-Readable Summary
 
 ```json
 {

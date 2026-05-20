@@ -116,6 +116,14 @@ interface BrainTimelineEvent {
 - Keep timeline store read-only
 - Remove API routes via config
 
+**LLM API failure strategy (applies to all cognitive operations across P13-P20):**
+- Observation summary failure: daemon stores raw observations, skips summary, retries on next cycle, continues running.
+- Proposal generation failure: fall back to rule-based scoring, do not block inbox, retry LLM on next cycle.
+- Reflection generation failure: store execution artifacts, mark reflection as 'delayed', regenerate on next daemon cycle.
+- Plan factory LLM failure: keep proposal as draft, do not block queue, notify user of delayed plan generation.
+- Memory synthesis failure: store evidence only, skip derived memory, retry on next write cycle.
+- Daemon never crashes on LLM failure; each operation degrades independently.
+
 ---
 
 ## P14 Implementation Details
@@ -233,6 +241,8 @@ interface MemoryQuery {
 - Existing memories remain as read-only files
 
 ---
+
+
 
 ## P15 Implementation Details
 
@@ -371,6 +381,7 @@ P16 generates useful evidence-backed proposals with scoring.
    - Total = (novelty × 0.2) + (confidence × 0.3) + (urgency × 0.2) + (feasibility × 0.3)
    - Threshold for auto-queue: score ≥ 0.7 AND confidence ≥ 0.6
    - Below threshold: goes to approval inbox
+   - **Auto-decision threshold:** Proposals with confidence ≥ 0.85 may qualify for `auto_decide` classification by the P15 Decision Classifier. Below 0.85 → `approval_required`. The 0.6 floor is for inbox visibility; auto-execution requires 0.85.
 
 4. **Proposal Inbox** (Dashboard)
    - Top 3 proposals displayed
@@ -563,6 +574,19 @@ interface PlanFactoryOutput {
 **Rollback path:**
 - Disable plan factory via `PLAN_FACTORY_ENABLED=false`
 - Disable reflection via `REFLECTION_ENABLED=false`
+
+**P17 Mini Integration Smoke Test (before P20 dogfood):**
+- Purpose: validate the P13→P14→P15→P16→P17 pipeline is wired correctly before P20 overnight runs.
+- Procedure:
+  1. Trigger observation accumulation (run a small test plan or inject test observations).
+  2. Verify observations generate a proposal through P16 generator.
+  3. Accept the proposal and pass to P17 plan factory.
+  4. Verify a phase plan is generated and passes Doctor validation.
+  5. Run a reflection after the plan completes (or simulate plan completion).
+  6. Verify reflection produces evidence-backed claims and memory proposals.
+- Expected duration: under 5 minutes.
+- Success criteria: proposal created → plan generated and validated → reflection produced with evidence → memory proposals created.
+- Failure rollback: P17 components can be disabled individually; pipeline diagnostics written to brain timeline.
 
 ---
 
@@ -770,6 +794,15 @@ GET  /api/brain/overnight/status
 **Dependencies:**
 - All prior phases (P13-P18)
 
+**Multi-project concurrent overnight consideration:**
+- Initial P20 overnight mode assumes one active project and one user session.
+- If multiple projects are queued for overnight execution, they run sequentially (one project at a time).
+- Plan queue enforces one active plan per project, preventing cross-project interference.
+- Observation, memory, and proposal engines remain project-scoped.
+- Each project produces its own morning report.
+- LLM budget is shared across projects (total 15 calls/cycle, 10 cycles/day across all projects).
+- Future V2.6+ may add parallel project execution with resource budgeting.
+
 ---
 
 ## P20 Implementation Details
@@ -840,6 +873,7 @@ brain:
 memory:
   default_ttl_days: 90
   conflict_threshold: 0.7
+  score_delta_auto_supersede: 0.3  # if delta > 0.3, auto-mark lower as superseded; calibrate after 100 events
   auto_activate_confidence: 0.8
   max_active_memories: 1000
 
@@ -915,3 +949,72 @@ All rollbacks preserve artifacts in `.pi/brain/` for post-mortem analysis.
 - `docs/pi/v2/changed-files-analysis.md` — File-level impact
 - `docs/llm-implementation-agent-master-template.md` — Execution contract template
 - `docs/pi/phases/phase_p13_*.md` through `phase_p20_*.md` — Individual phase specs
+
+---
+
+## Pre-Run Hardening Checklist (Doctor-Ready)
+
+Before running P13 or any phase bundle, validate:
+
+```yaml
+Pre-Run Validation:
+  contract_version:
+    - All phases use 2.5.1 or consistent supported version
+    - Check: grep -r "Version:" docs/v2/phases/ | grep -v "2.5.1"
+
+  scale_mode_consistency:
+    - P13-P18: stable_3 (P18 can use 6 workers)
+    - P19-P20: stable_6 (dashboard + full dogfood)
+    - Check: grep -r "Scale mode:" docs/v2/phases/
+
+  p13_p14_boundary:
+    - P13 produces candidate signals in P14-ready format
+    - P13 does NOT promote candidate → active (P14 responsibility)
+    - Check: phase_p13 exit criteria include lifecycle NOT in scope
+
+  api_path_convention:
+    - All brain API paths should support project-scoped: /api/projects/:projectId/brain/*
+    - Legacy /api/brain/* acceptable for V2.5.1, V2.6+ requires migration path
+    - Check: grep -r "/api/brain" docs/v2/phases/
+
+  p17_p18_boundary:
+    - Reflection is P17 output
+    - P18 exit criteria is policy decision, approval, audit, not reflection
+    - Check: phase_p18 does not list reflection in criteria
+
+  p19_scope_risk:
+    - Read-only dashboard vs action UX: separate workstreams
+    - If single phase, clear file-scope boundaries per workstream
+    - Check: blast radius and workstream dependencies
+
+  p20_dogfood_duration:
+    - 7-day soak may be too long for initial validation
+    - Consider: 1-night smoke → 7-day soak split
+    - Check: acceptance criteria for full overnight runs
+
+Execution Gate:
+  run_p13_only:
+    - npm validate passes
+    - API returns valid data
+    - Daemon heartbeat confirmed
+    - candidate signals generate in P14-ready format
+
+  bundle_run_decision:
+    - DO NOT auto-run P14-P20 until P13 dogfood passes
+    - Sequential execution recommended: P13 → dogfood → P14 → dogfood → ...
+    - Bundle validation OK for queue but execution sequential
+```
+
+---
+
+## Final Assessment
+
+| Criterion | Score | Notes |
+|-----------|-------|-------|
+| Vision / product direction | 9/10 | Strong policy-governed runtime + LLM proposal layer |
+| Phase decomposition | 9/10 | Fixed P13/P14 boundary, consistent scale modes |
+| Implementation detail depth | 8/10 | Comprehensive workstreams per phase |
+| Execution readiness | 7.5/10 | Pre-run checklist added, sequential execution recommended |
+| Consistency / doctor-readiness | 8/10 | Scale modes normalized, API paths documented |
+
+**Verdict**: Documents are now **ready for P13 implementation** and **P13→P20 sequential execution**. Full bundle auto-run still requires P13 dogfood success before proceeding.

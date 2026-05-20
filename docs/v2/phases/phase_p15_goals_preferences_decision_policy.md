@@ -18,7 +18,7 @@
 **Why now:** Memory alone (P14) is not enough. Pi needs to know what it is optimizing for and which actions are auto-safe, approval-gated, or forbidden. This is Milestone 1b — "Pi Understands Goals".  
 **Blast radius:** Goal records, preferences, autonomy, decision classification; `packages/coding-agent`, `packages/web-server`, `packages/web-ui/dashboard`, and V2 docs/tests.  
 **Rollback path:** Disable newly added V2 capability flags (`GOALS_ENABLED=false`), default autonomy level 1 (Advisor only), keep stores read-only, revert phase commits independently.  
-**Scale mode:** `experimental_6`  
+**Scale mode:** `stable_3`
 **Safe parallelism target:** 3  
 **Done when:** P15 exit criteria pass, goals queryable, autonomy level changes take effect, decisions classified, npm validation passes, integration queue clean.
 
@@ -36,7 +36,7 @@
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Goal records, preferences, autonomy, decision classification` |
 | Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
+| Selected scale mode | `stable_3` |
 | Requested max workers | `3` |
 | Expected DAG effective parallelism | `3` |
 | Expected safe effective parallelism | `3` |
@@ -747,11 +747,22 @@ export class DecisionClassifier {
   // Default rules
   private initDefaultRules(): void;
   
+  // Confidence-based override
+  // If context.confidence < autoDecideConfidenceThreshold (default 0.85)
+  // then any auto_decide action is downgraded to approval_required
+  setAutoDecideConfidenceThreshold(threshold: number): void;
+  getAutoDecideConfidenceThreshold(): number;
+
   // Helpers
   isAutoDecide(action: string, context?: ClassificationContext): boolean;
   isApprovalRequired(action: string, context?: ClassificationContext): boolean;
   isNeverAutoDecide(action: string, context?: ClassificationContext): boolean;
 }
+
+// Confidence threshold for auto-decisions:
+// Any action classified as auto_decide is downgraded to approval_required
+// when context.confidence < autoDecideConfidenceThreshold (default 0.85).
+// This prevents Pi from acting on low-confidence observations or proposals.
 
 // Default rules seeded at construction:
 const DEFAULT_RULES: DecisionRule[] = [

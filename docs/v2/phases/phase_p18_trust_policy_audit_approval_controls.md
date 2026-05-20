@@ -1,25 +1,25 @@
-# Phase P18 — Trust, Policy, Audit & Approval Controls
+# Phase P18 - Trust, Policy, Audit & Approval Controls
 
-**Template:** LLM Implementation Agent — Master Template v2.5  
-**Version:** 2.5.1  
-**Created:** 2026-05-19  
-**Package manager:** npm only  
-**Status:** Authoritative Implementation  
+**Template:** LLM Implementation Agent - Master Template v2.5
+**Version:** 2.5.1
+**Created:** 2026-05-19
+**Package manager:** npm only
+**Status:** Authoritative Implementation
 **Last Updated:** 2026-05-19
 
 ---
 
-# Part 1 — Phase Plan
+# Part 1 - Phase Plan
 
 ## 0. TL;DR / Compact Mental Model
 
-**Phase:** `P18`  
-**One-line goal:** Centralize trust controls so Pi can enforce why an action is allowed, blocked, or approval-gated, with a complete audit trail and decision explanation for every action.  
-**Why now:** All prior phases (P13-P17) built capabilities. P18 makes them safe. Without trust boundaries, autonomy is dangerous. This is Milestone 3a — "Pi Operates Safely".  
-**Blast radius:** Policy engine, rule store, approval gate, audit ledger, provenance tracker; `packages/coding-agent/src/brain/policy/`, `packages/coding-agent/src/brain/approvals/`, `packages/coding-agent/src/brain/audit/`, `packages/web-server`, `packages/web-ui/dashboard`.  
-**Rollback path:** All policies default to `approval_required`, audit kept for debugging.  
-**Scale mode:** `experimental_6`  
-**Safe parallelism target:** 3  
+**Phase:** `P18`
+**One-line goal:** Centralize trust controls so Pi can enforce why an action is allowed, blocked, or approval-gated, with a complete audit trail and decision explanation for every action.
+**Why now:** All prior phases (P13-P17) built capabilities. P18 makes them safe. Without trust boundaries, autonomy is dangerous. This is Milestone 3a - "Pi Operates Safely".
+**Blast radius:** Policy engine, rule store, approval gate, audit ledger, provenance tracker; `packages/coding-agent/src/brain/policy/`, `packages/coding-agent/src/brain/approvals/`, `packages/coding-agent/src/brain/audit/`, `packages/web-server`, `packages/web-ui/dashboard`.
+**Rollback path:** All policies default to `approval_required`, audit kept for debugging.
+**Scale mode:** `stable_3`
+**Safe parallelism target:** 3
 **Done when:** Policy decisions enforced for all actions, approval requests flow correctly, every decision logged to audit, provenance explains any decision, trust dashboard shows state, integration queue clean.
 
 ---
@@ -35,11 +35,11 @@
 | Delivery status | `Not started` |
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Policy engine, approval gates, audit ledger, provenance tracker` |
-| Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
-| Selected scale mode | `experimental_6` |
-| Requested max workers | `3` |
-| Expected DAG effective parallelism | `3` |
-| Expected safe effective parallelism | `3` |
+| Product-code changes | `Allowed - Pi runtime/dashboard/tests/docs only` |
+| Selected scale mode | `stable_3` |
+| Requested max workers | `6` |
+| Expected DAG effective parallelism | `6` |
+| Expected safe effective parallelism | `6` |
 | Worktree isolation | `Optional` |
 | Integration queue | `Required` |
 
@@ -47,14 +47,14 @@
 
 | Workstream | R (Responsible) | A (Accountable) | C (Consulted) | I (Informed) |
 |---|---|---|---|---|
-| P18.A — Policy Engine V0 | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.B — Policy Rule Store | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.C — Approval Gate | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.D — Approval Queue API | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.E — Audit Ledger | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.F — Provenance Tracker | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.G — Trust Dashboard UI | Pi Worker Agent | User / owner | Reviewer | User |
-| P18.H — P18 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.A - Policy Engine V0 | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.B - Policy Rule Store | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.C - Approval Gate | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.D - Approval Queue API | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.E - Audit Ledger | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.F - Provenance Tracker | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.G - Trust Dashboard UI | Pi Worker Agent | User / owner | Reviewer | User |
+| P18.H - P18 Dogfood & Report | Pi Worker Agent | User / owner | Reviewer | User |
 
 ---
 
@@ -66,7 +66,7 @@ Ensure autonomy remains bounded, observable, reversible, and approved where need
 
 | Outcome | Meaning | When | User Sees |
 |---------|---------|------|-----------|
-| `allow` | Action executes without approval | Low risk, trusted context | — (automatic) |
+| `allow` | Action executes without approval | Low risk, trusted context | - (automatic) |
 | `deny` | Action blocked, no approval possible | Policy-flagged concern | "Blocked by policy: X" |
 | `approval_required` | Queued for user approval | Medium/high risk, needs judgment | Approval request notification |
 | `forbidden` | Permanently blocked, policy-defined | Hard safety boundary | "Forbidden: this action is never allowed" |
@@ -95,15 +95,15 @@ Pi must:
 
 ---
 
-## 3. What Carried Over — Must Stay Stable
+## 3. What Carried Over - Must Stay Stable
 
-* [x] P17 plan factory — generated plans must pass policy before queuing
-* [x] P16 proposals — proposals classified by DecisionClassifier before generation
-* [x] P15 goals/autonomy/decisions — autonomy profile feeds into policy context
-* [x] P14 memory — memory operations subject to policy
-* [x] P13 observations — observation collection is always allowed (read-only)
-* [x] P12.5 execution core — executor calls policy engine before acting
-* [x] Integration queue gate — policy on queue operations
+* [x] P17 plan factory - generated plans must pass policy before queuing
+* [x] P16 proposals - proposals classified by DecisionClassifier before generation
+* [x] P15 goals/autonomy/decisions - autonomy profile feeds into policy context
+* [x] P14 memory - memory operations subject to policy
+* [x] P13 observations - observation collection is always allowed (read-only)
+* [x] P12.5 execution core - executor calls policy engine before acting
+* [x] Integration queue gate - policy on queue operations
 * [x] No git push, no destructive cleanup, no watch-mode validation
 * [x] LLM cannot mutate state directly
 * [x] npm only
@@ -121,7 +121,7 @@ Pi must:
 ### 3.1 New V2 Constraints Added
 
 * [ ] Every action must pass through policy engine before execution
-* [ ] Audit entries are append-only — no deletion, no modification
+* [ ] Audit entries are append-only - no deletion, no modification
 * [ ] Forbidden actions cannot be overridden by autonomy level
 * [ ] Approval requests auto-expire after deadline (default 24h)
 * [ ] Emergency stop overrides all policy decisions
@@ -130,7 +130,7 @@ Pi must:
 
 ## 4. Background / What Was Wrong
 
-Pi V1 had no trust model — it executed whatever the plan said. V2 autonomy requires bounded authority.
+Pi V1 had no trust model - it executed whatever the plan said. V2 autonomy requires bounded authority.
 
 ### 4.1 V1 Limitations Addressed by P18
 
@@ -193,13 +193,13 @@ Memory creation proceeds
 | Provenance chain broken | med | med | Graceful fallback to partial chain; log error |
 | Policy rule conflict (same action, different decisions) | low | high | Priority ordering; highest priority wins; detect conflicts |
 | Approval bypass via invalid request ID | low | high | Validate all request IDs in store |
-| TL;DR — what if user doesn't read audit | med | low | Dashboard summary; morning report includes audit highlights |
+| TL;DR - what if user doesn't read audit | med | low | Dashboard summary; morning report includes audit highlights |
 
 ---
 
 ## 7. Workstreams
 
-### 7.A — Policy Engine V0
+### 7.A - Policy Engine V0
 
 **Goal:** Evaluate any action against policy rules and return a decision (allow/deny/approval_required/forbidden).
 
@@ -281,37 +281,37 @@ export class PolicyEngine {
   private ruleStore: PolicyRuleStore;
   private cache: Map<string, { result: PolicyResult; cachedAt: number }>;
   private cacheTtlMs: number;  // default 5000ms
-  
+
   constructor(ruleStore: PolicyRuleStore, config?: { cacheTtlMs?: number });
-  
+
   // Core evaluation
   async evaluate(context: PolicyContext): Promise<PolicyResult>;
-  
+
   async evaluateWithAudit(
     context: PolicyContext,
     auditLedger: AuditLedger,
   ): Promise<PolicyResult & { auditEntry: AuditEntry }>;
-  
+
   // Matching
   private findMatchingRules(context: PolicyContext): PolicyRule[];
   private evaluateCondition(condition: PolicyCondition, context: PolicyContext): boolean;
   private matchGlob(pattern: string, value: string): boolean;
   private sortByPriority(rules: PolicyRule[]): PolicyRule[];
-  
+
   // Explanation
   explain(result: PolicyResult): string;
   explainSimple(decision: PolicyDecision, rule: PolicyRule | null): string;
-  
+
   // Convenience
   async canAutoExecute(context: PolicyContext): Promise<boolean>;
   async requiresApproval(context: PolicyContext): Promise<boolean>;
   async isForbidden(context: PolicyContext): Promise<boolean>;
-  
+
   // Cache management
   clearCache(): void;
   invalidateForAction(action: string): void;
   private cacheKey(context: PolicyContext): string;
-  
+
   // Default (fallback)
   private getDefaultDecision(): PolicyDecision;  // returns 'deny'
 }
@@ -323,7 +323,7 @@ export class PolicyEngine {
 
 ---
 
-### 7.B — Policy Rule Store
+### 7.B - Policy Rule Store
 
 **Goal:** Persist, load, and manage policy rules. Support CRUD, default rules, conflict detection.
 
@@ -363,33 +363,33 @@ export interface RuleConflict {
 export class PolicyRuleStore {
   private config: RuleStoreConfig;
   private rules: PolicyRule[] = [];
-  
+
   constructor(config?: Partial<RuleStoreConfig>);
-  
+
   // Lifecycle
   async initialize(): Promise<void>;
-  
+
   // CRUD
   getRules(): PolicyRule[];
   getRule(id: string): PolicyRule | null;
   addRule(rule: PolicyRule): Promise<void>;
   updateRule(id: string, updates: Partial<PolicyRule>): Promise<void>;
   removeRule(id: string): Promise<void>;
-  
+
   // Query
   findMatching(context: PolicyContext): PolicyRule[];
   findByAction(action: string): PolicyRule[];
   findByDecision(decision: PolicyDecision): PolicyRule[];
-  
+
   // Conflicts
   detectConflicts(): RuleConflict[];
   findConflictsForRule(rule: PolicyRule): RuleConflict[];
-  
+
   // Defaults
   getDefaultRules(): PolicyRule[];
   resetToDefaults(): Promise<void>;
   isDefaultRule(id: string): boolean;
-  
+
   // Persistence
   async save(): Promise<void>;
   async load(): Promise<void>;
@@ -430,7 +430,7 @@ export const DEFAULT_POLICY_RULES: PolicyRule[] = [
     condition: { action: 'memory_query' },
     decision: 'allow', priority: 100, enabled: true,
   },
-  
+
   // === Approval Required (medium risk) ===
   {
     id: 'appr_001', name: 'Execute generated plans',
@@ -468,7 +468,7 @@ export const DEFAULT_POLICY_RULES: PolicyRule[] = [
     condition: { action: 'autonomy_level_change' },
     decision: 'approval_required', priority: 90, enabled: true,
   },
-  
+
   // === Forbidden (hard stops, cannot be overridden) ===
   {
     id: 'forbid_001', name: 'Access secrets',
@@ -509,7 +509,7 @@ export const DEFAULT_POLICY_RULES: PolicyRule[] = [
 
 ---
 
-### 7.C — Approval Gate
+### 7.C - Approval Gate
 
 **Goal:** Queue, process, and expire approval requests for policy decisions that require user approval.
 
@@ -568,25 +568,25 @@ export class ApprovalGate {
   private history: ApprovalRequest[] = [];
   private expireTimer?: NodeJS.Timeout;
   private persistencePath: string;
-  
+
   constructor(
     private policyEngine: PolicyEngine,
     private auditLedger: AuditLedger,
     config?: Partial<ApprovalConfig>,
   );
-  
+
   // Lifecycle
   async initialize(): Promise<void>;
-  
+
   // Request
   async requestApproval(context: PolicyContext, proposal: Proposal): Promise<ApprovalRequest>;
   canRequestAnotherApproval(type: string): boolean;
-  
+
   // Actions
   async approve(requestId: string, approvedBy: string): Promise<ApprovalRequest>;
   async reject(requestId: string, rejectedBy: string, reason?: string): Promise<ApprovalRequest>;
   async defer(requestId: string, hours?: number): Promise<ApprovalRequest>;
-  
+
   // Query
   getPending(): ApprovalRequest[];
   getApproved(): ApprovalRequest[];
@@ -594,20 +594,20 @@ export class ApprovalGate {
   getExpired(): ApprovalRequest[];
   getById(id: string): ApprovalRequest | null;
   getByProposal(proposalId: string): ApprovalRequest[];
-  
+
   // Expiry
   startExpiryCheck(): void;
   stopExpiryCheck(): void;
   async checkExpired(): Promise<ApprovalRequest[]>;
   private isExpired(request: ApprovalRequest): boolean;
-  
+
   // Persistence
   async save(): Promise<void>;
   async load(): Promise<void>;
-  
+
   // Stats
   getStats(): ApprovalStats;
-  
+
   // Configuration
   setConfig(config: Partial<ApprovalConfig>): void;
   getConfig(): ApprovalConfig;
@@ -630,18 +630,18 @@ export interface ApprovalStats {
 
 ---
 
-### 7.D — Approval Queue API
+### 7.D - Approval Queue API
 
 **Goal:** REST API for listing, approving, rejecting, and deferring approval requests.
 
 **Acceptance Criteria:**
-* [ ] GET /api/brain/approvals — list pending
-* [ ] GET /api/brain/approvals/{id} — get single
-* [ ] POST /api/brain/approvals/{id}/approve — approve
-* [ ] POST /api/brain/approvals/{id}/reject — reject with reason
-* [ ] POST /api/brain/approvals/{id}/defer — extend deadline
-* [ ] GET /api/brain/approvals/stats — stats
-* [ ] GET /api/brain/approvals/history — completed approvals
+* [ ] GET /api/brain/approvals - list pending
+* [ ] GET /api/brain/approvals/{id} - get single
+* [ ] POST /api/brain/approvals/{id}/approve - approve
+* [ ] POST /api/brain/approvals/{id}/reject - reject with reason
+* [ ] POST /api/brain/approvals/{id}/defer - extend deadline
+* [ ] GET /api/brain/approvals/stats - stats
+* [ ] GET /api/brain/approvals/history - completed approvals
 
 **API Specifications:**
 
@@ -679,12 +679,12 @@ Response: { approvals: ApprovalRequest[], total: number }
 
 ---
 
-### 7.E — Audit Ledger
+### 7.E - Audit Ledger
 
 **Goal:** Append-only, immutable decision log for every policy evaluation.
 
 **Requirements:**
-* Append-only — no in-place updates or deletion
+* Append-only - no in-place updates or deletion
 * Line-delimited JSON (`.ndjson`) for easy tailing
 * Auto-rotate at configurable size (default 100MB)
 * Query by actor, action, decision, date range
@@ -757,21 +757,21 @@ export class AuditLedger {
   private writeLock: Promise<void> = Promise.resolve();
   private buffer: AuditEntry[] = [];
   private flushTimer?: NodeJS.Timeout;
-  
+
   constructor(options?: {
     basePath?: string;                    // default: .pi/brain/audit/
     rotationThresholdBytes?: number;      // default: 100MB
     flushIntervalMs?: number;             // default: 5000ms
     batchSize?: number;                   // default: 50
   });
-  
+
   // Append
   async log(entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry>;
-  
+
   // Query
   async query(filters: AuditQuery): Promise<AuditEntry[]>;
   async get(id: string): Promise<AuditEntry | null>;
-  
+
   // Convenience queries
   async findByActor(actor: string, limit?: number): Promise<AuditEntry[]>;
   async findByAction(action: string, limit?: number): Promise<AuditEntry[]>;
@@ -780,21 +780,21 @@ export class AuditLedger {
   async findByPlanExec(planExecId: string): Promise<AuditEntry[]>;
   async recentDecisions(count?: number): Promise<AuditEntry[]>;
   async findBlockedActions(limit?: number): Promise<AuditEntry[]>;
-  
+
   // Stats
   async getStats(): Promise<AuditStats>;
-  
+
   // Flush
   async flush(): Promise<void>;
   private scheduleFlush(): void;
   private flushBuffer(): Promise<void>;
-  
+
   // File management
   private getCurrentFilePath(): string;
   private candidateFilePath(date?: Date): string;
   private needsRotation(): Promise<boolean>;
   private async rotateIfNeeded(): Promise<void>;
-  
+
   // Internal
   private generateId(): string;
   private ensureWriteStream(): Promise<void>;
@@ -822,7 +822,7 @@ export class AuditLedger {
 
 ---
 
-### 7.F — Provenance Tracker
+### 7.F - Provenance Tracker
 
 **Goal:** Track decision provenance chains so every action can be explained with its evidence lineage.
 
@@ -875,41 +875,41 @@ export interface ProvenanceRecord {
 export class ProvenanceTracker {
   private persistencePath: string;
   private records: Map<string, ProvenanceRecord> = new Map();
-  
+
   constructor(options?: { persistencePath?: string });
-  
+
   // Track
   async track(
     targetId: string,
     targetType: ProvenanceTargetType,
     links: ProvenanceLink[],
   ): Promise<ProvenanceRecord>;
-  
+
   async addLink(
     targetId: string,
     link: ProvenanceLink,
   ): Promise<ProvenanceRecord>;
-  
+
   // Query
   async getProvenance(targetId: string): Promise<ProvenanceRecord | null>;
   async getChain(targetId: string): Promise<ProvenanceLink[]>;
-  
+
   // Explanation
   async explainDecision(decisionAuditEntry: AuditEntry): Promise<string>;
   async explainProposal(proposalId: string): Promise<string>;
   async explainMemory(memoryId: string): Promise<string>;
-  
+
   private buildExplanationChain(
     targetId: string,
     visited: Set<string>,
     depth: number,
   ): string[];
-  
+
   // Persistence
   async save(): Promise<void>;
   async load(): Promise<void>;
   private getFilePath(): string;
-  
+
   // Stats
   async getStats(): Promise<{
     totalRecords: number;
@@ -925,7 +925,7 @@ export class ProvenanceTracker {
 
 ---
 
-### 7.G — Trust Dashboard UI
+### 7.G - Trust Dashboard UI
 
 **Goal:** Dashboard showing policy state, approval queue, audit stats, emergency stop.
 
@@ -959,7 +959,7 @@ packages/web-ui/dashboard/src/components/
 
 ---
 
-### 7.H — P18 Dogfood & Report
+### 7.H - P18 Dogfood & Report
 
 **Goal:** Trust controls work end-to-end: policy blocks forbidden actions, approval flows work, audit captures everything.
 
@@ -977,24 +977,24 @@ packages/web-ui/dashboard/src/components/
 ## 8. Combined Implementation Order
 
 ```text
-Phase: P18 — Trust, Policy, Audit & Approval Controls
+Phase: P18 - Trust, Policy, Audit & Approval Controls
 ======================================================
 
 Batch 1 (Core):
-  P18.A — Policy Engine V0
-  P18.B — Policy Rule Store
-  P18.E — Audit Ledger
+  P18.A - Policy Engine V0
+  P18.B - Policy Rule Store
+  P18.E - Audit Ledger
 
 Batch 2 (Approvals):
-  P18.C — Approval Gate
-  P18.D — Approval Queue API
-  P18.F — Provenance Tracker
+  P18.C - Approval Gate
+  P18.D - Approval Queue API
+  P18.F - Provenance Tracker
 
 Batch 3 (UI):
-  P18.G — Trust Dashboard UI
+  P18.G - Trust Dashboard UI
 
 Batch 4 (Validation):
-  P18.H — P18 Dogfood & Report
+  P18.H - P18 Dogfood & Report
 ```
 
 **Dependency Rationale:**
@@ -1052,14 +1052,14 @@ GET    /api/brain/emergency/status                    # Check stop status
 
 P18 is complete when ALL are true:
 
-* [ ] Policy Engine — evaluates actions correctly, default deny, glob matching
-* [ ] Policy Rule Store — CRUD works, default rules loaded, conflicts detected
-* [ ] Approval Gate — requests created, approved/rejected/expired
-* [ ] Approval API — all endpoints functional
-* [ ] Audit Ledger — append-only, queryable, rotation works
-* [ ] Provenance Tracker — decision chains built, explanations generated
-* [ ] Trust Dashboard UI — policy rules, approvals, audit, emergency stop
-* [ ] P18 Dogfood Report — complete report generated
+* [ ] Policy Engine - evaluates actions correctly, default deny, glob matching
+* [ ] Policy Rule Store - CRUD works, default rules loaded, conflicts detected
+* [ ] Approval Gate - requests created, approved/rejected/expired
+* [ ] Approval API - all endpoints functional
+* [ ] Audit Ledger - append-only, queryable, rotation works
+* [ ] Provenance Tracker - decision chains built, explanations generated
+* [ ] Trust Dashboard UI - policy rules, approvals, audit, emergency stop
+* [ ] P18 Dogfood Report - complete report generated
 * [ ] Integration queue is clean or intentionally blocked with handoff
 * [ ] No forbidden commands or files were used
 * [ ] Typecheck/build/test requirements passed
@@ -1099,11 +1099,11 @@ P18 is complete when ALL are true:
 
 ---
 
-# Part 2 — Agent Brief
+# Part 2 - Agent Brief
 
 ## Mission
 
-Implement all P18 — P18 Dogfood & Report — workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
+Implement all P18 - P18 Dogfood & Report - workstreams end-to-end. Create every file specified in the changed-files analysis. Ensure all TypeScript interfaces match the spec, all API endpoints return correct types, and all UI components handle loading/error/empty states. Run `npm run check` after completion.
 
 ## Hard Requirements
 
@@ -1220,12 +1220,12 @@ parallelism_review:
 * Watch-mode validation command
 * Queue optimization enabled with invalid or missing strategy
 * Queue priority set to unsupported value
-* Auth audit entries are append-only — no deletion
+* Auth audit entries are append-only - no deletion
 * Forbidden actions cannot be overridden by autonomy level
 
 ---
 
-# Part 3 — Machine-Readable Execution Contract
+# Part 3 - Machine-Readable Execution Contract
 
 **Purpose:** Authoritative execution contract for Pi's multi-agent execution system. Pi parses this JSON to build the execution plan.
 
@@ -2091,7 +2091,7 @@ parallelism_review:
 
 ---
 
-# Part 4 — Machine-Readable Summary
+# Part 4 - Machine-Readable Summary
 
 ```json
 {

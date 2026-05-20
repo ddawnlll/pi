@@ -543,13 +543,28 @@ Every proposal needs a score:
 
 ```text
 proposal_score =
-  impact * 0.30
+  novelty * 0.20
++ confidence * 0.30
 + urgency * 0.20
-+ confidence * 0.20
-+ strategic_alignment * 0.20
-- implementation_cost * 0.05
-- risk * 0.05
++ feasibility * 0.30
 ```
+
+Scoring dimensions:
+
+- **Novelty** (0-1): how different from existing proposals. Calculated as `1 - maxSimilarity / existingProposalCount`.
+- **Confidence** (0-1): evidence quality × source trust. Stronger observations (direct execution) weigh more than summaries (LLM-derived).
+- **Urgency** (0-1): time-sensitivity based on observation recency, frequency, and goal alignment.
+- **Feasibility** (0-1): resource and capability check. Can Pi execute this at current autonomy level?
+
+Auto-queue threshold: score ≥ 0.7 AND confidence ≥ 0.6. Below threshold: approval inbox.
+
+**Auto-decision confidence threshold:** The P15 Decision Classifier requires confidence ≥ 0.85 for any `auto_decide` action. Below 0.85 → `approval_required`. This applies to proposal auto-queue, queue reordering, and all other auto-decisions. The 0.6 proposal confidence floor is for inbox visibility only; auto-execution still requires 0.85.
+
+**Calibration strategy:**
+Weights are initialized to the values above. After 50 proposals with user feedback, audit weight effectiveness:
+- If confidence score misaligns with user acceptance rate → adjust confidence weight by ±0.05.
+- If high-novelty proposals rejected at >60% rate → decrease novelty weight by 0.05.
+- Auto-queue threshold (0.7) is intentionally conservative; bias toward human review until calibration data exists.
 
 Proposal fields:
 
@@ -892,7 +907,12 @@ V2 must define how it fails before it is trusted to run overnight.
 | Approval deadlock | Queue blocked by too many approval requests | Group approvals; classify low-risk auto-approvable actions; show approval summary |
 | Reflection hallucination | Reflection claim lacks evidence reference | Reject claim; require source-backed summaries only |
 | Decision loop | Same proposal repeatedly generated | Deduplicate by proposal hash; apply cooldown; mark repeated proposal suppressed |
-| LLM/API outage | Provider failure or repeated timeout | Pause cognitive tasks; continue deterministic queue state; do not create new LLM decisions |
+| LLM/API outage | Provider failure or repeated timeout | Pause cognitive tasks; continue deterministic queue state; do not create new LLM decisions
+| | Observation summary failure | Skip observation summary; store raw observations; retry on next cycle; daemon continues |
+| | Proposal generation failure | Fall back to rule-based scoring; do not block inbox; retry LLM on next cycle |
+| | Reflection generation failure | Store execution artifacts; mark reflection as delayed; regenerate on next daemon cycle |
+| | Plan factory LLM failure | Keep proposal as draft; do not block queue; user notified of delayed plan generation |
+| | Memory synthesis failure | Store evidence only; skip derived memory; retry on next write cycle |
 | Dirty integration loop | Integration queue remains dirty beyond threshold | Stop plan queue; create handoff artifact; require user action |
 | Bad generated plan | Doctor fails; low confidence; user rejection | Keep as draft; do not enqueue; generate repair proposal |
 | Over-autonomy | Pi attempts action beyond autonomy profile | Hard stop; audit; require policy review |
@@ -1072,6 +1092,13 @@ Deliverables:
 - Post-run reflection.
 - Memory update proposals.
 - Proposal triggers.
+
+> **P17 Mini Integration Smoke Test:** Before P20 dogfood, a minimal end-to-end test validates
+> the cognitive loop at P17. Trigger: generate a proposal from observations → pass through plan
+> factory → generate phase plan → run reflection → create memory proposals. This test does not
+> require overnight execution; it runs in minutes and proves the P13→P14→P15→P16→P17 pipeline
+> is connected. Success criteria: proposal created, plan generated and validated, reflection
+> produced with evidence-backed claims, memory proposals created.
 
 ### P18 — Trust, Policy, Audit & Approval Controls
 
@@ -1379,6 +1406,14 @@ Layer 3 — Vector Embeddings (for semantic search)
   Used when user queries natural language
   Target: <100ms p99 for 10k vectors
 
+  > **Spike/Research Note (P14-P15 window):** Vector embedding backend is not yet chosen.
+  > Candidates to evaluate: pgvector (Postgres extension, preferred for existing pg users),
+  > in-memory HNSW lib (e.g. hnswlib-node, lowest latency for <50k vectors), or LiteLLM
+  > embedding proxy. Decision criteria: query latency <100ms p99 at 10k vectors, no external
+  > API dependency for core memory operations, incremental indexing without full rebuild.
+  > If pgvector is used, migration path from file-based store must be defined. Target decision
+  > point: before P19 (dashboard search).
+
 Layer 4 — Scoring & Ranking
   Memory score computed at write time, stored as field
   Sort by score at read time
@@ -1392,6 +1427,13 @@ On new memory write:
   2. Compute score delta
   3. If delta > 0.3, auto-mark lower as superseded
   4. If delta <= 0.3, flag for human review
+
+Score delta calibration (`0.3` threshold):
+  - Derived from heuristic: two memories with >30% score gap are unlikely to both be equally valid.
+  - Calibration plan: after 100 conflict events, audit auto-superseded memories.
+    If >20% of auto-superseded memories were later reinstated by user → threshold too aggressive, increase to 0.4.
+    If >30% of human-review flags are resolved as 'no conflict' → threshold too conservative, decrease to 0.25.
+  - Initial 0.3 is safe: biases toward human review, which builds calibration data faster.
 
 Target performance:
   - Memory write: <50ms
@@ -1431,6 +1473,32 @@ Decision rules:
   - project_memory and architecture_memory scoped to project
   - failure_memory can be cross-project (learn from Repo A's errors in Repo B)
   - Requires user permission for cross-project suggestion
+```
+
+### 21.6.1 Concurrent Overnight Sessions
+
+If Pi serves multiple repositories or plans concurrently during overnight mode:
+
+```text
+Per-project isolation:
+  - Each project gets its own overnight session with independent stop conditions.
+  - Observation, memory, and proposal engines remain project-scoped.
+  - LLM budget is shared across projects (total 15 calls/cycle, 10 cycles/day).
+
+Resource contention:
+  - Plan queue executes one project at a time (plan queue enforces one active plan per project).
+  - Integration queue may block cross-project dependency if file conflicts exist.
+  - Worktree isolation prevents cross-project file overlap.
+
+Morning report:
+  - Each project produces its own morning report.
+  - A summary dashboard shows all projects' overnight status.
+
+Single-user assumption for V2.5:
+  - Initial overnight mode assumes one active user.
+  - Multi-project support requires additional scheduling and priority logic.
+  - If multiple overnight sessions are scheduled, they run sequentially (one project at a time).
+  - Future V2.6+ may add parallel project execution with resource budgeting.
 ```
 
 ### 21.7 Observability Metrics
@@ -1482,7 +1550,7 @@ Pi V2 must never auto-execute:
 
 ---
 
-## 22. Initial V2 Operating Mode
+## 23. Initial V2 Operating Mode
 
 Recommended initial settings:
 
@@ -1505,9 +1573,9 @@ This gives Pi enough autonomy to become useful without becoming unsafe.
 
 ---
 
-## 23. Risk & Rollback Strategy
+## 24. Risk & Rollback Strategy
 
-### 23.1 Risk: Bad Memory Influences Planning
+### 24.1 Risk: Bad Memory Influences Planning
 
 Rollback:
 
@@ -1516,7 +1584,7 @@ Rollback:
 3. Re-run proposal scoring without that memory.
 4. Preserve audit trail.
 
-### 23.2 Risk: Proposal Engine Produces Noise
+### 24.2 Risk: Proposal Engine Produces Noise
 
 Rollback:
 
@@ -1525,7 +1593,7 @@ Rollback:
 3. Add cooldown for rejected categories.
 4. Disable auto-proposal generation if needed.
 
-### 23.3 Risk: Goal Model Drifts
+### 24.3 Risk: Goal Model Drifts
 
 Rollback:
 
@@ -1533,7 +1601,7 @@ Rollback:
 2. Ask user for goal review.
 3. Revert to last confirmed goal snapshot.
 
-### 23.4 Risk: Plan Factory Generates Bad Plans
+### 24.4 Risk: Plan Factory Generates Bad Plans
 
 Rollback:
 
@@ -1542,7 +1610,7 @@ Rollback:
 3. Require doctor and approval.
 4. Create repair proposal.
 
-### 23.5 Risk: Overnight Execution Stops Unexpectedly
+### 24.5 Risk: Overnight Execution Stops Unexpectedly
 
 Rollback:
 
@@ -1553,22 +1621,41 @@ Rollback:
 
 ---
 
-## 24. Open Questions
+## 25. Open Questions
 
-1. Should Pi be allowed to auto-generate plans without asking first?
-2. Should Pi be allowed to auto-enqueue generated plans, or only draft them?
-3. Which memory sources require approval before indexing?
-4. What confidence threshold is required for auto-decisions?
-5. Should user preferences live in memory, settings, or both?
-6. How should Pi explain rejected alternatives?
-7. Should the Proposal Engine optimize for speed, safety, or strategic value by default?
-8. What should the morning report include?
-9. How much dashboard control should exist for autonomy levels?
-10. When is V2 trusted enough to enable Autonomous Strategist mode?
+1. [CLOSED] Should Pi be allowed to auto-generate plans without asking first?
+   **Decision:** No. Plan Factory generates drafts only. User must explicitly approve before any plan is considered for execution.
+
+2. [CLOSED] Should Pi be allowed to auto-enqueue generated plans, or only draft them?
+   **Decision:** Drafts only. Auto-enqueue is forbidden until user explicitly approves. This is a hard rule enforced by the Policy Engine (P18).
+
+3. [DEFERRED — resolved at implementation time] Which memory sources require approval before indexing?
+   **Rationale:** The set of sensitive sources depends on workspace configuration and extension trust model, which are not fully scoped yet. Flag as a config item in P14 memory indexing.
+
+4. [CLOSED] What confidence threshold is required for auto-decisions?
+   **Decision:** 0.85. Any decision with confidence below 0.85 is classified as `approval_required` by the P15 Decision Classifier. This threshold applies to all auto-decide actions (proposal generation, queue reordering, etc.).
+
+5. [CLOSED] Should user preferences live in memory, settings, or both?
+   **Decision:** Hybrid. `user_preference_memory` (typed memory record with provenance) lives in the P14 memory store. The `autonomy_profile` (level, approved categories, forbidden actions) lives in settings for fast path read. Both are source of truth for their respective concerns.
+
+6. [DEFERRED — resolved at implementation time] How should Pi explain rejected alternatives?
+   **Rationale:** UX copy and format depend on the dashboard UI (P19) and the reflection output structure (P17). Implement as a template in P19, not a separate system.
+
+7. [DEFERRED — resolved at implementation time] Should the Proposal Engine optimize for speed, safety, or strategic value by default?
+   **Rationale:** Safety is the default for V2. Strategic value vs. speed can be tuned via the calibration strategy in Section 8 after initial user feedback. No architectural decision needed now.
+
+8. [DEFERRED — resolved at implementation time] What should the morning report include?
+   **Rationale:** Morning report content is defined by P20 acceptance criteria. Defer to P20 spec writing when the data model (observations, proposals, reflections) is concrete.
+
+9. [DEFERRED — resolved at implementation time] How much dashboard control should exist for autonomy levels?
+   **Rationale:** Autonomy level toggles, approval gates, and audit viewer are defined in P19 UX mockups. Defer to P19 design phase.
+
+10. [DEFERRED — resolved at implementation time] When is V2 trusted enough to enable Autonomous Strategist mode?
+    **Rationale:** Trust readiness is gated by P20 dogfood results: proposal acceptance rate >50%, reflection accuracy >70%, and zero unauthorized actions over a 7-day soak. This criteria is captured in P20 exit criteria, not an open question.
 
 ---
 
-## 25. Recommended Next Step
+## 26. Recommended Next Step
 
 Create the first executable V2 phase:
 
@@ -1589,7 +1676,7 @@ P13 should make Pi capable of seeing, summarizing, and preparing decisions.
 
 ---
 
-## 26. Compact Mental Model
+## 27. Compact Mental Model
 
 ```text
 V1: Execute my plans.
