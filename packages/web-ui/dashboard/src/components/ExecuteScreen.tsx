@@ -5,7 +5,7 @@
  * and a live transcript panel showing the agent's real-time thoughts.
  */
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
 	ChevronDown,
 	ChevronRight,
@@ -17,10 +17,14 @@ import {
 	Terminal,
 	AlertTriangle,
 	FileText,
+	Layers,
+	GitMerge,
+	ArrowRight,
 } from "lucide-react";
 import { useExecutionStats } from "../hooks/useExecutionStats";
+import { usePlanWorkspaces } from "../hooks/usePlanWorkspaces";
 import { usePlanTranscript } from "../hooks/usePlanTranscript";
-import type { WorkerTranscriptEvent } from "../types";
+import type { WorkerTranscriptEvent, BatchPlanResult, WorkspaceSummary } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +37,8 @@ export interface FileExecutionState {
 	error?: string;
 	/** Whether this file runs sequentially (after previous) */
 	isSequential?: boolean;
+	/** Batch plan from validation (for DAG visualization) */
+	batchPlan?: BatchPlanResult;
 }
 
 interface ExecuteScreenProps {
@@ -172,6 +178,222 @@ function WorkspaceCounts({
 }
 
 // ---------------------------------------------------------------------------
+// DAG Execution View — visual batch/step progress with workspace cards
+// ---------------------------------------------------------------------------
+
+interface DagExecutionViewProps {
+	batchPlan: BatchPlanResult;
+	workspaces: WorkspaceSummary[];
+}
+
+/** Map workspace stages to display status. */
+function wsStatus(ws: WorkspaceSummary): "pending" | "active" | "complete" | "failed" | "blocked" {
+	const s = ws.stage;
+	if (s === "pending" || s === "queued") return "pending";
+	if (s === "active" || s === "running" || s === "executing") return "active";
+	if (s === "complete" || s === "completed") return "complete";
+	if (s === "failed") return "failed";
+	if (s === "blocked") return "blocked";
+	return "pending";
+}
+
+// Status color config
+const WS_STATUS = {
+	pending: { bg: "bg-gray-800", border: "border-gray-700", text: "text-gray-500", label: "pending", labelCls: "text-gray-400" },
+	active: { bg: "bg-blue-900/40", border: "border-blue-600", text: "text-blue-200", label: "active", labelCls: "text-blue-300" },
+	complete: { bg: "bg-emerald-900/40", border: "border-emerald-600", text: "text-emerald-200", label: "done", labelCls: "text-emerald-300" },
+	failed: { bg: "bg-red-900/40", border: "border-red-600", text: "text-red-200", label: "failed", labelCls: "text-red-300" },
+	blocked: { bg: "bg-amber-900/40", border: "border-amber-600", text: "text-amber-200", label: "blocked", labelCls: "text-amber-300" },
+} as const;
+
+function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
+	// Build workspace lookup: id -> status
+	const wsMap = useMemo(() => {
+		const m = new Map<string, WorkspaceSummary>();
+		for (const ws of workspaces) {
+			m.set(ws.id, ws);
+		}
+		return m;
+	}, [workspaces]);
+
+	// Resolve workspace status for each batch
+	const batchStatuses = useMemo(() => {
+		return batchPlan.batches.map((batch) => {
+			const items = batch.workspaceIds.map((wsId) => {
+				const ws = wsMap.get(wsId);
+				const status = ws ? wsStatus(ws) : "pending";
+				return { wsId, status, title: ws?.id ?? wsId };
+			});
+
+			// Determine batch-level progress
+			const done = items.filter((i) => i.status === "complete").length;
+			const active = items.filter((i) => i.status === "active").length;
+			const failed = items.filter((i) => i.status === "failed").length;
+			const blocked = items.filter((i) => i.status === "blocked").length;
+			const pending = items.filter((i) => i.status === "pending").length;
+			const total = items.length;
+
+			// A batch is "current" if it has active workspaces or
+			// is the first batch not yet fully completed
+			const isActive = active > 0;
+			const isComplete = done + failed === total;
+
+			return {
+				batchIndex: batch.batchIndex,
+				items,
+				done,
+				active,
+				failed,
+				blocked,
+				pending,
+				total,
+				isActive,
+				isComplete,
+			};
+		});
+	}, [batchPlan, wsMap]);
+
+	// Determine current batch (first non-complete with active, or first non-complete)
+	const currentBatchIndex = useMemo(() => {
+		const activeBatch = batchStatuses.find((b) => b.isActive);
+		if (activeBatch) return activeBatch.batchIndex;
+		const firstIncomplete = batchStatuses.find((b) => !b.isComplete);
+		return firstIncomplete?.batchIndex ?? -1;
+	}, [batchStatuses]);
+
+	if (batchPlan.batches.length === 0) return null;
+
+	return (
+		<div className="space-y-1.5 mt-2">
+			{/* Legend */}
+			<div className="flex items-center gap-3 text-[8px] text-gray-500 pb-1 border-b border-gray-800 mb-1">
+				<span className="font-semibold uppercase tracking-wider">Batch DAG</span>
+				{batchPlan.batches.length > 1 && (
+					<>
+						{batchPlan.effectiveParallelism > 1 ? (
+							<span>Tiered · max {batchPlan.effectiveParallelism} parallel</span>
+						) : (
+							<span>Sequential</span>
+						)}
+					</>
+				)}
+				<span className="ml-auto">
+					{batchPlan.totalBatches} batch{batchPlan.totalBatches > 1 ? "es" : ""}
+				</span>
+			</div>
+
+			{/* Batch rows */}
+			{batchStatuses.map((batch) => {
+				const isCurrent = batch.batchIndex === currentBatchIndex;
+
+				// Batch progress bar color
+				const batchBarColor = batch.failed > 0
+					? "bg-red-500"
+					: batch.isActive
+						? "bg-blue-500"
+						: batch.isComplete
+							? "bg-emerald-500"
+							: "bg-gray-700";
+
+				const batchPct = batch.total > 0
+					? ((batch.done + batch.failed) / batch.total) * 100
+					: 0;
+
+				return (
+					<div
+						key={batch.batchIndex}
+						className={`pl-3 border-l-2 transition-colors ${
+							isCurrent
+								? "border-blue-500 bg-blue-900/10 rounded"
+								: batch.isComplete
+									? "border-emerald-700"
+									: "border-gray-700"
+						}`}
+					>
+						{/* Batch header */}
+						<div className="flex items-center gap-2 py-1">
+							<span
+								className={`text-[10px] font-bold shrink-0 ${
+									isCurrent
+										? "text-blue-300"
+										: batch.isComplete
+											? "text-emerald-400"
+											: "text-gray-500"
+								}`}
+							>
+								Step {batch.batchIndex}
+							</span>
+
+							{/* Mini progress bar */}
+							<div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden max-w-[100px]">
+								<div
+									className={`h-full rounded-full transition-all duration-500 ${batchBarColor}`}
+									style={{ width: `${Math.min(batchPct, 100)}%` }}
+								/>
+							</div>
+
+							{/* Counts */}
+							<span className="text-[9px] text-gray-500 tabular-nums">
+								{batch.done + batch.failed}/{batch.total}
+								{batch.active > 0 && (
+									<span className="text-blue-400 ml-1">· {batch.active} active</span>
+								)}
+							</span>
+
+							{isCurrent && (
+								<span className="text-[8px] uppercase tracking-wider font-bold text-blue-400 ml-auto">
+									Running
+								</span>
+							)}
+						</div>
+
+						{/* Workspace cards row */}
+						{batch.items.length > 0 && (
+							<div className="flex flex-wrap items-center gap-1 pb-1.5">
+								{batch.items.map((item, idx) => {
+									const cfg = WS_STATUS[item.status];
+									return (
+										<>
+											{idx > 0 && batchPlan.effectiveParallelism === 1 && (
+												<ArrowRight size={6} className="text-gray-700 shrink-0" />
+											)}
+											<span
+												className={`text-[9px] px-1.5 py-0.5 rounded-sm border ${cfg.bg} ${cfg.border} ${cfg.text} ${
+													item.status === "active" ? "animate-pulse" : ""
+												}`}
+												title={`${item.wsId} \u2014 ${cfg.label}`}
+											>
+												{item.wsId.length > 16
+													? item.wsId.slice(0, 14) + ".."
+													: item.wsId}
+											</span>
+										</>
+									);
+								})}
+							</div>
+						)}
+					</div>
+				);
+			})}
+
+			{/* Legend mini */}
+			<div className="flex items-center gap-2 text-[8px] text-gray-600 pt-0.5">
+				<span className="inline-block w-2 h-2 rounded bg-blue-600" />
+				active
+				<span className="inline-block w-2 h-2 rounded bg-emerald-600 ml-1" />
+				done
+				<span className="inline-block w-2 h-2 rounded bg-red-600 ml-1" />
+				failed
+				<span className="inline-block w-2 h-2 rounded bg-amber-600 ml-1" />
+				blocked
+				<span className="inline-block w-2 h-2 rounded bg-gray-700 ml-1" />
+				pending
+			</div>
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
 // PlanExecutionRow — per-file execution with workspace stats
 // ---------------------------------------------------------------------------
 
@@ -189,7 +411,15 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 		intervalMs: 2000,
 	});
 
+	// Poll workspace list for DAG visualization
+	const { workspaces } = usePlanWorkspaces({
+		projectId: exec.status === "running" || exec.status === "completed" ? projectId : null,
+		planExecId: exec.executionId ?? null,
+		intervalMs: 3000,
+	});
+
 	const hasWorkspaceData = stats && stats.total > 0;
+	const hasDagData = exec.batchPlan && workspaces.length > 0;
 
 	return (
 		<div

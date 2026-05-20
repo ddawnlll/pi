@@ -81,17 +81,20 @@ export function usePlanWorkspaces({
 					throw new Error(`Workspaces fetch failed: ${res.status}`);
 				}
 
-				const data: WorkspaceSummary[] = await res.json();
+				const body = await res.json();
 				if (!activeRef.current) return;
 
-				setWorkspaces(data);
+				// The endpoint returns { workspaces: [...] }
+				const list: WorkspaceSummary[] = body.workspaces ?? [];
+
+				setWorkspaces(list);
 				setError(null);
 
 				// Stop polling if all workspaces have completed or failed
-				const allDone = data.every(
+				const allDone = list.every(
 					(w) => w.stage === "complete" || w.stage === "failed" || w.stage === "blocked",
 				);
-				if (allDone && data.length > 0) {
+				if (allDone && list.length > 0) {
 					if (timerRef.current) {
 						clearInterval(timerRef.current);
 						timerRef.current = null;

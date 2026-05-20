@@ -480,10 +480,12 @@ export function PlanUploadDialog({
 		for (let i = 0; i < fileEntries.length; i++) {
 			const entry = fileEntries[i];
 			const isSequential = executionMode === "sequential" && i > 0;
+			const result = validationResults.get(entry.file.name);
 			execStates.push({
 				fileName: entry.file.name,
 				status: isSequential ? "queued" : "running",
 				isSequential,
+				batchPlan: result?.batchPlan,
 			});
 		}
 		setExecutions(execStates);
