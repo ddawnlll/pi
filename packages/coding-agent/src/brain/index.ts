@@ -188,6 +188,24 @@ export {
 	OvernightOrchestrator,
 	SessionStore,
 } from "./overnight/index.js";
+// Proposal API (P16.F)
+export {
+	BrainProposalApi,
+	type EvidenceDetail,
+	type ProposalAcceptResult,
+	type ProposalCorrectResult,
+	type ProposalCreateResult,
+	type ProposalExpireResult,
+	type ProposalRejectResult,
+} from "./proposals/api.js";
+// Proposal Deduplication (P16.D)
+export {
+	DEFAULT_COOLDOWNS as DEFAULT_PROPOSAL_COOLDOWNS,
+	type DedupConfig,
+	type DedupConfigInput,
+	ProposalDeduplication as DedupEngine,
+	type SuppressionLogEntry,
+} from "./proposals/dedup.js";
 // Proposal Generator (P16.B)
 export {
 	DEFAULT_GENERATOR_CONFIG,
@@ -212,6 +230,8 @@ export {
 	type ScoringConfig as ProposalScoringConfig,
 	type ScoringWeights as ProposalScoringWeights,
 } from "./proposals/scoring.js";
+// Proposal Store (P16.F)
+export { InMemoryProposalStore } from "./proposals/store.js";
 // Proposal Domain Model (P16.A)
 export type {
 	InboxEntry,

@@ -4574,6 +4574,16 @@ const { registerOrchestratorRoutes } = await import("./orchestrator-routes.js");
 await registerOrchestratorRoutes(fastify, getPiDir, getWorkspaceRoot);
 
 // ---------------------------------------------------------------------------
+// Brain Proposal API Routes (P16.F — Proposal API)
+// ---------------------------------------------------------------------------
+
+const { registerBrainProposalRoutes } = await import("./routes/brain/proposals.js");
+const { BrainProposalApi, InMemoryProposalStore } = await import("@earendil-works/pi-coding-agent");
+const proposalStore = new InMemoryProposalStore();
+const proposalApi = new BrainProposalApi(proposalStore);
+await registerBrainProposalRoutes(fastify, proposalApi);
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 
