@@ -1,0 +1,10 @@
+{
+  "id": "pref-exec-001",
+  "category": "execution",
+  "key": "parallel_execution_preference",
+  "value": false,
+  "source": "user_explicit",
+  "confidence": 1.0,
+  "description": "User prefers sequential execution over parallel for critical paths to reduce risk of cascading failures.",
+  "updatedAt": "2026-05-10T09:00:00.000Z"
+}

@@ -184,11 +184,21 @@ function createMemoryRecord(overrides?: Partial<MemoryRecord>): MemoryRecord {
 }
 
 function createGoalRecord(overrides?: Partial<GoalRecord>): GoalRecord {
+	const now = new Date().toISOString();
 	return {
 		id: overrides?.id ?? `goal-${Math.random().toString(36).slice(2, 8)}`,
 		title: overrides?.title ?? "Test goal",
-		priority: overrides?.priority ?? "medium",
+		description: overrides?.description ?? "Test goal description",
+		priority: overrides?.priority ?? "normal",
 		status: overrides?.status ?? "active",
+		category: overrides?.category ?? "general",
+		milestones: overrides?.milestones ?? [],
+		createdAt: overrides?.createdAt ?? now,
+		updatedAt: overrides?.updatedAt ?? now,
+		completedAt: overrides?.completedAt,
+		targetDate: overrides?.targetDate,
+		relatedMemoryIds: overrides?.relatedMemoryIds ?? [],
+		metadata: overrides?.metadata ?? {},
 	};
 }
 

@@ -1,0 +1,56 @@
+{
+  "id": "goal-primary-001",
+  "title": "Build Pi into a trusted second brain",
+  "description": "Build Pi into a trusted second brain that can propose, plan, queue, execute approved work, and learn from outcomes.",
+  "priority": "critical",
+  "status": "active",
+  "category": "vision",
+  "milestones": [
+    {
+      "id": "ms-001",
+      "title": "Implement goal and preference domain model",
+      "description": "Define types for goals, preferences, autonomy, decisions, and drift",
+      "completed": true,
+      "completedAt": "2026-05-21T10:00:00.000Z",
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "order": 1
+    },
+    {
+      "id": "ms-002",
+      "title": "Implement goal persistence store",
+      "description": "CRUD operations for goals, preferences, and autonomy profiles",
+      "completed": false,
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "order": 2
+    },
+    {
+      "id": "ms-003",
+      "title": "Implement autonomy engine and decision classifier",
+      "completed": false,
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "order": 3
+    },
+    {
+      "id": "ms-004",
+      "title": "Implement goal drift detection",
+      "completed": false,
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "order": 4
+    },
+    {
+      "id": "ms-005",
+      "title": "Implement user protocol actions and goal board UI",
+      "completed": false,
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "order": 5
+    }
+  ],
+  "createdAt": "2026-05-20T08:00:00.000Z",
+  "updatedAt": "2026-05-21T10:00:00.000Z",
+  "targetDate": "2026-07-01T00:00:00.000Z",
+  "relatedMemoryIds": ["mem-arch-001", "mem-decision-001", "mem-plan-001"],
+  "metadata": {
+    "phase": "P15",
+    "milestone": "1b"
+  }
+}

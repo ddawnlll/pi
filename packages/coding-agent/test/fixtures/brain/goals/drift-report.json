@@ -1,0 +1,33 @@
+{
+  "id": "drift-001",
+  "goalId": "goal-primary-001",
+  "goalTitle": "Build Pi into a trusted second brain",
+  "severity": "medium",
+  "indicators": [
+    {
+      "type": "rejection_pattern",
+      "details": "Three consecutive proposals aligned with this goal were rejected by the user.",
+      "evidence": [
+        {
+          "type": "observation",
+          "path": ".pi/brain/proposals/inbox.json",
+          "id": "obs-rejection-001"
+        }
+      ],
+      "score": 0.75
+    },
+    {
+      "type": "proposal_mismatch",
+      "details": "Recent proposal was about adding UI animation which is not aligned with the primary goal.",
+      "evidence": [
+        {
+          "type": "observation",
+          "path": ".pi/brain/proposals/inbox.json",
+          "id": "obs-mismatch-001"
+        }
+      ],
+      "score": 0.6
+    }
+  ],
+  "generatedAt": "2026-05-21T12:00:00.000Z"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pref-plan-001",
+  "category": "planning",
+  "key": "prefer_queueable_phases",
+  "value": true,
+  "source": "user_explicit",
+  "confidence": 0.95,
+  "description": "User prefers queueable phases over ad-hoc changes for better tracking.",
+  "updatedAt": "2026-05-10T09:00:00.000Z"
+}

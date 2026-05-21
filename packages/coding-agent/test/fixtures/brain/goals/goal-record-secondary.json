@@ -1,0 +1,36 @@
+{
+  "id": "goal-secondary-001",
+  "title": "Improve test coverage across all packages",
+  "description": "Achieve at least 80% test coverage in each package with meaningful unit and integration tests.",
+  "priority": "high",
+  "status": "active",
+  "category": "quality",
+  "milestones": [
+    {
+      "id": "ms-101",
+      "title": "Set up coverage reporting infrastructure",
+      "completed": true,
+      "completedAt": "2026-05-18T09:00:00.000Z",
+      "createdAt": "2026-05-15T08:00:00.000Z",
+      "order": 1
+    },
+    {
+      "id": "ms-102",
+      "title": "Write tests for AI package",
+      "completed": false,
+      "createdAt": "2026-05-15T08:00:00.000Z",
+      "order": 2
+    },
+    {
+      "id": "ms-103",
+      "title": "Write tests for coding-agent package",
+      "completed": false,
+      "createdAt": "2026-05-15T08:00:00.000Z",
+      "order": 3
+    }
+  ],
+  "createdAt": "2026-05-15T08:00:00.000Z",
+  "updatedAt": "2026-05-18T09:00:00.000Z",
+  "relatedMemoryIds": [],
+  "metadata": {}
+}

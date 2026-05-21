@@ -1,0 +1,39 @@
+{
+  "id": "goal-completed-001",
+  "title": "Set up CI/CD pipeline",
+  "description": "Configure GitHub Actions for automated testing and linting on all pull requests.",
+  "priority": "normal",
+  "status": "completed",
+  "category": "infrastructure",
+  "milestones": [
+    {
+      "id": "ms-201",
+      "title": "Configure lint workflow",
+      "completed": true,
+      "completedAt": "2026-05-10T10:00:00.000Z",
+      "createdAt": "2026-05-05T08:00:00.000Z",
+      "order": 1
+    },
+    {
+      "id": "ms-202",
+      "title": "Configure test workflow",
+      "completed": true,
+      "completedAt": "2026-05-12T10:00:00.000Z",
+      "createdAt": "2026-05-05T08:00:00.000Z",
+      "order": 2
+    },
+    {
+      "id": "ms-203",
+      "title": "Add coverage reporting",
+      "completed": true,
+      "completedAt": "2026-05-14T10:00:00.000Z",
+      "createdAt": "2026-05-05T08:00:00.000Z",
+      "order": 3
+    }
+  ],
+  "createdAt": "2026-05-05T08:00:00.000Z",
+  "updatedAt": "2026-05-14T10:00:00.000Z",
+  "completedAt": "2026-05-14T10:00:00.000Z",
+  "relatedMemoryIds": [],
+  "metadata": {}
+}

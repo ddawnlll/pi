@@ -1,0 +1,12 @@
+{
+  "userId": "default",
+  "level": 2,
+  "approvedCategories": ["execution", "planning"],
+  "forbiddenActions": ["secret_access", "destructive_cleanup", "git_push", "irreversible_deletion", "bypass_validation_gate"],
+  "approvalThresholds": {
+    "plan_execution": "approval",
+    "system_mutation": "approval"
+  },
+  "updatedAt": "2026-05-20T08:00:00.000Z",
+  "createdAt": "2026-05-20T08:00:00.000Z"
+}

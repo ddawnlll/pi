@@ -1,0 +1,10 @@
+{
+  "id": "pref-aut-001",
+  "category": "autonomy",
+  "key": "default_autonomy_level",
+  "value": 2,
+  "source": "system_default",
+  "confidence": 1.0,
+  "description": "Default autonomy level is Planner: can generate and validate plans but not execute.",
+  "updatedAt": "2026-05-20T08:00:00.000Z"
+}
