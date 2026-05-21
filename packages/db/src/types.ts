@@ -291,6 +291,29 @@ export interface AuditEventTable {
 	created_at: Generated<string>;
 }
 
+export interface ProposalRubricTable {
+	id: Generated<string>;
+	project_id: string;
+	name: string;
+	description: string | null;
+	criteria: ColumnType<RubricCriterion[], RubricCriterion[], RubricCriterion[]>;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
+}
+
+export interface ProposalScoreTable {
+	id: Generated<string>;
+	proposal_id: string;
+	rubric_id: string;
+	scores: ColumnType<CriterionScore[], CriterionScore[], CriterionScore[]>;
+	total_score: number;
+	max_score: number;
+	summary: string | null;
+	scored_by: string;
+	scored_at: ColumnType<string, string, string | undefined>;
+	created_at: Generated<string>;
+}
+
 export interface Database {
 	projects: ProjectTable;
 	plan_executions: PlanExecutionTable;
@@ -304,6 +327,8 @@ export interface Database {
 	audit_events: AuditEventTable;
 	control_requests: ControlRequestTable;
 	transcript_events: TranscriptEventTable;
+	proposal_rubrics: ProposalRubricTable;
+	proposal_scores: ProposalScoreTable;
 	_migrations: MigrationsTable;
 }
 
@@ -468,3 +493,11 @@ export type ControlRequestUpdate = Updateable<ControlRequestTable>;
 
 export type TranscriptEvent = Selectable<TranscriptEventTable>;
 export type NewTranscriptEvent = Insertable<TranscriptEventTable>;
+
+export type ProposalRubric = Selectable<ProposalRubricTable>;
+export type NewProposalRubric = Insertable<ProposalRubricTable>;
+export type ProposalRubricUpdate = Updateable<ProposalRubricTable>;
+
+export type ProposalScore = Selectable<ProposalScoreTable>;
+export type NewProposalScore = Insertable<ProposalScoreTable>;
+export type ProposalScoreUpdate = Updateable<ProposalScoreTable>;

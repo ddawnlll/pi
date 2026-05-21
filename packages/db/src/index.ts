@@ -42,9 +42,14 @@ export {
 	PlanRevisionRepository,
 	ProjectRepository,
 	ProposalRepository,
+	ProposalRubricRepository,
+	ProposalScoreRepository,
 	WorkspaceExecutionRepository,
 	WorkspaceLogRepository,
 } from "./repositories/index.js";
+
+// Scoring Engine
+export { ProposalRankingEngine, ProposalScorer, type ScoringInput, type ScoringOutput } from "./scoring/index.js";
 
 // Types
 export type {
@@ -58,6 +63,7 @@ export type {
 	ControlRequest,
 	ControlRequestTable,
 	ControlRequestUpdate,
+	CriterionScore,
 	Database,
 	JournalEvent,
 	JournalEventRow,
@@ -75,6 +81,8 @@ export type {
 	NewPlanRevision,
 	NewProject,
 	NewProposal,
+	NewProposalRubric,
+	NewProposalScore,
 	NewTranscriptEvent,
 	NewWorkspaceExecution,
 	NewWorkspaceLog,
@@ -89,8 +97,17 @@ export type {
 	ProjectUpdate,
 	Proposal,
 	ProposalRow,
+	ProposalRubric,
+	ProposalRubricRow,
+	ProposalRubricTable,
+	ProposalRubricUpdate,
+	ProposalScore,
+	ProposalScoreRow,
+	ProposalScoreTable,
+	ProposalScoreUpdate,
 	ProposalTable,
 	ProposalUpdate,
+	RubricCriterion,
 	TranscriptEvent,
 	TranscriptEventTable,
 	WorkspaceExecution,
