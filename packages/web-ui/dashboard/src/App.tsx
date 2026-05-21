@@ -59,6 +59,7 @@ import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
+import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
 
@@ -210,6 +211,7 @@ export function App() {
   const showMemory           = activeView.type === "platform" && activeView.screen === "memory";
   const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
+  const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
 
@@ -717,6 +719,8 @@ export function App() {
                           <MemoryCockpit className="flex-1 min-h-0" />
                         ) : showPolicyAudit ? (
                           <PolicyAuditCenter className="flex-1 min-h-0" />
+                        ) : showTrustDashboard ? (
+                          <TrustDashboard className="flex-1 min-h-0" />
                         ) : showExtensions ? (
                           <ExtensionsManager className="flex-1 min-h-0" />
                         ) : showSkills ? (

@@ -1,0 +1,191 @@
+[
+	{
+		"id": "allow_001",
+		"name": "Retry transient failures",
+		"description": "Allow Pi to retry transient network or service failures automatically",
+		"condition": { "action": "retry_transient_failure" },
+		"decision": "allow",
+		"priority": 100,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "allow_002",
+		"name": "Generate draft proposals",
+		"description": "Allow Pi to generate draft proposals from observations and memory",
+		"condition": { "action": "generate_draft_proposal" },
+		"decision": "allow",
+		"priority": 100,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "allow_003",
+		"name": "Create read-only summaries",
+		"description": "Allow Pi to create read-only summaries of execution results",
+		"condition": { "action": "create_read_only_summary" },
+		"decision": "allow",
+		"priority": 100,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "allow_004",
+		"name": "Observe system state",
+		"description": "Allow Pi to observe execution state, queue state, and file state",
+		"condition": { "action": "observe_system_state" },
+		"decision": "allow",
+		"priority": 100,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "allow_005",
+		"name": "Query memory",
+		"description": "Allow Pi to query memory records for planning and proposals",
+		"condition": { "action": "memory_query" },
+		"decision": "allow",
+		"priority": 100,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "appr_001",
+		"name": "Execute generated plans",
+		"description": "Require user approval before executing any generated plan",
+		"condition": { "action": "execute_generated_plan" },
+		"decision": "approval_required",
+		"priority": 90,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "appr_002",
+		"name": "Protected system mutation",
+		"description": "Require approval for changes to protected systems (core, config, etc.)",
+		"condition": { "action": "protected_system_mutation" },
+		"decision": "approval_required",
+		"priority": 90,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "appr_003",
+		"name": "Create memory from observations",
+		"description": "Require approval before creating new memory records from LLM output",
+		"condition": { "action": "memory_creation" },
+		"decision": "approval_required",
+		"priority": 90,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "appr_004",
+		"name": "High-risk action",
+		"description": "Require approval for high or critical risk actions",
+		"condition": {
+			"action": "*",
+			"riskLevel": ["high", "critical"]
+		},
+		"decision": "approval_required",
+		"priority": 85,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "appr_005",
+		"name": "Autonomy level 4 actions",
+		"description": "Require approval for actions at autonomy level 4 (strategic)",
+		"condition": {
+			"action": "*",
+			"minAutonomyLevel": 4
+		},
+		"decision": "approval_required",
+		"priority": 80,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "deny_001",
+		"name": "Block unknown actions",
+		"description": "Block actions that match no other rule (catch-all deny)",
+		"condition": { "action": "unknown_action" },
+		"decision": "deny",
+		"priority": 1,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "forbid_001",
+		"name": "Never access secrets",
+		"description": "Forbid accessing secrets, keys, or credentials",
+		"condition": { "action": "access_secrets" },
+		"decision": "forbidden",
+		"priority": 200,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "forbid_002",
+		"name": "Never destructive cleanup",
+		"description": "Forbid destructive cleanup operations",
+		"condition": { "action": "destructive_cleanup" },
+		"decision": "forbidden",
+		"priority": 200,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "glob_001",
+		"name": "Glob match memory actions",
+		"description": "Approve actions matching memory_* pattern",
+		"condition": { "action": "memory_*" },
+		"decision": "approval_required",
+		"priority": 95,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	},
+	{
+		"id": "context_001",
+		"name": "Autonomy level 1 only read",
+		"description": "At autonomy level 1, only read/observe actions are allowed",
+		"condition": {
+			"action": "execute_generated_plan",
+			"maxAutonomyLevel": 1
+		},
+		"decision": "deny",
+		"priority": 95,
+		"enabled": true,
+		"metadata": {},
+		"createdAt": "2026-05-19T00:00:00.000Z",
+		"updatedAt": "2026-05-19T00:00:00.000Z"
+	}
+]

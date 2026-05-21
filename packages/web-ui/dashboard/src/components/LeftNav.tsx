@@ -20,6 +20,7 @@ import {
 	Inbox,
 	Package,
 	ScrollText,
+	Shield,
 	ShieldAlert,
 	Sliders,
 	Target,
@@ -47,6 +48,7 @@ export type PlatformNavItem =
 	| "extensions_skills"
 	| "memory"
 	| "policy_audit"
+	| "trust_dashboard"
 	| "registry_settings";
 
 export interface PlatformNavEntry {
@@ -98,6 +100,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Policy & Audit",
 		icon: ShieldAlert,
 		description: "Permissions, approvals, audit timeline",
+	},
+	{
+		id: "trust_dashboard",
+		label: "Trust Dashboard",
+		icon: Shield,
+		description: "Trust metrics, safety, approvals, audit health",
 	},
 	{
 		id: "registry_settings",
