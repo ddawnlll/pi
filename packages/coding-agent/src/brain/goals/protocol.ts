@@ -15,9 +15,7 @@ export interface RejectionRecord {
 export interface WhatCompletedEntry {
 	id: string;
 }
-export class UserProtocol {
-	constructor(config?: NightProtocolConfig) {}
-}
+export class UserProtocol {}
 export const ALL_NIGHT_PROTOCOL_STOP_CONDITIONS: NightProtocolStopCondition[] = [];
 export const DEFAULT_NIGHT_MAX_DURATION_HOURS = 8;
 export const DEFAULT_NIGHT_PROTOCOL_STOP_CONDITIONS: NightProtocolStopCondition[] = [];

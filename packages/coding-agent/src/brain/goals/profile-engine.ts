@@ -134,6 +134,22 @@ export const DEFAULT_AUTONOMY_CONFIG: AutonomyConfig = {
 export const DEFAULT_DECISION_RULES: Array<{ id: string; action: string }> = [];
 
 /**
+ * Actions that are inherently dangerous and forbidden at ALL autonomy levels.
+ *
+ * These actions appear in forbiddenFor for levels 3 and 4 in the canonical
+ * AUTONOMY_CAPABILITIES data. Lower levels (1 and 2) have empty forbiddenFor
+ * arrays, but these actions must still be blocked to satisfy the acceptance
+ * criteria: "Forbidden actions blocked regardless of level."
+ */
+const GLOBALLY_FORBIDDEN_ACTIONS: readonly string[] = [
+	"secret_access",
+	"destructive_cleanup",
+	"git_push",
+	"irreversible_deletion",
+	"bypass_validation_gate",
+];
+
+/**
  * Mapping from action names to capability boolean fields on AutonomyCapabilities.
  *
  * This allows the engine to look up whether a given action is permitted
@@ -205,11 +221,13 @@ export class AutonomyEngine {
 	 * autonomy level.
 	 *
 	 * The check follows this priority:
-	 * 1. Emergency stop → block everything
-	 * 2. Forbidden actions → blocked regardless of level
-	 * 3. Capability-mapped action → allowed if capability true, else requires approval
-	 * 4. Approval thresholds → respect per-action overrides
-	 * 5. Unknown action → requires approval (safe default)
+	 * 1. Emergency stop — block everything
+	 * 2. Forbidden actions (globally forbidden + level-based + profile-based) — blocked regardless of level
+	 * 3. Profile "auto" threshold override — allow
+	 * 4. Profile "approval" threshold override — require approval
+	 * 5. Capability-mapped action — allowed if capability true, else requires approval
+	 * 6. Level-based requiresApprovalFor — require approval
+	 * 7. Unknown action — requires approval (safe default)
 	 *
 	 * @param action - The action to check (e.g. "plan_execution")
 	 * @param profile - The autonomy profile to evaluate against
@@ -237,8 +255,8 @@ export class AutonomyEngine {
 
 		const caps = this.getCapabilities(profile.level);
 
-		// 2. Check forbidden actions
-		const allForbidden = [...caps.forbiddenFor, ...profile.forbiddenActions];
+		// 2. Check forbidden actions (globally forbidden + level-based + profile-based)
+		const allForbidden = [...GLOBALLY_FORBIDDEN_ACTIONS, ...caps.forbiddenFor, ...profile.forbiddenActions];
 		const profileThreshold = profile.approvalThresholds[action];
 
 		if (allForbidden.includes(action) || profileThreshold === "forbidden") {
@@ -258,7 +276,7 @@ export class AutonomyEngine {
 			};
 		}
 
-		// Check profile-level approval threshold override for "auto"
+		// 3. Check profile-level approval threshold override for "auto"
 		if (profileThreshold === "auto") {
 			this.emitEvent({
 				type: "authorization",
@@ -276,7 +294,25 @@ export class AutonomyEngine {
 			};
 		}
 
-		// 3. Check capability-mapped actions
+		// 4. Check profile-level approval threshold override for "approval"
+		if (profileThreshold === "approval") {
+			this.emitEvent({
+				type: "authorization",
+				timestamp: new Date().toISOString(),
+				action,
+				allowed: false,
+				autonomyLevel: profile.level,
+				details: { reason: "approval_threshold_requires_approval" },
+			});
+			return {
+				allowed: false,
+				requiresApproval: true,
+				isForbidden: false,
+				reason: `Action "${action}" requires approval per profile threshold`,
+			};
+		}
+
+		// 5. Check capability-mapped actions
 		const capabilityKey = ACTION_TO_CAPABILITY[action];
 		if (capabilityKey) {
 			const isAllowed = caps[capabilityKey] as boolean;
@@ -296,7 +332,7 @@ export class AutonomyEngine {
 						allowed: false,
 						requiresApproval: true,
 						isForbidden: false,
-						reason: `Level 3 requires approval for plan execution per configuration`,
+						reason: "Level 3 requires approval for plan execution per configuration",
 					};
 				}
 
@@ -334,8 +370,8 @@ export class AutonomyEngine {
 			};
 		}
 
-		// 4. Check if action requires approval per level capabilities
-		if (caps.requiresApprovalFor.includes(action)) {
+		// 6. Check if action requires approval per level capabilities
+		if (caps.requiresApprovalFor.includes(action) || profileThreshold === "approval") {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
@@ -352,7 +388,7 @@ export class AutonomyEngine {
 			};
 		}
 
-		// 5. Unknown action — safe default: requires approval
+		// 7. Unknown action — safe default: requires approval
 		this.emitEvent({
 			type: "authorization",
 			timestamp: new Date().toISOString(),
@@ -430,7 +466,7 @@ export class AutonomyEngine {
 	 */
 	getAllowedActions(profile: AutonomyProfile): string[] {
 		const caps = this.getCapabilities(profile.level);
-		const forbidden = new Set([...caps.forbiddenFor, ...profile.forbiddenActions]);
+		const forbidden = new Set([...GLOBALLY_FORBIDDEN_ACTIONS, ...caps.forbiddenFor, ...profile.forbiddenActions]);
 
 		const allowed: string[] = [];
 
@@ -461,7 +497,7 @@ export class AutonomyEngine {
 	 */
 	getForbiddenActions(profile: AutonomyProfile): string[] {
 		const caps = this.getCapabilities(profile.level);
-		const forbidden = new Set([...caps.forbiddenFor, ...profile.forbiddenActions]);
+		const forbidden = new Set([...GLOBALLY_FORBIDDEN_ACTIONS, ...caps.forbiddenFor, ...profile.forbiddenActions]);
 
 		// Include explicit "forbidden" thresholds
 		for (const [action, threshold] of Object.entries(profile.approvalThresholds)) {

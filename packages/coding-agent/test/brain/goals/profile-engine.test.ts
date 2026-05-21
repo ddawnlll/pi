@@ -19,12 +19,7 @@
  */
 
 import { beforeEach, describe, expect, test } from "vitest";
-import {
-	type AutonomyCheck,
-	type AutonomyConfig,
-	AutonomyEngine,
-	type AutonomyEngineEvent,
-} from "../../../src/brain/goals/profile-engine.js";
+import { AutonomyEngine, type AutonomyEngineEvent } from "../../../src/brain/goals/profile-engine.js";
 import { type AutonomyLevel, type AutonomyProfile, createAutonomyProfile } from "../../../src/brain/goals/types.js";
 
 // ---------------------------------------------------------------------------
