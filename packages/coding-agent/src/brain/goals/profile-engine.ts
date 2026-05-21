@@ -240,10 +240,7 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: false,
-				autonomyLevel: profile.level,
-				details: { reason: "emergency_stop" },
+				details: { reason: "emergency_stop", action, allowed: false, autonomyLevel: profile.level },
 			});
 			return {
 				allowed: false,
@@ -263,10 +260,7 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: false,
-				autonomyLevel: profile.level,
-				details: { reason: "forbidden" },
+				details: { reason: "forbidden", action, allowed: false, autonomyLevel: profile.level },
 			});
 			return {
 				allowed: false,
@@ -281,10 +275,7 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: true,
-				autonomyLevel: profile.level,
-				details: { reason: "approval_threshold_auto" },
+				details: { reason: "approval_threshold_auto", action, allowed: true, autonomyLevel: profile.level },
 			});
 			return {
 				allowed: true,
@@ -299,10 +290,12 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: false,
-				autonomyLevel: profile.level,
-				details: { reason: "approval_threshold_requires_approval" },
+				details: {
+					reason: "approval_threshold_requires_approval",
+					action,
+					allowed: false,
+					autonomyLevel: profile.level,
+				},
 			});
 			return {
 				allowed: false,
@@ -323,10 +316,12 @@ export class AutonomyEngine {
 					this.emitEvent({
 						type: "authorization",
 						timestamp: new Date().toISOString(),
-						action,
-						allowed: false,
-						autonomyLevel: profile.level,
-						details: { reason: "level3_requires_approval_for_execution" },
+						details: {
+							reason: "level3_requires_approval_for_execution",
+							action,
+							allowed: false,
+							autonomyLevel: profile.level,
+						},
 					});
 					return {
 						allowed: false,
@@ -339,10 +334,7 @@ export class AutonomyEngine {
 				this.emitEvent({
 					type: "authorization",
 					timestamp: new Date().toISOString(),
-					action,
-					allowed: true,
-					autonomyLevel: profile.level,
-					details: { reason: "capability_allowed" },
+					details: { reason: "capability_allowed", action, allowed: true, autonomyLevel: profile.level },
 				});
 				return {
 					allowed: true,
@@ -356,10 +348,12 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: false,
-				autonomyLevel: profile.level,
-				details: { reason: "capability_not_granted" },
+				details: {
+					reason: "capability_not_granted",
+					action,
+					allowed: false,
+					autonomyLevel: profile.level,
+				},
 			});
 			return {
 				allowed: false,
@@ -375,10 +369,7 @@ export class AutonomyEngine {
 			this.emitEvent({
 				type: "authorization",
 				timestamp: new Date().toISOString(),
-				action,
-				allowed: false,
-				autonomyLevel: profile.level,
-				details: { reason: "requires_approval" },
+				details: { reason: "requires_approval", action, allowed: false, autonomyLevel: profile.level },
 			});
 			return {
 				allowed: false,
@@ -392,10 +383,7 @@ export class AutonomyEngine {
 		this.emitEvent({
 			type: "authorization",
 			timestamp: new Date().toISOString(),
-			action,
-			allowed: false,
-			autonomyLevel: profile.level,
-			details: { reason: "unknown_action" },
+			details: { reason: "unknown_action", action, allowed: false, autonomyLevel: profile.level },
 		});
 		return {
 			allowed: false,

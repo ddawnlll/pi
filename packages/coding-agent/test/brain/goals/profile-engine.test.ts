@@ -759,7 +759,7 @@ describe("Event system", () => {
 		expect(events.length).toBeGreaterThanOrEqual(1);
 		const authEvent = events.find((e) => e.type === "authorization");
 		expect(authEvent).toBeDefined();
-		expect((authEvent as Record<string, unknown>).action as string).toBe("plan_execution");
+		expect((authEvent!.details as Record<string, unknown>).action).toBe("plan_execution");
 	});
 
 	test("offEvent removes listener", () => {
