@@ -223,6 +223,14 @@ function emptyAggregate(): TaskAggregate {
 // ---------------------------------------------------------------------------
 
 export interface TaskStore {
+	/**
+	 * Find a task and phase that contains the given plan execution ID.
+	 * Returns null if no task/phase references this planExecId.
+	 */
+	findByPlanExecId(
+		workspaceRoot: string,
+		planExecId: string,
+	): Promise<{ task: MultiPhaseTask; phase: PhasePlan } | null>;
 	createTask(
 		projectId: string,
 		workspaceRoot: string,
@@ -472,6 +480,30 @@ export function createTaskStore(): TaskStore {
 			});
 
 			return task;
+		},
+
+		async findByPlanExecId(workspaceRoot, planExecId) {
+			const tasksDir = join(workspaceRoot, ".pi", "tasks");
+			let entries: string[];
+			try {
+				entries = await readdir(tasksDir);
+			} catch {
+				return null;
+			}
+
+			for (const entry of entries) {
+				try {
+					const raw = await readFile(taskJsonPath(workspaceRoot, entry), "utf-8");
+					const task = JSON.parse(raw) as MultiPhaseTask;
+					const phase = task.phases.find((p) => p.execution?.planExecId === planExecId);
+					if (phase) {
+						return { task, phase };
+					}
+				} catch {
+					// Skip malformed
+				}
+			}
+			return null;
 		},
 	};
 

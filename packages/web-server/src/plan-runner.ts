@@ -32,6 +32,7 @@ import {
 import { initializePlanMarkdown, updatePlanMarkdown } from "./plan-markdown.js";
 import { computeBatchPlan } from "./plan-preview.js";
 import { getStateStore } from "./state-store-provider.js";
+import { createTaskStore } from "./task-store.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1448,6 +1449,15 @@ async function executePlanInBackground(
 		}
 		updateExecutionStatus(planExecId, "failed", errorMsg);
 	} finally {
+		// Check if this execution belongs to a task and advance to next phase
+		try {
+			await advancePhaseIfReady(workspaceRoot, planExecId);
+		} catch (advErr) {
+			await log(
+				`WARNING: Failed to advance task phase: ${advErr instanceof Error ? advErr.message : String(advErr)}`,
+			);
+		}
+
 		await logBuffer.dispose().catch(() => {});
 		// Signal a terminal stop on the bus before deleting, so any pending
 		// nextCompletion() waiter unblocks and sees a stop signal.
@@ -1810,4 +1820,248 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 
 	new PiLogger({ planExecId }).info(`Recovered stranded execution ${planExecId} (${queue.title})`);
 	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Task Auto-Advance — Phase Transition Gate
+// ---------------------------------------------------------------------------
+
+/**
+ * After a plan execution completes (or fails), check if it belongs to a task
+ * and, if so, run the phase transition gate and auto-advance to the next phase
+ * when conditions permit.
+ *
+ * This is called from executePlanInBackground after the execution loop finishes.
+ */
+export async function advancePhaseIfReady(workspaceRoot: string, planExecId: string): Promise<void> {
+	const taskStore = createTaskStore();
+
+	// Find the task and phase that owns this execution
+	const found = await taskStore.findByPlanExecId(workspaceRoot, planExecId);
+	if (!found) {
+		// Not part of a task — nothing to advance
+		return;
+	}
+
+	const { task, phase } = found;
+	const phaseIndex = task.phases.findIndex((p) => p.id === phase.id);
+	if (phaseIndex === -1) return;
+
+	// Update the phase execution with current status
+	const currentExec = getActiveExecution(planExecId);
+	if (currentExec) {
+		const now = Date.now();
+		const durationMs = currentExec.startedAt ? now - currentExec.startedAt : null;
+
+		await taskStore.updatePhaseStatus(workspaceRoot, task.id, phase.id, "complete", {
+			planExecId,
+			status: currentExec.status,
+			startedAt: currentExec.startedAt,
+			completedAt: currentExec.completedAt ?? now,
+			durationMs,
+			workspaces: [],
+			stats: {
+				total: 0,
+				complete: 0,
+				failed: 0,
+			},
+			error: currentExec.error ?? null,
+		});
+	}
+
+	// If the phase failed, mark the task as failed and stop
+	if (phase.status === "failed") {
+		await taskStore.updateTaskStatus(workspaceRoot, task.id, "failed");
+		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+			timestamp: Date.now(),
+			type: "phase_failed",
+			data: { phaseId: phase.id, planExecId },
+		});
+		return;
+	}
+
+	// Find the next unstarted phase whose dependencies are all met
+	const nextPhase = task.phases.slice(phaseIndex + 1).find((p) => {
+		if (p.status !== "pending") return false;
+		// Check dependencies: all must be complete
+		return p.dependsOn.every((depId) => {
+			const dep = task.phases.find((ph) => ph.id === depId);
+			return dep?.status === "complete" || dep?.status === "skipped";
+		});
+	});
+
+	if (!nextPhase) {
+		// No more phases — task is complete
+		await taskStore.updateTaskStatus(workspaceRoot, task.id, "complete");
+		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+			timestamp: Date.now(),
+			type: "task_complete",
+			data: { aggregate: task.aggregate },
+		});
+		return;
+	}
+
+	// ── Phase Transition Gate ────────────────────────────────────────────
+	// Re-read the task so we have latest state
+	const freshTask = await taskStore.loadTask(workspaceRoot, task.id);
+	if (!freshTask) return;
+
+	const gateResult = await runPhaseTransitionGate(workspaceRoot, freshTask, nextPhase);
+
+	if (!gateResult.allowed) {
+		// Blocked — mark task as blocked and emit event
+		await taskStore.updateTaskStatus(workspaceRoot, task.id, "blocked");
+		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+			timestamp: Date.now(),
+			type: "phase_blocked",
+			data: {
+				phaseId: nextPhase.id,
+				blockedBy: gateResult.blockedBy,
+				reason: gateResult.reason,
+			},
+		});
+		return;
+	}
+
+	// Gate passed — mark next phase pending → start (status updated, execution launched)
+	await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "running");
+	await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+		timestamp: Date.now(),
+		type: "phase_auto_advanced",
+		data: {
+			fromPhaseId: phase.id,
+			toPhaseId: nextPhase.id,
+		},
+	});
+
+	// Read the phase's plan file and start execution
+	try {
+		const planFilePath = join(workspaceRoot, ".pi", "plans", nextPhase.planFile);
+		const planContent = await readFile(planFilePath, "utf-8");
+
+		// Use the existing runPlan to start execution
+		const projectName = freshTask.title || freshTask.projectId;
+		const result = await runPlan({
+			planContent,
+			projectId: freshTask.projectId,
+			projectName,
+			workspaceRoot,
+			planFileName: nextPhase.planFile,
+		});
+
+		if (result.success && result.planExecId) {
+			await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "running", {
+				planExecId: result.planExecId,
+				status: "running",
+				startedAt: Date.now(),
+				completedAt: null,
+				durationMs: null,
+				workspaces: [],
+				stats: {
+					total: 0,
+					complete: 0,
+					failed: 0,
+				},
+				error: null,
+			});
+		} else {
+			await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "failed");
+			await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+				timestamp: Date.now(),
+				type: "phase_start_failed",
+				data: { phaseId: nextPhase.id, errors: result.errors },
+			});
+		}
+	} catch (err) {
+		await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "failed");
+		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+			timestamp: Date.now(),
+			type: "phase_start_failed",
+			data: { phaseId: nextPhase.id, errors: [String(err)] },
+		});
+	}
+}
+
+/**
+ * Phase transition gate — checks all conditions before allowing auto-advance.
+ *
+ * Gate checks:
+ * 1. Dependencies complete (already checked before calling)
+ * 2. Task still approved (not revoked)
+ * 3. Policy version still current
+ * 4. Integration queue clean (no dirty state)
+ * 5. Budget still within limit
+ * 6. Stop condition triggered
+ * 7. Phase requires fresh approval
+ */
+async function runPhaseTransitionGate(
+	workspaceRoot: string,
+	task: import("./task-store.js").MultiPhaseTask,
+	nextPhase: import("./task-store.js").PhasePlan,
+): Promise<import("./task-store.js").PhaseTransitionGateResult> {
+	// 1. Dependencies — already checked by caller
+	// 2. Task still approved
+	if (task.approval.status === "revoked" || task.approval.status === "rejected") {
+		return { allowed: false, blockedBy: "approval_revoked", reason: "Task approval was revoked" };
+	}
+
+	// 3. Policy check — basic sanity
+	if (!task.policy.policyVersion) {
+		return { allowed: false, blockedBy: "no_policy", reason: "No policy snapshot found" };
+	}
+
+	// 4. Integration queue — check for .pi/queue-audit or dirty state
+	// (Simple check: if there are pending audit entries, consider it dirty)
+	// This is a basic implementation; V2 will have a proper integration queue check
+	try {
+		const auditDir = join(workspaceRoot, ".pi", "queue-audit");
+		const auditFiles = await readdir(auditDir).catch(() => [] as string[]);
+		if (auditFiles.length > 0) {
+			// Check for recent unresolved entries (simplified: any file = dirty)
+			new PiLogger({ taskId: task.id }).info(
+				`Integration queue audit files found: ${auditFiles.length} — proceeding (basic gate)`,
+			);
+		}
+	} catch {
+		// Non-fatal
+	}
+
+	// 5. Budget check — always allow if budget info not available
+	// V2 will enforce budget limits
+
+	// 6. Stop conditions
+	if (task.policy.stopConditions.length > 0) {
+		const conditions = task.policy.stopConditions;
+		if (conditions.includes("budget_exceeded")) {
+			// Check if aggregate budget is reasonable (always allow for now)
+			// V2: read actual budget from settings
+		}
+		if (conditions.includes("dirty_integration_queue")) {
+			// Check integration queue
+			try {
+				const auditDir = join(workspaceRoot, ".pi", "queue-audit");
+				const auditFiles = await readdir(auditDir).catch(() => [] as string[]);
+				if (auditFiles.length > 5) {
+					return {
+						allowed: false,
+						blockedBy: "dirty_integration_queue",
+						reason: `Integration queue has ${auditFiles.length} unresolved audit entries`,
+					};
+				}
+			} catch {
+				// Non-fatal
+			}
+		}
+	}
+
+	// 7. Phase requires fresh approval
+	if (nextPhase.requiresFreshApproval) {
+		return {
+			allowed: false,
+			blockedBy: "approval_required",
+			reason: `Phase ${nextPhase.id} requires fresh approval before execution`,
+		};
+	}
+
+	return { allowed: true };
 }
