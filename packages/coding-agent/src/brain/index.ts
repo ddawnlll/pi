@@ -64,6 +64,20 @@ export {
 	QueueHealthObserver,
 	RetryFailureSignalExtractor,
 } from "./observation-engine.js";
+export type {
+	OvernightConfig,
+	OvernightStopCondition,
+	PlanQueueRef,
+	RunProgress,
+	RunSession,
+	RunStatus,
+} from "./overnight/index.js";
+// Overnight Run Orchestration (P20.A)
+export {
+	DEFAULT_OVERNIGHT_CONFIG,
+	OvernightOrchestrator,
+	SessionStore,
+} from "./overnight/index.js";
 export {
 	type AppendEventResult,
 	BrainTimelineStore,

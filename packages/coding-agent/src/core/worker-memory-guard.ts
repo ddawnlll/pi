@@ -96,9 +96,29 @@ export function setOnBeforeRefuse(cb: (() => void) | null): void {
  * @param config.waitTimeoutSec - Max seconds to wait for memory to become available (null = use default 300 s)
  */
 export function configureMemoryGuard(config: { memoryLimitGb?: number | null; waitTimeoutSec?: number | null }): void {
-	if (config.memoryLimitGb !== undefined && config.memoryLimitGb !== null) {
+	if (config.memoryLimitGb !== undefined && config.memoryLimitGb !== null && config.memoryLimitGb > 0) {
 		_SYSTEM_MEMORY_LIMIT_BYTES = config.memoryLimitGb * 1024 * 1024 * 1024;
 		logger.info(`[memory-guard] Memory limit set to ${config.memoryLimitGb} GB`);
+	} else {
+		// Auto-calculate: use 90% of system RAM (leaving 10% headroom), clamped to [4 GB, 128 GB]
+		try {
+			if (process.platform === "linux") {
+				const fs = require("node:fs");
+				const meminfo = fs.readFileSync("/proc/meminfo", "utf-8");
+				const match = meminfo.match(/^MemTotal:\s+(\d+)/m);
+				if (match) {
+					const totalKb = parseInt(match[1], 10);
+					const totalGb = (totalKb * 1024) / (1024 * 1024 * 1024);
+					const autoLimitGb = Math.max(4, Math.min(128, Math.round(totalGb * 0.9 * 100) / 100));
+					_SYSTEM_MEMORY_LIMIT_BYTES = autoLimitGb * 1024 * 1024 * 1024;
+					logger.info(
+						`[memory-guard] Auto-calculated memory limit: ${autoLimitGb} GB (90% of ${totalGb.toFixed(1)} GB system RAM)`,
+					);
+				}
+			}
+		} catch {
+			// Fallback: keep default 8 GB
+		}
 	}
 	if (config.waitTimeoutSec !== undefined && config.waitTimeoutSec !== null) {
 		_WAIT_TIMEOUT_MS = config.waitTimeoutSec * 1000;

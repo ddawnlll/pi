@@ -637,7 +637,7 @@ export class SettingsManager {
 	/** P6.5: Get memory guard settings */
 	getMemoryGuard(): MemoryGuardSettings {
 		return {
-			memoryLimitGb: this.settings.memoryGuard?.memoryLimitGb ?? 8,
+			memoryLimitGb: this.settings.memoryGuard?.memoryLimitGb ?? 0,
 			memoryWaitTimeoutSec: this.settings.memoryGuard?.memoryWaitTimeoutSec ?? 300,
 		};
 	}

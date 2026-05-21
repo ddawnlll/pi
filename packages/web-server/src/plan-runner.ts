@@ -31,7 +31,7 @@ import {
 } from "./execution-archive.js";
 import { initializePlanMarkdown, updatePlanMarkdown } from "./plan-markdown.js";
 import { computeBatchPlan } from "./plan-preview.js";
-import { getStateStore } from "./state-store-provider.js";
+import { getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
 
 // ---------------------------------------------------------------------------
@@ -1850,10 +1850,13 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
  * This is called from executePlanInBackground after the execution loop finishes.
  */
 export async function advancePhaseIfReady(workspaceRoot: string, planExecId: string): Promise<void> {
+	// Task files always live under the global getWorkspaceRoot(), not the
+	// project rootPath. The workspaceRoot parameter is the project root.
+	const taskRoot = getWorkspaceRoot();
 	const taskStore = createTaskStore();
 
 	// Find the task and phase that owns this execution
-	const found = await taskStore.findByPlanExecId(workspaceRoot, planExecId);
+	const found = await taskStore.findByPlanExecId(taskRoot, planExecId);
 	if (!found) {
 		// Not part of a task — nothing to advance
 		return;
@@ -1869,7 +1872,7 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 		const now = Date.now();
 		const durationMs = currentExec.startedAt ? now - currentExec.startedAt : null;
 
-		await taskStore.updatePhaseStatus(workspaceRoot, task.id, phase.id, "complete", {
+		await taskStore.updatePhaseStatus(taskRoot, task.id, phase.id, "complete", {
 			planExecId,
 			status: currentExec.status,
 			startedAt: currentExec.startedAt,
@@ -1888,13 +1891,13 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	// ── CRITICAL: Re-read task from disk after updatePhaseStatus ────────
 	// The local `task` snapshot is stale; load fresh data for dependency
 	// resolution and gate checking.
-	const freshTask = await taskStore.loadTask(workspaceRoot, task.id);
+	const freshTask = await taskStore.loadTask(taskRoot, task.id);
 	if (!freshTask) return;
 
 	// If the phase failed, mark the task as failed and stop
 	if (phase.status === "failed") {
-		await taskStore.updateTaskStatus(workspaceRoot, freshTask.id, "failed");
-		await taskStore.appendTimelineEvent(workspaceRoot, freshTask.id, {
+		await taskStore.updateTaskStatus(taskRoot, freshTask.id, "failed");
+		await taskStore.appendTimelineEvent(taskRoot, freshTask.id, {
 			timestamp: Date.now(),
 			type: "phase_failed",
 			data: { phaseId: phase.id, planExecId },
@@ -1914,8 +1917,8 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 
 	if (!nextPhase) {
 		// No more phases — task is complete
-		await taskStore.updateTaskStatus(workspaceRoot, freshTask.id, "complete");
-		await taskStore.appendTimelineEvent(workspaceRoot, freshTask.id, {
+		await taskStore.updateTaskStatus(taskRoot, freshTask.id, "complete");
+		await taskStore.appendTimelineEvent(taskRoot, freshTask.id, {
 			timestamp: Date.now(),
 			type: "task_complete",
 			data: { aggregate: freshTask.aggregate },
@@ -1924,12 +1927,12 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	}
 
 	// ── Phase Transition Gate ────────────────────────────────────────────
-	const gateResult = await runPhaseTransitionGate(workspaceRoot, freshTask, nextPhase);
+	const gateResult = await runPhaseTransitionGate(taskRoot, freshTask, nextPhase);
 
 	if (!gateResult.allowed) {
 		// Blocked — mark task as blocked and emit event
-		await taskStore.updateTaskStatus(workspaceRoot, task.id, "blocked");
-		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+		await taskStore.updateTaskStatus(taskRoot, task.id, "blocked");
+		await taskStore.appendTimelineEvent(taskRoot, task.id, {
 			timestamp: Date.now(),
 			type: "phase_blocked",
 			data: {
@@ -1942,8 +1945,8 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	}
 
 	// Gate passed — mark next phase pending → start (status updated, execution launched)
-	await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "running");
-	await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+	await taskStore.updatePhaseStatus(taskRoot, task.id, nextPhase.id, "running");
+	await taskStore.appendTimelineEvent(taskRoot, task.id, {
 		timestamp: Date.now(),
 		type: "phase_auto_advanced",
 		data: {
@@ -1968,7 +1971,7 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 		});
 
 		if (result.success && result.planExecId) {
-			await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "running", {
+			await taskStore.updatePhaseStatus(taskRoot, task.id, nextPhase.id, "running", {
 				planExecId: result.planExecId,
 				status: "running",
 				startedAt: Date.now(),
@@ -1983,16 +1986,16 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 				error: null,
 			});
 		} else {
-			await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "failed");
-			await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+			await taskStore.updatePhaseStatus(taskRoot, task.id, nextPhase.id, "failed");
+			await taskStore.appendTimelineEvent(taskRoot, task.id, {
 				timestamp: Date.now(),
 				type: "phase_start_failed",
 				data: { phaseId: nextPhase.id, errors: result.errors },
 			});
 		}
 	} catch (err) {
-		await taskStore.updatePhaseStatus(workspaceRoot, task.id, nextPhase.id, "failed");
-		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+		await taskStore.updatePhaseStatus(taskRoot, task.id, nextPhase.id, "failed");
+		await taskStore.appendTimelineEvent(taskRoot, task.id, {
 			timestamp: Date.now(),
 			type: "phase_start_failed",
 			data: { phaseId: nextPhase.id, errors: [String(err)] },

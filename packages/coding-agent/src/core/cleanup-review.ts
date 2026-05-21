@@ -202,24 +202,50 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 			});
 		}
 
-		// Get git diff for context on what changed
-		let gitDiff = "";
+		// Get git context: recent commits (workspace agents commit their work)
+		// plus any uncommitted changes
+		let gitContext = "";
 		try {
+			// Recent commits — workspace agents commit after each workspace
+			const logResult = await execAsync("git log --oneline -5", {
+				cwd: workspaceRoot,
+				timeout: 5000,
+				encoding: "utf-8",
+				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
+			}).catch(() => ({ stdout: "" }));
+			gitContext += `## Recent Commits (last 5)\n${logResult.stdout || "(no commits)"}\n\n`;
+
+			// Diff of the latest commit vs its parent — shows what was committed
+			const diffLastResult = await execAsync("git diff HEAD~1 --stat", {
+				cwd: workspaceRoot,
+				timeout: 5000,
+				encoding: "utf-8",
+				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
+			}).catch(() => ({ stdout: "" }));
+			if (diffLastResult.stdout.trim()) {
+				gitContext += `## Files Changed in Latest Commit\n${diffLastResult.stdout}\n\n`;
+			}
+
+			// Uncommitted changes
 			const diffResult = await execAsync("git diff --stat HEAD", {
 				cwd: workspaceRoot,
 				timeout: 5000,
 				encoding: "utf-8",
 				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
 			}).catch(() => ({ stdout: "" }));
-			gitDiff = diffResult.stdout;
+			if (diffResult.stdout.trim()) {
+				gitContext += `## Uncommitted Changes (working tree vs HEAD)\n${diffResult.stdout}`;
+			} else {
+				gitContext += `## Uncommitted Changes\n(none — all changes committed by workspace agents)`;
+			}
 		} catch {
-			gitDiff = "(git diff unavailable)";
+			gitContext = "(git context unavailable)";
 		}
 
 		emitStatus("analyzing", `Collected ${workspaceData.length} workspace reports`);
 
 		// Build the cleanup prompt
-		const prompt = buildCleanupPrompt(queue, workspaceData, gitDiff);
+		const prompt = buildCleanupPrompt(queue, workspaceData, gitContext);
 
 		// Run the cleanup agent (max 3 turns, 90 second timeout)
 		const result = await executeCleanupAgent({
@@ -259,7 +285,7 @@ function buildCleanupPrompt(
 		logs?: string;
 		error?: string;
 	}>,
-	gitDiff: string,
+	gitContext: string,
 ): string {
 	const parts: string[] = [];
 
@@ -284,14 +310,14 @@ function buildCleanupPrompt(
 		parts.push(``);
 	}
 
-	parts.push(`## Git Diff Summary (uncommitted changes)`);
+	parts.push(`## Git Context (committed + uncommitted changes)`);
 	parts.push(``);
-	parts.push(gitDiff || "(no changes)");
+	parts.push(gitContext || "(no git context)");
 	parts.push(``);
 	parts.push(`## Your Task`);
 	parts.push(``);
 	parts.push(
-		`1. **Review**: Analyze each workspace's report and the git diff. Check for logical errors, incomplete implementations, missing edge cases, code quality issues, and regressions.`,
+		`1. **Review**: Analyze each workspace's report, the recent commits, and uncommitted changes. Check for logical errors, incomplete implementations, missing edge cases, code quality issues, and regressions. Workspace agents may commit their work — check BOTH the Recent Commits section AND the Uncommitted Changes section.`,
 	);
 	parts.push(
 		`2. **Summarize**: Write a comprehensive summary of what was accomplished and whether the plan passed review.`,
