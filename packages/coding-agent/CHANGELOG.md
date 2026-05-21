@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Morning Report Generator (P20.B)**: New `MorningReportGenerator` class that generates structured morning reports from overnight run sessions. Supports session-based and raw-data report generation, markdown/JSON rendering, disk persistence, and optional integration with memory store, audit ledger, and reflection engine for enriched reporting. See `packages/coding-agent/src/brain/overnight/morning-report.ts`.
 - Added Together AI to built-in provider setup, `/login` API-key auth, and default model resolution ([#3624](https://github.com/earendil-works/pi-mono/pull/3624) by [@Nutlope](https://github.com/Nutlope)).
 - Added NeoTokens to built-in provider setup, `/login` API-key auth, and default model resolution.
 - **Skill Package Format (P11.E)**: New `skill-package.ts` defining a distributable skill package format with `skill-package.json` metadata, versioning, capability manifests, and validation. New `skill-package-manager.ts` for installing, listing, testing, invoking, disabling, and removing skill packages. See `packages/coding-agent/src/core/skill-package.ts`.

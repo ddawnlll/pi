@@ -65,16 +65,27 @@ export {
 	RetryFailureSignalExtractor,
 } from "./observation-engine.js";
 export type {
+	ArtifactLink,
+	MorningReport,
+	MorningReportAuditLedger,
+	MorningReportData,
+	MorningReportMemoryStore,
+	MorningReportObservationEngine,
+	MorningReportReflectionEngine,
 	OvernightConfig,
 	OvernightStopCondition,
 	PlanQueueRef,
 	RunProgress,
 	RunSession,
 	RunStatus,
+	TopProposal,
+	WhatRanEntry,
+	WhatStoppedEntry,
 } from "./overnight/index.js";
-// Overnight Run Orchestration (P20.A)
+// Overnight Run Orchestration (P20.A) & Morning Report Generator (P20.B)
 export {
 	DEFAULT_OVERNIGHT_CONFIG,
+	MorningReportGenerator,
 	OvernightOrchestrator,
 	SessionStore,
 } from "./overnight/index.js";
