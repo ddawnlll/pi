@@ -1,0 +1,57 @@
+{
+  "id": "fixture-auto-001",
+  "type": "autonomy_adjustment_proposal",
+  "title": "Increase autonomy level from 3 to 4 based on consistent success rate",
+  "description": "Proposal to increase the autonomy level from 3 (suggest with confirmation) to 4 (auto-execute approved proposals) based on the following behavioral evidence: 92% proposal acceptance rate over the last 30 days, zero safety incidents, and consistent positive execution outcomes. This adjustment would reduce manual intervention overhead while maintaining safety through evidence gatekeeping.",
+  "evidence": {
+    "memoryIds": ["mem-autonomy-trend-001", "mem-safety-record-001", "mem-outcome-history-001"],
+    "observationIds": ["obs-acceptance-rate-001", "obs-execution-success-001"],
+    "sourceRefs": [
+      {
+        "type": "memory",
+        "path": "brain/memory/autonomy_memory.json",
+        "id": "mem-autonomy-trend-001",
+        "timestamp": "2026-05-19T09:00:00.000Z"
+      },
+      {
+        "type": "observation",
+        "path": "brain/observations/acceptance.json",
+        "id": "obs-acceptance-rate-001",
+        "timestamp": "2026-05-20T06:00:00.000Z"
+      }
+    ],
+    "confidence": 0.9,
+    "evidenceSummary": "92% acceptance rate over 30 days. Zero safety incidents. Consistent positive execution outcomes across 150+ proposals."
+  },
+  "risk": {
+    "level": "high",
+    "factors": [
+      "Increased autonomy reduces human oversight",
+      "Auto-execution could accelerate mistakes",
+      "Harder to roll back once auto-execution is in place"
+    ],
+    "mitigation": [
+      "Evidence gates remain in place (min 0.6 confidence for auto-queue)",
+      "Safety proposals always require human approval",
+      "One-click demotion to previous level"
+    ],
+    "affectedSystems": ["autonomy_controller", "execution_gate", "proposal_inbox"],
+    "impactDescription": "Raising autonomy to level 4 means approved proposals with high scores auto-execute without user confirmation. This speeds up the feedback loop but reduces manual oversight."
+  },
+  "score": {
+    "total": 0.55,
+    "novelty": 0.3,
+    "confidence": 0.9,
+    "urgency": 0.3,
+    "feasibility": 0.4
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-20T06:30:00.000Z",
+  "updatedAt": "2026-05-20T06:30:00.000Z",
+  "expiresAt": "2026-06-19T06:30:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": [],
+  "relatedGoalIds": ["goal-autonomy"],
+  "tags": ["autonomy", "level-up", "trust-calibration"],
+  "metadata": { "currentLevel": 3, "proposedLevel": 4, "acceptanceRate30d": 0.92 }
+}

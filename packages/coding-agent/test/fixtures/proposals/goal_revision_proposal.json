@@ -1,0 +1,49 @@
+{
+  "id": "fixture-goal-001",
+  "type": "goal_revision_proposal",
+  "title": "Archive outdated performance goal and add new throughput target",
+  "description": "The current performance goal 'reduce execution time by 20%' was set 3 months ago and has been largely achieved (18% reduction). Proposal is to archive this goal and add a new throughput target: 'increase workspace throughput by 30% within 2 months'. This aligns with observed scaling patterns and memory of capacity planning.",
+  "evidence": {
+    "memoryIds": ["mem-goal-achievement-001", "mem-capacity-plan-001"],
+    "observationIds": ["obs-throughput-trend-001", "obs-throughput-trend-002", "obs-throughput-trend-003"],
+    "sourceRefs": [
+      {
+        "type": "memory",
+        "path": "brain/memory/goal_memory.json",
+        "id": "mem-goal-achievement-001",
+        "timestamp": "2026-05-18T16:00:00.000Z"
+      },
+      {
+        "type": "observation",
+        "path": "brain/observations/throughput.json",
+        "id": "obs-throughput-trend-001",
+        "timestamp": "2026-05-20T12:00:00.000Z"
+      }
+    ],
+    "confidence": 0.8,
+    "evidenceSummary": "Goal achieved 18/20% reduction. Throughput observations show sustained increase potential. Capacity memory indicates room for growth."
+  },
+  "risk": {
+    "level": "low",
+    "factors": ["Goal revision does not affect running plans"],
+    "mitigation": ["Old goal remains archived for reference"],
+    "affectedSystems": ["goal_store", "proposal_generator"],
+    "impactDescription": "Changing goals may affect future proposal generation priorities but has no immediate execution impact."
+  },
+  "score": {
+    "total": 0.68,
+    "novelty": 0.6,
+    "confidence": 0.8,
+    "urgency": 0.6,
+    "feasibility": 0.8
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-20T12:15:00.000Z",
+  "updatedAt": "2026-05-20T12:15:00.000Z",
+  "expiresAt": "2026-06-19T12:15:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": [],
+  "relatedGoalIds": ["goal-performance", "goal-throughput"],
+  "tags": ["goal", "revision", "performance", "throughput"],
+  "metadata": { "oldGoalId": "goal-performance", "achievementPercent": 18 }
+}

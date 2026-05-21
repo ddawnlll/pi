@@ -1,0 +1,55 @@
+{
+  "id": "fixture-plan-001",
+  "type": "plan_proposal",
+  "title": "Generate implementation plan for retry budget optimization",
+  "description": "Based on accumulated memory patterns and goal alignment, generate a new implementation phase plan to add a retry budget check to the plan splitting logic. The plan should include: (1) analysis of current retry behavior, (2) design of retry budget constraints, (3) implementation in the plan splitting module, and (4) integration tests.",
+  "evidence": {
+    "memoryIds": ["mem-failure-retry-001", "mem-failure-retry-002"],
+    "observationIds": ["obs-performance-dip-001", "obs-performance-dip-002", "obs-performance-dip-003"],
+    "sourceRefs": [
+      {
+        "type": "memory",
+        "path": "brain/memory/failure_memory.json",
+        "id": "mem-failure-retry-001",
+        "timestamp": "2026-05-19T10:00:00.000Z"
+      },
+      {
+        "type": "observation",
+        "path": "brain/observations/performance.json",
+        "id": "obs-performance-dip-001",
+        "timestamp": "2026-05-20T08:15:00.000Z"
+      }
+    ],
+    "confidence": 0.75,
+    "evidenceSummary": "Memory records show 3 retry-related failures in the past week. Performance observations confirm degraded execution time correlated with retries."
+  },
+  "risk": {
+    "level": "medium",
+    "factors": [
+      "Plan generation may produce large work items",
+      "Changes to plan splitting could affect existing workflows"
+    ],
+    "mitigation": [
+      "Draft plan preview before execution",
+      "Rollback capability via plan versioning"
+    ],
+    "affectedSystems": ["plan_splitting", "execution_engine", "workspace_queue"],
+    "impactDescription": "Generating a new phase plan could impact ongoing work if the plan requires significant changes to core execution logic."
+  },
+  "score": {
+    "total": 0.72,
+    "novelty": 0.65,
+    "confidence": 0.75,
+    "urgency": 0.7,
+    "feasibility": 0.75
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-20T08:30:00.000Z",
+  "updatedAt": "2026-05-20T08:30:00.000Z",
+  "expiresAt": "2026-06-19T08:30:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": ["fixture-mem-001"],
+  "relatedGoalIds": ["goal-reduce-retries", "goal-performance"],
+  "tags": ["plan", "retry-budget", "optimization"],
+  "metadata": { "triggerType": "goal_alignment", "goalCount": 2 }
+}

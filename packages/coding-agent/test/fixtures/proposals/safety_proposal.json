@@ -1,0 +1,56 @@
+{
+  "id": "fixture-safe-001",
+  "type": "safety_proposal",
+  "title": "Add validation gate for untrusted workspace path arguments",
+  "description": "Safety signal detected: two observations show unsanitized workspace path arguments in plan execution requests. If exploited, this could allow path traversal to sensitive directories outside the workspace root. Proposal is to add a validation gate in the execution pipeline that rejects paths with '..' traversal, symlinks to outside the workspace, or other injection patterns. This is a critical safety improvement that should be prioritized.",
+  "evidence": {
+    "memoryIds": ["mem-safety-path-traversal-001"],
+    "observationIds": ["obs-unsafe-path-001", "obs-unsafe-path-002"],
+    "sourceRefs": [
+      {
+        "type": "observation",
+        "path": "brain/observations/safety.json",
+        "id": "obs-unsafe-path-001",
+        "timestamp": "2026-05-21T08:00:00.000Z"
+      },
+      {
+        "type": "memory",
+        "path": "brain/memory/safety_memory.json",
+        "id": "mem-safety-path-traversal-001",
+        "timestamp": "2026-05-21T08:05:00.000Z"
+      }
+    ],
+    "confidence": 0.95,
+    "evidenceSummary": "Two independent observations confirmed unsanitized paths in execution requests. One matching memory record documents the path traversal vulnerability pattern."
+  },
+  "risk": {
+    "level": "critical",
+    "factors": [
+      "Path traversal could expose sensitive files",
+      "Vulnerability is actively being observed in execution requests"
+    ],
+    "mitigation": [
+      "Immediate: add validation gate before execution",
+      "Short-term: audit all recent execution requests for exploitation attempts",
+      "Long-term: add static analysis to detect unsafe path patterns"
+    ],
+    "affectedSystems": ["execution_pipeline", "workspace_validation", "plan_runner"],
+    "impactDescription": "Unsanitized path arguments in plan execution requests could allow path traversal attacks to access sensitive files outside the workspace root."
+  },
+  "score": {
+    "total": 0.85,
+    "novelty": 0.75,
+    "confidence": 0.95,
+    "urgency": 0.95,
+    "feasibility": 0.8
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-21T08:10:00.000Z",
+  "updatedAt": "2026-05-21T08:10:00.000Z",
+  "expiresAt": "2026-06-20T08:10:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": [],
+  "relatedGoalIds": ["goal-safety", "goal-security"],
+  "tags": ["safety", "security", "path-traversal", "critical"],
+  "metadata": { "severity": "critical", "cweCategory": "CWE-22", "observedCount": 2 }
+}

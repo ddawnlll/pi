@@ -1,0 +1,49 @@
+{
+  "id": "fixture-refl-001",
+  "type": "reflection_proposal",
+  "title": "Post-plan reflection on retry budget implementation phase",
+  "description": "Reflection on the completed retry budget implementation phase. Key observations: (1) The plan took 20% longer than estimated due to integration complexity, (2) Two edge cases in retry detection were missed during planning, (3) The feedback loop from the detection engine significantly improved outcome quality. Recommendations: Allocate more time for integration testing in future plans, add edge case discovery to the planning checklist, and formalize the detection-to-plan feedback mechanism.",
+  "evidence": {
+    "memoryIds": ["mem-plan-retry-001", "mem-edge-case-001"],
+    "observationIds": ["obs-duration-overrun-001", "obs-detection-feedback-001"],
+    "sourceRefs": [
+      {
+        "type": "reflection",
+        "path": "brain/reflections/retry-budget.json",
+        "id": "refl-retry-001",
+        "timestamp": "2026-05-21T10:00:00.000Z"
+      },
+      {
+        "type": "plan",
+        "path": "plans/p17-retry-budget/plan.json",
+        "id": "plan-retry-001",
+        "timestamp": "2026-05-21T10:00:00.000Z"
+      }
+    ],
+    "confidence": 0.88,
+    "evidenceSummary": "Plan completed with 20% duration overrun. Two missed edge cases identified post-hoc. Detection feedback loop was effective in improving quality."
+  },
+  "risk": {
+    "level": "low",
+    "factors": ["Reflection is non-executable and non-disruptive"],
+    "mitigation": ["No mitigation needed — reflection is purely informational"],
+    "affectedSystems": ["reflection_store", "memory_store"],
+    "impactDescription": "Reflection proposals inform future planning but have no direct execution impact."
+  },
+  "score": {
+    "total": 0.61,
+    "novelty": 0.7,
+    "confidence": 0.88,
+    "urgency": 0.4,
+    "feasibility": 0.9
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-21T10:05:00.000Z",
+  "updatedAt": "2026-05-21T10:05:00.000Z",
+  "expiresAt": "2026-06-20T10:05:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": ["fixture-plan-001"],
+  "relatedGoalIds": ["goal-improve-planning"],
+  "tags": ["reflection", "post-plan", "retrospective"],
+  "metadata": { "planId": "p17-retry-budget", "durationOverrunPercent": 20 }
+}

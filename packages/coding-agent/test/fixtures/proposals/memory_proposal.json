@@ -1,0 +1,43 @@
+{
+  "id": "fixture-mem-001",
+  "type": "memory_proposal",
+  "title": "Add observation about workspace retry pattern to failure memory",
+  "description": "Proposal to create a new memory record documenting the observed retry pattern in workspace A. The workspace has retried 5 times in the last hour, indicating a potential systemic issue that should be recorded in failure memory for future plan generation.",
+  "evidence": {
+    "memoryIds": [],
+    "observationIds": ["obs-workspace-retry-001", "obs-workspace-retry-002"],
+    "sourceRefs": [
+      {
+        "type": "observation",
+        "path": "brain/observations/workspace-retry.json",
+        "id": "obs-workspace-retry-001",
+        "timestamp": "2026-05-20T14:30:00.000Z"
+      }
+    ],
+    "confidence": 0.85,
+    "evidenceSummary": "Workspace A retried 5 times in the last hour. Two observations confirm the pattern with consistent timing."
+  },
+  "risk": {
+    "level": "low",
+    "factors": ["Memory record creation has no side effects"],
+    "mitigation": ["Standard memory record constraints apply"],
+    "affectedSystems": ["memory_store", "observation_store"],
+    "impactDescription": "Adding a memory record with no immediate execution impact."
+  },
+  "score": {
+    "total": 0.65,
+    "novelty": 0.7,
+    "confidence": 0.85,
+    "urgency": 0.5,
+    "feasibility": 1.0
+  },
+  "status": "pending_approval",
+  "createdAt": "2026-05-20T14:35:00.000Z",
+  "updatedAt": "2026-05-20T14:35:00.000Z",
+  "expiresAt": "2026-06-19T14:35:00.000Z",
+  "submittedBy": "pi",
+  "relatedProposalIds": [],
+  "relatedGoalIds": ["goal-reduce-retries"],
+  "tags": ["memory", "observation", "retry-pattern"],
+  "metadata": { "observationCount": 2 }
+}
