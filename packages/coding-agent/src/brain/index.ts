@@ -5,6 +5,12 @@
  * from the brain sub-modules.
  */
 
+// Approval Gate (P18.C)
+export { ApprovalGate, createApprovalGate } from "./approvals/gate.js";
+// Approval Queue API (P18.D)
+export { ApprovalQueueApi, createApprovalQueueApi } from "./approvals/api.js";
+// Audit Ledger (P18.E)
+export { AuditLedger, createAuditLedger } from "./audit/ledger.js";
 export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";
 // Decision Classifier (P15.D)
 export { DecisionClassifier } from "./goals/decisions.js";
@@ -38,7 +44,6 @@ export {
 export type { GoalIndex, GoalIndexEntry, GoalStoreConfig } from "./goals/store.js";
 // Goal Store (P15.B)
 export { GoalStore } from "./goals/store.js";
-
 // Goal & Preference Domain Model (P15.A)
 export type {
 	AutonomyCapabilities,
@@ -188,6 +193,14 @@ export {
 	OvernightOrchestrator,
 	SessionStore,
 } from "./overnight/index.js";
+export type { PolicyEngineConfig } from "./policy/engine.js";
+// Policy Engine V0 (P18.A)
+export { createPolicyEngine, PolicyEngine } from "./policy/engine.js";
+// Provenance Tracker (P18.F)
+export { createProvenanceTracker, ProvenanceTracker } from "./policy/provenance.js";
+export type { PolicyRuleStats, RuleIndex, RuleIndexEntry, RuleQuery } from "./policy/store.js";
+// Rule Store (P18.B)
+export { RuleStore } from "./policy/store.js";
 // Proposal API (P16.F)
 export {
 	BrainProposalApi,
@@ -264,13 +277,18 @@ export {
 	validateProposalRisk,
 } from "./proposals/types.js";
 // Reflection API (P17.G)
-export { BrainReflectionApi, type ReflectionGenerateResult, type ReflectionListQuery, type ReflectionStats } from "./reflection/api.js";
+export {
+	BrainReflectionApi,
+	type ReflectionGenerateResult,
+	type ReflectionListQuery,
+	type ReflectionStats,
+} from "./reflection/api.js";
 // Reflection Engine (P17.C)
 export { ReflectionEngine } from "./reflection/engine.js";
-// Memory Proposal Generator (P17.E)
-export { MemoryProposalGenerator, type MemoryProposalOutput } from "./reflection/memory-proposals.js";
 // Future Phase Suggestion Engine (P17.F)
 export { FutureSuggestionEngine, type SuggestionRankingConfig } from "./reflection/future-suggestions.js";
+// Memory Proposal Generator (P17.E)
+export { MemoryProposalGenerator, type MemoryProposalOutput } from "./reflection/memory-proposals.js";
 // Source-Backed Summarizer (P17.D)
 export { SourceBackedSummarizer } from "./reflection/summarizer.js";
 export type {

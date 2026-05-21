@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Policy Engine V0 (P18.A)**: New `PolicyEngine` class that evaluates any action against policy rules with priority-ordered evaluation, glob-pattern-based action matching, context-aware filtering (autonomy level, risk level, affected system), time-restricted rule support, and recent-decision caching with configurable TTL. Defaults to `deny` when no rule matches (fail-safe). Integrates with `AuditLedger` for immutable decision logging. See `packages/coding-agent/src/brain/policy/engine.ts`.
+
 - **Future Phase Suggestion Engine (P17.F)**: New `FutureSuggestionEngine` class that generates prioritized next-phase suggestions from reflection analysis. Analyzes failure patterns to produce fix suggestions, bottlenecks to produce optimization suggestions, and goals to produce advancement suggestions. Suggestions are ranked by configurable weights for goal alignment, bottleneck severity, and failure frequency. Maximum suggestions configurable (default 3). See `packages/coding-agent/src/brain/reflection/future-suggestions.ts`.
 
 - **Morning Report Generator (P20.B)**: New `MorningReportGenerator` class that generates structured morning reports from overnight run sessions. Supports session-based and raw-data report generation, markdown/JSON rendering, disk persistence, and optional integration with memory store, audit ledger, and reflection engine for enriched reporting. See `packages/coding-agent/src/brain/overnight/morning-report.ts`.
