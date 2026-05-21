@@ -185,7 +185,9 @@ export class AutoCommit {
 			const commitMessage = `feat(p${phaseStr}): complete workspace ${workspace.id} — ${shortTitle}`;
 
 			// Commit (skip husky pre-commit hooks -- auto-commit already validates)
-			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, { cwd: this.workspaceRoot });
+			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, {
+				cwd: this.workspaceRoot,
+			});
 
 			// Extract commit hash
 			const hashMatch = stdout.match(/\[([\w-]+) ([a-f0-9]+)\]/);
@@ -260,7 +262,9 @@ export class AutoCommit {
 			const commitMessage = `feat(p${phaseStr}): complete plan — ${title}`;
 
 			// Commit (skip husky pre-commit hooks -- auto-commit already validates)
-			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, { cwd: this.workspaceRoot });
+			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, {
+				cwd: this.workspaceRoot,
+			});
 
 			// Extract commit hash
 			const hashMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);

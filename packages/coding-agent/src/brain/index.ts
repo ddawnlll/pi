@@ -188,6 +188,54 @@ export {
 	OvernightOrchestrator,
 	SessionStore,
 } from "./overnight/index.js";
+// Proposal Generator (P16.B)
+export {
+	DEFAULT_GENERATOR_CONFIG,
+	type GenerateProposalsResult,
+	type GenerationTrigger,
+	type GeneratorConfig,
+	type ProposalDeduplication,
+	ProposalGenerator,
+	type ReflectionReport,
+} from "./proposals/generator.js";
+// Proposal Scoring Engine (P16.C)
+export {
+	DEFAULT_SCORING_CONFIG as DEFAULT_PROPOSAL_SCORING_CONFIG,
+	ProposalScoringEngine,
+	type ScoringConfig as ProposalScoringConfig,
+	type ScoringWeights as ProposalScoringWeights,
+} from "./proposals/scoring.js";
+// Proposal Domain Model (P16.A)
+export type {
+	InboxEntry,
+	InboxView,
+	Proposal,
+	ProposalCreateInput,
+	ProposalEvidence,
+	ProposalQuery,
+	ProposalRiskAssessment,
+	ProposalScore,
+	ProposalStats,
+	ProposalStatus,
+	ProposalStore,
+	ProposalType,
+	ProposalUpdateInput,
+	RiskLevel,
+} from "./proposals/types.js";
+export {
+	ALL_PROPOSAL_STATUSES,
+	ALL_PROPOSAL_TYPES,
+	ALL_RISK_LEVELS,
+	computeProposalStats,
+	createProposal,
+	createProposalCreateInput,
+	DEFAULT_AUTO_QUEUE_CONFIDENCE_MIN,
+	DEFAULT_AUTO_QUEUE_TOTAL_THRESHOLD,
+	DEFAULT_PROPOSAL_EXPIRY_DAYS,
+	validateProposalCreateInput,
+	validateProposalEvidence,
+	validateProposalRisk,
+} from "./proposals/types.js";
 export {
 	type AppendEventResult,
 	BrainTimelineStore,
