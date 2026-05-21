@@ -4,7 +4,8 @@
  * This module provides the overnight run orchestrator for scheduling
  * and managing autonomous plan queue execution with automatic stop
  * conditions, progress tracking, and session lifecycle, plus the
- * morning report generator for summarizing overnight sessions.
+ * morning report generator for summarizing overnight sessions, and
+ * the full loop validator for end-to-end cognitive loop validation.
  *
  * @packageDocumentation
  */
@@ -35,3 +36,10 @@ export {
 	OvernightOrchestrator,
 	SessionStore,
 } from "./orchestrator.js";
+export type {
+	ValidationCheck,
+	ValidationCheckResult,
+	ValidationResult,
+	ValidationScenario,
+} from "./validation.js";
+export { FullLoopValidator } from "./validation.js";

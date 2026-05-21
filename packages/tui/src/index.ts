@@ -12,6 +12,12 @@ export {
 export { Box } from "./components/box.js";
 export { CancellableLoader } from "./components/cancellable-loader.js";
 export { Editor, type EditorOptions, type EditorTheme } from "./components/editor.js";
+export {
+	GoalBoard,
+	type GoalBoardColumn,
+	type GoalBoardItem,
+	type GoalBoardTheme,
+} from "./components/goal-board.js";
 export { Image, type ImageOptions, type ImageTheme } from "./components/image.js";
 export { Input } from "./components/input.js";
 export { Loader, type LoaderIndicatorOptions } from "./components/loader.js";

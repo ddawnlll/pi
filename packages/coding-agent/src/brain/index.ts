@@ -5,13 +5,107 @@
  * from the brain sub-modules.
  */
 
+export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";
+// Decision Classifier (P15.D)
+export { DecisionClassifier } from "./goals/decisions.js";
+export type { DriftCheckState, DriftDetectorConfig } from "./goals/drift.js";
+// Goal Drift Detector (P15.E)
+export { GoalDriftDetector } from "./goals/drift.js";
+export type {
+	AuthorizationEvent,
+	AuthorizationResult,
+	AutonomyEngineConfig,
+	AutonomyEngineEvent,
+	ProfileLevelChangeEvent,
+} from "./goals/profile-engine.js";
+// Autonomy Profile Engine (P15.C)
+export { AutonomyEngine, DEFAULT_AUTONOMY_CONFIG, DEFAULT_DECISION_RULES } from "./goals/profile-engine.js";
+export type {
+	DecisionExplanation,
+	NeedsApprovalEntry,
+	NightProtocolConfig,
+	NightProtocolStopCondition,
+	RejectionRecord,
+	WhatCompletedEntry,
+} from "./goals/protocol.js";
+// User Protocol Actions (P15.F)
+export {
+	ALL_NIGHT_PROTOCOL_STOP_CONDITIONS,
+	DEFAULT_NIGHT_MAX_DURATION_HOURS,
+	DEFAULT_NIGHT_PROTOCOL_STOP_CONDITIONS,
+	UserProtocol,
+} from "./goals/protocol.js";
+export type { GoalIndex, GoalIndexEntry, GoalStoreConfig } from "./goals/store.js";
+// Goal Store (P15.B)
+export { GoalStore } from "./goals/store.js";
+
+// Goal & Preference Domain Model (P15.A)
+export type {
+	AutonomyCapabilities,
+	AutonomyLevel,
+	AutonomyProfile,
+	ConditionOperator,
+	DecisionClass,
+	DecisionClassification,
+	DecisionCondition,
+	DecisionRule,
+	DriftIndicator,
+	DriftIndicatorType,
+	DriftSeverity,
+	GoalCreateInput,
+	GoalDriftReport,
+	GoalPriority,
+	GoalRecord,
+	GoalStatus,
+	GoalsStats,
+	GoalUpdateInput,
+	Milestone,
+	PreferenceCategory,
+	PreferenceCreateInput,
+	PreferenceRecord,
+	PreferenceSource,
+} from "./goals/types.js";
+export {
+	ALL_AUTONOMY_LEVELS,
+	ALL_CONDITION_OPERATORS,
+	ALL_DECISION_CLASSES,
+	ALL_DRIFT_INDICATOR_TYPES,
+	ALL_DRIFT_SEVERITIES,
+	ALL_GOAL_PRIORITIES,
+	ALL_GOAL_STATUSES,
+	ALL_PREFERENCE_CATEGORIES,
+	ALL_PREFERENCE_SOURCES,
+	AUTONOMY_CAPABILITIES,
+	computeGoalsStats,
+	createAutonomyProfile,
+	createDecisionRule,
+	createGoalCreateInput,
+	createGoalDriftReport,
+	createGoalRecord,
+	createMilestone,
+	createPreferenceCreateInput,
+	createPreferenceRecord,
+	deserializeAutonomyProfile,
+	deserializeGoalDriftReport,
+	deserializeGoalRecord,
+	deserializePreferenceRecord,
+	serializeAutonomyProfile,
+	serializeGoalDriftReport,
+	serializeGoalRecord,
+	serializePreferenceRecord,
+	validateAutonomyProfile,
+	validateDecisionRule,
+	validateGoalDriftReport,
+	validateGoalRecord,
+	validateMilestone,
+	validatePreferenceRecord,
+} from "./goals/types.js";
 export type { MemoryCorrectionRecord, MemoryListResult, SupersedeResult } from "./memory/api.js";
 // Memory Correction API (P14.F)
 export { MemoryCorrectionApi } from "./memory/api.js";
 export type { LifecycleConfig, LifecycleTransition } from "./memory/lifecycle.js";
 // Memory Lifecycle Engine (P14.C)
 export { MemoryLifecycleEngine } from "./memory/lifecycle.js";
-
 // Memory Scoring Engine (P14.D)
 export {
 	DEFAULT_SCORING_CONFIG,
@@ -79,12 +173,17 @@ export type {
 	RunSession,
 	RunStatus,
 	TopProposal,
+	ValidationCheck,
+	ValidationCheckResult,
+	ValidationResult as OvernightValidationResult,
+	ValidationScenario,
 	WhatRanEntry,
 	WhatStoppedEntry,
 } from "./overnight/index.js";
-// Overnight Run Orchestration (P20.A) & Morning Report Generator (P20.B)
+// Overnight Run Orchestration (P20.A) & Morning Report Generator (P20.B) & Full Loop Validation (P20.C)
 export {
 	DEFAULT_OVERNIGHT_CONFIG,
+	FullLoopValidator,
 	MorningReportGenerator,
 	OvernightOrchestrator,
 	SessionStore,
@@ -100,6 +199,7 @@ export {
 	type TimelineQueryResult,
 	type TimelineStoreStats,
 } from "./timeline-store.js";
+
 export type {
 	BrainObservation,
 	BrainSignal,
