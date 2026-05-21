@@ -40,7 +40,8 @@ export type MemoryType =
 	| "decision_memory"
 	| "execution_memory"
 	| "idea_memory"
-	| "user_preference_memory";
+	| "user_preference_memory"
+	| "goal_revision_proposal";
 
 // ---------------------------------------------------------------------------
 // Memory Lifecycle

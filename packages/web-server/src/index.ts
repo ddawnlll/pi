@@ -4549,6 +4549,17 @@ const { registerMemoryRoutes } = await import("./memory-routes.js");
 registerMemoryRoutes(fastify, getPiDir, getWorkspaceRoot);
 
 // ---------------------------------------------------------------------------
+// Goal Routes (P15.G — Goal Board)
+// ---------------------------------------------------------------------------
+
+const { registerGoalRoutes: registerGoalRoutesWeb } = await import("./goal-routes.js");
+const { GoalStore } = await import("@earendil-works/pi-coding-agent");
+const { join: joinPath } = await import("node:path");
+const goalStore = new GoalStore({ basePath: joinPath(getPiDir(), "brain/goals") });
+await goalStore.initialize();
+await registerGoalRoutesWeb(fastify, goalStore);
+
+// ---------------------------------------------------------------------------
 // Policy & Audit Routes (P11.R — Policy & Audit Center)
 // ---------------------------------------------------------------------------
 

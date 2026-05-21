@@ -272,6 +272,53 @@ export {
 
 // Core session management
 
+// Goal & Preference Domain Model (P15.A)
+export type {
+	AutonomyCapabilities,
+	AutonomyLevel,
+	AutonomyProfile,
+	ClassificationContext,
+	DecisionAuditEntry,
+	DecisionClassification,
+	DriftCheckState,
+	DriftDetectorConfig,
+	GoalCreateInput,
+	GoalDriftReport,
+	GoalPriority,
+	GoalRecord,
+	GoalStatus,
+	GoalsStats,
+	GoalUpdateInput,
+	Milestone,
+	PreferenceCategory,
+	PreferenceCreateInput,
+	PreferenceRecord,
+	PreferenceSource,
+} from "./brain/index.js";
+// Brain — V2 cognitive OS (Goal & Preference Domain, P15)
+export {
+	type AuthorizationEvent,
+	type AuthorizationResult,
+	AutonomyEngine,
+	type AutonomyEngineConfig,
+	type AutonomyEngineEvent,
+	DEFAULT_AUTONOMY_CONFIG,
+	DEFAULT_DECISION_RULES,
+	DecisionClassifier,
+	type DecisionExplanation,
+	type DecisionRule,
+	GoalDriftDetector,
+	type GoalIndex,
+	type GoalIndexEntry,
+	GoalStore,
+	type GoalStoreConfig,
+	type NeedsApprovalEntry,
+	type NightProtocolConfig,
+	type ProfileLevelChangeEvent,
+	type RejectionRecord,
+	UserProtocol,
+	type WhatCompletedEntry,
+} from "./brain/index.js";
 // P1 Token Budget and Safety - CLI and Reporting
 export {
 	checkLargeEditableFiles,
@@ -836,6 +883,7 @@ export type {
 // P11 — Orchestrator
 // Proposal generation from scan findings and orchestrator types
 export { createOrchestratorProposalGenerator, OrchestratorProposalGenerator } from "./orchestrator/index.js";
+
 // Clipboard utilities
 export { copyToClipboard } from "./utils/clipboard.js";
 export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";

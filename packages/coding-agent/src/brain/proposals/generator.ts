@@ -28,10 +28,13 @@ import {
 	type ProposalCreateInput,
 	type ProposalEvidence,
 	type ProposalRiskAssessment,
+	type ProposalStore,
 	type ProposalType,
 	validateProposalCreateInput,
 	validateProposalEvidence,
 } from "./types.js";
+
+export type { ProposalStore };
 
 // ---------------------------------------------------------------------------
 // Logger stub (replace with PiLogger when available in brain modules)

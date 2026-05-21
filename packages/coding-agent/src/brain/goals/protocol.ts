@@ -225,7 +225,7 @@ export const DEFAULT_NIGHT_MAX_DURATION_HOURS = 8;
 // Helper: Get default stop conditions as StopCondition strings
 // ---------------------------------------------------------------------------
 
-function getDefaultStopConditions(): StopCondition[] {
+function _getDefaultStopConditions(): StopCondition[] {
 	return DEFAULT_NIGHT_PROTOCOL_STOP_CONDITIONS.filter((s) => s.enabled).map((s) => s.condition) as StopCondition[];
 }
 
@@ -258,7 +258,7 @@ export class UserProtocol {
 		private goalStore: GoalStore,
 		private autonomyEngine: AutonomyEngine,
 		private decisionClassifier?: DecisionClassifier,
-		private observationEngine?: unknown,
+		_observationEngine?: unknown,
 	) {}
 
 	// -----------------------------------------------------------------------
@@ -772,7 +772,7 @@ export class UserProtocol {
 	/**
 	 * Categorize a rejection based on the proposal ID and reason.
 	 */
-	private categorizeRejection(proposalId: string, reason?: string): string {
+	private categorizeRejection(_proposalId: string, reason?: string): string {
 		if (!reason) return "unspecified";
 
 		const lower = reason.toLowerCase();

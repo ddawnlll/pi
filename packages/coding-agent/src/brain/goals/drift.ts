@@ -166,10 +166,10 @@ export class GoalDriftDetector {
 	 */
 	private async persistRejectionLog(): Promise<void> {
 		const logPath = this.getRejectionLogPath();
-		const data: GoalRejectionLog & { __meta__: DriftCheckState } = {
+		const data = {
 			...this.rejectionLog,
 			__meta__: { ...this.state },
-		};
+		} as GoalRejectionLog & { __meta__: DriftCheckState };
 		await fs.mkdir(path.dirname(logPath), { recursive: true });
 		await fs.writeFile(logPath, JSON.stringify(data, null, 2), "utf-8");
 	}
