@@ -1437,7 +1437,7 @@ async function executePlanInBackground(
 					`Plan entered awaiting_handoff state for user review (${cleanupResult?.issueCount ?? "unknown"} issue(s) found)...`,
 				);
 				updateExecutionStatus(planExecId, "awaiting_handoff");
-				await thisWaitForHandoff(executor, completionBus, planExecId, log);
+				await thisWaitForHandoff(executor, completionBus, planExecId, workspaceRoot, log);
 				return;
 			}
 
@@ -1546,6 +1546,7 @@ async function thisWaitForHandoff(
 	executor: AutonomousExecutor,
 	completionBus: WorkspaceCompletionBus,
 	planExecId: string,
+	workspaceRoot: string,
 	log: (msg: string) => Promise<void>,
 ): Promise<void> {
 	while (executor.getState()?.status === "awaiting_handoff") {

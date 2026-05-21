@@ -198,6 +198,13 @@ export {
 	ProposalGenerator,
 	type ReflectionReport,
 } from "./proposals/generator.js";
+// Proposal Inbox (P16.E)
+export {
+	DEFAULT_INBOX_CONFIG,
+	type InboxConfig,
+	type InboxStats,
+	ProposalInbox,
+} from "./proposals/inbox.js";
 // Proposal Scoring Engine (P16.C)
 export {
 	DEFAULT_SCORING_CONFIG as DEFAULT_PROPOSAL_SCORING_CONFIG,
