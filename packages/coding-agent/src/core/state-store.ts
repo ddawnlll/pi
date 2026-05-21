@@ -616,23 +616,18 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
 	}
 
 	if (backend === "postgres") {
-		// Attempt to create a DatabaseStateStore; if DB is unavailable, fall back to JSON
 		try {
 			return new DatabaseStateStore(dbConfig);
 		} catch (error) {
-			console.warn(
+			console.error(
 				"[pi] PostgreSQL backend requested but unavailable:",
 				error instanceof Error ? error.message : String(error),
 			);
-			console.warn("[pi] Falling back to JSON state store backend.");
-
-			if (!workspaceRoot) {
-				throw new Error(
-					"workspaceRoot is required for JSON state store fallback. " +
-						'Set state_store_backend = "json" or provide a workspace root.',
-				);
-			}
-			return new JsonStateStore(workspaceRoot, jsonConfig);
+			throw new Error(
+				"PostgreSQL state store backend is required but unavailable. " +
+					"Check your database connection settings. " +
+					"To use JSON backend (deprecated), set PI_STATE_STORE_BACKEND=json.",
+			);
 		}
 	}
 
@@ -650,21 +645,11 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
 export function detectStateStoreBackend(): StateStoreBackend {
 	// Check environment variable first (read at call time)
 	const envBackend = process.env.PI_STATE_STORE_BACKEND;
-	if (envBackend === "postgres" || envBackend === "json") {
-		console.log(`[state-store] Backend explicitly set via PI_STATE_STORE_BACKEND: ${envBackend}`);
+	if (envBackend === "json") {
+		console.log(`[state-store] Backend explicitly set via PI_STATE_STORE_BACKEND: json`);
 		return envBackend;
 	}
 
-	// Check for PostgreSQL availability via DATABASE_URL or standard PG env vars
-	const hasDatabaseUrl = !!process.env.DATABASE_URL;
-	const hasPgEnv = !!(process.env.PGHOST || process.env.PGDATABASE || process.env.PGUSER);
-
-	if (hasDatabaseUrl || hasPgEnv) {
-		console.log(`[state-store] PostgreSQL env vars detected, using postgres backend`);
-		return "postgres";
-	}
-
-	// Default to JSON only if no PostgreSQL env vars are present
-	console.log(`[state-store] No PostgreSQL env vars found, defaulting to json backend`);
-	return "json";
+	// Default to PostgreSQL (check connection at startup, fall back to JSON)
+	return "postgres";
 }

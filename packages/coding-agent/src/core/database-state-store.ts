@@ -4,9 +4,24 @@
  * Implements the IStateStore interface using the PostgreSQL persistence
  * layer from packages/db. Translates between the in-memory PlanState
  * model and the relational database schema.
+ *
+ * Architecture:
+ * - State is cached in-memory (PlanCacheEntry) for fast access
+ * - All mutations write through to DB immediately
+ * - Transcript events go to transcript_events table (not in-memory)
+ * - Control requests go to control_requests table (not metadata hack)
+ * - Cache is evicted when plan completes/fails/is cancelled
+ * - saveState() is NOT a no-op — it flushes the cache to DB
  */
 
-import type { Database, JournalEventRow, PlanExecution, Project, WorkspaceExecution } from "@earendil-works/pi-db";
+import type {
+	Database,
+	JournalEventRow,
+	PlanExecution,
+	Project,
+	TranscriptEvent,
+	WorkspaceExecution,
+} from "@earendil-works/pi-db";
 import {
 	generateId,
 	getKysely,
@@ -60,6 +75,7 @@ export interface DatabaseStateStoreConfig {
 interface WorkspaceEntry {
 	id: string;
 	workspaceId: string;
+	projectId: string;
 	stage: WS;
 	attempts: number;
 	error?: string;
@@ -99,6 +115,9 @@ export class DatabaseStateStore implements IStateStore {
 	private journalEventRepo: JournalEventRepository;
 	private workspaceLogRepo: WorkspaceLogRepository;
 	private cache: Map<string, PlanCacheEntry> = new Map();
+
+	// Transcript sequence counter per workspace execution
+	private transcriptSequences: Map<string, number> = new Map();
 
 	// In-memory log buffer for recent logs (for WebSocket streaming)
 	private logBuffers: Map<string, string[]> = new Map();
@@ -171,13 +190,13 @@ export class DatabaseStateStore implements IStateStore {
 					project_id: projectId,
 					phase: queue.phase,
 					title: queue.title,
-					status: "running" as const,
+					status: "running",
 					started_at: nowISO,
 					completed_at: null,
 				})
 				.execute();
 
-			// Create workspace execution rows
+			// Create workspace execution rows with denorm project_id
 			for (const workspace of queue.workspaces) {
 				const wsExecId = generateId();
 				await trx
@@ -185,9 +204,10 @@ export class DatabaseStateStore implements IStateStore {
 					.values({
 						id: wsExecId,
 						plan_execution_id: planExecutionId,
+						project_id: projectId,
 						workspace_id: workspace.id,
 						title: workspace.title,
-						stage: "pending" as const,
+						stage: "pending",
 						attempts: 0,
 						error_message: null,
 						started_at: null,
@@ -198,20 +218,22 @@ export class DatabaseStateStore implements IStateStore {
 
 				wsEntries.set(workspace.id, {
 					id: wsExecId,
+					projectId,
 					workspaceId: workspace.id,
 					stage: WS.Pending,
 					attempts: 0,
 				});
 			}
 
-			// Create initial journal event
+			// Create initial journal event with denorm project_id
 			await trx
 				.insertInto("journal_events")
 				.values({
 					id: generateId(),
 					plan_execution_id: planExecutionId,
+					project_id: projectId,
 					workspace_execution_id: null,
-					event_type: "plan_start" as const,
+					event_type: "plan_start",
 					timestamp: nowISO,
 					data: { phase: queue.phase, title: queue.title },
 				})
@@ -253,6 +275,7 @@ export class DatabaseStateStore implements IStateStore {
 
 			wsEntries.set(ws.workspace_id, {
 				id: ws.id,
+				projectId: planExec.project_id,
 				workspaceId: ws.workspace_id,
 				stage: ws.stage as WS,
 				attempts: ws.attempts,
@@ -286,9 +309,22 @@ export class DatabaseStateStore implements IStateStore {
 		return planState;
 	}
 
-	async saveState(_planExecutionId: string): Promise<void> {
-		// State is persisted eagerly on every mutation, so this is a no-op
-		// for the database backend. The cache is kept in sync.
+	async saveState(planExecutionId: string): Promise<void> {
+		// Flush cache to DB: this ensures all in-memory workspace state
+		// transitions are persisted even if they haven't gone through
+		// the normal mutation path.
+		const cacheEntry = this.cache.get(planExecutionId);
+		if (!cacheEntry) return;
+
+		for (const ws of cacheEntry.workspaces.values()) {
+			await this.workspaceExecutionRepo.update(ws.id, {
+				stage: ws.stage,
+				attempts: ws.attempts ?? undefined,
+				error_message: ws.error ?? null,
+				started_at: ws.startedAt ? new Date(ws.startedAt).toISOString() : null,
+				completed_at: ws.completedAt ? new Date(ws.completedAt).toISOString() : null,
+			});
+		}
 	}
 
 	async listPlanExecutions(projectId: string): Promise<PlanExecutionSummary[]> {
@@ -316,7 +352,7 @@ export class DatabaseStateStore implements IStateStore {
 		const entry = this.getWsEntry(planExecutionId, workspaceId);
 
 		await this.workspaceExecutionRepo.update(entry.id, {
-			stage: (updates.stage as string) ?? undefined,
+			stage: updates.stage ?? undefined,
 			attempts: updates.attempts ?? undefined,
 			error_message: updates.error ?? null,
 			started_at: updates.startedAt ? new Date(updates.startedAt).toISOString() : undefined,
@@ -403,12 +439,13 @@ export class DatabaseStateStore implements IStateStore {
 	}
 
 	// =========================================================================
-	// Journal
+	// Journal (with denorm project_id)
 	// =========================================================================
 
 	async appendJournal(planExecutionId: string, event: JournalEvent): Promise<void> {
 		const cacheEntry = this.cache.get(planExecutionId);
 		let wsExecId: string | null = null;
+		const projectId: string | null = cacheEntry?.projectId ?? null;
 
 		if (event.workspaceId && cacheEntry) {
 			const wsEntry = cacheEntry.workspaces.get(event.workspaceId);
@@ -420,6 +457,7 @@ export class DatabaseStateStore implements IStateStore {
 		await this.journalEventRepo.create({
 			id: generateId(),
 			plan_execution_id: planExecutionId,
+			project_id: projectId,
 			workspace_execution_id: wsExecId,
 			event_type: event.type,
 			timestamp: new Date(event.timestamp).toISOString(),
@@ -496,6 +534,7 @@ export class DatabaseStateStore implements IStateStore {
 	async completePlan(planExecutionId: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "complete");
 		this.updateCacheStatus(planExecutionId, "complete");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_complete",
 			timestamp: Date.now(),
@@ -505,6 +544,7 @@ export class DatabaseStateStore implements IStateStore {
 	async failPlan(planExecutionId: string, error: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "failed");
 		this.updateCacheStatus(planExecutionId, "failed");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_failed",
 			timestamp: Date.now(),
@@ -525,6 +565,7 @@ export class DatabaseStateStore implements IStateStore {
 	async stopPlan(planExecutionId: string, reason?: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "stopped");
 		this.updateCacheStatus(planExecutionId, "stopped");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_stopped",
 			timestamp: Date.now(),
@@ -549,6 +590,7 @@ export class DatabaseStateStore implements IStateStore {
 
 		await this.planExecutionRepo.updateStatus(planExecutionId, "cancelled");
 		this.updateCacheStatus(planExecutionId, "cancelled");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_cancelled",
 			timestamp: Date.now(),
@@ -566,7 +608,11 @@ export class DatabaseStateStore implements IStateStore {
 	}
 
 	async setAwaitingHandoff(planExecutionId: string, planTitle: string): Promise<void> {
-		await this.planExecutionRepo.updateStatus(planExecutionId, "awaiting_handoff");
+		await this.db
+			.updateTable("plan_executions")
+			.set({ status: "awaiting_handoff", handoff_started_at: sql`now()` })
+			.where("id", "=", planExecutionId)
+			.execute();
 		this.updateCacheStatus(planExecutionId, "awaiting_handoff");
 		await this.appendJournal(planExecutionId, {
 			type: "plan_handoff",
@@ -578,6 +624,7 @@ export class DatabaseStateStore implements IStateStore {
 	async handoffCommit(planExecutionId: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "complete");
 		this.updateCacheStatus(planExecutionId, "complete");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_handoff_committed",
 			timestamp: Date.now(),
@@ -606,6 +653,7 @@ export class DatabaseStateStore implements IStateStore {
 
 		await this.planExecutionRepo.updateStatus(planExecutionId, "failed");
 		this.updateCacheStatus(planExecutionId, "failed");
+		this.evictCache(planExecutionId);
 		await this.appendJournal(planExecutionId, {
 			type: "plan_handoff_discard",
 			timestamp: Date.now(),
@@ -615,45 +663,92 @@ export class DatabaseStateStore implements IStateStore {
 
 	async isAwaitingHandoff(planExecutionId: string): Promise<boolean> {
 		const entry = this.cache.get(planExecutionId);
-		return entry?.status === "awaiting_handoff";
+		if (entry) return entry.status === "awaiting_handoff";
+
+		// Cache miss — read from DB
+		const planExec = await this.planExecutionRepo.findById(planExecutionId);
+		return planExec?.status === "awaiting_handoff";
 	}
 
 	async getHandoffStartedAt(planExecutionId: string): Promise<number> {
 		const entry = this.cache.get(planExecutionId);
-		return entry?.handoffStartedAt ?? 0;
+		if (entry?.handoffStartedAt) return entry.handoffStartedAt;
+
+		// Cache miss — read from DB
+		const planExec = await this.planExecutionRepo.findById(planExecutionId);
+		if (planExec?.handoff_started_at) {
+			return new Date(planExec.handoff_started_at).getTime();
+		}
+		return 0;
 	}
 
 	// =========================================================================
-	// Control
+	// Control (using control_requests table)
 	// =========================================================================
 
 	async writeControlRequest(planExecutionId: string, action: ControlAction, reason?: string): Promise<void> {
-		// For DB backend, control requests are stored on the plan execution row
-		// using a metadata field
-		const controlData: PlanControlState = {
-			action,
-			requestedAt: Date.now(),
-			reason,
-		};
+		// Look up project_id from cache or DB
+		let projectId: string | null = this.cache.get(planExecutionId)?.projectId ?? null;
+		if (!projectId) {
+			const planExec = await this.planExecutionRepo.findById(planExecutionId);
+			projectId = planExec?.project_id ?? null;
+		}
 
-		await this.planExecutionRepo.update(planExecutionId, {
-			metadata: { control: controlData } as unknown as Record<string, unknown>,
-		} as any);
+		// Acknowledge any prior unacknowledged request
+		await this.db
+			.updateTable("control_requests")
+			.set({ acknowledged: true, acknowledged_at: sql`now()` })
+			.where("plan_execution_id", "=", planExecutionId)
+			.where("acknowledged", "=", false)
+			.execute();
+
+		// Insert new control request (project_id is NOT NULL)
+		if (!projectId) {
+			throw new Error(`Cannot write control request: no project_id for execution ${planExecutionId}`);
+		}
+		const pid = projectId as string;
+		await this.db
+			.insertInto("control_requests")
+			.values({
+				id: generateId(),
+				plan_execution_id: planExecutionId,
+				project_id: pid,
+				type: action,
+				reason: reason ?? null,
+				requested_at: sql`now()`,
+				acknowledged: false,
+				acknowledged_at: null,
+			})
+			.execute();
 	}
 
 	async readControlRequest(planExecutionId: string): Promise<PlanControlState | null> {
-		const planExec = await this.planExecutionRepo.findById(planExecutionId);
-		if (!planExec) return null;
+		const row = await this.db
+			.selectFrom("control_requests")
+			.selectAll()
+			.where("plan_execution_id", "=", planExecutionId)
+			.where("acknowledged", "=", false)
+			.orderBy("requested_at", "desc")
+			.limit(1)
+			.executeTakeFirst();
 
-		// For DB backend, control is stored in plan execution metadata
-		const control = (planExec as any).metadata?.control as PlanControlState | undefined;
-		return control ?? null;
+		if (!row) return null;
+
+		return {
+			action: row.type as ControlAction,
+			requestedAt: new Date(row.requested_at).getTime(),
+			reason: row.reason ?? undefined,
+			planExecutionId: row.plan_execution_id,
+		};
 	}
 
 	async clearControlRequest(planExecutionId: string): Promise<void> {
-		await this.planExecutionRepo.update(planExecutionId, {
-			metadata: null,
-		} as any);
+		await this.db
+			.updateTable("control_requests")
+			.set({ acknowledged: true, acknowledged_at: sql`now()` })
+			.where("plan_execution_id", "=", planExecutionId)
+			.where("acknowledged", "=", false)
+			.execute();
 	}
 
 	// =========================================================================
@@ -762,7 +857,6 @@ export class DatabaseStateStore implements IStateStore {
 		}
 
 		// Compute telemetry from workspace execution data
-		// Uses chars/4 token estimation (same heuristic as token-metering.ts)
 		let totalCharsIn = 0;
 		let totalCharsOut = 0;
 		const now = Date.now();
@@ -789,10 +883,7 @@ export class DatabaseStateStore implements IStateStore {
 		const elapsedMinutes = (endTime - startTime) / 60_000;
 		const burnRate = elapsedMinutes > 0 ? Math.round(totalTokensIn / elapsedMinutes) : 0;
 
-		// Tokens per completed workspace
 		const tokensPerWorkspace = stats.complete > 0 ? Math.round(totalTokensIn / stats.complete) : undefined;
-
-		// Tokens per percent progress (only defined when total > 0)
 		const progressPct = stats.total > 0 ? (stats.complete / stats.total) * 100 : 0;
 		const tokensPerPercent = progressPct > 0 ? Math.round(totalTokensIn / progressPct) : undefined;
 
@@ -872,6 +963,19 @@ export class DatabaseStateStore implements IStateStore {
 	}
 
 	/**
+	 * Evict cache entry when plan is terminal.
+	 */
+	private evictCache(planExecutionId: string): void {
+		this.cache.delete(planExecutionId);
+		// Clean up transcript sequences too
+		for (const key of this.transcriptSequences.keys()) {
+			if (key.startsWith(planExecutionId)) {
+				this.transcriptSequences.delete(key);
+			}
+		}
+	}
+
+	/**
 	 * Map workspace stage to journal event type.
 	 */
 	private getJournalEventType(stage: WS): JournalEvent["type"] | null {
@@ -890,15 +994,16 @@ export class DatabaseStateStore implements IStateStore {
 	}
 
 	// =========================================================================
-	// Execution Logs
+	// Execution Logs (no `as any` casts)
 	// =========================================================================
 
 	async saveExecutionLog(planExecutionId: string, logContent: string): Promise<void> {
 		await this.db
 			.updateTable("plan_executions")
+			// Use SQL concat to append to existing log
 			.set({
-				execution_log: sql`execution_log || ${logContent}`,
-			} as any)
+				execution_log: sql`COALESCE(execution_log, '') || ${logContent}`,
+			})
 			.where("id", "=", planExecutionId)
 			.execute();
 	}
@@ -906,11 +1011,11 @@ export class DatabaseStateStore implements IStateStore {
 	async loadExecutionLog(planExecutionId: string): Promise<string | null> {
 		const result = await this.db
 			.selectFrom("plan_executions")
-			.select(["execution_log"] as any)
+			.select("execution_log")
 			.where("id", "=", planExecutionId)
 			.executeTakeFirst();
 
-		return (result as any)?.execution_log ?? null;
+		return result?.execution_log ?? null;
 	}
 
 	/**
@@ -938,9 +1043,11 @@ export class DatabaseStateStore implements IStateStore {
 		// Get current line number
 		const lineNumber = await this.workspaceLogRepo.getMaxLineNumber(entry.id);
 
-		// Persist to database
+		// Persist to database with denorm columns
 		await this.workspaceLogRepo.create({
 			workspace_execution_id: entry.id,
+			project_id: entry.projectId,
+			plan_execution_id: planExecutionId,
 			stream: "stdout",
 			line_number: lineNumber + 1,
 			content: logLine,
@@ -974,7 +1081,7 @@ export class DatabaseStateStore implements IStateStore {
 	}
 
 	// =========================================================================
-	// Worker Transcript
+	// Worker Transcript (persisted to transcript_events table)
 	// =========================================================================
 
 	async appendWorkerTranscriptEvent(
@@ -982,50 +1089,84 @@ export class DatabaseStateStore implements IStateStore {
 		workspaceId: string,
 		event: import("./plan-state.js").WorkerTranscriptEvent,
 	): Promise<void> {
-		// For DB backend, store transcript in the in-memory log buffer
-		const logContent = JSON.stringify(event);
-		const key = `${planExecutionId}:${workspaceId}`;
-		const buffer = this.logBuffers.get(key);
-		if (buffer) {
-			buffer.push(logContent);
-			if (buffer.length > this.MAX_BUFFER_LINES) {
-				buffer.splice(0, buffer.length - this.MAX_BUFFER_LINES);
-			}
-		} else {
-			this.logBuffers.set(key, [logContent]);
-		}
+		const cacheEntry = this.cache.get(planExecutionId);
+		const wsEntry = cacheEntry?.workspaces.get(workspaceId);
+		if (!wsEntry) return;
+
+		// Get next sequence number
+		const seqKey = `${planExecutionId}:${workspaceId}`;
+		const seq = (this.transcriptSequences.get(seqKey) ?? 0) + 1;
+		this.transcriptSequences.set(seqKey, seq);
+
+		await this.db
+			.insertInto("transcript_events")
+			.values({
+				id: generateId(),
+				workspace_execution_id: wsEntry.id,
+				plan_execution_id: planExecutionId,
+				project_id: wsEntry.projectId,
+				role: "assistant",
+				content: event.summary ?? "",
+				token_count: null,
+				metadata: event as unknown as Record<string, unknown>,
+				sequence: seq,
+				timestamp: new Date(event.timestamp).toISOString(),
+			})
+			.execute();
 	}
 
 	async getWorkspaceIdsWithTranscript(planExecutionId: string): Promise<string[]> {
-		const ids: string[] = [];
-		const prefix = `${planExecutionId}:`;
-		for (const key of this.logBuffers.keys()) {
-			if (key.startsWith(prefix)) {
-				const wsId = key.slice(prefix.length);
-				if (wsId) ids.push(wsId);
+		const rows = await this.db
+			.selectFrom("transcript_events")
+			.select("workspace_execution_id")
+			.where("plan_execution_id", "=", planExecutionId)
+			.distinct()
+			.execute();
+
+		const wsExecIds = new Set(rows.map((r) => r.workspace_execution_id));
+		const cacheEntry = this.cache.get(planExecutionId);
+		if (!cacheEntry) return [];
+
+		const result: string[] = [];
+		for (const [wsId, ws] of cacheEntry.workspaces) {
+			if (wsExecIds.has(ws.id)) {
+				result.push(wsId);
 			}
 		}
-		return ids;
+		return result;
 	}
 
 	async readWorkerTranscriptEvents(
 		planExecutionId: string,
 		workspaceId: string,
 	): Promise<import("./plan-state.js").WorkerTranscriptEvent[]> {
-		// Read from log buffer for DB backend
-		const key = `${planExecutionId}:${workspaceId}`;
-		const buffer = this.logBuffers.get(key);
-		if (!buffer) return [];
-		return buffer
-			.filter((line) => {
-				try {
-					const parsed = JSON.parse(line);
-					return parsed.type && parsed.summary && parsed.workspaceId;
-				} catch {
-					return false;
-				}
-			})
-			.map((line) => JSON.parse(line));
+		const wsEntry = this.cache.get(planExecutionId)?.workspaces.get(workspaceId);
+		if (!wsEntry) return [];
+
+		const rows = await this.db
+			.selectFrom("transcript_events")
+			.selectAll()
+			.where("workspace_execution_id", "=", wsEntry.id)
+			.orderBy("sequence", "asc")
+			.execute();
+
+		return rows.map((r: TranscriptEvent) => {
+			// Try to reconstruct from stored metadata first
+			if (r.metadata && typeof r.metadata === "object" && "type" in r.metadata && "summary" in r.metadata) {
+				const stored = r.metadata as unknown as import("./plan-state.js").WorkerTranscriptEvent;
+				return {
+					...stored,
+					timestamp: new Date(r.timestamp).getTime(),
+				};
+			}
+			// Fallback: reconstruct from row columns
+			return {
+				type: "worker_status" as import("./plan-state.js").WorkerTranscriptEventType,
+				timestamp: new Date(r.timestamp).getTime(),
+				workspaceId,
+				summary: r.content,
+			};
+		});
 	}
 
 	async emitWorkerStatus(

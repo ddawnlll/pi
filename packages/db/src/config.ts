@@ -36,7 +36,7 @@ export const DEFAULT_DB_CONFIG: DbConfig = {
 	host: "localhost",
 	port: 5432,
 	database: "pi_executor",
-	user: "pi",
+	user: process.env.USER || "pi",
 	password: "",
 	poolMax: 20,
 	idleTimeoutMs: 30_000,

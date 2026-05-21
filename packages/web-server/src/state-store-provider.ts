@@ -74,11 +74,12 @@ export function getSettingsManager(): SettingsManager {
 
 /**
  * Get a JsonStateStore wrapper for legacy file access.
+ *
+ * @deprecated JSON state store is deprecated. All new state is stored in PostgreSQL.
+ *   This function provides read-only access to previously-saved JSON state files
+ *   for migration purposes. It may be removed in a future release.
  */
 export function getJsonStateStore(): JsonStateStore {
-	const store = getStateStore();
-	if (store instanceof JsonStateStore) {
-		return store;
-	}
+	console.warn("[state-store-provider] WARNING: getJsonStateStore() is deprecated. Use PostgreSQL backend.");
 	return new JsonStateStore(getWorkspaceRoot());
 }

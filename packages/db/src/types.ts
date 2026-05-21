@@ -239,6 +239,8 @@ export interface Database {
 	plan_revisions: PlanRevisionTable;
 	memory_vectors: MemoryVectorTable;
 	audit_events: AuditEventTable;
+	control_requests: ControlRequestTable;
+	transcript_events: TranscriptEventTable;
 	_migrations: MigrationsTable;
 }
 
@@ -260,6 +262,8 @@ export interface PlanExecutionTable {
 	status: string;
 	started_at: ColumnType<string, string, string | undefined>;
 	completed_at: string | null;
+	handoff_started_at: string | null;
+	error_message: string | null;
 	execution_log: string | null;
 	created_at: Generated<string>;
 	updated_at: Generated<string>;
@@ -268,6 +272,7 @@ export interface PlanExecutionTable {
 export interface WorkspaceExecutionTable {
 	id: Generated<string>;
 	plan_execution_id: string;
+	project_id: string | null;
 	workspace_id: string;
 	title: string;
 	stage: string;
@@ -284,6 +289,7 @@ export interface JournalEventTable {
 	id: Generated<string>;
 	plan_execution_id: string;
 	workspace_execution_id: string | null;
+	project_id: string | null;
 	event_type: string;
 	timestamp: string;
 	data: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
@@ -293,6 +299,8 @@ export interface JournalEventTable {
 export interface WorkspaceLogTable {
 	id: Generated<string>;
 	workspace_execution_id: string;
+	project_id: string | null;
+	plan_execution_id: string | null;
 	stream: string;
 	line_number: number;
 	content: string;
@@ -319,6 +327,32 @@ export interface PlanRevisionTable {
 	status: string;
 	diff_summary: string | null;
 	created_by: string | null;
+	created_at: Generated<string>;
+}
+
+export interface ControlRequestTable {
+	id: Generated<string>;
+	plan_execution_id: string;
+	project_id: string;
+	type: string;
+	reason: string | null;
+	requested_at: Generated<string>;
+	acknowledged: Generated<boolean>;
+	acknowledged_at: string | null;
+	created_at: Generated<string>;
+}
+
+export interface TranscriptEventTable {
+	id: Generated<string>;
+	workspace_execution_id: string;
+	plan_execution_id: string;
+	project_id: string;
+	role: string;
+	content: string;
+	token_count: number | null;
+	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	sequence: number;
+	timestamp: string;
 	created_at: Generated<string>;
 }
 
@@ -364,3 +398,10 @@ export type AuditEventUpdate = Updateable<AuditEventTable>;
 
 export type ChatMessage = Selectable<ChatMessageTable>;
 export type NewChatMessage = Insertable<ChatMessageTable>;
+
+export type ControlRequest = Selectable<ControlRequestTable>;
+export type NewControlRequest = Insertable<ControlRequestTable>;
+export type ControlRequestUpdate = Updateable<ControlRequestTable>;
+
+export type TranscriptEvent = Selectable<TranscriptEventTable>;
+export type NewTranscriptEvent = Insertable<TranscriptEventTable>;
