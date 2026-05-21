@@ -59,6 +59,7 @@ import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
+import { GoalBoard } from "./components/brain/goals/GoalBoard";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -200,6 +201,7 @@ export function App() {
 
   // ── Derived booleans from activeView ──────────────────────────────────
   const showAutonomy    = activeView.type === "platform" && activeView.screen === "autonomy";
+  const showGoals       = activeView.type === "platform" && activeView.screen === "goals";
   const showExtensions  = activeView.type === "platform" && activeView.screen === "extensions_skills";
   const showSkills      = activeView.type === "platform" && activeView.screen === "extensions_skills";
   const showPlanIntake  = activeView.type === "platform" && activeView.screen === "plan_intake";
@@ -717,6 +719,8 @@ export function App() {
                           <ExtensionsManager className="flex-1 min-h-0" />
                         ) : showSkills ? (
                           <SkillsManager className="flex-1 min-h-0" />
+                        ) : showGoals ? (
+                          <GoalBoard className="flex-1 min-h-0" />
                         ) : showAutonomy ? (
                           <AutonomyCenter className="flex-1 min-h-0" />
                         ) : (

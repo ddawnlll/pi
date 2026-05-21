@@ -21,6 +21,7 @@ import {
 	ScrollText,
 	ShieldAlert,
 	Sliders,
+	Target,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 export type PlatformNavItem =
 	| "autonomy"
+	| "goals"
 	| "plan_intake"
 	| "extensions_skills"
 	| "memory"
@@ -58,6 +60,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Autonomy",
 		icon: Cpu,
 		description: "Orchestrator health, proposals, self-improvement triggers",
+	},
+	{
+		id: "goals",
+		label: "Goals",
+		icon: Target,
+		description: "Goal board, milestones, drift alerts",
 	},
 	{
 		id: "plan_intake",
