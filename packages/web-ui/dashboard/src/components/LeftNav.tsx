@@ -17,6 +17,7 @@
 import {
 	Cpu,
 	Database,
+	Inbox,
 	Package,
 	ScrollText,
 	ShieldAlert,
@@ -41,6 +42,7 @@ const BORD = "border-[#E8E6E1] dark:border-[#333]";
 export type PlatformNavItem =
 	| "autonomy"
 	| "goals"
+	| "proposal_inbox"
 	| "plan_intake"
 	| "extensions_skills"
 	| "memory"
@@ -60,6 +62,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Autonomy",
 		icon: Cpu,
 		description: "Orchestrator health, proposals, self-improvement triggers",
+	},
+	{
+		id: "proposal_inbox",
+		label: "Proposal Inbox",
+		icon: Inbox,
+		description: "Top-ranked proposals with recommendations",
 	},
 	{
 		id: "goals",

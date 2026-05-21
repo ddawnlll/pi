@@ -838,3 +838,85 @@ export interface TaskQueueEntry {
 	stopConditions: string[];
 	createdAt: number;
 }
+
+// =============================================================================
+// Brain Proposal Inbox Types (P16.G)
+// =============================================================================
+
+/** Brain proposal score dimensions. */
+export interface BrainProposalScore {
+	total: number;
+	novelty: number;
+	feasibility: number;
+	impact: number;
+	urgency: number;
+	confidence: number;
+}
+
+/** Brain proposal type. */
+export type BrainProposalType =
+	| "refactor"
+	| "new_feature"
+	| "fix"
+	| "optimization"
+	| "dependency"
+	| "config"
+	| "test"
+	| "docs"
+	| "other";
+
+/** Brain proposal status. */
+export type BrainProposalStatus =
+	| "draft"
+	| "pending_approval"
+	| "pending_approval_planning"
+	| "approved_for_planning"
+	| "approved_for_execution"
+	| "changes_requested"
+	| "rejected"
+	| "expired"
+	| "accepted"
+	| "queued"
+	| "running"
+	| "completed"
+	| "failed";
+
+/** A brain proposal — the backend's internal proposal model. */
+export interface BrainProposal {
+	id: string;
+	type: BrainProposalType;
+	title: string;
+	description: string;
+	score: BrainProposalScore;
+	status: BrainProposalStatus;
+	tags: string[];
+	relatedGoalIds: string[];
+	source: string;
+	evidence: Record<string, unknown>;
+	createdAt: string;
+	updatedAt: string;
+}
+
+/** A single entry in the proposal inbox. */
+export interface InboxEntry {
+	proposal: BrainProposal;
+	rank: number;
+	reason: string;
+	recommendation: "auto_approve" | "review" | "reject";
+	relatedMemorySummaries: string[];
+	relatedObservationSummaries: string[];
+}
+
+/** Full inbox view returned by the API. */
+export interface InboxView {
+	entries: InboxEntry[];
+	totalPending: number;
+	lastUpdated: string;
+}
+
+/** Response from GET /api/brain/proposals/inbox. */
+export interface InboxResponse {
+	success: boolean;
+	inbox?: InboxView;
+	error?: string;
+}

@@ -60,6 +60,7 @@ import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
+import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -200,13 +201,14 @@ export function App() {
   const [leftTab, setLeftTab] = useState<LeftTab>("runs");
 
   // ── Derived booleans from activeView ──────────────────────────────────
-  const showAutonomy    = activeView.type === "platform" && activeView.screen === "autonomy";
-  const showGoals       = activeView.type === "platform" && activeView.screen === "goals";
-  const showExtensions  = activeView.type === "platform" && activeView.screen === "extensions_skills";
-  const showSkills      = activeView.type === "platform" && activeView.screen === "extensions_skills";
-  const showPlanIntake  = activeView.type === "platform" && activeView.screen === "plan_intake";
-  const showMemory      = activeView.type === "platform" && activeView.screen === "memory";
-  const showPolicyAudit = activeView.type === "platform" && activeView.screen === "policy_audit";
+  const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
+  const showGoals            = activeView.type === "platform" && activeView.screen === "goals";
+  const showProposalInbox    = activeView.type === "platform" && activeView.screen === "proposal_inbox";
+  const showExtensions       = activeView.type === "platform" && activeView.screen === "extensions_skills";
+  const showSkills           = activeView.type === "platform" && activeView.screen === "extensions_skills";
+  const showPlanIntake       = activeView.type === "platform" && activeView.screen === "plan_intake";
+  const showMemory           = activeView.type === "platform" && activeView.screen === "memory";
+  const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
@@ -723,6 +725,8 @@ export function App() {
                           <GoalBoard className="flex-1 min-h-0" />
                         ) : showAutonomy ? (
                           <AutonomyCenter className="flex-1 min-h-0" />
+                        ) : showProposalInbox ? (
+                          <ProposalInbox className="flex-1 min-h-0" />
                         ) : (
                           <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
                             <Cpu size={32} strokeWidth={1.2} />
