@@ -44,7 +44,9 @@ import { ChatPanel, type ContextRef } from "./components/ChatPanel";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent, formatPercentOrUnknown } from "./utils/format";
-import { PlanQueueTab } from "./components/PlanQueueTab";
+import { TaskList } from "./components/TaskList";
+import { TaskDetailView } from "./components/TaskDetailView";
+import type { MultiPhaseTask } from "./types";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
@@ -179,7 +181,9 @@ export function App() {
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
   /** Left sidebar tab: "nav" = projects + history + platform */
-  const [leftTab, setLeftTab] = useState<"nav" | "queue">("nav");
+  const [leftTab, setLeftTab] = useState<"nav" | "tasks">("nav");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
 
   /** Navigate to a Platform feature, toggling it on/off and coordinating toolbar buttons. */
   const navigateToPlatform = useCallback((item: PlatformNavItem) => {
@@ -442,14 +446,14 @@ export function App() {
                   <LayoutGrid size={12} strokeWidth={1.8} /> Browse
                 </button>
                 <button
-                  onClick={() => setLeftTab("queue")}
+                  onClick={() => setLeftTab("tasks")}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                    leftTab === "queue"
+                    leftTab === "tasks"
                       ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
                       : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
                   }`}
                 >
-                  <ListOrdered size={12} strokeWidth={1.8} /> Queue
+                  <ListOrdered size={12} strokeWidth={1.8} /> Tasks
                 </button>
 
               </div>
@@ -494,8 +498,19 @@ export function App() {
               )}
 
               {/* Queue tab content */}
-              {leftTab === "queue" && (
-                <PlanQueueTab projectId={selectedProjectId} />
+              {leftTab === "tasks" && (
+                <TaskList projectId={selectedProjectId} onSelectTask={(taskId) => {
+                  setSelectedTaskId(taskId);
+                  setSelectedTask(null);
+                  setMobileNav(null);
+                  // Fetch the task detail
+                  fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId ?? "")}/tasks/${encodeURIComponent(taskId)}`)
+                    .then(r => r.json())
+                    .then(d => {
+                      if (d.task) setSelectedTask(d.task);
+                    })
+                    .catch(() => {});
+                }} />
               )}
 
 
@@ -562,11 +577,25 @@ export function App() {
           )}
 
           {/* placeholders */}
-          {!isLegacyMode && !executionDetail && hasProjects && (
+          {!isLegacyMode && !executionDetail && hasProjects && !selectedTask && (
             <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
               <History size={32} strokeWidth={1.2} />
               <p className="text-sm">No execution selected</p>
               <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
+            </div>
+          )}
+          {/* Task detail view */}
+          {!isLegacyMode && !executionDetail && selectedTask && (
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <TaskDetailView
+                task={selectedTask}
+                projectId={selectedProjectId ?? ""}
+                onBack={() => {
+                  setSelectedTaskId(null);
+                  setSelectedTask(null);
+                }}
+                onTaskUpdated={(updated) => setSelectedTask(updated)}
+              />
             </div>
           )}
           {isLegacyMode && !legacyPlanState && !legacyLoading && (
