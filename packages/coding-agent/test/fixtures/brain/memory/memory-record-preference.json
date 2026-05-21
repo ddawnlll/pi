@@ -1,0 +1,25 @@
+{
+  "id": "mem-pref-001",
+  "type": "user_preference_memory",
+  "title": "User prefers sequential execution over parallel for critical paths",
+  "content": "User requested that all workspace executions with 'critical' severity should run sequentially rather than in parallel. This reduces risk of cascading failures and makes debugging easier.",
+  "summary": "Critical paths should execute sequentially",
+  "lifecycle": "active",
+  "confidence": 1.0,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "user",
+        "path": ".pi/settings.json",
+        "id": "user-pref-exec-001",
+        "timestamp": "2026-05-10T09:00:00.000Z"
+      }
+    ],
+    "validatedBy": "user"
+  },
+  "createdAt": "2026-05-10T09:00:00.000Z",
+  "updatedAt": "2026-05-10T09:00:00.000Z",
+  "tags": ["preference", "execution", "sequential", "critical"],
+  "category": "execution-preferences",
+  "metadata": {}
+}

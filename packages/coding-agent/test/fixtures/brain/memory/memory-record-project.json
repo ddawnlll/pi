@@ -1,0 +1,39 @@
+{
+  "id": "mem-project-001",
+  "type": "project_memory",
+  "title": "Project uses npm workspaces with TypeScript path aliases",
+  "content": "The pi-mono repository is organized as an npm workspace monorepo. All packages are under packages/ and share a common tsconfig.base.json. Path aliases use @pi/ prefix mapped in each package's tsconfig.json.",
+  "summary": "Monorepo structure with npm workspaces and @pi/ path aliases",
+  "lifecycle": "active",
+  "confidence": 0.95,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "observation",
+        "path": "package.json",
+        "id": "obs-pkg-001",
+        "lineStart": 1,
+        "lineEnd": 50,
+        "timestamp": "2026-05-20T10:00:00.000Z"
+      },
+      {
+        "type": "observation",
+        "path": "tsconfig.base.json",
+        "id": "obs-tsc-001",
+        "lineStart": 1,
+        "lineEnd": 30,
+        "timestamp": "2026-05-20T10:00:00.000Z"
+      }
+    ],
+    "validatedBy": "system"
+  },
+  "createdAt": "2026-05-20T10:00:00.000Z",
+  "updatedAt": "2026-05-20T10:00:00.000Z",
+  "expiresAt": "2026-08-20T10:00:00.000Z",
+  "tags": ["monorepo", "typescript", "workspace", "project-structure"],
+  "category": "project-config",
+  "metadata": {
+    "observedBy": "repo-scanner",
+    "packageCount": 12
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "mem-idea-001",
+  "type": "idea_memory",
+  "title": "Proposal: add semantic memory retrieval via embedding similarity",
+  "content": "Suggestion to enhance memory retrieval by computing embeddings for memory content and supporting nearest-neighbor search. This would improve recall over keyword matching, especially for semantically related but lexically different concepts.",
+  "summary": "Enhance memory retrieval with embedding-based similarity search",
+  "lifecycle": "candidate",
+  "confidence": 0.4,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "reflection",
+        "path": ".pi/brain/reflections/memory-enhancement.md",
+        "id": "ref-enhance-001",
+        "timestamp": "2026-05-21T06:00:00.000Z"
+      }
+    ],
+    "validatedBy": "system"
+  },
+  "createdAt": "2026-05-21T06:00:00.000Z",
+  "updatedAt": "2026-05-21T06:00:00.000Z",
+  "tags": ["idea", "embedding", "semantic-search", "memory-enhancement"],
+  "category": "enhancements",
+  "metadata": {
+    "status": "under-review"
+  }
+}

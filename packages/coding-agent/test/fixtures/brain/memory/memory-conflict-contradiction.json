@@ -1,0 +1,11 @@
+{
+  "id": "conflict-001",
+  "recordIds": ["mem-arch-001", "mem-arch-002"],
+  "conflictType": "contradiction",
+  "scores": {
+    "mem-arch-001": 0.9,
+    "mem-arch-002": 0.6
+  },
+  "resolution": "pending",
+  "evidence": "Two architecture records disagree on the tool dispatch strategy. mem-arch-001 describes plugin-based dispatch while mem-arch-002 describes a pipeline-based approach. Both may be valid for different subsystems."
+}

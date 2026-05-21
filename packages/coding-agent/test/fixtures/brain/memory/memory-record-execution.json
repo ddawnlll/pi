@@ -1,0 +1,28 @@
+{
+  "id": "mem-exec-001",
+  "type": "execution_memory",
+  "title": "P13 brain types compiled successfully with 0 errors",
+  "content": "Workspace P13.A completed. All 42 type definitions in brain/types.ts compiled without errors. Validation functions pass all test cases. Fixture files serialize and deserialize correctly.",
+  "summary": "P13.A brain types workspace completed successfully",
+  "lifecycle": "active",
+  "confidence": 0.95,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "observation",
+        "path": "packages/coding-agent/src/brain/types.ts",
+        "id": "obs-exec-p13-001",
+        "timestamp": "2026-05-20T08:00:00.000Z"
+      }
+    ],
+    "validatedBy": "system"
+  },
+  "createdAt": "2026-05-20T08:00:00.000Z",
+  "updatedAt": "2026-05-20T08:00:00.000Z",
+  "tags": ["execution", "p13", "compilation", "success"],
+  "category": "workspace-results",
+  "metadata": {
+    "workspaceId": "P13.A",
+    "verdict": "COMPLETE"
+  }
+}

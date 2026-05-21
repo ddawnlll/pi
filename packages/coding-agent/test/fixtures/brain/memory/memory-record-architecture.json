@@ -1,0 +1,31 @@
+{
+  "id": "mem-arch-001",
+  "type": "architecture_memory",
+  "title": "Pi uses a modular agent architecture with plugin-based tool system",
+  "content": "The coding agent follows a modular architecture where tools are registered as plugins. Each tool implements the Tool interface with execute, schema, and metadata. The agent dispatches tool calls based on LLM responses, and tools can be composed into pipelines.",
+  "summary": "Plugin-based tool architecture for the coding agent",
+  "lifecycle": "active",
+  "confidence": 0.9,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "observation",
+        "path": "packages/coding-agent/src/core/tool-registry.ts",
+        "id": "obs-tool-001",
+        "lineStart": 1,
+        "lineEnd": 80,
+        "timestamp": "2026-05-19T14:00:00.000Z"
+      }
+    ],
+    "derivedFrom": ["mem-project-001"],
+    "validatedBy": "system"
+  },
+  "createdAt": "2026-05-19T14:00:00.000Z",
+  "updatedAt": "2026-05-20T09:00:00.000Z",
+  "tags": ["architecture", "plugin", "tools", "agent"],
+  "category": "system-architecture",
+  "metadata": {
+    "observedBy": "repo-scanner",
+    "toolCount": 25
+  }
+}

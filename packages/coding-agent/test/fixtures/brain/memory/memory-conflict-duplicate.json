@@ -1,0 +1,13 @@
+{
+  "id": "conflict-002",
+  "recordIds": ["mem-exec-001", "mem-exec-002"],
+  "conflictType": "duplicate",
+  "scores": {
+    "mem-exec-001": 0.95,
+    "mem-exec-002": 0.92
+  },
+  "resolution": "auto_resolved",
+  "resolvedBy": "mem-exec-001",
+  "resolvedAt": "2026-05-20T09:00:00.000Z",
+  "evidence": "Two execution records describe the same workspace result. mem-exec-001 created first and has higher confidence."
+}

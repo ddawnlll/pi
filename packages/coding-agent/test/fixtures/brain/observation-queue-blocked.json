@@ -1,0 +1,34 @@
+{
+	"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+	"timestamp": "2026-05-21T10:30:00.000Z",
+	"source": "queue",
+	"signalType": "queue_blocked",
+	"severity": "warning",
+	"title": "Integration queue blocked",
+	"description": "The integration queue has been dirty for over 5 minutes, blocking new plan executions.",
+	"evidence": [
+		{
+			"type": "queue",
+			"path": ".pi/integration-queue/state.json",
+			"timestamp": "2026-05-21T10:30:00.000Z",
+			"id": "queue-state-001"
+		}
+	],
+	"provenance": {
+		"observationSources": [
+			{
+				"type": "queue",
+				"path": ".pi/integration-queue/state.json",
+				"timestamp": "2026-05-21T10:30:00.000Z",
+				"id": "queue-state-001"
+			}
+		],
+		"derivationChain": [],
+		"confidence": 0.95,
+		"validatedBy": "system"
+	},
+	"metadata": {
+		"queueSize": 3,
+		"dirtyDurationMs": 345000
+	}
+}

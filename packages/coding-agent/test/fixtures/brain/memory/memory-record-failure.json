@@ -1,0 +1,31 @@
+{
+  "id": "mem-failure-001",
+  "type": "failure_memory",
+  "title": "Race condition when two workspaces modify same file concurrently",
+  "content": "During P11 execution, workspaces 7.A and 7.B both modified src/memory/types.ts simultaneously, causing a merge conflict. Resolution required manual intervention. Root cause: overlapping file scopes in workspace definitions.",
+  "summary": "Concurrent file modification caused merge conflict in P11",
+  "lifecycle": "active",
+  "confidence": 0.85,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "journal",
+        "path": ".pi/brain/journal/p11-conflicts.json",
+        "id": "journal-conflict-001",
+        "lineStart": 10,
+        "lineEnd": 35,
+        "timestamp": "2026-05-15T16:00:00.000Z"
+      }
+    ],
+    "derivedFrom": ["mem-exec-003"],
+    "validatedBy": "llm_validated"
+  },
+  "createdAt": "2026-05-15T16:00:00.000Z",
+  "updatedAt": "2026-05-15T16:30:00.000Z",
+  "tags": ["failure", "race-condition", "merge-conflict", "parallel-execution"],
+  "category": "execution-failures",
+  "metadata": {
+    "workspaceIds": ["7.A", "7.B"],
+    "resolutionStrategy": "manual-merge"
+  }
+}

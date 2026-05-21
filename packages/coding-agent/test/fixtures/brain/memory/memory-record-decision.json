@@ -1,0 +1,36 @@
+{
+  "id": "mem-decision-001",
+  "type": "decision_memory",
+  "title": "Adopted ULID-style IDs for memory records",
+  "content": "Decision to use UUID v4 for all memory record identifiers. Rationale: globally unique without coordination, standard library support in Node.js, sufficient for current scale. May migrate to ULID in future for time-ordered sorting benefits.",
+  "summary": "UUID v4 chosen for memory record identifiers",
+  "lifecycle": "active",
+  "confidence": 0.9,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "reflection",
+        "path": ".pi/brain/reflections/id-strategy.md",
+        "id": "ref-id-001",
+        "timestamp": "2026-05-14T12:00:00.000Z"
+      },
+      {
+        "type": "user",
+        "path": "docs/v2/phases/phase_p14_memory_v0_provenance_conflict_model.md",
+        "id": "user-feedback-001",
+        "lineStart": 40,
+        "lineEnd": 45,
+        "timestamp": "2026-05-14T12:00:00.000Z"
+      }
+    ],
+    "validatedBy": "user"
+  },
+  "createdAt": "2026-05-14T12:00:00.000Z",
+  "updatedAt": "2026-05-14T12:00:00.000Z",
+  "tags": ["decision", "id-strategy", "uuid", "architecture"],
+  "category": "technical-decisions",
+  "metadata": {
+    "alternatives": ["ULID", "nanoid", "incrementing-integer"],
+    "chosenOption": "uuid-v4"
+  }
+}

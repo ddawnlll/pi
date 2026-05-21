@@ -1,0 +1,29 @@
+{
+  "id": "mem-plan-001",
+  "type": "plan_memory",
+  "title": "Batch execution plan for P12 dependencies",
+  "content": "Phase P12 was executed in 3 batches. Batch 1 handled foundation types, Batch 2 implemented the store, Batch 3 added lifecycle management. Parallelism was set to 3 with dependency-aware ordering.",
+  "summary": "Three-batch execution plan for P12",
+  "lifecycle": "superseded",
+  "confidence": 0.75,
+  "provenance": {
+    "sourceRefs": [
+      {
+        "type": "plan",
+        "path": ".pi/plans/p12-plan.json",
+        "id": "plan-p12-001",
+        "timestamp": "2026-05-18T08:00:00.000Z"
+      }
+    ],
+    "validatedBy": "system"
+  },
+  "createdAt": "2026-05-18T08:00:00.000Z",
+  "updatedAt": "2026-05-19T10:00:00.000Z",
+  "supersededBy": "mem-plan-002",
+  "tags": ["plan", "batch", "execution", "p12"],
+  "category": "execution-plans",
+  "metadata": {
+    "batchCount": 3,
+    "workspaceCount": 8
+  }
+}
