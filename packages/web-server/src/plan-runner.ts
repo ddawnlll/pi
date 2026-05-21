@@ -424,10 +424,20 @@ function scheduleExecutionCleanup(planExecId: string): void {
 export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const { planContent, projectId, workspaceRoot, planFileName } = options;
 
-	// AC #5: If there's already a running execution for this project, return it
-	const existingRunning = getActiveExecutions(projectId).find((e) => e.status === "running");
+	// Parse the plan FIRST to get the phase for proper dedup
+	const parseResult = parsePlan(planContent);
+	const currentPhase = parseResult.success && parseResult.queue ? parseResult.queue.phase : "";
+
+	// AC #5: If there's already a running execution for this project AND phase, return it
+	// CRITICAL FIX: Only dedup if executing the SAME phase. Different phases in a
+	// multi-phase task should get their own executions so they can advance properly.
+	const existingRunning = getActiveExecutions(projectId).find(
+		(e) => e.status === "running" && e.phase === currentPhase,
+	);
 	if (existingRunning) {
-		new PiLogger().info(`Project ${projectId} already has a running execution, returning existing`);
+		new PiLogger().info(
+			`Project ${projectId} phase ${existingRunning.phase} already has a running execution, returning existing`,
+		);
 		return {
 			success: true,
 			planExecId: existingRunning.planExecId,
@@ -1582,6 +1592,14 @@ async function thisWaitForHandoff(
 	}
 
 	completionBus.signalCompletion();
+
+	// CRITICAL FIX: After handoff is resolved, advance to the next phase in the task
+	// This enables sequential phase execution to continue after cleanup review completes
+	try {
+		await advancePhaseIfReady(workspaceRoot, planExecId);
+	} catch (err) {
+		await log(`WARNING: Failed to advance phase after handoff: ${err}`);
+	}
 }
 
 /**
