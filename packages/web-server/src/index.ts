@@ -2396,11 +2396,15 @@ fastify.delete<{
 
 /**
  * POST /api/projects/:projectId/tasks/:taskId/start - Start task execution
+ *
+ * Sets task status to "running" and automatically launches the first pending
+ * phase whose dependencies are met. Subsequent phases auto-advance via
+ * advancePhaseIfReady() in the plan-runner.
  */
 fastify.post<{
 	Params: { projectId: string; taskId: string };
 }>("/api/projects/:projectId/tasks/:taskId/start", async (request, reply) => {
-	const { taskId } = request.params;
+	const { projectId, taskId } = request.params;
 	const workspaceRoot = getWorkspaceRoot();
 
 	try {
@@ -2408,7 +2412,74 @@ fastify.post<{
 		if (!task) {
 			return reply.code(404).send({ error: "Task not found" });
 		}
-		return { task };
+
+		// Resolve the project to get its workspace root (for plan files)
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		// Plan files live under the project's rootPath; tasks live under workspaceRoot
+		const projectRoot = project?.rootPath || workspaceRoot;
+		const projectName = project?.name || projectId;
+
+		// Find the first pending phase whose dependencies are all met
+		const firstPhase = task.phases.find((p) => {
+			if (p.status !== "pending") return false;
+			return p.dependsOn.every((depId) => {
+				const dep = task.phases.find((ph) => ph.id === depId);
+				return dep?.status === "complete" || dep?.status === "skipped";
+			});
+		});
+
+		if (firstPhase?.planFile) {
+			// Read the phase's plan file (from project root)
+			const planFilePath = join(projectRoot, ".pi", "plans", firstPhase.planFile);
+
+			try {
+				const planContent = await readFile(planFilePath, "utf-8");
+
+				const result = await runPlan({
+					planContent,
+					projectId,
+					projectName,
+					workspaceRoot: projectRoot,
+					planFileName: firstPhase.planFile,
+				});
+
+				if (result.success && result.planExecId) {
+					// Task store always uses the global workspaceRoot
+					await taskStore.updatePhaseStatus(workspaceRoot, taskId, firstPhase.id, "running", {
+						planExecId: result.planExecId,
+						status: "running",
+						startedAt: Date.now(),
+						completedAt: null,
+						durationMs: null,
+						workspaces: [],
+						stats: { total: 0, complete: 0, failed: 0 },
+						error: null,
+					});
+				} else {
+					await taskStore.updatePhaseStatus(workspaceRoot, taskId, firstPhase.id, "failed");
+					await taskStore.appendTimelineEvent(workspaceRoot, taskId, {
+						timestamp: Date.now(),
+						type: "phase_start_failed",
+						data: { phaseId: firstPhase.id, errors: result.errors },
+					});
+				}
+			} catch (err) {
+				// Plan file not found or read error — mark phase as failed
+				fastify.log.warn({ err }, `Failed to load plan file for phase ${firstPhase.id}`);
+				await taskStore.updatePhaseStatus(workspaceRoot, taskId, firstPhase.id, "failed");
+				await taskStore.appendTimelineEvent(workspaceRoot, taskId, {
+					timestamp: Date.now(),
+					type: "phase_start_failed",
+					data: { phaseId: firstPhase.id, error: String(err) },
+				});
+			}
+		}
+
+		// Re-read the updated task (always from workspaceRoot, not projectRoot)
+		const updatedTask = await taskStore.loadTask(workspaceRoot, taskId);
+		return { task: updatedTask ?? task };
 	} catch (err) {
 		return reply.code(500).send({ error: `Failed to start task: ${String(err)}` });
 	}
