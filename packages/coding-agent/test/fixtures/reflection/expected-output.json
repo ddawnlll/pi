@@ -1,0 +1,38 @@
+{
+  "expectedMetrics": {
+    "workspaceCount": 3,
+    "successCount": 2,
+    "failureCount": 1,
+    "retryCount": 4,
+    "successRate": 0.6666666666666666,
+    "avgRetryCount": 1.3333333333333333,
+    "totalDuration": 360000
+  },
+  "expectedWhatRan": [
+    "workspace ws-A ",
+    "workspace ws-B  (retry)",
+    "workspace ws-C  (failure)"
+  ],
+  "expectedWhatWorkedSubstrings": [
+    "ws-A",
+    "ws-B",
+    "completed"
+  ],
+  "expectedWhatFailedSubstrings": [
+    "ws-C",
+    "lint"
+  ],
+  "expectedWhatSlowedDownSubstrings": [
+    "ws-C",
+    "retries"
+  ],
+  "expectedMemoriesToCreate": [
+    "failure_memory",
+    "execution_memory",
+    "architecture_memory"
+  ],
+  "expectedSourcesTypes": [
+    "workspace",
+    "validation"
+  ]
+}

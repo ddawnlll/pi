@@ -1,0 +1,38 @@
+{
+  "id": "test-proposal-001",
+  "type": "plan_proposal",
+  "title": "Plan: Improve Queue Performance",
+  "description": "The current queue system has O(n^2) scheduling complexity which causes delays when more than 50 workstreams are queued. This proposal aims to implement a priority queue with O(log n) operations, add batch processing for related workstreams, and introduce queue health monitoring. The implementation will span three phases: (1) data structure change from array-based to heap-based priority queue, (2) batch grouping logic for related workstreams based on file scope overlap, (3) health monitoring with metrics collection and alerting. Expected impact is 10x throughput improvement for large queues and better visibility into queue health.",
+  "evidence": {
+    "memoryIds": ["mem-001", "mem-002"],
+    "observationIds": ["obs-001"],
+    "sourceRefs": [
+      { "type": "observation", "path": "packages/coding-agent/src/queue/priority.ts", "id": "obs-001" }
+    ],
+    "confidence": 0.75,
+    "evidenceSummary": "Queue performance degradation observed at >50 workstreams; memory records show similar pattern from P12.5"
+  },
+  "risk": {
+    "level": "medium",
+    "factors": ["Data structure change may introduce bugs", "Batch grouping changes queue semantics"],
+    "mitigation": ["Full test suite before migration", "Feature flag for new queue implementation"],
+    "affectedSystems": ["queue", "scheduler", "orchestrator"],
+    "impactDescription": "Queue performance improvements may temporarily affect scheduling during migration"
+  },
+  "score": {
+    "total": 0.82,
+    "novelty": 0.4,
+    "confidence": 0.75,
+    "urgency": 0.7,
+    "feasibility": 0.9
+  },
+  "status": "approved",
+  "createdAt": "2026-05-22T10:00:00.000Z",
+  "updatedAt": "2026-05-22T10:30:00.000Z",
+  "submittedBy": "pi",
+  "approvedBy": "user",
+  "relatedProposalIds": [],
+  "relatedGoalIds": ["goal-perf-001"],
+  "tags": ["performance", "queue"],
+  "metadata": {}
+}

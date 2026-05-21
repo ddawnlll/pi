@@ -263,6 +263,27 @@ export {
 	validateProposalEvidence,
 	validateProposalRisk,
 } from "./proposals/types.js";
+// Reflection API (P17.G)
+export { BrainReflectionApi, type ReflectionGenerateResult, type ReflectionListQuery, type ReflectionStats } from "./reflection/api.js";
+// Reflection Engine (P17.C)
+export { ReflectionEngine } from "./reflection/engine.js";
+// Memory Proposal Generator (P17.E)
+export { MemoryProposalGenerator, type MemoryProposalOutput } from "./reflection/memory-proposals.js";
+// Future Phase Suggestion Engine (P17.F)
+export { FutureSuggestionEngine, type SuggestionRankingConfig } from "./reflection/future-suggestions.js";
+// Source-Backed Summarizer (P17.D)
+export { SourceBackedSummarizer } from "./reflection/summarizer.js";
+export type {
+	ExecutionJournalEntry,
+	FuturePhaseSuggestion,
+	MemoryProposalSuggestion,
+	ProposalSuggestion,
+	ReflectionConfig,
+	ReflectionInput,
+	ReflectionReport as P17ReflectionReport,
+	ValidationResult as ReflectionValidationResult,
+	WorkspaceOutcome,
+} from "./reflection/types.js";
 export {
 	type AppendEventResult,
 	BrainTimelineStore,

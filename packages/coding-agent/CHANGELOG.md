@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Future Phase Suggestion Engine (P17.F)**: New `FutureSuggestionEngine` class that generates prioritized next-phase suggestions from reflection analysis. Analyzes failure patterns to produce fix suggestions, bottlenecks to produce optimization suggestions, and goals to produce advancement suggestions. Suggestions are ranked by configurable weights for goal alignment, bottleneck severity, and failure frequency. Maximum suggestions configurable (default 3). See `packages/coding-agent/src/brain/reflection/future-suggestions.ts`.
+
 - **Morning Report Generator (P20.B)**: New `MorningReportGenerator` class that generates structured morning reports from overnight run sessions. Supports session-based and raw-data report generation, markdown/JSON rendering, disk persistence, and optional integration with memory store, audit ledger, and reflection engine for enriched reporting. See `packages/coding-agent/src/brain/overnight/morning-report.ts`.
 - Added Together AI to built-in provider setup, `/login` API-key auth, and default model resolution ([#3624](https://github.com/earendil-works/pi-mono/pull/3624) by [@Nutlope](https://github.com/Nutlope)).
 - Added NeoTokens to built-in provider setup, `/login` API-key auth, and default model resolution.

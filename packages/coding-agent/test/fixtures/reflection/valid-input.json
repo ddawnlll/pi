@@ -1,0 +1,114 @@
+{
+  "planExecId": "exec-test-001",
+  "planId": "plan-test-001",
+  "planTitle": "Test Reflection Plan",
+  "executionJournal": [
+    {
+      "timestamp": "2026-05-22T10:00:00.000Z",
+      "eventType": "workspace_start",
+      "workspaceId": "ws-A",
+      "severity": "info",
+      "data": {}
+    },
+    {
+      "timestamp": "2026-05-22T10:01:00.000Z",
+      "eventType": "workspace_complete",
+      "workspaceId": "ws-A",
+      "severity": "info",
+      "data": { "status": "success" }
+    },
+    {
+      "timestamp": "2026-05-22T10:02:00.000Z",
+      "eventType": "workspace_start",
+      "workspaceId": "ws-B",
+      "severity": "info",
+      "data": {}
+    },
+    {
+      "timestamp": "2026-05-22T10:03:00.000Z",
+      "eventType": "workspace_retry",
+      "workspaceId": "ws-B",
+      "severity": "warning",
+      "data": { "retryCount": 1, "error": "TypeError" }
+    },
+    {
+      "timestamp": "2026-05-22T10:04:00.000Z",
+      "eventType": "workspace_complete",
+      "workspaceId": "ws-B",
+      "severity": "info",
+      "data": { "status": "retry" }
+    },
+    {
+      "timestamp": "2026-05-22T10:05:00.000Z",
+      "eventType": "workspace_start",
+      "workspaceId": "ws-C",
+      "severity": "info",
+      "data": {}
+    },
+    {
+      "timestamp": "2026-05-22T10:06:00.000Z",
+      "eventType": "workspace_failure",
+      "workspaceId": "ws-C",
+      "severity": "error",
+      "data": { "error": "NetworkError" }
+    }
+  ],
+  "workspaceOutcomes": [
+    {
+      "workspaceId": "ws-A",
+      "status": "success",
+      "retryCount": 0,
+      "duration": 60000,
+      "validationPassed": true,
+      "summary": "Integration tests passed successfully"
+    },
+    {
+      "workspaceId": "ws-B",
+      "status": "retry",
+      "retryCount": 1,
+      "duration": 120000,
+      "validationPassed": true,
+      "summary": "Build completed after retry"
+    },
+    {
+      "workspaceId": "ws-C",
+      "status": "failure",
+      "retryCount": 3,
+      "duration": 180000,
+      "errorTypes": ["TypeError", "NetworkError"],
+      "validationPassed": false,
+      "summary": "Deploy failed with network errors"
+    }
+  ],
+  "validationResults": [
+    {
+      "type": "error",
+      "component": "lint",
+      "message": "Found 3 ESLint errors in workspace C",
+      "passed": false
+    },
+    {
+      "type": "warning",
+      "component": "style",
+      "message": "Style formatting issues detected",
+      "passed": true
+    },
+    {
+      "type": "info",
+      "component": "docs",
+      "message": "Documentation coverage is 80%",
+      "details": {}
+    }
+  ],
+  "integrationState": {
+    "wasDirty": true,
+    "conflicts": 1,
+    "resolvedConflicts": 0
+  },
+  "duration": 360000,
+  "startTime": "2026-05-22T10:00:00.000Z",
+  "endTime": "2026-05-22T10:06:00.000Z",
+  "autonomyLevel": 3,
+  "policyStops": 0,
+  "approvalRequests": 1
+}
