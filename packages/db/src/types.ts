@@ -142,6 +142,69 @@ export interface ProposalRow {
 }
 
 // =============================================================================
+// Proposal Rubric row (P16.C)
+// =============================================================================
+
+/**
+ * Scoring criterion within a rubric.
+ */
+export interface RubricCriterion {
+	/** Criterion name (e.g., "quality", "feasibility") */
+	name: string;
+	/** Human-readable description of what this criterion measures */
+	description: string;
+	/** Relative weight for computing weighted total (0.0 - 1.0) */
+	weight: number;
+	/** Maximum possible score for this criterion */
+	max_score: number;
+}
+
+/**
+ * Raw proposal rubric row from the database.
+ */
+export interface ProposalRubricRow {
+	id: string;
+	project_id: string;
+	name: string;
+	description: string | null;
+	criteria: RubricCriterion[];
+	created_at: string;
+	updated_at: string;
+}
+
+// =============================================================================
+// Proposal Score row (P16.C)
+// =============================================================================
+
+/**
+ * Individual score entry for a single criterion.
+ */
+export interface CriterionScore {
+	/** Criterion name matching RubricCriterion.name */
+	criterion_name: string;
+	/** Score awarded (0.0 - max_score) */
+	score: number;
+	/** Optional rationale for the score */
+	rationale?: string;
+}
+
+/**
+ * Raw proposal score row from the database.
+ */
+export interface ProposalScoreRow {
+	id: string;
+	proposal_id: string;
+	rubric_id: string;
+	scores: CriterionScore[];
+	total_score: number;
+	max_score: number;
+	summary: string | null;
+	scored_by: string;
+	scored_at: string;
+	created_at: string;
+}
+
+// =============================================================================
 // Kysely table definitions
 // =============================================================================
 
