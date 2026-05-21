@@ -1055,6 +1055,22 @@ async function executePlanInBackground(
 						updateExecutionStatus(planExecId, "stopped", control.reason);
 						return;
 					}
+					// Fallback: check persisted state — the control endpoint may have
+					// updated PostgreSQL but the executor's in-memory cache is stale.
+					try {
+						const stateStore = executor.getStateStore();
+						const persisted = await stateStore.loadState(planExecId);
+						if (persisted && persisted.status === "stopped") {
+							await log(`Stopping execution (from persisted state): ${control.reason || "no reason"}`);
+							const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+							if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
+							await executor.stopAllActiveWorkspaces();
+							updateExecutionStatus(planExecId, "stopped", control.reason);
+							return;
+						}
+					} catch {
+						// Non-fatal — fall through and let the loop continue
+					}
 					// Still running (active workspaces finishing), let the loop continue
 				}
 

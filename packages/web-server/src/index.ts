@@ -907,10 +907,14 @@ fastify.get<{
 fastify.get<{
 	Params: { projectId: string; planExecId: string };
 }>("/api/projects/:projectId/plans/:planExecId/batch-plan", async (request, reply) => {
-	const { planExecId } = request.params;
+	const { projectId, planExecId } = request.params;
 
 	try {
-		const workspaceRoot = getWorkspaceRoot();
+		// Resolve workspace root from the project (supports per-project roots)
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		const workspaceRoot = project?.rootPath || getWorkspaceRoot();
 		const piDir = join(workspaceRoot, ".pi");
 		const queuePath = join(piDir, `${planExecId}.workspace-queue.json`);
 
@@ -2129,23 +2133,19 @@ fastify.post<{
 		const workspaceRoot = project.rootPath || getWorkspaceRoot();
 
 		// 2. Load execution state to verify it's in a terminal/restartable state
+		// Check persisted state first (authoritative), fall back to in-memory.
+		const persistedState = await stateStore.loadState(planExecId);
 		const exec = getActiveExecution(planExecId);
-		const execStatus = exec?.status;
-		if (!execStatus) {
-			// Check if it was cleaned up (completed/failed TTL may have expired)
-			const state = await stateStore.loadState(planExecId);
-			if (!state) {
-				return reply.code(404).send({ success: false, error: "Execution not found" });
-			}
-			// If state exists but not in activeExecutions, it's terminal.
-			// Still allow rerun if it's failed/stopped.
-			if (state.status !== "failed" && state.status !== "stopped" && state.status !== "cancelled") {
-				return reply.code(400).send({ success: false, error: `Execution is '${state.status}', cannot rerun` });
-			}
-		} else if (execStatus !== "failed" && execStatus !== "stopped" && execStatus !== "cancelled") {
+		const effectiveStatus = persistedState?.status ?? exec?.status;
+
+		if (!effectiveStatus) {
+			return reply.code(404).send({ success: false, error: "Execution not found" });
+		}
+
+		if (effectiveStatus !== "failed" && effectiveStatus !== "stopped" && effectiveStatus !== "cancelled") {
 			return reply.code(400).send({
 				success: false,
-				error: `Execution is '${execStatus}', cannot rerun. Only failed, stopped, or cancelled plans can be rerun.`,
+				error: `Execution is '${effectiveStatus}', cannot rerun. Only failed, stopped, or cancelled plans can be rerun.`,
 			});
 		}
 
