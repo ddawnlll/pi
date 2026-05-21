@@ -321,6 +321,9 @@ export function createTaskStore(): TaskStore {
 				reflection: null,
 			};
 
+			// Compute aggregate from phases
+			task.aggregate = store.computeAggregate(task);
+
 			// Persist
 			await ensureTaskDir(workspaceRoot, taskId);
 			await writeFile(taskJsonPath(workspaceRoot, taskId), JSON.stringify(task, null, 2), "utf-8");
