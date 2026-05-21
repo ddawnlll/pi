@@ -79,6 +79,7 @@ import {
 import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
+import { createTaskStore } from "./task-store.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
 
@@ -2291,6 +2292,231 @@ function queueAuditLog(projectId: string, action: string, entryId: string, detai
 		})
 		.catch(() => {});
 }
+
+// ---------------------------------------------------------------------------
+// Task Routes — MultiPhaseTask CRUD + lifecycle
+// ---------------------------------------------------------------------------
+
+const taskStore = createTaskStore();
+
+/**
+ * POST /api/projects/:projectId/tasks - Create a new task
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: {
+		title: string;
+		planFiles: string[];
+		executionMode: "sequential" | "parallel";
+		origin: import("./task-store.js").TaskOrigin;
+		phases: Array<{
+			id: string;
+			title: string;
+			planFile: string;
+			dependsOn?: string[];
+		}>;
+	};
+}>("/api/projects/:projectId/tasks", async (request, reply) => {
+	const { projectId } = request.params;
+	const { title, planFiles, executionMode, origin, phases } = request.body;
+
+	if (!title || !phases || phases.length === 0) {
+		return reply.code(400).send({ error: "title and at least one phase are required" });
+	}
+
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.createTask(projectId, workspaceRoot, {
+			title,
+			planFiles,
+			executionMode,
+			origin,
+			phases,
+		});
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to create task: ${String(err)}` });
+	}
+});
+
+/**
+ * GET /api/projects/:projectId/tasks - List all tasks for a project
+ */
+fastify.get<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId/tasks", async (request, reply) => {
+	const { projectId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const tasks = await taskStore.listTasks(workspaceRoot, projectId);
+		return { tasks };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to list tasks: ${String(err)}` });
+	}
+});
+
+/**
+ * GET /api/projects/:projectId/tasks/:taskId - Get a single task
+ */
+fastify.get<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.loadTask(workspaceRoot, taskId);
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to load task: ${String(err)}` });
+	}
+});
+
+/**
+ * DELETE /api/projects/:projectId/tasks/:taskId - Delete a task
+ */
+fastify.delete<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		await taskStore.deleteTask(workspaceRoot, taskId);
+		return { success: true };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to delete task: ${String(err)}` });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/tasks/:taskId/start - Start task execution
+ */
+fastify.post<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/start", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.updateTaskStatus(workspaceRoot, taskId, "running");
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to start task: ${String(err)}` });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/tasks/:taskId/pause - Pause task execution
+ */
+fastify.post<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/pause", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.updateTaskStatus(workspaceRoot, taskId, "paused");
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to pause task: ${String(err)}` });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/tasks/:taskId/resume - Resume task execution
+ */
+fastify.post<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/resume", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.updateTaskStatus(workspaceRoot, taskId, "running");
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to resume task: ${String(err)}` });
+	}
+});
+
+/**
+ * POST /api/projects/:projectId/tasks/:taskId/cancel - Cancel task execution
+ */
+fastify.post<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/cancel", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.updateTaskStatus(workspaceRoot, taskId, "cancelled");
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return { task };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to cancel task: ${String(err)}` });
+	}
+});
+
+/**
+ * GET /api/projects/:projectId/tasks/:taskId/stats - Get aggregated task stats
+ */
+fastify.get<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/stats", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const task = await taskStore.loadTask(workspaceRoot, taskId);
+		if (!task) {
+			return reply.code(404).send({ error: "Task not found" });
+		}
+		return {
+			aggregate: task.aggregate,
+			phases: task.phases.map((p) => ({ id: p.id, status: p.status, execution: p.execution })),
+		};
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to load task stats: ${String(err)}` });
+	}
+});
+
+/**
+ * GET /api/projects/:projectId/tasks/:taskId/timeline - SSE stream of task-level timeline events
+ */
+fastify.get<{
+	Params: { projectId: string; taskId: string };
+}>("/api/projects/:projectId/tasks/:taskId/timeline", async (request, reply) => {
+	const { taskId } = request.params;
+	const workspaceRoot = getWorkspaceRoot();
+
+	try {
+		const events = await taskStore.loadTimeline(workspaceRoot, taskId);
+		return { events };
+	} catch (err) {
+		return reply.code(500).send({ error: `Failed to load timeline: ${String(err)}` });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// Legacy Queue Routes (deprecated — use Task API instead)
+// ---------------------------------------------------------------------------
 
 /**
  * GET /api/projects/:projectId/queue - Get plan queue for project

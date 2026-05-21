@@ -692,3 +692,149 @@ export interface AutonomyDashboardData {
 	/** Whether the data is considered stale (>60s old). */
 	stale: boolean;
 }
+
+// =============================================================================
+// MultiPhaseTask Types (P11.N — replaces legacy queue)
+// =============================================================================
+
+export type TaskStatus =
+	| "draft"
+	| "validating"
+	| "validation_failed"
+	| "approval_required"
+	| "approved"
+	| "queued"
+	| "blocked"
+	| "running"
+	| "paused"
+	| "complete"
+	| "failed"
+	| "cancelled"
+	| "reflecting"
+	| "reflected";
+
+export type PhaseStatus = "pending" | "validating" | "running" | "complete" | "failed" | "skipped";
+
+export type TaskOriginType =
+	| "user_upload"
+	| "proposal_accepted"
+	| "plan_factory"
+	| "overnight_bundle"
+	| "manual";
+
+export interface TaskOrigin {
+	type: TaskOriginType;
+	sourcePlanFiles: string[];
+	proposalId?: string;
+	decisionId?: string;
+	goalIds?: string[];
+	evidenceRefs?: string[];
+}
+
+export interface TaskApprovalState {
+	required: boolean;
+	status: "not_required" | "pending" | "approved" | "rejected" | "revoked";
+	approvedBy?: string;
+	approvedAt?: number;
+	approvalRequestId?: string;
+	reason?: string;
+}
+
+export interface TaskPolicySnapshot {
+	policyVersion: string;
+	autonomyLevel: 1 | 2 | 3 | 4;
+	allowedActions: string[];
+	forbiddenActions: string[];
+	stopConditions: string[];
+}
+
+export interface PhaseTransitionGateResult {
+	allowed: boolean;
+	reason?: string;
+	blockedBy?: string;
+	details?: Record<string, unknown>;
+}
+
+export interface TaskReflectionSummary {
+	achieved: string;
+	learnings: string[];
+	issues: string[];
+	qualityScore?: number;
+	suggestedNextActions: string[];
+}
+
+export interface TaskAggregate {
+	totalPhases: number;
+	completedPhases: number;
+	failedPhases: number;
+	totalWorkspaces: number;
+	completedWorkspaces: number;
+	totalTokensIn: number;
+	totalTokensOut: number;
+	totalCostUsd: number;
+	totalDurationMs: number;
+}
+
+export interface PhaseExecutionResult {
+	planExecId: string;
+	status: string;
+	startedAt: number;
+	completedAt: number | null;
+	durationMs: number | null;
+	workspaces: Array<{ id: string; stage: string; error: string | null }>;
+	stats: {
+		total: number;
+		complete: number;
+		failed: number;
+		total_tokens_in?: number;
+		total_tokens_out?: number;
+		estimated_cost_usd?: number;
+	};
+	error: string | null;
+}
+
+export interface PhasePlan {
+	id: string;
+	title: string;
+	status: PhaseStatus;
+	planFile: string;
+	dependsOn: string[];
+	execution: PhaseExecutionResult | null;
+	requiresFreshApproval?: boolean;
+}
+
+export interface MultiPhaseTask {
+	id: string;
+	projectId: string;
+	title: string;
+	status: TaskStatus;
+	executionMode: "sequential" | "parallel";
+	createdAt: number;
+	startedAt: number | null;
+	completedAt: number | null;
+	origin: TaskOrigin;
+	approval: TaskApprovalState;
+	policy: TaskPolicySnapshot;
+	phases: PhasePlan[];
+	aggregate: TaskAggregate;
+	reflection: TaskReflectionSummary | null;
+}
+
+export interface TimelineEvent {
+	timestamp: number;
+	type: string;
+	data?: Record<string, unknown>;
+}
+
+export interface TaskQueueEntry {
+	id: string;
+	projectId: string;
+	taskId: string;
+	priority: number;
+	status: "queued" | "blocked" | "running" | "complete" | "cancelled";
+	blockedReason?: string;
+	approvedBy?: string;
+	approvedAt?: number;
+	stopConditions: string[];
+	createdAt: number;
+}
