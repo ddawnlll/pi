@@ -10,9 +10,10 @@ import {
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
   AlertTriangle, BarChart3, Lightbulb, RefreshCw, Package, BookOpen,
-  Sliders,
+  Sliders, FolderOpen, Clock,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
+import type { PlatformNavItem } from "./components/LeftNav";
 import { usePlanState } from "./hooks/usePlanState";
 import { useJournalStream } from "./hooks/useJournalStream";
 import { useProjects } from "./hooks/useProjects";
@@ -21,7 +22,7 @@ import { usePlanEvents } from "./hooks/usePlanEvents";
 import { useToolCallEvents } from "./hooks/useToolCallEvents";
 import { useSettings } from "./hooks/useSettings";
 import { useIntegrationQueueStatus } from "./hooks/useScaleStatus";
-import { useBatchPlan } from "./hooks/useBatchPlan";
+
 import { useTheme } from "./hooks/useTheme";
 import { PlanSummary } from "./components/PlanSummary";
 import { QueuePanel } from "./components/QueuePanel";
@@ -50,18 +51,31 @@ import type { MultiPhaseTask } from "./types";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
-import { ScaleOverviewStrip } from "./components/ScaleOverviewStrip";
-import { ScaleCockpitPanel } from "./components/ScaleCockpitPanel";
-import { BatchOSDashboard } from "./components/BatchOSDashboard";
-import { LeadAgentDashboard } from "./components/LeadAgentDashboard";
 import { AutonomyCenter } from "./features/autonomy/AutonomyCenter";
 import { ExtensionsManager } from "./components/ExtensionsManager";
 import { SkillsManager } from "./components/SkillsManager";
-import { LeftNav, PlatformSectionHeader, type PlatformNavItem } from "./components/LeftNav";
+import { LeftNav, PlatformSectionHeader } from "./components/LeftNav";
 import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
+
+// ─── ActiveView type ────────────────────────────────────────────────────
+// Single source of truth for the center column view
+type ActiveView =
+  | { type: "run" }
+  | { type: "task" }
+  | { type: "platform"; screen: PlatformNavItem }
+  | { type: "empty" };
+
+// ─── Left sidebar tab ───────────────────────────────────────────────────
+type LeftTab = "projects" | "runs" | "tasks" | "platform";
+
+// ─── Platform screen picker ─────────────────────────────────────────────
+function platformScreen(s: PlatformNavItem): React.ReactNode | null {
+  // Returns null so the caller can use its own className wrapping
+  return null;
+}
 
 const API_BASE = "";
 
@@ -97,8 +111,8 @@ const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
-function WorkerCard({ worker, workspace, active, onClick }: {
-  worker: WorkerInfo; workspace?: WorkspaceSummary; active: boolean; onClick: () => void;
+function WorkerCard({ worker, workspace, active, onClick, onStopWorker }: {
+  worker: WorkerInfo; workspace?: WorkspaceSummary; active: boolean; onClick: () => void; onStopWorker: (id: string) => void;
 }) {
   const stageMeta: Record<string, { color: string; bg: string; darkColor: string; darkBg: string }> = {
     active:   { color: "text-emerald-600", bg: "bg-emerald-50", darkColor: "dark:text-emerald-400", darkBg: "dark:bg-emerald-900/30" },
@@ -144,6 +158,15 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
   );
 }
 
+// ─── tab label helper ─────────────────────────────────────────────────────
+
+const TAB_LABELS: Record<LeftTab, { label: string; icon: typeof LayoutGrid }> = {
+  projects: { label: "Projects", icon: FolderOpen },
+  runs:     { label: "Runs",     icon: History },
+  tasks:    { label: "Tasks",    icon: ListOrdered },
+  platform: { label: "Platform", icon: Cpu },
+};
+
 // ─── main app ─────────────────────────────────────────────────────────────────
 
 export function App() {
@@ -155,6 +178,8 @@ export function App() {
   const hasProjects = projects.length > 0;
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
@@ -165,55 +190,31 @@ export function App() {
   const [showCommandsDialog, setShowCommandsDialog] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
-  const [showScaleCockpit, setShowScaleCockpit] = useState(false);
-  const [showBatchOS, setShowBatchOS] = useState(false);
-  const [showAutonomy, setShowAutonomy] = useState(false);
-  const [showLeadAgent, setShowLeadAgent] = useState(false);
-  const [showExtensions, setShowExtensions] = useState(false);
-  const [showSkills, setShowSkills] = useState(false);
-  const [showPlanIntake, setShowPlanIntake] = useState(false);
-  const [showMemory, setShowMemory] = useState(false);
-  const [showPolicyAudit, setShowPolicyAudit] = useState(false);
-  const [showRegistrySettings, setShowRegistrySettings] = useState(false);
-  const [platformActiveItem, setPlatformActiveItem] = useState<PlatformNavItem | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
-  /** Left sidebar tab: "nav" = projects + history + platform */
-  const [leftTab, setLeftTab] = useState<"nav" | "tasks">("nav");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
+  // ── New state: active view + left tab ─────────────────────────────────
+  const [activeView, setActiveView] = useState<ActiveView>({ type: "empty" });
+  const [leftTab, setLeftTab] = useState<LeftTab>("runs");
 
-  /** Navigate to a Platform feature, toggling it on/off and coordinating toolbar buttons. */
+  // ── Derived booleans from activeView ──────────────────────────────────
+  const showAutonomy    = activeView.type === "platform" && activeView.screen === "autonomy";
+  const showExtensions  = activeView.type === "platform" && activeView.screen === "extensions_skills";
+  const showSkills      = activeView.type === "platform" && activeView.screen === "extensions_skills";
+  const showPlanIntake  = activeView.type === "platform" && activeView.screen === "plan_intake";
+  const showMemory      = activeView.type === "platform" && activeView.screen === "memory";
+  const showPolicyAudit = activeView.type === "platform" && activeView.screen === "policy_audit";
+  const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
+  const platformActiveItem: PlatformNavItem | null =
+    activeView.type === "platform" ? activeView.screen : null;
+
+  // ── Navigate to a Platform feature ────────────────────────────────────
   const navigateToPlatform = useCallback((item: PlatformNavItem) => {
-    // Turn off all platform-related screens
-    setShowAutonomy(false);
-    setShowPlanIntake(false);
-    setShowExtensions(false);
-    setShowSkills(false);
-    setShowMemory(false);
-    setShowPolicyAudit(false);
-    setShowRegistrySettings(false);
-    setShowScaleCockpit(false);
-    setShowLeadAgent(false);
-    setShowBatchOS(false);
-    // If clicking the same item, toggle off; otherwise activate
-    if (platformActiveItem !== item) {
-      setPlatformActiveItem(item);
-      switch (item) {
-        case "autonomy": setShowAutonomy(true); break;
-        case "plan_intake": setShowPlanIntake(true); break;
-        case "extensions_skills": setShowExtensions(true); break;
-        case "memory": setShowMemory(true); break;
-        case "policy_audit": setShowPolicyAudit(true); break;
-        case "registry_settings": setShowRegistrySettings(true); break;
-      }
-    } else {
-      setPlatformActiveItem(null);
-    }
+    setActiveView({ type: "platform", screen: item });
+    setLeftTab("platform");
     setMobileNav(null);
-  }, [platformActiveItem]);
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id);
@@ -226,14 +227,16 @@ export function App() {
   const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { data: integrationQueueData } = useIntegrationQueueStatus(hasProjects);
-  const { data: batchPlanData } = useBatchPlan(selectedProjectId, selectedPlanExecId, showBatchOS);
-
+  // Auto-select first execution when none selected
   useEffect(() => {
     if (!selectedPlanExecId && executions.length > 0) {
       const running = executions.find(e => e.status === "running");
       setSelectedPlanExecId(running?.id ?? executions[0].id);
+      if (activeView.type === "empty") {
+        setActiveView({ type: "run" });
+      }
     }
-  }, [executions, selectedPlanExecId]);
+  }, [executions, selectedPlanExecId, activeView.type]);
 
   const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState(!hasProjects);
   const { events: legacyEvents } = useJournalStream(!hasProjects);
@@ -336,23 +339,31 @@ export function App() {
 
   const handleExecutionStarted = useCallback((id: string) => {
     setSelectedPlanExecId(id);
+    setActiveView({ type: "run" });
     setShowPlanUploadDialog(false);
   }, []);
 
   const handlePlanEnqueued = useCallback(() => {
-    // Invalidate the queue query so the queue tab refreshes immediately
     if (selectedProjectId) {
       queryClient.invalidateQueries({ queryKey: ["plan-queue", selectedProjectId] });
     }
   }, [queryClient, selectedProjectId]);
+
+  const handleProjectSelected = useCallback((id: string) => {
+    setSelectedProjectId(id);
+    setSelectedPlanExecId(null);
+    setSelectedTask(null);
+    setSelectedTaskId(null);
+    setActiveView({ type: "empty" });
+    setLeftTab("runs");
+    setMobileNav(null);
+  }, []);
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
 
   const filteredEvents = eventFilter === "errors"
     ? activeEvents.filter((e: any) => e.type === "error" || e.level === "error")
     : activeEvents;
-
-
 
   if (isStartingUp) {
     return (
@@ -433,47 +444,49 @@ export function App() {
               className={`shrink-0 ${SURF} border-r ${BORD} flex flex-col overflow-hidden
                 md:relative md:z-auto ${mobileNav === "left" ? "absolute left-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
             >
-              {/* Left sidebar tab bar */}
+              {/* 4-tab bar */}
               <div className={`shrink-0 flex items-center border-b ${BORD}`}>
-                <button
-                  onClick={() => setLeftTab("nav")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                    leftTab === "nav"
-                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
-                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
-                  }`}
-                >
-                  <LayoutGrid size={12} strokeWidth={1.8} /> Browse
-                </button>
-                <button
-                  onClick={() => setLeftTab("tasks")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
-                    leftTab === "tasks"
-                      ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
-                      : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
-                  }`}
-                >
-                  <ListOrdered size={12} strokeWidth={1.8} /> Tasks
-                </button>
-
+                {(Object.keys(TAB_LABELS) as LeftTab[]).map((tab) => {
+                  const info = TAB_LABELS[tab];
+                  const Icon = info.icon;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setLeftTab(tab)}
+                      className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[9px] font-semibold uppercase tracking-widest transition-colors ${
+                        leftTab === tab
+                          ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
+                          : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
+                      }`}
+                    >
+                      <Icon size={11} strokeWidth={1.8} />
+                      <span className="hidden sm:inline">{info.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Nav tab content */}
-              {leftTab === "nav" && (
+              {/* ── PROJECTS tab ── */}
+              {leftTab === "projects" && (
                 <>
                   <SectionHeader title="Projects" />
                   <div className="px-2 pb-1 flex flex-col gap-0.5">
                     {projects.map(p => (
                       <ProjectItem key={p.id} name={p.name ?? p.id} active={p.id === selectedProjectId}
-                        onClick={() => { setSelectedProjectId(p.id); setSelectedPlanExecId(null); setMobileNav(null); }} />
+                        onClick={() => handleProjectSelected(p.id)} />
                     ))}
                     <button onClick={() => setShowProjectDialog(true)}
                       className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
                       <Plus size={13} strokeWidth={2} /> Open project...
                     </button>
                   </div>
-                  <Divider />
-                  <SectionHeader title="History" />
+                </>
+              )}
+
+              {/* ── RUNS tab ── */}
+              {leftTab === "runs" && (
+                <>
+                  <SectionHeader title="Runs" />
                   <div className={`flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5`}>
                     {executionsLoading ? (
                       <div className={`flex items-center gap-2 px-3 py-2 text-xs ${MUT}`}><Loader2 size={11} className="animate-spin" /> Loading...</div>
@@ -482,26 +495,24 @@ export function App() {
                     ) : (
                       executions.map(ex => (
                         <HistoryItem key={ex.id} exec={ex} active={ex.id === selectedPlanExecId}
-                          onClick={() => { setSelectedPlanExecId(ex.id); setMobileNav(null); }} />
+                          onClick={() => { setSelectedPlanExecId(ex.id); setActiveView({ type: "run" }); setMobileNav(null); }} />
                       ))
                     )}
                   </div>
-                  <Divider />
-                  <PlatformSectionHeader title="Platform" />
-                  <div className="flex flex-col gap-0.5 overflow-y-auto">
-                    <LeftNav
-                      activeItem={platformActiveItem}
-                      onNavigate={navigateToPlatform}
-                    />
+                  <div className="shrink-0 px-2 pb-2">
+                    <button onClick={handleUploadPlan}
+                      className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs w-full ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
+                      <Upload size={13} strokeWidth={2} /> Upload plan...
+                    </button>
                   </div>
                 </>
               )}
 
-              {/* Queue tab content */}
+              {/* ── TASKS tab ── */}
               {leftTab === "tasks" && (
                 <TaskList projectId={selectedProjectId} onSelectTask={(taskId) => {
                   setSelectedTaskId(taskId);
-                  setSelectedTask(null);
+                  setActiveView({ type: "task" });
                   setMobileNav(null);
                   // Fetch the task detail
                   fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId ?? "")}/tasks/${encodeURIComponent(taskId)}`)
@@ -513,161 +524,221 @@ export function App() {
                 }} />
               )}
 
-
+              {/* ── PLATFORM tab ── */}
+              {leftTab === "platform" && (
+                <>
+                  <PlatformSectionHeader title="Platform" />
+                  <div className="flex flex-col gap-0.5 overflow-y-auto">
+                    <LeftNav
+                      activeItem={platformActiveItem}
+                      onNavigate={navigateToPlatform}
+                    />
+                  </div>
+                </>
+              )}
             </motion.aside>
           )}
         </AnimatePresence>
 
         {/* ── center column ── */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
-          {/* toolbar */}
+
+          {/* ── contextual toolbar ── */}
           <div className={`shrink-0 ${SURF} border-b ${BORD} flex items-center gap-1.5 px-3 h-11`}>
-            <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
-            <div className={`w-px h-5 ${BORD} mx-0.5`} />
-            <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
-            <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
-            <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
-            <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
-            <LabeledBtn icon={Cpu} label="Scale" onClick={() => { setPlatformActiveItem(null); setShowScaleCockpit(o => !o); setShowBatchOS(false); setShowLeadAgent(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); setShowExtensions(false); setShowSkills(false); }} accent={showScaleCockpit} />
-            <LabeledBtn icon={Lightbulb} label="Lead Agent" onClick={() => { setPlatformActiveItem(null); setShowLeadAgent(o => !o); setShowScaleCockpit(false); setShowBatchOS(false); setShowAutonomy(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); setShowExtensions(false); setShowSkills(false); }} accent={showLeadAgent} />
-            <LabeledBtn icon={BarChart3} label="Batch OS" onClick={() => { setPlatformActiveItem(null); setShowBatchOS(o => !o); setShowScaleCockpit(false); setShowLeadAgent(false); setShowAutonomy(false); setShowExtensions(false); setShowSkills(false); setShowPlanIntake(false); setShowMemory(false); setShowPolicyAudit(false); setShowRegistrySettings(false); }} accent={showBatchOS} />
-            <LabeledBtn icon={Cpu} label="Autonomy" onClick={() => { navigateToPlatform('autonomy'); }} accent={showAutonomy} />
-            <LabeledBtn icon={Package} label="Extensions" onClick={() => { navigateToPlatform('extensions_skills'); setShowExtensions(o => !o); setShowSkills(false); }} accent={showExtensions} />
-            <LabeledBtn icon={BookOpen} label="Skills" onClick={() => { navigateToPlatform('extensions_skills'); setShowSkills(o => !o); setShowExtensions(false); }} accent={showSkills} />
-            <LabeledBtn icon={Sliders} label="Registry" onClick={() => { navigateToPlatform('registry_settings'); }} accent={showRegistrySettings} />
-            {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
+            {activeView.type === "run" && (
+              <>
+                <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
+                <div className={`w-px h-5 ${BORD} mx-0.5`} />
+                <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
+                <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
+                <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
+                <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
+                {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
+              </>
+            )}
+            {activeView.type === "empty" && (
+              <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
+            )}
           </div>
 
-          {/* warning banner */}
-          {!isLegacyMode && (
-            <WarningBanner executionDetail={executionDetail ?? null} workers={activeWorkspaces}
-              events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} executionStats={planStats ?? null} />
-          )}
-
-          {/* stats */}
-          {!isLegacyMode && executionDetail && (
+          {/* ── center body — switch on activeView ── */}
+          {isLegacyMode ? (
+            /* ── LEGACY MODE ── */
             <>
-              <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-7 gap-3 p-3 ${BG} border-b ${BORD}`}>
-                <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
-                <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
-                <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
-                <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
-                <StatCard icon={Activity} label="Cache hit" value={formatPercentOrUnknown(planStats?.cache_hit_rate_known ? planStats?.cache_hit_rate : null)} />
-                <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
-                <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
-              </div>
-              <QueueStrip queue={queue} />
-              <div className={`shrink-0 p-3 border-b ${BORD}`}>
-                <SchedulerStatusPanel stats={planStats ?? null} />
-              </div>
-            </>
-          )}
-          {isLegacyMode && legacyPlanState && (
-            <>
-              <div className={`shrink-0 grid grid-cols-2 gap-3 p-3 ${BG} border-b ${BORD}`}>
-                <StatCard icon={History} label="Workspaces" value={String(legacyPlanState.workspaces?.length ?? 0)} />
-                <StatCard icon={Activity} label="Status" value={legacyPlanState.status} accent={legacyPlanState.status === "running"} />
-              </div>
-              <QueueStrip queue={queue} />
-              <div className={`flex gap-4 p-4 border-b ${BORD} ${SURF} shrink-0`}>
-                <div className="w-64"><PlanSummary planState={legacyPlanState} /></div>
-                <div className="w-48"><QueuePanel queue={queue} /></div>
-              </div>
-            </>
-          )}
-
-          {/* placeholders */}
-          {!isLegacyMode && !executionDetail && hasProjects && !selectedTask && (
-            <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
-              <History size={32} strokeWidth={1.2} />
-              <p className="text-sm">No execution selected</p>
-              <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
-            </div>
-          )}
-          {/* Task detail view */}
-          {!isLegacyMode && !executionDetail && selectedTask && (
-            <div className="flex-1 min-h-0 overflow-y-auto p-4">
-              <TaskDetailView
-                task={selectedTask}
-                projectId={selectedProjectId ?? ""}
-                onBack={() => {
-                  setSelectedTaskId(null);
-                  setSelectedTask(null);
-                }}
-                onTaskUpdated={(updated) => setSelectedTask(updated)}
-              />
-            </div>
-          )}
-          {isLegacyMode && !legacyPlanState && !legacyLoading && (
-            <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${MUT} p-8`}>
-              <LayoutGrid size={48} strokeWidth={1} className="text-stone-300 dark:text-stone-600" />
-              <p className={`text-sm text-stone-500 dark:text-stone-400`}>No plan execution data found</p>
-              <p className={`text-xs ${MUT} max-w-md text-center`}>Upload a plan to get started.</p>
-              <div className="flex gap-2 mt-2">
-                <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
-                <LabeledBtn icon={Plus} label="Create project" onClick={() => setShowProjectDialog(true)} />
-              </div>
-            </div>
-          )}
-          {isLegacyMode && legacyLoading && (
-            <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
-          )}
-
-          {/* P11 feature panels — platform screens */}
-          {showRegistrySettings ? (
-            <RegistrySettings className="flex-1 min-h-0" />
-          ) : showPlanIntake ? (
-            <PlanIntakePanel className="flex-1 min-h-0" />
-          ) : showMemory ? (
-            <MemoryCockpit className="flex-1 min-h-0" />
-          ) : showPolicyAudit ? (
-            <PolicyAuditCenter className="flex-1 min-h-0" />
-          ) : showExtensions ? (
-            <ExtensionsManager className="flex-1 min-h-0" />
-          ) : showSkills ? (
-            <SkillsManager className="flex-1 min-h-0" />
-          ) : showAutonomy ? (
-            <AutonomyCenter className="flex-1 min-h-0" />
-          ) : showLeadAgent ? (
-            <LeadAgentDashboard className="flex-1 min-h-0" />
-          ) : showScaleCockpit ? (
-            <>
-              <div className={`shrink-0 border-b ${BORD} ${SURF}`}>
-                <ScaleOverviewStrip />
-              </div>
-              <ScaleCockpitPanel className="flex-1 min-h-0" />
-            </>
-          ) : showBatchOS ? (
-            <BatchOSDashboard
-              className="flex-1 min-h-0"
-              planStatus={activePlanStatus}
-              hasActiveExecution={selectedPlanExecId !== null}
-              workspaces={activeWorkspaces}
-              batchPlan={batchPlanData}
-              onControl={(action) => handleControl(action)}
-              onWorkspaceClick={(id) => setSelectedWorkerId(id)}
-            />
-          ) : (
-            <>
-              {/* worker list */}
-              {workers.length > 0 && (
-                <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
-                  {workers.map(w => (
-                    <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
-                      active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
-                      onStopWorker={(id) => handleStopWorker(id)} />
-                  ))}
+              {legacyPlanState && (
+                <>
+                  <div className={`shrink-0 grid grid-cols-2 gap-3 p-3 ${BG} border-b ${BORD}`}>
+                    <StatCard icon={History} label="Workspaces" value={String(legacyPlanState.workspaces?.length ?? 0)} />
+                    <StatCard icon={Activity} label="Status" value={legacyPlanState.status} accent={legacyPlanState.status === "running"} />
+                  </div>
+                  <QueueStrip queue={queue} />
+                  <div className={`flex gap-4 p-4 border-b ${BORD} ${SURF} shrink-0`}>
+                    <div className="w-64"><PlanSummary planState={legacyPlanState} /></div>
+                    <div className="w-48"><QueuePanel queue={queue} /></div>
+                  </div>
+                  {workers.length > 0 && (
+                    <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
+                      {workers.map(w => (
+                        <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
+                          active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
+                          onStopWorker={(id) => handleStopWorker(id)} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {selectedWorker ? (
+                      <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
+                    ) : workers.length > 0 ? (
+                      <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
+                    ) : null}
+                  </div>
+                </>
+              )}
+              {legacyLoading && (
+                <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
+              )}
+              {!legacyPlanState && !legacyLoading && (
+                <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${MUT} p-8`}>
+                  <LayoutGrid size={48} strokeWidth={1} className="text-stone-300 dark:text-stone-600" />
+                  <p className={`text-sm text-stone-500 dark:text-stone-400`}>No plan execution data found</p>
+                  <p className={`text-xs ${MUT} max-w-md text-center`}>Upload a plan to get started.</p>
+                  <div className="flex gap-2 mt-2">
+                    <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
+                    <LabeledBtn icon={Plus} label="Create project" onClick={() => setShowProjectDialog(true)} />
+                  </div>
                 </div>
               )}
+            </>
+          ) : (
+            /* ── PROJECT MODE — switch on activeView ── */
+            <>
+              {(() => {
+                switch (activeView.type) {
+                  case "run":
+                    return (
+                      <>
+                        {/* warning banner */}
+                        <WarningBanner executionDetail={executionDetail ?? null} workers={activeWorkspaces}
+                          events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} executionStats={planStats ?? null} />
 
-              {/* worker detail */}
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                {selectedWorker ? (
-                  <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
-                ) : workers.length > 0 ? (
-                  <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
-                ) : null}
-              </div>
+                        {/* stats */}
+                        {executionDetail && (
+                          <>
+                            <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-7 gap-3 p-3 ${BG} border-b ${BORD}`}>
+                              <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
+                              <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
+                              <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
+                              <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
+                              <StatCard icon={Activity} label="Cache hit" value={formatPercentOrUnknown(planStats?.cache_hit_rate_known ? planStats?.cache_hit_rate : null)} />
+                              <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
+                              <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
+                            </div>
+                            <QueueStrip queue={queue} />
+                            <div className={`shrink-0 p-3 border-b ${BORD}`}>
+                              <SchedulerStatusPanel stats={planStats ?? null} />
+                            </div>
+                          </>
+                        )}
+
+                        {/* no execution selected */}
+                        {!executionDetail && (
+                          <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+                            <History size={32} strokeWidth={1.2} />
+                            <p className="text-sm">No execution selected</p>
+                            <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
+                          </div>
+                        )}
+
+                        {/* worker list */}
+                        {executionDetail && workers.length > 0 && (
+                          <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
+                            {workers.map(w => (
+                              <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
+                                active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
+                                onStopWorker={(id) => handleStopWorker(id)} />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* worker detail / live log */}
+                        {executionDetail && (
+                          <div className="flex-1 min-h-0 overflow-y-auto">
+                            {selectedWorker ? (
+                              <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
+                            ) : workers.length > 0 ? (
+                              <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
+                            ) : null}
+                          </div>
+                        )}
+                      </>
+                    );
+
+                  case "task":
+                    return (
+                      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                        {selectedTask ? (
+                          <TaskDetailView
+                            task={selectedTask}
+                            projectId={selectedProjectId ?? ""}
+                            onBack={() => {
+                              setSelectedTask(null);
+                              setSelectedTaskId(null);
+                              setActiveView(selectedPlanExecId ? { type: "run" } : { type: "empty" });
+                            }}
+                            onTaskUpdated={(updated) => setSelectedTask(updated)}
+                            onPhasePlanClick={(planExecId) => {
+                              setSelectedPlanExecId(planExecId);
+                              setActiveView({ type: "run" });
+                              setLeftTab("runs");
+                            }}
+                          />
+                        ) : (
+                          <div className={`flex flex-col items-center justify-center h-full gap-3 ${MUT}`}>
+                            <Loader2 size={20} className="animate-spin" />
+                            <p className="text-sm">Loading task...</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+
+                  case "platform":
+                    return (
+                      <>
+                        {/* Platform screen containers only when no task detail */}
+                        {showRegistrySettings ? (
+                          <RegistrySettings className="flex-1 min-h-0" />
+                        ) : showPlanIntake ? (
+                          <PlanIntakePanel className="flex-1 min-h-0" />
+                        ) : showMemory ? (
+                          <MemoryCockpit className="flex-1 min-h-0" />
+                        ) : showPolicyAudit ? (
+                          <PolicyAuditCenter className="flex-1 min-h-0" />
+                        ) : showExtensions ? (
+                          <ExtensionsManager className="flex-1 min-h-0" />
+                        ) : showSkills ? (
+                          <SkillsManager className="flex-1 min-h-0" />
+                        ) : showAutonomy ? (
+                          <AutonomyCenter className="flex-1 min-h-0" />
+                        ) : (
+                          <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+                            <Cpu size={32} strokeWidth={1.2} />
+                            <p className="text-sm">Select a platform feature from the sidebar</p>
+                          </div>
+                        )}
+                      </>
+                    );
+
+                  case "empty":
+                  default:
+                    return (
+                      <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+                        <History size={32} strokeWidth={1.2} />
+                        <p className="text-sm">No execution selected</p>
+                        <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
+                      </div>
+                    );
+                }
+              })()}
             </>
           )}
         </div>
@@ -759,8 +830,6 @@ export function App() {
           )}
         </AnimatePresence>
 
-
-
         {/* -- artifacts overlay -- */}
         <AnimatePresence>
           {showArtifacts && (
@@ -786,7 +855,7 @@ export function App() {
       {/* ── dialogs ── */}
       <OpenProjectDialog isOpen={showProjectDialog} onClose={() => setShowProjectDialog(false)}
         onCreate={createProject} projects={projects}
-        onSelectExisting={(id) => { setSelectedProjectId(id); setSelectedPlanExecId(null); }} />
+        onSelectExisting={(id) => handleProjectSelected(id)} />
       {showPlanUploadDialog && (selectedProjectId || projects.length > 0) && (
         <PlanUploadDialog isOpen={showPlanUploadDialog} onClose={() => setShowPlanUploadDialog(false)}
           projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted}
@@ -810,6 +879,7 @@ export function App() {
         onContextRefClick={(ref) => {
           if (ref.kind === "run") {
             setSelectedPlanExecId(ref.id);
+            setActiveView({ type: "run" });
           } else if (ref.kind === "workspace") {
             setSelectedWorkerId(ref.id);
           }
@@ -1004,5 +1074,3 @@ async function fetchGitData(): Promise<{ branch?: string; dirty?: boolean; log?:
     return { error: String(e) };
   }
 }
-
-

@@ -1885,10 +1885,16 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 		});
 	}
 
+	// ── CRITICAL: Re-read task from disk after updatePhaseStatus ────────
+	// The local `task` snapshot is stale; load fresh data for dependency
+	// resolution and gate checking.
+	const freshTask = await taskStore.loadTask(workspaceRoot, task.id);
+	if (!freshTask) return;
+
 	// If the phase failed, mark the task as failed and stop
 	if (phase.status === "failed") {
-		await taskStore.updateTaskStatus(workspaceRoot, task.id, "failed");
-		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+		await taskStore.updateTaskStatus(workspaceRoot, freshTask.id, "failed");
+		await taskStore.appendTimelineEvent(workspaceRoot, freshTask.id, {
 			timestamp: Date.now(),
 			type: "phase_failed",
 			data: { phaseId: phase.id, planExecId },
@@ -1897,31 +1903,27 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	}
 
 	// Find the next unstarted phase whose dependencies are all met
-	const nextPhase = task.phases.slice(phaseIndex + 1).find((p) => {
+	const nextPhase = freshTask.phases.slice(phaseIndex + 1).find((p) => {
 		if (p.status !== "pending") return false;
-		// Check dependencies: all must be complete
+		// Check dependencies: all must be complete (using FRESH task data)
 		return p.dependsOn.every((depId) => {
-			const dep = task.phases.find((ph) => ph.id === depId);
+			const dep = freshTask.phases.find((ph) => ph.id === depId);
 			return dep?.status === "complete" || dep?.status === "skipped";
 		});
 	});
 
 	if (!nextPhase) {
 		// No more phases — task is complete
-		await taskStore.updateTaskStatus(workspaceRoot, task.id, "complete");
-		await taskStore.appendTimelineEvent(workspaceRoot, task.id, {
+		await taskStore.updateTaskStatus(workspaceRoot, freshTask.id, "complete");
+		await taskStore.appendTimelineEvent(workspaceRoot, freshTask.id, {
 			timestamp: Date.now(),
 			type: "task_complete",
-			data: { aggregate: task.aggregate },
+			data: { aggregate: freshTask.aggregate },
 		});
 		return;
 	}
 
 	// ── Phase Transition Gate ────────────────────────────────────────────
-	// Re-read the task so we have latest state
-	const freshTask = await taskStore.loadTask(workspaceRoot, task.id);
-	if (!freshTask) return;
-
 	const gateResult = await runPhaseTransitionGate(workspaceRoot, freshTask, nextPhase);
 
 	if (!gateResult.allowed) {

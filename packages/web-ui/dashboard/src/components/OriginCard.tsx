@@ -30,7 +30,7 @@ export function OriginCard({ origin }: OriginCardProps) {
 			<Icon size={16} className={`${cfg.color} shrink-0 mt-0.5`} />
 			<div className="min-w-0 text-[11px]">
 				<p className="text-gray-300 font-medium">{cfg.label}</p>
-				{origin.sourcePlanFiles.length > 0 && (
+				{origin.sourcePlanFiles && origin.sourcePlanFiles.length > 0 && (
 					<p className="text-gray-500 mt-0.5">
 						Files: {origin.sourcePlanFiles.join(", ")}
 					</p>

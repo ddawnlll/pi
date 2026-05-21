@@ -36,6 +36,7 @@ interface TaskDetailViewProps {
 	projectId: string;
 	onBack: () => void;
 	onTaskUpdated?: (task: MultiPhaseTask) => void;
+	onPhasePlanClick?: (planExecId: string) => void;
 }
 
 // ── Status badge helper ──────────────────────────────────────────────────
@@ -80,7 +81,7 @@ function PhaseIcon({ status }: { status: PhasePlan["status"] }) {
 
 // ── PhaseRow ─────────────────────────────────────────────────────────────
 
-function PhaseRow({ phase }: { phase: PhasePlan }) {
+function PhaseRow({ phase, onPlanClick }: { phase: PhasePlan; onPlanClick?: (planExecId: string) => void }) {
 	const [expanded, setExpanded] = useState(false);
 	const hasDetail = phase.execution !== null;
 
@@ -115,7 +116,12 @@ function PhaseRow({ phase }: { phase: PhasePlan }) {
 			{expanded && phase.execution && (
 				<div className="px-6 pb-3 space-y-1.5 border-t border-gray-700 pt-2">
 					<div className="flex items-center gap-2 text-[10px] text-gray-500">
-						<span>Plan exec: {phase.execution.planExecId}</span>
+						<button
+							onClick={(e) => { e.stopPropagation(); onPlanClick?.(phase.execution!.planExecId); }}
+							className="text-blue-400 hover:text-blue-300 underline font-mono"
+						>
+							{phase.execution.planExecId.slice(0, 8)}...
+						</button>
 						<span className="text-gray-700">|</span>
 						<span>Workspaces: {phase.execution.stats.complete}/{phase.execution.stats.total}</span>
 						{phase.execution.stats.total_tokens_in !== undefined && (
@@ -123,6 +129,14 @@ function PhaseRow({ phase }: { phase: PhasePlan }) {
 								<span className="text-gray-700">|</span>
 								<span>Tokens: {phase.execution.stats.total_tokens_in} in / {phase.execution.stats.total_tokens_out} out</span>
 							</>
+						)}
+						{phase.execution.planExecId && phase.execution.planExecId !== "-" && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onPlanClick?.(phase.execution!.planExecId); }}
+								className="ml-auto text-[9px] text-blue-500 hover:text-blue-400 bg-blue-950/30 px-1.5 py-0.5 rounded border border-blue-800/50"
+							>
+								Open plan view
+							</button>
 						)}
 					</div>
 					{phase.execution.error && (
@@ -173,7 +187,7 @@ function LiveTimelinePanel({ events }: { events: TimelineEvent[] }) {
 
 // ── Main component ──────────────────────────────────────────────────────
 
-export function TaskDetailView({ task: initialTask, projectId, onBack, onTaskUpdated }: TaskDetailViewProps) {
+export function TaskDetailView({ task: initialTask, projectId, onBack, onTaskUpdated, onPhasePlanClick }: TaskDetailViewProps) {
 	const [task, setTask] = useState(initialTask);
 	const [actionLoading, setActionLoading] = useState<string | null>(null);
 	const [activeTab, setActiveTab] = useState<"phases" | "timeline" | "reflection">("phases");
@@ -337,7 +351,7 @@ export function TaskDetailView({ task: initialTask, projectId, onBack, onTaskUpd
 			{activeTab === "phases" && (
 				<div className="space-y-1.5">
 					{task.phases.map((phase) => (
-						<PhaseRow key={phase.id} phase={phase} />
+						<PhaseRow key={phase.id} phase={phase} onPlanClick={onPhasePlanClick} />
 					))}
 				</div>
 			)}
