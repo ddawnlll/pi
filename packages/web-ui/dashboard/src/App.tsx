@@ -62,6 +62,11 @@ import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
+import { BrainStatePage } from "./pages/BrainStatePage";
+import { BrainMemoryPage } from "./pages/BrainMemoryPage";
+import { BrainReflectionsPage } from "./pages/BrainReflectionsPage";
+import { BrainTrustPage } from "./pages/BrainTrustPage";
+import { BrainOvernightPage } from "./pages/BrainOvernightPage";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -212,6 +217,12 @@ export function App() {
   const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
   const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
+  // P19 brain pages
+  const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
+  const showBrainInbox       = activeView.type === "platform" && activeView.screen === "brain_inbox";
+  const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
+  const showBrainReflections = activeView.type === "platform" && activeView.screen === "brain_reflections";
+  const showBrainOvernight   = activeView.type === "platform" && activeView.screen === "brain_overnight";
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
 
@@ -731,6 +742,16 @@ export function App() {
                           <AutonomyCenter className="flex-1 min-h-0" />
                         ) : showProposalInbox ? (
                           <ProposalInbox className="flex-1 min-h-0" />
+                        ) : showBrainState ? (
+                          <BrainStatePage />
+                        ) : showBrainInbox ? (
+                          <ProposalInbox className="flex-1 min-h-0" />
+                        ) : showBrainMemory ? (
+                          <BrainMemoryPage />
+                        ) : showBrainReflections ? (
+                          <BrainReflectionsPage />
+                        ) : showBrainOvernight ? (
+                          <BrainOvernightPage />
                         ) : (
                           <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
                             <Cpu size={32} strokeWidth={1.2} />

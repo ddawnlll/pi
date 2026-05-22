@@ -1,7 +1,7 @@
 import React from "react";
-import { useBrainStatus } from "../../hooks/useBrainStatus";
-import { DaemonStatusCard, ObservationStats, SignalSummaryCards, TimelineList } from "../brain/overview";
-import { LoadingSkeleton, ErrorState } from "../brain/common";
+import { useBrainStatus } from "../hooks/useBrainStatus";
+import { DaemonStatusCard, ObservationStats, SignalSummaryCards, TimelineList } from "../components/brain/overview";
+import { LoadingSkeleton, ErrorState } from "../components/brain/common";
 
 export function BrainStatePage() {
 	const {

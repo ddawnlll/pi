@@ -18,7 +18,9 @@ import {
 	Cpu,
 	Database,
 	Inbox,
+	Moon,
 	Package,
+	RotateCw,
 	ScrollText,
 	Shield,
 	ShieldAlert,
@@ -49,7 +51,13 @@ export type PlatformNavItem =
 	| "memory"
 	| "policy_audit"
 	| "trust_dashboard"
-	| "registry_settings";
+	| "registry_settings"
+	// P19 brain pages
+	| "brain_state"
+	| "brain_inbox"
+	| "brain_memory"
+	| "brain_reflections"
+	| "brain_overnight";
 
 export interface PlatformNavEntry {
 	id: PlatformNavItem;
@@ -112,6 +120,37 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Registry Settings",
 		icon: Sliders,
 		description: "Local/remote registries, channels, update policy",
+	},
+	// ── P19 Second-Brain pages ──
+	{
+		id: "brain_state",
+		label: "Brain State",
+		icon: Cpu,
+		description: "Daemon status, observations, signals, timeline",
+	},
+	{
+		id: "brain_inbox",
+		label: "Proposal Inbox",
+		icon: Inbox,
+		description: "Top-ranked proposals with recommendations",
+	},
+	{
+		id: "brain_memory",
+		label: "Memory Explorer",
+		icon: Database,
+		description: "Full memory CRUD, search, filters",
+	},
+	{
+		id: "brain_reflections",
+		label: "Reflections",
+		icon: RotateCw,
+		description: "Post-plan reflections, worked/failed, suggestions",
+	},
+	{
+		id: "brain_overnight",
+		label: "Overnight",
+		icon: Moon,
+		description: "Queue overnight runs, schedule, history",
 	},
 ];
 
