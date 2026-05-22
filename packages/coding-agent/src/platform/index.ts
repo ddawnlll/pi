@@ -27,7 +27,7 @@ export {
 	PlanExecutionStatus,
 	PlatformComponent,
 	type PlatformManifest,
-	PlatformVersion,
+	type PlatformVersion,
 	type ValidationIssue,
 	ValidationIssueSeverity,
 	WorkerStage,

@@ -4542,6 +4542,48 @@ const { registerSkillRoutes } = await import("./skills-routes.js");
 registerSkillRoutes(fastify);
 
 // ---------------------------------------------------------------------------
+// Brain State Routes (P13 — Brain State Viewer)
+// ---------------------------------------------------------------------------
+
+const { registerBrainStateRoutes } = await import("./routes/brain/state.js");
+await registerBrainStateRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Brain Memory Routes (P14 — Memory Explorer)
+// ---------------------------------------------------------------------------
+
+const { registerBrainMemoryRoutes } = await import("./routes/brain/memories.js");
+await registerBrainMemoryRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Brain Autonomy Routes (P15 — Autonomy Controls)
+// ---------------------------------------------------------------------------
+
+const { registerBrainAutonomyRoutes } = await import("./routes/brain/autonomy.js");
+await registerBrainAutonomyRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Brain Policy Routes (P18 — Policy Rules)
+// ---------------------------------------------------------------------------
+
+const { registerBrainPolicyRoutes } = await import("./routes/brain/policy.js");
+await registerBrainPolicyRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Brain Audit Routes (P18 — Audit)
+// ---------------------------------------------------------------------------
+
+const { registerBrainAuditRoutes } = await import("./routes/brain/audit.js");
+await registerBrainAuditRoutes(fastify);
+
+// ---------------------------------------------------------------------------
+// Brain Overnight Routes (P20 — Overnight Queue)
+// ---------------------------------------------------------------------------
+
+const { registerBrainOvernightRoutes } = await import("./routes/brain/overnight.js");
+await registerBrainOvernightRoutes(fastify);
+
+// ---------------------------------------------------------------------------
 // Memory Routes (P11.Q — Memory Cockpit)
 // ---------------------------------------------------------------------------
 

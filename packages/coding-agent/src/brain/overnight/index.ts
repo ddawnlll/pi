@@ -19,3 +19,25 @@ export type { TrustAssessment, TrustDimension, TrustFinding, TrustCriterion, Tru
 
 export { DogfoodReportGenerator } from "./dogfood-report";
 export type { DogfoodReport } from "./dogfood-report";
+
+export const DEFAULT_OVERNIGHT_CONFIG = {
+	maxDurationHours: 8,
+	autonomyLevel: 3,
+	stopConditions: ["max_duration_reached"],
+	notificationEnabled: true,
+	generateMorningReport: true,
+	planExecIds: [],
+};
+
+export class SessionStore {
+	private sessions: Map<string, unknown> = new Map();
+	add(session: { id: string; [key: string]: unknown }): void {
+		this.sessions.set(session.id, session);
+	}
+	get(id: string): unknown {
+		return this.sessions.get(id);
+	}
+	list(): unknown[] {
+		return Array.from(this.sessions.values());
+	}
+}

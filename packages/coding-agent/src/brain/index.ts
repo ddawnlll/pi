@@ -304,7 +304,7 @@ export type {
 } from "./reflection/types.js";
 export {
 	type AppendEventResult,
-	BrainTimelineStore,
+	type BrainTimelineStore,
 	type BrainTimelineStoreConfig,
 	InMemoryBrainTimelineStore,
 	MAX_ARCHIVES,
