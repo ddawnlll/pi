@@ -786,6 +786,22 @@ export class AutonomousExecutor {
 				}
 			}
 
+			// Check if all workspaces are terminal — if so, auto-complete the plan.
+			// Without this, plans executed outside the CLI loop (e.g., via web-server)
+			// would remain "running" in the DB forever because completePlan() was only
+			// called from plan-commands.ts after the execution loop finished.
+			if (this.isExecutionComplete()) {
+				// Use setTimeout to avoid re-entrancy issues — let the current call stack unwind
+				// before completing the plan. Use queueMicrotask for same-tick scheduling.
+				queueMicrotask(async () => {
+					try {
+						await this.completePlan();
+					} catch (completeError) {
+						console.error(`[auto-complete] Failed to complete plan ${planExecutionId}:`, completeError);
+					}
+				});
+			}
+
 			return result;
 		} catch (error) {
 			// Handle failure
@@ -844,6 +860,17 @@ export class AutonomousExecutor {
 					this.currentPlanState = updatedState;
 				}
 			});
+
+			// Check if all workspaces are terminal (all failed/complete — no more pending/active)
+			if (this.isExecutionComplete()) {
+				queueMicrotask(async () => {
+					try {
+						await this.failPlan("All workspaces failed or plan cannot proceed");
+					} catch (completeError) {
+						console.error(`[auto-complete] Failed to fail plan ${planExecutionId}:`, completeError);
+					}
+				});
+			}
 
 			return {
 				workspaceId: workspace.id,
