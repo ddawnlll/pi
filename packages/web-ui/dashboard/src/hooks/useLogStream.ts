@@ -69,9 +69,10 @@ export function useLogStream(
 
 		source.onerror = () => {
 			setIsConnected(false);
-			// EventSource auto-reconnects, so need to prevent reconnect
-			// for completed-on-connect streams (no-logs signal).
-			// The server closes the response when no logs exist.
+			// Close source on error to prevent EventSource auto-reconnect
+			// so we reconnect on the next connect() cycle when params change.
+			source.close();
+			sourceRef.current = null;
 		};
 	}, [workspaceId, attempt, stream, planExecId]);
 

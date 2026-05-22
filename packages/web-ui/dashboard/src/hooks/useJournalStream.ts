@@ -7,8 +7,15 @@ const MAX_EVENTS = 50;
 export function useJournalStream(enabled: boolean = true) {
 	const [events, setEvents] = useState<ExecutionEvent[]>([]);
 	const sourceRef = useRef<EventSource | null>(null);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const connect = useCallback(() => {
+		// Clear any pending reconnect timer
+		if (reconnectTimerRef.current) {
+			clearTimeout(reconnectTimerRef.current);
+			reconnectTimerRef.current = null;
+		}
+
 		if (sourceRef.current) {
 			sourceRef.current.close();
 		}
@@ -33,7 +40,7 @@ export function useJournalStream(enabled: boolean = true) {
 			console.error("Event stream error, reconnecting...");
 			source.close();
 			sourceRef.current = null;
-			setTimeout(connect, 5000);
+			reconnectTimerRef.current = setTimeout(connect, 5000);
 		};
 	}, []);
 
@@ -44,6 +51,10 @@ export function useJournalStream(enabled: boolean = true) {
 			setEvents([]);
 		}
 		return () => {
+			if (reconnectTimerRef.current) {
+				clearTimeout(reconnectTimerRef.current);
+				reconnectTimerRef.current = null;
+			}
 			if (sourceRef.current) {
 				sourceRef.current.close();
 				sourceRef.current = null;

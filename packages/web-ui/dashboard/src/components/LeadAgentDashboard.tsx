@@ -92,11 +92,13 @@ type AnalysisState = "idle" | "running" | "paused" | "stopped";
 // Live transcript hook
 // ---------------------------------------------------------------------------
 
-function useLeadAgentStream(onComplete?: () => void) {
+function useLeadAgentStream(onCompleteRef?: () => void) {
 	const [transcript, setTranscript] = useState<TranscriptEvent[]>([]);
 	const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
 	const [hasStarted, setHasStarted] = useState(false);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const onCompleteRefStable = useRef(onCompleteRef);
+	onCompleteRefStable.current = onCompleteRef;
 
 	const connect = async () => {
 		if (eventSourceRef.current) {
@@ -118,7 +120,7 @@ function useLeadAgentStream(onComplete?: () => void) {
 					setAnalysisState("stopped");
 					es.close();
 					eventSourceRef.current = null;
-					onComplete?.();
+					onCompleteRefStable.current?.();
 				}
 			} catch {
 				// Ignore malformed events
@@ -261,9 +263,11 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 	// Fetch latest executions for plan picker (no project context = legacy mode)
 	const { data: executions = [] } = usePlanExecutions("");
 
-	const { transcript, analysisState, hasStarted, connect, pause, resume, stop } = useLeadAgentStream(() => {
-		setTimeout(() => refetch(), 500);
-	});
+	const { transcript, analysisState, hasStarted, connect, pause, resume, stop } = useLeadAgentStream(
+		useCallback(() => {
+			setTimeout(() => refetch(), 500);
+		}, [refetch]),
+	);
 
 	// Derive selected proposal from the list
 	const selectedProposal = useMemo(
@@ -272,11 +276,11 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 	);
 
 	// Clear selectedProposalId when filter removes the proposal from view
-	if (selectedProposalId !== null) {
-		if (!proposals.find((p) => p.id === selectedProposalId)) {
-			setTimeout(() => setSelectedProposalId(null), 0);
+	useEffect(() => {
+		if (selectedProposalId !== null && !proposals.some((p) => p.id === selectedProposalId)) {
+			setSelectedProposalId(null);
 		}
-	}
+	}, [selectedProposalId, proposals]);
 
 	// Auto-scroll transcript
 	useEffect(() => {
