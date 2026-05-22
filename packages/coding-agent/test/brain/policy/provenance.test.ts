@@ -9,22 +9,13 @@
  * 5. Persistence survives restart
  */
 
-import { mkdtempSync, existsSync } from "fs";
+import { existsSync, mkdtempSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	ProvenanceTracker,
-	createProvenanceTracker,
-} from "../../../src/brain/policy/provenance.js";
-import type {
-	AuditEntry,
-	ProvenanceLink,
-	ProvenanceRecord,
-	ProvenanceTargetType,
-} from "../../../src/brain/policy/types.js";
-import type { SourceRef } from "../../../src/brain/reflection/types.js";
+import { createProvenanceTracker, type ProvenanceTracker } from "../../../src/brain/policy/provenance.js";
+import type { AuditEntry, ProvenanceLink } from "../../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,9 +93,7 @@ describe("ProvenanceTracker", () => {
 
 	describe("AC1: ProvenanceRecord created for policy evaluations", () => {
 		it("should create a provenance record via track()", async () => {
-			const record = await tracker.track("target-1", "decision", [
-				sampleLink(),
-			]);
+			const record = await tracker.track("target-1", "decision", [sampleLink()]);
 
 			expect(record).toBeDefined();
 			expect(record.id).toBeTruthy();
@@ -173,9 +162,9 @@ describe("ProvenanceTracker", () => {
 		});
 
 		it("should create records for multiple target types simultaneously", async () => {
-			const record1 = await tracker.track("target-a", "decision", [sampleLink()]);
-			const record2 = await tracker.track("target-b", "proposal", [sampleLink()]);
-			const record3 = await tracker.track("target-c", "memory", [sampleLink()]);
+			const _record1 = await tracker.track("target-a", "decision", [sampleLink()]);
+			const _record2 = await tracker.track("target-b", "proposal", [sampleLink()]);
+			const _record3 = await tracker.track("target-c", "memory", [sampleLink()]);
 
 			const stats = await tracker.getStats();
 			expect(stats.totalRecords).toBe(3);
@@ -513,9 +502,7 @@ describe("ProvenanceTracker", () => {
 
 	describe("AC5: Persistence survives restart", () => {
 		it("should persist records to disk via save()", async () => {
-			await tracker.track("persist-target", "decision", [
-				sampleLink({ summary: "Persist test" }),
-			]);
+			await tracker.track("persist-target", "decision", [sampleLink({ summary: "Persist test" })]);
 			await tracker.save();
 
 			const recordsFile = resolve(persistencePath, "records.json");
@@ -524,12 +511,8 @@ describe("ProvenanceTracker", () => {
 
 		it("should load persisted records after creating a new tracker instance", async () => {
 			// Write records with one tracker
-			await tracker.track("survive-1", "decision", [
-				sampleLink({ summary: "First link", sourceId: "src-a" }),
-			]);
-			await tracker.track("survive-2", "proposal", [
-				sampleLink({ summary: "Second link", sourceId: "src-b" }),
-			]);
+			await tracker.track("survive-1", "decision", [sampleLink({ summary: "First link", sourceId: "src-a" })]);
+			await tracker.track("survive-2", "proposal", [sampleLink({ summary: "Second link", sourceId: "src-b" })]);
 			await tracker.save();
 
 			// Create a new tracker pointing to the same path
@@ -598,10 +581,7 @@ describe("ProvenanceTracker", () => {
 		});
 
 		it("should compute stats correctly", async () => {
-			await tracker.track("d-1", "decision", [
-				sampleLink(),
-				sampleLink({ sourceId: "src-2" }),
-			]);
+			await tracker.track("d-1", "decision", [sampleLink(), sampleLink({ sourceId: "src-2" })]);
 			await tracker.track("p-1", "proposal", [sampleLink()]);
 			await tracker.track("m-1", "memory", [sampleLink()]);
 			await tracker.track("a-1", "approval", [sampleLink()]);

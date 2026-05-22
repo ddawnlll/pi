@@ -106,5 +106,41 @@
     "status": "complete",
     "startedAt": "2026-05-16T14:20:32.525Z",
     "completedAt": "2026-05-16T16:02:54.762Z"
+  },
+  {
+    "id": "cf28a273-e561-4d29-a4f1-d2ed45e57ce9",
+    "projectId": "8df0d430-18fb-4ef2-8efd-19b13f79cfe3",
+    "phase": "P17",
+    "title": "Plan Factory & Reflection Loop",
+    "status": "running",
+    "startedAt": "2026-05-21T21:37:54.144Z",
+    "completedAt": null
+  },
+  {
+    "id": "48a73c06-3de4-49b2-9ac2-93158174029e",
+    "projectId": "bc7a845a-876a-47b8-97b1-9ec8cadfd583",
+    "phase": "P17",
+    "title": "Plan Factory & Reflection Loop",
+    "status": "running",
+    "startedAt": "2026-05-21T21:42:25.405Z",
+    "completedAt": null
+  },
+  {
+    "id": "7cf75225-503f-4edf-98a9-53d35ed1239b",
+    "projectId": "bc7a845a-876a-47b8-97b1-9ec8cadfd583",
+    "phase": "P18",
+    "title": "Trust, Policy, Audit & Approval Controls",
+    "status": "awaiting_handoff",
+    "startedAt": "2026-05-21T22:14:24.120Z",
+    "completedAt": null
+  },
+  {
+    "id": "99247bba-4627-47c5-9234-3d5425f3b92e",
+    "projectId": "bc7a845a-876a-47b8-97b1-9ec8cadfd583",
+    "phase": "P19",
+    "title": "Full Second-Brain Dashboard & Autonomy UX",
+    "status": "running",
+    "startedAt": "2026-05-21T22:37:38.547Z",
+    "completedAt": null
   }
 ]

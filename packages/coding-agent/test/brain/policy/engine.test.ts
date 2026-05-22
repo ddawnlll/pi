@@ -13,10 +13,10 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PolicyEngine, createPolicyEngine } from "../../../src/brain/policy/engine.js";
-import { RuleStore } from "../../../src/brain/policy/store.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AuditEntry } from "../../../src/brain/audit/ledger.js";
+import { createPolicyEngine, PolicyEngine } from "../../../src/brain/policy/engine.js";
+import { RuleStore } from "../../../src/brain/policy/store.js";
 import type { PolicyContext, PolicyRule } from "../../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
@@ -25,10 +25,7 @@ import type { PolicyContext, PolicyRule } from "../../../src/brain/policy/types.
 
 const TEST_DIR = path.resolve(process.cwd(), ".pi-test", `policy-engine-${Date.now()}`);
 
-const FIXTURE_RULES_PATH = path.resolve(
-	process.cwd(),
-	"test/fixtures/policy/test-rules.json",
-);
+const FIXTURE_RULES_PATH = path.resolve(process.cwd(), "test/fixtures/policy/test-rules.json");
 
 async function loadFixtureRules(): Promise<PolicyRule[]> {
 	const json = await fs.readFile(FIXTURE_RULES_PATH, "utf-8");
@@ -102,9 +99,7 @@ describe("PolicyEngine", () => {
 
 	describe("AC1: Evaluates single action correctly", () => {
 		it("should return 'allow' for retry_transient_failure", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "retry_transient_failure" }));
 
 			expect(result.decision).toBe("allow");
 			expect(result.matchedRule).not.toBeNull();
@@ -115,9 +110,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("should return 'approval_required' for execute_generated_plan", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "execute_generated_plan" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "execute_generated_plan" }));
 
 			expect(result.decision).toBe("approval_required");
 			expect(result.matchedRule).not.toBeNull();
@@ -125,9 +118,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("should return 'forbidden' for access_secrets", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "access_secrets" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "access_secrets" }));
 
 			expect(result.decision).toBe("forbidden");
 			expect(result.matchedRule).not.toBeNull();
@@ -135,9 +126,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("should return 'forbidden' for destructive_cleanup", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "destructive_cleanup" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "destructive_cleanup" }));
 
 			expect(result.decision).toBe("forbidden");
 			expect(result.matchedRule).not.toBeNull();
@@ -145,9 +134,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("should return 'allowed' for generate_draft_proposal", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "generate_draft_proposal" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "generate_draft_proposal" }));
 
 			expect(result.decision).toBe("allow");
 			expect(result.matchedRule).not.toBeNull();
@@ -163,9 +150,7 @@ describe("PolicyEngine", () => {
 		it("should prefer higher priority rule when multiple match", async () => {
 			// forbid_001 (priority 200) matches "access_secrets"
 			// There shouldn't be a lower-priority rule matching the same action
-			const result = await engine.evaluate(
-				makeContext({ action: "access_secrets" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "access_secrets" }));
 
 			expect(result.decision).toBe("forbidden");
 			expect(result.matchedRule!.priority).toBe(200);
@@ -176,9 +161,7 @@ describe("PolicyEngine", () => {
 			//   - glob_001 (priority 95) with pattern "memory_*"
 			//   - appr_003 (priority 90) with exact match "memory_creation"
 			// glob_001 has higher priority, so it should win
-			const result = await engine.evaluate(
-				makeContext({ action: "memory_creation" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "memory_creation" }));
 
 			// Both match, but glob_001 has higher priority
 			expect(result.decision).toBe("approval_required");
@@ -186,9 +169,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("should list all evaluated rules with match status", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "retry_transient_failure" }));
 
 			expect(result.allEvaluatedRules.length).toBeGreaterThan(0);
 			const matchedEntry = result.allEvaluatedRules.find((e) => e.matched);
@@ -203,18 +184,14 @@ describe("PolicyEngine", () => {
 
 	describe("AC3: Glob patterns match", () => {
 		it("should match exact glob pattern", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "memory_creation" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "memory_creation" }));
 
 			// glob_001 (memory_*) should match, with appr_003 (exact) also matching
 			expect(result.decision).toBe("approval_required");
 		});
 
 		it("should match wildcard suffix", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "memory_query" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "memory_query" }));
 
 			// memory_query matches both glob_001 (memory_*, priority 95)
 			// and allow_005 (exact match, priority 100). Higher priority wins.
@@ -224,9 +201,7 @@ describe("PolicyEngine", () => {
 
 		it("should match wildcard for any action", async () => {
 			// appr_004 uses "*" pattern with riskLevel condition
-			const result = await engine.evaluate(
-				makeContext({ action: "any_action", riskLevel: "high" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "any_action", riskLevel: "high" }));
 
 			expect(result.decision).toBe("approval_required");
 			expect(result.matchedRule!.id).toBe("appr_004");
@@ -234,9 +209,7 @@ describe("PolicyEngine", () => {
 
 		it("should NOT match action that doesn't match glob", async () => {
 			// glob_001 matches "memory_*", so "plan_execution" should not match it
-			const result = await engine.evaluate(
-				makeContext({ action: "plan_execution" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "plan_execution" }));
 
 			// Should fall through to default deny since no rule matches
 			expect(result.decision).toBe("deny");
@@ -252,9 +225,7 @@ describe("PolicyEngine", () => {
 		it("should filter by autonomy level (min)", async () => {
 			// appr_005 requires minAutonomyLevel of 4
 			// At autonomy 2, should not match
-			const resultAt2 = await engine.evaluate(
-				makeContext({ action: "any_action", autonomyLevel: 2 }),
-			);
+			const resultAt2 = await engine.evaluate(makeContext({ action: "any_action", autonomyLevel: 2 }));
 
 			// Should deny by default (appr_004 needs riskLevel, appr_005 needs level 4)
 			expect(resultAt2.decision).toBe("deny");
@@ -264,9 +235,7 @@ describe("PolicyEngine", () => {
 		it("should filter by autonomy level (max)", async () => {
 			// context_001 applies to execute_generated_plan with maxAutonomyLevel 1
 			// At autonomy 1, it should deny
-			const resultAt1 = await engine.evaluate(
-				makeContext({ action: "execute_generated_plan", autonomyLevel: 1 }),
-			);
+			const resultAt1 = await engine.evaluate(makeContext({ action: "execute_generated_plan", autonomyLevel: 1 }));
 
 			// context_001 (priority 95, deny) should have higher priority than
 			// appr_001 (priority 90, approval_required)
@@ -274,9 +243,7 @@ describe("PolicyEngine", () => {
 			expect(resultAt1.matchedRule!.id).toBe("context_001");
 
 			// At autonomy 2, context_001 should NOT match, and appr_001 should
-			const resultAt2 = await engine.evaluate(
-				makeContext({ action: "execute_generated_plan", autonomyLevel: 2 }),
-			);
+			const resultAt2 = await engine.evaluate(makeContext({ action: "execute_generated_plan", autonomyLevel: 2 }));
 
 			expect(resultAt2.decision).toBe("approval_required");
 			expect(resultAt2.matchedRule!.id).toBe("appr_001");
@@ -284,18 +251,14 @@ describe("PolicyEngine", () => {
 
 		it("should filter by risk level", async () => {
 			// appr_004 matches any action (*) with high or critical risk level
-			const resultLow = await engine.evaluate(
-				makeContext({ action: "some_action", riskLevel: "low" }),
-			);
+			const resultLow = await engine.evaluate(makeContext({ action: "some_action", riskLevel: "low" }));
 
 			// No specific rule for "some_action", and appr_004 doesn't match low risk
 			expect(resultLow.decision).toBe("deny");
 			expect(resultLow.matchedRule).toBeNull();
 
 			// High risk should match appr_004
-			const resultHigh = await engine.evaluate(
-				makeContext({ action: "some_action", riskLevel: "high" }),
-			);
+			const resultHigh = await engine.evaluate(makeContext({ action: "some_action", riskLevel: "high" }));
 
 			expect(resultHigh.decision).toBe("approval_required");
 			expect(resultHigh.matchedRule!.id).toBe("appr_004");
@@ -303,9 +266,7 @@ describe("PolicyEngine", () => {
 
 		it("should return deny when context has no risk level but rule requires one", async () => {
 			// appr_004 requires riskLevel, but context doesn't have one
-			const result = await engine.evaluate(
-				makeContext({ action: "some_action", riskLevel: undefined }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "some_action", riskLevel: undefined }));
 
 			expect(result.decision).toBe("deny");
 			expect(result.matchedRule).toBeNull();
@@ -318,9 +279,7 @@ describe("PolicyEngine", () => {
 
 	describe("AC5: Default deny when no rule matches", () => {
 		it("should return 'deny' for unknown action", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "completely_unknown_action" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "completely_unknown_action" }));
 
 			expect(result.decision).toBe("deny");
 			expect(result.matchedRule).toBeNull();
@@ -381,7 +340,7 @@ describe("PolicyEngine", () => {
 			const ctxObserve = makeContext({ action: "observe_system_state" });
 
 			// Warm both caches
-			const resultRetry1 = await engine.evaluate(ctxRetry);
+			const _resultRetry1 = await engine.evaluate(ctxRetry);
 			const resultObserve1 = await engine.evaluate(ctxObserve);
 
 			// Modify rule for retry
@@ -508,44 +467,32 @@ describe("PolicyEngine", () => {
 
 	describe("Convenience methods", () => {
 		it("canAutoExecute should return true for allowed actions", async () => {
-			const result = await engine.canAutoExecute(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.canAutoExecute(makeContext({ action: "retry_transient_failure" }));
 			expect(result).toBe(true);
 		});
 
 		it("canAutoExecute should return false for non-allowed actions", async () => {
-			const result = await engine.canAutoExecute(
-				makeContext({ action: "access_secrets" }),
-			);
+			const result = await engine.canAutoExecute(makeContext({ action: "access_secrets" }));
 			expect(result).toBe(false);
 		});
 
 		it("requiresApproval should return true for approval_required actions", async () => {
-			const result = await engine.requiresApproval(
-				makeContext({ action: "execute_generated_plan" }),
-			);
+			const result = await engine.requiresApproval(makeContext({ action: "execute_generated_plan" }));
 			expect(result).toBe(true);
 		});
 
 		it("requiresApproval should return false for allowed actions", async () => {
-			const result = await engine.requiresApproval(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.requiresApproval(makeContext({ action: "retry_transient_failure" }));
 			expect(result).toBe(false);
 		});
 
 		it("isForbidden should return true for forbidden actions", async () => {
-			const result = await engine.isForbidden(
-				makeContext({ action: "access_secrets" }),
-			);
+			const result = await engine.isForbidden(makeContext({ action: "access_secrets" }));
 			expect(result).toBe(true);
 		});
 
 		it("isForbidden should return false for non-forbidden actions", async () => {
-			const result = await engine.isForbidden(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.isForbidden(makeContext({ action: "retry_transient_failure" }));
 			expect(result).toBe(false);
 		});
 	});
@@ -556,9 +503,7 @@ describe("PolicyEngine", () => {
 
 	describe("Explanation", () => {
 		it("explain should describe matched rule", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "retry_transient_failure" }));
 
 			const explanation = engine.explain(result);
 			expect(explanation).toContain("allow");
@@ -567,9 +512,7 @@ describe("PolicyEngine", () => {
 
 		it("explain should describe default deny", async () => {
 			// Use an action that has no matching rule at all
-			const result = await engine.evaluate(
-				makeContext({ action: "nonexistent_action_xyz" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "nonexistent_action_xyz" }));
 
 			const explanation = engine.explain(result);
 			expect(explanation).toContain("Default decision");
@@ -577,9 +520,7 @@ describe("PolicyEngine", () => {
 		});
 
 		it("explainSimple should produce concise output", async () => {
-			const result = await engine.evaluate(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "retry_transient_failure" }));
 
 			const explanation = engine.explainSimple(result.decision, result.matchedRule);
 			expect(explanation).toBe(
@@ -609,9 +550,7 @@ describe("PolicyEngine", () => {
 
 			const emptyEngine = createPolicyEngine(emptyStore);
 
-			const result = await emptyEngine.evaluate(
-				makeContext({ action: "any_action" }),
-			);
+			const result = await emptyEngine.evaluate(makeContext({ action: "any_action" }));
 
 			expect(result.decision).toBe("deny");
 			expect(result.matchedRule).toBeNull();
@@ -622,9 +561,7 @@ describe("PolicyEngine", () => {
 			// Disable a rule
 			await store.updateRule("allow_001", { enabled: false });
 
-			const result = await engine.evaluate(
-				makeContext({ action: "retry_transient_failure" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "retry_transient_failure" }));
 
 			// Should fall through to default deny since no enabled rule matches
 			expect(result.decision).toBe("deny");
@@ -645,9 +582,7 @@ describe("PolicyEngine", () => {
 				updatedAt: new Date().toISOString(),
 			});
 
-			const result = await engine.evaluate(
-				makeContext({ action: "[invalid" }),
-			);
+			const result = await engine.evaluate(makeContext({ action: "[invalid" }));
 
 			// Should match via exact match fallback
 			expect(result.decision).toBe("deny");

@@ -3,37 +3,23 @@
     "phaseId": "P2",
     "workspaceId": "7.C",
     "role": "worker",
-    "goal": "Extension API Bridge",
-    "allowedFiles": [
-      "packages/coding-agent/src/extensions/bridge/"
-    ],
+    "goal": "Approval Gate",
+    "allowedFiles": [],
     "forbiddenFiles": [
       ".env*",
-      "**/*.pem"
+      "**/*.pem",
+      "**/*.key"
     ],
-    "acceptanceCriteria": [
-      {
-        "description": "pi.readFile() works on permitted path",
-        "verified": false
-      },
-      {
-        "description": "pi.readFile('../.env') returns permission denied",
-        "verified": false
-      },
-      {
-        "description": "All API calls are written to audit log",
-        "verified": false
-      }
-    ],
-    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/api-bridge.test.ts",
+    "acceptanceCriteria": [],
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 161
+      "estimatedInputTokens": 120
     }
   },
-  "hash": "72a13d3191031938406982b382da139a6a9b91e681bd67d4fc70c9212eda3ae9",
-  "createdAt": 1779058690591
+  "hash": "244577cf2ceef358762345395c781fd59e5138c0d037a8015b796087d77c8877",
+  "createdAt": 1779402067420
 }

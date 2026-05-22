@@ -10,12 +10,12 @@
  * 6. Empty file handled gracefully
  */
 
-import { mkdtempSync, existsSync } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdtempSync } from "fs";
+import { mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AuditLedger, createAuditLedger } from "../../../src/brain/audit/ledger.js";
+import { type AuditLedger, createAuditLedger } from "../../../src/brain/audit/ledger.js";
 import type { PolicyDecision } from "../../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
@@ -113,8 +113,8 @@ describe("AuditLedger", () => {
 		});
 
 		it("should write entries in order", async () => {
-			const e1 = await ledger.log(sampleEntry({ action: "first" }) as never);
-			const e2 = await ledger.log(sampleEntry({ action: "second" }) as never);
+			const _e1 = await ledger.log(sampleEntry({ action: "first" }) as never);
+			const _e2 = await ledger.log(sampleEntry({ action: "second" }) as never);
 			await ledger.flush();
 
 			const all = await ledger.query();
@@ -130,11 +130,26 @@ describe("AuditLedger", () => {
 
 	describe("AC2: Query returns filtered results", () => {
 		beforeEach(async () => {
-			await ledger.log(sampleEntry({ actor: "pi", action: "memory_creation", decision: "allow", result: "success" }) as never);
-			await ledger.log(sampleEntry({ actor: "pi", action: "plan_execution", decision: "approval_required", result: "blocked" }) as never);
-			await ledger.log(sampleEntry({ actor: "user", action: "override_policy", decision: "allow", result: "success" }) as never);
-			await ledger.log(sampleEntry({ actor: "system", action: "emergency_stop", decision: "deny", result: "blocked" }) as never);
-			await ledger.log(sampleEntry({ actor: "pi", action: "memory_query", decision: "allow", result: "success" }) as never);
+			await ledger.log(
+				sampleEntry({ actor: "pi", action: "memory_creation", decision: "allow", result: "success" }) as never,
+			);
+			await ledger.log(
+				sampleEntry({
+					actor: "pi",
+					action: "plan_execution",
+					decision: "approval_required",
+					result: "blocked",
+				}) as never,
+			);
+			await ledger.log(
+				sampleEntry({ actor: "user", action: "override_policy", decision: "allow", result: "success" }) as never,
+			);
+			await ledger.log(
+				sampleEntry({ actor: "system", action: "emergency_stop", decision: "deny", result: "blocked" }) as never,
+			);
+			await ledger.log(
+				sampleEntry({ actor: "pi", action: "memory_query", decision: "allow", result: "success" }) as never,
+			);
 			await ledger.flush();
 		});
 
@@ -287,7 +302,7 @@ describe("AuditLedger", () => {
 			} finally {
 				const { rm } = await import("fs/promises");
 				try {
-					await rm(resolve(smallLedger["basePath"] as string), { recursive: true, force: true });
+					await rm(resolve(smallLedger.basePath as string), { recursive: true, force: true });
 				} catch {
 					// ignore cleanup errors
 				}
@@ -319,7 +334,7 @@ describe("AuditLedger", () => {
 			} finally {
 				const { rm } = await import("fs/promises");
 				try {
-					await rm(resolve(smallLedger["basePath"] as string), { recursive: true, force: true });
+					await rm(resolve(smallLedger.basePath as string), { recursive: true, force: true });
 				} catch {
 					// ignore cleanup errors
 				}
@@ -343,9 +358,12 @@ describe("AuditLedger", () => {
 			await ledger.flush();
 
 			// Manually inject a corrupted line into the file
-			const filePath = resolve(basePath, new Date().toISOString().slice(0, 4), 
+			const _filePath = resolve(
+				basePath,
+				new Date().toISOString().slice(0, 4),
 				String(new Date().getMonth() + 1).padStart(2, "0"),
-				`${new Date().toISOString().slice(0, 10).slice(-2)}.ndjson`);
+				`${new Date().toISOString().slice(0, 10).slice(-2)}.ndjson`,
+			);
 
 			// Actually get the correct file path from the ledger internals
 			// We know the format from implementation
@@ -353,7 +371,11 @@ describe("AuditLedger", () => {
 			const [year, month, day] = dateStr.split("-");
 			const correctPath = resolve(basePath, year, month, `${day}.ndjson`);
 
-			await writeFile(correctPath, "{\"id\":\"valid\",\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"actor\":\"pi\",\"action\":\"valid\",\"decision\":\"allow\",\"evidence\":[],\"result\":\"success\",\"context\":{\"autonomyLevel\":3},\"metadata\":{}}\nnot-json-line\n{\"id\":\"valid2\",\"timestamp\":\"2026-01-01T00:00:01.000Z\",\"actor\":\"system\",\"action\":\"valid2\",\"decision\":\"deny\",\"evidence\":[],\"result\":\"blocked\",\"context\":{\"autonomyLevel\":4},\"metadata\":{}}\n", "utf-8");
+			await writeFile(
+				correctPath,
+				'{"id":"valid","timestamp":"2026-01-01T00:00:00.000Z","actor":"pi","action":"valid","decision":"allow","evidence":[],"result":"success","context":{"autonomyLevel":3},"metadata":{}}\nnot-json-line\n{"id":"valid2","timestamp":"2026-01-01T00:00:01.000Z","actor":"system","action":"valid2","decision":"deny","evidence":[],"result":"blocked","context":{"autonomyLevel":4},"metadata":{}}\n',
+				"utf-8",
+			);
 
 			// Query should read the two valid entries and skip the bad line
 			const all = await ledger.query();
@@ -402,7 +424,9 @@ describe("AuditLedger", () => {
 			await ledger.log(sampleEntry({ actor: "pi", action: "a1", decision: "allow", result: "success" }) as never);
 			await ledger.log(sampleEntry({ actor: "pi", action: "a2", decision: "deny", result: "blocked" }) as never);
 			await ledger.log(sampleEntry({ actor: "user", action: "a3", decision: "allow", result: "success" }) as never);
-			await ledger.log(sampleEntry({ actor: "system", action: "a4", decision: "approval_required", result: "blocked" }) as never);
+			await ledger.log(
+				sampleEntry({ actor: "system", action: "a4", decision: "approval_required", result: "blocked" }) as never,
+			);
 			await ledger.flush();
 
 			const stats = await ledger.getStats();
@@ -483,9 +507,7 @@ describe("AuditLedger", () => {
 			});
 
 			// This should not throw; the error should be logged internally
-			await expect(
-				roLedger.log(sampleEntry() as never),
-			).resolves.toBeDefined();
+			await expect(roLedger.log(sampleEntry() as never)).resolves.toBeDefined();
 
 			// Query should return empty since nothing was persisted
 			const entries = await roLedger.query();

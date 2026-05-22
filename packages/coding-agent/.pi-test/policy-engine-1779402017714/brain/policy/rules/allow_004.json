@@ -1,0 +1,14 @@
+{
+  "id": "allow_004",
+  "name": "Observe system state",
+  "description": "Allow Pi to observe execution state, queue state, and file state",
+  "condition": {
+    "action": "observe_system_state"
+  },
+  "decision": "allow",
+  "priority": 100,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

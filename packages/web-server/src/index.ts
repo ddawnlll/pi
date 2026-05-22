@@ -4567,6 +4567,13 @@ const { registerPolicyAuditRoutes } = await import("./policy-audit-routes.js");
 registerPolicyAuditRoutes(fastify);
 
 // ---------------------------------------------------------------------------
+// Trust Dashboard Routes (P11.T — Trust Dashboard)
+// ---------------------------------------------------------------------------
+
+const { registerTrustRoutes } = await import("./trust-routes.js");
+registerTrustRoutes(fastify);
+
+// ---------------------------------------------------------------------------
 // Orchestrator Routes (P11.B / P11.H — Orchestrator Health & Proposals)
 // ---------------------------------------------------------------------------
 
@@ -4582,6 +4589,38 @@ const { BrainProposalApi, InMemoryProposalStore } = await import("@earendil-work
 const proposalStore = new InMemoryProposalStore();
 const proposalApi = new BrainProposalApi(proposalStore);
 await registerBrainProposalRoutes(fastify, proposalApi);
+
+// ---------------------------------------------------------------------------
+// Brain Reflection API Routes (P17.G — Reflection API)
+// ---------------------------------------------------------------------------
+
+const { registerBrainReflectionRoutes } = await import("./routes/brain/reflections.js");
+const { BrainReflectionApi, ReflectionEngine } = await import("@earendil-works/pi-coding-agent");
+const reflectionEngine = new ReflectionEngine();
+const reflectionApi = new BrainReflectionApi(reflectionEngine);
+await registerBrainReflectionRoutes(fastify, reflectionApi);
+
+// ---------------------------------------------------------------------------
+// Brain Approval Queue API Routes (P18.D — Approval Queue API)
+// ---------------------------------------------------------------------------
+
+const { registerBrainApprovalRoutes } = await import("./routes/brain/approvals.js");
+const {
+	ApprovalQueueApi,
+	ApprovalGate,
+	createAuditLedger,
+} = await import("@earendil-works/pi-coding-agent");
+const auditLedger = createAuditLedger();
+// Adapter: the ApprovalGate expects append(), but AuditLedger uses log()
+const auditAdapter = {
+	append: async (entry: any): Promise<void> => {
+		await auditLedger.log(entry);
+	},
+};
+const approvalGate = new ApprovalGate(auditAdapter);
+await approvalGate.initialize();
+const approvalQueueApi = new ApprovalQueueApi(approvalGate);
+await registerBrainApprovalRoutes(fastify, approvalQueueApi);
 
 // ---------------------------------------------------------------------------
 // Health Check
@@ -4608,6 +4647,34 @@ fastify.get("/api/health", async (_request, _reply) => {
 const start = async () => {
 	try {
 		const port = Number(process.env.PORT) || 3000;
+
+		// Check if port is already in use BEFORE trying to start
+		const net = await import("node:net");
+		const isPortInUse = (): Promise<boolean> => {
+			return new Promise((resolve) => {
+				const server = net.createServer();
+				server.once("error", (err: NodeJS.ErrnoException) => {
+					if (err.code === "EADDRINUSE") {
+						resolve(true);
+					} else {
+						resolve(false);
+					}
+				});
+				server.once("listening", () => {
+					server.close();
+					resolve(false);
+				});
+				server.listen(port, "127.0.0.1");
+			});
+		};
+
+		if (await isPortInUse()) {
+			console.error(`[server] ERROR: Port ${port} is already in use.`);
+			console.error(`[server] There may be a stale server process. Try running:`);
+			console.error(`[server]   pkill -f "tsx.*src/index.ts"`);
+			console.error(`[server]   lsof -i :${port}`);
+			process.exit(1);
+		}
 
 		// Check database connection if using PostgreSQL backend
 		const backend = detectStateStoreBackend();

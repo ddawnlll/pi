@@ -8,7 +8,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MasterTemplateIntegration } from "../../../src/brain/plan-factory/template.js";
 import type { PlanExecutionContract, WorkstreamDef } from "../../../src/brain/plan-factory/types.js";
 
@@ -167,10 +167,7 @@ describe("MasterTemplateIntegration", () => {
 
 	it("should detect template version from content", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "template-test-"));
-		writeFileSync(
-			join(dir, "template.md"),
-			`# Test Template — Master Template v2.5.1\n\n## 1. Content\n\nTest`,
-		);
+		writeFileSync(join(dir, "template.md"), `# Test Template — Master Template v2.5.1\n\n## 1. Content\n\nTest`);
 		const integration = new MasterTemplateIntegration(join(dir, "template.md"));
 
 		const parsed = await integration.loadTemplate("2.5.1");
@@ -624,10 +621,7 @@ describe("MasterTemplateIntegration", () => {
 		const contract: PlanExecutionContract = {
 			contractVersion: "2.5.1",
 			phase: { id: "P99", title: "Test" },
-			workstreams: [
-				makeWorkstream("P99.A", "First"),
-				makeWorkstream("P99.A", "Duplicate"),
-			],
+			workstreams: [makeWorkstream("P99.A", "First"), makeWorkstream("P99.A", "Duplicate")],
 			dependencies: [],
 			batches: [["P99.A"]],
 			scaleMode: "stable_3",
@@ -672,7 +666,7 @@ describe("MasterTemplateIntegration", () => {
 		const integration = new MasterTemplateIntegration();
 
 		// Access private method via bracket notation
-		const fallback = integration["generateFallbackTemplate"]("2.5.1");
+		const fallback = integration.generateFallbackTemplate("2.5.1");
 
 		expect(fallback).toContain("2.5.1");
 		expect(fallback).toContain("TL;DR / Compact Mental Model");

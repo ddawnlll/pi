@@ -18,13 +18,8 @@
 
 import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
-import { join, resolve } from "path";
-import type {
-	AuditEntry,
-	ProvenanceLink,
-	ProvenanceRecord,
-	ProvenanceTargetType,
-} from "../policy/types.js";
+import { resolve } from "path";
+import type { AuditEntry, ProvenanceLink, ProvenanceRecord, ProvenanceTargetType } from "../policy/types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -81,11 +76,7 @@ export class ProvenanceTracker {
 	 * @param links - Initial provenance links
 	 * @returns The new ProvenanceRecord
 	 */
-	async track(
-		targetId: string,
-		targetType: ProvenanceTargetType,
-		links: ProvenanceLink[],
-	): Promise<ProvenanceRecord> {
+	async track(targetId: string, targetType: ProvenanceTargetType, links: ProvenanceLink[]): Promise<ProvenanceRecord> {
 		await this.init();
 
 		const now = new Date().toISOString();
@@ -312,11 +303,7 @@ export class ProvenanceTracker {
 	 * @param depth - Current recursion depth (for indentation)
 	 * @returns Array of explanation lines
 	 */
-	private buildExplanationChain(
-		targetId: string,
-		visited: Set<string>,
-		depth: number,
-	): string[] {
+	private buildExplanationChain(targetId: string, visited: Set<string>, depth: number): string[] {
 		if (visited.has(targetId)) {
 			return [`${"  ".repeat(depth)}[circular reference: ${targetId}]`];
 		}
@@ -332,9 +319,7 @@ export class ProvenanceTracker {
 		for (const link of record.links) {
 			const indent = "  ".repeat(depth);
 			const arrow = this.relationshipArrow(link.relationship);
-			lines.push(
-				`${indent}${link.sourceId} (${link.sourceType}) ${arrow} ${targetId} (${record.targetType})`,
-			);
+			lines.push(`${indent}${link.sourceId} (${link.sourceType}) ${arrow} ${targetId} (${record.targetType})`);
 			if (link.summary) {
 				lines.push(`${indent}  Summary: ${link.summary}`);
 			}
@@ -517,8 +502,6 @@ export class ProvenanceTracker {
  * @param options - Optional configuration
  * @returns A new ProvenanceTracker instance
  */
-export function createProvenanceTracker(options?: {
-	persistencePath?: string;
-}): ProvenanceTracker {
+export function createProvenanceTracker(options?: { persistencePath?: string }): ProvenanceTracker {
 	return new ProvenanceTracker(options);
 }

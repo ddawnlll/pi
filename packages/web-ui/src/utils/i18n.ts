@@ -224,6 +224,51 @@ declare module "@mariozechner/mini-lit" {
 		"Key Commands:": string;
 		Blocked: string;
 		Unlimited: string;
+		// Reflection Viewer
+		Reflections: string;
+		Search: string;
+		"Reflection Viewer": string;
+		"Browse and inspect brain reflection reports": string;
+		"No reflections found": string;
+		"Search by plan title...": string;
+		Stats: string;
+		"Reflection Statistics": string;
+		Total: string;
+		Plans: string;
+		"Avg Confidence": string;
+		"By Plan": string;
+		Back: string;
+		Overview: string;
+		Memories: string;
+		Future: string;
+		Proposals: string;
+		Summary: string;
+		"Key Metrics": string;
+		"Success Rate": string;
+		Workspaces: string;
+		Succeeded: string;
+		Failed: string;
+		Retries: string;
+		"Avg Retries": string;
+		Duration: string;
+		Confidence: string;
+		"Validation Failures": string;
+		"Policy Stops": string;
+		Approvals: string;
+		"Safety Interventions": string;
+		"What Worked": string;
+		"What Failed": string;
+		"What Slowed Down": string;
+		Sources: string;
+		"What People Need to Know": string;
+		"No memory proposals in this reflection.": string;
+		"No future phase suggestions in this reflection.": string;
+		"No proposals in this reflection.": string;
+		Rationale: string;
+		workspaces: string;
+		of: string;
+		None: string;
+		Dismiss: string;
 	}
 }
 
@@ -471,6 +516,51 @@ export const translations = {
 		"Key Commands:": "Key Commands:",
 		Blocked: "Blocked",
 		Unlimited: "Unlimited",
+		// Reflection Viewer
+		Reflections: "Reflections",
+		Search: "Search",
+		"Reflection Viewer": "Reflection Viewer",
+		"Browse and inspect brain reflection reports": "Browse and inspect brain reflection reports",
+		"No reflections found": "No reflections found",
+		"Search by plan title...": "Search by plan title...",
+		Stats: "Stats",
+		"Reflection Statistics": "Reflection Statistics",
+		Total: "Total",
+		Plans: "Plans",
+		"Avg Confidence": "Avg Confidence",
+		"By Plan": "By Plan",
+		Back: "Back",
+		Overview: "Overview",
+		Memories: "Memories",
+		Future: "Future",
+		Proposals: "Proposals",
+		Summary: "Summary",
+		"Key Metrics": "Key Metrics",
+		"Success Rate": "Success Rate",
+		Workspaces: "Workspaces",
+		Succeeded: "Succeeded",
+		Failed: "Failed",
+		Retries: "Retries",
+		"Avg Retries": "Avg Retries",
+		Duration: "Duration",
+		Confidence: "Confidence",
+		"Validation Failures": "Validation Failures",
+		"Policy Stops": "Policy Stops",
+		Approvals: "Approvals",
+		"Safety Interventions": "Safety Interventions",
+		"What Worked": "What Worked",
+		"What Failed": "What Failed",
+		"What Slowed Down": "What Slowed Down",
+		Sources: "Sources",
+		"What People Need to Know": "What People Need to Know",
+		"No memory proposals in this reflection.": "No memory proposals in this reflection.",
+		"No future phase suggestions in this reflection.": "No future phase suggestions in this reflection.",
+		"No proposals in this reflection.": "No proposals in this reflection.",
+		Rationale: "Rationale",
+		workspaces: "workspaces",
+		of: "of",
+		None: "None",
+		Dismiss: "Dismiss",
 	},
 	de: {
 		...defaultGerman,
@@ -715,6 +805,51 @@ export const translations = {
 		"Key Commands:": "Wichtige Befehle:",
 		Blocked: "Blockiert",
 		Unlimited: "Unbegrenzt",
+		// Reflection Viewer
+		Reflections: "Reflexionen",
+		Search: "Suche",
+		"Reflection Viewer": "Reflection-Viewer",
+		"Browse and inspect brain reflection reports": "Durchsuchen und inspizieren von Reflexionsberichten",
+		"No reflections found": "Keine Reflexionen gefunden",
+		"Search by plan title...": "Nach Plantitel suchen...",
+		Stats: "Statistiken",
+		"Reflection Statistics": "Reflexions-Statistiken",
+		Total: "Gesamt",
+		Plans: "Plane",
+		"Avg Confidence": "Durchschn. Konfidenz",
+		"By Plan": "Nach Plan",
+		Back: "Zuruck",
+		Overview: "Ubersicht",
+		Memories: "Erinnerungen",
+		Future: "Zukunft",
+		Proposals: "Vorschlage",
+		Summary: "Zusammenfassung",
+		"Key Metrics": "Schlusselmetriken",
+		"Success Rate": "Erfolgsrate",
+		Workspaces: "Workspaces",
+		Succeeded: "Erfolgreich",
+		Failed: "Fehlgeschlagen",
+		Retries: "Wiederholungen",
+		"Avg Retries": "Durchschn. Wiederholungen",
+		Duration: "Dauer",
+		Confidence: "Konfidenz",
+		"Validation Failures": "Validierungsfehler",
+		"Policy Stops": "Richtlinienstopps",
+		Approvals: "Genehmigungen",
+		"Safety Interventions": "Sicherheitseingriffe",
+		"What Worked": "Was funktionierte",
+		"What Failed": "Was fehlschlug",
+		"What Slowed Down": "Was verlangsamte",
+		Sources: "Quellen",
+		"What People Need to Know": "Was Menschen wissen mussen",
+		"No memory proposals in this reflection.": "Keine Erinnerungsvorschlage in dieser Reflexion.",
+		"No future phase suggestions in this reflection.": "Keine Zukunftsphasenvorschlage in dieser Reflexion.",
+		"No proposals in this reflection.": "Keine Vorschlage in dieser Reflexion.",
+		Rationale: "Begrundung",
+		workspaces: "Workspaces",
+		of: "von",
+		None: "Keine",
+		Dismiss: "Schließen",
 	},
 };
 

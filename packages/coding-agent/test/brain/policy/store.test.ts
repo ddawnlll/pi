@@ -8,7 +8,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RuleStore } from "../../../src/brain/policy/store.js";
-import type { PolicyRule, RuleStoreConfig } from "../../../src/brain/policy/types.js";
+import type { PolicyRule } from "../../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
 // Test Helpers
@@ -600,9 +600,27 @@ describe("RuleStore", () => {
 		});
 
 		it("should compute correct stats from rules", async () => {
-			const r1 = validRule({ name: "allow-rule", condition: { action: "allow_action" }, decision: "allow", enabled: true, priority: 100 });
-			const r2 = validRule({ name: "deny-rule", condition: { action: "deny_action" }, decision: "deny", enabled: true, priority: 200 });
-			const r3 = validRule({ name: "forbid-rule", condition: { action: "forbid_action" }, decision: "forbidden", enabled: false, priority: 300 });
+			const r1 = validRule({
+				name: "allow-rule",
+				condition: { action: "allow_action" },
+				decision: "allow",
+				enabled: true,
+				priority: 100,
+			});
+			const r2 = validRule({
+				name: "deny-rule",
+				condition: { action: "deny_action" },
+				decision: "deny",
+				enabled: true,
+				priority: 200,
+			});
+			const r3 = validRule({
+				name: "forbid-rule",
+				condition: { action: "forbid_action" },
+				decision: "forbidden",
+				enabled: false,
+				priority: 300,
+			});
 			await store.createRule(r1);
 			await store.createRule(r2);
 			await store.createRule(r3);
@@ -941,8 +959,8 @@ describe("RuleStore", () => {
 
 			// Manually remove from index (simulate corruption)
 			const indexPath = path.join(store.getConfig().basePath, "index.json");
-			await fs.writeFile(indexPath, JSON.stringify(store["createEmptyIndex"]()), "utf-8");
-			store["index"] = store["createEmptyIndex"]();
+			await fs.writeFile(indexPath, JSON.stringify(store.createEmptyIndex()), "utf-8");
+			store.index = store.createEmptyIndex();
 
 			// getRule should still work and restore the index entry
 			const retrieved = await store.getRule(rule.id);

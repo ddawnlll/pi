@@ -1,0 +1,15 @@
+{
+  "id": "context_001",
+  "name": "Autonomy level 1 only read",
+  "description": "At autonomy level 1, only read/observe actions are allowed",
+  "condition": {
+    "action": "execute_generated_plan",
+    "maxAutonomyLevel": 1
+  },
+  "decision": "deny",
+  "priority": 95,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

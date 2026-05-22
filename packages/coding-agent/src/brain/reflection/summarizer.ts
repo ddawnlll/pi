@@ -7,12 +7,7 @@
  * summaries with un-evidenced claims.
  */
 
-import type {
-	ReflectionReport,
-	SourceRef,
-	ValidationResult,
-	WorkspaceOutcome,
-} from "./types.js";
+import type { ReflectionReport, SourceRef, ValidationResult, WorkspaceOutcome } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,9 +32,7 @@ export class SourceBackedSummarizer {
 	 * Only successful outcomes are included.
 	 */
 	generateWhatWorkedSummary(outcomes: WorkspaceOutcome[]): string {
-		const successes = outcomes.filter(
-			(o) => o.status === "success" || o.status === "retry",
-		);
+		const successes = outcomes.filter((o) => o.status === "success" || o.status === "retry");
 		if (successes.length === 0) {
 			return "No workspaces completed successfully. [source:none]";
 		}
@@ -47,9 +40,7 @@ export class SourceBackedSummarizer {
 		const sentences: string[] = [];
 		for (const ws of successes) {
 			const summary = ws.summary ?? `Workspace ${ws.workspaceId} completed`;
-			sentences.push(
-				`${summary} [source:workspace-${ws.workspaceId}]`,
-			);
+			sentences.push(`${summary} [source:workspace-${ws.workspaceId}]`);
 		}
 
 		return sentences.join(" ");
@@ -61,37 +52,24 @@ export class SourceBackedSummarizer {
 	 * Each sentence references at least one evidence source.
 	 * Only failed outcomes or failing validations are included.
 	 */
-	generateWhatFailedSummary(
-		outcomes: WorkspaceOutcome[],
-		validationResults: ValidationResult[],
-	): string {
+	generateWhatFailedSummary(outcomes: WorkspaceOutcome[], validationResults: ValidationResult[]): string {
 		const sentences: string[] = [];
 
 		// Workspace failures
-		const failures = outcomes.filter(
-			(o) => o.status === "failure" || o.status === "skipped",
-		);
+		const failures = outcomes.filter((o) => o.status === "failure" || o.status === "skipped");
 		for (const ws of failures) {
 			const summary =
 				ws.summary ??
 				`Workspace ${ws.workspaceId} failed${
-					ws.errorTypes?.length
-						? ` with errors: ${ws.errorTypes.join(", ")}`
-						: ""
+					ws.errorTypes?.length ? ` with errors: ${ws.errorTypes.join(", ")}` : ""
 				}`;
-			sentences.push(
-				`${summary} [source:workspace-${ws.workspaceId}]`,
-			);
+			sentences.push(`${summary} [source:workspace-${ws.workspaceId}]`);
 		}
 
 		// Validation failures
-		const failedValidations = validationResults.filter(
-			(v) => v.type === "error" && v.passed === false,
-		);
+		const failedValidations = validationResults.filter((v) => v.type === "error" && v.passed === false);
 		for (const v of failedValidations) {
-			sentences.push(
-				`Validation in ${v.component}: ${v.message} [source:validation-${v.component}]`,
-			);
+			sentences.push(`Validation in ${v.component}: ${v.message} [source:validation-${v.component}]`);
 		}
 
 		if (sentences.length === 0) {
@@ -104,22 +82,12 @@ export class SourceBackedSummarizer {
 	/**
 	 * Generate a metric summary with evidence references.
 	 */
-	generateMetricSummary(metrics: {
-		successRate: number;
-		avgRetryCount: number;
-		totalDuration: number;
-	}): string {
+	generateMetricSummary(metrics: { successRate: number; avgRetryCount: number; totalDuration: number }): string {
 		const sentences: string[] = [];
 
-		sentences.push(
-			`Overall success rate was ${(metrics.successRate * 100).toFixed(1)}% [source:metrics]`,
-		);
-		sentences.push(
-			`Average retry count per workspace was ${metrics.avgRetryCount.toFixed(2)} [source:metrics]`,
-		);
-		sentences.push(
-			`Total execution duration was ${formatDuration(metrics.totalDuration)} [source:metrics]`,
-		);
+		sentences.push(`Overall success rate was ${(metrics.successRate * 100).toFixed(1)}% [source:metrics]`);
+		sentences.push(`Average retry count per workspace was ${metrics.avgRetryCount.toFixed(2)} [source:metrics]`);
+		sentences.push(`Total execution duration was ${formatDuration(metrics.totalDuration)} [source:metrics]`);
 
 		return sentences.join(" ");
 	}
@@ -196,37 +164,25 @@ export class SourceBackedSummarizer {
 	 */
 	formatForMarkdown(report: ReflectionReport): string {
 		const whatRanBullets =
-			report.whatRan.length > 0
-				? report.whatRan.map((w) => `- ${w}`).join("\n")
-				: "- No workspaces ran";
+			report.whatRan.length > 0 ? report.whatRan.map((w) => `- ${w}`).join("\n") : "- No workspaces ran";
 
 		const whatWorkedBullets =
-			report.whatWorked.length > 0
-				? report.whatWorked.map((w) => `- ${w}`).join("\n")
-				: "- Nothing worked";
+			report.whatWorked.length > 0 ? report.whatWorked.map((w) => `- ${w}`).join("\n") : "- Nothing worked";
 
 		const whatFailedBullets =
-			report.whatFailed.length > 0
-				? report.whatFailed.map((w) => `- ${w}`).join("\n")
-				: "- Nothing failed";
+			report.whatFailed.length > 0 ? report.whatFailed.map((w) => `- ${w}`).join("\n") : "- Nothing failed";
 
 		const memoryBullets =
 			report.memoriesToCreate.length > 0
 				? report.memoriesToCreate
-						.map(
-							(m) =>
-								`- ${m.title} (${m.category}, confidence: ${(m.confidence * 100).toFixed(0)}%)`,
-						)
+						.map((m) => `- ${m.title} (${m.category}, confidence: ${(m.confidence * 100).toFixed(0)}%)`)
 						.join("\n")
 				: "- None";
 
 		const suggestionBullets =
 			report.futurePhaseSuggestions.length > 0
 				? report.futurePhaseSuggestions
-						.map(
-							(s) =>
-								`- **${s.title}** — ${s.rationale} (priority: ${s.priority})`,
-						)
+						.map((s) => `- **${s.title}** — ${s.rationale} (priority: ${s.priority})`)
 						.join("\n")
 				: "- None";
 
@@ -293,45 +249,6 @@ ${suggestionBullets}
 			whatFailed,
 		};
 	}
-
-	// -----------------------------------------------------------------------
-	// Private Helpers
-	// -----------------------------------------------------------------------
-
-	/**
-	 * The markdown template used by formatForMarkdown().
-	 */
-	private markdownTemplate: string = `
-## Reflection: {{planTitle}}
-
-### Summary
-{{summary}}
-
-### What Ran
-{{whatRan}}
-
-### What Worked
-{{whatWorked}}
-
-### What Failed
-{{whatFailed}}
-
-### Metrics
-| Metric | Value |
-|--------|-------|
-| Workspaces | {{workspaceCount}} |
-| Success Rate | {{successRate}} |
-| Avg Retries | {{avgRetryCount}} |
-| Duration | {{duration}} |
-
-### Memory Proposals ({{memoryCount}})
-{{memoryProposals}}
-
-### Future Suggestions
-{{futureSuggestions}}
-
-*Generated: {{createdAt}} | Confidence: {{confidence}}*
-`;
 }
 
 // ---------------------------------------------------------------------------

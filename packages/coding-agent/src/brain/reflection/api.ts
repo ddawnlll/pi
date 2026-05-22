@@ -15,12 +15,7 @@
  */
 
 import { ReflectionEngine } from "./engine.js";
-import type {
-	FuturePhaseSuggestion,
-	MemoryProposalSuggestion,
-	ReflectionInput,
-	ReflectionReport,
-} from "./types.js";
+import type { FuturePhaseSuggestion, MemoryProposalSuggestion, ReflectionInput, ReflectionReport } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Reflection API Query Types
@@ -200,10 +195,7 @@ export class BrainReflectionApi {
 	 * @param options.force - If true, overwrite any existing reflection (default: false)
 	 * @returns Result with the generated report or error
 	 */
-	async generateReflection(
-		input: ReflectionInput,
-		options?: { force?: boolean },
-	): Promise<ReflectionGenerateResult> {
+	async generateReflection(input: ReflectionInput, options?: { force?: boolean }): Promise<ReflectionGenerateResult> {
 		const force = options?.force ?? false;
 
 		try {
@@ -257,10 +249,7 @@ export class BrainReflectionApi {
 		}
 
 		// Average confidence
-		const avgConfidence =
-			total > 0
-				? all.reduce((sum, r) => sum + r.confidence, 0) / total
-				: 0;
+		const avgConfidence = total > 0 ? all.reduce((sum, r) => sum + r.confidence, 0) / total : 0;
 
 		return { total, byPlan, avgConfidence };
 	}
@@ -278,9 +267,7 @@ export class BrainReflectionApi {
 	 * @param planExecId - The plan execution ID
 	 * @returns Memory proposals, or null if the reflection is not found
 	 */
-	async getMemories(
-		planExecId: string,
-	): Promise<{ memories: MemoryProposalSuggestion[] } | null> {
+	async getMemories(planExecId: string): Promise<{ memories: MemoryProposalSuggestion[] } | null> {
 		const report = this.engine.getReflection(planExecId);
 		if (!report) return null;
 		return { memories: report.memoriesToCreate };
@@ -295,9 +282,7 @@ export class BrainReflectionApi {
 	 * @param planExecId - The plan execution ID
 	 * @returns Future suggestions, or null if the reflection is not found
 	 */
-	async getFuture(
-		planExecId: string,
-	): Promise<{ suggestions: FuturePhaseSuggestion[] } | null> {
+	async getFuture(planExecId: string): Promise<{ suggestions: FuturePhaseSuggestion[] } | null> {
 		const report = this.engine.getReflection(planExecId);
 		if (!report) return null;
 		return { suggestions: report.futurePhaseSuggestions };

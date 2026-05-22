@@ -10,17 +10,9 @@
  * - Confidence based on evidence strength and retry count
  */
 
-import { randomUUID } from "node:crypto";
-import type {
-	MemoryRecord,
-	MemorySourceRef,
-} from "../../brain/memory/types.js";
+import type { MemoryRecord, MemorySourceRef } from "../../brain/memory/types.js";
 import type { Proposal } from "../../brain/proposals/types.js";
-import type {
-	ReflectionReport,
-	SourceRef,
-	WorkspaceOutcome,
-} from "./types.js";
+import type { ReflectionReport, SourceRef, WorkspaceOutcome } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -90,11 +82,7 @@ export class MemoryProposalGenerator {
 		if (report.whatFailed.length > 0) {
 			const failureEvidence = this.filterSourcesByIdPrefix(evidence, "workspace-");
 			const retryCount = report.retryCount;
-			const confidence = this.computeConfidence(
-				failureEvidence.length,
-				retryCount,
-				report.whatFailed.length,
-			);
+			const confidence = this.computeConfidence(failureEvidence.length, retryCount, report.whatFailed.length);
 
 			const memory: Partial<MemoryRecord> = {
 				type: "failure_memory",
@@ -123,11 +111,7 @@ export class MemoryProposalGenerator {
 		// Generate execution memory proposals
 		if (report.whatWorked.length > 0) {
 			const successEvidence = this.filterSourcesByIdPrefix(evidence, "workspace-");
-			const confidence = this.computeConfidence(
-				successEvidence.length,
-				report.retryCount,
-				report.whatWorked.length,
-			);
+			const confidence = this.computeConfidence(successEvidence.length, report.retryCount, report.whatWorked.length);
 
 			const memory: Partial<MemoryRecord> = {
 				type: "execution_memory",
@@ -135,10 +119,7 @@ export class MemoryProposalGenerator {
 				content: this.buildReflectionSuccessContent(report),
 				summary: `${report.whatWorked.length} workspace(s) completed successfully in this reflection cycle`,
 				lifecycle: "candidate",
-				confidence: Math.min(
-					confidence + SUCCESS_CONFIDENCE_BOOST,
-					MAX_CONFIDENCE,
-				),
+				confidence: Math.min(confidence + SUCCESS_CONFIDENCE_BOOST, MAX_CONFIDENCE),
 				provenance: {
 					sourceRefs: this.toMemorySourceRefs(successEvidence),
 					validatedBy: "system",
@@ -159,11 +140,7 @@ export class MemoryProposalGenerator {
 		// Generate architecture memory proposals
 		if (report.whatRan.length > 0) {
 			const archEvidence = this.filterSourcesByIdPrefix(evidence, "workspace-");
-			const confidence = this.computeConfidence(
-				archEvidence.length,
-				report.retryCount,
-				report.whatRan.length,
-			);
+			const confidence = this.computeConfidence(archEvidence.length, report.retryCount, report.whatRan.length);
 
 			const memory: Partial<MemoryRecord> = {
 				type: "architecture_memory",
@@ -203,10 +180,7 @@ export class MemoryProposalGenerator {
 	 * @param outcomes - Workspace outcomes from the execution
 	 * @returns Array of failure memory proposals
 	 */
-	fromFailures(
-		failed: string[],
-		outcomes: WorkspaceOutcome[],
-	): MemoryProposalOutput[] {
+	fromFailures(failed: string[], outcomes: WorkspaceOutcome[]): MemoryProposalOutput[] {
 		if (failed.length === 0) return [];
 
 		const output: MemoryProposalOutput[] = [];
@@ -215,11 +189,7 @@ export class MemoryProposalGenerator {
 		for (const [pattern, entries] of grouped) {
 			const evidence = this.mapFailuresToSources(entries, outcomes);
 			const retryCount = this.computeTotalRetriesForEntries(entries, outcomes);
-			const confidence = this.computeConfidence(
-				evidence.length,
-				retryCount,
-				entries.length,
-			);
+			const confidence = this.computeConfidence(evidence.length, retryCount, entries.length);
 
 			const memory: Partial<MemoryRecord> = {
 				type: "failure_memory",
@@ -250,11 +220,7 @@ export class MemoryProposalGenerator {
 			for (const entry of failed) {
 				const evidence = this.mapFailuresToSources([entry], outcomes);
 				const retryCount = this.computeTotalRetriesForEntries([entry], outcomes);
-				const confidence = this.computeConfidence(
-					evidence.length,
-					retryCount,
-					1,
-				);
+				const confidence = this.computeConfidence(evidence.length, retryCount, 1);
 
 				const memory: Partial<MemoryRecord> = {
 					type: "failure_memory",
@@ -290,20 +256,13 @@ export class MemoryProposalGenerator {
 	 * @param outcomes - Workspace outcomes from the execution
 	 * @returns Array of execution memory proposals
 	 */
-	fromSuccesses(
-		worked: string[],
-		outcomes: WorkspaceOutcome[],
-	): MemoryProposalOutput[] {
+	fromSuccesses(worked: string[], outcomes: WorkspaceOutcome[]): MemoryProposalOutput[] {
 		if (worked.length === 0) return [];
 
 		const output: MemoryProposalOutput[] = [];
 		const evidence = this.mapOutcomesToSourcesFromList(worked, outcomes);
 		const retryCount = this.computeTotalRetriesFromList(worked, outcomes);
-		const confidence = this.computeConfidence(
-			evidence.length,
-			retryCount,
-			worked.length,
-		);
+		const confidence = this.computeConfidence(evidence.length, retryCount, worked.length);
 
 		const content = this.buildSuccessContent(worked, outcomes);
 
@@ -313,10 +272,7 @@ export class MemoryProposalGenerator {
 			content,
 			summary: `${worked.length} workspace(s) completed successfully in this reflection cycle`,
 			lifecycle: "candidate",
-			confidence: Math.min(
-				confidence + SUCCESS_CONFIDENCE_BOOST,
-				MAX_CONFIDENCE,
-			),
+			confidence: Math.min(confidence + SUCCESS_CONFIDENCE_BOOST, MAX_CONFIDENCE),
 			provenance: {
 				sourceRefs: this.toMemorySourceRefs(evidence),
 				validatedBy: "system",
@@ -343,20 +299,13 @@ export class MemoryProposalGenerator {
 	 * @param outcomes - Workspace outcomes from the execution
 	 * @returns Array of architecture memory proposals
 	 */
-	fromArchitecture(
-		whatRan: string[],
-		outcomes: WorkspaceOutcome[],
-	): MemoryProposalOutput[] {
+	fromArchitecture(whatRan: string[], outcomes: WorkspaceOutcome[]): MemoryProposalOutput[] {
 		if (whatRan.length === 0) return [];
 
 		const output: MemoryProposalOutput[] = [];
 		const evidence = this.mapOutcomesToSourcesFromList(whatRan, outcomes);
 		const retryCount = this.computeTotalRetriesFromList(whatRan, outcomes);
-		const confidence = this.computeConfidence(
-			evidence.length,
-			retryCount,
-			whatRan.length,
-		);
+		const confidence = this.computeConfidence(evidence.length, retryCount, whatRan.length);
 
 		const content = this.buildArchitectureContent(whatRan, outcomes);
 
@@ -398,28 +347,18 @@ export class MemoryProposalGenerator {
 	 * @param outcomeCount - Number of outcomes in this group
 	 * @returns Confidence score between 0 and 1
 	 */
-	computeConfidence(
-		sourceCount: number,
-		retryCount: number,
-		outcomeCount: number,
-	): number {
+	computeConfidence(sourceCount: number, retryCount: number, outcomeCount: number): number {
 		// Base confidence from minimum evidence requirement
 		let confidence = BASE_CONFIDENCE;
 
 		// Boost from multiple sources (diminishing returns)
 		if (sourceCount >= MIN_SOURCE_REFS) {
-			confidence += Math.min(
-				(sourceCount - MIN_SOURCE_REFS) * 0.1,
-				0.3,
-			);
+			confidence += Math.min((sourceCount - MIN_SOURCE_REFS) * 0.1, 0.3);
 		}
 
 		// Boost from multiple outcomes corroborating the pattern
 		if (outcomeCount > 1) {
-			confidence += Math.min(
-				(outcomeCount - 1) * 0.05,
-				0.15,
-			);
+			confidence += Math.min((outcomeCount - 1) * 0.05, 0.15);
 		}
 
 		// Penalty for retries (reduces confidence in reliability)
@@ -442,10 +381,7 @@ export class MemoryProposalGenerator {
 	 * @param prefix - The prefix to filter by (e.g. "workspace-")
 	 * @returns Filtered source references
 	 */
-	private filterSourcesByIdPrefix(
-		sources: SourceRef[],
-		prefix: string,
-	): SourceRef[] {
+	private filterSourcesByIdPrefix(sources: SourceRef[], prefix: string): SourceRef[] {
 		return sources.filter((s) => s.id.startsWith(prefix));
 	}
 
@@ -456,27 +392,18 @@ export class MemoryProposalGenerator {
 	 * @param outcomes - All workspace outcomes
 	 * @returns Array of source references for the failures
 	 */
-	mapFailuresToSources(
-		entries: string[],
-		outcomes: WorkspaceOutcome[],
-	): SourceRef[] {
+	mapFailuresToSources(entries: string[], outcomes: WorkspaceOutcome[]): SourceRef[] {
 		const sources: SourceRef[] = [];
 
 		for (const entry of entries) {
 			// Try to match the entry to a workspace outcome by ID
-			const matchingOutcome = outcomes.find(
-				(o) =>
-					o.workspaceId === entry ||
-					o.summary?.includes(entry),
-			);
+			const matchingOutcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
 
 			if (matchingOutcome) {
 				sources.push({
 					type: "workspace",
 					id: `workspace-${matchingOutcome.workspaceId}`,
-					description:
-						matchingOutcome.summary ??
-						`Workspace outcome for ${matchingOutcome.workspaceId}`,
+					description: matchingOutcome.summary ?? `Workspace outcome for ${matchingOutcome.workspaceId}`,
 				});
 			} else {
 				sources.push({
@@ -497,24 +424,17 @@ export class MemoryProposalGenerator {
 	 * @param outcomes - All workspace outcomes
 	 * @returns Array of source references
 	 */
-	private mapOutcomesToSourcesFromList(
-		workspaceIds: string[],
-		outcomes: WorkspaceOutcome[],
-	): SourceRef[] {
+	private mapOutcomesToSourcesFromList(workspaceIds: string[], outcomes: WorkspaceOutcome[]): SourceRef[] {
 		const sources: SourceRef[] = [];
 
 		for (const id of workspaceIds) {
-			const matchingOutcome = outcomes.find(
-				(o) => o.workspaceId === id || o.summary?.includes(id),
-			);
+			const matchingOutcome = outcomes.find((o) => o.workspaceId === id || o.summary?.includes(id));
 
 			if (matchingOutcome) {
 				sources.push({
 					type: "workspace",
 					id: `workspace-${matchingOutcome.workspaceId}`,
-					description:
-						matchingOutcome.summary ??
-						`Workspace outcome for ${matchingOutcome.workspaceId}`,
+					description: matchingOutcome.summary ?? `Workspace outcome for ${matchingOutcome.workspaceId}`,
 				});
 			} else {
 				sources.push({
@@ -599,16 +519,11 @@ export class MemoryProposalGenerator {
 	/**
 	 * Group failed entries into patterns based on error types and outcomes.
 	 */
-	private groupFailurePatterns(
-		failed: string[],
-		outcomes: WorkspaceOutcome[],
-	): Map<string, string[]> {
+	private groupFailurePatterns(failed: string[], outcomes: WorkspaceOutcome[]): Map<string, string[]> {
 		const grouped = new Map<string, string[]>();
 
 		for (const entry of failed) {
-			const outcome = outcomes.find(
-				(o) => o.workspaceId === entry || o.summary?.includes(entry),
-			);
+			const outcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
 
 			if (outcome?.errorTypes && outcome.errorTypes.length > 0) {
 				// Group by the first error type as the pattern
@@ -633,15 +548,10 @@ export class MemoryProposalGenerator {
 	/**
 	 * Compute total retries for specific entries across all outcomes.
 	 */
-	private computeTotalRetriesForEntries(
-		entries: string[],
-		outcomes: WorkspaceOutcome[],
-	): number {
+	private computeTotalRetriesForEntries(entries: string[], outcomes: WorkspaceOutcome[]): number {
 		let total = 0;
 		for (const entry of entries) {
-			const outcome = outcomes.find(
-				(o) => o.workspaceId === entry || o.summary?.includes(entry),
-			);
+			const outcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
 			total += outcome?.retryCount ?? 0;
 		}
 		return total;
@@ -650,10 +560,7 @@ export class MemoryProposalGenerator {
 	/**
 	 * Compute total retries from a list of workspace IDs.
 	 */
-	private computeTotalRetriesFromList(
-		workspaceIds: string[],
-		outcomes: WorkspaceOutcome[],
-	): number {
+	private computeTotalRetriesFromList(workspaceIds: string[], outcomes: WorkspaceOutcome[]): number {
 		let total = 0;
 		for (const id of workspaceIds) {
 			const outcome = outcomes.find((o) => o.workspaceId === id);
@@ -675,11 +582,7 @@ export class MemoryProposalGenerator {
 	/**
 	 * Build content for a failure memory proposal.
 	 */
-	private buildFailureContent(
-		pattern: string,
-		entries: string[],
-		outcomes: WorkspaceOutcome[],
-	): string {
+	private buildFailureContent(pattern: string, entries: string[], outcomes: WorkspaceOutcome[]): string {
 		const lines: string[] = [
 			`Failure Pattern: ${pattern}`,
 			"",
@@ -689,18 +592,11 @@ export class MemoryProposalGenerator {
 		];
 
 		for (const entry of entries) {
-			const outcome = outcomes.find(
-				(o) => o.workspaceId === entry || o.summary?.includes(entry),
-			);
-			lines.push(
-				`- ${entry}${outcome ? ` (retries: ${outcome.retryCount})` : ""}`,
-			);
+			const outcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
+			lines.push(`- ${entry}${outcome ? ` (retries: ${outcome.retryCount})` : ""}`);
 		}
 
-		lines.push(
-			"",
-			"Generated by MemoryProposalGenerator from reflection analysis.",
-		);
+		lines.push("", "Generated by MemoryProposalGenerator from reflection analysis.");
 
 		return lines.join("\n");
 	}
@@ -715,18 +611,10 @@ export class MemoryProposalGenerator {
 	/**
 	 * Build content for an individual failure memory proposal.
 	 */
-	private buildIndividualFailureContent(
-		entry: string,
-		outcomes: WorkspaceOutcome[],
-	): string {
-		const outcome = outcomes.find(
-			(o) => o.workspaceId === entry || o.summary?.includes(entry),
-		);
+	private buildIndividualFailureContent(entry: string, outcomes: WorkspaceOutcome[]): string {
+		const outcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
 
-		const lines: string[] = [
-			`Failure: ${entry}`,
-			"",
-		];
+		const lines: string[] = [`Failure: ${entry}`, ""];
 
 		if (outcome) {
 			lines.push(`Status: ${outcome.status}`);
@@ -739,10 +627,7 @@ export class MemoryProposalGenerator {
 			}
 		}
 
-		lines.push(
-			"",
-			"Generated by MemoryProposalGenerator from reflection analysis.",
-		);
+		lines.push("", "Generated by MemoryProposalGenerator from reflection analysis.");
 
 		return lines.join("\n");
 	}
@@ -750,29 +635,15 @@ export class MemoryProposalGenerator {
 	/**
 	 * Build content for a success execution memory proposal.
 	 */
-	private buildSuccessContent(
-		worked: string[],
-		outcomes: WorkspaceOutcome[],
-	): string {
-		const lines: string[] = [
-			`${worked.length} workspace(s) completed successfully.`,
-			"",
-			"Successful Workspaces:",
-		];
+	private buildSuccessContent(worked: string[], outcomes: WorkspaceOutcome[]): string {
+		const lines: string[] = [`${worked.length} workspace(s) completed successfully.`, "", "Successful Workspaces:"];
 
 		for (const entry of worked) {
-			const outcome = outcomes.find(
-				(o) => o.workspaceId === entry || o.summary?.includes(entry),
-			);
-			lines.push(
-				`- ${entry}${outcome ? ` (duration: ${outcome.duration}ms, retries: ${outcome.retryCount})` : ""}`,
-			);
+			const outcome = outcomes.find((o) => o.workspaceId === entry || o.summary?.includes(entry));
+			lines.push(`- ${entry}${outcome ? ` (duration: ${outcome.duration}ms, retries: ${outcome.retryCount})` : ""}`);
 		}
 
-		lines.push(
-			"",
-			"Generated by MemoryProposalGenerator from reflection analysis.",
-		);
+		lines.push("", "Generated by MemoryProposalGenerator from reflection analysis.");
 
 		return lines.join("\n");
 	}
@@ -780,27 +651,15 @@ export class MemoryProposalGenerator {
 	/**
 	 * Build content for an architecture memory proposal.
 	 */
-	private buildArchitectureContent(
-		whatRan: string[],
-		outcomes: WorkspaceOutcome[],
-	): string {
-		const lines: string[] = [
-			`Execution topology with ${whatRan.length} workspace(s).`,
-			"",
-			"Workspaces:",
-		];
+	private buildArchitectureContent(whatRan: string[], outcomes: WorkspaceOutcome[]): string {
+		const lines: string[] = [`Execution topology with ${whatRan.length} workspace(s).`, "", "Workspaces:"];
 
 		for (const id of whatRan) {
 			const outcome = outcomes.find((o) => o.workspaceId === id);
-			lines.push(
-				`- ${id}: ${outcome?.status ?? "unknown"}${outcome ? ` (${outcome.duration}ms)` : ""}`,
-			);
+			lines.push(`- ${id}: ${outcome?.status ?? "unknown"}${outcome ? ` (${outcome.duration}ms)` : ""}`);
 		}
 
-		lines.push(
-			"",
-			"Generated by MemoryProposalGenerator from reflection analysis.",
-		);
+		lines.push("", "Generated by MemoryProposalGenerator from reflection analysis.");
 
 		return lines.join("\n");
 	}
@@ -809,11 +668,7 @@ export class MemoryProposalGenerator {
 	 * Build failure content from a reflection report (no WorkspaceOutcome data).
 	 */
 	private buildReflectionFailureContent(report: ReflectionReport): string {
-		const lines: string[] = [
-			`${report.whatFailed.length} workspace(s) failed.`,
-			"",
-			"Failed Workspaces:",
-		];
+		const lines: string[] = [`${report.whatFailed.length} workspace(s) failed.`, "", "Failed Workspaces:"];
 
 		for (const entry of report.whatFailed) {
 			lines.push(`- ${entry}`);
@@ -855,11 +710,7 @@ export class MemoryProposalGenerator {
 	 * Build architecture content from a reflection report (no WorkspaceOutcome data).
 	 */
 	private buildReflectionArchitectureContent(report: ReflectionReport): string {
-		const lines: string[] = [
-			`Execution topology with ${report.whatRan.length} workspace(s).`,
-			"",
-			"Workspaces:",
-		];
+		const lines: string[] = [`Execution topology with ${report.whatRan.length} workspace(s).`, "", "Workspaces:"];
 
 		for (const id of report.whatRan) {
 			lines.push(`- ${id}`);

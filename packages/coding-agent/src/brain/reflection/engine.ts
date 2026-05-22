@@ -15,12 +15,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { MemorySourceRef } from "../../brain/memory/types.js";
-import type { ProposalType } from "../../brain/proposals/types.js";
 import type { MorningReportReflectionEngine } from "../../brain/overnight/morning-report.js";
+import type { ProposalType } from "../../brain/proposals/types.js";
+import { FutureSuggestionEngine } from "./future-suggestions.js";
 import { MemoryProposalGenerator } from "./memory-proposals.js";
 import { SourceBackedSummarizer } from "./summarizer.js";
-import { FutureSuggestionEngine } from "./future-suggestions.js";
 import type {
 	ExecutionJournalEntry,
 	FuturePhaseSuggestion,
@@ -135,15 +134,13 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 
 		// 1. Analyze outcomes
 		const whatRan = this.analyzeWhatRan(input.workspaceOutcomes);
-		const whatWorked = this.analyzeWhatWorked(input.workspaceOutcomes, input.executionJournal);
-		const whatFailed = this.analyzeWhatFailed(input.workspaceOutcomes, input.validationResults);
+		const _whatWorked = this.analyzeWhatWorked(input.workspaceOutcomes, input.executionJournal);
+		const _whatFailed = this.analyzeWhatFailed(input.workspaceOutcomes, input.validationResults);
 		const whatSlowedDown = this.analyzeWhatSlowedDown(input.workspaceOutcomes, input.executionJournal);
 
 		// 2. Compute metrics
 		const metrics = this.computeMetrics(input.workspaceOutcomes);
-		const validationFailures = input.validationResults.filter(
-			(v) => v.type === "error" && v.passed !== true,
-		).length;
+		const validationFailures = input.validationResults.filter((v) => v.type === "error" && v.passed !== true).length;
 
 		// 3. Collect source references from outcomes
 		const sources: SourceRef[] = this.collectSources(input.workspaceOutcomes, input.validationResults);
@@ -160,17 +157,8 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			totalDuration: metrics.totalDuration,
 		});
 
-		const summary = this.generateSummary(
-			whatWorkedSummary,
-			whatFailedSummary,
-			metricSummary,
-			validationFailures,
-		);
-		const whatPeopleNeedToKnow = this.generateOneLiner(
-			metrics.successRate,
-			metrics.failureCount,
-			validationFailures,
-		);
+		const summary = this.generateSummary(whatWorkedSummary, whatFailedSummary, metricSummary, validationFailures);
+		const whatPeopleNeedToKnow = this.generateOneLiner(metrics.successRate, metrics.failureCount, validationFailures);
 
 		// 5. Build report (without generated fields)
 		const reportBase = {
@@ -277,17 +265,11 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	 * Analyze what worked from workspace outcomes.
 	 * Returns descriptions of successful outcomes.
 	 */
-	analyzeWhatWorked(
-		outcomes: WorkspaceOutcome[],
-		_journal: ExecutionJournalEntry[],
-	): string[] {
+	analyzeWhatWorked(outcomes: WorkspaceOutcome[], _journal: ExecutionJournalEntry[]): string[] {
 		return outcomes
 			.filter((o) => o.status === "success" || o.status === "retry")
 			.map((o) => {
-				return (
-					o.summary ??
-					`workspace ${o.workspaceId} completed successfully [source:workspace-${o.workspaceId}]`
-				);
+				return o.summary ?? `workspace ${o.workspaceId} completed successfully [source:workspace-${o.workspaceId}]`;
 			});
 	}
 
@@ -295,10 +277,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	 * Analyze what failed from workspace outcomes and validation results.
 	 * Returns descriptions of failures.
 	 */
-	analyzeWhatFailed(
-		outcomes: WorkspaceOutcome[],
-		validationResults: ValidationResult[],
-	): string[] {
+	analyzeWhatFailed(outcomes: WorkspaceOutcome[], validationResults: ValidationResult[]): string[] {
 		const failures: string[] = [];
 
 		// Failed or skipped workspaces
@@ -316,9 +295,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 		// Failed validations
 		for (const v of validationResults) {
 			if (v.type === "error" && v.passed !== true) {
-				failures.push(
-					`validation ${v.component}: ${v.message} [source:validation-${v.component}]`,
-				);
+				failures.push(`validation ${v.component}: ${v.message} [source:validation-${v.component}]`);
 			}
 		}
 
@@ -329,10 +306,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	 * Analyze what slowed down execution.
 	 * Identifies bottlenecks from retry counts and duration.
 	 */
-	analyzeWhatSlowedDown(
-		outcomes: WorkspaceOutcome[],
-		_journal: ExecutionJournalEntry[],
-	): string[] {
+	analyzeWhatSlowedDown(outcomes: WorkspaceOutcome[], _journal: ExecutionJournalEntry[]): string[] {
 		const bottlenecks: string[] = [];
 
 		// Workspaces with high retry counts
@@ -345,8 +319,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 
 		// Workspaces with long duration (above average by 2x)
 		if (outcomes.length > 0) {
-			const avgDuration =
-				outcomes.reduce((sum, o) => sum + o.duration, 0) / outcomes.length;
+			const avgDuration = outcomes.reduce((sum, o) => sum + o.duration, 0) / outcomes.length;
 			const slowWorkspaces = outcomes.filter((o) => o.duration > avgDuration * 2);
 			for (const o of slowWorkspaces) {
 				bottlenecks.push(
@@ -375,12 +348,8 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 		totalDuration: number;
 	} {
 		const workspaceCount = outcomes.length;
-		const successCount = outcomes.filter(
-			(o) => o.status === "success" || o.status === "retry",
-		).length;
-		const failureCount = outcomes.filter(
-			(o) => o.status === "failure" || o.status === "skipped",
-		).length;
+		const successCount = outcomes.filter((o) => o.status === "success" || o.status === "retry").length;
+		const failureCount = outcomes.filter((o) => o.status === "failure" || o.status === "skipped").length;
 		const retryCount = outcomes.reduce((sum, o) => sum + o.retryCount, 0);
 		const successRate = workspaceCount > 0 ? successCount / workspaceCount : 0;
 		const avgRetryCount = workspaceCount > 0 ? retryCount / workspaceCount : 0;
@@ -419,9 +388,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			parts.push(whatFailed);
 		}
 		if (validationFailures > 0) {
-			parts.push(
-				`${validationFailures} validation failure(s) were detected [source:metrics]`,
-			);
+			parts.push(`${validationFailures} validation failure(s) were detected [source:metrics]`);
 		}
 		return parts.join(" ");
 	}
@@ -429,11 +396,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	/**
 	 * Generate a one-line takeaway describing overall outcome.
 	 */
-	private generateOneLiner(
-		successRate: number,
-		failureCount: number,
-		validationFailures: number,
-	): string {
+	private generateOneLiner(successRate: number, failureCount: number, validationFailures: number): string {
 		if (successRate >= 0.9 && failureCount === 0 && validationFailures === 0) {
 			return "All workspaces completed successfully with no issues.";
 		}
@@ -460,10 +423,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	 * Collect all source references from workspace outcomes and validation results.
 	 * Also adds a synthetic "metrics" source for metric-backed claims.
 	 */
-	private collectSources(
-		outcomes: WorkspaceOutcome[],
-		validationResults: ValidationResult[],
-	): SourceRef[] {
+	private collectSources(outcomes: WorkspaceOutcome[], validationResults: ValidationResult[]): SourceRef[] {
 		const sources: SourceRef[] = [];
 
 		for (const o of outcomes) {
@@ -498,12 +458,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	 * Validate that the report's summary and sections reference their sources.
 	 */
 	private validateSources(report: ReflectionReport): boolean {
-		const allTexts = [
-			report.summary,
-			...report.whatWorked,
-			...report.whatFailed,
-			...report.whatSlowedDown,
-		];
+		const allTexts = [report.summary, ...report.whatWorked, ...report.whatFailed, ...report.whatSlowedDown];
 		const sources = report.sources;
 
 		for (const text of allTexts) {
@@ -564,9 +519,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 	/**
 	 * Map a confidence score to a priority level for proposal generation.
 	 */
-	private mapConfidenceToPriority(
-		confidence: number,
-	): "critical" | "high" | "normal" | "low" {
+	private mapConfidenceToPriority(confidence: number): "critical" | "high" | "normal" | "low" {
 		if (confidence >= 0.8) return "critical";
 		if (confidence >= 0.6) return "high";
 		if (confidence >= 0.3) return "normal";

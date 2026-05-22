@@ -2,42 +2,20 @@
   "packet": {
     "phaseId": "P2",
     "workspaceId": "7.D",
-    "role": "worker",
-    "goal": "Agent Tool Injection",
-    "allowedFiles": [
-      "packages/coding-agent/src/extensions/tool-adapter.ts",
-      "packages/coding-agent/src/core/workspace-agent-executor.ts"
-    ],
-    "forbiddenFiles": [
-      ".env*"
-    ],
-    "acceptanceCriteria": [
-      {
-        "description": "Installed extension appears in agent tool list",
-        "verified": false
-      },
-      {
-        "description": "When agent calls extension tool, it runs in sandbox",
-        "verified": false
-      },
-      {
-        "description": "Failed extension tool call does not stop the plan",
-        "verified": false
-      },
-      {
-        "description": "Integration test: WorkspaceAgentExecutor works with extension tool",
-        "verified": false
-      }
-    ],
-    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/tool-adapter.test.ts",
+    "role": "reviewer",
+    "goal": "Review 7.D: Source-Backed Summarizer",
+    "allowedFiles": [],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [],
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
-    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "outputContract": "VERDICT: APPROVED | REJECTED | NEEDS_REVISION",
     "budget": {
-      "maxInputTokens": 12000,
-      "estimatedInputTokens": 199
+      "maxInputTokens": 16000,
+      "estimatedInputTokens": 121
     }
   },
-  "hash": "fba998fb671d2f42d176948a086db38da793d2b8c34e4eb6b8f381b0deaf3d5c",
-  "createdAt": 1779058999622
+  "hash": "c095f4e1c121051cc2f0f87e7df86dba1792a72975d89c54f9cec567275b164f",
+  "createdAt": 1779404838451
 }

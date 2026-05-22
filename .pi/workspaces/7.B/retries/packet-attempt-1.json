@@ -3,41 +3,23 @@
     "phaseId": "P2",
     "workspaceId": "7.B",
     "role": "worker",
-    "goal": "Sandbox Executor",
-    "allowedFiles": [
-      "packages/coding-agent/src/extensions/sandbox/"
-    ],
+    "goal": "Policy Rule Store",
+    "allowedFiles": [],
     "forbiddenFiles": [
       ".env*",
-      "**/*.pem"
+      "**/*.pem",
+      "**/*.key"
     ],
-    "acceptanceCriteria": [
-      {
-        "description": "require is undefined inside vm.createContext()",
-        "verified": false
-      },
-      {
-        "description": "Timeout exceeding 31s triggers SANDBOX_TIMEOUT",
-        "verified": false
-      },
-      {
-        "description": "Memory limit exceeded triggers SANDBOX_OOM",
-        "verified": false
-      },
-      {
-        "description": "Successful execution returns SandboxResult",
-        "verified": false
-      }
-    ],
-    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/sandbox-executor.test.ts",
+    "acceptanceCriteria": [],
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 175
+      "estimatedInputTokens": 121
     }
   },
-  "hash": "43c23e8bdb081f4955d3e11487a1b8c24eb7987ea68a9b096ab05ec261cb1f08",
-  "createdAt": 1779058690592
+  "hash": "dedf00ab44033e0b52f2e70bc6739fb10b047fe32b39a7d6212e3576f07d0351",
+  "createdAt": 1779401665259
 }

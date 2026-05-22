@@ -37,9 +37,9 @@
 | Primary focus | `Plan generation, reflection, memory updates, future suggestions` |
 | Product-code changes | `Allowed — Pi runtime/dashboard/tests/docs only` |
 | Selected scale mode | `stable_3` |
-| Requested max workers | `3` |
-| Expected DAG effective parallelism | `3` |
-| Expected safe effective parallelism | `3` |
+| Requested max workers | 3 |
+| Expected DAG effective parallelism | 3 |
+| Expected safe effective parallelism | 3 |
 | Worktree isolation | `Optional` |
 | Integration queue | `Required` |
 
@@ -1233,8 +1233,8 @@ Implement all P17 — P17 Dogfood & Report — workstreams end-to-end. Create ev
 
 ```yaml
 scale:
-  default_mode: experimental_6
-  selected_mode: experimental_6
+  default_mode: stable_3
+  selected_mode: stable_3
   modes:
     stable_3:
       max_parallel_workspaces: 3
@@ -1355,10 +1355,10 @@ parallelism_review:
     "phase": "P17",
     "title": "Plan Factory & Reflection Loop",
     "mode": "autonomous",
-    "maxParallelWorkspaces": 6,
+    "maxParallelWorkspaces": 3,
     "scheduling": {
       "continuous": true,
-      "slotCount": 6,
+      "slotCount": 3,
       "priorityStrategy": "critical_path_first"
     },
     "stateBackend": "postgres",
@@ -1368,7 +1368,7 @@ parallelism_review:
     "autoPush": false,
     "scale": {
       "defaultMode": "experimental_6",
-      "selectedMode": "experimental_6",
+      "selectedMode": "stable_3",
       "modes": {
         "stable_3": {
           "maxParallelWorkspaces": 3,
@@ -1376,7 +1376,7 @@ parallelism_review:
           "integrationQueueRequired": false
         },
         "experimental_6": {
-          "maxParallelWorkspaces": 6,
+          "maxParallelWorkspaces": 3,
           "worktreeRequired": true,
           "integrationQueueRequired": true,
           "validationLockRequired": true,
@@ -1396,7 +1396,7 @@ parallelism_review:
       }
     },
     "worktree": {
-      "enabled": true,
+      "enabled": false,
       "enabledByDefault": true,
       "root": ".pi/worktrees",
       "quarantineFailedByDefault": true,
@@ -1404,14 +1404,14 @@ parallelism_review:
       "pathScopeRequired": true
     },
     "integrationQueue": {
-      "enabled": true,
+      "enabled": false,
       "processOneMergeAtATime": true,
       "stopOnMergeConflict": true,
       "requireWorkspaceValidationPass": true,
       "requireIntegrationValidationPass": true,
       "gitPushAllowed": false,
       "queuePriority": {
-        "enabled": true,
+        "enabled": false,
         "defaultLevel": "normal",
         "levels": [
           "critical",
@@ -1421,7 +1421,7 @@ parallelism_review:
         ]
       },
       "queueOptimization": {
-        "enabled": true,
+        "enabled": false,
         "strategy": "priority_then_fifo",
         "availableStrategies": [
           "priority_then_fifo",
@@ -1437,7 +1437,7 @@ parallelism_review:
       "watchModeForbidden": true
     },
     "interactiveParallelismReview": {
-      "enabled": true,
+      "enabled": false,
       "preflightRequired": true,
       "approvalRequiredBeforeRun": true,
       "allowDependencyEditing": true,
@@ -1453,7 +1453,7 @@ parallelism_review:
       "persistApprovedGraph": true
     },
     "planIntake": {
-      "enabled": true,
+      "enabled": false,
       "runOnUpload": true,
       "parserPriority": [
         "part3_json",
@@ -1470,7 +1470,7 @@ parallelism_review:
       "approvalRequiredBeforeExecution": true
     },
     "optimizer": {
-      "enabled": true,
+      "enabled": false,
       "mode": "advisory_until_approved",
       "objectives": [
         "maximize_safe_effective_parallelism",
@@ -1550,7 +1550,7 @@ parallelism_review:
   },
   "parallelismReview": {
     "requestedMaxParallelWorkspaces": 6,
-    "selectedScaleMode": "experimental_6",
+    "selectedScaleMode": "stable_3",
     "scaleModeReadiness": {
       "ready": true,
       "blockedReasons": [],
@@ -2271,9 +2271,9 @@ parallelism_review:
   "primaryGoal": "Implement and validate the P17 second-brain component.",
   "projectName": "pi-mono",
   "stateBackend": "postgres",
-  "selectedScaleMode": "experimental_6",
-  "maxParallelWorkspaces": 6,
-  "requiresWorktreeIsolation": true,
+  "selectedScaleMode": "stable_3",
+  "maxParallelWorkspaces": 3,
+  "requiresWorktreeIsolation": false,
   "requiresIntegrationQueue": true,
   "queueOptimizationEnabled": true,
   "queueOptimizationStrategy": "priority_then_fifo",

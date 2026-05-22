@@ -25,12 +25,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import {
-	type PolicyDecision,
-	type PolicyRule,
-	type RuleConflict,
-	type RuleStoreConfig,
-} from "./types.js";
+import type { PolicyDecision, PolicyRule, RuleConflict, RuleStoreConfig } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -342,9 +337,7 @@ export class RuleStore {
 
 		// Filter by enabled state
 		if (query?.enabled !== undefined) {
-			const ids = query.enabled
-				? new Set(this.index.enabled)
-				: new Set(this.index.disabled);
+			const ids = query.enabled ? new Set(this.index.enabled) : new Set(this.index.disabled);
 			candidateIds = this.intersectSets(candidateIds, ids);
 		}
 
@@ -924,10 +917,7 @@ export class RuleStore {
 	 *
 	 * Returns true if both conditions would match for the same request context.
 	 */
-	private conditionsOverlap(
-		a: PolicyRule["condition"],
-		b: PolicyRule["condition"],
-	): boolean {
+	private conditionsOverlap(a: PolicyRule["condition"], b: PolicyRule["condition"]): boolean {
 		// If both conditions have no additional restrictions beyond action,
 		// they overlap completely
 		if (!a.actionType && !b.actionType && !a.riskLevel && !b.riskLevel) {

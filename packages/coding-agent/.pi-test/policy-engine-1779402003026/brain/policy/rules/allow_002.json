@@ -1,0 +1,14 @@
+{
+  "id": "allow_002",
+  "name": "Generate draft proposals",
+  "description": "Allow Pi to generate draft proposals from observations and memory",
+  "condition": {
+    "action": "generate_draft_proposal"
+  },
+  "decision": "allow",
+  "priority": 100,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

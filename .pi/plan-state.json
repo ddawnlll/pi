@@ -1,177 +1,65 @@
 {
-  "phase": "P11",
-  "title": "Ecosystem & Continuous Self-Improvement Platform",
+  "phase": "P19",
+  "title": "Full Second-Brain Dashboard & Autonomy UX",
   "workspaces": [
     {
-      "workspaceId": "P11.0",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778941232536,
-      "ownedFiles": [],
-      "completedAt": 1778941595243
+      "workspaceId": "7.A",
+      "stage": "active",
+      "attempts": 9,
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.A",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778941595560,
-      "ownedFiles": [],
-      "completedAt": 1778942119648
+      "workspaceId": "7.B",
+      "stage": "active",
+      "attempts": 7,
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.B",
-      "stage": "complete",
-      "attempts": 5,
-      "startedAt": 1778942119931,
-      "ownedFiles": [],
-      "completedAt": 1778942422746
-    },
-    {
-      "workspaceId": "P11.C",
-      "stage": "complete",
-      "attempts": 5,
-      "startedAt": 1778942119939,
-      "ownedFiles": [],
-      "completedAt": 1778942251389
-    },
-    {
-      "workspaceId": "P11.D",
-      "stage": "complete",
-      "attempts": 5,
-      "startedAt": 1778942119930,
-      "ownedFiles": [],
-      "completedAt": 1778942251387
-    },
-    {
-      "workspaceId": "P11.E",
-      "stage": "complete",
-      "attempts": 3,
-      "startedAt": 1778942119939,
-      "ownedFiles": [],
-      "completedAt": 1778942492938
-    },
-    {
-      "workspaceId": "P11.F",
-      "stage": "complete",
-      "attempts": 3,
-      "startedAt": 1778942119939,
-      "ownedFiles": [],
-      "completedAt": 1778943486156
-    },
-    {
-      "workspaceId": "P11.G",
-      "stage": "complete",
+      "workspaceId": "7.C",
+      "stage": "active",
       "attempts": 2,
-      "startedAt": 1778942119941,
-      "ownedFiles": [],
-      "completedAt": 1778943465819
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.H",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778943827134,
-      "ownedFiles": [],
-      "completedAt": 1778944219731
+      "workspaceId": "7.D",
+      "stage": "active",
+      "attempts": 8,
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.I",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778943827145,
-      "ownedFiles": [],
-      "completedAt": 1778944526714
+      "workspaceId": "7.E",
+      "stage": "active",
+      "attempts": 10,
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.J",
-      "stage": "complete",
+      "workspaceId": "7.F",
+      "stage": "pending",
       "attempts": 1,
-      "startedAt": 1778943827143,
-      "ownedFiles": [],
-      "completedAt": 1778944709303
+      "startedAt": 1779403061038,
+      "ownedFiles": []
     },
     {
-      "workspaceId": "P11.K",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778943827143,
-      "ownedFiles": [],
-      "completedAt": 1778944557145
+      "workspaceId": "7.G",
+      "stage": "pending",
+      "attempts": 0
     },
     {
-      "workspaceId": "P11.L",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778943827142,
-      "ownedFiles": [],
-      "completedAt": 1778944721240
+      "workspaceId": "7.H",
+      "stage": "pending",
+      "attempts": 0
     },
     {
-      "workspaceId": "P11.M",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778943827143,
-      "ownedFiles": [],
-      "completedAt": 1778944752498
-    },
-    {
-      "workspaceId": "P11.N",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778944752611,
-      "ownedFiles": [],
-      "completedAt": 1778945185100
-    },
-    {
-      "workspaceId": "P11.O",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778944752607,
-      "ownedFiles": [],
-      "completedAt": 1778945435538
-    },
-    {
-      "workspaceId": "P11.P",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778944752614,
-      "ownedFiles": [],
-      "completedAt": 1778945309622
-    },
-    {
-      "workspaceId": "P11.Q",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778944752620,
-      "ownedFiles": [],
-      "completedAt": 1778945225157
-    },
-    {
-      "workspaceId": "P11.R",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778944752621,
-      "ownedFiles": [],
-      "completedAt": 1778945285525
-    },
-    {
-      "workspaceId": "P11.S",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778945435636,
-      "ownedFiles": [],
-      "completedAt": 1778946027136
-    },
-    {
-      "workspaceId": "P11.T",
-      "stage": "complete",
-      "attempts": 1,
-      "startedAt": 1778946027265,
-      "ownedFiles": [],
-      "completedAt": 1778947170859
+      "workspaceId": "7.I",
+      "stage": "pending",
+      "attempts": 0
     }
   ],
-  "startedAt": 1778941232524,
-  "status": "complete",
-  "completedAt": 1778947374752
+  "startedAt": 1779403058426,
+  "status": "running"
 }

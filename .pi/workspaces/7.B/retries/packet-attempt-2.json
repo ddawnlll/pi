@@ -3,51 +3,23 @@
     "phaseId": "P2",
     "workspaceId": "7.B",
     "role": "worker",
-    "goal": "P2 User Documentation",
-    "allowedFiles": [
-      "docs/p2-user-guide.md"
-    ],
+    "goal": "Master Template Integration",
+    "allowedFiles": [],
     "forbiddenFiles": [
-      "src/**",
-      "packages/**/src/**",
-      "package.json",
-      "package-lock.json"
+      ".env*",
+      "**/*.pem",
+      "**/*.key"
     ],
-    "acceptanceCriteria": [
-      {
-        "description": "docs/p2-user-guide.md created",
-        "verified": false
-      },
-      {
-        "description": "Documents all P2 commands",
-        "verified": false
-      },
-      {
-        "description": "Explains bounded execution model",
-        "verified": false
-      },
-      {
-        "description": "Explains P1 budget safety",
-        "verified": false
-      },
-      {
-        "description": "Explains observer-only dashboard",
-        "verified": false
-      },
-      {
-        "description": "Explains retry escalation model",
-        "verified": false
-      }
-    ],
+    "acceptanceCriteria": [],
     "targetCommand": null,
-    "stateSummary": "Previous attempt 2 failed: unknown\nError: ENOENT: no such file or directory, rename '/home/erfolg/src/pi/.pi/plan-state.json.tmp' -> '/home/erfolg/src/pi/.pi/plan-state.json'\nNext retry strategy: worker",
+    "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 233
+      "estimatedInputTokens": 123
     }
   },
-  "hash": "3c1ff8021a9f34ddab88dd05181279f967eecc8531c0607e1215596d090966ba",
-  "createdAt": 1778511969164
+  "hash": "d12789ba56bd7be906e4c6c9621e8670f6c0764de1096aafbd588bd23c0e2c6d",
+  "createdAt": 1779404774092
 }

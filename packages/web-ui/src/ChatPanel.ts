@@ -1,12 +1,16 @@
 import { Badge } from "@mariozechner/mini-lit/dist/Badge.js";
+import { Button } from "@mariozechner/mini-lit/dist/Button.js";
+import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "./components/AgentInterface.js";
 import type { Agent, AgentTool } from "@earendil-works/pi-agent-core";
+import { Brain } from "lucide";
 import type { AgentInterface } from "./components/AgentInterface.js";
 import { ArtifactsRuntimeProvider } from "./components/sandbox/ArtifactsRuntimeProvider.js";
 import { AttachmentsRuntimeProvider } from "./components/sandbox/AttachmentsRuntimeProvider.js";
 import type { SandboxRuntimeProvider } from "./components/sandbox/SandboxRuntimeProvider.js";
+import { ReflectionViewerDialog } from "./dialogs/ReflectionViewerDialog.js";
 import { ArtifactsPanel, ArtifactsToolRenderer } from "./tools/artifacts/index.js";
 import { registerToolRenderer } from "./tools/renderer-registry.js";
 import type { Attachment } from "./utils/attachment-utils.js";
@@ -174,6 +178,15 @@ export class ChatPanel extends LitElement {
 		return html`
 			<div class="relative w-full h-full overflow-hidden flex">
 				<div class="h-full" style="${!isMobile && this.showArtifactsPanel && this.hasArtifacts ? "width: 50%;" : "width: 100%;"}">
+						<div class="absolute z-30 top-4 right-4 flex items-center gap-2">
+							${Button({
+								children: html`${icon(Brain, "sm")} <span class="hidden sm:inline">${i18n("Reflections")}</span>`,
+								variant: "outline",
+								size: "sm",
+								title: i18n("Reflection Viewer"),
+								onClick: () => ReflectionViewerDialog.open(),
+							})}
+						</div>
 						${this.agentInterface}
 					</div>
 

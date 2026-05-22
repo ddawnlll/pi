@@ -6,23 +6,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-	MemoryProposalGenerator,
-	type MemoryProposalOutput,
-} from "../../../src/brain/reflection/memory-proposals.js";
-import type {
-	ReflectionReport,
-	SourceRef,
-	WorkspaceOutcome,
-} from "../../../src/brain/reflection/types.js";
+import { MemoryProposalGenerator } from "../../../src/brain/reflection/memory-proposals.js";
+import type { ReflectionReport, WorkspaceOutcome } from "../../../src/brain/reflection/types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function createWorkspaceOutcome(
-	overrides: Partial<WorkspaceOutcome> & { workspaceId: string },
-): WorkspaceOutcome {
+function createWorkspaceOutcome(overrides: Partial<WorkspaceOutcome> & { workspaceId: string }): WorkspaceOutcome {
 	return {
 		status: "success",
 		retryCount: 0,
@@ -31,9 +22,7 @@ function createWorkspaceOutcome(
 	};
 }
 
-function createDefaultReport(
-	overrides?: Partial<ReflectionReport>,
-): ReflectionReport {
+function createDefaultReport(overrides?: Partial<ReflectionReport>): ReflectionReport {
 	return {
 		id: "test-report-1",
 		planExecId: "plan-exec-1",

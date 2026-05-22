@@ -12,6 +12,8 @@
  * - Markdown and JSON artifacts written correctly
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import { ReflectionEngine } from "../../../src/brain/reflection/engine.js";
 import type {
@@ -20,16 +22,12 @@ import type {
 	ValidationResult,
 	WorkspaceOutcome,
 } from "../../../src/brain/reflection/types.js";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-function createOutcome(
-	overrides: Partial<WorkspaceOutcome> & { workspaceId: string },
-): WorkspaceOutcome {
+function createOutcome(overrides: Partial<WorkspaceOutcome> & { workspaceId: string }): WorkspaceOutcome {
 	return {
 		status: "success",
 		retryCount: 0,
@@ -38,9 +36,7 @@ function createOutcome(
 	};
 }
 
-function createValidation(
-	overrides: Partial<ValidationResult> & { component: string },
-): ValidationResult {
+function createValidation(overrides: Partial<ValidationResult> & { component: string }): ValidationResult {
 	return {
 		type: "error",
 		message: "Validation message",
@@ -61,9 +57,7 @@ function createJournalEntry(
 	};
 }
 
-function createDefaultInput(
-	overrides?: Partial<ReflectionInput>,
-): ReflectionInput {
+function createDefaultInput(overrides?: Partial<ReflectionInput>): ReflectionInput {
 	return {
 		planExecId: "exec-test-001",
 		planId: "plan-test-001",
@@ -144,9 +138,7 @@ function createDefaultInput(
 }
 
 function createEngine(config?: Record<string, unknown>): ReflectionEngine {
-	return new ReflectionEngine(
-		config as Partial<import("../../../src/brain/reflection/types.js").ReflectionConfig>,
-	);
+	return new ReflectionEngine(config as Partial<import("../../../src/brain/reflection/types.js").ReflectionConfig>);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,9 +206,7 @@ describe("ReflectionEngine", () => {
 			const engine = createEngine({ minWorkspaceCount: 10 });
 			const input = createDefaultInput();
 
-			await expect(engine.reflect(input)).rejects.toThrow(
-				"Reflection skipped",
-			);
+			await expect(engine.reflect(input)).rejects.toThrow("Reflection skipped");
 		});
 
 		test("allows reflection with small plans when minWorkspaceCount is lowered", async () => {
@@ -286,9 +276,7 @@ describe("ReflectionEngine", () => {
 	describe("analyzeWhatFailed", () => {
 		test("includes failed outcomes", () => {
 			const engine = createEngine();
-			const outcomes = [
-				createOutcome({ workspaceId: "ws-X", status: "failure" }),
-			];
+			const outcomes = [createOutcome({ workspaceId: "ws-X", status: "failure" })];
 
 			const result = engine.analyzeWhatFailed(outcomes, []);
 			expect(result).toHaveLength(1);
@@ -297,9 +285,7 @@ describe("ReflectionEngine", () => {
 
 		test("includes skipped outcomes", () => {
 			const engine = createEngine();
-			const outcomes = [
-				createOutcome({ workspaceId: "ws-skip", status: "skipped" }),
-			];
+			const outcomes = [createOutcome({ workspaceId: "ws-skip", status: "skipped" })];
 
 			const result = engine.analyzeWhatFailed(outcomes, []);
 			expect(result).toHaveLength(1);
@@ -457,9 +443,7 @@ describe("ReflectionEngine", () => {
 				validationResults: [],
 			});
 
-			await expect(engine.reflect(input)).rejects.toThrow(
-				"Reflection skipped",
-			);
+			await expect(engine.reflect(input)).rejects.toThrow("Reflection skipped");
 		});
 	});
 
@@ -699,10 +683,7 @@ describe("ReflectionEngine", () => {
 
 	describe("fixture loading", () => {
 		test("loads valid-input fixture correctly", () => {
-			const fixturePath = resolve(
-				__dirname,
-				"../../fixtures/reflection/valid-input.json",
-			);
+			const fixturePath = resolve(__dirname, "../../fixtures/reflection/valid-input.json");
 			const content = readFileSync(fixturePath, "utf-8");
 			const input: ReflectionInput = JSON.parse(content);
 
@@ -712,10 +693,7 @@ describe("ReflectionEngine", () => {
 		});
 
 		test("loads expected-output fixture correctly", () => {
-			const fixturePath = resolve(
-				__dirname,
-				"../../fixtures/reflection/expected-output.json",
-			);
+			const fixturePath = resolve(__dirname, "../../fixtures/reflection/expected-output.json");
 			const content = readFileSync(fixturePath, "utf-8");
 			const expected = JSON.parse(content);
 
@@ -726,20 +704,14 @@ describe("ReflectionEngine", () => {
 
 		test("generated metrics match expected fixture values", async () => {
 			const engine = createEngine({ minWorkspaceCount: 1 });
-			const fixturePath = resolve(
-				__dirname,
-				"../../fixtures/reflection/valid-input.json",
-			);
+			const fixturePath = resolve(__dirname, "../../fixtures/reflection/valid-input.json");
 			const content = readFileSync(fixturePath, "utf-8");
 			const input: ReflectionInput = JSON.parse(content);
 
 			const report = await engine.reflect(input);
 
 			// Expected from fixture expectation file
-			const expectedPath = resolve(
-				__dirname,
-				"../../fixtures/reflection/expected-output.json",
-			);
+			const expectedPath = resolve(__dirname, "../../fixtures/reflection/expected-output.json");
 			const expectedContent = readFileSync(expectedPath, "utf-8");
 			const expected = JSON.parse(expectedContent);
 

@@ -234,14 +234,14 @@ describe("PlanFactory", () => {
 
 		// Access private method via bracket notation
 		const planProp = makeProposal({ type: "plan_proposal", title: "Plan: Improve Queue" });
-		const title = factory["computePhaseTitle"](planProp);
+		const title = factory.computePhaseTitle(planProp);
 		expect(title).toContain("Plan:");
 
 		const memoryProp = makeProposal({ type: "memory_proposal", title: "Store Refactoring" });
-		expect(factory["computePhaseTitle"](memoryProp)).toContain("Memory:");
+		expect(factory.computePhaseTitle(memoryProp)).toContain("Memory:");
 
 		const safetyProp = makeProposal({ type: "safety_proposal", title: "Add Rate Limiting" });
-		expect(factory["computePhaseTitle"](safetyProp)).toContain("Safety:");
+		expect(factory.computePhaseTitle(safetyProp)).toContain("Safety:");
 	});
 
 	// -----------------------------------------------------------------------

@@ -17,12 +17,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PolicyEngine, createPolicyEngine } from "../../src/brain/policy/engine.js";
-import { RuleStore } from "../../src/brain/policy/store.js";
-import { AuditLedger } from "../../src/brain/audit/ledger.js";
-import { ApprovalGate, createApprovalGate } from "../../src/brain/approvals/gate.js";
-import { AutonomyEngine } from "../../src/brain/goals/profile-engine.js";
+import { type ApprovalGate, createApprovalGate } from "../../src/brain/approvals/gate.js";
 import type { AuditEntry } from "../../src/brain/audit/ledger.js";
+import { AuditLedger } from "../../src/brain/audit/ledger.js";
+import { AutonomyEngine } from "../../src/brain/goals/profile-engine.js";
+import { createPolicyEngine, type PolicyEngine } from "../../src/brain/policy/engine.js";
+import { RuleStore } from "../../src/brain/policy/store.js";
 import type { PolicyContext, PolicyRule } from "../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
@@ -465,7 +465,12 @@ describe("P18 Dogfood Verification", () => {
 			const ctx2 = makeContext({ action: "action_p2", proposalId: "p2", metadata: { rationale: "test" } });
 
 			await approvalGate.requestApproval(ctx1, { level: "low", score: 0.1, factors: [], description: "" });
-			const req2 = await approvalGate.requestApproval(ctx2, { level: "low", score: 0.1, factors: [], description: "" });
+			const req2 = await approvalGate.requestApproval(ctx2, {
+				level: "low",
+				score: 0.1,
+				factors: [],
+				description: "",
+			});
 
 			await approvalGate.approve(req2.id, "user");
 
@@ -482,19 +487,19 @@ describe("P18 Dogfood Verification", () => {
 	// =======================================================================
 
 	describe("AC4: Emergency stop blocks autonomous actions", () => {
-		let autonomyEngine: AutonomyEngine;
-		let profile: import("../../src/brain/goals/types.js").AutonomyProfile;
+		let _autonomyEngine: AutonomyEngine;
+		let _profile: import("../../src/brain/goals/types.js").AutonomyProfile;
 
 		beforeEach(() => {
 			import("../../src/brain/goals/types.js").then(({ createAutonomyProfile }) => {
-				profile = createAutonomyProfile(4);
+				_profile = createAutonomyProfile(4);
 			});
 		});
 
 		it("autonomy engine emergency stop blocks autonomous actions", async () => {
 			const { createAutonomyProfile } = await import("../../src/brain/goals/types.js");
 			const engine = new AutonomyEngine();
-			const prof = createAutonomyProfile(4);
+			const _prof = createAutonomyProfile(4);
 
 			// Check not stopped initially
 			const initial = engine.isEmergencyStopped();
@@ -637,9 +642,7 @@ describe("P18 Dogfood Verification", () => {
 		});
 
 		it("provenance tracker records and explains decisions", async () => {
-			const { ProvenanceTracker, createProvenanceTracker } = await import(
-				"../../src/brain/policy/provenance.js"
-			);
+			const { ProvenanceTracker, createProvenanceTracker } = await import("../../src/brain/policy/provenance.js");
 
 			const tracker = createProvenanceTracker({
 				persistencePath: path.join(TEST_DIR, "brain", "audit", "provenance"),
@@ -703,29 +706,25 @@ describe("P18 End-to-End: Full Trust Controls Pipeline", () => {
 
 	it("full pipeline: forbidden => blocked/audited, approval => approved/audited, allow => executed", async () => {
 		// ---- STEP 1: Allowed action ----
-		const allowResult = await engine.evaluateWithAudit(
-			makeContext({ action: "retry_transient_failure" }),
-			mockAudit,
-		);
+		const allowResult = await engine.evaluateWithAudit(makeContext({ action: "retry_transient_failure" }), mockAudit);
 		expect(allowResult.decision).toBe("allow");
 
 		// ---- STEP 2: Forbidden action ----
-		const forbidResult = await engine.evaluateWithAudit(
-			makeContext({ action: "access_secrets" }),
-			mockAudit,
-		);
+		const forbidResult = await engine.evaluateWithAudit(makeContext({ action: "access_secrets" }), mockAudit);
 		expect(forbidResult.decision).toBe("forbidden");
 		expect(forbidResult.auditEntry.result).toBe("blocked");
 
 		// ---- STEP 3: Approval required action ----
-		const approvalResult = await engine.evaluate(
-			makeContext({ action: "execute_generated_plan" }),
-		);
+		const approvalResult = await engine.evaluate(makeContext({ action: "execute_generated_plan" }));
 		expect(approvalResult.decision).toBe("approval_required");
 
 		// Create approval request
 		const request = await approvalGate.requestApproval(
-			makeContext({ action: "execute_generated_plan", proposalId: "e2e-prop-001", metadata: { rationale: "e2e test" } }),
+			makeContext({
+				action: "execute_generated_plan",
+				proposalId: "e2e-prop-001",
+				metadata: { rationale: "e2e test" },
+			}),
 			{ level: "high", score: 0.7, factors: ["Production"], description: "Prod deploy" },
 		);
 		expect(request.status).toBe("pending");
@@ -757,10 +756,7 @@ describe("P18 End-to-End: Full Trust Controls Pipeline", () => {
 	}, 10000);
 
 	it("default deny catches unregistered actions (autonomy < 4)", async () => {
-		const result = await engine.evaluateWithAudit(
-			makeContext({ action: "some_random_unlisted_action" }),
-			mockAudit,
-		);
+		const result = await engine.evaluateWithAudit(makeContext({ action: "some_random_unlisted_action" }), mockAudit);
 		expect(result.decision).toBe("deny");
 		expect(result.matchedRule).toBeNull();
 		expect(result.auditEntry.result).toBe("blocked");

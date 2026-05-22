@@ -18,8 +18,8 @@
 **Why now:** P13-P18 built backend. P19 turns server endpoints into composable UI. This is Milestone 3b — "Full Second-Brain UX".  
 **Blast radius:** Complete dashboard rewrite; `packages/web-ui/dashboard` only (no backend changes).  
 **Rollback path:** Remove V2 dashboard routes, fall back to existing dashboard.  
-**Scale mode:** `stable_6`
-**Safe parallelism target:** 6  
+**Scale mode:** `stable_3`
+**Safe parallelism target:** 3  
 **Done when:** All 7 pages functional, all endpoints integrated, error/loading/empty states everywhere, navigation works, responsive, dogfood complete.
 
 ---
@@ -33,7 +33,7 @@
 | Status | `Authoritative Implementation` |
 | Target environment | `Local Pi runtime` |
 | Primary focus | `Complete V2 dashboard UX: brain state, proposals, memory, goals, autonomy, reflections, overnight` |
-| Scale mode | `stable_6` |
+| Scale mode | `stable_3` |
 | Worktree isolation | `Optional` |
 | Integration queue | `Required` |
 
@@ -758,8 +758,8 @@ Implement all P19 — P19 Dogfood & Report — workstreams end-to-end. Create ev
 
 ```yaml
 scale:
-  default_mode: stable_6
-  selected_mode: stable_6
+  default_mode: stable_3
+  selected_mode: stable_3
   modes:
     stable_3:
       max_parallel_workspaces: 3
@@ -887,10 +887,10 @@ parallelism_review:
     "phase": "P19",
     "title": "Full Second-Brain Dashboard & Autonomy UX",
     "mode": "autonomous",
-    "maxParallelWorkspaces": 6,
+    "maxParallelWorkspaces": 3,
     "scheduling": {
       "continuous": true,
-      "slotCount": 6,
+      "slotCount": 3,
       "priorityStrategy": "critical_path_first"
     },
     "stateBackend": "postgres",
@@ -900,7 +900,7 @@ parallelism_review:
     "autoPush": false,
     "scale": {
       "defaultMode": "experimental_6",
-      "selectedMode": "experimental_6",
+      "selectedMode": "stable_3",
       "modes": {
         "stable_3": {
           "maxParallelWorkspaces": 3,
@@ -908,7 +908,7 @@ parallelism_review:
           "integrationQueueRequired": false
         },
         "experimental_6": {
-          "maxParallelWorkspaces": 6,
+          "maxParallelWorkspaces": 3,
           "worktreeRequired": true,
           "integrationQueueRequired": true,
           "validationLockRequired": true,
@@ -928,7 +928,7 @@ parallelism_review:
       }
     },
     "worktree": {
-      "enabled": true,
+      "enabled": false,
       "enabledByDefault": true,
       "root": ".pi/worktrees",
       "quarantineFailedByDefault": true,
@@ -936,14 +936,14 @@ parallelism_review:
       "pathScopeRequired": true
     },
     "integrationQueue": {
-      "enabled": true,
+      "enabled": false,
       "processOneMergeAtATime": true,
       "stopOnMergeConflict": true,
       "requireWorkspaceValidationPass": true,
       "requireIntegrationValidationPass": true,
       "gitPushAllowed": false,
       "queuePriority": {
-        "enabled": true,
+        "enabled": false,
         "defaultLevel": "normal",
         "levels": [
           "critical",
@@ -953,7 +953,7 @@ parallelism_review:
         ]
       },
       "queueOptimization": {
-        "enabled": true,
+        "enabled": false,
         "strategy": "priority_then_fifo",
         "availableStrategies": [
           "priority_then_fifo",
@@ -969,7 +969,7 @@ parallelism_review:
       "watchModeForbidden": true
     },
     "interactiveParallelismReview": {
-      "enabled": true,
+      "enabled": false,
       "preflightRequired": true,
       "approvalRequiredBeforeRun": true,
       "allowDependencyEditing": true,
@@ -985,7 +985,7 @@ parallelism_review:
       "persistApprovedGraph": true
     },
     "planIntake": {
-      "enabled": true,
+      "enabled": false,
       "runOnUpload": true,
       "parserPriority": [
         "part3_json",
@@ -1002,7 +1002,7 @@ parallelism_review:
       "approvalRequiredBeforeExecution": true
     },
     "optimizer": {
-      "enabled": true,
+      "enabled": false,
       "mode": "advisory_until_approved",
       "objectives": [
         "maximize_safe_effective_parallelism",
@@ -1082,7 +1082,7 @@ parallelism_review:
   },
   "parallelismReview": {
     "requestedMaxParallelWorkspaces": 6,
-    "selectedScaleMode": "stable_6",
+    "selectedScaleMode": "stable_3",
     "scaleModeReadiness": {
       "ready": true,
       "blockedReasons": [],
@@ -1800,9 +1800,9 @@ parallelism_review:
   "primaryGoal": "Implement and validate the P19 second-brain component.",
   "projectName": "pi-mono",
   "stateBackend": "postgres",
-  "selectedScaleMode": "stable_6",
-  "maxParallelWorkspaces": 6,
-  "requiresWorktreeIsolation": true,
+  "selectedScaleMode": "stable_3",
+  "maxParallelWorkspaces": 3,
+  "requiresWorktreeIsolation": false,
   "requiresIntegrationQueue": true,
   "queueOptimizationEnabled": true,
   "queueOptimizationStrategy": "priority_then_fifo",

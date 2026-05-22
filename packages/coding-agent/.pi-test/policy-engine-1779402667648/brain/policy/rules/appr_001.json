@@ -1,0 +1,14 @@
+{
+  "id": "appr_001",
+  "name": "Execute generated plans",
+  "description": "Require user approval before executing any generated plan",
+  "condition": {
+    "action": "execute_generated_plan"
+  },
+  "decision": "approval_required",
+  "priority": 90,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

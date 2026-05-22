@@ -13,11 +13,7 @@
  * @packageDocumentation
  */
 
-import type {
-	ApprovalRequest,
-	ApprovalStats,
-	ApprovalStatus,
-} from "../policy/types.js";
+import type { ApprovalRequest, ApprovalStats, ApprovalStatus } from "../policy/types.js";
 import type { ApprovalGate } from "./gate.js";
 
 // ---------------------------------------------------------------------------
@@ -129,11 +125,7 @@ export class ApprovalQueueApi {
 			case "all": {
 				// Combine pending + history
 				const pending = this.gate.getPending();
-				const history = [
-					...this.gate.getApproved(),
-					...this.gate.getRejected(),
-					...this.gate.getExpired(),
-				];
+				const history = [...this.gate.getApproved(), ...this.gate.getRejected(), ...this.gate.getExpired()];
 				approvals = [...pending, ...history];
 				break;
 			}
@@ -233,9 +225,7 @@ export class ApprovalQueueApi {
 			return {
 				success: true,
 				approval: updated,
-				message: reason
-					? `Approval request rejected: ${reason}`
-					: "Approval request rejected",
+				message: reason ? `Approval request rejected: ${reason}` : "Approval request rejected",
 			};
 		} catch (error) {
 			return {
@@ -273,7 +263,7 @@ export class ApprovalQueueApi {
 			if (newDeadline) {
 				const currentTime = Date.now();
 				const newDeadlineMs = new Date(newDeadline).getTime();
-				if (isNaN(newDeadlineMs)) {
+				if (Number.isNaN(newDeadlineMs)) {
 					return {
 						success: false,
 						message: `Invalid deadline format: "${newDeadline}". Use ISO 8601 format.`,
@@ -331,11 +321,7 @@ export class ApprovalQueueApi {
 		const limit = query?.limit ?? 50;
 		const offset = query?.offset ?? 0;
 
-		const history = [
-			...this.gate.getApproved(),
-			...this.gate.getRejected(),
-			...this.gate.getExpired(),
-		];
+		const history = [...this.gate.getApproved(), ...this.gate.getRejected(), ...this.gate.getExpired()];
 
 		// Sort by most recent first
 		history.sort((a, b) => {
@@ -348,7 +334,7 @@ export class ApprovalQueueApi {
 		let filtered = history;
 		if (query?.since) {
 			const sinceMs = new Date(query.since).getTime();
-			if (!isNaN(sinceMs)) {
+			if (!Number.isNaN(sinceMs)) {
 				filtered = filtered.filter((r) => {
 					const date = r.approvedAt ?? r.rejectedAt ?? r.requestedAt;
 					return new Date(date).getTime() >= sinceMs;
@@ -357,7 +343,7 @@ export class ApprovalQueueApi {
 		}
 		if (query?.until) {
 			const untilMs = new Date(query.until).getTime();
-			if (!isNaN(untilMs)) {
+			if (!Number.isNaN(untilMs)) {
 				filtered = filtered.filter((r) => {
 					const date = r.approvedAt ?? r.rejectedAt ?? r.requestedAt;
 					return new Date(date).getTime() <= untilMs;

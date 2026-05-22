@@ -23,16 +23,11 @@
  *   └── current.ndjson (symlink or active file)
  */
 
-import { appendFile, mkdir, readFile, rename, stat, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
+import { appendFile, mkdir, readFile, rename, stat, writeFile } from "fs/promises";
 import { join, resolve } from "path";
-import type {
-	AuditEntry as PolicyAuditEntry,
-	AuditQuery,
-	AuditStats,
-	PolicyDecision,
-} from "../policy/types.js";
 import type { AutonomyLevel } from "../goals/types.js";
+import type { AuditQuery, AuditStats, AuditEntry as PolicyAuditEntry, PolicyDecision } from "../policy/types.js";
 import type { RiskLevel } from "../proposals/types.js";
 import type { SourceRef } from "../reflection/types.js";
 
@@ -341,7 +336,7 @@ export class AuditLedger {
 		if (this.buffer.length === 0) return;
 
 		const entries = this.buffer.splice(0);
-		const serialised = entries.map((e) => this.serializeEntry(e)).join("\n") + "\n";
+		const serialised = `${entries.map((e) => this.serializeEntry(e)).join("\n")}\n`;
 
 		try {
 			const filePath = await this.ensureCurrentFilePath();

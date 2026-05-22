@@ -3,41 +3,23 @@
     "phaseId": "P2",
     "workspaceId": "7.E",
     "role": "worker",
-    "goal": "Skill Runner",
-    "allowedFiles": [
-      "packages/coding-agent/src/extensions/skill-runner.ts",
-      "packages/web-server/src/skills-routes.ts"
-    ],
+    "goal": "Audit Ledger",
+    "allowedFiles": [],
     "forbiddenFiles": [
-      ".env*"
+      ".env*",
+      "**/*.pem",
+      "**/*.key"
     ],
-    "acceptanceCriteria": [
-      {
-        "description": "3-step skill runs successfully",
-        "verified": false
-      },
-      {
-        "description": "If step 2 fails, step 3 does not run",
-        "verified": false
-      },
-      {
-        "description": "Step output piping works",
-        "verified": false
-      },
-      {
-        "description": "Skill result readable via skills-routes.ts",
-        "verified": false
-      }
-    ],
-    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/skill-runner.test.ts",
+    "acceptanceCriteria": [],
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 172
+      "estimatedInputTokens": 119
     }
   },
-  "hash": "6e091f846b8c03a761473650f1e7f7ade09b6241f42e64666e610b702599a61f",
-  "createdAt": 1779059531316
+  "hash": "5a72db66ffec4c6be515fa24ec9d55af414493c62ec15c02fedeaf037b26748b",
+  "createdAt": 1779404838452
 }

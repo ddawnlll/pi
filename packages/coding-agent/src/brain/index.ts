@@ -5,10 +5,10 @@
  * from the brain sub-modules.
  */
 
-// Approval Gate (P18.C)
-export { ApprovalGate, createApprovalGate } from "./approvals/gate.js";
 // Approval Queue API (P18.D)
 export { ApprovalQueueApi, createApprovalQueueApi } from "./approvals/api.js";
+// Approval Gate (P18.C)
+export { ApprovalGate, createApprovalGate } from "./approvals/gate.js";
 // Audit Ledger (P18.E)
 export { AuditLedger, createAuditLedger } from "./audit/ledger.js";
 export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";

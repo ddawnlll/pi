@@ -19,10 +19,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApprovalQueueApi } from "../../../src/brain/approvals/api.js";
 import { ApprovalGate } from "../../../src/brain/approvals/gate.js";
 import type { AuditEntry } from "../../../src/brain/audit/ledger.js";
-import type {
-	PolicyContext,
-	ProposalRiskAssessment,
-} from "../../../src/brain/policy/types.js";
+import type { PolicyContext, ProposalRiskAssessment } from "../../../src/brain/policy/types.js";
 
 // ---------------------------------------------------------------------------
 // Test Helpers
@@ -269,7 +266,11 @@ describe("ApprovalQueueApi", () => {
 
 		it("rejects a pending request without reason", async () => {
 			// Override config to not require reason
-			const customGate = new ApprovalGate(ledger, { requireReasonOnRejection: false }, join(tempDir, "requests-noreason.json"));
+			const customGate = new ApprovalGate(
+				ledger,
+				{ requireReasonOnRejection: false },
+				join(tempDir, "requests-noreason.json"),
+			);
 			await customGate.initialize();
 			const customApi = new ApprovalQueueApi(customGate);
 
@@ -304,9 +305,7 @@ describe("ApprovalQueueApi", () => {
 			expect(result.success).toBe(true);
 			expect(result.approval).toBeDefined();
 			expect(result.approval!.status).toBe("pending");
-			expect(new Date(result.approval!.deadline).getTime()).toBeGreaterThan(
-				new Date(originalDeadline).getTime(),
-			);
+			expect(new Date(result.approval!.deadline).getTime()).toBeGreaterThan(new Date(originalDeadline).getTime());
 		});
 
 		it("defers with a custom new deadline", async () => {
@@ -371,7 +370,7 @@ describe("ApprovalQueueApi", () => {
 				makeAltContext("plan_execution", "proposal-002"),
 				makeRisk({ level: "high" }),
 			);
-			const req3 = await gate.requestApproval(
+			const _req3 = await gate.requestApproval(
 				makeAltContext("memory_query", "proposal-003"),
 				makeRisk({ level: "low" }),
 			);
@@ -389,10 +388,7 @@ describe("ApprovalQueueApi", () => {
 
 		it("includes pendingByType breakdown", async () => {
 			await gate.requestApproval(makeContext({ actionType: "memory_proposal" }), makeRisk());
-			await gate.requestApproval(
-				makeAltContext("plan_execution", "proposal-002"),
-				makeRisk({ level: "high" }),
-			);
+			await gate.requestApproval(makeAltContext("plan_execution", "proposal-002"), makeRisk({ level: "high" }));
 
 			const stats = await api.getStats();
 			expect(stats.pendingByType).toBeDefined();

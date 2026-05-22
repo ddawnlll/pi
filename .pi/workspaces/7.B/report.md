@@ -1,15 +1,15 @@
-# Workspace 7.B — Sandbox Executor
+# Workspace 7.B — Policy Rule Store
 
 **Status:** complete
 **Attempts:** 1
-**Completed:** 2026-05-17T22:58:57.100Z
+**Completed:** 2026-05-21T22:17:46.868Z
 **Duration:** 0s
 
 ## Workspace Details
 - **Role Budget:** worker
 - **Max Retries:** 3
-- **Dependencies:** 7.A
+- **Dependencies:** None
 
 ## Capabilities
-- **Can Edit:** packages/coding-agent/src/extensions/sandbox/
-- **Cannot Edit:** .env*, **/*.pem
+- **Can Edit:** None
+- **Cannot Edit:** .env*, **/*.pem, **/*.key

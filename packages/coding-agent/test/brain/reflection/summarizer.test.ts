@@ -36,9 +36,7 @@ function makeOutcome(overrides: Partial<WorkspaceOutcome> = {}): WorkspaceOutcom
 	};
 }
 
-function makeValidationResult(
-	overrides: Partial<ValidationResult> = {},
-): ValidationResult {
+function makeValidationResult(overrides: Partial<ValidationResult> = {}): ValidationResult {
 	return {
 		type: "error",
 		component: "test-component",
@@ -218,9 +216,7 @@ describe("SourceBackedSummarizer", () => {
 
 		test("returns sentinel when no failures", () => {
 			const summarizer = makeSummarizer();
-			const outcomes: WorkspaceOutcome[] = [
-				makeOutcome({ workspaceId: "ws-ok", status: "success" }),
-			];
+			const outcomes: WorkspaceOutcome[] = [makeOutcome({ workspaceId: "ws-ok", status: "success" })];
 
 			const result = summarizer.generateWhatFailedSummary(outcomes, []);
 
@@ -293,9 +289,7 @@ describe("SourceBackedSummarizer", () => {
 		test("rejects when source references are missing from sources array", () => {
 			const summarizer = makeSummarizer();
 			const text = "Build passed [source:workspace-build] and tests pass [source:workspace-tests].";
-			const sources: SourceRef[] = [
-				makeSourceRef({ id: "workspace-build", description: "Build workspace" }),
-			];
+			const sources: SourceRef[] = [makeSourceRef({ id: "workspace-build", description: "Build workspace" })];
 
 			const result = summarizer.validateEvidenceChain(text, sources);
 
@@ -307,9 +301,7 @@ describe("SourceBackedSummarizer", () => {
 		test("rejects when no source references in text", () => {
 			const summarizer = makeSummarizer();
 			const text = "Build passed and tests pass.";
-			const sources: SourceRef[] = [
-				makeSourceRef({ id: "workspace-build", description: "Build workspace" }),
-			];
+			const sources: SourceRef[] = [makeSourceRef({ id: "workspace-build", description: "Build workspace" })];
 
 			const result = summarizer.validateEvidenceChain(text, sources);
 
@@ -320,16 +312,10 @@ describe("SourceBackedSummarizer", () => {
 		test("accepts sentinel no-evidence texts", () => {
 			const summarizer = makeSummarizer();
 
-			const result1 = summarizer.validateEvidenceChain(
-				"No workspaces completed successfully. [source:none]",
-				[],
-			);
+			const result1 = summarizer.validateEvidenceChain("No workspaces completed successfully. [source:none]", []);
 			expect(result1.valid).toBe(true);
 
-			const result2 = summarizer.validateEvidenceChain(
-				"No failures detected. [source:none]",
-				[],
-			);
+			const result2 = summarizer.validateEvidenceChain("No failures detected. [source:none]", []);
 			expect(result2.valid).toBe(true);
 		});
 
@@ -346,11 +332,8 @@ describe("SourceBackedSummarizer", () => {
 
 		test("handles duplicate references", () => {
 			const summarizer = makeSummarizer();
-			const text =
-				"Build passed [source:workspace-build]. Also build was green [source:workspace-build].";
-			const sources: SourceRef[] = [
-				makeSourceRef({ id: "workspace-build", description: "Build workspace" }),
-			];
+			const text = "Build passed [source:workspace-build]. Also build was green [source:workspace-build].";
+			const sources: SourceRef[] = [makeSourceRef({ id: "workspace-build", description: "Build workspace" })];
 
 			const result = summarizer.validateEvidenceChain(text, sources);
 
@@ -489,13 +472,8 @@ describe("SourceBackedSummarizer", () => {
 				summary: "Plan completed.",
 				whatPeopleNeedToKnow: "Good.",
 				whatRan: ["ws-1"],
-				whatWorked: [
-					"Integration passed [source:workspace-ws-1]",
-					"Build was green [source:workspace-ws-2]",
-				],
-				whatFailed: [
-					"Deploy failed [source:workspace-ws-3]",
-				],
+				whatWorked: ["Integration passed [source:workspace-ws-1]", "Build was green [source:workspace-ws-2]"],
+				whatFailed: ["Deploy failed [source:workspace-ws-3]"],
 				whatSlowedDown: [],
 				workspaceCount: 3,
 				successCount: 2,
@@ -520,15 +498,11 @@ describe("SourceBackedSummarizer", () => {
 
 			expect(result.summary).toBe("Plan completed.");
 			expect(result.whatWorked).toHaveLength(2);
-			expect(result.whatWorked[0].text).toBe(
-				"Integration passed [source:workspace-ws-1]",
-			);
+			expect(result.whatWorked[0].text).toBe("Integration passed [source:workspace-ws-1]");
 			expect(result.whatWorked[0].sources).toEqual(["workspace-ws-1"]);
 			expect(result.whatWorked[1].sources).toEqual(["workspace-ws-2"]);
 			expect(result.whatFailed).toHaveLength(1);
-			expect(result.whatFailed[0].text).toBe(
-				"Deploy failed [source:workspace-ws-3]",
-			);
+			expect(result.whatFailed[0].text).toBe("Deploy failed [source:workspace-ws-3]");
 			expect(result.whatFailed[0].sources).toEqual(["workspace-ws-3"]);
 		});
 

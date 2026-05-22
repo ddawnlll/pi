@@ -3,41 +3,23 @@
     "phaseId": "P2",
     "workspaceId": "7.D",
     "role": "worker",
-    "goal": "Agent Tool Injection",
-    "allowedFiles": [
-      "packages/coding-agent/src/extensions/tool-adapter.ts",
-      "packages/coding-agent/src/core/workspace-agent-executor.ts"
-    ],
+    "goal": "Approval Queue API",
+    "allowedFiles": [],
     "forbiddenFiles": [
-      ".env*"
+      ".env*",
+      "**/*.pem",
+      "**/*.key"
     ],
-    "acceptanceCriteria": [
-      {
-        "description": "Installed extension appears in agent tool list",
-        "verified": false
-      },
-      {
-        "description": "When agent calls extension tool, it runs in sandbox",
-        "verified": false
-      },
-      {
-        "description": "Failed extension tool call does not stop the plan",
-        "verified": false
-      },
-      {
-        "description": "Integration test: WorkspaceAgentExecutor works with extension tool",
-        "verified": false
-      }
-    ],
-    "targetCommand": "cd packages/coding-agent && npx vitest run test/extensions/tool-adapter.test.ts",
+    "acceptanceCriteria": [],
+    "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 199
+      "estimatedInputTokens": 121
     }
   },
-  "hash": "fba998fb671d2f42d176948a086db38da793d2b8c34e4eb6b8f381b0deaf3d5c",
-  "createdAt": 1779058999622
+  "hash": "5078fccc426bb1ac00bd22e62f8ed48ba1db6d4304c4fc7a1528e86efe628895",
+  "createdAt": 1779402255656
 }

@@ -1,0 +1,14 @@
+{
+  "id": "forbid_002",
+  "name": "Never destructive cleanup",
+  "description": "Forbid destructive cleanup operations",
+  "condition": {
+    "action": "destructive_cleanup"
+  },
+  "decision": "forbidden",
+  "priority": 200,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}
