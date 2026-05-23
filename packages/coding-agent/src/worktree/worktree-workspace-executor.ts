@@ -96,6 +96,33 @@ function sanitizeForPath(id: string): string {
 	return result || "workspace";
 }
 
+/**
+ * Check if a lock file is stale — the owning workspace ID refers to a
+ * workspace that is no longer active in any current plan execution.
+ *
+ * If the lock file exists but the owner workspace is not in the tracked
+ * process set, the lock is considered stale and can be removed.
+ *
+ * Returns the owner workspace ID if the lock is stale, null otherwise.
+ */
+function readStaleLockOwner(lockPath: string): string | null {
+	try {
+		const { existsSync, readFileSync } = require("node:fs") as typeof import("node:fs");
+		if (!existsSync(lockPath)) return null;
+		const content = readFileSync(lockPath, "utf-8").trim();
+		if (!content) return null;
+		// If the lock file is older than 30 seconds, it's stale regardless
+		const stats = require("node:fs").statSync(lockPath);
+		const age = Date.now() - stats.mtimeMs;
+		if (age > 30_000) {
+			return content; // stale by age
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 // ---------------------------------------------------------------------------
 // WorktreeWorkspaceExecutor
 // ---------------------------------------------------------------------------
@@ -252,7 +279,17 @@ export class WorktreeWorkspaceExecutor {
 		await fs.mkdir(lockDir, { recursive: true });
 		const lockPath = path.join(lockDir, `${sanitizeForPath(this.planExecutionId)}.lock`);
 
-		// Acquire lock with retry
+		// Acquire lock with retry.
+		// If the lock file exists but the owner process is dead (stale from a crash),
+		// the first retry loop would spin for 6 seconds. Check liveness first.
+		const staleLockOwner = await readStaleLockOwner(lockPath);
+		if (staleLockOwner !== null) {
+			try {
+				await fs.unlink(lockPath);
+			} catch {
+				// Non-fatal — another worker may have cleaned it
+			}
+		}
 		for (let attempt = 1; attempt <= 30; attempt++) {
 			try {
 				await fs.writeFile(lockPath, this.workspaceId, { flag: "wx" });
@@ -264,6 +301,15 @@ export class WorktreeWorkspaceExecutor {
 		}
 
 		try {
+			// Clean up any stale branches from crashed worktree runs.
+			// When a workspace agent is killed mid-execution, the worktree and its
+			// branch may be left in a bad state. Prune before creating.
+			try {
+				await git(["worktree", "prune"], cwd);
+			} catch {
+				// Non-fatal
+			}
+
 			// Check if the branch already exists
 			// If conflict persists, increment retry count and use a unique branch name
 			for (let retry = 0; retry < 20; retry++) {
@@ -282,6 +328,7 @@ export class WorktreeWorkspaceExecutor {
 
 				// Branch exists. Try to force-reset it. If it's used by a worktree,
 				// skip to next retry with a unique name (preserving the old worktree's work).
+				// If it's from a crashed run (no worktree), force-reset works.
 				try {
 					await git(["branch", "-f", currentBranch, baseCommit], cwd);
 					break; // success, no conflict
@@ -328,11 +375,13 @@ export class WorktreeWorkspaceExecutor {
 		const alreadyExists = await directoryExists(worktreeDir);
 		if (alreadyExists) {
 			// Check if there's a .git file pointing to a valid worktree
+			let validWorktree = false;
 			try {
 				const gitFilePath = path.join(worktreeDir, ".git");
 				await fs.access(gitFilePath);
 				const gitFileContent = await fs.readFile(gitFilePath, "utf-8");
 				if (gitFileContent.startsWith("gitdir:")) {
+					validWorktree = true;
 					// Worktree already exists, return its state (reconstructed)
 					const baseCommit = await this.getBaseCommit(this.workspaceRoot);
 					const state: WorktreeState = {
@@ -349,7 +398,16 @@ export class WorktreeWorkspaceExecutor {
 					return { state, created: false };
 				}
 			} catch {
-				// .git file doesn't exist or isn't valid, continue with creation
+				// .git file doesn't exist or isn't valid
+			}
+			if (!validWorktree) {
+				// Stale worktree directory from a crash — remove it so we can
+				// re-create it fresh. This prevents 'fatal: '<path>' already exists'
+				try {
+					await fs.rm(worktreeDir, { recursive: true, force: true });
+				} catch {
+					// Non-fatal — creation below will fail if cleanup didn't work
+				}
 			}
 		}
 
@@ -427,7 +485,11 @@ export class WorktreeWorkspaceExecutor {
 
 		await acquireWorktreeMutex();
 		try {
-			await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
+			// Check if the worktree directory still exists before trying to remove it
+			const wtExists = await directoryExists(worktreeDir);
+			if (wtExists) {
+				await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
+			}
 			// Also remove the branch to keep things clean
 			try {
 				await git(["branch", "-D", this.branchName], this.workspaceRoot);
