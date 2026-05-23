@@ -88,10 +88,13 @@ export class PolicyEngine {
 	async evaluate(context: PolicyContext): Promise<PolicyResult> {
 		const startTime = Date.now();
 
-		// 1. Check cache
+		// 1. Check cache (LRU: touch entry on hit by re-inserting)
 		const key = this.cacheKey(context);
 		const cached = this.cache.get(key);
 		if (cached && Date.now() - cached.cachedAt < this.config.cacheTtlMs) {
+			// Touch: delete and re-set to update Map insertion order (LRU)
+			this.cache.delete(key);
+			this.cache.set(key, cached);
 			return cached.result;
 		}
 

@@ -28,6 +28,12 @@ export type OvernightStopCondition =
 
 export type OvernightStatus = "scheduled" | "running" | "completed" | "stopped" | "failed";
 
+export interface RunProgress {
+	completed: number;
+	total: number;
+	failed: number;
+}
+
 export interface OvernightConfig {
 	planExecIds: string[];
 	autonomyLevel: 3 | 4;
@@ -87,9 +93,28 @@ export class OvernightOrchestrator {
 	private stopCheckTimer: ReturnType<typeof setInterval> | null = null;
 	private planQueue: PlanQueueRef;
 	private isRunning = false;
+	/** Promise-chain mutex serialising session lifecycle access. */
+	private sessionMutex: Promise<void> = Promise.resolve();
 
 	constructor(planQueue: PlanQueueRef, _config?: Partial<OvernightConfig>) {
 		this.planQueue = planQueue;
+	}
+
+	/**
+	 * Acquire the session mutex to serialise concurrent lifecycle calls.
+	 */
+	private async withSessionMutex<T>(fn: () => Promise<T>): Promise<T> {
+		const prev = this.sessionMutex;
+		let release: () => void;
+		this.sessionMutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await prev;
+		try {
+			return await fn();
+		} finally {
+			release!();
+		}
 	}
 
 	// =========================================================================
@@ -97,23 +122,25 @@ export class OvernightOrchestrator {
 	// =========================================================================
 
 	async schedule(config: OvernightConfig): Promise<RunSession> {
-		const existing = this.getRunningSession();
-		if (existing) {
-			throw new Error("An overnight session is already running");
-		}
+		return this.withSessionMutex(async () => {
+			const existing = this.getRunningSession();
+			if (existing) {
+				throw new Error("An overnight session is already running");
+			}
 
-		const session: RunSession = {
-			id: generateId(),
-			planExecIds: config.planExecIds,
-			status: "scheduled",
-			progress: { completed: 0, total: config.planExecIds.length, failed: 0 },
-			createdAt: new Date().toISOString(),
-		};
+			const session: RunSession = {
+				id: generateId(),
+				planExecIds: config.planExecIds,
+				status: "scheduled",
+				progress: { completed: 0, total: config.planExecIds.length, failed: 0 },
+				createdAt: new Date().toISOString(),
+			};
 
-		this.config = config;
-		this.session = session;
-		this.sessions.set(session.id, session);
-		return session;
+			this.config = config;
+			this.session = session;
+			this.sessions.set(session.id, session);
+			return session;
+		});
 	}
 
 	async startNow(config: OvernightConfig): Promise<RunSession> {
@@ -123,56 +150,64 @@ export class OvernightOrchestrator {
 	}
 
 	async startScheduled(sessionId: string): Promise<void> {
-		const session = this.sessions.get(sessionId);
-		if (!session) throw new Error(`Session ${sessionId} not found`);
-		if (session.status !== "scheduled") throw new Error(`Session ${sessionId} is not scheduled`);
+		return this.withSessionMutex(async () => {
+			const session = this.sessions.get(sessionId);
+			if (!session) throw new Error(`Session ${sessionId} not found`);
+			if (session.status !== "scheduled") throw new Error(`Session ${sessionId} is not scheduled`);
 
-		session.status = "running";
-		session.startedAt = new Date().toISOString();
-		this.isRunning = true;
+			session.status = "running";
+			session.startedAt = new Date().toISOString();
+			this.isRunning = true;
 
-		this.startStopCheckInterval();
-		await this.runOrchestrationLoop();
+			this.startStopCheckInterval();
+			await this.runOrchestrationLoop();
+		});
 	}
 
 	async stop(reason: string): Promise<RunSession> {
-		if (!this.session) throw new Error("No active session");
-		this.isRunning = false;
-		this.stopStopCheckInterval();
-		this.session.status = "stopped";
-		this.session.stopReason = reason;
-		this.session.completedAt = new Date().toISOString();
+		return this.withSessionMutex(async () => {
+			if (!this.session) throw new Error("No active session");
+			this.isRunning = false;
+			this.stopStopCheckInterval();
+			this.session.status = "stopped";
+			this.session.stopReason = reason;
+			this.session.completedAt = new Date().toISOString();
 
-		// Stop all running plans
-		for (const planId of this.session.planExecIds) {
-			try {
-				await this.planQueue.stopPlan(planId, reason);
-			} catch {
-				// Ignore errors during stop
+			// Stop all running plans
+			for (const planId of this.session.planExecIds) {
+				try {
+					await this.planQueue.stopPlan(planId, reason);
+				} catch {
+					// Ignore errors during stop
+				}
 			}
-		}
 
-		return this.session;
+			return this.session;
+		});
 	}
 
 	async pause(): Promise<RunSession> {
-		if (!this.session) throw new Error("No active session");
-		this.isRunning = false;
-		this.stopStopCheckInterval();
-		this.session.status = "stopped";
-		this.session.stopReason = "Paused by user";
-		return this.session;
+		return this.withSessionMutex(async () => {
+			if (!this.session) throw new Error("No active session");
+			this.isRunning = false;
+			this.stopStopCheckInterval();
+			this.session.status = "stopped";
+			this.session.stopReason = "Paused by user";
+			return this.session;
+		});
 	}
 
 	async resume(): Promise<RunSession> {
-		if (!this.session) throw new Error("No active session");
-		if (this.session.status !== "stopped") throw new Error("Session is not stopped");
+		return this.withSessionMutex(async () => {
+			if (!this.session) throw new Error("No active session");
+			if (this.session.status !== "stopped") throw new Error("Session is not stopped");
 
-		this.session.status = "running";
-		this.isRunning = true;
-		this.startStopCheckInterval();
-		await this.runOrchestrationLoop();
-		return this.session;
+			this.session.status = "running";
+			this.isRunning = true;
+			this.startStopCheckInterval();
+			await this.runOrchestrationLoop();
+			return this.session;
+		});
 	}
 
 	// =========================================================================
@@ -185,9 +220,7 @@ export class OvernightOrchestrator {
 			sessionId: this.session.id,
 			status: this.session.status,
 			progress: { ...this.session.progress },
-			elapsedHours: this.session.startedAt
-				? (Date.now() - new Date(this.session.startedAt).getTime()) / 3600000
-				: 0,
+			elapsedHours: this.session.startedAt ? (Date.now() - new Date(this.session.startedAt).getTime()) / 3600000 : 0,
 		};
 	}
 

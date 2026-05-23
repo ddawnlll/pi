@@ -5,6 +5,8 @@
  * from the brain sub-modules.
  */
 
+// Brain API helpers — queried by packages/web-server/src/routes/brain/*.ts
+export * from "./api.js";
 // Approval Queue API (P18.D)
 export { ApprovalQueueApi, createApprovalQueueApi } from "./approvals/api.js";
 // Approval Gate (P18.C)
@@ -172,6 +174,7 @@ export type {
 	MorningReportObservationEngine,
 	MorningReportReflectionEngine,
 	OvernightConfig,
+	OvernightStatus,
 	OvernightStopCondition,
 	PlanQueueRef,
 	RunProgress,
@@ -188,10 +191,12 @@ export type {
 // Overnight Run Orchestration (P20.A) & Morning Report Generator (P20.B) & Full Loop Validation (P20.C)
 export {
 	DEFAULT_OVERNIGHT_CONFIG,
+	DogfoodReportGenerator,
 	FullLoopValidator,
 	MorningReportGenerator,
 	OvernightOrchestrator,
 	SessionStore,
+	TrustAssessor,
 } from "./overnight/index.js";
 export type { PolicyEngineConfig } from "./policy/engine.js";
 // Policy Engine V0 (P18.A)
@@ -313,7 +318,6 @@ export {
 	type TimelineQueryResult,
 	type TimelineStoreStats,
 } from "./timeline-store.js";
-
 export type {
 	BrainObservation,
 	BrainSignal,

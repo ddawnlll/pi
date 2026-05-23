@@ -761,7 +761,7 @@ describe("AC7: Reflection API", () => {
 		expect(report!.summary).toBeDefined();
 		expect(report!.whatWorked.length).toBeGreaterThan(0);
 		expect(report!.whatFailed.length).toBeGreaterThan(0);
-		expect(report!.metrics).toBeUndefined(); // metrics are flat on the report object
+		expect(report!.workspaceCount).toBeDefined(); // metrics are flat on the report object
 
 		// Non-existent returns null
 		const missing = await api.getReflection("non-existent-id");

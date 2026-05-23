@@ -133,7 +133,8 @@ function resolveDefaultBasePath(): string {
  */
 export class RuleStore {
 	private config: RuleStoreConfig;
-	private index: RuleIndex;
+	/** @internal exposed for testing */
+	public index: RuleIndex;
 	private writeLock: Promise<void>;
 	private initialized: boolean;
 
@@ -692,7 +693,8 @@ export class RuleStore {
 	/**
 	 * Create an empty index structure.
 	 */
-	private createEmptyIndex(): RuleIndex {
+	/** @internal exposed for testing */
+	public createEmptyIndex(): RuleIndex {
 		const byDecision = {} as Record<PolicyDecision, string[]>;
 
 		for (const d of ALL_POLICY_DECISIONS) {

@@ -10,7 +10,7 @@
  * - DogfoodReport generation
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // =========================================================================
 // OvernightOrchestrator
@@ -18,7 +18,7 @@ import { describe, it, expect } from "vitest";
 
 describe("P20.A — OvernightOrchestrator", () => {
 	it("exports OvernightOrchestrator class", async () => {
-		const mod = await import("../../../src/brain/overnight/orchestrator");
+		const mod = await import("../../../src/brain/overnight/orchestrator.js");
 		expect(mod.OvernightOrchestrator).toBeDefined();
 	});
 
@@ -30,7 +30,7 @@ describe("P20.A — OvernightOrchestrator", () => {
 			stopPlan: async () => {},
 			enqueuePlan: async () => {},
 		};
-		const mod = await import("../../../src/brain/overnight/orchestrator");
+		const mod = await import("../../../src/brain/overnight/orchestrator.js");
 		const orchestrator = new mod.OvernightOrchestrator(mockQueue);
 		const session = await orchestrator.schedule({
 			planExecIds: ["plan-1", "plan-2"],
@@ -54,7 +54,7 @@ describe("P20.A — OvernightOrchestrator", () => {
 			stopPlan: async () => {},
 			enqueuePlan: async () => {},
 		};
-		const mod = await import("../../../src/brain/overnight/orchestrator");
+		const mod = await import("../../../src/brain/overnight/orchestrator.js");
 		const orchestrator = new mod.OvernightOrchestrator(mockQueue);
 		const history = orchestrator.getHistory();
 		expect(Array.isArray(history)).toBe(true);
@@ -68,7 +68,7 @@ describe("P20.A — OvernightOrchestrator", () => {
 			stopPlan: async () => {},
 			enqueuePlan: async () => {},
 		};
-		const mod = await import("../../../src/brain/overnight/orchestrator");
+		const mod = await import("../../../src/brain/overnight/orchestrator.js");
 
 		// Create a fresh orchestrator for this test (use schedule + manual steps)
 		const orchestrator = new mod.OvernightOrchestrator(mockQueue);
@@ -98,12 +98,12 @@ describe("P20.A — OvernightOrchestrator", () => {
 
 describe("P20.B — MorningReportGenerator", () => {
 	it("exports MorningReportGenerator class", async () => {
-		const mod = await import("../../../src/brain/overnight/morning-report");
+		const mod = await import("../../../src/brain/overnight/morning-report.js");
 		expect(mod.MorningReportGenerator).toBeDefined();
 	});
 
 	it("generates a report from a session", async () => {
-		const mod = await import("../../../src/brain/overnight/morning-report");
+		const mod = await import("../../../src/brain/overnight/morning-report.js");
 		const generator = new mod.MorningReportGenerator();
 		const session = {
 			id: "test-session",
@@ -115,14 +115,14 @@ describe("P20.B — MorningReportGenerator", () => {
 			createdAt: new Date().toISOString(),
 		};
 		const report = await generator.generate(session);
-		expect(report.title).toContain("1/1");
+		expect(report.title).toContain("All 1 Plans Completed");
 		expect(report.plansCompleted).toBe(1);
 		expect(report.plansFailed).toBe(0);
 		expect(report.generatedBy).toBe("MorningReportGenerator");
 	});
 
 	it("renders markdown correctly", async () => {
-		const mod = await import("../../../src/brain/overnight/morning-report");
+		const mod = await import("../../../src/brain/overnight/morning-report.js");
 		const generator = new mod.MorningReportGenerator();
 		const session = {
 			id: "test-session",
@@ -146,19 +146,19 @@ describe("P20.B — MorningReportGenerator", () => {
 
 describe("P20.C — FullLoopValidator", () => {
 	it("exports FullLoopValidator class", async () => {
-		const mod = await import("../../../src/brain/overnight/validation");
+		const mod = await import("../../../src/brain/overnight/validation.js");
 		expect(mod.FullLoopValidator).toBeDefined();
 	});
 
 	it("has 5 built-in scenarios", async () => {
-		const mod = await import("../../../src/brain/overnight/validation");
+		const mod = await import("../../../src/brain/overnight/validation.js");
 		const validator = new mod.FullLoopValidator();
 		const scenarios = validator.listScenarios();
 		expect(scenarios.length).toBe(5);
 	});
 
 	it("can run a scenario by ID", async () => {
-		const mod = await import("../../../src/brain/overnight/validation");
+		const mod = await import("../../../src/brain/overnight/validation.js");
 		const validator = new mod.FullLoopValidator();
 		const result = await validator.runScenarioById("full_autonomous");
 		expect(result).not.toBeNull();
@@ -168,14 +168,14 @@ describe("P20.C — FullLoopValidator", () => {
 	});
 
 	it("can run all scenarios", async () => {
-		const mod = await import("../../../src/brain/overnight/validation");
+		const mod = await import("../../../src/brain/overnight/validation.js");
 		const validator = new mod.FullLoopValidator();
 		const results = await validator.runAllScenarios();
 		expect(results.size).toBe(5);
 	});
 
 	it("registers scenarios accessible via getScenario", async () => {
-		const mod = await import("../../../src/brain/overnight/validation");
+		const mod = await import("../../../src/brain/overnight/validation.js");
 		const validator = new mod.FullLoopValidator();
 		const scenario = validator.getScenario("safety_stop");
 		expect(scenario).toBeDefined();
@@ -189,12 +189,12 @@ describe("P20.C — FullLoopValidator", () => {
 
 describe("P20.D — TrustAssessor", () => {
 	it("exports TrustAssessor class", async () => {
-		const mod = await import("../../../src/brain/overnight/trust-assessment");
+		const mod = await import("../../../src/brain/overnight/trust-assessment.js");
 		expect(mod.TrustAssessor).toBeDefined();
 	});
 
 	it("generates a full trust assessment", async () => {
-		const mod = await import("../../../src/brain/overnight/trust-assessment");
+		const mod = await import("../../../src/brain/overnight/trust-assessment.js");
 		const assessor = new mod.TrustAssessor();
 		const assessment = await assessor.assess();
 		expect(assessment.score).toBeGreaterThanOrEqual(0);
@@ -206,7 +206,7 @@ describe("P20.D — TrustAssessor", () => {
 	});
 
 	it("assessDimension returns correct structure", async () => {
-		const mod = await import("../../../src/brain/overnight/trust-assessment");
+		const mod = await import("../../../src/brain/overnight/trust-assessment.js");
 		const assessor = new mod.TrustAssessor();
 		const safety = await assessor.assessDimension("safety");
 		expect(safety.score).toBeGreaterThanOrEqual(0);
@@ -221,14 +221,14 @@ describe("P20.D — TrustAssessor", () => {
 
 describe("P20.E — DogfoodReportGenerator", () => {
 	it("exports DogfoodReportGenerator class", async () => {
-		const mod = await import("../../../src/brain/overnight/dogfood-report");
+		const mod = await import("../../../src/brain/overnight/dogfood-report.js");
 		expect(mod.DogfoodReportGenerator).toBeDefined();
 	});
 
 	it("generates a complete dogfood report", async () => {
-		const valMod = await import("../../../src/brain/overnight/validation");
-		const trustMod = await import("../../../src/brain/overnight/trust-assessment");
-		const reportMod = await import("../../../src/brain/overnight/dogfood-report");
+		const valMod = await import("../../../src/brain/overnight/validation.js");
+		const trustMod = await import("../../../src/brain/overnight/trust-assessment.js");
+		const reportMod = await import("../../../src/brain/overnight/dogfood-report.js");
 
 		const validator = new valMod.FullLoopValidator();
 		const assessor = new trustMod.TrustAssessor();
@@ -245,9 +245,9 @@ describe("P20.E — DogfoodReportGenerator", () => {
 	});
 
 	it("renders markdown report", async () => {
-		const valMod = await import("../../../src/brain/overnight/validation");
-		const trustMod = await import("../../../src/brain/overnight/trust-assessment");
-		const reportMod = await import("../../../src/brain/overnight/dogfood-report");
+		const valMod = await import("../../../src/brain/overnight/validation.js");
+		const trustMod = await import("../../../src/brain/overnight/trust-assessment.js");
+		const reportMod = await import("../../../src/brain/overnight/dogfood-report.js");
 
 		const validator = new valMod.FullLoopValidator();
 		const assessor = new trustMod.TrustAssessor();
@@ -270,7 +270,7 @@ describe("P20.E — DogfoodReportGenerator", () => {
 
 describe("P20 — package exports", () => {
 	it("overnight index exports all classes", async () => {
-		const mod = await import("../../../src/brain/overnight/index");
+		const mod = await import("../../../src/brain/overnight/index.js");
 		expect(mod.OvernightOrchestrator).toBeDefined();
 		expect(mod.MorningReportGenerator).toBeDefined();
 		expect(mod.FullLoopValidator).toBeDefined();

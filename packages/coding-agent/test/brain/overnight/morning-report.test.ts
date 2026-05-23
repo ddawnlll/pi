@@ -70,14 +70,6 @@ function createSession(overrides?: Partial<RunSession>): RunSession {
 		completedAt: "2026-01-01T06:00:00.000Z",
 		progress: { completed: 2, total: 3, failed: 1 },
 		createdAt: "2026-01-01T00:00:00.000Z",
-		config: {
-			planExecIds: ["exec-1", "exec-2", "exec-3"],
-			autonomyLevel: 3,
-			stopConditions: ["max_duration_reached"],
-			maxDurationHours: 8,
-			notificationEnabled: true,
-			generateMorningReport: true,
-		},
 		...overrides,
 	};
 }

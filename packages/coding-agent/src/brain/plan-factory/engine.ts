@@ -349,7 +349,8 @@ export class PlanFactory {
 	/**
 	 * Derive a phase title from the proposal type and title.
 	 */
-	private computePhaseTitle(proposal: Proposal): string {
+	/** @internal exposed for testing */
+	public computePhaseTitle(proposal: Proposal): string {
 		// Generate a more descriptive title based on proposal type
 		const typePrefix: Record<string, string> = {
 			plan_proposal: "Plan",

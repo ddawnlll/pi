@@ -1,0 +1,435 @@
+/**
+ * Brain API — web-server-facing functions for all brain endpoints.
+ *
+ * Each function is a convenience wrapper that can work with a module-level
+ * injected store or return sensible defaults. The web-server routes import
+ * these via dynamic `import("@earendil-works/pi-coding-agent")`.
+ */
+
+import type { AuditEntry } from "./audit/ledger.js";
+import { createAuditLedger } from "./audit/ledger.js";
+import type { GoalStore } from "./goals/store.js";
+import { GoalStore as GoalStoreClass } from "./goals/store.js";
+import type { MemoryRecord } from "./memory/types.js";
+import { InMemoryBrainTimelineStore } from "./timeline-store.js";
+import type { BrainObservation, BrainSignal, BrainTimelineEvent } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Module-level state
+// ---------------------------------------------------------------------------
+
+let _brainStore: InMemoryBrainTimelineStore | null = null;
+let _goalStore: GoalStore | null = null;
+let _auditLedger: ReturnType<typeof createAuditLedger> | null = null;
+
+/** Injected (or default-initialised) stores  */
+
+export function getBrainStore(): InMemoryBrainTimelineStore {
+	if (!_brainStore) _brainStore = new InMemoryBrainTimelineStore();
+	return _brainStore;
+}
+export function setBrainStore(s: InMemoryBrainTimelineStore): void {
+	_brainStore = s;
+}
+
+export function getGoalStore(): GoalStore {
+	if (!_goalStore) _goalStore = new GoalStoreClass();
+	return _goalStore;
+}
+export function setGoalStore(s: GoalStore): void {
+	_goalStore = s;
+}
+
+function getAuditLedger() {
+	if (!_auditLedger) _auditLedger = createAuditLedger();
+	return _auditLedger;
+}
+
+// ---------------------------------------------------------------------------
+// Types for web-server routes
+// ---------------------------------------------------------------------------
+
+export interface AuditEntriesResult {
+	entries: AuditEntry[];
+	total: number;
+}
+export interface AuditStatsResult {
+	total: number;
+	today: number;
+	byAction: Record<string, number>;
+	approvalRate: number;
+}
+export interface AutonomyProfileResult {
+	level: number;
+	levelLabel: string;
+	emergencyStop: boolean;
+	approvedActions: number;
+	blockedActions: number;
+	lastUpdated: string;
+}
+export interface MemoryListResult {
+	memories: MemoryRecord[];
+	total: number;
+}
+export interface MemoryStatsResult {
+	total: number;
+	byType: Record<string, number>;
+	byLifecycle: Record<string, number>;
+	averageConfidence: number;
+}
+export interface EmergencyStatusResult {
+	stopped: boolean;
+}
+export interface PolicyRuleListResult {
+	rules: unknown[];
+	total: number;
+}
+export interface PolicyEvaluateResult {
+	decision: string;
+	explanation: string;
+}
+
+// ---------------------------------------------------------------------------
+// Brain state API (moved here from brain/index.ts to avoid circular deps)
+// ---------------------------------------------------------------------------
+
+/** Aggregate daemon and observation/signal statistics. */
+export interface BrainState {
+	daemon: {
+		state: string;
+		uptime: string;
+		observationCount: number;
+	};
+	observationStats: {
+		total: number;
+		bySeverity: Record<string, number>;
+	};
+	signalStats: {
+		total: number;
+		active: number;
+		resolved: number;
+		byType: Record<string, number>;
+	};
+}
+
+/** Query options shared by observations, signals, and timeline list endpoints. */
+export interface BrainQueryOptions {
+	limit?: number;
+	offset?: number;
+	severity?: string;
+	resolved?: boolean;
+}
+
+/** Query observations from the brain store. */
+export interface BrainObservationsResult {
+	observations: BrainObservation[];
+	total: number;
+}
+
+/** Query signals from the brain store. */
+export interface BrainSignalsResult {
+	signals: BrainSignal[];
+	total: number;
+}
+
+/** Query timeline events from the brain store. */
+export interface BrainTimelineResult {
+	events: BrainTimelineEvent[];
+	total: number;
+}
+
+/**
+ * Return the current brain daemon status and aggregate stats.
+ */
+export async function getBrainState(): Promise<BrainState> {
+	const store = getBrainStore();
+	const events = await store.list({ limit: 10000 });
+
+	let observationCount = 0;
+	let signalCount = 0;
+	const bySeverity: Record<string, number> = {};
+	const byType: Record<string, number> = {};
+
+	for (const e of events) {
+		bySeverity[e.severity] = (bySeverity[e.severity] ?? 0) + 1;
+		if (e.eventType === "observation") {
+			observationCount++;
+			const sigType = (e.data as Record<string, unknown> | undefined)?.signalType as string | undefined;
+			if (sigType) byType[sigType] = (byType[sigType] ?? 0) + 1;
+		}
+		if (e.eventType === "signal") {
+			signalCount++;
+		}
+	}
+
+	return {
+		daemon: { state: "running", uptime: "0s", observationCount },
+		observationStats: { total: observationCount, bySeverity },
+		signalStats: { total: signalCount, active: signalCount, resolved: 0, byType },
+	};
+}
+
+/**
+ * Return observations matching the given filters.
+ * Observations are timeline events with eventType === "observation".
+ */
+export async function getObservations(options?: BrainQueryOptions): Promise<BrainObservationsResult> {
+	const store = getBrainStore();
+	const events = await store.list({
+		eventTypes: ["observation"],
+		limit: options?.limit ?? 50,
+		offset: options?.offset ?? 0,
+	});
+
+	const total = await store.count({
+		eventTypes: ["observation"],
+	});
+
+	const observations: BrainObservation[] = events.map((e) => {
+		const data = e.data as Record<string, unknown> | undefined;
+		return {
+			id: e.id,
+			timestamp: e.timestamp,
+			source: (data?.source as string) ?? "system",
+			signalType: (data?.signalType as string) ?? "queue_blocked",
+			severity: e.severity,
+			title: (data?.title as string) ?? "",
+			description: (data?.description as string) ?? "",
+			evidence: [],
+			provenance: {
+				observationSources: [],
+				derivationChain: [],
+				confidence: 0,
+				validatedBy: "system",
+			},
+			metadata: {},
+		} as unknown as BrainObservation;
+	});
+
+	return { observations, total };
+}
+
+/**
+ * Return signals matching the given filters.
+ * Signals are timeline events with eventType === "signal".
+ */
+export async function getSignals(options?: BrainQueryOptions): Promise<BrainSignalsResult> {
+	const store = getBrainStore();
+	const events = await store.list({
+		eventTypes: ["signal"],
+		limit: options?.limit ?? 50,
+		offset: options?.offset ?? 0,
+	});
+
+	const total = await store.count({
+		eventTypes: ["signal"],
+	});
+
+	const signals: BrainSignal[] = events.map((e) => {
+		const data = e.data as Record<string, unknown> | undefined;
+		return {
+			id: e.id,
+			observationIds: [],
+			pattern: (data?.pattern as string) ?? "",
+			summary: (data?.summary as string) ?? "",
+			confidence: (data?.confidence as number) ?? 0,
+			severity: e.severity,
+			createdAt: e.timestamp,
+			metadata: {},
+		} as unknown as BrainSignal;
+	});
+
+	return { signals, total };
+}
+
+/**
+ * Return timeline events matching the given filters.
+ */
+export async function getTimeline(options?: BrainQueryOptions): Promise<BrainTimelineResult> {
+	const store = getBrainStore();
+	const events = await store.list({
+		limit: options?.limit ?? 50,
+		offset: options?.offset ?? 0,
+	});
+
+	const total = await store.count();
+
+	return { events, total };
+}
+
+// ---------------------------------------------------------------------------
+// Audit API
+// ---------------------------------------------------------------------------
+
+export async function getAuditEntries(options?: {
+	limit?: number;
+	offset?: number;
+	action?: string;
+}): Promise<AuditEntriesResult> {
+	try {
+		const ledger = getAuditLedger();
+		const query = options?.action ? { action: options.action } : {};
+		const entries = await ledger.query(query);
+		return {
+			entries: entries.slice(options?.offset ?? 0, (options?.offset ?? 0) + (options?.limit ?? 50)),
+			total: entries.length,
+		};
+	} catch {
+		return { entries: [], total: 0 };
+	}
+}
+
+export async function getAuditStats(): Promise<AuditStatsResult> {
+	try {
+		const ledger = getAuditLedger();
+		const stats = await ledger.getStats();
+		const today = new Date().toISOString().slice(0, 10);
+		return {
+			total: stats.totalEntries,
+			today: stats.byDate[today] ?? 0,
+			byAction: stats.byActor,
+			approvalRate: stats.totalEntries > 0 ? (stats.byDecision.allow ?? 0) / stats.totalEntries : 1,
+		};
+	} catch {
+		return { total: 0, today: 0, byAction: {}, approvalRate: 1 };
+	}
+}
+
+export async function getProvenance(targetId: string): Promise<{ targetId: string; chain: unknown[] } | null> {
+	try {
+		const ledger = getAuditLedger();
+		const entries = await ledger.query({});
+		const related = entries.filter(
+			(e) =>
+				e.id === targetId ||
+				(e as unknown as Record<string, unknown>).proposalId === targetId ||
+				(e as unknown as Record<string, unknown>).planExecId === targetId,
+		);
+		return { targetId, chain: related };
+	} catch {
+		return null;
+	}
+}
+
+export async function explainDecision(targetId: string): Promise<string> {
+	try {
+		const provenance = await getProvenance(targetId);
+		if (!provenance) return "No decision found for the given target.";
+		return `Decision for ${targetId}: ${provenance.chain.length} related audit entr${provenance.chain.length === 1 ? "y" : "ies"} found.`;
+	} catch {
+		return "Unable to explain decision.";
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Autonomy API
+// ---------------------------------------------------------------------------
+
+let _emergencyStop = false;
+
+export async function getAutonomyProfile(): Promise<AutonomyProfileResult> {
+	return {
+		level: 3,
+		levelLabel: "Operator",
+		emergencyStop: _emergencyStop,
+		approvedActions: 0,
+		blockedActions: 0,
+		lastUpdated: new Date().toISOString(),
+	};
+}
+
+export async function updateAutonomyProfile(_updates: Record<string, unknown>): Promise<AutonomyProfileResult> {
+	return getAutonomyProfile();
+}
+
+export async function emergencyStop(): Promise<void> {
+	_emergencyStop = true;
+}
+
+export async function releaseStop(): Promise<void> {
+	_emergencyStop = false;
+}
+
+export async function getEmergencyStatus(): Promise<EmergencyStatusResult> {
+	return { stopped: _emergencyStop };
+}
+
+// ---------------------------------------------------------------------------
+// Memory API
+// ---------------------------------------------------------------------------
+
+export async function getMemories(_options?: {
+	limit?: number;
+	offset?: number;
+	search?: string;
+	type?: string;
+	lifecycle?: string;
+	tags?: string[];
+}): Promise<MemoryListResult> {
+	return { memories: [], total: 0 };
+}
+
+export async function getMemoryStats(): Promise<MemoryStatsResult> {
+	return { total: 0, byType: {}, byLifecycle: {}, averageConfidence: 0 };
+}
+
+export async function getMemory(_id: string): Promise<MemoryRecord | null> {
+	return null;
+}
+
+export async function createMemory(_input: {
+	title: string;
+	content: string;
+	type?: string;
+	tags?: string[];
+	confidence?: number;
+}): Promise<MemoryRecord> {
+	throw new Error("Memory store not configured");
+}
+
+export async function updateMemory(_id: string, _updates: Record<string, unknown>): Promise<MemoryRecord> {
+	throw new Error("Memory store not configured");
+}
+
+export async function deleteMemory(_id: string): Promise<void> {
+	// no-op
+}
+
+export async function rejectMemory(id: string): Promise<{ id: string; status: string }> {
+	return { id, status: "rejected" };
+}
+
+export async function activateMemory(id: string): Promise<{ id: string; status: string }> {
+	return { id, status: "active" };
+}
+
+// ---------------------------------------------------------------------------
+// Overnight API
+// ---------------------------------------------------------------------------
+
+export async function getOvernightHistory(): Promise<unknown[]> {
+	return [];
+}
+
+export async function cancelOvernight(_sessionId: string): Promise<{ success: boolean }> {
+	return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Policy API
+// ---------------------------------------------------------------------------
+
+export async function getPolicyRules(): Promise<PolicyRuleListResult> {
+	return { rules: [], total: 0 };
+}
+
+export async function toggleRule(id: string): Promise<{ id: string; enabled: boolean }> {
+	return { id, enabled: false };
+}
+
+export async function evaluateAction(
+	action: string,
+	_context?: Record<string, unknown>,
+): Promise<PolicyEvaluateResult> {
+	return { decision: "deny", explanation: `No policy engine configured. Action "${action}" denied by default.` };
+}

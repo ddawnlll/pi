@@ -71,7 +71,8 @@ const DEFAULT_BATCH_SIZE = 50;
  * Corrupted lines during reads are skipped with an error log.
  */
 export class AuditLedger {
-	private readonly basePath: string;
+	/** @internal Exposed for testing. */
+	public readonly basePath: string;
 	private readonly rotationThresholdBytes: number;
 	private readonly flushIntervalMs: number;
 	private readonly batchSize: number;

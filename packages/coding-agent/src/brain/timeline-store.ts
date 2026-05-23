@@ -154,122 +154,163 @@ export interface BrainTimelineStore {
  * Stores events in an array for chronological ordering.
  * Supports optional JSON file persistence via saveToFile/loadFromFile.
  *
- * Thread-safe for single-process usage. Not designed for multi-process
- * concurrent access without external file locking.
+ * Serialises all read and write access through a promise-chain mutex
+ * for single-process thread safety.
  */
 export class InMemoryBrainTimelineStore implements BrainTimelineStore {
 	private events: BrainTimelineEvent[] = [];
+	/** Promise-chain mutex serialising all store operations. */
+	private mutex: Promise<void> = Promise.resolve();
+
+	/** Acquire the mutex to serialise concurrent access. */
+	private async withMutex<T>(fn: () => Promise<T>): Promise<T> {
+		const prev = this.mutex;
+		let release: () => void;
+		this.mutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await prev;
+		try {
+			return await fn();
+		} finally {
+			release!();
+		}
+	}
 
 	async append(event: BrainTimelineEvent): Promise<void> {
-		const validation = validateBrainTimelineEvent(event);
-		if (!validation.valid) {
-			throw new Error(`Invalid BrainTimelineEvent: ${validation.errors.join("; ")}`);
-		}
-		this.events.push(event);
+		return this.withMutex(async () => {
+			const validation = validateBrainTimelineEvent(event);
+			if (!validation.valid) {
+				throw new Error(`Invalid BrainTimelineEvent: ${validation.errors.join("; ")}`);
+			}
+			this.events.push(event);
+		});
 	}
 
 	async appendBatch(events: BrainTimelineEvent[]): Promise<void> {
-		for (const event of events) {
-			const validation = validateBrainTimelineEvent(event);
-			if (!validation.valid) {
-				throw new Error(`Invalid BrainTimelineEvent in batch (id=${event.id}): ${validation.errors.join("; ")}`);
+		return this.withMutex(async () => {
+			for (const event of events) {
+				const validation = validateBrainTimelineEvent(event);
+				if (!validation.valid) {
+					throw new Error(`Invalid BrainTimelineEvent in batch (id=${event.id}): ${validation.errors.join("; ")}`);
+				}
 			}
-		}
-		this.events.push(...events);
+			this.events.push(...events);
+		});
 	}
 
 	async get(id: string): Promise<BrainTimelineEvent | null> {
-		return this.events.find((e) => e.id === id) ?? null;
+		return this.withMutex(async () => {
+			return this.events.find((e) => e.id === id) ?? null;
+		});
 	}
 
 	async list(options?: TimelineQueryOptions): Promise<BrainTimelineEvent[]> {
-		const filtered = this.applyFilters(this.events, options);
+		return this.withMutex(async () => {
+			const filtered = this.applyFilters(this.events, options);
 
-		// Sort by timestamp
-		const order = options?.order ?? "desc";
-		filtered.sort((a, b) => {
-			const cmp = a.timestamp.localeCompare(b.timestamp);
-			return order === "asc" ? cmp : -cmp;
+			// Sort by timestamp
+			const order = options?.order ?? "desc";
+			filtered.sort((a, b) => {
+				const cmp = a.timestamp.localeCompare(b.timestamp);
+				return order === "asc" ? cmp : -cmp;
+			});
+
+			// Paginate
+			const offset = options?.offset ?? 0;
+			const limit = options?.limit ?? 100;
+
+			return filtered.slice(offset, offset + limit);
 		});
-
-		// Paginate
-		const offset = options?.offset ?? 0;
-		const limit = options?.limit ?? 100;
-
-		return filtered.slice(offset, offset + limit);
 	}
 
 	async count(options?: Omit<TimelineQueryOptions, "limit" | "offset" | "order">): Promise<number> {
-		return this.applyFilters(this.events, options).length;
+		return this.withMutex(async () => {
+			return this.applyFilters(this.events, options).length;
+		});
 	}
 
 	async clear(): Promise<void> {
-		this.events = [];
+		return this.withMutex(async () => {
+			this.events = [];
+		});
 	}
 
 	async prune(olderThan: string): Promise<number> {
-		const before = this.events.length;
-		this.events = this.events.filter((e) => e.timestamp >= olderThan);
-		return before - this.events.length;
+		return this.withMutex(async () => {
+			const before = this.events.length;
+			this.events = this.events.filter((e) => e.timestamp >= olderThan);
+			return before - this.events.length;
+		});
 	}
 
 	async saveToFile(filePath: string): Promise<void> {
-		const dir = path.dirname(filePath);
-		await fs.mkdir(dir, { recursive: true });
-		const json = JSON.stringify(this.events, null, 2);
-		await fs.writeFile(filePath, json, "utf-8");
+		return this.withMutex(async () => {
+			const dir = path.dirname(filePath);
+			await fs.mkdir(dir, { recursive: true });
+			const json = JSON.stringify(this.events, null, 2);
+			await fs.writeFile(filePath, json, "utf-8");
+		});
 	}
 
 	async loadFromFile(filePath: string): Promise<number> {
-		const json = await fs.readFile(filePath, "utf-8");
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(json);
-		} catch (e) {
-			throw new Error(`Failed to parse timeline file: ${(e as Error).message}`);
-		}
-
-		if (!Array.isArray(parsed)) {
-			throw new Error("Timeline file must contain a JSON array of events");
-		}
-
-		const events: BrainTimelineEvent[] = [];
-		for (const item of parsed) {
-			const validation = validateBrainTimelineEvent(item);
-			if (!validation.valid) {
-				throw new Error(`Invalid event in timeline file: ${validation.errors.join("; ")}`);
+		return this.withMutex(async () => {
+			const json = await fs.readFile(filePath, "utf-8");
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(json);
+			} catch (e) {
+				throw new Error(`Failed to parse timeline file: ${(e as Error).message}`);
 			}
-			events.push(item as BrainTimelineEvent);
-		}
 
-		this.events = events;
-		return events.length;
+			if (!Array.isArray(parsed)) {
+				throw new Error("Timeline file must contain a JSON array of events");
+			}
+
+			const events: BrainTimelineEvent[] = [];
+			for (const item of parsed) {
+				const validation = validateBrainTimelineEvent(item);
+				if (!validation.valid) {
+					throw new Error(`Invalid event in timeline file: ${validation.errors.join("; ")}`);
+				}
+				events.push(item as BrainTimelineEvent);
+			}
+
+			this.events = events;
+			return events.length;
+		});
 	}
 
 	async size(): Promise<number> {
-		return this.events.length;
+		return this.withMutex(async () => {
+			return this.events.length;
+		});
 	}
 
 	async earliestTimestamp(): Promise<string | null> {
-		if (this.events.length === 0) return null;
-		let earliest = this.events[0].timestamp;
-		for (let i = 1; i < this.events.length; i++) {
-			if (this.events[i].timestamp < earliest) {
-				earliest = this.events[i].timestamp;
+		return this.withMutex(async () => {
+			if (this.events.length === 0) return null;
+			let earliest = this.events[0].timestamp;
+			for (let i = 1; i < this.events.length; i++) {
+				if (this.events[i].timestamp < earliest) {
+					earliest = this.events[i].timestamp;
+				}
 			}
-		}
-		return earliest;
+			return earliest;
+		});
 	}
 
 	async latestTimestamp(): Promise<string | null> {
-		if (this.events.length === 0) return null;
-		let latest = this.events[0].timestamp;
-		for (let i = 1; i < this.events.length; i++) {
-			if (this.events[i].timestamp > latest) {
-				latest = this.events[i].timestamp;
+		return this.withMutex(async () => {
+			if (this.events.length === 0) return null;
+			let latest = this.events[0].timestamp;
+			for (let i = 1; i < this.events.length; i++) {
+				if (this.events[i].timestamp > latest) {
+					latest = this.events[i].timestamp;
+				}
 			}
-		}
-		return latest;
+			return latest;
+		});
 	}
 
 	/**

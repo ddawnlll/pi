@@ -224,11 +224,14 @@ export class MemoryStore {
 
 			const record = deserializeMemoryRecord(json);
 
-			// Restore index entry if missing (e.g., after corrupt index rebuild)
+			// Restore index entry if missing (e.g., after corrupt index rebuild).
+			// Double-check inside the lock to avoid races with concurrent get().
 			if (!this.index.byId[id]) {
 				await this.withWriteLock(async () => {
-					this.updateIndexForRecord(record);
-					await this.saveIndex();
+					if (!this.index.byId[id]) {
+						this.updateIndexForRecord(record);
+						await this.saveIndex();
+					}
 				});
 			}
 
@@ -692,7 +695,13 @@ export class MemoryStore {
 
 		const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
 		try {
-			await fs.writeFile(tmpPath, data, "utf-8");
+			const handle = await fs.open(tmpPath, "w");
+			try {
+				await handle.writeFile(data, "utf-8");
+				await handle.sync(); // Ensure data is flushed to disk
+			} finally {
+				await handle.close();
+			}
 			await fs.rename(tmpPath, filePath);
 		} catch (err) {
 			// Clean up temp file on failure

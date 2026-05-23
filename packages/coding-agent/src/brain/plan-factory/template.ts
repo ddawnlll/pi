@@ -312,7 +312,8 @@ export class MasterTemplateIntegration {
 	/**
 	 * Generate a fallback template when the template file doesn't exist.
 	 */
-	private generateFallbackTemplate(version: string): string {
+	/** @internal exposed for testing */
+	public generateFallbackTemplate(version: string): string {
 		const lines: string[] = [];
 		lines.push(`# Template v${version} — Fallback`);
 		lines.push("");
