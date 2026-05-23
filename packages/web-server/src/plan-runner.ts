@@ -20,6 +20,7 @@ import {
 	parsePlan,
 	runCleanupReview,
 	validatePlanTargetCommands,
+	type WorkspaceExecutionResult,
 	type WorkspaceQueue,
 	WorkspaceStage,
 } from "@earendil-works/pi-coding-agent";
@@ -1218,7 +1219,24 @@ async function executePlanInBackground(
 			}
 
 			await log(`Executing ${nextWorkspaces.length} workspace(s) in parallel...`);
-			const results = await Promise.all(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+			const settled = await Promise.allSettled(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+			const results: WorkspaceExecutionResult[] = [];
+			for (let i = 0; i < settled.length; i++) {
+				const r = settled[i];
+				if (r.status === "fulfilled") {
+					results.push(r.value);
+				} else {
+					const wsId = nextWorkspaces[i]?.id ?? "unknown";
+					await log(`  - ${wsId}: UNCAUGHT ERROR: ${r.reason}`);
+					results.push({
+						workspaceId: wsId,
+						success: false,
+						verdict: "FAILED" as const,
+						error: String(r.reason),
+						report: `Uncaught workspace error: ${r.reason}`,
+					});
+				}
+			}
 
 			for (const result of results) {
 				await log(`  - ${result.workspaceId}: ${result.verdict} (success=${result.success})`);
