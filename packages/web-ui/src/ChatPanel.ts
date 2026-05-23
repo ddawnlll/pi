@@ -4,8 +4,9 @@ import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "./components/AgentInterface.js";
+import "./components/EmptyState.js";
 import type { Agent, AgentTool } from "@earendil-works/pi-agent-core";
-import { Brain } from "lucide";
+import { Brain, MessageSquare } from "lucide";
 import type { AgentInterface } from "./components/AgentInterface.js";
 import { ArtifactsRuntimeProvider } from "./components/sandbox/ArtifactsRuntimeProvider.js";
 import { AttachmentsRuntimeProvider } from "./components/sandbox/AttachmentsRuntimeProvider.js";
@@ -14,9 +15,15 @@ import { ReflectionViewerDialog } from "./dialogs/ReflectionViewerDialog.js";
 import { ArtifactsPanel, ArtifactsToolRenderer } from "./tools/artifacts/index.js";
 import { registerToolRenderer } from "./tools/renderer-registry.js";
 import type { Attachment } from "./utils/attachment-utils.js";
+import { BREAKPOINTS, breakpointDown } from "./utils/breakpoints.js";
 import { i18n } from "./utils/i18n.js";
 
-const BREAKPOINT = 800; // px - switch between overlay and side-by-side
+/**
+ * Breakpoint at which the artifacts panel switches from side-by-side to overlay.
+ * Uses the `md` breakpoint (768px). Below that, artifacts render as an overlay;
+ * at or above, they appear side-by-side with the chat.
+ */
+const BREAKPOINT = BREAKPOINTS.md;
 
 @customElement("pi-chat-panel")
 export class ChatPanel extends LitElement {
@@ -162,12 +169,13 @@ export class ChatPanel extends LitElement {
 
 	render() {
 		if (!this.agent || !this.agentInterface) {
-			return html`<div class="flex items-center justify-center h-full">
-				<div class="text-muted-foreground">No agent set</div>
-			</div>`;
+			return html`<empty-state
+				.icon=${icon(MessageSquare, "md")}
+				title="No agent set"
+			></empty-state>`;
 		}
 
-		const isMobile = this.windowWidth < BREAKPOINT;
+		const isMobile = breakpointDown("md", this.windowWidth);
 
 		// Set panel props
 		if (this.artifactsPanel) {

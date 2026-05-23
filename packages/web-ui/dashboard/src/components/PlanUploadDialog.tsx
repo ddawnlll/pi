@@ -704,10 +704,23 @@ export function PlanUploadDialog({
 									{fileEntries.length === 0 && !previewState.validationResponse && (
 										<LegacyInputArea
 											projectId={projectId}
-											onValidate={() => {
-												// For legacy mode, just let the hook validate handle it
-												// via the Validate button below
+											onValidate={async (content, fileName) => {
+												try {
+													setValidatingFiles(new Set([fileName]));
+													const file = new File([content], fileName, { type: "text/markdown" });
+													setFileEntries([{ file, content, status: "ready" }]);
+													const result = await hookValidate(content);
+													if (result) {
+														setValidationResults(new Map([[fileName, result]]));
+													}
+												} catch (err) {
+													setValidationResults(new Map([[fileName, { success: false, errors: [String(err)] }]]));
+												} finally {
+													setValidatingFiles(new Set());
+													goToStep(2);
+												}
 											}}
+											onCancel={handleClose}
 										/>
 									)}
 									{/* Multi-file select */}
@@ -872,9 +885,11 @@ export function PlanUploadDialog({
 function LegacyInputArea({
 	projectId,
 	onValidate,
+	onCancel,
 }: {
 	projectId: string;
-	onValidate: () => void;
+	onValidate: (content: string, fileName: string) => void;
+	onCancel: () => void;
 }) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -933,13 +948,13 @@ function LegacyInputArea({
 			</div>
 			<div className="flex gap-2 mt-3">
 				<button
-					onClick={handleFileUpload}
+					onClick={onCancel}
 					className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
 				>
 					Cancel
 				</button>
 				<button
-					onClick={onValidate}
+					onClick={() => onValidate(planContent, planFileName)}
 					disabled={planContent.trim().length === 0}
 					className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
 				>

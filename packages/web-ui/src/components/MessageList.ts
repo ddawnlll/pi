@@ -3,9 +3,13 @@ import type {
 	AssistantMessage as AssistantMessageType,
 	ToolResultMessage as ToolResultMessageType,
 } from "@earendil-works/pi-ai";
+import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { html, LitElement, type TemplateResult } from "lit";
 import { property } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
+import { MessageSquare } from "lucide";
+import "./EmptyState.js";
+import { i18n } from "../utils/i18n.js";
 import { renderMessage } from "./message-renderer-registry.js";
 
 export class MessageList extends LitElement {
@@ -82,7 +86,16 @@ export class MessageList extends LitElement {
 
 	override render() {
 		const items = this.buildRenderItems();
-		return html`<div class="flex flex-col gap-3">
+
+		if (items.length === 0) {
+			return html`<empty-state
+				.icon=${icon(MessageSquare, "md")}
+				title="${i18n("No messages yet")}"
+				description="${i18n("Send a message to begin chatting with the AI")}"
+			></empty-state>`;
+		}
+
+		return html`<div class="flex flex-col gap-3" aria-live="polite" aria-atomic="false">
 			${repeat(
 				items,
 				(it) => it.key,

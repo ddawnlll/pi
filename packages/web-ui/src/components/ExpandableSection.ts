@@ -35,6 +35,7 @@ export class ExpandableSection extends LitElement {
 						this.expanded = !this.expanded;
 					}}
 					class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+					aria-expanded=${this.expanded}
 				>
 					${icon(this.expanded ? ChevronDown : ChevronRight, "sm")}
 					<span>${this.summary}</span>

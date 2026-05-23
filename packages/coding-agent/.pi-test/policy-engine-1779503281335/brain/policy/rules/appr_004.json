@@ -1,0 +1,18 @@
+{
+  "id": "appr_004",
+  "name": "High-risk action",
+  "description": "Require approval for high or critical risk actions",
+  "condition": {
+    "action": "*",
+    "riskLevel": [
+      "high",
+      "critical"
+    ]
+  },
+  "decision": "approval_required",
+  "priority": 85,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

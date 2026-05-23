@@ -520,6 +520,13 @@ export interface WorkspaceQueue {
 	parallelismReview?: ParallelismReview;
 
 	/**
+	 * Workspace execution timeout in milliseconds.
+	 * If a single workspace execution takes longer than this, it is aborted.
+	 * Defaults to 30 minutes (1800000 ms) when not set.
+	 */
+	workspaceTimeoutMs?: number;
+
+	/**
 	 * Whether this queue represents a draft plan (non-executable until approved).
 	 *
 	 * Draft plans are generated from approved proposals but remain

@@ -42,6 +42,7 @@ import {
 	Star,
 	TrendingUp,
 } from "lucide";
+import "../components/EmptyState.js";
 import { i18n } from "../utils/i18n.js";
 
 // ---------------------------------------------------------------------------
@@ -459,9 +460,10 @@ export class ReflectionViewerDialog extends DialogBase {
             ${i18n("Loading...")}
           </div>`
 				: this.reflections.length === 0
-					? html`<div class="text-center py-12 text-muted-foreground text-sm">
-              ${i18n("No reflections found")}
-            </div>`
+					? html`<empty-state
+                .icon=${icon(Brain, "md")}
+                title="${i18n("No reflections found")}"
+              ></empty-state>`
 					: this.renderReflectionList()
 		}
 
@@ -801,9 +803,10 @@ export class ReflectionViewerDialog extends DialogBase {
 
 	private renderMemories(): TemplateResult {
 		if (!this.memories || this.memories.length === 0) {
-			return html`<div class="text-center py-12 text-muted-foreground text-sm">
-        ${i18n("No memory proposals in this reflection.")}
-      </div>`;
+			return html`<empty-state
+          .icon=${icon(Star, "md")}
+          title="${i18n("No memory proposals in this reflection.")}"
+        ></empty-state>`;
 		}
 
 		return html`
@@ -842,9 +845,10 @@ export class ReflectionViewerDialog extends DialogBase {
 
 	private renderFuture(): TemplateResult {
 		if (!this.future || this.future.length === 0) {
-			return html`<div class="text-center py-12 text-muted-foreground text-sm">
-        ${i18n("No future phase suggestions in this reflection.")}
-      </div>`;
+			return html`<empty-state
+          .icon=${icon(Lightbulb, "md")}
+          title="${i18n("No future phase suggestions in this reflection.")}"
+        ></empty-state>`;
 		}
 
 		return html`
@@ -887,9 +891,10 @@ export class ReflectionViewerDialog extends DialogBase {
 
 	private renderProposals(): TemplateResult {
 		if (!this.proposals || this.proposals.length === 0) {
-			return html`<div class="text-center py-12 text-muted-foreground text-sm">
-        ${i18n("No proposals in this reflection.")}
-      </div>`;
+			return html`<empty-state
+          .icon=${icon(List, "md")}
+          title="${i18n("No proposals in this reflection.")}"
+        ></empty-state>`;
 		}
 
 		return html`

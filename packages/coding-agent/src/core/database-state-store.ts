@@ -292,6 +292,7 @@ export class DatabaseStateStore implements IStateStore {
 			startedAt: new Date(planExec.started_at).getTime(),
 			completedAt: planExec.completed_at ? new Date(planExec.completed_at).getTime() : undefined,
 			status: planExec.status as PlanState["status"],
+			handoffStartedAt: planExec.handoff_started_at ? new Date(planExec.handoff_started_at).getTime() : undefined,
 		};
 
 		// Cache
@@ -303,6 +304,7 @@ export class DatabaseStateStore implements IStateStore {
 			status: planExec.status as PlanCacheEntry["status"],
 			startedAt: new Date(planExec.started_at).getTime(),
 			completedAt: planExec.completed_at ? new Date(planExec.completed_at).getTime() : undefined,
+			handoffStartedAt: planExec.handoff_started_at ? new Date(planExec.handoff_started_at).getTime() : undefined,
 			workspaces: wsEntries,
 		});
 
@@ -316,6 +318,24 @@ export class DatabaseStateStore implements IStateStore {
 		const cacheEntry = this.cache.get(planExecutionId);
 		if (!cacheEntry) return;
 
+		// Also sync the plan execution row to ensure consistency
+		const planUpdate: Record<string, unknown> = {
+			status: cacheEntry.status,
+		};
+		
+		// Set completed_at for terminal states
+		if (cacheEntry.completedAt) {
+			planUpdate.completed_at = new Date(cacheEntry.completedAt).toISOString();
+		}
+		
+		// Set handoff_started_at for awaiting_handoff state
+		if (cacheEntry.status === "awaiting_handoff" && cacheEntry.handoffStartedAt) {
+			planUpdate.handoff_started_at = new Date(cacheEntry.handoffStartedAt).toISOString();
+		}
+		
+		await this.planExecutionRepo.update(planExecutionId, planUpdate as any);
+
+		// Update workspace execution rows
 		for (const ws of cacheEntry.workspaces.values()) {
 			await this.workspaceExecutionRepo.update(ws.id, {
 				stage: ws.stage,
@@ -601,6 +621,11 @@ export class DatabaseStateStore implements IStateStore {
 	async resumePlan(planExecutionId: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "running");
 		this.updateCacheStatus(planExecutionId, "running");
+		
+		// Reload state to ensure workspace cache is synchronized with DB
+		// This handles cases where workspaces were in various states when paused
+		await this.loadState(planExecutionId);
+		
 		await this.appendJournal(planExecutionId, {
 			type: "plan_resumed",
 			timestamp: Date.now(),
@@ -831,8 +856,38 @@ export class DatabaseStateStore implements IStateStore {
 		tokens_per_workspace?: number;
 		tokens_per_percent?: number;
 	} | null> {
-		const cacheEntry = this.cache.get(planExecutionId);
-		if (!cacheEntry) return null;
+		// Try cache first for fast path
+		let cacheEntry = this.cache.get(planExecutionId);
+
+		// If cache miss, load state from DB (handles post-completion stats queries)
+		if (!cacheEntry) {
+			try {
+				await this.loadState(planExecutionId);
+				cacheEntry = this.cache.get(planExecutionId);
+			} catch {
+				// Failed to load from DB
+			}
+		}
+
+		if (!cacheEntry) {
+			// Last resort: query DB directly for workspace stats
+			try {
+				const stats = await this.workspaceExecutionRepo.getStats(planExecutionId);
+				return {
+					...stats,
+					total_tokens_in: undefined,
+					total_tokens_out: undefined,
+					cache_hit_rate: 0,
+					cache_hit_rate_known: false,
+					estimated_cost_usd: undefined,
+					burn_rate_per_min: undefined,
+					tokens_per_workspace: undefined,
+					tokens_per_percent: undefined,
+				};
+			} catch {
+				return null;
+			}
+		}
 
 		const stats = { total: 0, pending: 0, active: 0, complete: 0, blocked: 0, failed: 0 };
 		for (const ws of cacheEntry.workspaces.values()) {

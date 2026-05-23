@@ -144,6 +144,12 @@ export interface AutonomousExecutorConfig {
 	 * Required for experimental_6 scale mode.
 	 */
 	worktree?: WorktreeConfig;
+	/**
+	 * Workspace execution timeout in milliseconds.
+	 * If a single workspace execution takes longer than this, it is aborted.
+	 * Defaults to 30 minutes (1800000 ms).
+	 */
+	workspaceTimeoutMs?: number;
 }
 
 /**
@@ -232,6 +238,7 @@ export class AutonomousExecutor {
 				model: config.model,
 				maxTurns: 50,
 				stateStore: this.stateStore,
+				timeoutMs: config.workspaceTimeoutMs,
 			};
 			// P6.A: Pass worktree config to enable isolated worktree execution
 			if (config.worktree) {
@@ -395,6 +402,13 @@ export class AutonomousExecutor {
 			if (ws.stage === WorkspaceStage.Complete) {
 				this.completionGate.markImplementationFinished(planExecutionId, wsId);
 			}
+		}
+
+		// Reload state cache after transitions so the background loop sees
+		// the updated workspace states (e.g. stranded Active → Pending).
+		const updatedState = await this.stateStore.loadState(planExecutionId);
+		if (updatedState) {
+			this.currentPlanState = updatedState;
 		}
 
 		const log = new PiLogger({ planExecId: planExecutionId });
@@ -653,9 +667,14 @@ export class AutonomousExecutor {
 				if (this.enableRealExecution && this.agentExecutor) {
 					// Real agent execution
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
+
+					// Set log path on executor so partial logs are written on abort/timeout
+					this.agentExecutor.setLogPath(logPath);
+
 					const agentResult = await this.agentExecutor.execute(packet, workspace.id);
 
-					// Write execution logs
+					// Write execution logs (also written by executor on completion, but keep
+					// this as a safety net in case executor didn't write them for any reason)
 					await fs.writeFile(logPath, agentResult.logs.join("\n"), "utf-8");
 
 					result = {
@@ -790,16 +809,20 @@ export class AutonomousExecutor {
 			// Without this, plans executed outside the CLI loop (e.g., via web-server)
 			// would remain "running" in the DB forever because completePlan() was only
 			// called from plan-commands.ts after the execution loop finished.
+			// Use setTimeout instead of queueMicrotask for reliable async scheduling
+			// and re-check state to handle race conditions with parallel workspace completions.
 			if (this.isExecutionComplete()) {
-				// Use setTimeout to avoid re-entrancy issues — let the current call stack unwind
-				// before completing the plan. Use queueMicrotask for same-tick scheduling.
-				queueMicrotask(async () => {
+				setTimeout(async () => {
 					try {
-						await this.completePlan();
+						// Re-check state to handle race conditions - another workspace might
+						// have completed between the initial check and this callback running
+						if (this.isExecutionComplete()) {
+							await this.completePlan();
+						}
 					} catch (completeError) {
 						console.error(`[auto-complete] Failed to complete plan ${planExecutionId}:`, completeError);
 					}
-				});
+				}, 0);
 			}
 
 			return result;
@@ -862,14 +885,19 @@ export class AutonomousExecutor {
 			});
 
 			// Check if all workspaces are terminal (all failed/complete — no more pending/active)
+			// Use setTimeout instead of queueMicrotask for reliable async scheduling
+			// and re-check state to handle race conditions with parallel workspace completions.
 			if (this.isExecutionComplete()) {
-				queueMicrotask(async () => {
+				setTimeout(async () => {
 					try {
-						await this.failPlan("All workspaces failed or plan cannot proceed");
+						// Re-check state to handle race conditions
+						if (this.isExecutionComplete()) {
+							await this.failPlan("All workspaces failed or plan cannot proceed");
+						}
 					} catch (completeError) {
 						console.error(`[auto-complete] Failed to fail plan ${planExecutionId}:`, completeError);
 					}
-				});
+				}, 0);
 			}
 
 			return {

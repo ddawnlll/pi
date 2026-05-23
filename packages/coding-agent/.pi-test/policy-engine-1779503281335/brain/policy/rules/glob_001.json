@@ -1,0 +1,14 @@
+{
+  "id": "glob_001",
+  "name": "Glob match memory actions",
+  "description": "Approve actions matching memory_* pattern",
+  "condition": {
+    "action": "memory_*"
+  },
+  "decision": "approval_required",
+  "priority": 95,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

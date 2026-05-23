@@ -95,6 +95,7 @@ export class AttachmentTile extends LitElement {
 								}}
 								class="absolute -top-1 -right-1 w-5 h-5 bg-background hover:bg-muted text-muted-foreground hover:text-foreground rounded-full flex items-center justify-center opacity-100 hover:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity border border-input shadow-sm"
 								title="${i18n("Remove")}"
+								aria-label="${i18n("Remove")}"
 							>
 								${icon(X, "xs")}
 							</button>

@@ -134,6 +134,10 @@ export class PlanExecutionRepository {
 		if (status === "complete" || status === "failed" || status === "stopped" || status === "cancelled") {
 			update.completed_at = new Date().toISOString();
 		}
+		// Set handoff_started_at when entering awaiting_handoff state
+		if (status === "awaiting_handoff") {
+			update.handoff_started_at = new Date().toISOString();
+		}
 		return this.update(id, update);
 	}
 

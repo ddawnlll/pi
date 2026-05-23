@@ -80,7 +80,7 @@ export class StreamingMessageContainer extends LitElement {
 		} else if (msg.role === "assistant") {
 			// Assistant message - render inline tool messages during streaming
 			return html`
-				<div class="flex flex-col gap-3 mb-3">
+				<div class="flex flex-col gap-3 mb-3" aria-live="polite" aria-atomic="true">
 					<assistant-message
 						.message=${msg}
 						.tools=${this.tools}

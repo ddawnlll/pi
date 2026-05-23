@@ -107,6 +107,8 @@ export class SafetyProfileTab extends SettingsTab {
 					isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
 				}"
 				@click=${() => this.saveProfile(option.value)}
+				role="radio"
+				aria-checked=${isSelected}
 			>
 				<div class="flex items-center justify-between">
 					<span class="text-sm font-medium text-foreground">${option.label}</span>

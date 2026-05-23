@@ -60,6 +60,12 @@ export interface WorkspaceAgentExecutorConfig {
 	 * When disabled or absent, falls back to shared-working-tree execution (P5.5).
 	 */
 	worktree?: WorktreeConfig;
+	/**
+	 * Execution timeout in milliseconds.
+	 * If the agent execution takes longer than this, it is aborted.
+	 * Defaults to 30 minutes (1800000 ms) when not set.
+	 */
+	timeoutMs?: number;
 }
 
 /**
@@ -76,6 +82,8 @@ export class WorkspaceAgentExecutor {
 	private planExecutionId?: string;
 	/** Worktree isolation config, if enabled. */
 	private worktreeConfig?: WorktreeConfig;
+	/** Execution timeout in milliseconds. */
+	private timeoutMs: number;
 	/** P6.A: The worktree executor, created when worktree mode is enabled. */
 	private worktreeExecutor: WorktreeWorkspaceExecutor | null = null;
 
@@ -92,6 +100,8 @@ export class WorkspaceAgentExecutor {
 
 	/** P4.6.3: AbortController for the current execution, created per execute() call. */
 	private abortController: AbortController | null = null;
+	/** Timeout handle for the current execution, created per execute() call. */
+	private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(config: WorkspaceAgentExecutorConfig) {
 		this.workspaceRoot = config.workspaceRoot;
@@ -100,6 +110,7 @@ export class WorkspaceAgentExecutor {
 		this.stateStore = config.stateStore;
 		this.planExecutionId = config.planExecutionId;
 		this.worktreeConfig = config.worktree;
+		this.timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // 30 minutes
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -134,6 +145,14 @@ export class WorkspaceAgentExecutor {
 			getModel("openai", "gpt-4o") ??
 			getModel("anthropic", "claude-3-5-sonnet-20241022")
 		);
+	}
+
+	/**
+	 * Set the log path for the current execution.
+	 * Called by the executor owner before each execute() call.
+	 */
+	setLogPath(logPath: string): void {
+		this.logPath = logPath;
 	}
 
 	/**
@@ -273,11 +292,40 @@ export class WorkspaceAgentExecutor {
 	 * @returns Execution result
 	 */
 	async execute(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
-		// P6.A: When worktree mode is enabled, delegate to WorktreeWorkspaceExecutor
-		if (this.isWorktreeModeEnabled && this.planExecutionId) {
-			return this.executeInWorktree(packet, workspaceId);
-		}
+		// Set up abort controller and timeout BEFORE any delegation path
+		// (worktree or non-worktree) so both have coverage.
+		this.abortController = new AbortController();
+		this.timeoutHandle = setTimeout(() => {
+			if (!this.abortController?.signal.aborted) {
+				console.log(
+					`[workspace-agent-executor] Execution timed out after ${this.timeoutMs}ms, aborting workspace ${workspaceId}`,
+				);
+				this.abortController?.abort();
+			}
+		}, this.timeoutMs);
+		this.timeoutHandle.unref();
 
+		try {
+			// P6.A: When worktree mode is enabled, delegate to WorktreeWorkspaceExecutor
+			if (this.isWorktreeModeEnabled && this.planExecutionId) {
+				return await this.executeInWorktree(packet, workspaceId);
+			}
+
+			return await this.executeInPlace(packet, workspaceId);
+		} finally {
+			// Always clear timeout on completion, regardless of execution path
+			if (this.timeoutHandle) {
+				clearTimeout(this.timeoutHandle);
+				this.timeoutHandle = null;
+			}
+			this.abortController = null;
+		}
+	}
+
+	/**
+	 * Execute a workspace in the shared working tree (non-worktree path).
+	 */
+	private async executeInPlace(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
 		const logs: string[] = [];
 		let thinkingBuffer = "";
 		const log = async (message: string) => {
@@ -298,9 +346,8 @@ export class WorkspaceAgentExecutor {
 		};
 
 		try {
-			// P4.6.3: Create per-execution abort controller
-			this.abortController = new AbortController();
-			const abortSignal = this.abortController.signal;
+			// P4.6.3: Use the abort controller set up by execute()
+			const abortSignal = this.abortController!.signal;
 
 			log(`Starting execution for workspace ${workspaceId}`);
 			log(`Provider: ${this.model.provider}`);
@@ -554,14 +601,11 @@ export class WorkspaceAgentExecutor {
 			// Run the agent with the prompt
 			log("Starting agent execution...");
 
-			// Emit worker_status: executing
+			// Emit worker_status: executing (fire-and-forget — don't block prompt on DB)
 			if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {
-				await this.stateStore.emitWorkerStatus(
-					this.planExecutionId,
-					workspaceId,
-					"executing",
-					"Agent execution started",
-				);
+				this.stateStore
+					.emitWorkerStatus(this.planExecutionId, workspaceId, "executing", "Agent execution started")
+					.catch(() => {});
 			}
 
 			await session.prompt(prompt);
@@ -780,8 +824,7 @@ export class WorkspaceAgentExecutor {
 				logs,
 			};
 		} finally {
-			// P4.6.3: Clean up abort controller
-			this.abortController = null;
+			// execute() handles timeout and abortController cleanup in its own finally.
 		}
 	}
 
@@ -798,6 +841,16 @@ export class WorkspaceAgentExecutor {
 			logs.push(logLine);
 			console.log(`[workspace-agent-executor] ${logLine}`);
 		};
+
+		// Listen for abort signal from execute() timeout and abort the worktree executor
+		const abortSignal = this.abortController?.signal;
+		const abortWorktree = () => {
+			if (this.worktreeExecutor) {
+				log("Abort signal received, aborting worktree creation...");
+				this.worktreeExecutor.abort();
+			}
+		};
+		abortSignal?.addEventListener("abort", abortWorktree, { once: true });
 
 		try {
 			log(`Worktree mode enabled for workspace ${workspaceId}`);
@@ -838,6 +891,7 @@ export class WorkspaceAgentExecutor {
 				logPath: this.logPath,
 				stateStore: this.stateStore,
 				planExecutionId: this.planExecutionId,
+				timeoutMs: this.timeoutMs,
 				// Worktree mode is disabled for the inner executor to avoid recursion
 				worktree: { enabled: false },
 			});

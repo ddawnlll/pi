@@ -13513,10 +13513,10 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text", "image"],
 			cost: {
-				input: 2.5,
-				output: 7.5,
-				cacheRead: 0.5,
-				cacheWrite: 3.125,
+				input: 1.25,
+				output: 3.75,
+				cacheRead: 0.25,
+				cacheWrite: 1.5625,
 			},
 			contextWindow: 991000,
 			maxTokens: 64000,
@@ -14409,7 +14409,7 @@ export const MODELS = {
 		} satisfies Model<"anthropic-messages">,
 		"minimax/minimax-m2.7": {
 			id: "minimax/minimax-m2.7",
-			name: "Minimax M2.7",
+			name: "MiniMax M2.7",
 			api: "anthropic-messages",
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",

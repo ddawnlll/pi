@@ -21,7 +21,7 @@
  * - Shows which files are being read during analysis (P11.N)
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertCircle,
 	Bot,

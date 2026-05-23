@@ -1,0 +1,14 @@
+{
+  "id": "appr_003",
+  "name": "Create memory from observations",
+  "description": "Require approval before creating new memory records from LLM output",
+  "condition": {
+    "action": "memory_creation"
+  },
+  "decision": "approval_required",
+  "priority": 90,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

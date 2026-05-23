@@ -7,7 +7,8 @@ import { DialogBase } from "@mariozechner/mini-lit/dist/DialogBase.js";
 import { html, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { createRef, ref } from "lit/directives/ref.js";
-import { Brain, Image as ImageIcon } from "lucide";
+import { Brain, Image as ImageIcon, SearchX } from "lucide";
+import "../components/EmptyState.js";
 import { Input } from "../components/Input.js";
 import { getAppStorage } from "../storage/app-storage.js";
 import type { AutoDiscoveryProviderType } from "../storage/stores/custom-providers-store.js";
@@ -328,42 +329,54 @@ export class ModelSelector extends DialogBase {
 			</div>
 
 			<!-- Scrollable model list -->
-			<div class="flex-1 overflow-y-auto" ${ref(this.scrollContainerRef)}>
-				${filteredModels.map(({ provider, id, model }, index) => {
-					const isCurrent = modelsAreEqual(this.currentModel, model);
-					const isSelected = index === this.selectedIndex;
-					return html`
-						<div
-							data-model-item
-							class="px-4 py-3 ${
-								this.navigationMode === "mouse" ? "hover:bg-muted" : ""
-							} cursor-pointer border-b border-border ${isSelected ? "bg-accent" : ""}"
-							@click=${() => this.handleSelect(model)}
-							@mouseenter=${() => {
-								// Only update selection in mouse mode
-								if (this.navigationMode === "mouse") {
-									this.selectedIndex = index;
-								}
-							}}
-						>
-							<div class="flex items-center justify-between gap-2 mb-1">
-								<div class="flex items-center gap-2 flex-1 min-w-0">
-									<span class="text-sm font-medium text-foreground truncate">${id}</span>
-									${isCurrent ? html`<span class="text-green-500">✓</span>` : ""}
+			<div class="flex-1 overflow-y-auto" ${ref(this.scrollContainerRef)} role="listbox" aria-label="${i18n("Available models")}">
+				${
+					filteredModels.length === 0
+						? html`
+							<empty-state
+								.icon=${icon(SearchX, "md")}
+								title="${i18n("No models found")}"
+								description="${i18n("Try adjusting your search or filters")}"
+							></empty-state>
+						`
+						: filteredModels.map(({ provider, id, model }, index) => {
+								const isCurrent = modelsAreEqual(this.currentModel, model);
+								const isSelected = index === this.selectedIndex;
+								return html`
+								<div
+									data-model-item
+									class="px-4 py-3 ${
+										this.navigationMode === "mouse" ? "hover:bg-muted" : ""
+									} cursor-pointer border-b border-border ${isSelected ? "bg-accent" : ""}"
+									@click=${() => this.handleSelect(model)}
+									@mouseenter=${() => {
+										// Only update selection in mouse mode
+										if (this.navigationMode === "mouse") {
+											this.selectedIndex = index;
+										}
+									}}
+									role="option"
+									aria-selected=${isSelected}
+								>
+									<div class="flex items-center justify-between gap-2 mb-1">
+										<div class="flex items-center gap-2 flex-1 min-w-0">
+											<span class="text-sm font-medium text-foreground truncate">${id}</span>
+											${isCurrent ? html`<span class="text-green-500">✓</span>` : ""}
+										</div>
+										${Badge(provider, "outline")}
+									</div>
+									<div class="flex items-center justify-between text-xs text-muted-foreground">
+										<div class="flex items-center gap-2">
+											<span class="${model.reasoning ? "" : "opacity-30"}">${icon(Brain, "sm")}</span>
+											<span class="${model.input.includes("image") ? "" : "opacity-30"}">${icon(ImageIcon, "sm")}</span>
+											<span>${this.formatTokens(model.contextWindow)}K/${this.formatTokens(model.maxTokens)}K</span>
+										</div>
+										<span>${formatModelCost(model.cost)}</span>
+									</div>
 								</div>
-								${Badge(provider, "outline")}
-							</div>
-							<div class="flex items-center justify-between text-xs text-muted-foreground">
-								<div class="flex items-center gap-2">
-									<span class="${model.reasoning ? "" : "opacity-30"}">${icon(Brain, "sm")}</span>
-									<span class="${model.input.includes("image") ? "" : "opacity-30"}">${icon(ImageIcon, "sm")}</span>
-									<span>${this.formatTokens(model.contextWindow)}K/${this.formatTokens(model.maxTokens)}K</span>
-								</div>
-								<span>${formatModelCost(model.cost)}</span>
-							</div>
-						</div>
-					`;
-				})}
+							`;
+							})
+				}
 			</div>
 		`;
 	}

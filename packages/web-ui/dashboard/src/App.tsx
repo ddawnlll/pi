@@ -5,12 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 let _appMounted = false;
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Play, Pause, Square, Settings, Upload, GitBranch, Terminal, ScrollText,
+  Upload,
   AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
-  Filter, DollarSign, Zap, Bot, Archive, Bell, ListOrdered,
-  AlertTriangle, BarChart3, Lightbulb, RefreshCw, Package, BookOpen,
-  Sliders, FolderOpen, Clock,
+  Filter, DollarSign, Zap, ListOrdered,
+  FolderOpen,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import type { PlatformNavItem } from "./components/LeftNav";
@@ -36,12 +34,13 @@ import { WarningBanner } from "./components/WarningBanner";
 import { RerunDialog } from "./components/RerunDialog";
 import { StatusBadge } from "./components/StatusBadge";
 import { IconBtn, LabeledBtn } from "./components/IconBtn";
-import { SectionHeader, Divider } from "./components/SectionHeader";
+import { SectionHeader } from "./components/SectionHeader";
 import { ProjectItem } from "./components/ProjectItem";
 import { HistoryItem } from "./components/HistoryItem";
 import { StatCard } from "./components/StatCard";
-import { EventLine } from "./components/EventLine";
+
 import { ChatPanel, type ContextRef } from "./components/ChatPanel";
+import { RightSidebar, type AlertEntry } from "./components/right-sidebar";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent, formatPercentOrUnknown } from "./utils/format";
@@ -50,11 +49,11 @@ import { TaskDetailView } from "./components/TaskDetailView";
 import type { MultiPhaseTask } from "./types";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
-import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
+
 import { AutonomyCenter } from "./features/autonomy/AutonomyCenter";
 import { ExtensionsManager } from "./components/ExtensionsManager";
 import { SkillsManager } from "./components/SkillsManager";
-import { LeftNav } from "./components/LeftNav";
+import { Sidebar } from "./components/sidebar";
 import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
@@ -62,6 +61,7 @@ import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
+import { Topbar, ContextualToolbar } from "./components/topbar/Topbar";
 import { BrainStatePage } from "./pages/BrainStatePage";
 import { BrainMemoryPage } from "./pages/BrainMemoryPage";
 import { BrainReflectionsPage } from "./pages/BrainReflectionsPage";
@@ -112,7 +112,6 @@ async function sendRerunCommand(projectId: string, planExecId: string): Promise<
 const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
 const SURF = "bg-white dark:bg-[#1E1E1E]";
 const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const MUT = "text-stone-400 dark:text-stone-500";
 const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const ACC_TXT = "text-blue-700 dark:text-blue-300";
@@ -229,8 +228,8 @@ export function App() {
     activeView.type === "platform" ? activeView.screen : null;
 
   // ── Navigate to a Platform feature ────────────────────────────────────
-  const navigateToPlatform = useCallback((item: PlatformNavItem) => {
-    setActiveView({ type: "platform", screen: item });
+  const navigateToPlatform = useCallback((item: string) => {
+    setActiveView({ type: "platform", screen: item as PlatformNavItem });
     setLeftTab("platform");
     setMobileNav(null);
   }, []);
@@ -380,10 +379,6 @@ export function App() {
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
 
-  const filteredEvents = eventFilter === "errors"
-    ? activeEvents.filter((e: any) => e.type === "error" || e.level === "error")
-    : activeEvents;
-
   if (isStartingUp) {
     return (
       <div className={`w-full h-screen flex items-center justify-center ${BG}`}>
@@ -398,37 +393,35 @@ export function App() {
     <div className={`w-full h-screen flex flex-col ${BG} font-['DM_Sans',ui-sans-serif,system-ui,sans-serif] overflow-hidden`}>
 
       {/* ── topbar ── */}
-      <header className={`h-12 shrink-0 ${SURF} border-b ${BORD} flex items-center px-3 gap-2 z-10`}>
-        <button className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]"
-          onClick={() => setMobileNav(mobileNav === "left" ? null : "left")} aria-label="Toggle navigation">
-          <LayoutGrid size={15} strokeWidth={1.8} />
-        </button>
-        <button className={`hidden md:flex items-center justify-center h-8 w-8 rounded-lg ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
-          onClick={() => setLeftOpen(o => !o)} aria-label={leftOpen ? "Collapse sidebar" : "Expand sidebar"}>
-          {leftOpen ? <PanelLeftClose size={15} strokeWidth={1.8} /> : <PanelLeftOpen size={15} strokeWidth={1.8} />}
-        </button>
-        <div className="flex items-center gap-2 mx-1 min-w-0">
-          <span className={`text-[13px] font-semibold ${TXT} tracking-tight whitespace-nowrap`}>Planner</span>
-          {activePlanStatus !== "unknown" && <StatusBadge status={activePlanStatus} />}
-          {executionDetail?.title && (
-            <span className={`hidden sm:inline text-xs ${MUT} truncate max-w-[200px]}`}>&mdash; {executionDetail.title}</span>
-          )}
-        </div>
-        <div className="flex-1 min-w-0" />
-        <div className="flex items-center gap-1">
-          <LabeledBtn icon={Play} label="Resume" onClick={() => handleControl("resume")} accent disabled={controlDisabled || !canResume} />
-          <LabeledBtn icon={Pause} label="Pause" onClick={() => handleControl("pause")} disabled={controlDisabled || !canPause} />
-          <LabeledBtn icon={Square} label="Stop" onClick={() => handleControl("stop")} danger disabled={controlDisabled || !canStop} />
-          {selectedPlanExecId && canRerun && (
-            <LabeledBtn icon={RefreshCw} label="Restart" onClick={() => setShowRerunDialog(true)} accent disabled={rerunning} />
-          )}
-          <IconBtn icon={Settings} label="Settings" onClick={() => setShowSettingsDialog(true)} variant="ghost" />
-        </div>
-        <button className={`hidden md:flex items-center justify-center h-8 w-8 rounded-lg ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
-          onClick={() => setRightOpen(o => !o)} aria-label={rightOpen ? "Collapse events" : "Expand events"}>
-          {rightOpen ? <PanelRightClose size={15} strokeWidth={1.8} /> : <PanelRightOpen size={15} strokeWidth={1.8} />}
-        </button>
-      </header>
+      <Topbar
+        planTitle={executionDetail?.title ?? null}
+        statusBadge={activePlanStatus !== "unknown" ? <StatusBadge status={activePlanStatus} /> : undefined}
+        onToggleMobileNav={() => setMobileNav(mobileNav === "left" ? null : "left")}
+        onToggleLeftSidebar={() => setLeftOpen(o => !o)}
+        leftSidebarOpen={leftOpen}
+        onToggleRightSidebar={() => setRightOpen(o => !o)}
+        rightSidebarOpen={rightOpen}
+        canResume={canResume}
+        canPause={canPause}
+        canStop={canStop}
+        controlDisabled={controlDisabled}
+        onResume={() => handleControl("resume")}
+        onPause={() => handleControl("pause")}
+        onStop={() => handleControl("stop")}
+        canRerun={!!selectedPlanExecId && canRerun}
+        onRerun={() => setShowRerunDialog(true)}
+        onSettings={() => setShowSettingsDialog(true)}
+        activeViewType={activeView.type}
+        onUploadPlan={handleUploadPlan}
+        onGit={() => setShowGitDialog(true)}
+        onCommands={() => setShowCommandsDialog(true)}
+        onChat={() => setShowChat(o => !o)}
+        showChat={showChat}
+        onArtifacts={() => setShowArtifacts(o => !o)}
+        showArtifacts={showArtifacts}
+        onExecutionLog={() => setShowExecutionLog(true)}
+        hasSelectedPlanExecId={!!selectedPlanExecId}
+      />
 
       {/* ── error banner ── */}
       <AnimatePresence>
@@ -546,10 +539,9 @@ export function App() {
               {/* ── PLATFORM tab ── */}
               {leftTab === "platform" && (
                 <div className="flex flex-col gap-0.5 overflow-y-auto">
-                  <LeftNav
+                  <Sidebar
                     activeItem={platformActiveItem}
                     onNavigate={navigateToPlatform}
-                    showBrainSection
                   />
                 </div>
               )}
@@ -561,22 +553,18 @@ export function App() {
         <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
 
           {/* ── contextual toolbar ── */}
-          <div className={`shrink-0 ${SURF} border-b ${BORD} flex items-center gap-1.5 px-3 h-11`}>
-            {activeView.type === "run" && (
-              <>
-                <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
-                <div className={`w-px h-5 ${BORD} mx-0.5`} />
-                <LabeledBtn icon={GitBranch} label="Git" onClick={() => setShowGitDialog(true)} />
-                <LabeledBtn icon={Terminal} label="Commands" onClick={() => setShowCommandsDialog(true)} />
-                <LabeledBtn icon={Bot} label="Chat" onClick={() => setShowChat(o => !o)} accent={showChat} />
-                <LabeledBtn icon={Archive} label="Artifacts" onClick={() => setShowArtifacts(o => !o)} accent={showArtifacts} />
-                {selectedPlanExecId && <LabeledBtn icon={ScrollText} label="Exec log" onClick={() => setShowExecutionLog(true)} />}
-              </>
-            )}
-            {activeView.type === "empty" && (
-              <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
-            )}
-          </div>
+          <ContextualToolbar
+            activeViewType={activeView.type}
+            onUploadPlan={handleUploadPlan}
+            onGit={() => setShowGitDialog(true)}
+            onCommands={() => setShowCommandsDialog(true)}
+            onChat={() => setShowChat(o => !o)}
+            showChat={showChat}
+            onArtifacts={() => setShowArtifacts(o => !o)}
+            showArtifacts={showArtifacts}
+            onExecutionLog={() => setShowExecutionLog(true)}
+            hasSelectedPlanExecId={!!selectedPlanExecId}
+          />
 
           {/* ── center body — switch on activeView ── */}
           {isLegacyMode ? (
@@ -780,89 +768,28 @@ export function App() {
           )}
         </div>
 
-        {/* ── right sidebar (event feed + alerts) ── */}
+        {/* ── right sidebar (3 sections) ── */}
         <AnimatePresence initial={false}>
           {(rightOpen || mobileNav === "right") && (
             <motion.aside key="right"
               initial={{ width: 0, opacity: 0 }} animate={{ width: 300, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden
+              className={`shrink-0 overflow-hidden
                 md:relative md:z-auto ${mobileNav === "right" ? "absolute right-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
             >
-              {/* Section: Events */}
-              <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
-                <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Events</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setEventFilter("all")}
-                    className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${eventFilter === "all" ? "bg-stone-100 dark:bg-[#333] text-stone-700 dark:text-stone-200" : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`}`}>All</button>
-                  <button onClick={() => setEventFilter("errors")}
-                    className={`h-6 px-2 rounded text-[10px] font-medium transition-colors flex items-center gap-1 ${eventFilter === "errors" ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300" : `${MUT} hover:text-red-600 dark:hover:text-red-400`}`}>
-                    <Filter size={9} /> Errors
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                {filteredEvents.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-32 gap-1.5 text-stone-300 dark:text-stone-600">
-                    <Activity size={20} strokeWidth={1.2} />
-                    <p className="text-xs">No events</p>
-                  </div>
-                ) : (
-                  filteredEvents.map((ev: any, i: number) => <EventLine key={ev.id ?? i} event={ev} />)
-                )}
-              </div>
-
-              {/* Section: Alerts */}
-              <Divider />
-              <div className={`shrink-0 flex items-center px-4 h-9 border-b ${BORD}`}>
-                <Bell size={11} className={`${MUT} mr-1.5`} />
-                <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Alerts</span>
-                {totalAlertIssues > 0 && (
-                  <span className="ml-auto h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
-                    {totalAlertIssues}
-                  </span>
-                )}
-              </div>
-              <div className="shrink-0 max-h-40 overflow-y-auto">
-                {totalAlertIssues === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 gap-1 text-stone-300 dark:text-stone-600">
-                    <p className="text-[10px]">No alerts</p>
-                  </div>
-                ) : (
-                  <>
-                    {activeWorkspaces.filter(w => w.stage === "failed").map(w => (
-                      <div key={`alert-failed-${w.id}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-red-50/50 dark:bg-red-950/20`}>
-                        <AlertCircle size={11} className="shrink-0 text-red-500" />
-                        <span className="text-red-700 dark:text-red-300 font-medium truncate">{w.id}</span>
-                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>failed</span>
-                      </div>
-                    ))}
-                    {conflictEntries.map((entry) => (
-                      <div key={`alert-conflict-${entry.workspaceId}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-amber-50/50 dark:bg-amber-950/20`}>
-                        <AlertTriangle size={11} className="shrink-0 text-amber-500" />
-                        <span className="text-amber-700 dark:text-amber-300 font-medium truncate">{entry.workspaceId}</span>
-                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>conflict</span>
-                      </div>
-                    ))}
-                    {activeWorkspaces.filter(w => w.stage === "blocked").map(w => (
-                      <div key={`alert-blocked-${w.id}`} className={`flex items-center gap-2 px-4 py-2 text-xs border-b ${BORD} bg-amber-50/50 dark:bg-amber-950/20`}>
-                        <AlertCircle size={11} className="shrink-0 text-amber-500" />
-                        <span className="text-amber-700 dark:text-amber-300 font-medium truncate">{w.id}</span>
-                        <span className={`ml-auto text-[10px] ${MUT} shrink-0`}>blocked</span>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              {/* Section: Plan Summary (cleanup review) */}
-              <div className="flex-1 min-h-0 overflow-y-auto">
-              <Divider />
-              <PlanSummaryPanel
+              <RightSidebar
+                events={activeEvents}
+                eventFilter={eventFilter}
+                onEventFilterChange={setEventFilter}
+                alertEntries={[
+                  ...activeWorkspaces.filter(w => w.stage === "failed").map(w => ({ id: w.id, type: "failed" as const, workspaceId: w.id })),
+                  ...conflictEntries.map(entry => ({ id: entry.workspaceId, type: "conflict" as const, workspaceId: entry.workspaceId })),
+                  ...activeWorkspaces.filter(w => w.stage === "blocked").map(w => ({ id: w.id, type: "blocked" as const, workspaceId: w.id })),
+                ]}
+                totalAlertIssues={totalAlertIssues}
                 projectId={selectedProjectId}
                 planExecId={selectedPlanExecId}
-                />
-              </div>
+              />
             </motion.aside>
           )}
         </AnimatePresence>

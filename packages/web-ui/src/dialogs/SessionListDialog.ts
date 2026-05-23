@@ -1,8 +1,11 @@
 import { DialogContent, DialogHeader } from "@mariozechner/mini-lit/dist/Dialog.js";
 import { DialogBase } from "@mariozechner/mini-lit/dist/DialogBase.js";
+import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { html } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { History } from "lucide";
 import { getAppStorage } from "../storage/app-storage.js";
+import "../components/EmptyState.js";
 import type { SessionMetadata } from "../storage/types.js";
 import { formatUsage } from "../utils/format.js";
 import { i18n } from "../utils/i18n.js";
@@ -113,7 +116,11 @@ export class SessionListDialog extends DialogBase {
 							this.loading
 								? html`<div class="text-center py-8 text-muted-foreground">${i18n("Loading...")}</div>`
 								: this.sessions.length === 0
-									? html`<div class="text-center py-8 text-muted-foreground">${i18n("No sessions yet")}</div>`
+									? html`<empty-state
+										.icon=${icon(History, "md")}
+										title="${i18n("No sessions yet")}"
+										description="${i18n("Load a previous conversation")}"
+									></empty-state>`
 									: this.sessions.map(
 											(session) => html`
 											<div
@@ -131,6 +138,7 @@ export class SessionListDialog extends DialogBase {
 													class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-destructive transition-opacity"
 													@click=${(e: Event) => this.handleDelete(session.id, e)}
 													title=${i18n("Delete")}
+													aria-label=${i18n("Delete")}
 												>
 													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<path d="M3 6h18"></path>

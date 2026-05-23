@@ -269,6 +269,19 @@ declare module "@mariozechner/mini-lit" {
 		of: string;
 		None: string;
 		Dismiss: string;
+		// Empty States
+		"No messages yet": string;
+		"Start a conversation": string;
+		"Send a message to begin chatting with the AI": string;
+		"No models found": string;
+		"Try adjusting your search or filters": string;
+		// Accessibility strings
+		"Stop streaming": string;
+		"Send message": string;
+		"Attach files": string;
+		"Available models": string;
+		"Settings sections": string;
+		"Attachment preview": string;
 	}
 }
 
@@ -561,6 +574,19 @@ export const translations = {
 		of: "of",
 		None: "None",
 		Dismiss: "Dismiss",
+		// Empty States
+		"No messages yet": "No messages yet",
+		"Start a conversation": "Start a conversation",
+		"Send a message to begin chatting with the AI": "Send a message to begin chatting with the AI",
+		"No models found": "No models found",
+		"Try adjusting your search or filters": "Try adjusting your search or filters",
+		// Accessibility strings
+		"Stop streaming": "Stop streaming",
+		"Send message": "Send message",
+		"Attach files": "Attach files",
+		"Available models": "Available models",
+		"Settings sections": "Settings sections",
+		"Attachment preview": "Attachment preview",
 	},
 	de: {
 		...defaultGerman,
@@ -850,6 +876,19 @@ export const translations = {
 		of: "von",
 		None: "Keine",
 		Dismiss: "Schließen",
+		// Empty States
+		"No messages yet": "Noch keine Nachrichten",
+		"Start a conversation": "Starten Sie eine Unterhaltung",
+		"Send a message to begin chatting with the AI": "Senden Sie eine Nachricht, um mit der KI zu chatten",
+		"No models found": "Keine Modelle gefunden",
+		"Try adjusting your search or filters": "Passen Sie Ihre Suche oder Filter an",
+		// Accessibility strings
+		"Stop streaming": "Streaming stoppen",
+		"Send message": "Nachricht senden",
+		"Attach files": "Dateien anhängen",
+		"Available models": "Verfügbare Modelle",
+		"Settings sections": "Einstellungsbereiche",
+		"Attachment preview": "Anhängevorschau",
 	},
 };
 

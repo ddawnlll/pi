@@ -190,14 +190,14 @@ export class SettingsDialog extends LitElement {
 							<div class="pb-4 flex-shrink-0">${DialogHeader({ title: i18n("Settings") })}</div>
 
 							<!-- Mobile Tabs -->
-							<div class="md:hidden flex flex-shrink-0 pb-4">
+							<div class="md:hidden flex flex-shrink-0 pb-4" role="tablist" aria-label="${i18n("Settings sections")}">
 								${this.tabs.map((tab, index) => this.renderMobileTab(tab, index))}
 							</div>
 
 							<!-- Layout -->
 							<div class="flex flex-1 overflow-hidden">
 								<!-- Sidebar (desktop only) -->
-								<div class="hidden md:block w-64 flex-shrink-0 space-y-1">
+								<div class="hidden md:block w-64 flex-shrink-0 space-y-1" role="tablist" aria-label="${i18n("Settings sections")}">
 									${this.tabs.map((tab, index) => this.renderSidebarItem(tab, index))}
 								</div>
 
@@ -205,7 +205,7 @@ export class SettingsDialog extends LitElement {
 								<div class="flex-1 overflow-y-auto md:pl-6">
 									${this.tabs.map(
 										(tab, index) =>
-											html`<div style="display: ${this.activeTabIndex === index ? "block" : "none"}">${tab}</div>`,
+											html`<div id="settings-tab-${index}" role="tabpanel" aria-label="${tab.getTabName()}" style="display: ${this.activeTabIndex === index ? "block" : "none"}">${tab}</div>`,
 									)}
 								</div>
 							</div>

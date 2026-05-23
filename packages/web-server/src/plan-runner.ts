@@ -47,6 +47,8 @@ export interface ExecutionMeta {
 	approvedPreview?: ApprovedPreviewMetadata;
 	/** Worktree isolation config persisted for crash recovery. */
 	worktreeConfig?: { enabled: true };
+	/** Workspace execution timeout in milliseconds persisted for crash recovery. */
+	workspaceTimeoutMs?: number;
 }
 
 export interface ActiveExecution {
@@ -662,6 +664,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			enableRealExecution: true,
 			approvedPreview: approvedPreviewMetadata,
 			worktree: worktreeConfig,
+			workspaceTimeoutMs: parseResult.queue.workspaceTimeoutMs,
 		});
 
 		// AC #3: Guard released on initialize() success or failure
@@ -692,6 +695,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			startedAt: execution.startedAt,
 			approvedPreview: approvedPreviewMetadata, // AC2: persist approved preview metadata
 			worktreeConfig: worktreeConfig, // persist for crash recovery
+			workspaceTimeoutMs: parseResult.queue.workspaceTimeoutMs, // persist for crash recovery
 		});
 
 		// Release the in-flight guard AFTER execution is registered in activeExecutions.
@@ -962,6 +966,10 @@ async function executePlanInBackground(
 		while (!executor.isExecutionComplete()) {
 			iteration++;
 			await log(`\n=== Iteration ${iteration} ===`);
+
+			// Reload state from store to pick up any database-side transitions
+			// (e.g. crash recovery, external reset, stalled workspace recovery).
+			await executor.loadState();
 
 			// Check if execution was externally cancelled/stopped
 			let exec = activeExecutions.get(planExecId);
@@ -1773,6 +1781,7 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		skipProjectManagement: false,
 		enableRealExecution: true,
 		approvedPreview: approvedPreviewForRecovery,
+		workspaceTimeoutMs: meta?.workspaceTimeoutMs,
 	});
 
 	// Adopt the existing execution (resets stranded active → pending)

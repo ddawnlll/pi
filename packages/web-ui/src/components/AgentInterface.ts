@@ -1,8 +1,11 @@
 import { streamSimple, type ToolResultMessage, type Usage } from "@earendil-works/pi-ai";
+import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { html, LitElement } from "lit";
 import { customElement, property, query } from "lit/decorators.js";
+import { MessageSquare } from "lucide";
 import { ModelSelector } from "../dialogs/ModelSelector.js";
 import type { MessageEditor } from "./MessageEditor.js";
+import "./EmptyState.js";
 import "./MessageEditor.js";
 import "./MessageList.js";
 import "./Messages.js"; // Import for side effects to register the custom elements
@@ -263,7 +266,10 @@ export class AgentInterface extends LitElement {
 
 	private renderMessages() {
 		if (!this.session)
-			return html`<div class="p-4 text-center text-muted-foreground">${i18n("No session available")}</div>`;
+			return html`<empty-state
+				.icon=${icon(MessageSquare, "md")}
+				title="${i18n("No session available")}"
+			></empty-state>`;
 		const state = this.session.state;
 		// Build a map of tool results to allow inline rendering in assistant messages
 		const toolResultsById = new Map<string, ToolResultMessage<any>>();
@@ -347,7 +353,10 @@ export class AgentInterface extends LitElement {
 
 	override render() {
 		if (!this.session)
-			return html`<div class="p-4 text-center text-muted-foreground">${i18n("No session set")}</div>`;
+			return html`<empty-state
+				.icon=${icon(MessageSquare, "md")}
+				title="${i18n("No session set")}"
+			></empty-state>`;
 
 		const session = this.session;
 		const state = this.session.state;

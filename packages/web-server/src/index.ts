@@ -1016,7 +1016,36 @@ fastify.get<{
 			// Watcher aborted
 		}
 	} else {
-		// PostgreSQL backend - use LISTEN/NOTIFY
+		// PostgreSQL backend - use LISTEN/NOTIFY, fall back to polling
+		let pollTimer: ReturnType<typeof setInterval> | null = null;
+		let lastEventCount = 0;
+
+		// Track how many events we've already sent
+		try {
+			const stateStore = getStateStore();
+			const initialJournal = await stateStore.readJournal(planExecId);
+			lastEventCount = initialJournal.length;
+		} catch {
+			// Ignore
+		}
+
+		// Helper to poll for new events
+		const pollForEvents = async () => {
+			try {
+				const stateStore = getStateStore();
+				const journal = await stateStore.readJournal(planExecId);
+				if (journal.length > lastEventCount) {
+					const newEvents = journal.slice(lastEventCount);
+					for (const event of newEvents) {
+						reply.raw.write(`data: ${JSON.stringify(sanitizeSseEvent(event))}\n\n`);
+					}
+					lastEventCount = journal.length;
+				}
+			} catch {
+				// Ignore poll errors
+			}
+		};
+
 		try {
 			const { NotifyClient } = await import("@earendil-works/pi-db");
 			const notifyClient = new NotifyClient();
@@ -1034,6 +1063,7 @@ fastify.get<{
 
 			request.raw.on("close", () => {
 				(notifyClient as any).disconnect();
+				if (pollTimer) clearInterval(pollTimer);
 			});
 
 			// Keep connection alive
@@ -1045,8 +1075,12 @@ fastify.get<{
 				clearInterval(keepAlive);
 			});
 		} catch (_error) {
-			// If NotifyClient is unavailable, just keep the connection open
-			fastify.log.warn("LISTEN/NOTIFY unavailable for SSE, using no-op connection");
+			// NotifyClient unavailable — fall back to polling
+			fastify.log.warn("LISTEN/NOTIFY unavailable for SSE, falling back to polling");
+			pollTimer = setInterval(pollForEvents, 3000);
+			request.raw.on("close", () => {
+				if (pollTimer) clearInterval(pollTimer);
+			});
 		}
 	}
 });

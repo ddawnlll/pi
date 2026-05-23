@@ -1,9 +1,12 @@
 import { getProviders } from "@earendil-works/pi-ai";
 import { i18n } from "@mariozechner/mini-lit";
+import { icon } from "@mariozechner/mini-lit/dist/icons.js";
 import { Select } from "@mariozechner/mini-lit/dist/Select.js";
 import { html, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { Server } from "lucide";
 import "../components/CustomProviderCard.js";
+import "../components/EmptyState.js";
 import "../components/ProviderKeyInput.js";
 import { getAppStorage } from "../storage/app-storage.js";
 import type {
@@ -122,9 +125,10 @@ export class ProvidersModelsTab extends SettingsTab {
 				${
 					this.customProviders.length === 0
 						? html`
-							<div class="text-sm text-muted-foreground text-center py-8">
-								No custom providers configured. Click 'Add Provider' to get started.
-							</div>
+							<empty-state
+								.icon=${icon(Server, "md")}
+								title="${i18n("No custom providers configured. Click 'Add Provider' to get started.")}"
+							></empty-state>
 						`
 						: html`
 							<div class="flex flex-col gap-4">

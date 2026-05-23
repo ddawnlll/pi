@@ -287,6 +287,7 @@ export class MessageEditor extends LitElement {
 					@keydown=${this.handleKeyDown}
 					@paste=${this.handlePaste}
 					${ref(this.textareaRef)}
+					aria-label=${i18n("Type a message...")}
 				></textarea>
 
 				<!-- Hidden file input -->
@@ -378,23 +379,27 @@ export class MessageEditor extends LitElement {
 						${
 							this.isStreaming
 								? html`
-									${Button({
-										variant: "ghost",
-										size: "icon",
-										onClick: this.onAbort,
-										children: icon(Square, "sm"),
-										className: "h-8 w-8",
-									})}
+									<button
+										type="button"
+										@click=${this.onAbort}
+										class="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-8 w-8 rounded-md text-foreground hover:bg-accent hover:text-accent-foreground"
+										aria-label=${i18n("Stop streaming")}
+										title=${i18n("Stop streaming")}
+									>
+										${icon(Square, "sm")}
+									</button>
 								`
 								: html`
-									${Button({
-										variant: "ghost",
-										size: "icon",
-										onClick: this.handleSend,
-										disabled: (!this.value.trim() && this.attachments.length === 0) || this.processingFiles,
-										children: html`<div style="transform: rotate(-45deg)">${icon(Send, "sm")}</div>`,
-										className: "h-8 w-8",
-									})}
+									<button
+										type="button"
+										@click=${this.handleSend}
+										?disabled=${(!this.value.trim() && this.attachments.length === 0) || this.processingFiles}
+										class="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-8 w-8 rounded-md text-foreground hover:bg-accent hover:text-accent-foreground"
+										aria-label=${i18n("Send message")}
+										title=${i18n("Send message")}
+									>
+										<div style="transform: rotate(-45deg)">${icon(Send, "sm")}</div>
+									</button>
 								`
 						}
 					</div>
