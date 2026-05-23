@@ -8,7 +8,7 @@ export async function registerBrainAuditRoutes(fastify: FastifyInstance): Promis
 	// GET /api/brain/audit - List audit entries
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; action?: string };
-	}>("/api/brain/audit", async (request, reply) => {
+	}>("/api/brain/audit", async (request, _reply) => {
 		try {
 			const { getAuditEntries } = await import("@earendil-works/pi-coding-agent");
 			const limit = Number(request.query.limit) || 50;

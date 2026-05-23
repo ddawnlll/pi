@@ -34,11 +34,7 @@ import type { FastifyInstance } from "fastify";
  * All methods return Promise with serializable JSON responses.
  */
 export interface ApprovalQueueApiLike {
-	listApprovals(query?: {
-		status?: string;
-		limit?: number;
-		offset?: number;
-	}): Promise<{
+	listApprovals(query?: { status?: string; limit?: number; offset?: number }): Promise<{
 		approvals: any[];
 		total: number;
 		stats: any;
@@ -76,12 +72,7 @@ export interface ApprovalQueueApiLike {
 
 	getStats(): Promise<any>;
 
-	getHistory(query?: {
-		limit?: number;
-		offset?: number;
-		since?: string;
-		until?: string;
-	}): Promise<{
+	getHistory(query?: { limit?: number; offset?: number; since?: string; until?: string }): Promise<{
 		approvals: any[];
 		total: number;
 	}>;

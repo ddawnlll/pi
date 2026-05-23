@@ -8,8 +8,8 @@
  */
 
 import { generateId } from "@earendil-works/pi-db";
-import type { ScenarioResult } from "./validation";
-import type { TrustAssessment } from "./trust-assessment";
+import type { TrustAssessment, TrustDimension } from "./trust-assessment.js";
+import type { ScenarioResult, ValidationCheckResult } from "./validation.js";
 
 // =========================================================================
 // Types
@@ -87,7 +87,7 @@ export class DogfoodReportGenerator {
 				name: s.scenarioId,
 				passed: s.passed,
 				duration: s.duration,
-				checks: s.checks.map((c) => ({
+				checks: s.checks.map((c: ValidationCheckResult) => ({
 					id: c.id,
 					passed: c.passed,
 					evidence: (c.evidence as string) ?? "",
@@ -105,7 +105,9 @@ export class DogfoodReportGenerator {
 			recommendations,
 			signOff: {
 				v2SafeForOvernight: allPassed && trustAssessment.score >= 80,
-				trustGreenAcrossDimensions: Object.values(trustAssessment.dimensions).every((d) => d.status === "green"),
+				trustGreenAcrossDimensions: (Object.values(trustAssessment.dimensions) as TrustDimension[]).every(
+					(d) => d.status === "green",
+				),
 				allScenariosPassed: allPassed,
 				userControlsFunctional: trustAssessment.dimensions.userControl.score >= 80,
 				morningReportsAccurate: false,
@@ -160,7 +162,8 @@ export class DogfoodReportGenerator {
 		lines.push("| Dimension | Score | Status |");
 		lines.push("|-----------|-------|--------|");
 		for (const [key, dim] of Object.entries(report.trust.dimensions)) {
-			lines.push(`| ${key} | ${dim.score}/100 | ${dim.status} |`);
+			const d = dim as TrustDimension;
+			lines.push(`| ${key} | ${d.score}/100 | ${d.status} |`);
 		}
 		lines.push("");
 
@@ -190,23 +193,21 @@ export class DogfoodReportGenerator {
 		return lines.join("\n");
 	}
 
-	private generateSummary(
-		scenarios: ScenarioResult[],
-		trust: TrustAssessment,
-	): string {
+	private generateSummary(scenarios: ScenarioResult[], trust: TrustAssessment): string {
 		const passed = scenarios.filter((s) => s.passed).length;
 		const total = scenarios.length;
 		const lines: string[] = [];
 		lines.push(`Scenario pass rate: ${passed}/${total}`);
 		lines.push(`Trust score: ${trust.score}/100 (${trust.trend})`);
-		lines.push(`Dimensions: ${Object.entries(trust.dimensions).map(([k, v]) => `${k}=${v.status}`).join(", ")}`);
+		lines.push(
+			`Dimensions: ${Object.entries(trust.dimensions)
+				.map(([k, v]) => `${k}=${(v as TrustDimension).status}`)
+				.join(", ")}`,
+		);
 		return lines.join(" | ");
 	}
 
-	private detectIssues(
-		scenarios: ScenarioResult[],
-		trust: TrustAssessment,
-	): DogfoodReport["issues"] {
+	private detectIssues(scenarios: ScenarioResult[], trust: TrustAssessment): DogfoodReport["issues"] {
 		const issues: DogfoodReport["issues"] = [];
 
 		// Failed scenarios
@@ -224,11 +225,12 @@ export class DogfoodReportGenerator {
 
 		// Non-green trust dimensions
 		for (const [key, dim] of Object.entries(trust.dimensions)) {
-			if (dim.status !== "green") {
+			const d = dim as TrustDimension;
+			if (d.status !== "green") {
 				issues.push({
 					id: `issue-trust-${key}`,
-					severity: dim.status === "red" ? "critical" : "high",
-					description: `Trust dimension "${key}" is ${dim.status} (score: ${dim.score})`,
+					severity: d.status === "red" ? "critical" : "high",
+					description: `Trust dimension "${key}" is ${d.status} (score: ${d.score})`,
 					component: "trust",
 					resolved: false,
 				});
@@ -242,7 +244,8 @@ export class DogfoodReportGenerator {
 		const recommendations: DogfoodReport["recommendations"] = [];
 
 		for (const issue of issues) {
-			const priority: "P0" | "P1" | "P2" = issue.severity === "critical" ? "P0" : issue.severity === "high" ? "P1" : "P2";
+			const priority: "P0" | "P1" | "P2" =
+				issue.severity === "critical" ? "P0" : issue.severity === "high" ? "P1" : "P2";
 			recommendations.push({
 				priority,
 				title: `Fix ${issue.component}: ${issue.description}`,

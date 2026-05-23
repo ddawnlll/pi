@@ -11,7 +11,14 @@ export async function registerBrainAutonomyRoutes(fastify: FastifyInstance): Pro
 			const { getAutonomyProfile } = await import("@earendil-works/pi-coding-agent");
 			return await getAutonomyProfile();
 		} catch {
-			return { level: 3, levelLabel: "Operator", emergencyStop: false, approvedActions: 0, blockedActions: 0, lastUpdated: new Date().toISOString() };
+			return {
+				level: 3,
+				levelLabel: "Operator",
+				emergencyStop: false,
+				approvedActions: 0,
+				blockedActions: 0,
+				lastUpdated: new Date().toISOString(),
+			};
 		}
 	});
 

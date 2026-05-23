@@ -642,7 +642,7 @@ describe("P18 Dogfood Verification", () => {
 		});
 
 		it("provenance tracker records and explains decisions", async () => {
-			const { ProvenanceTracker, createProvenanceTracker } = await import("../../src/brain/policy/provenance.js");
+			const { createProvenanceTracker } = await import("../../src/brain/policy/provenance.js");
 
 			const tracker = createProvenanceTracker({
 				persistencePath: path.join(TEST_DIR, "brain", "audit", "provenance"),

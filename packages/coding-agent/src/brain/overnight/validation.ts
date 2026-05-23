@@ -11,8 +11,6 @@
  * 5. Trust Controls
  */
 
-import { generateId } from "@earendil-works/pi-db";
-
 // =========================================================================
 // Types
 // =========================================================================
@@ -33,6 +31,20 @@ export interface ValidationScenario {
 	setupSteps: (() => Promise<void>)[];
 	expectedOutcome: "complete" | "approval_needed" | "safety_stop" | "error";
 	validationChecks: ValidationCheck[];
+}
+
+export interface ValidationCheckResult {
+	id: string;
+	passed: boolean;
+	actualValue?: unknown;
+	evidence?: string;
+}
+
+export interface ValidationResult {
+	scenarioId: string;
+	passed: boolean;
+	duration: number;
+	errors: string[];
 }
 
 export interface ScenarioResult {

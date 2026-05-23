@@ -7,8 +7,15 @@ import type { FastifyInstance } from "fastify";
 export async function registerBrainMemoryRoutes(fastify: FastifyInstance): Promise<void> {
 	// GET /api/brain/memories - List memories
 	fastify.get<{
-		Querystring: { limit?: string; offset?: string; search?: string; type?: string; lifecycle?: string; tags?: string };
-	}>("/api/brain/memories", async (request, reply) => {
+		Querystring: {
+			limit?: string;
+			offset?: string;
+			search?: string;
+			type?: string;
+			lifecycle?: string;
+			tags?: string;
+		};
+	}>("/api/brain/memories", async (request, _reply) => {
 		try {
 			const { getMemories } = await import("@earendil-works/pi-coding-agent");
 			const limit = Number(request.query.limit) || 20;

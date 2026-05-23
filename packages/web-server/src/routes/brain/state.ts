@@ -12,14 +12,19 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 			const state = await getBrainState();
 			return state;
 		} catch {
-			return reply.code(500).send({ error: "Failed to get brain state", daemon: { state: "stopped", uptime: "0s", observationCount: 0 }, observationStats: { total: 0, bySeverity: {} }, signalStats: { total: 0, active: 0, resolved: 0, byType: {} } });
+			return reply.code(500).send({
+				error: "Failed to get brain state",
+				daemon: { state: "stopped", uptime: "0s", observationCount: 0 },
+				observationStats: { total: 0, bySeverity: {} },
+				signalStats: { total: 0, active: 0, resolved: 0, byType: {} },
+			});
 		}
 	});
 
 	// GET /api/brain/observations - List observations
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; severity?: string };
-	}>("/api/brain/observations", async (request, reply) => {
+	}>("/api/brain/observations", async (request, _reply) => {
 		try {
 			const { getObservations } = await import("@earendil-works/pi-coding-agent");
 			const limit = Number(request.query.limit) || 50;
@@ -34,7 +39,7 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 	// GET /api/brain/signals - List signals
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; resolved?: string };
-	}>("/api/brain/signals", async (request, reply) => {
+	}>("/api/brain/signals", async (request, _reply) => {
 		try {
 			const { getSignals } = await import("@earendil-works/pi-coding-agent");
 			const limit = Number(request.query.limit) || 50;
@@ -50,7 +55,7 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 	// GET /api/brain/timeline - Get timeline events
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; severity?: string };
-	}>("/api/brain/timeline", async (request, reply) => {
+	}>("/api/brain/timeline", async (request, _reply) => {
 		try {
 			const { getTimeline } = await import("@earendil-works/pi-coding-agent");
 			const limit = Number(request.query.limit) || 50;

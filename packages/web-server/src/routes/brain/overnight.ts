@@ -33,7 +33,7 @@ export async function registerBrainOvernightRoutes(fastify: FastifyInstance): Pr
 	});
 
 	// GET /api/brain/overnight/:sessionId - Get session status
-	fastify.get<{ Params: { sessionId: string } }>("/api/brain/overnight/:sessionId", async (request, reply) => {
+	fastify.get<{ Params: { sessionId: string } }>("/api/brain/overnight/:sessionId", async (_request, reply) => {
 		try {
 			const { OvernightOrchestrator } = await import("@earendil-works/pi-coding-agent");
 			const orchestrator = new OvernightOrchestrator({
@@ -62,13 +62,16 @@ export async function registerBrainOvernightRoutes(fastify: FastifyInstance): Pr
 	});
 
 	// POST /api/brain/overnight/:sessionId/cancel - Cancel a session
-	fastify.post<{ Params: { sessionId: string } }>("/api/brain/overnight/:sessionId/cancel", async (request, reply) => {
-		try {
-			const { cancelOvernight } = await import("@earendil-works/pi-coding-agent");
-			await cancelOvernight(request.params.sessionId);
-			return { success: true };
-		} catch {
-			return { success: true };
-		}
-	});
+	fastify.post<{ Params: { sessionId: string } }>(
+		"/api/brain/overnight/:sessionId/cancel",
+		async (request, _reply) => {
+			try {
+				const { cancelOvernight } = await import("@earendil-works/pi-coding-agent");
+				await cancelOvernight(request.params.sessionId);
+				return { success: true };
+			} catch {
+				return { success: true };
+			}
+		},
+	);
 }

@@ -4647,11 +4647,7 @@ await registerBrainReflectionRoutes(fastify, reflectionApi);
 // ---------------------------------------------------------------------------
 
 const { registerBrainApprovalRoutes } = await import("./routes/brain/approvals.js");
-const {
-	ApprovalQueueApi,
-	ApprovalGate,
-	createAuditLedger,
-} = await import("@earendil-works/pi-coding-agent");
+const { ApprovalQueueApi, ApprovalGate, createAuditLedger } = await import("@earendil-works/pi-coding-agent");
 const auditLedger = createAuditLedger();
 // Adapter: the ApprovalGate expects append(), but AuditLedger uses log()
 const auditAdapter = {

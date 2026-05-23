@@ -111,8 +111,10 @@ export class SourceBackedSummarizer {
 		let match: RegExpExecArray | null;
 		SOURCE_REF_REGEX.lastIndex = 0;
 
-		while ((match = SOURCE_REF_REGEX.exec(text)) !== null) {
+		match = SOURCE_REF_REGEX.exec(text);
+		while (match !== null) {
 			referencedIds.add(match[1]);
+			match = SOURCE_REF_REGEX.exec(text);
 		}
 
 		const availableIds = new Set(sources.map((s) => s.id));
@@ -273,8 +275,10 @@ function extractSourceRefs(text: string): string[] {
 	const refs: string[] = [];
 	let match: RegExpExecArray | null;
 	SOURCE_REF_REGEX.lastIndex = 0;
-	while ((match = SOURCE_REF_REGEX.exec(text)) !== null) {
+	match = SOURCE_REF_REGEX.exec(text);
+	while (match !== null) {
 		refs.push(match[1]);
+		match = SOURCE_REF_REGEX.exec(text);
 	}
 	return refs;
 }

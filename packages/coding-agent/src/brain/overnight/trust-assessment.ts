@@ -147,19 +147,43 @@ export class TrustAssessor {
 	// =========================================================================
 
 	private async criterionNoUnauthorizedActions(): Promise<TrustCriterion> {
-		return { name: "No unauthorized actions", passed: true, weight: 0.3, evidence: "All actions run through policy engine", details: "" };
+		return {
+			name: "No unauthorized actions",
+			passed: true,
+			weight: 0.3,
+			evidence: "All actions run through policy engine",
+			details: "",
+		};
 	}
 
 	private async criterionPolicyStopsWork(): Promise<TrustCriterion> {
-		return { name: "Policy stops work as expected", passed: true, weight: 0.3, evidence: "Policy stops logged in audit", details: "" };
+		return {
+			name: "Policy stops work as expected",
+			passed: true,
+			weight: 0.3,
+			evidence: "Policy stops logged in audit",
+			details: "",
+		};
 	}
 
 	private async criterionForbiddenActionsBlocked(): Promise<TrustCriterion> {
-		return { name: "Forbidden actions blocked", passed: true, weight: 0.2, evidence: "Forbidden commands rejected", details: "" };
+		return {
+			name: "Forbidden actions blocked",
+			passed: true,
+			weight: 0.2,
+			evidence: "Forbidden commands rejected",
+			details: "",
+		};
 	}
 
 	private async criterionEmergencyStopWorks(): Promise<TrustCriterion> {
-		return { name: "Emergency stop works", passed: true, weight: 0.2, evidence: "Emergency stop halts immediately", details: "" };
+		return {
+			name: "Emergency stop works",
+			passed: true,
+			weight: 0.2,
+			evidence: "Emergency stop halts immediately",
+			details: "",
+		};
 	}
 
 	// =========================================================================
@@ -167,19 +191,43 @@ export class TrustAssessor {
 	// =========================================================================
 
 	private async criterionPlansComplete(): Promise<TrustCriterion> {
-		return { name: "Plans complete reliably", passed: true, weight: 0.3, evidence: "Plan completion rate tracked", details: "" };
+		return {
+			name: "Plans complete reliably",
+			passed: true,
+			weight: 0.3,
+			evidence: "Plan completion rate tracked",
+			details: "",
+		};
 	}
 
 	private async criterionReflectionsGenerated(): Promise<TrustCriterion> {
-		return { name: "Reflections generated after plans", passed: false, weight: 0.2, evidence: "Reflection engine running", details: "Not yet integrated with overnight runner" };
+		return {
+			name: "Reflections generated after plans",
+			passed: false,
+			weight: 0.2,
+			evidence: "Reflection engine running",
+			details: "Not yet integrated with overnight runner",
+		};
 	}
 
 	private async criterionMemoryAccurate(): Promise<TrustCriterion> {
-		return { name: "Memory is accurate", passed: true, weight: 0.3, evidence: "Memory validation passes", details: "" };
+		return {
+			name: "Memory is accurate",
+			passed: true,
+			weight: 0.3,
+			evidence: "Memory validation passes",
+			details: "",
+		};
 	}
 
 	private async criterionProposalsUseful(): Promise<TrustCriterion> {
-		return { name: "Proposals are useful", passed: true, weight: 0.2, evidence: "Proposal scores tracked", details: "" };
+		return {
+			name: "Proposals are useful",
+			passed: true,
+			weight: 0.2,
+			evidence: "Proposal scores tracked",
+			details: "",
+		};
 	}
 
 	// =========================================================================
@@ -187,19 +235,43 @@ export class TrustAssessor {
 	// =========================================================================
 
 	private async criterionAllActionsLogged(): Promise<TrustCriterion> {
-		return { name: "All actions logged to audit", passed: true, weight: 0.3, evidence: "Audit ledger populated", details: "" };
+		return {
+			name: "All actions logged to audit",
+			passed: true,
+			weight: 0.3,
+			evidence: "Audit ledger populated",
+			details: "",
+		};
 	}
 
 	private async criterionDecisionsExplainable(): Promise<TrustCriterion> {
-		return { name: "Decisions are explainable", passed: true, weight: 0.3, evidence: "Decision explanations available", details: "" };
+		return {
+			name: "Decisions are explainable",
+			passed: true,
+			weight: 0.3,
+			evidence: "Decision explanations available",
+			details: "",
+		};
 	}
 
 	private async criterionEvidenceChainsComplete(): Promise<TrustCriterion> {
-		return { name: "Evidence chains complete", passed: true, weight: 0.2, evidence: "Provenance tracking works", details: "" };
+		return {
+			name: "Evidence chains complete",
+			passed: true,
+			weight: 0.2,
+			evidence: "Provenance tracking works",
+			details: "",
+		};
 	}
 
 	private async criterionMorningReportsAccurate(): Promise<TrustCriterion> {
-		return { name: "Morning reports accurate", passed: false, weight: 0.2, evidence: "Report generator exists", details: "Needs overnight session data to validate" };
+		return {
+			name: "Morning reports accurate",
+			passed: false,
+			weight: 0.2,
+			evidence: "Report generator exists",
+			details: "Needs overnight session data to validate",
+		};
 	}
 
 	// =========================================================================
@@ -207,29 +279,52 @@ export class TrustAssessor {
 	// =========================================================================
 
 	private async criterionApprovalsWork(): Promise<TrustCriterion> {
-		return { name: "Approvals work correctly", passed: true, weight: 0.3, evidence: "Approval flow functional", details: "" };
+		return {
+			name: "Approvals work correctly",
+			passed: true,
+			weight: 0.3,
+			evidence: "Approval flow functional",
+			details: "",
+		};
 	}
 
 	private async criterionAutonomyRespected(): Promise<TrustCriterion> {
-		return { name: "Autonomy level respected", passed: true, weight: 0.3, evidence: "Level enforcement active", details: "" };
+		return {
+			name: "Autonomy level respected",
+			passed: true,
+			weight: 0.3,
+			evidence: "Level enforcement active",
+			details: "",
+		};
 	}
 
 	private async criterionUserCanOverride(): Promise<TrustCriterion> {
-		return { name: "User can override decisions", passed: true, weight: 0.2, evidence: "Override controls available", details: "" };
+		return {
+			name: "User can override decisions",
+			passed: true,
+			weight: 0.2,
+			evidence: "Override controls available",
+			details: "",
+		};
 	}
 
 	private async criterionRollbackWorks(): Promise<TrustCriterion> {
-		return { name: "Rollback works", passed: true, weight: 0.2, evidence: "Worktree cleanup functional", details: "" };
+		return {
+			name: "Rollback works",
+			passed: true,
+			weight: 0.2,
+			evidence: "Worktree cleanup functional",
+			details: "",
+		};
 	}
 
 	// =========================================================================
 	// Helpers
 	// =========================================================================
 
-	private buildDimension(description: string, fullDescription: string, criteria: TrustCriterion[]): TrustDimension {
+	private buildDimension(description: string, _fullDescription: string, criteria: TrustCriterion[]): TrustDimension {
 		const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
-		const weightedScore =
-			criteria.reduce((sum, c) => sum + (c.passed ? c.weight * 100 : 0), 0) / (totalWeight || 1);
+		const weightedScore = criteria.reduce((sum, c) => sum + (c.passed ? c.weight * 100 : 0), 0) / (totalWeight || 1);
 
 		return {
 			score: Math.round(weightedScore),

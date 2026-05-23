@@ -27,14 +27,7 @@ const DEFAULT_TRUST_METRICS = {
 	eventsByOutcome: {} as Record<string, number>,
 	eventsBySeverity: {} as Record<string, number>,
 	topActors: [] as Array<{ actor: string; count: number }>,
-	protectedSystems: [
-		"Executor",
-		"Validator",
-		"Policy Engine",
-		"Queue Manager",
-		"Planner",
-		"Orchestrator Runtime",
-	],
+	protectedSystems: ["Executor", "Validator", "Policy Engine", "Queue Manager", "Planner", "Orchestrator Runtime"],
 	trustScore: 100,
 	trustScoreHistory: [] as Array<{ date: string; score: number }>,
 };
@@ -66,17 +59,10 @@ function loadTrustMetrics(): typeof DEFAULT_TRUST_METRICS {
 		const allEvents = ledger.getAllEvents();
 
 		// Count trust-relevant events
-		const policyStops = allEvents.filter(
-			(e: any) => e.category === "policy" || e.outcome === "denied",
-		).length;
-		const approvalRequests = allEvents.filter(
-			(e: any) => e.outcome === "pending_approval",
-		).length;
+		const policyStops = allEvents.filter((e: any) => e.category === "policy" || e.outcome === "denied").length;
+		const approvalRequests = allEvents.filter((e: any) => e.outcome === "pending_approval").length;
 		const safetyInterventions = allEvents.filter(
-			(e: any) =>
-				e.severity === "critical" ||
-				e.severity === "error" ||
-				e.outcome === "denied",
+			(e: any) => e.severity === "critical" || e.severity === "error" || e.outcome === "denied",
 		).length;
 
 		// Calculate trust score (0-100)
@@ -85,13 +71,9 @@ function loadTrustMetrics(): typeof DEFAULT_TRUST_METRICS {
 			(summary.eventsByOutcome.denied ?? 0) +
 			(summary.eventsByOutcome.rejected ?? 0) +
 			(summary.eventsByOutcome.failed ?? 0);
-		const approvedOrAllowed =
-			(summary.eventsByOutcome.approved ?? 0) +
-			(summary.eventsByOutcome.allowed ?? 0);
+		const approvedOrAllowed = (summary.eventsByOutcome.approved ?? 0) + (summary.eventsByOutcome.allowed ?? 0);
 
-		const trustScore = Math.round(
-			Math.max(0, Math.min(100, ((total - deniedOrFailed) / total) * 100)),
-		);
+		const trustScore = Math.round(Math.max(0, Math.min(100, ((total - deniedOrFailed) / total) * 100)));
 
 		return {
 			totalAuditEntries: summary.totalEvents,
