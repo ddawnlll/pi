@@ -431,21 +431,16 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const parseResult = parsePlan(planContent);
 	const currentPhase = parseResult.success && parseResult.queue ? parseResult.queue.phase : "";
 
-	// AC #5: If there's already a running execution for this project AND phase, return it
-	// CRITICAL FIX: Only dedup if executing the SAME phase. Different phases in a
-	// multi-phase task should get their own executions so they can advance properly.
-	const existingRunning = getActiveExecutions(projectId).find(
-		(e) => e.status === "running" && e.phase === currentPhase,
-	);
-	if (existingRunning) {
+	// AC #5: Guard against concurrent runPlan calls per projectId.
+	// NOTE: The old dedup-by-phase logic was removed because each plan upload
+	// should always create a new execution with a fresh UUID, even if the same
+	// phase string (e.g. "P2") is reused. The in-flight guard below still prevents
+	// concurrent calls for the same project.
+	if (parseResult.success && parseResult.queue) {
+		// Extract the title for better logging
 		new PiLogger().info(
-			`Project ${projectId} phase ${existingRunning.phase} already has a running execution, returning existing`,
+			`Preparing to run plan for project ${projectId}, phase=${currentPhase}, title="${parseResult.queue.title}"`,
 		);
-		return {
-			success: true,
-			planExecId: existingRunning.planExecId,
-			execution: existingRunning,
-		};
 	}
 
 	// AC #1 & AC #2: Guard against concurrent runPlan calls per projectId
@@ -1121,6 +1116,10 @@ async function executePlanInBackground(
 			}
 
 			if (nextWorkspaces.length === 0) {
+				await log(
+					`No workspaces ready: pending=${stats?.pending}, active=${stats?.active}, blocked=${stats?.blocked}, complete=${stats?.complete}, failed=${stats?.failed}`,
+				);
+
 				// 3. Deadlock check gated on exec.status === running
 				if (stats && stats.blocked > 0 && stats.active === 0 && exec.status === "running") {
 					await log(`ERROR: Execution blocked - dependency deadlock`);

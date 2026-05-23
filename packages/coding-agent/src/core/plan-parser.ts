@@ -310,10 +310,29 @@ function parseMarkdownHeadings(planContent: string): { queue?: WorkspaceQueue; e
 	const errors: string[] = [];
 	const workspaces: Workspace[] = [];
 
-	// Extract phase and title from header
-	const headerMatch = planContent.match(/# Phase (P\d+)[^\n]*\n[^\n]*\n[^\n]*Title[^\n]*:\s*([^\n]+)/i);
-	const phase = headerMatch?.[1] || "P2";
-	const title = headerMatch?.[2]?.trim() || "Untitled Phase";
+	// Extract phase and title from header.
+	// Supports two formats:
+	//   1. # Phase P22 — Title Here  (old-style, title in heading)
+	//   2. # Phase P22\n\n**Title:** Title Here  (new-style, Title field below heading)
+	const phaseMatch = planContent.match(/# Phase (P\d+)/i);
+	const phase = phaseMatch?.[1] || "P2";
+
+	let title: string | undefined;
+	// Try format 2: explicit Title field
+	const titleFieldMatch = planContent.match(/# Phase P\d+[^\n]*\n[^\n]*\n[^\n]*Title[^\n]*:\s*([^\n]+)/i);
+	if (titleFieldMatch) {
+		title = titleFieldMatch[1].trim();
+	}
+	// Try format 1: title after em-dash in heading
+	if (!title) {
+		const headingMatch = planContent.match(/# Phase P\d+\s*[—-]\s*([^\n]+)/i);
+
+		if (headingMatch) {
+			title = headingMatch[1].trim();
+		}
+	}
+	// Fallback
+	title = title || "Untitled Phase";
 
 	// Find workstream section (Part 1, section 7)
 	const workstreamMatch = planContent.match(/## 7\. Workstreams([\s\S]*?)(?=\n## [8-9]\.|$)/i);

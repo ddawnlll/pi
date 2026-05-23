@@ -400,6 +400,58 @@ interface DagEdge {
 
 ---
 
+## 7. Workstreams
+
+### 7.A — Project-Centric Sidebar & Navigation
+
+**Depends on:** None
+
+Replace 4-tab sidebar with project-centric layout. Project selector at top, then Brain, Tasks, Runs sections scoped to the selected project. Persist selection in localStorage.
+
+Files: `packages/web-ui/dashboard/src/App.tsx`, `packages/web-ui/dashboard/src/components/sidebar/Sidebar.tsx`
+
+### 7.B — Per-Project Brain Architecture
+
+**Depends on:** 7.A
+
+Scope all brain routes under `/api/projects/:projectId/brain`. Store brain data per-project under `.pi/projects/{id}/brain/`. Add brain toggle per project.
+
+Files: `packages/web-server/src/index.ts`, `packages/web-server/src/routes/brain/*.ts`
+
+### 7.C — Worktree-Only Execution Mode
+
+**Depends on:** None
+
+Remove `stable_3` scale mode. Force worktree isolation for all plans. Remove `executeInPlace()` and non-worktree state tracking.
+
+Files: `packages/coding-agent/src/core/workspace-schema.ts`, `packages/coding-agent/src/core/workspace-agent-executor.ts`, `packages/coding-agent/src/core/autonomous-executor.ts`, `packages/web-server/src/plan-runner.ts`
+
+### 7.D — File Explorer for Live Worktrees
+
+**Depends on:** 7.C
+
+New file explorer component with directory tree navigation, file preview, diff view, and auto-refresh polling. Backend routes for listing/reading worktree files and diffs.
+
+Files: `packages/web-ui/dashboard/src/components/FileExplorer.tsx`, `packages/web-server/src/file-explorer-routes.ts`
+
+### 7.E — Phase/Plan Naming & Task Creation
+
+**Depends on:** 7.A
+
+Task creation as primary CTA. Allow user-set phase names at upload time. Propagate phase name throughout dashboard. Plan archiving with status filter. Rename endpoint.
+
+Files: `packages/coding-agent/src/core/plan-parser.ts`, `packages/web-server/src/index.ts`, `packages/web-ui/dashboard/src/components/PlanUploadDialog.tsx`, `packages/web-ui/dashboard/src/components/TaskCreateDialog.tsx`
+
+### 7.F — Multi-DAG Viewer
+
+**Depends on:** 7.E
+
+Interactive dependency graph renderer with zoom/pan/mini-map. Color-coded by status. DAG node click links to file explorer (running) or diff summary (completed).
+
+Files: `packages/web-ui/dashboard/src/components/MultiDagViewer.tsx`
+
+---
+
 ## 6. Acceptance Criteria
 
 - [ ] Sidebar shows project as the top-level entity with Brain, Tasks, Runs sections
