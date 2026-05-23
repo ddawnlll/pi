@@ -911,6 +911,14 @@ export class WorkspaceAgentExecutor {
 			log(`Executing agent in worktree: ${createResult.state.worktreePath}`);
 			const result = await worktreeExecutor.execute(packet, workspaceId);
 
+			// Clean up the worktree after execution completes
+			try {
+				await this.worktreeExecutor.removeWorktree(!result.success);
+				log(`Worktree cleaned up (quarantine=${!result.success})`);
+			} catch (cleanupErr) {
+				log(`Worktree cleanup warning: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
+			}
+
 			// Attach worktree state to the result
 			return {
 				...result,
@@ -919,6 +927,15 @@ export class WorkspaceAgentExecutor {
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			log(`Worktree execution error: ${errorMessage}`);
+
+			// Clean up worktree on error
+			try {
+				await this.worktreeExecutor?.removeWorktree(true);
+				log(`Worktree quarantined after error`);
+			} catch (cleanupErr) {
+				log(`Worktree cleanup warning: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
+			}
+
 			return {
 				success: false,
 				verdict: "FAILED",

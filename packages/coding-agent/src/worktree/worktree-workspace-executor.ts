@@ -35,6 +35,17 @@ async function acquireWorktreeMutex(): Promise<void> {
 				resolve();
 			};
 		});
+		// Safety timeout: if release() is never called (e.g. crash mid-operation),
+		// auto-release after 60 seconds so other operations don't hang forever.
+		// Capture the current release function to avoid racing with a new acquire.
+		const capturedRelease = worktreeMutex.release;
+		setTimeout(() => {
+			// Only release if the captured function is still the active one.
+			// If a new acquire() has replaced it, the chain is alive.
+			if (worktreeMutex.release === capturedRelease) {
+				capturedRelease?.();
+			}
+		}, 60_000).unref();
 	});
 }
 
@@ -56,12 +67,12 @@ import {
 /**
  * Run a git command asynchronously and return stdout trimmed.
  */
-async function git(args: string[], cwd: string): Promise<string> {
+async function git(args: string[], cwd: string, timeoutMs: number = 60_000): Promise<string> {
 	try {
 		const { stdout } = await execAsync(`git ${args.join(" ")}`, {
 			cwd,
 			encoding: "utf-8",
-			timeout: 30_000,
+			timeout: timeoutMs,
 		});
 		return stdout.trim();
 	} catch {
