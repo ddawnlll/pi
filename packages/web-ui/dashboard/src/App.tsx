@@ -54,7 +54,7 @@ import { PlanSummaryPanel } from "./components/PlanSummaryPanel";
 import { AutonomyCenter } from "./features/autonomy/AutonomyCenter";
 import { ExtensionsManager } from "./components/ExtensionsManager";
 import { SkillsManager } from "./components/SkillsManager";
-import { LeftNav, PlatformSectionHeader } from "./components/LeftNav";
+import { LeftNav } from "./components/LeftNav";
 import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { MemoryCockpit } from "./features/memory/MemoryCockpit";
@@ -219,10 +219,12 @@ export function App() {
   const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
   // P19 brain pages
   const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
-  const showBrainInbox       = activeView.type === "platform" && activeView.screen === "brain_inbox";
   const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
   const showBrainReflections = activeView.type === "platform" && activeView.screen === "brain_reflections";
   const showBrainOvernight   = activeView.type === "platform" && activeView.screen === "brain_overnight";
+  const showBrainGoals       = activeView.type === "platform" && activeView.screen === "brain_goals";
+  const showBrainProposals   = activeView.type === "platform" && activeView.screen === "brain_proposals";
+  const showBrainTrust       = activeView.type === "platform" && activeView.screen === "brain_trust";
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
 
@@ -543,15 +545,13 @@ export function App() {
 
               {/* ── PLATFORM tab ── */}
               {leftTab === "platform" && (
-                <>
-                  <PlatformSectionHeader title="Platform" />
-                  <div className="flex flex-col gap-0.5 overflow-y-auto">
-                    <LeftNav
-                      activeItem={platformActiveItem}
-                      onNavigate={navigateToPlatform}
-                    />
-                  </div>
-                </>
+                <div className="flex flex-col gap-0.5 overflow-y-auto">
+                  <LeftNav
+                    activeItem={platformActiveItem}
+                    onNavigate={navigateToPlatform}
+                    showBrainSection
+                  />
+                </div>
               )}
             </motion.aside>
           )}
@@ -744,7 +744,7 @@ export function App() {
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showBrainState ? (
                           <BrainStatePage />
-                        ) : showBrainInbox ? (
+                        ) : showBrainProposals ? (
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showBrainMemory ? (
                           <BrainMemoryPage />
@@ -752,6 +752,10 @@ export function App() {
                           <BrainReflectionsPage />
                         ) : showBrainOvernight ? (
                           <BrainOvernightPage />
+                        ) : showBrainGoals ? (
+                          <GoalBoard className="flex-1 min-h-0" />
+                        ) : showBrainTrust ? (
+                          <TrustDashboard className="flex-1 min-h-0" />
                         ) : (
                           <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
                             <Cpu size={32} strokeWidth={1.2} />

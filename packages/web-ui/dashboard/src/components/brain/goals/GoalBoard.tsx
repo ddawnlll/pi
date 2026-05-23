@@ -13,7 +13,11 @@ const COLUMNS = [
 	{ status: "review" as const, label: "Review" },
 ];
 
-export function GoalBoard() {
+interface GoalBoardProps {
+	className?: string;
+}
+
+export function GoalBoard({ className = "" }: GoalBoardProps) {
 	const { goals, stats, driftReports, loading, error, create, update, complete, deleteGoal, refresh } = useGoalBoard();
 	const [selectedGoal, setSelectedGoal] = useState<GoalRecord | null>(null);
 	const [showForm, setShowForm] = useState(false);
@@ -60,7 +64,7 @@ export function GoalBoard() {
 	const hasDrift = driftReports.some((d) => d.drifted);
 
 	return (
-		<div className="space-y-4">
+		<div className={`space-y-4 ${className}`}>
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">

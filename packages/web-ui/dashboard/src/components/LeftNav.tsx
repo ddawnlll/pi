@@ -12,6 +12,15 @@
  * - Memory → MemoryCockpit
  * - Policy & Audit → PolicyAuditCenter
  * - Registry Settings → RegistrySettings
+ *
+ * Brain entries (P19):
+ * - Brain State → BrainStatePage
+ * - Memory Explorer → BrainMemoryPage
+ * - Reflections → BrainReflectionsPage
+ * - Overnight → BrainOvernightPage
+ * - Goals → GoalBoard
+ * - Proposals → ProposalInbox
+ * - Trust → BrainTrustPage
  */
 
 import {
@@ -54,10 +63,12 @@ export type PlatformNavItem =
 	| "registry_settings"
 	// P19 brain pages
 	| "brain_state"
-	| "brain_inbox"
 	| "brain_memory"
 	| "brain_reflections"
-	| "brain_overnight";
+	| "brain_overnight"
+	| "brain_goals"
+	| "brain_proposals"
+	| "brain_trust";
 
 export interface PlatformNavEntry {
 	id: PlatformNavItem;
@@ -65,6 +76,8 @@ export interface PlatformNavEntry {
 	icon: typeof Cpu;
 	description: string;
 }
+
+// ── P11 Platform entries ──
 
 export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 	{
@@ -121,18 +134,16 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		icon: Sliders,
 		description: "Local/remote registries, channels, update policy",
 	},
-	// ── P19 Second-Brain pages ──
+];
+
+// ── P19 Brain entries ──
+
+export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 	{
 		id: "brain_state",
 		label: "Brain State",
 		icon: Cpu,
 		description: "Daemon status, observations, signals, timeline",
-	},
-	{
-		id: "brain_inbox",
-		label: "Proposal Inbox",
-		icon: Inbox,
-		description: "Top-ranked proposals with recommendations",
 	},
 	{
 		id: "brain_memory",
@@ -145,6 +156,24 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Reflections",
 		icon: RotateCw,
 		description: "Post-plan reflections, worked/failed, suggestions",
+	},
+	{
+		id: "brain_proposals",
+		label: "Proposals",
+		icon: Inbox,
+		description: "Top-ranked proposals with recommendations",
+	},
+	{
+		id: "brain_goals",
+		label: "Goals",
+		icon: Target,
+		description: "Goal board, milestones, drift alerts",
+	},
+	{
+		id: "brain_trust",
+		label: "Trust Dashboard",
+		icon: Shield,
+		description: "Trust metrics, safety, approvals, audit health",
 	},
 	{
 		id: "brain_overnight",
@@ -161,36 +190,54 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 interface LeftNavProps {
 	activeItem: PlatformNavItem | null;
 	onNavigate: (item: PlatformNavItem) => void;
+	showBrainSection?: boolean;
 }
 
-export function LeftNav({ activeItem, onNavigate }: LeftNavProps) {
+function renderEntries(
+	entries: PlatformNavEntry[],
+	activeItem: PlatformNavItem | null,
+	onNavigate: (item: PlatformNavItem) => void,
+) {
+	return entries.map((entry) => {
+		const Icon = entry.icon;
+		const isActive = activeItem === entry.id;
+		return (
+			<button
+				key={entry.id}
+				onClick={() => onNavigate(entry.id)}
+				className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors text-left ${
+					isActive
+						? `${ACC_BG} ${ACC_TXT}`
+						: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+				}`}
+			>
+				<Icon size={15} strokeWidth={1.6} className="shrink-0" />
+				<div className="min-w-0 flex-1">
+					<div className={`text-[12px] font-medium leading-tight ${isActive ? ACC_TXT : TXT}`}>
+						{entry.label}
+					</div>
+					<div className={`text-[10px] leading-tight mt-0.5 ${MUT} truncate`}>
+						{entry.description}
+					</div>
+				</div>
+			</button>
+		);
+	});
+}
+
+export function LeftNav({ activeItem, onNavigate, showBrainSection = true }: LeftNavProps) {
 	return (
 		<div className="flex flex-col gap-0.5 px-2 pb-2">
-			{PLATFORM_NAV_ENTRIES.map((entry) => {
-				const Icon = entry.icon;
-				const isActive = activeItem === entry.id;
-				return (
-					<button
-						key={entry.id}
-						onClick={() => onNavigate(entry.id)}
-						className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors text-left ${
-							isActive
-								? `${ACC_BG} ${ACC_TXT}`
-								: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
-						}`}
-					>
-						<Icon size={15} strokeWidth={1.6} className="shrink-0" />
-						<div className="min-w-0 flex-1">
-							<div className={`text-[12px] font-medium leading-tight ${isActive ? ACC_TXT : TXT}`}>
-								{entry.label}
-							</div>
-							<div className={`text-[10px] leading-tight mt-0.5 ${MUT} truncate`}>
-								{entry.description}
-							</div>
-						</div>
-					</button>
-				);
-			})}
+			{renderEntries(PLATFORM_NAV_ENTRIES, activeItem, onNavigate)}
+
+			{showBrainSection && (
+				<>
+					<div className={`mt-2 mb-0.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+						Brain (P19)
+					</div>
+					{renderEntries(BRAIN_NAV_ENTRIES, activeItem, onNavigate)}
+				</>
+			)}
 		</div>
 	);
 }
