@@ -15,6 +15,7 @@ import {
 	AutonomousExecutor,
 	type CleanupReviewResult,
 	createSafetyDoctor,
+	killTrackedDetachedChildren,
 	PiLogger,
 	parsePlan,
 	runCleanupReview,
@@ -1482,6 +1483,14 @@ async function executePlanInBackground(
 		}
 		updateExecutionStatus(planExecId, "failed", errorMsg);
 	} finally {
+		// Process lifecycle containment: kill all tracked child processes
+		// (vitest, npm, node, etc.) that may have been spawned by workspace
+		// agent sessions via the bash tool, even if the execution completed
+		// or failed normally.
+		// Process lifecycle containment: kill any tracked child processes that
+		// may have been spawned by workspace agent sessions via the bash tool.
+		killTrackedDetachedChildren();
+
 		// Check if this execution belongs to a task and advance to next phase
 		try {
 			await advancePhaseIfReady(workspaceRoot, planExecId);

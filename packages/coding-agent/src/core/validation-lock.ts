@@ -1,10 +1,16 @@
 /**
  * Global Validation Command Lock
  *
- * Ensures that only one validation command runs at a time across the
- * entire plan execution. Workers may edit in parallel, but validation
- * commands (tests, type checks, builds) are serialized via a
- * process-wide async lock.
+ * CONCURRENCY OPTIMIZATION, NOT PROCESS CONTAINMENT.
+ *
+ * This lock serializes validation commands (tests, type checks, builds)
+ * across parallel workers so only one runs at a time. This reduces RAM
+ * pressure and prevents test-data races.
+ *
+ * Process lifecycle containment (killing orphans after command completion)
+ * is handled by the bash tool's exec() cleanup path and workspace boundary
+ * cleanup in the autonomous executor and plan runner. Pattern matching here
+ * is the final algorithmic fallback and concurrency hint only.
  *
  * Events emitted on the provided EventBus:
  * - validation_lock_waiting   — a worker is waiting for the lock
@@ -28,34 +34,75 @@ export type { EventBus } from "./event-bus.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Commands that are considered validation commands and must be serialized.
+ * Validation command patterns — final fallback layer.
  *
- * These are matched against the beginning of the command string (after
- * stripping leading whitespace). The match is prefix-based so that
- * flag-bearing variants like `vitest --run` are still recognized.
+ * Process lifecycle containment (bash tool exec cleanup + workspace boundary
+ * cleanup) is the primary protection against runaway child processes. These
+ * patterns exist as a concurrency optimization hint for serialization only.
+ *
+ * Matched against the full command string (not just prefix). Supports
+ * compound commands via `cd ... && npm run build`, `--prefix` variants,
+ * and `--dir` variants.
  */
-const VALIDATION_COMMAND_PREFIXES: readonly string[] = [
-	"vitest",
-	"npm test",
-	"npm run test",
-	"pnpm test",
-	"pnpm run test",
-	"npm run typecheck",
-	"npx tsgo --noEmit",
-	"tsc --noEmit",
-	"npm run build",
-	"vite build",
+const VALIDATION_COMMAND_PATTERNS: readonly RegExp[] = [
+	// vitest (standalone, with args, after &&/||/;)
+	/(?:^|&&|\|\||;)\s*(npx\s+)?vitest(\s|$|[;&|])/,
+	// npm/pnpm/yarn run test|typecheck|check|build (including variants like test:unit)
+	/(?:^|&&|\|\||;)\s*(npm|pnpm|yarn)\s+(run\s+)?(test|typecheck|check|build)(:\w+)?(\s|$|[;&|])/,
+	// npx tsgo/tsc --noEmit
+	/(?:^|&&|\|\||;)\s*(npx\s+)?(tsgo|tsc)\s+--noEmit(\s|$|[;&|])/,
+	// vite build
+	/(?:^|&&|\|\||;)\s*(npx\s+)?vite\s+build(\s|$|[;&|])/,
+	// --prefix variants
+	/npm\s+--prefix\s+\S+\s+run\s+(build|test|typecheck|check)\b/,
+	// --dir variants
+	/pnpm\s+--dir\s+\S+\s+(build|test|typecheck|check)\b/,
+];
+
+/**
+ * Long-running command patterns — commands that start dev servers or watchers.
+ * Used by the bash tool as a UX guard to prevent accidental runaway processes.
+ */
+export const LONG_RUNNING_COMMAND_PATTERNS: readonly RegExp[] = [
+	// npm/pnpm/yarn run dev
+	/(?:^|&&|\|\||;)\s*(npm|pnpm|yarn)\s+(run\s+)?dev(\s|$|[;&|])/,
+	// bare vite (not vite build which is a one-shot)
+	/(?:^|&&|\|\||;)\s*(npx\s+)?vite($|\s+--|\s+-)/,
+	// any command with --watch flag
+	/\b--watch\b/,
+	// vitest with --watch flag
+	/vitest.*--watch/,
 ];
 
 /**
  * Check whether a shell command is a validation command.
  *
+ * Uses regex patterns for broader matching (handles compound commands,
+ * `cd` prefixes, `--prefix`/`--dir` variants).
+ *
+ * NOTE: This is a concurrency optimization, NOT the process containment
+ * safety boundary. Process lifecycle containment is handled by the bash
+ * tool's exec() cleanup and workspace boundary cleanup.
+ *
  * @param command - The shell command to check
- * @returns True if the command matches a known validation command prefix
+ * @returns True if the command matches a known validation command pattern
  */
 export function isValidationCommand(command: string): boolean {
-	const trimmed = command.trimStart();
-	return VALIDATION_COMMAND_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+	return VALIDATION_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
+}
+
+/**
+ * Check whether a shell command looks like a long-running process
+ * (dev server, watcher, etc.).
+ *
+ * Used by the bash tool to reject such commands when no explicit timeout
+ * is provided.
+ *
+ * @param command - The shell command to check
+ * @returns True if the command matches a long-running pattern
+ */
+export function isLongRunningCommand(command: string): boolean {
+	return LONG_RUNNING_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
 }
 
 // ---------------------------------------------------------------------------

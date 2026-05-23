@@ -290,32 +290,517 @@ export function sanitizeBinaryOutput(str: string): string {
 		.join("");
 }
 
+// ---------------------------------------------------------------------------
+// Process supervisor — scope-aware process tracking and lifecycle
+// ---------------------------------------------------------------------------
+
 /**
- * Detached child processes must be tracked so they can be killed on parent
- * shutdown signals (SIGHUP/SIGTERM).
- *
- * Also used by the global validation spawn lock to kill competing validation
- * processes when a new one is spawned.
+ * Process scope metadata.
  */
-const trackedDetachedChildPids = new Set<number>();
+export interface ProcessScope {
+	scopeId: string;
+	planExecId?: string;
+	workspaceId?: string;
+	toolCallId?: string;
+	command?: string;
+	cwd?: string;
+	startedAt: number;
+}
+
+/**
+ * Tracked process with full metadata.
+ */
+export interface TrackedProcess extends ProcessScope {
+	pid: number;
+	pgid?: number;
+	killedAt?: number;
+	killReason?: string;
+}
+
+/**
+ * Process tracking map (PID -> TrackedProcess).
+ *
+ * Replaces the raw Set<number> with a richer store while keeping
+ * existing PID-only export signatures compatible.
+ */
+const trackedProcesses = new Map<number, TrackedProcess>();
+
+/**
+ * Create a new process scope identifier.
+ */
+export function createProcessScope(input: Partial<ProcessScope> & { scopeId?: string }): ProcessScope {
+	return {
+		scopeId: input.scopeId ?? `scope-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+		planExecId: input.planExecId,
+		workspaceId: input.workspaceId,
+		toolCallId: input.toolCallId,
+		command: input.command,
+		cwd: input.cwd,
+		startedAt: input.startedAt ?? Date.now(),
+	};
+}
 
 export function trackDetachedChildPid(pid: number): void {
-	trackedDetachedChildPids.add(pid);
+	// Maintain backward compatibility: existing callers only pass a PID.
+	// If already tracked with metadata, leave it; otherwise add a bare record.
+	if (!trackedProcesses.has(pid)) {
+		trackedProcesses.set(pid, {
+			pid,
+			scopeId: `bare-${pid}`,
+			startedAt: Date.now(),
+		} as TrackedProcess);
+	}
 }
 
 export function untrackDetachedChildPid(pid: number): void {
-	trackedDetachedChildPids.delete(pid);
+	trackedProcesses.delete(pid);
 }
 
-export function killTrackedDetachedChildren(): void {
-	for (const pid of trackedDetachedChildPids) {
+/**
+ * Track a process with full metadata (scope, command, etc.).
+ */
+export function trackProcess(process: TrackedProcess): void {
+	trackedProcesses.set(process.pid, process);
+}
+
+/**
+ * Kill a specific tracked process by PID.
+ * Calls killProcessTree and then removes the PID from tracking.
+ */
+export function killTrackedProcess(pid: number, reason?: string): void {
+	killProcessTree(pid);
+	const existing = trackedProcesses.get(pid);
+	if (existing) {
+		existing.killedAt = Date.now();
+		existing.killReason = reason;
+	}
+	trackedProcesses.delete(pid);
+}
+
+/**
+ * Kill all processes belonging to a given scope ID.
+ */
+export function killProcessScope(scopeId: string, reason?: string): void {
+	const toKill: number[] = [];
+	for (const [pid, proc] of trackedProcesses) {
+		if (proc.scopeId === scopeId) {
+			toKill.push(pid);
+		}
+	}
+	for (const pid of toKill) {
+		killProcessTree(pid);
+		const existing = trackedProcesses.get(pid);
+		if (existing) {
+			existing.killedAt = Date.now();
+			existing.killReason = reason;
+		}
+		trackedProcesses.delete(pid);
+	}
+}
+
+/**
+ * Kill all processes for a specific workspace within a plan.
+ */
+export function killWorkspaceProcesses(planExecId: string, workspaceId: string, _reason?: string): void {
+	const toKill: number[] = [];
+	for (const [pid, proc] of trackedProcesses) {
+		if (proc.planExecId === planExecId && proc.workspaceId === workspaceId) {
+			toKill.push(pid);
+		}
+	}
+	for (const pid of toKill) {
+		killProcessTree(pid);
+		trackedProcesses.delete(pid);
+	}
+}
+
+/**
+ * Kill all processes for a specific plan execution.
+ */
+export function killPlanProcesses(planExecId: string, reason?: string): void {
+	const toKill: number[] = [];
+	for (const [pid, proc] of trackedProcesses) {
+		if (proc.planExecId === planExecId) {
+			toKill.push(pid);
+		}
+	}
+	for (const pid of toKill) {
+		killProcessTree(pid);
+		const existing = trackedProcesses.get(pid);
+		if (existing) {
+			existing.killedAt = Date.now();
+			existing.killReason = reason;
+		}
+		trackedProcesses.delete(pid);
+	}
+}
+
+/**
+ * Kill all tracked processes and clear the map.
+ */
+export function killAllTrackedProcesses(_reason?: string): void {
+	for (const pid of trackedProcesses.keys()) {
 		killProcessTree(pid);
 	}
-	trackedDetachedChildPids.clear();
+	trackedProcesses.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible aliases
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use killAllTrackedProcesses instead. */
+export function killTrackedDetachedChildren(): void {
+	killAllTrackedProcesses();
+}
+
+// ---------------------------------------------------------------------------
+// Process resource guard (memory watchdog)
+// ---------------------------------------------------------------------------
+
+/**
+ * Configuration for the process memory watchdog.
+ */
+export interface MemoryWatchdogConfig {
+	/** Max RSS per process scope in bytes (default: 2 GB). */
+	maxRssPerScope: number;
+	/** Max number of processes per scope (default: 64). */
+	maxProcessesPerScope: number;
+	/** Polling interval in ms (default: 2000). */
+	pollIntervalMs: number;
+	/** Maximum runtime in ms for any single bash scope without a timeout (default: 180000). */
+	maxRuntimeMs: number;
+}
+
+const DEFAULT_MEMORY_WATCHDOG_CONFIG: MemoryWatchdogConfig = {
+	maxRssPerScope: 2 * 1024 * 1024 * 1024, // 2 GB
+	maxProcessesPerScope: 64,
+	pollIntervalMs: 2000,
+	maxRuntimeMs: 180_000, // 3 minutes
+};
+
+let watchdogConfig: MemoryWatchdogConfig = { ...DEFAULT_MEMORY_WATCHDOG_CONFIG };
+let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Configure the memory watchdog.
+ */
+export function configureMemoryWatchdog(config: Partial<MemoryWatchdogConfig>): void {
+	watchdogConfig = { ...watchdogConfig, ...config };
+}
+
+/**
+ * Parse /proc/[pid]/stat for RSS on Linux.
+ */
+function readProcRss(pid: number): number | null {
+	if (process.platform !== "linux") return null;
+	try {
+		const { existsSync, readFileSync } = require("node:fs") as typeof import("node:fs");
+		const statPath = `/proc/${pid}/stat`;
+		if (!existsSync(statPath)) return null;
+		const stat = readFileSync(statPath, "utf-8");
+		// /proc/[pid]/stat: field 24 (1-indexed) is RSS in pages
+		const fields = stat.split(")")[1]?.trim().split(/\s+/) ?? [];
+		// RSS is field 24 - but fields start after the closing paren, so index 22
+		const rssPages = Number(fields[22]);
+		if (Number.isNaN(rssPages)) return null;
+		return rssPages * 4096; // pages to bytes
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Collect descendant PIDs of a process tree using pstree or /proc.
+ */
+function getDescendantPids(pid: number, visited?: Set<number>): number[] {
+	const result: number[] = [];
+	const seen = visited ?? new Set<number>();
+	if (seen.has(pid)) return result;
+	seen.add(pid);
+
+	if (process.platform === "linux") {
+		try {
+			const { existsSync: exists } = require("node:fs") as typeof import("node:fs");
+			const taskPath = `/proc/${pid}/task/${pid}/children`;
+			if (exists(taskPath)) {
+				const { readFileSync } = require("node:fs") as typeof import("node:fs");
+				const children = readFileSync(taskPath, "utf-8").trim().split(/\s+/).filter(Boolean);
+				for (const childPid of children) {
+					const child = Number(childPid);
+					if (!Number.isNaN(child) && !seen.has(child)) {
+						result.push(child);
+						result.push(...getDescendantPids(child, seen));
+					}
+				}
+			}
+			return result;
+		} catch {
+			// Fall through to fallback
+		}
+	}
+
+	// Fallback: use pgrep/pkill
+	try {
+		const { spawnSync } = require("child_process") as typeof import("child_process");
+		const out = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf-8", timeout: 2000 });
+		if (out.status === 0 && out.stdout) {
+			const children = out.stdout
+				.trim()
+				.split("\n")
+				.filter(Boolean)
+				.map(Number)
+				.filter((n) => !Number.isNaN(n) && !seen.has(n));
+			for (const child of children) {
+				result.push(child);
+				result.push(...getDescendantPids(child, seen));
+			}
+		}
+	} catch {
+		// Non-fatal
+	}
+
+	return result;
+}
+
+/**
+ * Run one watchdog iteration: inspect tracked processes and kill violators.
+ */
+function watchdogIteration(): void {
+	if (trackedProcesses.size === 0) return;
+
+	const now = Date.now();
+	// Group PIDs by scope
+	const scopeToPids = new Map<string, number[]>();
+	for (const [pid, proc] of trackedProcesses) {
+		const scopeId = proc.scopeId ?? `bare-${pid}`;
+		if (!scopeToPids.has(scopeId)) scopeToPids.set(scopeId, []);
+		scopeToPids.get(scopeId)!.push(pid);
+	}
+
+	for (const [scopeId, pids] of scopeToPids) {
+		// Check process count per scope
+		if (pids.length > watchdogConfig.maxProcessesPerScope) {
+			for (const pid of pids) {
+				killProcessTree(pid);
+				trackedProcesses.delete(pid);
+			}
+			continue;
+		}
+
+		// Check RSS per scope (Linux only)
+		if (process.platform === "linux") {
+			let totalRss = 0;
+			for (const pid of pids) {
+				const rss = readProcRss(pid);
+				if (rss !== null) totalRss += rss;
+				// Also check descendants
+				for (const childPid of getDescendantPids(pid)) {
+					const childRss = readProcRss(childPid);
+					if (childRss !== null) totalRss += childRss;
+				}
+			}
+			if (totalRss > watchdogConfig.maxRssPerScope) {
+				for (const pid of pids) {
+					killProcessTree(pid);
+					trackedProcesses.delete(pid);
+				}
+				continue;
+			}
+		}
+
+		// Check max runtime
+		for (const [pid, proc] of trackedProcesses) {
+			if (proc.scopeId !== scopeId) continue;
+			const runtime = now - proc.startedAt;
+			if (runtime > watchdogConfig.maxRuntimeMs && !proc.killedAt) {
+				killProcessTree(pid);
+				proc.killedAt = now;
+				proc.killReason = `runtime-exceeded:${watchdogConfig.maxRuntimeMs}ms`;
+				trackedProcesses.delete(pid);
+			}
+		}
+	}
+}
+
+/**
+ * Start the process memory watchdog.
+ */
+export function startMemoryWatchdog(config?: Partial<MemoryWatchdogConfig>): void {
+	if (watchdogTimer) return;
+	if (config) configureMemoryWatchdog(config);
+	watchdogTimer = setInterval(watchdogIteration, watchdogConfig.pollIntervalMs);
+	watchdogTimer.unref();
+}
+
+/**
+ * Stop the process memory watchdog.
+ */
+export function stopMemoryWatchdog(): void {
+	if (watchdogTimer) {
+		clearInterval(watchdogTimer);
+		watchdogTimer = null;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Startup orphan reaper
+// ---------------------------------------------------------------------------
+
+import { existsSync as fsExistsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+/**
+ * Directory for persisted process-scope metadata.
+ * Used so orphaned processes from a crash can be reaped on startup.
+ */
+function getProcessMetadataDir(): string {
+	const dir = process.env.PI_PROCESS_METADATA_DIR ?? join(tmpdir(), "pi-processes");
+	try {
+		mkdirSync(dir, { recursive: true });
+	} catch {
+		// Non-fatal
+	}
+	return dir;
+}
+
+/**
+ * Persist process metadata to disk so it can survive a crash.
+ */
+export function persistProcessMetadata(proc: TrackedProcess): void {
+	try {
+		const dir = getProcessMetadataDir();
+		const filePath = join(dir, `${proc.pid}.json`);
+		writeFileSync(filePath, JSON.stringify(proc, null, 2), "utf-8");
+	} catch {
+		// Non-fatal
+	}
+}
+
+/**
+ * Remove persisted process metadata for a PID.
+ */
+export function removeProcessMetadata(pid: number): void {
+	try {
+		const dir = getProcessMetadataDir();
+		const filePath = join(dir, `${pid}.json`);
+		if (fsExistsSync(filePath)) {
+			unlinkSync(filePath);
+		}
+	} catch {
+		// Non-fatal
+	}
+}
+
+/**
+ * Reap orphan processes from a previous crash.
+ * Reads persisted process metadata and kills any still-alive PIDs.
+ * Returns the number of orphans reaped.
+ */
+export function reapOrphanProcesses(): number {
+	let reaped = 0;
+	try {
+		const dir = getProcessMetadataDir();
+		if (!fsExistsSync(dir)) return 0;
+		const files = readdirSync(dir);
+		for (const file of files) {
+			if (!file.endsWith(".json")) continue;
+			try {
+				const content = readFileSync(join(dir, file), "utf-8");
+				const meta = JSON.parse(content) as TrackedProcess;
+				// Check if process is still alive
+				try {
+					process.kill(meta.pid, 0); // signal 0 = test existence
+					// Process is alive — kill it
+					killProcessTree(meta.pid);
+					reaped++;
+				} catch {
+					// Process already dead, just clean up metadata
+				}
+				unlinkSync(join(dir, file));
+			} catch {
+				// Skip malformed files
+			}
+		}
+	} catch {
+		// Non-fatal
+	}
+	return reaped;
+}
+
+// ---------------------------------------------------------------------------
+// Shutdown hooks
+// ---------------------------------------------------------------------------
+
+/** Whether shutdown hooks have been installed. */
+let shutdownHooksInstalled = false;
+
+/**
+ * Install shutdown hooks to clean up tracked processes on exit.
+ */
+export function installProcessShutdownHooks(): void {
+	if (shutdownHooksInstalled) return;
+	shutdownHooksInstalled = true;
+
+	const shutdown = (signal: string) => {
+		killAllTrackedProcesses(`shutdown-${signal}`);
+	};
+
+	process.on("SIGINT", () => shutdown("SIGINT"));
+	process.on("SIGTERM", () => shutdown("SIGTERM"));
+	process.on("SIGHUP", () => shutdown("SIGHUP"));
+	process.on("beforeExit", () => shutdown("beforeExit"));
+	process.on("uncaughtException", (err) => {
+		console.error("[process-supervisor] uncaughtException, killing tracked processes:", err);
+		shutdown("uncaughtException");
+	});
+	process.on("unhandledRejection", (reason) => {
+		console.error("[process-supervisor] unhandledRejection, killing tracked processes:", reason);
+		shutdown("unhandledRejection");
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible convenience functions
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use getTrackedProcesses() instead. */
+export function getTrackedProcesses(): TrackedProcess[] {
+	return Array.from(trackedProcesses.values());
+}
+
+/**
+ * Kill all tracked processes that match the given scope filters.
+ */
+export function killTrackedProcessesByScope(scope: {
+	planExecId?: string;
+	workspaceId?: string;
+	scopeId?: string;
+}): void {
+	const toKill: number[] = [];
+	for (const [pid, proc] of trackedProcesses) {
+		if (
+			(scope.planExecId !== undefined && proc.planExecId !== scope.planExecId) ||
+			(scope.workspaceId !== undefined && proc.workspaceId !== scope.workspaceId) ||
+			(scope.scopeId !== undefined && proc.scopeId !== scope.scopeId)
+		) {
+			continue;
+		}
+		if (scope.planExecId !== undefined || scope.workspaceId !== undefined || scope.scopeId !== undefined) {
+			toKill.push(pid);
+		}
+	}
+	for (const pid of toKill) {
+		killProcessTree(pid);
+		trackedProcesses.delete(pid);
+	}
 }
 
 /**
  * Kill a process and all its children (cross-platform)
+ *
+ * Best-effort only; ignores already-dead processes.
  */
 export function killProcessTree(pid: number): void {
 	if (process.platform === "win32") {
@@ -338,15 +823,14 @@ export function killProcessTree(pid: number): void {
 			// Process group might not exist or already dead
 		}
 
-		// Fallback: also try to kill the process itself
+		// Then, try to kill the process itself
 		try {
 			process.kill(pid, "SIGKILL");
 		} catch {
 			// Process already dead
 		}
 
-		// Additional fallback: use pkill to catch any orphaned vitest/worker processes
-		// This helps with processes that might have become orphaned from their parent
+		// Additional fallback: use pkill to catch any orphaned child processes
 		try {
 			spawnSync("pkill", ["-P", String(pid)], { stdio: "ignore" });
 		} catch {

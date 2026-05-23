@@ -758,10 +758,12 @@ export class AutonomousExecutor {
 					this.completionGate.markTargetCommandStarted(planExecutionId, workspace.id);
 					this.completionGate.recordCompletion(planExecutionId, workspace.id, 0, true);
 				}
-				// Kill any orphaned child processes (vitest, etc.) that the agent may have
-				// spawned via bash tool and left running after returning COMPLETE.
-				killTrackedDetachedChildren();
 			}
+			// Process lifecycle containment: kill any orphaned child processes
+			// (vitest, npm, node, etc.) that the agent may have spawned via the bash
+			// tool and left running — even if the agent reported COMPLETE. Run on
+			// both success and failure, not only when result.verdict === "COMPLETE".
+			killTrackedDetachedChildren();
 			// Evaluate via registry to get the live state after mutations above
 			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
 			if (gateResult.canComplete) {
@@ -1688,6 +1690,11 @@ export class AutonomousExecutor {
 			this.inFlightExecutions.clear();
 			await Promise.allSettled(promises);
 		}
+
+		// Process lifecycle containment: kill all tracked child processes
+		// (vitest, npm, node, etc.) that may have been spawned by workspace
+		// agent sessions via the bash tool.
+		killTrackedDetachedChildren();
 	}
 }
 

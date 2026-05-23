@@ -11,11 +11,13 @@ import {
 	getShellConfig,
 	getShellEnv,
 	killProcessTree,
-	trackDetachedChildPid,
+	persistProcessMetadata,
+	removeProcessMetadata,
+	trackProcess,
 	untrackDetachedChildPid,
 } from "../../utils/shell.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
-import { withValidationLock } from "../validation-lock.js";
+import { isLongRunningCommand, isValidationCommand, withValidationLock } from "../validation-lock.js";
 import { OutputAccumulator } from "./output-accumulator.js";
 import { getTextOutput, invalidArgText, str } from "./render-utils.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";
@@ -78,22 +80,41 @@ export function createLocalBashOperations(options?: { shellPath?: string }): Bas
 					env: env ?? getShellEnv(),
 					stdio: ["ignore", "pipe", "pipe"],
 				});
-				if (child.pid) trackDetachedChildPid(child.pid);
+				const pid = child.pid;
+				if (pid) {
+					trackProcess({
+						pid,
+						scopeId: `bash-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+						command,
+						cwd,
+						startedAt: Date.now(),
+					});
+					persistProcessMetadata({
+						pid,
+						scopeId: `bash-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+						command,
+						cwd,
+						startedAt: Date.now(),
+					});
+				}
+				// Apply default timeout if none provided (180s for validation/build, 120s otherwise)
+				// This prevents unbounded commands from running indefinitely through the bash tool.
+				const effectiveTimeout = timeout ?? (isValidationCommand(command) ? 300 : 180);
 				let timedOut = false;
 				let timeoutHandle: NodeJS.Timeout | undefined;
-				// Set timeout if provided.
-				if (timeout !== undefined && timeout > 0) {
+				// Set timeout.
+				if (effectiveTimeout > 0) {
 					timeoutHandle = setTimeout(() => {
 						timedOut = true;
-						if (child.pid) killProcessTree(child.pid);
-					}, timeout * 1000);
+						if (pid) killProcessTree(pid);
+					}, effectiveTimeout * 1000);
 				}
 				// Stream stdout and stderr.
 				child.stdout?.on("data", onData);
 				child.stderr?.on("data", onData);
 				// Handle abort signal by killing the entire process tree.
 				const onAbort = () => {
-					if (child.pid) killProcessTree(child.pid);
+					if (pid) killProcessTree(pid);
 				};
 				if (signal) {
 					if (signal.aborted) onAbort();
@@ -101,25 +122,33 @@ export function createLocalBashOperations(options?: { shellPath?: string }): Bas
 				}
 				// Handle shell spawn errors and wait for the process to terminate without hanging
 				// on inherited stdio handles held by detached descendants.
+				const settle = () => {
+					if (timeoutHandle) clearTimeout(timeoutHandle);
+					if (signal) signal.removeEventListener("abort", onAbort);
+					// Process lifecycle containment: always kill the process tree after the
+					// command finishes, times out, aborts, or fails. A successful shell exit
+					// does not prove all child processes are gone.
+					if (pid) {
+						killProcessTree(pid);
+						untrackDetachedChildPid(pid);
+						removeProcessMetadata(pid);
+					}
+				};
 				waitForChildProcess(child)
 					.then((code) => {
-						if (child.pid) untrackDetachedChildPid(child.pid);
-						if (timeoutHandle) clearTimeout(timeoutHandle);
-						if (signal) signal.removeEventListener("abort", onAbort);
+						settle();
 						if (signal?.aborted) {
 							reject(new Error("aborted"));
 							return;
 						}
 						if (timedOut) {
-							reject(new Error(`timeout:${timeout}`));
+							reject(new Error(`timeout:${effectiveTimeout}`));
 							return;
 						}
 						resolve({ exitCode: code });
 					})
 					.catch((err) => {
-						if (child.pid) untrackDetachedChildPid(child.pid);
-						if (timeoutHandle) clearTimeout(timeoutHandle);
-						if (signal) signal.removeEventListener("abort", onAbort);
+						settle();
 						reject(err);
 					});
 			});
@@ -291,6 +320,15 @@ export function createBashToolDefinition(
 		) {
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook);
+
+			// Guard: reject long-running dev/watch commands that have no explicit timeout.
+			// If a timeout is provided, the command is allowed but process-scope cleanup
+			// still runs afterward (in ops.exec -> settle()).
+			if (timeout === undefined && isLongRunningCommand(spawnContext.command)) {
+				throw new Error(
+					"Refusing to run a long-running dev/watch command without an explicit timeout. Use a build/test command or provide a timeout.",
+				);
+			}
 			const output = new OutputAccumulator({ tempFilePrefix: "pi-bash" });
 			let updateTimer: NodeJS.Timeout | undefined;
 			let updateDirty = false;

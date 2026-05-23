@@ -105,14 +105,16 @@ describe("isValidationCommand", () => {
 	});
 
 	it("does not match partial prefix overlaps", () => {
-		// "vitest2" should NOT match vitest prefix
-		// Actually "vitest2" starts with "vitest" so it WILL match —
-		// this is expected because vitest is a command name that can have
-		// args after it. The prefix match is correct here.
-		expect(isValidationCommand("vitest2")).toBe(true);
+		// With regex patterns, "vitest2" does NOT match because the regex
+		// requires end-of-string-or-whitespace after "vitest". This is correct
+		// behavior — "vitest2" is a different command name.
+		expect(isValidationCommand("vitest2")).toBe(false);
 
-		// But "ls vitest" should NOT match (it doesn't start with vitest)
+		// "ls vitest" should NOT match
 		expect(isValidationCommand("ls vitest")).toBe(false);
+
+		// "npx something --noEmit" should NOT match
+		expect(isValidationCommand("npx something --noEmit")).toBe(false);
 	});
 });
 

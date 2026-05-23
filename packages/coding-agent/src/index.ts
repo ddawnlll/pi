@@ -965,4 +965,27 @@ export { copyToClipboard } from "./utils/clipboard.js";
 export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
 export { type LogEntry, type LogLevel, PiLogger } from "./utils/logger.js";
 // Shell utilities
-export { getShellConfig } from "./utils/shell.js";
+export {
+	configureMemoryWatchdog,
+	createProcessScope,
+	getShellConfig,
+	getTrackedProcesses,
+	installProcessShutdownHooks,
+	killAllTrackedProcesses,
+	killPlanProcesses,
+	killProcessScope,
+	killProcessTree,
+	killTrackedDetachedChildren,
+	killTrackedProcess,
+	killTrackedProcessesByScope,
+	killWorkspaceProcesses,
+	type MemoryWatchdogConfig,
+	type ProcessScope,
+	reapOrphanProcesses,
+	startMemoryWatchdog,
+	stopMemoryWatchdog,
+	type TrackedProcess,
+	trackDetachedChildPid,
+	trackProcess,
+	untrackDetachedChildPid,
+} from "./utils/shell.js";
