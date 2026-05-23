@@ -56,10 +56,9 @@ export interface WorkspaceAgentExecutorConfig {
 	planExecutionId?: string;
 	/**
 	 * Worktree isolation configuration.
-	 * When enabled, each workspace executes inside its own git worktree.
-	 * When disabled or absent, falls back to shared-working-tree execution (P5.5).
+	 * Always enabled in P22.C (worktree-only mode).
 	 */
-	worktree?: WorktreeConfig;
+	worktree: WorktreeConfig;
 	/**
 	 * Execution timeout in milliseconds.
 	 * If the agent execution takes longer than this, it is aborted.
@@ -80,11 +79,11 @@ export class WorkspaceAgentExecutor {
 	private logPath?: string;
 	private stateStore?: import("./state-store.js").IStateStore;
 	private planExecutionId?: string;
-	/** Worktree isolation config, if enabled. */
-	private worktreeConfig?: WorktreeConfig;
+	/** Worktree isolation config. Always enabled in P22.C. */
+	private worktreeConfig: WorktreeConfig;
 	/** Execution timeout in milliseconds. */
 	private timeoutMs: number;
-	/** P6.A: The worktree executor, created when worktree mode is enabled. */
+	/** The worktree executor. */
 	private worktreeExecutor: WorktreeWorkspaceExecutor | null = null;
 
 	/**
@@ -167,6 +166,8 @@ export class WorkspaceAgentExecutor {
 
 	/**
 	 * Whether worktree isolation mode is enabled.
+	 * P22.C: Worktree-only mode — always enabled by default.
+	 * The inner worktree executor sets this to false to avoid recursion.
 	 */
 	get isWorktreeModeEnabled(): boolean {
 		return this.worktreeConfig?.enabled === true;
@@ -284,16 +285,15 @@ export class WorkspaceAgentExecutor {
 	/**
 	 * Execute a workspace using the provided packet
 	 *
-	 * When worktree mode is enabled, execution happens inside an isolated git worktree.
-	 * Otherwise, falls back to shared-working-tree execution (P5.5).
+	 * P22.C: Worktree-only mode — execution always happens inside an isolated git worktree.
+	 * The inner executor (scoped to the worktree path) has worktree disabled to avoid recursion.
 	 *
 	 * @param packet - Hashed workspace packet
 	 * @param workspaceId - Workspace ID for logging
 	 * @returns Execution result
 	 */
 	async execute(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
-		// Set up abort controller and timeout BEFORE any delegation path
-		// (worktree or non-worktree) so both have coverage.
+		// Set up abort controller and timeout
 		this.abortController = new AbortController();
 		this.timeoutHandle = setTimeout(() => {
 			if (!this.abortController?.signal.aborted) {
@@ -306,14 +306,18 @@ export class WorkspaceAgentExecutor {
 		this.timeoutHandle.unref();
 
 		try {
-			// P6.A: When worktree mode is enabled, delegate to WorktreeWorkspaceExecutor
+			// P22.C: Worktree-only mode — always execute in worktree when worktree mode is enabled.
+			// The inner executor (scoped to the worktree path) has worktree disabled to avoid recursion
+			// and falls through to direct agent execution via executeAgentInPlace().
 			if (this.isWorktreeModeEnabled && this.planExecutionId) {
 				return await this.executeInWorktree(packet, workspaceId);
 			}
 
-			return await this.executeInPlace(packet, workspaceId);
+			// Inner executor: worktree is disabled, run agent directly in the worktree path.
+			// This is the inner executor created by executeInWorktree() scoped to the worktree directory.
+			return await this.executeAgentInPlace(packet, workspaceId);
 		} finally {
-			// Always clear timeout on completion, regardless of execution path
+			// Always clear timeout on completion
 			if (this.timeoutHandle) {
 				clearTimeout(this.timeoutHandle);
 				this.timeoutHandle = null;
@@ -323,9 +327,15 @@ export class WorkspaceAgentExecutor {
 	}
 
 	/**
-	 * Execute a workspace in the shared working tree (non-worktree path).
+	 * Execute a workspace agent directly in the given workspace root.
+	 *
+	 * This is the core agent execution logic: creates an agent session,
+	 * runs the prompt, monitors events, and determines the final verdict.
+	 *
+	 * P22.C: This is called by the inner executor (scoped to the worktree path)
+	 * with worktree mode disabled to avoid recursion.
 	 */
-	private async executeInPlace(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+	private async executeAgentInPlace(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
 		const logs: string[] = [];
 		let thinkingBuffer = "";
 		const log = async (message: string) => {
@@ -832,6 +842,8 @@ export class WorkspaceAgentExecutor {
 	 * P6.A: Execute a workspace inside an isolated git worktree.
 	 * Creates the worktree, delegates to the WorktreeWorkspaceExecutor,
 	 * and maps the result to AgentExecutionResult.
+	 *
+	 * P22.C: Worktree-only mode — this is the primary execution path for all workspaces.
 	 */
 	private async executeInWorktree(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
 		const logs: string[] = [];

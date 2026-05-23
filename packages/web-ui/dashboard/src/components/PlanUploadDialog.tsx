@@ -385,7 +385,15 @@ export function PlanUploadDialog({
 	const handleFixWithAI = useCallback(
 		async (fileName: string) => {
 			const content = getFileContent(fileName);
-			if (!content) return;
+			if (!content) {
+				setError("Cannot fix: file content not found. Try uploading the plan again.");
+				return;
+			}
+
+			// Collect validation errors for context
+			const fileResult = validationResults.get(fileName);
+			const validationErrors = fileResult?.errors ?? [];
+			const validationWarnings = fileResult?.warnings ?? [];
 
 			setFixingFile(fileName);
 			try {
@@ -398,6 +406,8 @@ export function PlanUploadDialog({
 							planContent: content,
 							userPrompt: "Fix all validation issues automatically",
 							scope: "fix_all_validation",
+							validationErrors,
+							validationWarnings,
 						}),
 					},
 				);
@@ -418,6 +428,13 @@ export function PlanUploadDialog({
 					);
 				}
 
+				if (!result.fixedPlan) {
+					setError(
+						`Fix returned no changes: ${result.explanation ?? result.error ?? "LLM could not fix the plan"}`,
+					);
+					return;
+				}
+
 				const validateResult = await hookValidate(result.fixedPlan ?? content);
 				if (validateResult) {
 					setValidationResults((prev) => {
@@ -432,7 +449,7 @@ export function PlanUploadDialog({
 				setFixingFile(null);
 			}
 		},
-		[getFileContent, projectId, hookValidate],
+		[getFileContent, projectId, hookValidate, validationResults],
 	);
 
 	// ── Approve & Run ──

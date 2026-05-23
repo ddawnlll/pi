@@ -65,9 +65,9 @@ export class StatsGrid extends LitElement {
 				role="listitem"
 			>
 				<div
-					class="flex items-center gap-1.5 ${accent
-						? "text-blue-600 dark:text-blue-400"
-						: "text-stone-400 dark:text-stone-500"}"
+					class="flex items-center gap-1.5 ${
+						accent ? "text-blue-600 dark:text-blue-400" : "text-stone-400 dark:text-stone-500"
+					}"
 				>
 					${Icon ? icon(Icon as any, "sm") : ""}
 					<span class="text-[10px] font-semibold tracking-widest uppercase">${label}</span>
@@ -75,11 +75,13 @@ export class StatsGrid extends LitElement {
 				<p class="text-xl font-semibold text-stone-800 dark:text-stone-200 tracking-tight leading-none">
 					${value}
 				</p>
-				${sublabel
-					? html`
+				${
+					sublabel
+						? html`
 							<p class="text-[9px] text-stone-400 dark:text-stone-500 leading-none">${sublabel}</p>
 						`
-					: ""}
+						: ""
+				}
 			</div>
 		`;
 	}

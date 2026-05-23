@@ -1899,9 +1899,15 @@ fastify.post<{
  */
 fastify.post<{
 	Params: { projectId: string };
-	Body: { planContent: string; userPrompt: string; scope?: string };
+	Body: {
+		planContent: string;
+		userPrompt: string;
+		scope?: string;
+		validationErrors?: string[];
+		validationWarnings?: string[];
+	};
 }>("/api/projects/:projectId/plans/fix", async (request, reply) => {
-	const { planContent, userPrompt, scope } = request.body;
+	const { planContent, userPrompt, scope, validationErrors, validationWarnings } = request.body;
 
 	if (!planContent || !userPrompt) {
 		return reply.code(400).send({ success: false, error: "planContent and userPrompt are required" });
@@ -1909,11 +1915,37 @@ fastify.post<{
 
 	try {
 		const ai = await import("@earendil-works/pi-ai");
-		const model = ai.getModel("openai", "gpt-4o");
+
+		// Resolve model from project settings
+		const settingsManager = getSettingsManager();
+		const settings = settingsManager.getMergedSettings();
+		const defaultProvider = (settings as any).defaultProvider ?? "opencode-go";
+		const defaultModelId = (settings as any).defaultModel ?? "deepseek-v4-flash";
+
+		const allModels = ai.getModels(defaultProvider as any);
+		let model: any = allModels.find((m: any) => m.id === defaultModelId);
+		if (!model && allModels.length > 0) {
+			model = allModels[0];
+		}
+		if (!model) {
+			return reply.code(400).send({
+				success: false,
+				error: `No AI model available for provider "${defaultProvider}". Check your settings.`,
+			});
+		}
+
+		const validationContext = [
+			validationErrors?.length ? `Validation errors:\n${validationErrors.map((e) => `- ${e}`).join("\n")}` : "",
+			validationWarnings?.length
+				? `Validation warnings:\n${validationWarnings.map((w) => `- ${w}`).join("\n")}`
+				: "",
+		]
+			.filter(Boolean)
+			.join("\n\n");
 
 		const systemPrompt = `You are a plan fixer assistant. The user asked to modify the following plan based on validation feedback.
 
-Scope: ${scope || "validation_fixes"}
+${validationContext ? `Validation context:\n${validationContext}\n\n` : ""}Scope: ${scope || "validation_fixes"}
 
 User request: ${userPrompt}
 
@@ -3653,6 +3685,24 @@ fastify.patch<{
 	}
 });
 
+/**
+ * DELETE /api/projects/:projectId - Delete project from dashboard listing
+ * Does NOT remove project files from disk.
+ */
+fastify.delete<{
+	Params: { projectId: string };
+}>("/api/projects/:projectId", async (request, reply) => {
+	const { projectId } = request.params;
+
+	try {
+		await getStateStore().deleteProject(projectId);
+		return { success: true };
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to delete project");
+		return reply.code(500).send({ error: "Failed to delete project", message: String(error) });
+	}
+});
+
 // ---------------------------------------------------------------------------
 // Plan Execution Control Endpoints
 // ---------------------------------------------------------------------------
@@ -3674,10 +3724,28 @@ fastify.post<{
 
 	try {
 		const stateStore = getStateStore();
-		const state = await stateStore.loadState(planExecId);
+		let state: any = null;
+		try {
+			state = await stateStore.loadState(planExecId);
+		} catch {
+			// DB query failed (e.g., non-UUID id, not found) — fall through to fallback
+		}
 
 		if (!state) {
-			return reply.code(404).send({ success: false, error: "Plan execution not found" });
+			// Fallback: write to plan-control.json for file-based plan runners
+			const { createPlanControlManager } = await import("@earendil-works/pi-coding-agent");
+			try {
+				const controlManager = createPlanControlManager(getWorkspaceRoot());
+				await controlManager.writeControlRequest(action, `API: ${action} requested`);
+				fastify.log.info({ planExecId, action }, "Control request written to plan-control.json (fallback)");
+				return { success: true, fallback: "file_based" };
+			} catch (controlErr) {
+				fastify.log.error({ error: controlErr, planExecId, action }, "Fallback control also failed");
+				return reply.code(404).send({
+					success: false,
+					error: "Plan execution not found in database or local state",
+				});
+			}
 		}
 
 		// Execute the control action

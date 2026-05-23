@@ -125,6 +125,19 @@ async function validateWithPreview(
 		);
 		if (!response.ok) {
 			const text = await response.text().catch(() => "");
+			// Try to parse structured error response from server
+			try {
+				const errorBody = JSON.parse(text);
+				if (errorBody.errors && Array.isArray(errorBody.errors)) {
+					return {
+						success: false,
+						errors: errorBody.errors,
+						warnings: errorBody.warnings,
+					};
+				}
+			} catch {
+				// Not JSON — use raw text
+			}
 			return {
 				success: false,
 				errors: [`Validation request failed (${response.status}): ${text}`],

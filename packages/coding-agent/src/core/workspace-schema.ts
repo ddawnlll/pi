@@ -132,12 +132,11 @@ export interface PlanExecutionConfig {
 	/**
 	 * Worktree configuration.
 	 *
-	 * When enabled, each workspace runs in its own worktree.
-	 * Required for experimental_6 mode.
+	 * Each workspace runs in its own worktree. Always enabled in P22.C.
 	 *
 	 * Contract Schema v2.3.0 field.
 	 */
-	worktree?: { enabled: boolean };
+	worktree?: { enabled: true };
 
 	/**
 	 * Integration queue configuration.
@@ -172,14 +171,15 @@ export interface PlanExecutionConfig {
  * Scaling configuration for plan execution.
  *
  * Contract Schema v2.3.0.
+ *
+ * In P22.C (worktree-only mode), the only allowed mode is "experimental_6".
  */
 export interface PlanExecutionScale {
 	/**
 	 * Selected scaling mode.
-	 * - "standard": Legacy parallelism (maxParallelWorkspaces <= 3)
 	 * - "experimental_6": Expanded parallelism (maxParallelWorkspaces <= 6)
 	 */
-	selectedMode: "standard" | "experimental_6";
+	selectedMode: "experimental_6";
 }
 
 /**
@@ -705,44 +705,49 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 			context: { maxParallelWorkspaces: queue.maxParallelWorkspaces },
 		});
 	} else if (isV230Plus) {
-		const selectedMode = queue.planExecution?.scale?.selectedMode;
-		const isExperimental6 = selectedMode === "experimental_6";
-
-		if (isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_EXPERIMENTAL) {
+		// P22.C: Worktree-only mode — all plans use experimental_6 limits.
+		// The only valid scale mode is experimental_6; "standard" is no longer supported.
+		if (queue.maxParallelWorkspaces > MAX_PARALLEL_EXPERIMENTAL) {
 			errors.push({
 				type: "invalid_parallelism_review",
 				message: `maxParallelWorkspaces ${queue.maxParallelWorkspaces} exceeds experimental_6 limit of ${MAX_PARALLEL_EXPERIMENTAL}`,
 				context: { maxParallelWorkspaces: queue.maxParallelWorkspaces, limit: MAX_PARALLEL_EXPERIMENTAL },
 			});
-		} else if (!isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
-			errors.push({
-				type: "invalid_parallelism_review",
-				message: `maxParallelWorkspaces ${queue.maxParallelWorkspaces} exceeds standard limit of ${MAX_PARALLEL_LEGACY}. Set planExecution.scale.selectedMode to "experimental_6" to allow up to ${MAX_PARALLEL_EXPERIMENTAL}.`,
-				context: { maxParallelWorkspaces: queue.maxParallelWorkspaces, limit: MAX_PARALLEL_LEGACY },
+		}
+
+		// Warn when worktree mode is not enabled (deprecated)
+		if (!queue.planExecution?.worktree?.enabled) {
+			warnings.push({
+				type: "missing_field",
+				message:
+					"Plan is using stable_3 mode without git worktree isolation. " +
+					"Worktree mode (experimental_6) is required for parallel execution. " +
+					"Set planExecution.worktree.enabled to true to enable worktree mode.",
 			});
 		}
 
-		// Experimental_6 prerequisites check
-		if (isExperimental6 && queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
+		// Prerequisites check — worktree, integrationQueue, validation are always required
+		// when maxParallelWorkspaces > 3.
+		if (queue.maxParallelWorkspaces > MAX_PARALLEL_LEGACY) {
 			const planExec = queue.planExecution;
 			if (!planExec?.worktree?.enabled) {
 				errors.push({
 					type: "missing_field",
-					message: "Experimental_6 mode requires planExecution.worktree.enabled to be true",
+					message: "Worktree mode requires planExecution.worktree.enabled to be true",
 					context: { requiredField: "planExecution.worktree" },
 				});
 			}
 			if (!planExec?.integrationQueue?.enabled) {
 				errors.push({
 					type: "missing_field",
-					message: "Experimental_6 mode requires planExecution.integrationQueue.enabled to be true",
+					message: "Worktree mode requires planExecution.integrationQueue.enabled to be true",
 					context: { requiredField: "planExecution.integrationQueue" },
 				});
 			}
 			if (!planExec?.validation?.globalValidationLockRequired) {
 				errors.push({
 					type: "missing_field",
-					message: "Experimental_6 mode requires planExecution.validation.globalValidationLockRequired to be true",
+					message: "Worktree mode requires planExecution.validation.globalValidationLockRequired to be true",
 					context: { requiredField: "planExecution.validation.globalValidationLockRequired" },
 				});
 			}

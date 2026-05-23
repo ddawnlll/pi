@@ -329,16 +329,28 @@ export function killProcessTree(pid: number): void {
 			// Ignore errors if taskkill fails
 		}
 	} else {
-		// Use SIGKILL on Unix/Linux/Mac
+		// First, try to kill the entire process group (works with pid:0 spawn option)
+		// This is the preferred method as it catches all child processes including
+		// vitest workers spawned via fork pools
 		try {
 			process.kill(-pid, "SIGKILL");
 		} catch {
-			// Fallback to killing just the child if process group kill fails
-			try {
-				process.kill(pid, "SIGKILL");
-			} catch {
-				// Process already dead
-			}
+			// Process group might not exist or already dead
+		}
+
+		// Fallback: also try to kill the process itself
+		try {
+			process.kill(pid, "SIGKILL");
+		} catch {
+			// Process already dead
+		}
+
+		// Additional fallback: use pkill to catch any orphaned vitest/worker processes
+		// This helps with processes that might have become orphaned from their parent
+		try {
+			spawnSync("pkill", ["-P", String(pid)], { stdio: "ignore" });
+		} catch {
+			// pkill might not be available or fail
 		}
 	}
 }

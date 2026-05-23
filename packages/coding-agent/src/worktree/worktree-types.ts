@@ -126,9 +126,9 @@ export interface WorktreeExecutionResult {
 /** Default worktree storage root relative to workspace root */
 export const DEFAULT_WORKTREE_ROOT = ".pi/worktrees";
 
-/** Default worktree config (disabled) */
+/** Default worktree config (enabled) — P22.C worktree-only mode. */
 export const DEFAULT_WORKTREE_CONFIG: WorktreeConfig = {
-	enabled: false,
+	enabled: true,
 	root: DEFAULT_WORKTREE_ROOT,
 };
 

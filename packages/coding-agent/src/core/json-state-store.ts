@@ -183,6 +183,16 @@ export class JsonStateStore implements IStateStore {
 		await this.writeProjectsFile(projects);
 	}
 
+	async deleteProject(projectId: string): Promise<void> {
+		const projects = await this.readProjectsFile();
+		const index = projects.findIndex((p) => p.id === projectId);
+		if (index === -1) {
+			throw new Error(`Project not found: ${projectId}`);
+		}
+		projects.splice(index, 1);
+		await this.writeProjectsFile(projects);
+	}
+
 	// =========================================================================
 	// Plan Execution
 	// =========================================================================

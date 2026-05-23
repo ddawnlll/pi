@@ -495,9 +495,11 @@ export class WorktreeWorkspaceExecutor {
 				const effectiveRoot = workspaceRootOverride ?? createResult.state.worktreePath;
 
 				// Create the agent executor with the worktree as workspace root
+				// Worktree is disabled to avoid recursion (inner executor runs in the worktree path directly)
 				const executorConfig: WorkspaceAgentExecutorConfig = {
 					workspaceRoot: effectiveRoot,
 					maxTurns: packet.packet.budget.maxInputTokens > 32000 ? 50 : 30,
+					worktree: { enabled: false },
 				};
 
 				this.lastExecutor = new WorkspaceAgentExecutor(executorConfig);
@@ -531,6 +533,7 @@ export class WorktreeWorkspaceExecutor {
 				const executorConfig: WorkspaceAgentExecutorConfig = {
 					workspaceRoot: effectiveRoot,
 					maxTurns: packet.packet.budget.maxInputTokens > 32000 ? 50 : 30,
+					worktree: { enabled: false },
 				};
 
 				this.lastExecutor = new WorkspaceAgentExecutor(executorConfig);

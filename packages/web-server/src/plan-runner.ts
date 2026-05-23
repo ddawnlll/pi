@@ -651,9 +651,8 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				}
 			: undefined;
 
-		// P6.A: Extract worktree config from parsed plan execution settings
-		const worktreeConfig: { enabled: true } | undefined =
-			parseResult.queue.planExecution?.worktree?.enabled === true ? { enabled: true } : undefined;
+		// P22.C: Worktree mode is always enabled. Ignore plan-level override.
+		const worktreeConfig: { enabled: true } = { enabled: true };
 
 		const executor = new AutonomousExecutor(stateStore, {
 			workspaceRoot,

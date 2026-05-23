@@ -137,6 +137,14 @@ export interface IStateStore {
 	 */
 	updateProject(projectId: string, updates: Partial<Pick<ProjectSummary, "name" | "rootPath">>): Promise<void>;
 
+	/**
+	 * Delete a project from the dashboard listing.
+	 * Does NOT remove project files on disk.
+	 *
+	 * @param projectId - Project ID
+	 */
+	deleteProject(projectId: string): Promise<void>;
+
 	// =========================================================================
 	// Plan Execution
 	// =========================================================================

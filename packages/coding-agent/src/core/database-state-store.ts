@@ -170,6 +170,10 @@ export class DatabaseStateStore implements IStateStore {
 		await this.projectRepo.update(projectId, dbUpdate as any);
 	}
 
+	async deleteProject(projectId: string): Promise<void> {
+		await this.projectRepo.delete(projectId);
+	}
+
 	// =========================================================================
 	// Plan Execution
 	// =========================================================================
@@ -322,17 +326,17 @@ export class DatabaseStateStore implements IStateStore {
 		const planUpdate: Record<string, unknown> = {
 			status: cacheEntry.status,
 		};
-		
+
 		// Set completed_at for terminal states
 		if (cacheEntry.completedAt) {
 			planUpdate.completed_at = new Date(cacheEntry.completedAt).toISOString();
 		}
-		
+
 		// Set handoff_started_at for awaiting_handoff state
 		if (cacheEntry.status === "awaiting_handoff" && cacheEntry.handoffStartedAt) {
 			planUpdate.handoff_started_at = new Date(cacheEntry.handoffStartedAt).toISOString();
 		}
-		
+
 		await this.planExecutionRepo.update(planExecutionId, planUpdate as any);
 
 		// Update workspace execution rows
@@ -621,11 +625,11 @@ export class DatabaseStateStore implements IStateStore {
 	async resumePlan(planExecutionId: string): Promise<void> {
 		await this.planExecutionRepo.updateStatus(planExecutionId, "running");
 		this.updateCacheStatus(planExecutionId, "running");
-		
+
 		// Reload state to ensure workspace cache is synchronized with DB
 		// This handles cases where workspaces were in various states when paused
 		await this.loadState(planExecutionId);
-		
+
 		await this.appendJournal(planExecutionId, {
 			type: "plan_resumed",
 			timestamp: Date.now(),

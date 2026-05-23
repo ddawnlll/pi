@@ -15,13 +15,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	BREAKPOINTS,
-	breakpointValue,
-	breakpointUp,
-	breakpointDown,
-	isBreakpoint,
-	getCurrentBreakpoint,
-	breakpointLabel,
 	type Breakpoint,
+	breakpointDown,
+	breakpointLabel,
+	breakpointUp,
+	breakpointValue,
+	getCurrentBreakpoint,
+	isBreakpoint,
 } from "../src/utils/breakpoints.js";
 
 describe("BREAKPOINTS constant", () => {

@@ -15,7 +15,7 @@ import { ReflectionViewerDialog } from "./dialogs/ReflectionViewerDialog.js";
 import { ArtifactsPanel, ArtifactsToolRenderer } from "./tools/artifacts/index.js";
 import { registerToolRenderer } from "./tools/renderer-registry.js";
 import type { Attachment } from "./utils/attachment-utils.js";
-import { BREAKPOINTS, breakpointDown } from "./utils/breakpoints.js";
+import { breakpointDown } from "./utils/breakpoints.js";
 import { i18n } from "./utils/i18n.js";
 
 /**
@@ -23,7 +23,6 @@ import { i18n } from "./utils/i18n.js";
  * Uses the `md` breakpoint (768px). Below that, artifacts render as an overlay;
  * at or above, they appear side-by-side with the chat.
  */
-const BREAKPOINT = BREAKPOINTS.md;
 
 @customElement("pi-chat-panel")
 export class ChatPanel extends LitElement {

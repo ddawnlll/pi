@@ -1001,28 +1001,26 @@ describe("v2.3.0: experimental_6 prerequisites", () => {
 		expect(result.errors.some((e) => e.message.includes("globalValidationLockRequired"))).toBe(true);
 	});
 
-	it("should fail v2.3.0 experimental_6 when scale.selectedMode is standard (needs experimental_6)", () => {
+	it("should succeed with any valid maxParallelWorkspaces up to 6 (P22.C: worktree-only mode)", () => {
 		const queue = makeBaseQueue();
-		if (queue.planExecution?.scale) {
-			queue.planExecution.scale.selectedMode = "standard";
-		}
+		// scale mode is always experimental_6, no "standard" option anymore
 		const result = validateWorkspaceQueue(queue);
-		expect(result.valid).toBe(false);
-		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+		expect(result.valid).toBe(true);
 	});
 
-	it("should fail v2.3.0 when planExecution is missing and maxParallelWorkspaces > 3", () => {
+	it("should fail v2.3.0 when planExecution is missing and maxParallelWorkspaces > 3 (worktree required)", () => {
 		const queue = makeBaseQueue();
 		delete queue.planExecution;
 		const result = validateWorkspaceQueue(queue);
 		expect(result.valid).toBe(false);
-		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+		// P22.C: worktree-only mode — prerequisites error, not standard limit error
+		expect(result.errors.some((e) => e.message.includes("worktree"))).toBe(true);
 	});
 
 	it("should fail v2.3.0 experimental_6 when all prerequisite fields are present but disabled", () => {
 		const queue = makeBaseQueue();
 		if (queue.planExecution) {
-			queue.planExecution.worktree = { enabled: false };
+			// P22.C: worktree.enabled must be true always
 			queue.planExecution.integrationQueue = { enabled: false };
 			if (queue.planExecution.validation) {
 				queue.planExecution.validation.globalValidationLockRequired = false;
@@ -1030,17 +1028,13 @@ describe("v2.3.0: experimental_6 prerequisites", () => {
 		}
 		const result = validateWorkspaceQueue(queue);
 		expect(result.valid).toBe(false);
-		expect(result.errors.length).toBeGreaterThanOrEqual(3);
+		expect(result.errors.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it("should require experimental_6 mode to enable >3 parallelism even with all other prereqs", () => {
-		const queue = makeBaseQueue();
-		if (queue.planExecution?.scale) {
-			queue.planExecution.scale.selectedMode = "standard";
-		}
+	it("should allow >3 parallelism with all prerequisites (P22.C: always experimental_6)", () => {
+		const queue = makeBaseQueue({ maxParallelWorkspaces: 6 });
 		const result = validateWorkspaceQueue(queue);
-		expect(result.valid).toBe(false);
-		expect(result.errors.some((e) => e.message.includes("exceeds standard limit"))).toBe(true);
+		expect(result.valid).toBe(true);
 	});
 
 	it("should fail when maxParallelWorkspaces exceeds 6 in experimental_6", () => {

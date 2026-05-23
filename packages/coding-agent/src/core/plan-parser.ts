@@ -457,23 +457,27 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		const pe = parsed.planExecution;
 
 		// v2.3.0: scale
+		// P22.C: Worktree-only mode — always experimental_6, no "standard" option.
 		let scale: PlanExecutionScale | undefined;
 		if (pe.scale && typeof pe.scale === "object" && !Array.isArray(pe.scale)) {
 			const mode = pe.scale.selectedMode;
-			if (mode === "standard" || mode === "experimental_6") {
+			if (mode === "experimental_6") {
 				scale = { selectedMode: mode };
 			}
+		} else {
+			// Default to experimental_6 when scale config is missing
+			scale = { selectedMode: "experimental_6" };
 		}
 
 		// v2.3.0: worktree
-		let worktree: { enabled: boolean } | undefined;
+		// P22.C: Worktree is always enabled — ignore any disabled setting.
+		let worktree: { enabled: true } | undefined;
 		if (pe.worktree && typeof pe.worktree === "object" && !Array.isArray(pe.worktree)) {
-			if (typeof pe.worktree.enabled === "boolean") {
-				worktree = { enabled: pe.worktree.enabled };
-			} else if (typeof pe.worktree.enabledByDefault === "boolean") {
-				// P6 execution policy format uses enabledByDefault
-				worktree = { enabled: pe.worktree.enabledByDefault };
-			}
+			// Always force enabled: true regardless of what the plan says
+			worktree = { enabled: true };
+		} else {
+			// Default to enabled when worktree config is missing
+			worktree = { enabled: true };
 		}
 
 		// v2.3.0: integrationQueue

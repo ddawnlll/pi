@@ -79,6 +79,7 @@ describe.skipIf(SKIP_TESTS)("Real Agent Execution", () => {
 			workspaceRoot: testDir,
 			model,
 			maxTurns: 10, // Limit turns for faster tests
+			worktree: { enabled: false }, // Test uses direct execution, not worktree mode
 		});
 	});
 

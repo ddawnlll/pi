@@ -34,9 +34,6 @@ import { WarningBanner } from "./components/WarningBanner";
 import { RerunDialog } from "./components/RerunDialog";
 import { StatusBadge } from "./components/StatusBadge";
 import { IconBtn, LabeledBtn } from "./components/IconBtn";
-import { SectionHeader } from "./components/SectionHeader";
-import { ProjectItem } from "./components/ProjectItem";
-import { HistoryItem } from "./components/HistoryItem";
 import { StatCard } from "./components/StatCard";
 
 import { ChatPanel, type ContextRef } from "./components/ChatPanel";
@@ -44,7 +41,6 @@ import { RightSidebar, type AlertEntry } from "./components/right-sidebar";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent, formatPercentOrUnknown } from "./utils/format";
-import { TaskList } from "./components/TaskList";
 import { TaskDetailView } from "./components/TaskDetailView";
 import type { MultiPhaseTask } from "./types";
 import { LiveLogTerminal } from "./components/LiveLogTerminal";
@@ -75,9 +71,6 @@ type ActiveView =
   | { type: "task" }
   | { type: "platform"; screen: PlatformNavItem }
   | { type: "empty" };
-
-// ─── Left sidebar tab ───────────────────────────────────────────────────
-type LeftTab = "projects" | "runs" | "tasks" | "platform";
 
 // ─── Platform screen picker ─────────────────────────────────────────────
 function platformScreen(s: PlatformNavItem): React.ReactNode | null {
@@ -165,14 +158,29 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
   );
 }
 
-// ─── tab label helper ─────────────────────────────────────────────────────
+// ─── localStorage keys ───────────────────────────────────────────────────
 
-const TAB_LABELS: Record<LeftTab, { label: string; icon: typeof LayoutGrid }> = {
-  projects: { label: "Projects", icon: FolderOpen },
-  runs:     { label: "Runs",     icon: History },
-  tasks:    { label: "Tasks",    icon: ListOrdered },
-  platform: { label: "Platform", icon: Cpu },
-};
+const SELECTED_PROJECT_KEY = "pi_selected_project_id";
+
+function loadSelectedProjectId(): string | null {
+  try {
+    return localStorage.getItem(SELECTED_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveSelectedProjectId(id: string | null): void {
+  try {
+    if (id) {
+      localStorage.setItem(SELECTED_PROJECT_KEY, id);
+    } else {
+      localStorage.removeItem(SELECTED_PROJECT_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 // ─── main app ─────────────────────────────────────────────────────────────────
 
@@ -183,7 +191,11 @@ export function App() {
   const { projects, isLoading: projectsLoading, createProject } = useProjects();
   console.log("[App] useProjects resolved, loading=", projectsLoading, "count=", projects.length);
   const hasProjects = projects.length > 0;
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  // Restore project selection from localStorage
+  const initialProjectId = loadSelectedProjectId();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    initialProjectId && projects.find(p => p.id === initialProjectId) ? initialProjectId : null
+  );
   const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
@@ -201,9 +213,11 @@ export function App() {
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
-  // ── New state: active view + left tab ─────────────────────────────────
+  // ── Project-level state: brain enabled ──────────────────────────────────
+  const [brainEnabled, setBrainEnabled] = useState(true);
+
+  // ── New state: active view ─────────────────────────────────────────────
   const [activeView, setActiveView] = useState<ActiveView>({ type: "empty" });
-  const [leftTab, setLeftTab] = useState<LeftTab>("runs");
 
   // ── Derived booleans from activeView ──────────────────────────────────
   const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
@@ -227,16 +241,34 @@ export function App() {
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
 
-  // ── Navigate to a Platform feature ────────────────────────────────────
-  const navigateToPlatform = useCallback((item: string) => {
-    setActiveView({ type: "platform", screen: item as PlatformNavItem });
-    setLeftTab("platform");
+  // ── Navigate to a sidebar item ────────────────────────────────────────
+  const handleSidebarNavigate = useCallback((item: string) => {
+    // Brain items are platform screens
+    if (item.startsWith("brain_")) {
+      setActiveView({ type: "platform", screen: item as PlatformNavItem });
+    } else if (item === "autonomy" || item === "plan_intake" || item === "extensions_skills" ||
+               item === "proposal_inbox" || item === "registry_settings") {
+      setActiveView({ type: "platform", screen: item as PlatformNavItem });
+    } else {
+      // Default: try as a run or task selection handled by parent
+      // This is handled by separate callbacks
+    }
     setMobileNav(null);
   }, []);
 
+  // Select first project if none selected, with localStorage support
   useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) setSelectedProjectId(projects[0].id);
+    if (!selectedProjectId && projects.length > 0) {
+      const saved = loadSelectedProjectId();
+      const target = saved && projects.find(p => p.id === saved) ? saved : projects[0].id;
+      setSelectedProjectId(target);
+    }
   }, [projects, selectedProjectId]);
+
+  // Save project selection to localStorage whenever it changes
+  useEffect(() => {
+    saveSelectedProjectId(selectedProjectId);
+  }, [selectedProjectId]);
 
   const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId);
   const { data: executionDetail } = usePlanExecutionDetail(selectedProjectId, selectedPlanExecId);
@@ -373,8 +405,106 @@ export function App() {
     setSelectedTask(null);
     setSelectedTaskId(null);
     setActiveView({ type: "empty" });
-    setLeftTab("runs");
     setMobileNav(null);
+  }, []);
+
+  // ── Project CRUD helpers ──────────────────────────────────────────────
+  const handleCreateProject = useCallback(() => {
+    setShowProjectDialog(true);
+  }, []);
+
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        showError(data.error || "Failed to delete project");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // If we deleted the current project, reset selection
+      if (selectedProjectId === projectId) {
+        const remaining = projects.filter(p => p.id !== projectId);
+        if (remaining.length > 0) {
+          handleProjectSelected(remaining[0].id);
+        } else {
+          setSelectedProjectId(null);
+          setActiveView({ type: "empty" });
+        }
+      }
+    } catch (e) {
+      showError(String(e));
+    }
+  }, [selectedProjectId, projects, queryClient, handleProjectSelected, showError]);
+
+  const handleRenameProject = useCallback(async (projectId: string, name: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showError(data.error || "Failed to rename project");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    } catch (e) {
+      showError(String(e));
+    }
+  }, [queryClient, showError]);
+
+  // ── Fetch tasks for the current project ─────────────────────────────────
+  const [projectTasks, setProjectTasks] = useState<MultiPhaseTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectTasks([]);
+      return;
+    }
+    let cancelled = false;
+    setTasksLoading(true);
+    fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId)}/tasks`)
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled) {
+          setProjectTasks(data.tasks ?? []);
+          setTasksLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectTasks([]);
+          setTasksLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [selectedProjectId]);
+
+  const handleSelectTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId);
+    setActiveView({ type: "task" });
+    setMobileNav(null);
+    fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId ?? "")}/tasks/${encodeURIComponent(taskId)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.task) setSelectedTask(d.task);
+      })
+      .catch(() => {});
+  }, [selectedProjectId]);
+
+  const handleSelectExecution = useCallback((execId: string) => {
+    setSelectedPlanExecId(execId);
+    setActiveView({ type: "run" });
+    setMobileNav(null);
+  }, []);
+
+  const handleCreateTask = useCallback(() => {
+    // Open task creation dialog or navigate to task creation flow
+    // For now, set activeView to show task creation
+    setActiveView({ type: "task" });
   }, []);
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
@@ -447,7 +577,7 @@ export function App() {
           )}
         </AnimatePresence>
 
-        {/* ── left sidebar ── */}
+        {/* ── left sidebar (project-centric) ── */}
         <AnimatePresence initial={false}>
           {(leftOpen || mobileNav === "left") && (
             <motion.aside key="left"
@@ -456,95 +586,27 @@ export function App() {
               className={`shrink-0 ${SURF} border-r ${BORD} flex flex-col overflow-hidden
                 md:relative md:z-auto ${mobileNav === "left" ? "absolute left-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
             >
-              {/* 4-tab bar */}
-              <div className={`shrink-0 flex items-center border-b ${BORD}`}>
-                {(Object.keys(TAB_LABELS) as LeftTab[]).map((tab) => {
-                  const info = TAB_LABELS[tab];
-                  const Icon = info.icon;
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setLeftTab(tab)}
-                      className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[9px] font-semibold uppercase tracking-widest transition-colors ${
-                        leftTab === tab
-                          ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
-                          : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
-                      }`}
-                    >
-                      <Icon size={11} strokeWidth={1.8} />
-                      <span className="hidden sm:inline">{info.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* ── PROJECTS tab ── */}
-              {leftTab === "projects" && (
-                <>
-                  <SectionHeader title="Projects" />
-                  <div className="px-2 pb-1 flex flex-col gap-0.5">
-                    {projects.map(p => (
-                      <ProjectItem key={p.id} name={p.name ?? p.id} active={p.id === selectedProjectId}
-                        onClick={() => handleProjectSelected(p.id)} />
-                    ))}
-                    <button onClick={() => setShowProjectDialog(true)}
-                      className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
-                      <Plus size={13} strokeWidth={2} /> Open project...
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* ── RUNS tab ── */}
-              {leftTab === "runs" && (
-                <>
-                  <SectionHeader title="Runs" />
-                  <div className={`flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5`}>
-                    {executionsLoading ? (
-                      <div className={`flex items-center gap-2 px-3 py-2 text-xs ${MUT}`}><Loader2 size={11} className="animate-spin" /> Loading...</div>
-                    ) : executions.length === 0 ? (
-                      <p className={`px-3 py-2 text-xs ${MUT}`}>No runs yet</p>
-                    ) : (
-                      executions.map(ex => (
-                        <HistoryItem key={ex.id} exec={ex} active={ex.id === selectedPlanExecId}
-                          onClick={() => { setSelectedPlanExecId(ex.id); setActiveView({ type: "run" }); setMobileNav(null); }} />
-                      ))
-                    )}
-                  </div>
-                  <div className="shrink-0 px-2 pb-2">
-                    <button onClick={handleUploadPlan}
-                      className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs w-full ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
-                      <Upload size={13} strokeWidth={2} /> Upload plan...
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* ── TASKS tab ── */}
-              {leftTab === "tasks" && (
-                <TaskList projectId={selectedProjectId} onSelectTask={(taskId) => {
-                  setSelectedTaskId(taskId);
-                  setActiveView({ type: "task" });
-                  setMobileNav(null);
-                  // Fetch the task detail
-                  fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId ?? "")}/tasks/${encodeURIComponent(taskId)}`)
-                    .then(r => r.json())
-                    .then(d => {
-                      if (d.task) setSelectedTask(d.task);
-                    })
-                    .catch(() => {});
-                }} />
-              )}
-
-              {/* ── PLATFORM tab ── */}
-              {leftTab === "platform" && (
-                <div className="flex flex-col gap-0.5 overflow-y-auto">
-                  <Sidebar
-                    activeItem={platformActiveItem}
-                    onNavigate={navigateToPlatform}
-                  />
-                </div>
-              )}
+              <Sidebar
+                project={projects.find(p => p.id === selectedProjectId) ?? null}
+                projects={projects}
+                activeItem={selectedPlanExecId ?? selectedTaskId ?? platformActiveItem}
+                onNavigate={handleSidebarNavigate}
+                onSelectProject={handleProjectSelected}
+                onCreateProject={handleCreateProject}
+                onDeleteProject={handleDeleteProject}
+                onRenameProject={handleRenameProject}
+                onOpenSettings={() => setShowSettingsDialog(true)}
+                onUploadPlan={handleUploadPlan}
+                brainEnabled={brainEnabled}
+                onToggleBrain={setBrainEnabled}
+                executions={executions}
+                tasks={projectTasks}
+                executionsLoading={executionsLoading}
+                tasksLoading={tasksLoading}
+                onSelectExecution={handleSelectExecution}
+                onSelectTask={handleSelectTask}
+                onCreateTask={handleCreateTask}
+              />
             </motion.aside>
           )}
         </AnimatePresence>
@@ -694,7 +756,6 @@ export function App() {
                             onPhasePlanClick={(planExecId) => {
                               setSelectedPlanExecId(planExecId);
                               setActiveView({ type: "run" });
-                              setLeftTab("runs");
                             }}
                           />
                         ) : (

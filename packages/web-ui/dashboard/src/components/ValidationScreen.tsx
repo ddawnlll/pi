@@ -12,6 +12,7 @@ import {
 	AlertCircle,
 	ChevronDown,
 	ChevronRight,
+	Copy,
 	Loader2,
 	MessageSquare,
 	X,
@@ -147,6 +148,17 @@ interface DetailItem {
 
 function extractDetails(result: ValidateWithPreviewResponse): DetailItem[] {
 	const items: DetailItem[] = [];
+
+	// Show top-level errors from failed validation (parse failures, etc.)
+	if (!result.success && result.errors && result.errors.length > 0) {
+		for (const err of result.errors) {
+			items.push({
+				icon: AlertCircle,
+				iconColor: "text-red-400",
+				message: err,
+			});
+		}
+	}
 
 	if (result.parseResult) {
 		items.push({
@@ -325,6 +337,7 @@ export function ValidationScreen({
 					const isValidating = validatingFiles.has(fileName);
 					const details = extractDetails(result);
 					const hasIssues =
+						(result.errors && result.errors.length > 0) ||
 						result.safety?.critical?.length ||
 						result.safety?.warnings?.length ||
 						result.batchPlan?.errors?.length ||
@@ -380,13 +393,23 @@ export function ValidationScreen({
 									{details.map((item, i) => (
 										<div
 											key={i}
-											className="flex items-start gap-2 py-1 px-2 rounded text-[10px] text-gray-300"
+											className="flex items-start gap-2 py-1 px-2 rounded text-[10px] text-gray-300 group"
 										>
 											<item.icon
 												size={10}
 												className={`${item.iconColor} shrink-0 mt-0.5`}
 											/>
-											<span>{item.message}</span>
+											<span className="flex-1 select-all whitespace-pre-wrap break-all">{item.message}</span>
+											<button
+												onClick={(e) => {
+													e.stopPropagation();
+													navigator.clipboard.writeText(item.message);
+												}}
+												className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 shrink-0"
+												title="Copy message"
+											>
+												<Copy size={10} />
+											</button>
 										</div>
 									))}
 

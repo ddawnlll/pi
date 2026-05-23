@@ -166,7 +166,7 @@ export interface PrerequisiteStatus {
 /** Scale mode readiness result. */
 export interface ScaleModeReadiness {
 	ready: boolean;
-	currentMode: "stable_3" | "experimental_6" | "scale_8";
+	currentMode: "experimental_6";
 	isScaleModeActive: boolean;
 	prerequisites: PrerequisiteStatus[];
 	blockedReasons: string[];
@@ -416,33 +416,15 @@ export function buildScaleModeReadiness(
 		validationLockEnabled: boolean;
 	},
 	requestedWorkers: number,
-	experimentalModeEnabled: boolean,
+	_experimentalModeEnabled: boolean,
 ): ScaleModeReadiness {
-	const MIN_STABLE = 1;
-	const MAX_STABLE = 3;
-	const MIN_EXPERIMENTAL = 4;
-	const MAX_EXPERIMENTAL = 6;
-	const MIN_SCALE = 7;
 	const MAX_SCALE = 8;
 
 	const blockedReasons: string[] = [];
 	const warnings: string[] = [];
 
-	const workers = Math.max(MIN_STABLE, Math.min(MAX_SCALE, requestedWorkers));
-
-	let currentMode: "stable_3" | "experimental_6" | "scale_8";
-	let isScaleModeActive: boolean;
-
-	if (workers >= MIN_EXPERIMENTAL && workers <= MAX_EXPERIMENTAL && experimentalModeEnabled) {
-		currentMode = "experimental_6";
-		isScaleModeActive = true;
-	} else if (workers >= MIN_SCALE && workers <= MAX_SCALE && experimentalModeEnabled) {
-		currentMode = "scale_8";
-		isScaleModeActive = true;
-	} else {
-		currentMode = "stable_3";
-		isScaleModeActive = false;
-	}
+	// P22.C: Worktree-only mode — always experimental_6.
+	const currentMode: "experimental_6" = "experimental_6";
 
 	const prerequisites: PrerequisiteStatus[] = [
 		{
@@ -471,33 +453,18 @@ export function buildScaleModeReadiness(
 		},
 	];
 
-	if (isScaleModeActive) {
-		const unmet = prerequisites.filter((p) => !p.met);
-		for (const prereq of unmet) {
-			blockedReasons.push(`Scale mode requires "${prereq.name}" to be enabled. ${prereq.message}`);
-		}
+	// P22.C: Worktree-only mode — scale mode is always active.
+	const unmet = prerequisites.filter((p) => !p.met);
+	for (const prereq of unmet) {
+		blockedReasons.push(`Scale mode requires "${prereq.name}" to be enabled. ${prereq.message}`);
 	}
 
-	if (!isScaleModeActive && prerequisites.every((p) => p.met) && workers <= MAX_STABLE) {
-		warnings.push(
-			`All scale mode prerequisites are met, but worker count (${workers}) is within stable range (1-3). ` +
-				"Increase worker count to 4-8 to enable scale mode.",
-		);
-	}
-
-	if (experimentalModeEnabled && !isScaleModeActive) {
-		warnings.push(
-			`Scale/experimental mode is enabled but worker count (${workers}) is within stable range (1-3). ` +
-				"The flag has no effect at this worker count.",
-		);
-	}
-
-	const ready = !isScaleModeActive || blockedReasons.length === 0;
+	const ready = blockedReasons.length === 0;
 
 	return {
 		ready,
 		currentMode,
-		isScaleModeActive,
+		isScaleModeActive: true,
 		prerequisites,
 		blockedReasons,
 		warnings,
