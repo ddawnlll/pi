@@ -805,25 +805,11 @@ export class AutonomousExecutor {
 				}
 			}
 
-			// Check if all workspaces are terminal — if so, auto-complete the plan.
-			// Without this, plans executed outside the CLI loop (e.g., via web-server)
-			// would remain "running" in the DB forever because completePlan() was only
-			// called from plan-commands.ts after the execution loop finished.
-			// Use setTimeout instead of queueMicrotask for reliable async scheduling
-			// and re-check state to handle race conditions with parallel workspace completions.
-			if (this.isExecutionComplete()) {
-				setTimeout(async () => {
-					try {
-						// Re-check state to handle race conditions - another workspace might
-						// have completed between the initial check and this callback running
-						if (this.isExecutionComplete()) {
-							await this.completePlan();
-						}
-					} catch (completeError) {
-						console.error(`[auto-complete] Failed to complete plan ${planExecutionId}:`, completeError);
-					}
-				}, 0);
-			}
+			// NOTE: The plan-runner (executePlanInBackground) handles plan completion
+			// when all workspaces are terminal. Do NOT auto-complete here to avoid
+			// a race with the plan-runner's while loop. The setTimout-based auto-complete
+			// was removed because it raced with the plan-runner calling completePlan()
+			// or entering handoff, causing a double transition or stale state.
 
 			return result;
 		} catch (error) {
@@ -884,21 +870,8 @@ export class AutonomousExecutor {
 				}
 			});
 
-			// Check if all workspaces are terminal (all failed/complete — no more pending/active)
-			// Use setTimeout instead of queueMicrotask for reliable async scheduling
-			// and re-check state to handle race conditions with parallel workspace completions.
-			if (this.isExecutionComplete()) {
-				setTimeout(async () => {
-					try {
-						// Re-check state to handle race conditions
-						if (this.isExecutionComplete()) {
-							await this.failPlan("All workspaces failed or plan cannot proceed");
-						}
-					} catch (completeError) {
-						console.error(`[auto-complete] Failed to fail plan ${planExecutionId}:`, completeError);
-					}
-				}, 0);
-			}
+			// NOTE: The plan-runner handles plan failure when all workspaces are terminal.
+			// Do NOT auto-fail here to avoid a race with the plan-runner's while loop.
 
 			return {
 				workspaceId: workspace.id,
