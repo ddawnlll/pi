@@ -2,20 +2,20 @@
   "packet": {
     "phaseId": "P2",
     "workspaceId": "7.D",
-    "role": "reviewer",
-    "goal": "Review 7.D: Source-Backed Summarizer",
+    "role": "worker",
+    "goal": "File Explorer for Live Worktrees",
     "allowedFiles": [],
     "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
     "stateSummary": "",
     "relevantSnippets": [],
-    "outputContract": "VERDICT: APPROVED | REJECTED | NEEDS_REVISION",
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
-      "maxInputTokens": 16000,
-      "estimatedInputTokens": 121
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 117
     }
   },
-  "hash": "c095f4e1c121051cc2f0f87e7df86dba1792a72975d89c54f9cec567275b164f",
-  "createdAt": 1779404838451
+  "hash": "a9139feac7886b1916a02b1c02039416ddb7ba9e9ab649e6968650825e0b10b2",
+  "createdAt": 1779565972965
 }

@@ -19,7 +19,10 @@ import {
 	Lock,
 	ShieldCheck,
 	ShieldBan,
+	Heart,
+	Activity,
 } from "lucide-react";
+import type { LeaseHeartbeatInfo } from "../hooks/useScaleStatus";
 import { useWorktreeCleanup, useWorktreeStatus, useIntegrationQueueStatus } from "../hooks/useScaleStatus";
 import { WorktreeCleanupDialog, getWorktreeBlockReason } from "./WorktreeCleanupDialog";
 
@@ -172,6 +175,54 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 			{/* Empty state */}
 			{!isLoading && !error && worktrees.length === 0 && (
 				<p className={`text-xs py-4 text-center ${MUT}`}>No worktrees found.</p>
+			)}
+
+			{/* P23: Lease heartbeat snapshot */}
+			{(data as any)?.leases && (data as any).leases.length > 0 && (
+				<div className="space-y-1">
+					<div className="flex items-center gap-1.5 mb-1">
+						<Heart size={11} className={ACC_TXT} />
+						<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+							Lease Heartbeats
+						</span>
+						<span className={`text-[10px] ${MUT}`}>({(data as any).leases.length})</span>
+					</div>
+					{(data as any).leases.map((lease: LeaseHeartbeatInfo) => {
+						const ageSeconds = lease.lastHeartbeatAt
+							? Math.floor((Date.now() - new Date(lease.lastHeartbeatAt).getTime()) / 1000)
+							: null;
+						const isHealthy = ageSeconds !== null && ageSeconds < 45;
+						return (
+							<div key={lease.leaseId}
+								className="flex items-center justify-between px-2.5 py-1.5 rounded
+									bg-stone-50 dark:bg-stone-800/50 border border-[#E8E6E1] dark:border-[#333]"
+							>
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<span className={`text-[10px] font-medium ${TXT}`}>{lease.workspaceId}</span>
+										<span className={`text-[9px] font-mono ${MUT}`}>PID {lease.pid}</span>
+									</div>
+									{lease.lastGitCommand && (
+										<p className={`text-[9px] font-mono ${MUT} truncate`}>{lease.lastGitCommand}</p>
+									)}
+								</div>
+								<div className="flex items-center gap-1.5 shrink-0">
+									{isHealthy ? (
+										<span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
+											<Activity size={9} />
+											{ageSeconds}s
+										</span>
+									) : (
+										<span className="flex items-center gap-0.5 text-[9px] text-amber-600 dark:text-amber-400">
+											<AlertTriangle size={9} />
+											{ageSeconds !== null ? `${ageSeconds}s stale` : "no heartbeat"}
+										</span>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
 			)}
 
 			{/* Worktree list */}

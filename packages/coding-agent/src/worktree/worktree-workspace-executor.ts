@@ -9,13 +9,10 @@
  * When worktree mode is disabled, falls back to P5.5 shared-working-tree behavior.
  */
 
-import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
+import { createGitRunner, type GitRunner } from "../core/git-runner.js";
 import type { HashedPacket } from "../core/role-packets.js";
-
-const execAsync = promisify(execCb);
 
 // ---------------------------------------------------------------------------
 // Global worktree operation mutex
@@ -65,19 +62,24 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command asynchronously and return stdout trimmed.
+ * Get a GitRunner instance for this workspace context.
  */
-async function git(args: string[], cwd: string, timeoutMs: number = 60_000): Promise<string> {
-	try {
-		const { stdout } = await execAsync(`git ${args.join(" ")}`, {
-			cwd,
-			encoding: "utf-8",
-			timeout: timeoutMs,
-		});
-		return stdout.trim();
-	} catch {
-		return "";
-	}
+function getRunner(cwd: string, workspaceId?: string): GitRunner {
+	return createGitRunner({
+		planExecId: "",
+		workspaceId: workspaceId ?? "",
+		leaseId: "",
+		cwd,
+	});
+}
+
+/**
+ * Run a git command via GitRunner and return stdout trimmed, or empty string on failure.
+ */
+async function git(args: string[], cwd: string, _timeoutMs: number = 60_000): Promise<string> {
+	const runner = getRunner(cwd);
+	const result = await runner.read(args, { cwd, timeout: _timeoutMs });
+	return result.stdout;
 }
 
 /**
@@ -414,10 +416,15 @@ export class WorktreeWorkspaceExecutor {
 			if (!validWorktree) {
 				// Stale worktree directory from a crash — remove it so we can
 				// re-create it fresh. This prevents 'fatal: '<path>' already exists'
+				// First try git worktree remove (cleaner), then fall back to rm
 				try {
-					await fs.rm(worktreeDir, { recursive: true, force: true });
+					await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
 				} catch {
-					// Non-fatal — creation below will fail if cleanup didn't work
+					try {
+						await fs.rm(worktreeDir, { recursive: true, force: true });
+					} catch {
+						// Non-fatal — creation below will fail if cleanup didn't work
+					}
 				}
 			}
 		}

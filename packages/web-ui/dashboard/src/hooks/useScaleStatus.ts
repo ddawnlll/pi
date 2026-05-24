@@ -44,6 +44,19 @@ export interface QueueEntryInfo {
 	validationPassed: boolean | null;
 	error: string | null;
 	conflictFiles: string[] | null;
+	// P23: Merge-priority score fields
+	mergeScore?: {
+		total: number;
+		downstreamReadyCount: number;
+		criticalPathPosition: number;
+		waitTimeBoost: number;
+		staticBandMultiplier: number;
+		recomputedAt: number;
+	};
+	downstreamReadyCount?: number | null;
+	criticalPathPosition?: number | null;
+	driftFlagged?: boolean | null;
+	requiresHumanReview?: boolean | null;
 }
 
 /** Integration queue status from the API. */
@@ -108,6 +121,47 @@ export interface QueueMetrics {
 	} | null;
 	/** Advisory optimizer suggestions. */
 	optimizerSuggestions: OptimizerSuggestion[];
+}
+
+/** P23: Lease heartbeat info for a lease entry. */
+export interface LeaseHeartbeatInfo {
+	leaseId: string;
+	workspaceId: string;
+	planExecId: string;
+	pid: number;
+	lastHeartbeatAt: string;
+	cwd: string;
+	lastGitCommand: string;
+}
+
+/** P23: Lease monitor health and stats. */
+export interface LeaseMonitorStatus {
+	enabled: boolean;
+	healthy: boolean;
+	quarantineCount: number;
+	reconciliationEventCount: number;
+	activeLeases: LeaseHeartbeatInfo[];
+}
+
+/** P23: Validation lane status. */
+export interface ValidationLaneStatus {
+	currentHeavyValidations: number;
+	maxConcurrentHeavyValidations: number;
+	currentTargetedValidations: number;
+	maxConcurrentTargetedValidations: number;
+	backpressureActive: boolean;
+	deferredWorkspaceIds: string[];
+	deferredReasons: Record<string, string>;
+}
+
+/** P23: Write set drift info for a workspace. */
+export interface WriteSetDriftInfo {
+	empiricalWriteSet?: string[];
+	driftStatus?: "clean" | "drifted";
+	undeclaredWriteCount?: number;
+	driftFlagged?: boolean;
+	requiresHumanReview?: boolean;
+	integrationBlocked?: boolean;
 }
 
 /** Advisory suggestion from the queue optimizer. */

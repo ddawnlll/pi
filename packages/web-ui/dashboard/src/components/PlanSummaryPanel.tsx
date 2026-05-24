@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle, XCircle, AlertTriangle, FileCode, Beaker, ListChecks, Sparkles, RotateCw } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, FileCode, Beaker, ListChecks, Sparkles, RotateCw, Heart, Activity } from "lucide-react";
 
 interface PlanSummaryData {
   planExecutionId: string;
@@ -252,6 +252,31 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         </div>
       )}
 
+      {/* P23: Lease monitor health */}
+      {(data as any)?.leaseMonitorHealth !== undefined && (
+        <div className={`border-t ${BORD} px-4 py-3`}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Heart size={11} className={MUT} />
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Lease Monitor</span>
+          </div>
+          {(data as any).leaseMonitorHealth.enabled ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                <Activity size={9} />
+                {(data as any).leaseMonitorHealth.healthy ? "Healthy" : "Unhealthy"}
+              </span>
+              <span className={`text-[10px] ${MUT}`}>
+                Quarantines: {(data as any).leaseMonitorHealth.quarantineCount ?? 0}
+              </span>
+              <span className={`text-[10px] ${MUT}`}>
+                Reconciliations: {(data as any).leaseMonitorHealth.reconciliationEventCount ?? 0}
+              </span>
+            </div>
+          ) : (
+            <span className={`text-[10px] ${MUT}`}>Disabled</span>
+          )}
+        </div>
+      )}
       {/* Footer */}
       <div className={`border-t ${BORD} px-4 py-2 bg-stone-50 dark:bg-[#1A1A1A] flex items-center gap-2 ${MUT} text-[9px]`}>
         <ListChecks size={9} />

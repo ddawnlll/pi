@@ -93,8 +93,9 @@ export function scanMarkdownWorkstreamHeadings(planContent: string): MarkdownWor
 	// If no section found, scan whole content as fallback
 	const searchContent = sectionContent || planContent;
 
-	// Pattern: "### X.Y[Z] — Title" — extract the letter after the dot
-	const headingPattern = /### [0-9]+[.]([A-Z])[^\n]*—/g;
+	// Pattern: "### X.Y[Z] — Title" or "### W1 — Title" — extract the workspace ID
+	// Try numbered-letter format first (e.g., "### 7.A — Title")
+	let headingPattern = /### [0-9]+[.]([A-Z])[^\n]*—/g;
 	let match: RegExpExecArray | null = headingPattern.exec(searchContent);
 
 	while (match !== null) {
@@ -103,6 +104,19 @@ export function scanMarkdownWorkstreamHeadings(planContent: string): MarkdownWor
 			labels.push(label);
 		}
 		match = headingPattern.exec(searchContent);
+	}
+
+	// Try any ID format (e.g., "### W1 — Title", "### 7.A — Title")
+	if (labels.length === 0) {
+		headingPattern = /### ([\w.-]+)[^\n]*—/g;
+		match = headingPattern.exec(searchContent);
+		while (match !== null) {
+			const label = match[1];
+			if (label && !labels.includes(label)) {
+				labels.push(label);
+			}
+			match = headingPattern.exec(searchContent);
+		}
 	}
 
 	// If no ## N.Workstreams section was found and no labels yet, try "Workstream A" format
@@ -129,12 +143,14 @@ export function scanMarkdownWorkstreamHeadings(planContent: string): MarkdownWor
  * @returns Array of missing labels that have no corresponding workspace
  */
 export function findMissingWorkspaceLabels(markdownLabels: string[], workspaceIds: string[]): string[] {
-	// Extract the letter suffix from workspace IDs (e.g., "7.A" -> "A", "19.N" -> "N")
+	// Extract the letter suffix from workspace IDs (e.g., "7.A" -> "A", "W3" -> "W3")
 	const workspaceLetters = new Set<string>();
 	for (const id of workspaceIds) {
 		const letterMatch = id.match(/[.]([A-Z])$/);
 		if (letterMatch) {
 			workspaceLetters.add(letterMatch[1]);
+		} else {
+			workspaceLetters.add(id);
 		}
 	}
 
@@ -343,8 +359,8 @@ function parseMarkdownHeadings(planContent: string): { queue?: WorkspaceQueue; e
 
 	const workstreamContent = workstreamMatch[1];
 
-	// Parse individual workstreams (### 7.A — Title)
-	const workstreamRegex = /### (7\.[A-Z])[^\n]*—\s*([^\n]+)\n([\s\S]*?)(?=\n### 7\.[A-Z]|$)/gi;
+	// Parse individual workstreams (### W1 — Title, ### 7.A — Title, etc.)
+	const workstreamRegex = /### ([\w.-]+)[^\n]*—\s*([^\n]+)\n([\s\S]*?)(?=\n### [\w.-]+|$)/gi;
 	let match: RegExpExecArray | null = workstreamRegex.exec(workstreamContent);
 
 	while (match !== null) {
@@ -363,7 +379,7 @@ function parseMarkdownHeadings(planContent: string): { queue?: WorkspaceQueue; e
 					...depsStr
 						.split(/[,\s]+/)
 						.map((d) => d.trim())
-						.filter((d) => d.match(/^7\.[A-Z]$/)),
+						.filter((d) => /^[\w.-]+$/.test(d) && d.length > 0),
 				);
 			}
 		}

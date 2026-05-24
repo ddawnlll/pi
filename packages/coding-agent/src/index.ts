@@ -102,6 +102,8 @@ export {
 	type LedgerSource,
 	type LedgerSummary,
 } from "./core/governance-ledger.js";
+export { GitRunner, createGitRunner, type GitCallContext, type GitOperationScope, type GitResult, type StaleLockInfo } from "./core/git-runner.js";
+export { LeaseMonitor, createLeaseMonitor, DEFAULT_LEASE_MONITOR_CONFIG, type LeaseMonitorConfig, type LeaseHeartbeat, type QuarantineResult, type LeaseReconciliationEvent } from "./core/lease-monitor.js";
 export { JsonStateStore, type JsonStateStoreConfig } from "./core/json-state-store.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";

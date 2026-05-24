@@ -11,13 +11,15 @@ interface TaskAggregatesBarProps {
 	compact?: boolean;
 }
 
-function formatTokens(n: number): string {
+function formatTokens(n: number | undefined | null): string {
+	if (n === undefined || n === null) return "0";
 	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
 	if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
 	return String(n);
 }
 
-function formatDuration(ms: number): string {
+function formatDuration(ms: number | undefined | null): string {
+	if (ms === undefined || ms === null) return "0s";
 	if (ms < 1000) return `${ms}ms`;
 	if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
 	const mins = Math.floor(ms / 60_000);
@@ -25,32 +27,48 @@ function formatDuration(ms: number): string {
 	return `${mins}m ${secs}s`;
 }
 
-function formatCost(usd: number): string {
+function formatCost(usd: number | undefined | null): string {
+	if (usd === undefined || usd === null) return "$0.00";
 	if (usd < 0.01) return "<$0.01";
 	return `$${usd.toFixed(2)}`;
 }
 
 export function TaskAggregatesBar({ aggregate, compact = false }: TaskAggregatesBarProps) {
+	const safe = aggregate ?? {
+		totalTokensIn: 0,
+		totalTokensOut: 0,
+		totalCostUsd: 0,
+		totalDurationMs: 0,
+		completedPhases: 0,
+		totalPhases: 0,
+		totalWorkspaces: 0,
+		completedWorkspaces: 0,
+		totalPhaseCount: 0,
+		completePhaseCount: 0,
+		failedPhaseCount: 0,
+		totalWorkspaceCount: 0,
+		completeWorkspaceCount: 0,
+	};
 	const items = [
 		{
 			icon: Database,
 			label: "Tokens",
-			value: `${formatTokens(aggregate.totalTokensIn)} in / ${formatTokens(aggregate.totalTokensOut)} out`,
+			value: `${formatTokens(safe.totalTokensIn)} in / ${formatTokens(safe.totalTokensOut)} out`,
 		},
 		{
 			icon: DollarSign,
 			label: "Cost",
-			value: formatCost(aggregate.totalCostUsd),
+			value: formatCost(safe.totalCostUsd),
 		},
 		{
 			icon: Clock,
 			label: "Duration",
-			value: formatDuration(aggregate.totalDurationMs),
+			value: formatDuration(safe.totalDurationMs),
 		},
 		{
 			icon: Layers,
 			label: "Phases",
-			value: `${aggregate.completedPhases}/${aggregate.totalPhases}`,
+			value: `${safe.completedPhases}/${safe.totalPhases}`,
 		},
 	];
 

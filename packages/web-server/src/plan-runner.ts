@@ -1534,17 +1534,25 @@ async function executePlanInBackground(
 			await log(`Plan execution complete, auto-committed.`);
 		} else if (failedCount === 0) {
 			// ── Enter handoff for user review (cleanup found issues) ─────────
-			await executor.completePlan();
+			await log(`Cleanup review found ${cleanupResult?.issueCount ?? 0} issue(s). Auto-completing plan.`);
+			await log(`Cleanup issues: ${cleanupResult?.issues?.join("; ") ?? "none"}`);
 
-			const stateAfterComplete = executor.getState();
-			if (stateAfterComplete?.status === "awaiting_handoff") {
-				await log(
-					`Plan entered awaiting_handoff state for user review (${cleanupResult?.issueCount ?? "unknown"} issue(s) found)...`,
-				);
-				updateExecutionStatus(planExecId, "awaiting_handoff");
-				await thisWaitForHandoff(executor, completionBus, planExecId, workspaceRoot, log);
-				return;
+			// Auto-complete even with cleanup issues — the issues are informational
+			// and should not block plan completion for autonomous task execution.
+			// The cleanup agent already committed its fixes. Do a final rollup commit.
+			try {
+				await executor.commitPlan();
+			} catch (commitError) {
+				const commitMsg = commitError instanceof Error ? commitError.message : String(commitError);
+				await log(`Rollup commit warning: ${commitMsg}`);
 			}
+
+			// Complete the plan directly (bypasses handoff)
+			const stateStore = executor.getStateStore();
+			await stateStore.completePlan(planExecId);
+			await executor.loadState();
+			updateExecutionStatus(planExecId, "complete");
+			await log(`Plan execution complete (cleanup issues logged).`);
 
 			const finalState = executor.getState();
 			if (finalState?.status === "stopped" || finalState?.status === "cancelled") {
@@ -1999,15 +2007,23 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	const phaseIndex = task.phases.findIndex((p) => p.id === phase.id);
 	if (phaseIndex === -1) return;
 
-	// Update the phase execution with current status
+	// Determine phase outcome before updating status
 	const currentExec = getActiveExecution(planExecId);
+	const execStatus = currentExec?.status ?? "running";
+	const execError = currentExec?.error ?? null;
+
+	// Determine if the phase actually failed (not just "completed" with errors)
+	const phaseFailed = execStatus === "failed" || execStatus === "cancelled" || (execStatus === "complete" && execError);
+
+	// Update the phase execution with current status
+	const phaseStatus = phaseFailed ? "failed" : "complete";
 	if (currentExec) {
 		const now = Date.now();
 		const durationMs = currentExec.startedAt ? now - currentExec.startedAt : null;
 
-		await taskStore.updatePhaseStatus(taskRoot, task.id, phase.id, "complete", {
+		await taskStore.updatePhaseStatus(taskRoot, task.id, phase.id, phaseStatus, {
 			planExecId,
-			status: currentExec.status,
+			status: execStatus,
 			startedAt: currentExec.startedAt,
 			completedAt: currentExec.completedAt ?? now,
 			durationMs,
@@ -2017,7 +2033,7 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 				complete: 0,
 				failed: 0,
 			},
-			error: currentExec.error ?? null,
+			error: execError,
 		});
 	}
 
@@ -2028,12 +2044,12 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	if (!freshTask) return;
 
 	// If the phase failed, mark the task as failed and stop
-	if (phase.status === "failed") {
+	if (phaseFailed) {
 		await taskStore.updateTaskStatus(taskRoot, freshTask.id, "failed");
 		await taskStore.appendTimelineEvent(taskRoot, freshTask.id, {
 			timestamp: Date.now(),
 			type: "phase_failed",
-			data: { phaseId: phase.id, planExecId },
+			data: { phaseId: phase.id, planExecId, error: execError },
 		});
 		return;
 	}

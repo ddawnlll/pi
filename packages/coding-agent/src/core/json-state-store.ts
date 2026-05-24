@@ -26,6 +26,7 @@ import type {
 	ProjectSummary,
 	StateStoreBackend,
 } from "./state-store.js";
+import { createGitRunner } from "./git-runner.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
@@ -404,13 +405,14 @@ export class JsonStateStore implements IStateStore {
 	async handoffDiscard(planExecutionId: string, workspaceRoot: string): Promise<void> {
 		// Revert uncommitted workspace files via git
 		try {
-			const { exec } = await import("node:child_process");
-			const { promisify } = await import("node:util");
-			const execAsync = promisify(exec);
-			// Checkout all modified tracked files to revert uncommitted changes
-			await execAsync("git checkout -- .", { cwd: workspaceRoot }).catch(() => {
-				// Ignore errors (e.g., not a git repo, no changes)
+			const runner = createGitRunner({
+				planExecId: "",
+				workspaceId: "",
+				leaseId: "",
+				cwd: workspaceRoot,
 			});
+			// Checkout all modified tracked files to revert uncommitted changes
+			await runner.checkoutAll(workspaceRoot);
 		} catch {
 			// Ignore errors during revert
 		}

@@ -158,6 +158,34 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 						{entry.error}
 					</p>
 				)}
+				{/* P23: Merge-priority score */}
+				{entry.mergeScore && (
+					<div className="mt-1 text-[9px]">
+						<span className="font-medium text-blue-600 dark:text-blue-400">
+							Score: {entry.mergeScore.total}
+						</span>
+						<span className="text-stone-400 dark:text-stone-500 ml-1">
+							(down={entry.mergeScore.downstreamReadyCount}×50 +
+							 cp={entry.mergeScore.criticalPathPosition}×30 +
+							 wait={entry.mergeScore.waitTimeBoost}×10) ×
+							 mult={entry.mergeScore.staticBandMultiplier}
+						</span>
+						{entry.mergeScore.recomputedAt && (
+							<span className="text-stone-400 dark:text-stone-500 ml-1">
+								at {new Date(entry.mergeScore.recomputedAt).toLocaleTimeString()}
+							</span>
+						)}
+					</div>
+				)}
+				{/* P23: Drift flag / requires human review */}
+				{entry.requiresHumanReview && (
+					<div className="mt-1">
+						<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+							<AlertTriangle size={8} />
+							Requires Human Review
+						</span>
+					</div>
+				)}
 				{/* Conflict files */}
 				{entry.conflictFiles && entry.conflictFiles.length > 0 && (
 					<div className="mt-1">

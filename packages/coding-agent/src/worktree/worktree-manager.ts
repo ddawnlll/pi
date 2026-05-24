@@ -8,13 +8,10 @@
  * Delegates cleanup to WorktreeCleanup for safe path-constrained removal.
  */
 
-import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
+import { GitRunner, createGitRunner } from "../core/git-runner.js";
 import { WorktreeCleanup } from "./worktree-cleanup.js";
-
-const execAsync = promisify(execCb);
 
 import {
 	DEFAULT_WORKTREE_ROOT,
@@ -43,19 +40,15 @@ interface PersistedState {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command asynchronously and return stdout trimmed.
+ * Get a GitRunner instance for this workspace context.
  */
-async function gitAsync(args: string[], cwd: string): Promise<string> {
-	try {
-		const { stdout } = await execAsync(`git ${args.join(" ")}`, {
-			cwd,
-			encoding: "utf-8",
-			timeout: 30_000,
-		});
-		return stdout.trim();
-	} catch {
-		return "";
-	}
+function getRunner(cwd: string, workspaceId?: string): GitRunner {
+	return createGitRunner({
+		planExecId: "",
+		workspaceId: workspaceId ?? "",
+		leaseId: "",
+		cwd,
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +271,9 @@ export class WorktreeManager {
 			await fs.access(worktreeDir);
 
 			// Generate unified diff from base commit to HEAD in the worktree
-			const diffOutput = await gitAsync(["diff", state.baseCommit, "HEAD"], worktreeDir);
+			const runner = getRunner(worktreeDir);
+			const diffResult = await runner.read(["diff", state.baseCommit, "HEAD"], { cwd: worktreeDir });
+			const diffOutput = diffResult.stdout;
 
 			const artifact: WorktreeDiffArtifact = {
 				planExecutionId,

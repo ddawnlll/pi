@@ -11,19 +11,16 @@
  * plan-summary.md file in .pi/workspaces/ for dashboard consumption.
  */
 
-import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { createAgentSession } from "./sdk.js";
+import { createGitRunner } from "./git-runner.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
-
-const execAsync = promisify(execCb);
 
 import type { IStateStore } from "./state-store.js";
 import {
@@ -206,33 +203,25 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 		// plus any uncommitted changes
 		let gitContext = "";
 		try {
-			// Recent commits — workspace agents commit after each workspace
-			const logResult = await execAsync("git log --oneline -5", {
+			const gitRunner = createGitRunner({
+				planExecId: planExecutionId,
+				workspaceId: "_cleanup",
+				leaseId: "",
 				cwd: workspaceRoot,
-				timeout: 5000,
-				encoding: "utf-8",
-				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
-			}).catch(() => ({ stdout: "" }));
+			});
+
+			// Recent commits — workspace agents commit after each workspace
+			const logResult = await gitRunner.read(["log", "--oneline", "-5"], { cwd: workspaceRoot });
 			gitContext += `## Recent Commits (last 5)\n${logResult.stdout || "(no commits)"}\n\n`;
 
 			// Diff of the latest commit vs its parent — shows what was committed
-			const diffLastResult = await execAsync("git diff HEAD~1 --stat", {
-				cwd: workspaceRoot,
-				timeout: 5000,
-				encoding: "utf-8",
-				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
-			}).catch(() => ({ stdout: "" }));
+			const diffLastResult = await gitRunner.read(["diff", "HEAD~1", "--stat"], { cwd: workspaceRoot });
 			if (diffLastResult.stdout.trim()) {
 				gitContext += `## Files Changed in Latest Commit\n${diffLastResult.stdout}\n\n`;
 			}
 
 			// Uncommitted changes
-			const diffResult = await execAsync("git diff --stat HEAD", {
-				cwd: workspaceRoot,
-				timeout: 5000,
-				encoding: "utf-8",
-				env: { ...process.env, GIT_ALLOW_PROTOCOL: "file" },
-			}).catch(() => ({ stdout: "" }));
+			const diffResult = await gitRunner.read(["diff", "--stat", "HEAD"], { cwd: workspaceRoot });
 			if (diffResult.stdout.trim()) {
 				gitContext += `## Uncommitted Changes (working tree vs HEAD)\n${diffResult.stdout}`;
 			} else {
@@ -441,20 +430,17 @@ async function executeCleanupAgent(config: {
 			emitStatus("error", `Cleanup agent timed out after ${timeoutMs / 1000}s`);
 			// Even on timeout, commit any pending changes from worktrees
 			try {
-				const { stdout: staged } = await execAsync("git diff --cached --name-only", {
+				const gitRunner = createGitRunner({
+					planExecId: planExecutionId,
+					workspaceId: "_cleanup",
+					leaseId: "",
 					cwd: workspaceRoot,
-					timeout: 10_000,
 				});
-				const { stdout: unstaged } = await execAsync("git diff --name-only", {
-					cwd: workspaceRoot,
-					timeout: 10_000,
-				});
-				if (staged.trim() || unstaged.trim()) {
-					await execAsync("git add -A", { cwd: workspaceRoot, timeout: 30_000 });
-					await execAsync(
-						'git commit -m "chore(cleanup): auto-commit worktree changes after timeout" --no-verify',
-						{ cwd: workspaceRoot, timeout: 30_000 },
-					);
+				const stagedResult = await gitRunner.read(["diff", "--cached", "--name-only"], { cwd: workspaceRoot });
+				const unstagedResult = await gitRunner.read(["diff", "--name-only"], { cwd: workspaceRoot });
+				if (stagedResult.stdout.trim() || unstagedResult.stdout.trim()) {
+					await gitRunner.stageAll("_cleanup", workspaceRoot);
+					await gitRunner.commit("_cleanup", "chore(cleanup): auto-commit worktree changes after timeout", workspaceRoot);
 					await logAndArchive("Commited worktree changes after timeout");
 				}
 			} catch (commitErr) {

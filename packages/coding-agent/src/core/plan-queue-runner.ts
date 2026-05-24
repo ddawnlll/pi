@@ -10,15 +10,12 @@
  * - Queue state survives restart (persisted to JSON)
  */
 
-import { exec } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
 import { checkDraftGates, isDraftPlan } from "./draft-planner.js";
 import type { IStateStore } from "./state-store.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
-
-const execAsync = promisify(exec);
+import { createGitRunner } from "./git-runner.js";
 
 /**
  * Status of a plan entry in the queue.
@@ -586,10 +583,13 @@ export class PlanQueueRunner {
 	 */
 	private async defaultIsDirtyFn(): Promise<boolean> {
 		try {
-			const { stdout } = await execAsync("git status --porcelain", {
+			const runner = createGitRunner({
+				planExecId: "",
+				workspaceId: "",
+				leaseId: "",
 				cwd: this.workspaceRoot,
 			});
-			return stdout.trim().length > 0;
+			return await runner.isDirty();
 		} catch {
 			// If git fails, assume dirty (safe default)
 			return true;

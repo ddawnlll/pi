@@ -34,6 +34,7 @@ import {
 } from "@earendil-works/pi-db";
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
+import { createGitRunner } from "./git-runner.js";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
 import { buildTranscriptSummary, createWorkerTranscriptEvent } from "./plan-state.js";
 import type {
@@ -672,10 +673,13 @@ export class DatabaseStateStore implements IStateStore {
 	async handoffDiscard(planExecutionId: string, workspaceRoot: string): Promise<void> {
 		// Revert uncommitted workspace files via git
 		try {
-			const { exec } = await import("node:child_process");
-			const { promisify } = await import("node:util");
-			const execAsync = promisify(exec);
-			await execAsync("git checkout -- .", { cwd: workspaceRoot }).catch(() => {});
+			const runner = createGitRunner({
+				planExecId: planExecutionId,
+				workspaceId: "",
+				leaseId: "",
+				cwd: workspaceRoot,
+			});
+			await runner.checkoutAll(workspaceRoot);
 		} catch {
 			// Ignore errors during revert
 		}

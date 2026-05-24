@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch, WorkspaceAttempt, LogStream, WorkerTranscriptEvent } from "../types";
 import { formatPercent } from "../utils/format";
 import { useWorkspaceLogStream } from "../hooks/useWorkspaceLogStream";
@@ -368,6 +369,7 @@ function GitTab({ workspace, planExecId, workerId }: { workspace?: WorkspaceSumm
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [useTableView, setUseTableView] = useState(false);
+  const [showWriteSet, setShowWriteSet] = useState(false);
 
   // Fetch git diff patches for completed workspaces
   useEffect(() => {
@@ -408,6 +410,54 @@ function GitTab({ workspace, planExecId, workerId }: { workspace?: WorkspaceSumm
         </div>
       )}
 
+      {/* P23: Empirical writeSet and drift status */}
+      {(workspace as any)?.empiricalWriteSet && (
+        <div className="pt-2 border-t border-[#E8E6E1] dark:border-[#333]">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-stone-400 dark:text-stone-500 text-[10px] font-semibold uppercase tracking-wider">WriteSet</span>
+            {(workspace as any)?.driftStatus === "drifted" ? (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                <AlertTriangle size={8} />
+                Drifted ({(workspace as any)?.undeclaredWriteCount ?? 0} undeclared)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle size={8} />
+                Clean
+              </span>
+            )}
+          </div>
+          {(workspace as any)?.empiricalWriteSet?.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowWriteSet(!showWriteSet)}
+                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {showWriteSet ? "Hide" : "Show"} empirical write set ({(workspace as any).empiricalWriteSet.length} files)
+              </button>
+              {showWriteSet && (
+                <div className="mt-1 max-h-32 overflow-y-auto space-y-0.5">
+                  {(workspace as any).empiricalWriteSet.map((f: string, i: number) => (
+                    <div key={i} className="text-[10px] font-mono text-stone-600 dark:text-stone-400">{f}</div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          {(workspace as any)?.integrationBlocked && (
+            <div className="mt-1 flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400">
+              <XCircle size={10} />
+              <span>Integration blocked — writeSet drift requires approval</span>
+            </div>
+          )}
+          {(workspace as any)?.requiresHumanReview && (
+            <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+              <AlertTriangle size={10} />
+              <span>Requires human review before integration</span>
+            </div>
+          )}
+        </div>
+      )}
       {/* Diff section */}
       <div className="pt-2 border-t border-[#E8E6E1] dark:border-[#333]">
         <div className="flex items-center justify-between mb-2">

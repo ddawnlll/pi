@@ -44,8 +44,11 @@ const MAX_PARALLEL_EXPERIMENTAL = 6;
  *          supports experimental_6 mode (maxParallelWorkspaces up to 6).
  * - 2.3.1: Added queuePriority, queueOptimization to workspace/plan execution.
  * - 2.3.2: Default scale mode changed to experimental_6, worktree isolation enabled by default.
+ * - 2.6.0: Added leaseMonitor, validationLane, mergePriorityScorer, validation profiles,
+ *          conflictScope.driftDetection, empirical writeSet fields, new validation rules 55-62,
+ *          new doctor warnings and hard stops (P23).
  */
-export const CONTRACT_SCHEMA_VERSION = "2.3.2" as const;
+export const CONTRACT_SCHEMA_VERSION = "2.6.0" as const;
 
 /**
  * Set of all contract schema versions that this parser accepts.
@@ -66,6 +69,7 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"2.4.0",
 	"2.5.0",
 	"2.5.1",
+	"2.6.0",
 ]);
 
 /**
@@ -696,7 +700,8 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		contractVer === "2.3.2" ||
 		contractVer === "2.4.0" ||
 		contractVer === "2.5.0" ||
-		contractVer === "2.5.1";
+		contractVer === "2.5.1" ||
+		contractVer === "2.6.0";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({

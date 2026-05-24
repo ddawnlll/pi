@@ -1,0 +1,14 @@
+{
+  "id": "allow_005",
+  "name": "Query memory",
+  "description": "Allow Pi to query memory records for planning and proposals",
+  "condition": {
+    "action": "memory_query"
+  },
+  "decision": "allow",
+  "priority": 100,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

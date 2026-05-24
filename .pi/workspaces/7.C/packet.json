@@ -2,33 +2,20 @@
   "packet": {
     "phaseId": "P2",
     "workspaceId": "7.C",
-    "role": "flash",
-    "goal": "Quick fix for 7.C: ",
+    "role": "worker",
+    "goal": "Worktree-Only Execution Mode",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
-    "acceptanceCriteria": [
-      {
-        "description": "Fix the immediate error",
-        "verified": false
-      },
-      {
-        "description": "Tests pass",
-        "verified": false
-      }
-    ],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [],
     "targetCommand": null,
-    "stateSummary": "Attempt 5 of 3",
+    "stateSummary": "",
     "relevantSnippets": [],
-    "outputContract": "VERDICT: FIXED | FAILED",
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
-      "maxInputTokens": 4000,
-      "estimatedInputTokens": 131
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 116
     }
   },
-  "hash": "af8a61b57b62e6a8f89e2e59ffdd17f62fd2dfa5942f3a7010987605879bf8d5",
-  "createdAt": 1779405180987
+  "hash": "a9b85c52007bae413be3fbc9b24e67e5e3437ed5a2d83c025c41766d0bfbf87c",
+  "createdAt": 1779563944645
 }

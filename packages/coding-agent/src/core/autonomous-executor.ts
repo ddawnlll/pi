@@ -1646,6 +1646,56 @@ export class AutonomousExecutor {
 		// (vitest, npm, node, etc.) that may have been spawned by workspace
 		// agent sessions via the bash tool.
 		killTrackedDetachedChildren();
+
+		// Clean up git worktrees created during this execution
+		try {
+			const planExecId = this.planExecutionId;
+			if (planExecId) {
+				// Import GitRunner lazily to avoid circular deps
+				const { createGitRunner } = await import("./git-runner.js");
+				const runner = createGitRunner({
+					planExecId,
+					workspaceId: "",
+					leaseId: "",
+					cwd: this.workspaceRoot,
+				});
+
+				// List worktrees and remove any belonging to this execution
+				const listResult = await runner.read(["worktree", "list"], { timeout: 10000 });
+				const lines = listResult.stdout.split("\n").filter(Boolean);
+				for (const line of lines) {
+					const parts = line.trim().split(/\s+/);
+					const wtPath = parts[0];
+					// Skip the main worktree (repository root)
+					if (!wtPath || wtPath === this.workspaceRoot) continue;
+
+					// Check if this worktree belongs to our plan execution
+					// Worktree paths are under .pi/worktrees/{planExecId}/
+					if (wtPath.includes(planExecId) || wtPath.includes(".pi/worktrees")) {
+						try {
+							await runner.writeRepo(["worktree", "remove", "--force", wtPath], { timeout: 15000 });
+						} catch {
+							// If git worktree remove fails, try force with recursive
+							try {
+								await runner.writeRepo(["worktree", "remove", "--force", wtPath], { timeout: 15000 });
+							} catch {
+								// Still failed — log but don't block
+								console.error(`[autonomous-executor] Failed to remove worktree ${wtPath} during stop`);
+							}
+						}
+					}
+				}
+
+				// Prune stale worktree references
+				try {
+					await runner.writeRepo(["worktree", "prune"], { timeout: 10000 });
+				} catch {
+					// Non-fatal
+				}
+			}
+		} catch {
+			// Worktree cleanup is best-effort during stop/cancel
+		}
 	}
 }
 

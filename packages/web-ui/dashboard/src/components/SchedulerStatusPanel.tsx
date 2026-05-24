@@ -1,5 +1,6 @@
-import { Cpu, Loader2, CheckCircle, AlertTriangle, XCircle, Clock, AlertCircle, ArrowRight } from "lucide-react";
+import { Cpu, Loader2, CheckCircle, AlertTriangle, XCircle, Clock, AlertCircle, ArrowRight, Activity, Ban } from "lucide-react";
 import type { ExecutionStats } from "../types";
+import type { ValidationLaneStatus } from "../hooks/useScaleStatus";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,36 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 							{stats.maxAllowedWorkers}
 						</span>
 					</div>
+				</div>
+			)}
+
+			{/* P23: Validation lane status */}
+			{(stats as any)?.validationLane && (
+				<div className="mt-2 space-y-1">
+					<div className="flex items-center gap-1.5 text-[11px] text-stone-600 dark:text-stone-400">
+						<Activity size={12} />
+						<span className="font-semibold">Validation Lanes</span>
+					</div>
+					<div className="flex items-center gap-3 text-[10px] text-stone-500 dark:text-stone-400">
+						<span>Heavy: {(stats as any).validationLane.currentHeavyValidations}/{(stats as any).validationLane.maxConcurrentHeavyValidations}</span>
+						<span>Targeted: {(stats as any).validationLane.currentTargetedValidations}/{(stats as any).validationLane.maxConcurrentTargetedValidations}</span>
+					</div>
+					{(stats as any).validationLane.backpressureActive && (
+						<div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+							<Ban size={10} />
+							<span>Backpressure active — heavy validation slot saturated</span>
+						</div>
+					)}
+					{(stats as any).validationLane.deferredWorkspaceIds?.length > 0 && (
+						<div className="mt-0.5 space-y-0.5">
+							{(stats as any).validationLane.deferredWorkspaceIds.map((id: string) => (
+								<div key={id} className="flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400">
+									<AlertCircle size={8} />
+									<span>Deferred: {id} — {(stats as any).validationLane.deferredReasons?.[id] ?? "heavy slot full"}</span>
+								</div>
+							))}
+						</div>
+					)}
 				</div>
 			)}
 

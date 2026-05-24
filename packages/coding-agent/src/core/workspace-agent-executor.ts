@@ -11,6 +11,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../config.js";
+import { createGitRunner } from "./git-runner.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
 import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
@@ -243,18 +244,16 @@ export class WorkspaceAgentExecutor {
 		}
 
 		// Generate diff from base commit to HEAD
-		const { exec: execCb } = await import("node:child_process");
-		const { promisify } = await import("node:util");
-		const execAsync = promisify(execCb);
-
 		let diffOutput = "";
 		try {
-			const { stdout } = await execAsync(`git diff ${ws.baseCommit} HEAD`, {
+			const runner = createGitRunner({
+				planExecId: this.planExecutionId ?? "",
+				workspaceId: ws.workspaceId,
+				leaseId: "",
 				cwd: worktreeDir,
-				encoding: "utf-8",
-				timeout: 30_000,
 			});
-			diffOutput = stdout.trim();
+			const result = await runner.read(["diff", ws.baseCommit, "HEAD"], { cwd: worktreeDir, timeout: 30_000 });
+			diffOutput = result.stdout;
 		} catch {
 			// Diff failed — still quarantine the worktree so the on-disk state is preserved
 		}
@@ -775,7 +774,9 @@ export class WorkspaceAgentExecutor {
 						finalVerdict = "COMPLETE";
 						log("Agent appears to have completed successfully");
 					} else {
-						log("No verdict found in assistant message, defaulting to FAILED");
+						// Capture the last assistant message content as the failure reason
+						const snippet = content.length > 200 ? content.substring(0, 200) + "..." : content;
+						log(`No verdict found in assistant message, defaulting to FAILED. Last output: ${snippet}`);
 					}
 				}
 			} else {

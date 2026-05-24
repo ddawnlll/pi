@@ -3,13 +3,9 @@
     "phaseId": "P2",
     "workspaceId": "7.D",
     "role": "worker",
-    "goal": "Approval Queue API",
+    "goal": "File Explorer for Live Worktrees",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
     "stateSummary": "",
@@ -17,9 +13,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 121
+      "estimatedInputTokens": 117
     }
   },
-  "hash": "5078fccc426bb1ac00bd22e62f8ed48ba1db6d4304c4fc7a1528e86efe628895",
-  "createdAt": 1779402255656
+  "hash": "a9139feac7886b1916a02b1c02039416ddb7ba9e9ab649e6968650825e0b10b2",
+  "createdAt": 1779564491221
 }

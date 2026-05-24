@@ -3,13 +3,9 @@
     "phaseId": "P2",
     "workspaceId": "7.C",
     "role": "worker",
-    "goal": "Approval Gate",
+    "goal": "Worktree-Only Execution Mode",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
     "stateSummary": "",
@@ -17,9 +13,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 120
+      "estimatedInputTokens": 116
     }
   },
-  "hash": "244577cf2ceef358762345395c781fd59e5138c0d037a8015b796087d77c8877",
-  "createdAt": 1779402067420
+  "hash": "a9b85c52007bae413be3fbc9b24e67e5e3437ed5a2d83c025c41766d0bfbf87c",
+  "createdAt": 1779563944645
 }

@@ -481,8 +481,8 @@ function _getJsonStateStore(): JsonStateStore {
 // ---------------------------------------------------------------------------
 
 function getPiDir(): string {
-	const piDir = resolve(process.cwd(), "../../.pi");
-	return piDir;
+	const workspaceRoot = getWorkspaceRoot();
+	return resolve(workspaceRoot, ".pi");
 }
 
 // ---------------------------------------------------------------------------

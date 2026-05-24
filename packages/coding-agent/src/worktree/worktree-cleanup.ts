@@ -11,32 +11,34 @@
  *      before any operation is performed.
  */
 
-import { exec as execCb } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { promisify } from "node:util";
+import { createGitRunner, type GitRunner } from "../core/git-runner.js";
 import { DEFAULT_WORKTREE_ROOT, type WorktreeCleanupResult } from "./worktree-types.js";
-
-const execAsync = promisify(execCb);
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Run a git command asynchronously and return stdout trimmed.
+ * Get a GitRunner instance for this workspace context.
+ */
+function getRunner(cwd: string): GitRunner {
+	return createGitRunner({
+		planExecId: "",
+		workspaceId: "",
+		leaseId: "",
+		cwd,
+	});
+}
+
+/**
+ * Run a git command via GitRunner and return stdout trimmed, or empty string on failure.
  */
 async function gitAsync(args: string[], cwd: string): Promise<string> {
-	try {
-		const { stdout } = await execAsync(`git ${args.join(" ")}`, {
-			cwd,
-			encoding: "utf-8",
-			timeout: 30_000,
-		});
-		return stdout.trim();
-	} catch {
-		return "";
-	}
+	const runner = getRunner(cwd);
+	const result = await runner.read(args, { cwd });
+	return result.stdout;
 }
 
 /**

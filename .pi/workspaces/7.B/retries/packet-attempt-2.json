@@ -3,23 +3,19 @@
     "phaseId": "P2",
     "workspaceId": "7.B",
     "role": "worker",
-    "goal": "Master Template Integration",
+    "goal": "Per-Project Brain Architecture",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
-    "stateSummary": "",
+    "stateSummary": "Previous attempt 2 failed: unknown\nError: Completion gate blocked: Implementation not finished\nNext retry strategy: worker",
     "relevantSnippets": [],
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 123
+      "estimatedInputTokens": 148
     }
   },
-  "hash": "d12789ba56bd7be906e4c6c9621e8670f6c0764de1096aafbd588bd23c0e2c6d",
-  "createdAt": 1779404774092
+  "hash": "a8d9a965bef48b71ceabbdf0cf0ad6dbcbe1a2dee111b4539f684ffba89acea1",
+  "createdAt": 1779565616190
 }

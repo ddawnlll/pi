@@ -66,7 +66,7 @@ export function getStateStore() {
 export function getSettingsManager(): SettingsManager {
 	if (!globalSettingsManager) {
 		const workspaceRoot = getWorkspaceRoot();
-		const storage = new FileSettingsStorage(workspaceRoot, resolve(process.cwd(), "../../.pi"));
+		const storage = new FileSettingsStorage(workspaceRoot, resolve(workspaceRoot, ".pi"));
 		globalSettingsManager = SettingsManager.fromStorage(storage);
 	}
 	return globalSettingsManager;

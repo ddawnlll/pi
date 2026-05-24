@@ -3,13 +3,9 @@
     "phaseId": "P2",
     "workspaceId": "7.B",
     "role": "worker",
-    "goal": "Policy Rule Store",
+    "goal": "Per-Project Brain Architecture",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
     "stateSummary": "",
@@ -17,9 +13,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 121
+      "estimatedInputTokens": 117
     }
   },
-  "hash": "dedf00ab44033e0b52f2e70bc6739fb10b047fe32b39a7d6212e3576f07d0351",
-  "createdAt": 1779401665259
+  "hash": "17a3b06054925c7b4019aa6f839c6e6e274aabd07e1acbabe04a5135e3470ff5",
+  "createdAt": 1779564491214
 }

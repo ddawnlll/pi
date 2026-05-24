@@ -46,17 +46,13 @@
  *       Returns audit trail of queue control actions.
  */
 
-import { exec as execCb } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { IntegrationQueue } from "@earendil-works/pi-coding-agent";
+import { createGitRunner, IntegrationQueue } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
 import { validatePathComponent } from "./log-stream-routes.js";
-
-const execAsync = promisify(execCb);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -668,26 +664,27 @@ export async function registerScaleRoutes(
 	fastify.get("/api/scale/worktrees", async (_request, reply) => {
 		try {
 			const workspaceRoot = getWorkspaceRoot();
-			const { stdout } = await execAsync("git worktree list", {
+			const gitRunner = createGitRunner({
+				planExecId: "",
+				workspaceId: "",
+				leaseId: "",
 				cwd: workspaceRoot,
-				encoding: "utf-8",
-				timeout: 10000,
 			});
+			const listResult = await gitRunner.read(["worktree", "list"], { cwd: workspaceRoot, timeout: 10000 });
+			const worktrees = parseGitWorktreeList(listResult.stdout);
 
-			const worktrees = parseGitWorktreeList(stdout);
-
-			// Bug #10 fix: batch dirty status checks into a single git command.
-			// For each worktree path, run git status in parallel with Promise.all
-			// instead of sequential N+1 iteration.
+			// Batch dirty status checks in parallel
 			await Promise.all(
 				worktrees.map(async (wt) => {
 					try {
-						const { stdout: statusOut } = await execAsync("git status --porcelain", {
+						const gitRunnerWt = createGitRunner({
+							planExecId: "",
+							workspaceId: "",
+							leaseId: "",
 							cwd: wt.path,
-							encoding: "utf-8",
-							timeout: 5000,
 						});
-						wt.dirty = statusOut.trim().length > 0;
+						const statusResult = await gitRunnerWt.read(["status", "--porcelain"], { cwd: wt.path, timeout: 5000 });
+						wt.dirty = statusResult.stdout.trim().length > 0;
 					} catch {
 						wt.dirty = false;
 					}
@@ -840,15 +837,18 @@ export async function registerScaleRoutes(
 			const workspaceRoot = getWorkspaceRoot();
 			const result: WorktreeCleanupResult = { removed: 0, removedNames: [], errors: [] };
 
+			const gitRunner = createGitRunner({
+				planExecId: "",
+				workspaceId: "",
+				leaseId: "",
+				cwd: workspaceRoot,
+			});
+
 			// Get active worktrees
 			let worktrees: WorktreeInfo[];
 			try {
-				const { stdout } = await execAsync("git worktree list", {
-					cwd: workspaceRoot,
-					encoding: "utf-8",
-					timeout: 10000,
-				});
-				worktrees = parseGitWorktreeList(stdout);
+				const listResult = await gitRunner.read(["worktree", "list"], { cwd: workspaceRoot, timeout: 10000 });
+				worktrees = parseGitWorktreeList(listResult.stdout);
 			} catch (e) {
 				return reply.code(500).send({
 					error: "Failed to list worktrees",
@@ -880,11 +880,7 @@ export async function registerScaleRoutes(
 
 				if (isWorktreeSafeToPrune(wt, activeQueueIds)) {
 					try {
-						await execAsync(`git worktree remove "${wt.path}"`, {
-							cwd: workspaceRoot,
-							encoding: "utf-8",
-							timeout: 30000,
-						});
+						await gitRunner.writeRepo(["worktree", "remove", "--force", wt.path], { cwd: workspaceRoot, timeout: 30000 });
 						result.removed++;
 						result.removedNames.push(wt.name);
 					} catch (e) {
@@ -916,14 +912,16 @@ export async function registerScaleRoutes(
 			validatePathComponent("worktreeName", worktreeName);
 
 			const workspaceRoot = getWorkspaceRoot();
+			const gitRunner = createGitRunner({
+				planExecId: "",
+				workspaceId: "",
+				leaseId: "",
+				cwd: workspaceRoot,
+			});
 
 			// Find the worktree by name
-			const { stdout } = await execAsync("git worktree list", {
-				cwd: workspaceRoot,
-				encoding: "utf-8",
-				timeout: 10000,
-			});
-			const worktrees = parseGitWorktreeList(stdout);
+			const listResult = await gitRunner.read(["worktree", "list"], { cwd: workspaceRoot, timeout: 10000 });
+			const worktrees = parseGitWorktreeList(listResult.stdout);
 			const target = worktrees.find(
 				(wt) => wt.name === worktreeName && wt.path !== workspaceRoot && wt.path !== join(workspaceRoot, ".git"),
 			);
@@ -934,11 +932,7 @@ export async function registerScaleRoutes(
 				});
 			}
 
-			await execAsync(`git worktree remove "${target.path}"`, {
-				cwd: workspaceRoot,
-				encoding: "utf-8",
-				timeout: 30000,
-			});
+			await gitRunner.writeRepo(["worktree", "remove", "--force", target.path], { cwd: workspaceRoot, timeout: 30000 });
 
 			return { success: true, removed: worktreeName, path: target.path };
 		} catch (error) {

@@ -15,11 +15,8 @@
  * execution archive and rendered in the dashboard.
  */
 
-import { exec as execCb } from "node:child_process";
-import { promisify } from "node:util";
 import { SafetyDoctor, type SafetyIssue } from "./safety-doctor.js";
-
-const execAsync = promisify(execCb);
+import { createGitRunner } from "./git-runner.js";
 
 import { SkillRegistry } from "./skill-registry.js";
 import type { WorkspaceCapabilityManifest, WorkspaceQueue } from "./workspace-schema.js";
@@ -123,12 +120,13 @@ export function isBroadScope(pattern: string): boolean {
  */
 export async function isGitDirty(cwd: string): Promise<boolean> {
 	try {
-		const { stdout } = await execAsync("git status --porcelain", {
+		const runner = createGitRunner({
+			planExecId: "",
+			workspaceId: "",
+			leaseId: "",
 			cwd,
-			encoding: "utf-8",
-			timeout: 5000,
 		});
-		return stdout.trim().length > 0;
+		return await runner.isDirty(cwd);
 	} catch {
 		// Not a git repo or git not available - treat as clean
 		return false;
@@ -143,12 +141,14 @@ export async function isGitDirty(cwd: string): Promise<boolean> {
  */
 export async function isGitRepo(cwd: string): Promise<boolean> {
 	try {
-		await execAsync("git rev-parse --is-inside-work-tree", {
+		const runner = createGitRunner({
+			planExecId: "",
+			workspaceId: "",
+			leaseId: "",
 			cwd,
-			encoding: "utf-8",
-			timeout: 5000,
 		});
-		return true;
+		const result = await runner.read(["rev-parse", "--is-inside-work-tree"], { cwd });
+		return result.exitCode === 0;
 	} catch {
 		return false;
 	}

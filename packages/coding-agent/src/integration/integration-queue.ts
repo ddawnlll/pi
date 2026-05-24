@@ -56,6 +56,181 @@ export type QueueEntryStatus =
 	| "conflict";
 
 /**
+ * Merge-priority score breakdown for a queue entry.
+ */
+export interface MergePriorityScore {
+	/** Final computed score */
+	total: number;
+	/** downstreamReadyCount * 50 */
+	downstreamComponent: number;
+	/** Number of workspaces that would become ready after this workspace merges */
+	downstreamReadyCount: number;
+	/** criticalPathPosition * 30 */
+	criticalPathComponent: number;
+	/** Inverse position on the critical path (0 = not on critical path) */
+	criticalPathPosition: number;
+	/** waitTimeBoost * 10, capped at 100 (10 min) */
+	waitTimeBoost: number;
+	/** Static band multiplier from queuePriority */
+	staticBandMultiplier: number;
+	/** Timestamp when the score was recomputed */
+	recomputedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// Merge Priority Scorer
+// ---------------------------------------------------------------------------
+
+/**
+ * Dynamic merge-priority scorer for the integration queue.
+ *
+ * Formula:
+ *   downstreamReadyCount * 50 + criticalPathPosition * 30 + waitTimeBoost * 10
+ *
+ * The score is recomputed at dequeue time (not enqueue time) so it reflects
+ * the current graph state. Static queuePriority from workspace definition
+ * acts as a band multiplier: critical × 2.0, high × 1.5, normal × 1.0, low × 0.5.
+ */
+export class MergePriorityScorer {
+	/**
+	 * Compute the merge-priority score for a queue entry.
+	 *
+	 * @param workspaceId - Workspace ID
+	 * @param entries - All queue entries
+	 * @param workspaceDependencies - Dependency map
+	 * @param queuePriority - Static queue priority level
+	 * @returns Computed score
+	 */
+	computeScore(
+		workspaceId: string,
+		entries: QueueEntry[],
+		workspaceDependencies: Map<string, string[]>,
+		queuePriority?: string,
+	): MergePriorityScore {
+		const now = Date.now();
+
+		// 1. Downstream ready count: number of workspaces that would become
+		//    ready to execute immediately after this workspace merges
+		const downstreamReadyCount = this.computeDownstreamReadyCount(workspaceId, entries, workspaceDependencies);
+
+		// 2. Critical path position: inverse position on the critical path
+		const criticalPathPosition = this.computeCriticalPathPosition(workspaceId, entries, workspaceDependencies);
+
+		// 3. Wait time boost: minutes in queue, capped at 10
+		const entry = entries.find(e => e.workspaceId === workspaceId);
+		const minutesInQueue = entry ? (now - entry.queuedAt) / 60_000 : 0;
+		const waitTimeBoost = Math.min(Math.floor(minutesInQueue), 10);
+
+		// 4. Static band multiplier
+		const staticBandMultiplier = this.getBandMultiplier(queuePriority);
+
+		// 5. Compute total
+		const downstreamComponent = downstreamReadyCount * 50;
+		const criticalPathComponent = criticalPathPosition * 30;
+		const waitComponent = waitTimeBoost * 10;
+		const total = (downstreamComponent + criticalPathComponent + waitComponent) * staticBandMultiplier;
+
+		return {
+			total,
+			downstreamComponent,
+			downstreamReadyCount,
+			criticalPathComponent,
+			criticalPathPosition,
+			waitTimeBoost,
+			staticBandMultiplier,
+			recomputedAt: now,
+		};
+	}
+
+	/**
+	 * Compute how many workspaces would become ready after this one merges.
+	 */
+	private computeDownstreamReadyCount(
+		workspaceId: string,
+		entries: QueueEntry[],
+		workspaceDependencies: Map<string, string[]>,
+	): number {
+		let count = 0;
+		for (const [depId, deps] of workspaceDependencies) {
+			if (deps.includes(workspaceId)) {
+				// This workspace depends on us. Check if all OTHER deps are already merged.
+				const otherDepsMerged = deps.every(d => d === workspaceId || this.isEntryMerged(d, entries));
+				if (otherDepsMerged) {
+					const depEntry = entries.find(e => e.workspaceId === depId);
+					if (depEntry && depEntry.status === "queued") {
+						count++;
+					}
+				}
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Compute critical path position.
+	 * Position = the longest chain length starting from this workspace.
+	 * A workspace at position 1 is first on the critical path (highest priority).
+	 * A workspace at position 3 is third on the critical path.
+	 * Position 0 = not on critical path (not part of any dependency chain).
+	 */
+	private computeCriticalPathPosition(
+		workspaceId: string,
+		_entries: QueueEntry[],
+		workspaceDependencies: Map<string, string[]>,
+	): number {
+		// Check if this workspace is part of any dependency chain.
+		// An orphan workspace is not in the map at all and is not listed
+		// as a dependency of any other workspace.
+		const isReferenced = workspaceDependencies.has(workspaceId) || 
+			Array.from(workspaceDependencies.values()).some(deps => deps.includes(workspaceId));
+		
+		if (!isReferenced) return 0;
+
+		// Find the longest chain of workspaces that depend on this one
+		return this.findCriticalPathLength(workspaceId, workspaceDependencies, new Set());
+	}
+
+	/**
+	 * Find how many workspaces are in the dependency chain starting from workspaceId.
+	 * Counts this workspace + all recursive dependents.
+	 */
+	private findCriticalPathLength(
+		workspaceId: string,
+		workspaceDependencies: Map<string, string[]>,
+		visited: Set<string>,
+	): number {
+		if (visited.has(workspaceId)) return 0;
+		visited.add(workspaceId);
+
+		let maxLen = 0;
+		for (const [depId, deps] of workspaceDependencies) {
+			if (deps.includes(workspaceId)) {
+				const len = this.findCriticalPathLength(depId, workspaceDependencies, visited);
+				maxLen = Math.max(maxLen, len);
+			}
+		}
+		visited.delete(workspaceId);
+		// Count this workspace plus the longest chain of dependents
+		return maxLen + 1;
+	}
+
+	private isEntryMerged(workspaceId: string, entries: QueueEntry[]): boolean {
+		const entry = entries.find(e => e.workspaceId === workspaceId);
+		return entry?.status === "merged";
+	}
+
+	private getBandMultiplier(queuePriority?: string): number {
+		switch (queuePriority) {
+			case "critical": return 2.0;
+			case "high": return 1.5;
+			case "normal": return 1.0;
+			case "low": return 0.5;
+			default: return 1.0;
+		}
+	}
+}
+
+/**
  * Computed timing metrics for a queue entry.
  */
 export interface QueueEntryTiming {
@@ -171,6 +346,17 @@ export class IntegrationQueue {
 	private workspaceDependencies: Map<string, string[]> = new Map();
 
 	/**
+	 * Merge priority scorer (P23 W3).
+	 */
+	private mergePriorityScorer: MergePriorityScorer;
+
+	/**
+	 * Workspace queue priority levels: workspaceId -> priority level.
+	 * Set via setQueuePriorities() for use by the priority scorer.
+	 */
+	private queuePriorities: Map<string, string> = new Map();
+
+	/**
 	 * @param workspaceRoot - Root directory of the workspace (git repo)
 	 * @param branchName - Name of the integration branch (default: "integration")
 	 * @param baseBranch - Base branch (default: "main")
@@ -178,6 +364,7 @@ export class IntegrationQueue {
 	constructor(workspaceRoot: string, branchName = "integration", baseBranch = "main") {
 		this.workspaceRoot = workspaceRoot;
 		this.branch = new IntegrationBranch(workspaceRoot, branchName, baseBranch);
+		this.mergePriorityScorer = new MergePriorityScorer();
 		this.state = {
 			entries: [],
 			isProcessing: false,
@@ -188,6 +375,15 @@ export class IntegrationQueue {
 			auditEvents: [],
 		};
 		this.stateFilePath = path.join(workspaceRoot, ".pi", "integration-queue.json");
+	}
+
+	/**
+	 * Set queue priority levels for workspaces (for merge-priority scorer).
+	 *
+	 * @param priorities - Map from workspace ID to priority level (critical, high, normal, low)
+	 */
+	setQueuePriorities(priorities: Map<string, string>): void {
+		this.queuePriorities = priorities;
 	}
 
 	/**
@@ -349,15 +545,19 @@ export class IntegrationQueue {
 	}
 
 	/**
-	 * Find the first queue entry whose dependencies are all merged.
-	 * If the first queued entry has no dependencies or all deps are merged,
-	 * it is returned directly. Otherwise, scan for a later entry that can proceed.
+	 * Find the best queue entry to process next using the merge-priority scorer.
 	 *
-	 * @param firstQueued - The first queued entry found by processNext()
+	 * Score is recomputed at dequeue time to reflect current graph state.
+	 * The entry with the highest priority score whose dependencies are all merged
+	 * is selected. If enabled, uses the dynamic merge-priority scorer formula:
+	 *   downstreamReadyCount * 50 + criticalPathPosition * 30 + waitTimeBoost * 10
+	 *
+	 * Falls back to FIFO (first eligible) if scorer is not configured or disabled.
+	 *
+	 * @param _firstQueued - Previously the first queued entry; now used as filter context
 	 * @returns An eligible entry, or undefined if none found
 	 */
-	private findEligibleEntry(firstQueued: QueueEntry): QueueEntry | undefined {
-		const deps = this.workspaceDependencies.get(firstQueued.workspaceId);
+	private findEligibleEntry(_firstQueued: QueueEntry): QueueEntry | undefined {
 		const allMerged = (workspaceId: string): boolean => {
 			const entryDeps = this.workspaceDependencies.get(workspaceId);
 			if (!entryDeps || entryDeps.length === 0) return true;
@@ -368,20 +568,41 @@ export class IntegrationQueue {
 			return true;
 		};
 
-		// If firstQueued has no dependencies or its deps are merged, it's eligible
-		if (!deps || deps.length === 0 || allMerged(firstQueued.workspaceId)) {
-			return firstQueued;
-		}
+		// Collect all queued entries whose dependencies are met
+		const eligible = this.state.entries
+			.filter((e) => e.status === "queued" && allMerged(e.workspaceId));
 
-		// First queued entry has unmet dependencies — find another queued entry that can proceed
-		// (this respects topological order: workspaces that depend on nothing get merged first)
-		for (const entry of this.state.entries) {
-			if (entry.status === "queued" && allMerged(entry.workspaceId)) {
-				return entry;
+		if (eligible.length === 0) return undefined;
+		if (eligible.length === 1) return eligible[0];
+
+		// Use merge-priority scorer to pick the best entry
+		let bestEntry: QueueEntry | undefined;
+		let bestScore = -1;
+
+		for (const entry of eligible) {
+			const priority = this.queuePriorities.get(entry.workspaceId);
+			const score = this.mergePriorityScorer.computeScore(
+				entry.workspaceId,
+				this.state.entries,
+				this.workspaceDependencies,
+				priority,
+			);
+
+			// Persist score as metadata for dashboard (use a runtime field)
+			(entry as any)._lastScore = score;
+
+			if (score.total > bestScore) {
+				bestScore = score.total;
+				bestEntry = entry;
+			} else if (score.total === bestScore && bestEntry) {
+				// Tiebreaker: FIFO (submission order)
+				if (entry.queuedAt < bestEntry.queuedAt) {
+					bestEntry = entry;
+				}
 			}
 		}
 
-		return undefined;
+		return bestEntry;
 	}
 
 	/**

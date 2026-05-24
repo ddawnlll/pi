@@ -3,13 +3,9 @@
     "phaseId": "P2",
     "workspaceId": "7.E",
     "role": "worker",
-    "goal": "Audit Ledger",
+    "goal": "Phase/Plan Naming & Task Creation",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
+    "forbiddenFiles": [],
     "acceptanceCriteria": [],
     "targetCommand": null,
     "stateSummary": "",
@@ -17,9 +13,9 @@
     "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
       "maxInputTokens": 12000,
-      "estimatedInputTokens": 119
+      "estimatedInputTokens": 118
     }
   },
-  "hash": "5a72db66ffec4c6be515fa24ec9d55af414493c62ec15c02fedeaf037b26748b",
-  "createdAt": 1779401665143
+  "hash": "9422b65482945c769a21749d14207ca87cb65ca48208ea771303f58bcbda8c3e",
+  "createdAt": 1779564491224
 }

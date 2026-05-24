@@ -1,8 +1,8 @@
-# LLM Implementation Agent — Master Template v2.5
+# LLM Implementation Agent — Master Template v2.6
 
-**Version:** 2.5.0  
-**Last Updated:** 2026-05-16  
-**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, v2.4 plan lifecycle semantics (advisory batch previews, auto-computed approved graph, optimization proposals), and v2.5 continuous (batchless) scheduling with worktree pool and critical-path priority.
+**Version:** 2.6.0  
+**Last Updated:** 2026-05-24  
+**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, continuous (batchless) scheduling with worktree pool and critical-path priority, and v2.6 Git serialization with GitRunner, continuous lease watchdog, merge-priority scorer, validation lane backpressure, and empirical writeSet drift detection.
 
 ---
 
@@ -53,6 +53,28 @@ Key changes:
 - **Diff preservation**: Worktree diff artifacts are saved to `.pi/executions/{planExecId}/worktrees/{wsId}.patch` before stopping, surviving worktree cleanup.
 - The ` recuperación` process filters out already-completed workspaces to avoid re-execution.
 - Added worktree reconciliation logging: number of worktrees loaded, orphaned worktree IDs.
+
+---
+
+## What Changed in v2.6.0
+
+v2.6.0 adds **Git serialization, lease hardening, and execution correctness** support. This update promotes `experimental_6` to `stable_6` by centralizing all Git operations through GitRunner, adding a continuous lease watchdog, backpressure-aware validation scheduling, empirical writeSet drift detection, and a dynamic integration queue merge-priority scorer.
+
+Key changes:
+- **GitRunner**: Centralized Git operation layer. All `execAsync('git ...')` calls migrated to GitRunner with read-only, per-worktree, and repo-wide mutation scope classification. Mutex serialization prevents Git lock corruption under concurrent worker load.
+- **Lease Monitor**: Continuous background watchdog (30s interval) detects stale leases (heartbeat > 45s old, PID dead) and quarantines them automatically without a server restart. Heartbeat files written every 15s. Reconciliation precedence: lease file = ground truth for "was running", worktree state = ground truth for "what's on disk".
+- **Merge-Priority Scorer**: Dynamic score computed at dequeue time: `downstreamReadyCount * 50 + criticalPathPosition * 30 + waitTimeBoost * 10`. Static queuePriority acts as band multiplier (critical × 2.0, high × 1.5, normal × 1.0, low × 0.5). FIFO tiebreaker.
+- **Validation Lane Backpressure**: Tracks heavy validation (max 1 concurrent) and targeted validation (max 3 concurrent) lane usage. Scheduler pre-filter defers heavy-validation workspaces when the heavy slot is saturated.
+- **writeSet Drift Detection**: Post-execution `git diff --name-only <base> HEAD` captures empirical writeSets. Compared against declared `conflictScope`. Drift threshold (default: 3 files) triggers `warn_and_flag_integration` (default) or `block_integration` (opt-in). Drift reports persisted as artifacts.
+- Added `leaseMonitor`, `validationLane`, `mergePriorityScorer` sections to Part 3 JSON.
+- Added `validation` profile fields (`canRunTargetedOnly`, `estimatedHeavyValidationSeconds`).
+- Added `conflictScope.driftDetection` with `driftThresholdFiles` and `onDriftDetected`.
+- Added integration runtime fields: `downstreamReadyCount`, `criticalPathPosition`, `driftFlagged`, `requiresHumanReview`.
+- Added new persisted artifacts: `empirical_write_set`, `write_set_drift_report`, `lease_heartbeat_snapshots`, `lease_reconciliation_log`, `merge_priority_score_log`, `validation_lane_saturation_log`.
+- Added new doctor warnings (7): `lease_monitor_disabled_with_worktree_enabled`, `write_set_drift_detected_in_prior_run`, `validation_lane_saturated_blocking_scheduler`, `integration_queue_merge_priority_stale`, `lease_reconciliation_disagreement_detected`, `empirical_write_set_diverges_from_declared`.
+- Added new hard stops (2): `integration_merge_with_unresolved_write_set_drift_in_block_mode`, `lease_reconciliation_disagreement_without_quarantine`.
+- Added validation rules 55-62.
+- Updated `contractVersion` to `2.6.0`.
 
 ---
 
@@ -580,7 +602,7 @@ Hard stop execution only for:
 
 ```json
 {
-  "contractVersion": "2.4.0",
+  "contractVersion": "2.6.0",
   "executionBackend": "postgres",
   "project": {
     "name": "{{ project_name }}",
@@ -757,7 +779,9 @@ Hard stop execution only for:
       "extension_permission_denied",
       "skill_permission_denied",
       "memory_forbidden_source_indexing",
-      "optimizer_patch_without_approval"
+      "optimizer_patch_without_approval",
+      "integration_merge_with_unresolved_write_set_drift_in_block_mode",
+      "lease_reconciliation_disagreement_without_quarantine"
     ],
     "forbiddenCommands": [
       "git push",
@@ -879,7 +903,13 @@ Hard stop execution only for:
       "optimizer_patch_without_approval",
       "extension_permission_requires_review",
       "skill_permission_requires_review",
-      "memory_forbidden_source_indexing"
+      "memory_forbidden_source_indexing",
+      "lease_monitor_disabled_with_worktree_enabled",
+      "write_set_drift_detected_in_prior_run",
+      "validation_lane_saturated_blocking_scheduler",
+      "integration_queue_merge_priority_stale",
+      "lease_reconciliation_disagreement_detected",
+      "empirical_write_set_diverges_from_declared"
     ],
     "persistedArtifacts": [
       "dependency_graph",
@@ -899,7 +929,13 @@ Hard stop execution only for:
       "skill_registry_snapshot",
       "memory_index_snapshot",
       "platform_audit_timeline",
-      "worktree_state"
+      "worktree_state",
+      "lease_heartbeat_snapshots",
+      "lease_reconciliation_log",
+      "merge_priority_score_log",
+      "empirical_write_set",
+      "write_set_drift_report",
+      "validation_lane_saturation_log"
     ]
   },
   "workspaces": [
@@ -974,7 +1010,7 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.5.0"` for v2.5 continuous scheduling support. `2.3.0`, `2.3.1`, `2.3.2`, and `2.4.0` remain supported for plans using earlier defaults.
+- **`contractVersion`**: Must be `"2.6.0"` for v2.6 Git serialization, lease hardening, and execution correctness support. `2.3.0`, `2.3.1`, `2.3.2`, `2.4.0`, `2.5.0`, and `2.5.1` remain supported for plans using earlier defaults.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
@@ -1011,6 +1047,9 @@ Hard stop execution only for:
 - **`planExecution.worktree`**: Defines git worktree isolation behavior, root path, quarantine policy, and cleanup safety requirements.
 - **`planExecution.integrationQueue`**: Defines controlled merge behavior for successful workspace outputs.
 - **`planExecution.integrationQueue.queuePriority`**: Configures queue priority levels. When `enabled`, the queue reorders pending merges by priority before falling back to FIFO within the same priority band. `defaultLevel` sets the priority for workspaces that do not specify an explicit priority. `levels` enumerates valid priority values.
+- **`planExecution.leaseMonitor`**: Defines the continuous lease watchdog behavior (v2.6). `enabled` enables the watchdog. `heartbeatIntervalSeconds` sets how often active leases write heartbeat files (default 15). `staleThresholdSeconds` sets how long without a heartbeat before a lease is considered stale (default 45 = 3x heartbeat interval). `monitorLoopIntervalSeconds` sets the watchdog poll interval (default 30). `stalePolicy` must be `quarantine_and_replace`. `reconciliationPrecedence` defines lease file vs worktree-state precedence: `wasRunning: lease_file`, `whatIsOnDisk: worktree_state`, `onDisagreement: quarantine_and_requeue`.
+- **`planExecution.validationLane`**: Defines validation lane backpressure behavior (v2.6). `maxConcurrentHeavyValidations` (default 1). `maxConcurrentTargetedValidations` (default 3). `backpressureEnabled` enables the scheduler pre-filter. `backpressureStrategy` must be `prefer_targeted_when_heavy_saturated`. `schedulerFeedbackEnabled` enables lane state feedback to the scheduler.
+- **`planExecution.integrationQueue.mergePriorityScorer`**: Defines the dynamic merge-priority scorer (v2.6). `enabled` enables runtime score computation at dequeue time. `formula` documents the scoring formula. `recomputeOnEachDequeue` must be `true`. `tiebreaker` must be `fifo`.
 - **`planExecution.integrationQueue.queueOptimization`**: Configures queue optimization behavior. When `enabled`, the queue applies the selected `strategy` to reorder pending merges within safety constraints. Valid strategies: `priority_then_fifo` (priority first, then submission order), `critical_path_first` (critical-path workspaces merge first), `weighted_shortest_job_first` (smaller changes merge first within priority bands).
 - **`planExecution.validation`**: Defines validation lock, targeted validation, final integration validation, and watch-mode restrictions.
 - **`planExecution.planIntake`**: Defines plan-intake auto-analysis behavior. When `enabled`, plans uploaded to Pi are automatically normalized, doctored, DAG-analyzed, and optimized before execution. `runOnUpload` triggers analysis on upload. `parserPriority` specifies the order of JSON vs Markdown parsing. `autoNormalize` normalizes the contract. `autoDoctor` runs doctor validation. `autoDagAnalysis` recomputes DAG and safe batch preview. `autoOptimizationProposal` generates optimizer suggestions. `autoQueuePriorityRecommendation` recommends queue priorities. `autoWorkspaceSplitRecommendation` suggests workspace splits/merges. `autoDryRunForecast` generates a dry-run forecast. `approvalRequiredBeforeApplyingOptimization` and `approvalRequiredBeforeExecution` gate optimizer patches and execution behind approval.
@@ -1086,7 +1125,14 @@ Hard stop execution only for:
 - **`integration.conflictHandoffRequired`**: Whether merge conflicts must produce reviewable handoff artifacts.
 - **`validation.profile`**: Validation approach such as `targeted_then_final`.
 - **`validation.heavyCommandUsesGlobalLock`**: Whether heavy validation commands require the global validation lock.
+- **`validation.canRunTargetedOnly`** (v2.6): Whether this workspace's validation profile never requires the global lock. Default `false`. When `true`, the scheduler may launch this workspace even when the heavy validation slot is saturated.
+- **`validation.estimatedHeavyValidationSeconds`** (v2.6): Nullable integer estimating heavy validation duration in seconds. Not used by P23 scheduling logic, declared for future use.
 - **`validation.watchModeForbidden`**: Must remain true for autonomous execution.
+- **`parallelism.conflictScope.driftDetection`** (v2.6): Defines writeSet drift detection behavior. `enabled` enables post-execution comparison. `compareAfterExecution` runs `git diff --name-only` after workspace completion. `driftThresholdFiles` sets the number of undeclared files allowed before flagging (default 3). `onDriftDetected` must be `warn_and_flag_integration` (default) or `block_integration` (opt-in).
+- **`integration.downstreamReadyCount`** (v2.6): Runtime-only field. Nullable integer set by the executor, counting workspaces that would become ready after this one merges. Must be null in authored plans.
+- **`integration.criticalPathPosition`** (v2.6): Runtime-only field. Nullable integer set by the executor, indicating position on the critical path. Must be null in authored plans.
+- **`integration.driftFlagged`** (v2.6): Runtime-only field. Nullable boolean set when empirical writeSet drift exceeds the threshold.
+- **`integration.requiresHumanReview`** (v2.6): Runtime-only field. Nullable boolean set when drift triggers `warn_and_flag_integration` mode.
 
 ---
 
@@ -1227,7 +1273,7 @@ Queue optimization controls are executor-mediated. The dashboard may display que
 
 ```json
 {
-  "contractVersion": "2.4.0",
+  "contractVersion": "2.6.0",
   "phase": "{{ Phase ID }}",
   "title": "{{ Phase Title }}",
   "primaryGoal": "{{ One sentence summary of the phase goal }}",

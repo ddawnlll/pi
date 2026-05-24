@@ -2,33 +2,20 @@
   "packet": {
     "phaseId": "P2",
     "workspaceId": "7.B",
-    "role": "flash",
-    "goal": "Quick fix for 7.B: ",
+    "role": "worker",
+    "goal": "Per-Project Brain Architecture",
     "allowedFiles": [],
-    "forbiddenFiles": [
-      ".env*",
-      "**/*.pem",
-      "**/*.key"
-    ],
-    "acceptanceCriteria": [
-      {
-        "description": "Fix the immediate error",
-        "verified": false
-      },
-      {
-        "description": "Tests pass",
-        "verified": false
-      }
-    ],
+    "forbiddenFiles": [],
+    "acceptanceCriteria": [],
     "targetCommand": null,
-    "stateSummary": "Attempt 5 of 3",
+    "stateSummary": "Previous attempt 3 failed: unknown\nError: Completion gate blocked: Implementation not finished\nNext retry strategy: flash\nFocus on quick, targeted fixes to resolve the immediate error.",
     "relevantSnippets": [],
-    "outputContract": "VERDICT: FIXED | FAILED",
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
     "budget": {
-      "maxInputTokens": 4000,
-      "estimatedInputTokens": 131
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 163
     }
   },
-  "hash": "2f7c6cfd0aca28b739dc3386dd099b1498451684c441224075f06c63f7f7ee84",
-  "createdAt": 1779405180873
+  "hash": "ff0358c23220618d9873d373a92f6caad675ef747f9a7dbe9e99823a8013c590",
+  "createdAt": 1779565972959
 }

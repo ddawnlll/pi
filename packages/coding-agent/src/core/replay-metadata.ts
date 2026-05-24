@@ -9,16 +9,13 @@
  *   .pi/workspaces/{workspaceId}/workspace-replay.json — per workspace
  */
 
-import { exec } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { promisify } from "node:util";
 import type { PlanState, WorkspaceState } from "./plan-state.js";
 import { createSafetyDoctor } from "./safety-doctor.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
-
-const execAsync = promisify(exec);
+import { createGitRunner } from "./git-runner.js";
 
 // ---------------------------------------------------------------------------
 // Glob pattern matching
@@ -619,9 +616,14 @@ async function getGitStatus(workspaceRoot: string): Promise<{
 	deleted: string[];
 }> {
 	try {
-		const { stdout } = await execAsync("git status --porcelain --untracked-files=all", {
+		const runner = createGitRunner({
+			planExecId: "",
+			workspaceId: "",
+			leaseId: "",
 			cwd: workspaceRoot,
 		});
+		const result = await runner.read(["status", "--porcelain", "--untracked-files=all"]);
+		const stdout = result.stdout;
 
 		const modified: string[] = [];
 		const added: string[] = [];

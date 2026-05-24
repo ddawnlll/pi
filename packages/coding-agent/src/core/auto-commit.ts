@@ -5,13 +5,10 @@
  * Never pushes, never merges, only commits approved changes.
  */
 
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import type { WorkspaceState } from "./plan-state.js";
 import type { Workspace } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
-
-const execAsync = promisify(exec);
+import { createGitRunner, type GitRunner } from "./git-runner.js";
 
 /**
  * Commit result
@@ -56,6 +53,18 @@ export class AutoCommit {
 
 	constructor(workspaceRoot: string) {
 		this.workspaceRoot = workspaceRoot;
+	}
+
+	/**
+	 * Get a GitRunner for this workspace.
+	 */
+	private getRunner(): GitRunner {
+		return createGitRunner({
+			planExecId: "",
+			workspaceId: "auto-commit",
+			leaseId: "",
+			cwd: this.workspaceRoot,
+		});
 	}
 
 	/**
@@ -173,9 +182,10 @@ export class AutoCommit {
 		const stagedFiles: string[] = [];
 
 		try {
+			const runner = this.getRunner();
 			// Stage files
 			for (const file of validation.filesToCommit) {
-				await execAsync(`git add "${file}"`, { cwd: this.workspaceRoot });
+				await runner.stageFile("auto-commit", file);
 				stagedFiles.push(file);
 			}
 
@@ -185,12 +195,24 @@ export class AutoCommit {
 			const commitMessage = `feat(p${phaseStr}): complete workspace ${workspace.id} — ${shortTitle}`;
 
 			// Commit (skip husky pre-commit hooks -- auto-commit already validates)
-			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, {
-				cwd: this.workspaceRoot,
-			});
+			const commitResult = await runner.commit("auto-commit", commitMessage);
 
-			// Extract commit hash
-			const hashMatch = stdout.match(/\[([\w-]+) ([a-f0-9]+)\]/);
+			if (commitResult.exitCode !== 0) {
+				// Check if error is "nothing to commit"
+				if (commitResult.stderr.includes("nothing to commit")) {
+					return {
+						success: false,
+						reason: "No changes to commit (git reported nothing to commit)",
+					};
+				}
+				return {
+					success: false,
+					reason: `Git commit failed: ${commitResult.stderr}`,
+				};
+			}
+
+			// Extract commit hash from stdout
+			const hashMatch = commitResult.stdout.match(/\[([\w-]+) ([a-f0-9]+)\]/);
 			const commitHash = hashMatch ? hashMatch[2] : undefined;
 
 			return {
@@ -203,22 +225,14 @@ export class AutoCommit {
 
 			// Rollback: unstage files that were staged before the failure
 			if (stagedFiles.length > 0) {
-				try {
-					// Use git restore --staged to unstage without losing changes
-					for (const file of stagedFiles) {
-						await execAsync(`git restore --staged "${file}"`, { cwd: this.workspaceRoot }).catch(() => {});
+				const runner = this.getRunner();
+				for (const file of stagedFiles) {
+					try {
+						await runner.unstageFile("auto-commit", file);
+					} catch {
+						// Rollback failure is non-fatal — files remain staged
 					}
-				} catch {
-					// Rollback failure is non-fatal — files remain staged
 				}
-			}
-
-			// Check if error is "nothing to commit"
-			if (errorMessage.includes("nothing to commit")) {
-				return {
-					success: false,
-					reason: "No changes to commit (git reported nothing to commit)",
-				};
 			}
 
 			return {
@@ -242,6 +256,7 @@ export class AutoCommit {
 	 */
 	async commitPlan(phase?: string, planTitle?: string): Promise<CommitResult> {
 		try {
+			const runner = this.getRunner();
 			// Get git status to find all changes
 			const status = await this.getGitStatus();
 			const allChanges = [...status.modified, ...status.added, ...status.deleted];
@@ -254,7 +269,7 @@ export class AutoCommit {
 			}
 
 			// Stage all changes
-			await execAsync("git add -A", { cwd: this.workspaceRoot });
+			await runner.stageAll("auto-commit");
 
 			// Generate commit message
 			const phaseStr = phase ?? "2";
@@ -262,12 +277,23 @@ export class AutoCommit {
 			const commitMessage = `feat(p${phaseStr}): complete plan — ${title}`;
 
 			// Commit (skip husky pre-commit hooks -- auto-commit already validates)
-			const { stdout } = await execAsync(`git commit --no-verify -m "${commitMessage}"`, {
-				cwd: this.workspaceRoot,
-			});
+			const commitResult = await runner.commit("auto-commit", commitMessage);
+
+			if (commitResult.exitCode !== 0) {
+				if (commitResult.stderr.includes("nothing to commit")) {
+					return {
+						success: false,
+						reason: "No changes to commit (git reported nothing to commit)",
+					};
+				}
+				return {
+					success: false,
+					reason: `Git rollup commit failed: ${commitResult.stderr}`,
+				};
+			}
 
 			// Extract commit hash
-			const hashMatch = stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
+			const hashMatch = commitResult.stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
 			const commitHash = hashMatch ? hashMatch[1] : undefined;
 
 			return {
@@ -277,14 +303,6 @@ export class AutoCommit {
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-
-			if (errorMessage.includes("nothing to commit")) {
-				return {
-					success: false,
-					reason: "No changes to commit (git reported nothing to commit)",
-				};
-			}
-
 			return {
 				success: false,
 				reason: `Git rollup commit failed: ${errorMessage}`,
@@ -303,9 +321,12 @@ export class AutoCommit {
 		deleted: string[];
 	}> {
 		try {
-			const { stdout } = await execAsync("git status --porcelain --untracked-files=all", {
-				cwd: this.workspaceRoot,
-			});
+			const runner = this.getRunner();
+			const result = await runner.run(
+				["status", "--porcelain", "--untracked-files=all"],
+				{ scope: "read_only" },
+			);
+			const stdout = result.stdout;
 
 			const modified: string[] = [];
 			const added: string[] = [];
@@ -313,20 +334,42 @@ export class AutoCommit {
 
 			for (const line of stdout.split("\n")) {
 				if (!line.trim()) continue;
+				if (line.length < 3) continue;
 
-				const status = line.slice(0, 2);
-				const file = line.slice(3).trim();
+				// Porcelain v1 format: XYfilename or XY filename
+				// X = index status, Y = working tree status
+				// Find where status ends and filename begins by scanning for the filename start
+				const xStatus = line[0];
+				const yStatus = line.length > 1 ? line[1] : " ";
+
+				// The filename starts after the two status chars.
+				// If there's a separator space (position 2 is space), skip it.
+				let fileStart = 2;
+				if (line.length > 2 && line[2] === " ") {
+					fileStart = 3;
+				}
+				const file = line.slice(fileStart).trim();
+				if (!file) continue;
+
+				// Handle renamed files (R status: "R  oldname -> newname")
+				if (xStatus === "R" || yStatus === "R") {
+					const parts = file.split(" -> ");
+					if (parts.length === 2) {
+						modified.push(parts[1].trim());
+					}
+					continue;
+				}
 
 				// Skip directories (git status shows them with trailing /)
 				if (file.endsWith("/")) {
 					continue;
 				}
 
-				if (status.includes("M")) {
+				if (xStatus === "M" || yStatus === "M") {
 					modified.push(file);
-				} else if (status.includes("A") || status.includes("?")) {
+				} else if (xStatus === "A" || yStatus === "A" || xStatus === "?" || yStatus === "?") {
 					added.push(file);
-				} else if (status.includes("D")) {
+				} else if (xStatus === "D" || yStatus === "D") {
 					deleted.push(file);
 				}
 			}
