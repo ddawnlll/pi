@@ -524,14 +524,14 @@ export function Sidebar({
 													<div className="flex items-center gap-1 px-2 py-1">
 														<input
 															autoFocus
-															value={renameValue}
-															onChange={(e) => setRenameValue(e.target.value)}
+															value={planRenameValue}
+															onChange={(e) => setPlanRenameValue(e.target.value)}
 															onKeyDown={(e) => {
-																if (e.key === "Enter" && renameValue.trim() && project) {
+																if (e.key === "Enter" && planRenameValue.trim() && project) {
 																	fetch(`/api/projects/${project.id}/plans/${ex.id}/rename`, {
 																		method: "PATCH",
 																		headers: { "Content-Type": "application/json" },
-																		body: JSON.stringify({ title: renameValue.trim() }),
+																		body: JSON.stringify({ title: planRenameValue.trim() }),
 																	}).catch(() => {});
 																	setRenamingExecId(null);
 																} else if (e.key === "Escape") {
@@ -575,7 +575,7 @@ export function Sidebar({
 																onClick={(e) => {
 																	e.stopPropagation();
 																	setRenamingExecId(ex.id);
-																	setRenameValue((ex as any).phaseTitle || ex.title || "");
+																	setPlanRenameValue((ex as any).phaseTitle || ex.title || "");
 																}}
 																className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
 																title="Rename"
@@ -639,9 +639,9 @@ export function Sidebar({
 			includeArchived,
 			onToggleArchived,
 			renamingExecId,
-			renameValue,
+			planRenameValue,
 			setRenamingExecId,
-			setRenameValue,
+			setPlanRenameValue,
 		],
 	);
 
