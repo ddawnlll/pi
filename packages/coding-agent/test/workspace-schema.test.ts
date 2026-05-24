@@ -1172,6 +1172,11 @@ describe("v2.3.2: minimal plan validates", () => {
 					maxRetries: 3,
 				},
 			],
+			// P22.C: worktree-only mode — parser always fills in planExecution defaults
+			planExecution: {
+				scale: { selectedMode: "experimental_6" },
+				worktree: { enabled: true },
+			},
 		};
 
 		const result = validateWorkspaceQueue(queue);

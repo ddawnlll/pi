@@ -69,9 +69,11 @@ import {
 	requiresInteractiveApproval,
 } from "./plan-preview.js";
 import {
+	archiveExecution,
 	getActiveExecution,
 	getActiveExecutions,
 	loadExecutionMeta,
+	renameExecution,
 	resumeStrandedExecutions,
 	runPlan,
 	signalExecutionEvent,
@@ -799,16 +801,38 @@ fastify.post<{
 
 /**
  * GET /api/projects/:projectId/plans - List plan executions for a project
+ *
+ * Returns plans enriched with archive status from meta files.
+ * Supports `?includeArchived=true` query parameter to include archived plans.
  */
 fastify.get<{
 	Params: { projectId: string };
+	Querystring: { includeArchived?: string };
 }>("/api/projects/:projectId/plans", async (request, reply) => {
 	const { projectId } = request.params;
+	const includeArchived = request.query.includeArchived === "true";
 
 	try {
 		const stateStore = getStateStore();
+		const workspaceRoot = getWorkspaceRoot();
 		const executions = await stateStore.listPlanExecutions(projectId);
-		return { executions };
+
+		// Enrich with archive status from meta files
+		const enriched = await Promise.all(
+			executions.map(async (exec) => {
+				const meta = await loadExecutionMeta(workspaceRoot, exec.id);
+				return {
+					...exec,
+					archived: meta?.archived ?? false,
+					phaseTitle: meta?.phaseTitle ?? exec.title,
+				};
+			}),
+		);
+
+		// Filter archived plans unless explicitly requested
+		const filtered = includeArchived ? enriched : enriched.filter((e) => !e.archived);
+
+		return { executions: filtered };
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to list plan executions");
 		return reply.code(500).send({ error: "Failed to list plan executions", message: String(error) });
@@ -821,7 +845,7 @@ fastify.get<{
 fastify.get<{
 	Params: { projectId: string; planExecId: string };
 }>("/api/projects/:projectId/plans/:planExecId", async (request, reply) => {
-	const { planExecId } = request.params;
+	const { projectId, planExecId } = request.params;
 
 	try {
 		const stateStore = getStateStore();
@@ -831,8 +855,11 @@ fastify.get<{
 			return reply.code(404).send({ error: "Plan execution not found" });
 		}
 
-		const piDir = getPiDir();
 		const workspaceRoot = getWorkspaceRoot();
+		const piDir = join(workspaceRoot, ".pi");
+
+		// Load meta for archive/phaseTitle enrichment
+		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
 		const workspacesArr: Array<{
 			id: string;
 			stage: string;
@@ -890,6 +917,9 @@ fastify.get<{
 			status: state.status,
 			startedAt: state.startedAt,
 			completedAt: state.completedAt ?? null,
+			archived: meta?.archived ?? false,
+			phaseTitle: meta?.phaseTitle,
+			displayTitle: meta?.phaseTitle || state.title || "Untitled Phase",
 			workspaces: workspacesArr,
 		};
 	} catch (error) {
@@ -2281,6 +2311,84 @@ fastify.post<{
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to rerun plan");
 		return reply.code(500).send({ success: false, error: "Failed to rerun plan", message: String(error) });
+	}
+});
+
+/**
+ * PATCH /api/projects/:projectId/plans/:planExecId/rename - Rename a plan execution
+ *
+ * Updates the plan execution title in the state store and meta file.
+ * Emits a plan_renamed journal event.
+ */
+fastify.patch<{
+	Params: { projectId: string; planExecId: string };
+	Body: { title: string };
+}>("/api/projects/:projectId/plans/:planExecId/rename", async (request, reply) => {
+	const { projectId, planExecId } = request.params;
+	const { title } = request.body;
+
+	if (!title || typeof title !== "string" || title.trim().length === 0) {
+		return reply.code(400).send({ success: false, error: "Title is required" });
+	}
+
+	try {
+		// Resolve workspace root
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			return reply.code(404).send({ success: false, error: "Project not found" });
+		}
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+
+		const success = await renameExecution(workspaceRoot, planExecId, title.trim());
+		if (!success) {
+			return reply.code(404).send({ success: false, error: "Plan execution not found" });
+		}
+
+		return reply.code(200).send({ success: true, title: title.trim() });
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to rename plan");
+		return reply.code(500).send({ success: false, error: "Failed to rename plan", message: String(error) });
+	}
+});
+
+/**
+ * PATCH /api/projects/:projectId/plans/:planExecId/archive - Archive or unarchive a plan execution
+ *
+ * Sets the archived flag in the plan execution meta file.
+ * Archived plans are hidden from the default runs list.
+ */
+fastify.patch<{
+	Params: { projectId: string; planExecId: string };
+	Body: { archived: boolean };
+}>("/api/projects/:projectId/plans/:planExecId/archive", async (request, reply) => {
+	const { projectId, planExecId } = request.params;
+	const { archived } = request.body;
+
+	if (typeof archived !== "boolean") {
+		return reply.code(400).send({ success: false, error: "archived must be a boolean" });
+	}
+
+	try {
+		// Resolve workspace root
+		const stateStore = getStateStore();
+		const projects = await stateStore.listProjects();
+		const project = projects.find((p) => p.id === projectId);
+		if (!project) {
+			return reply.code(404).send({ success: false, error: "Project not found" });
+		}
+		const workspaceRoot = project.rootPath || getWorkspaceRoot();
+
+		const result = await archiveExecution(workspaceRoot, planExecId, archived);
+		if (result === null) {
+			return reply.code(404).send({ success: false, error: "Plan execution not found" });
+		}
+
+		return reply.code(200).send({ success: true, archived: result });
+	} catch (error) {
+		fastify.log.error({ error }, "Failed to archive plan");
+		return reply.code(500).send({ success: false, error: "Failed to archive plan", message: String(error) });
 	}
 });
 
@@ -4648,42 +4756,70 @@ registerSkillRoutes(fastify);
 // ---------------------------------------------------------------------------
 
 const { registerBrainStateRoutes } = await import("./routes/brain/state.js");
-await registerBrainStateRoutes(fastify);
+// Register global brain routes (legacy fallback) under /api/brain prefix
+await fastify.register(async (scoped) => {
+	await registerBrainStateRoutes(scoped);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Memory Routes (P14 — Memory Explorer)
 // ---------------------------------------------------------------------------
 
 const { registerBrainMemoryRoutes } = await import("./routes/brain/memories.js");
-await registerBrainMemoryRoutes(fastify);
+await fastify.register(async (scoped) => {
+	await registerBrainMemoryRoutes(scoped);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Autonomy Routes (P15 — Autonomy Controls)
 // ---------------------------------------------------------------------------
 
 const { registerBrainAutonomyRoutes } = await import("./routes/brain/autonomy.js");
-await registerBrainAutonomyRoutes(fastify);
+await fastify.register(async (scoped) => {
+	await registerBrainAutonomyRoutes(scoped);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Policy Routes (P18 — Policy Rules)
 // ---------------------------------------------------------------------------
 
 const { registerBrainPolicyRoutes } = await import("./routes/brain/policy.js");
-await registerBrainPolicyRoutes(fastify);
+await fastify.register(async (scoped) => {
+	await registerBrainPolicyRoutes(scoped);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Audit Routes (P18 — Audit)
 // ---------------------------------------------------------------------------
 
 const { registerBrainAuditRoutes } = await import("./routes/brain/audit.js");
-await registerBrainAuditRoutes(fastify);
+await fastify.register(async (scoped) => {
+	await registerBrainAuditRoutes(scoped);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Overnight Routes (P20 — Overnight Queue)
 // ---------------------------------------------------------------------------
 
 const { registerBrainOvernightRoutes } = await import("./routes/brain/overnight.js");
-await registerBrainOvernightRoutes(fastify);
+await fastify.register(async (scoped) => {
+	await registerBrainOvernightRoutes(scoped);
+}, { prefix: "/api/brain" });
+
+// ---------------------------------------------------------------------------
+// Project-Scoped Brain Routes (P22.B — Per-Project Brain Architecture)
+// Registered under /api/projects/:projectId/brain/* in addition to global routes.
+// ---------------------------------------------------------------------------
+
+await fastify.register(async (scoped) => {
+	// Re-register same brain route handlers under project prefix
+	await registerBrainStateRoutes(scoped);
+	await registerBrainMemoryRoutes(scoped);
+	await registerBrainAutonomyRoutes(scoped);
+	await registerBrainPolicyRoutes(scoped);
+	await registerBrainAuditRoutes(scoped);
+	await registerBrainOvernightRoutes(scoped);
+}, { prefix: "/api/projects/:projectId/brain" });
 
 // ---------------------------------------------------------------------------
 // Memory Routes (P11.Q — Memory Cockpit)
@@ -4732,7 +4868,9 @@ const { registerBrainProposalRoutes } = await import("./routes/brain/proposals.j
 const { BrainProposalApi, InMemoryProposalStore } = await import("@earendil-works/pi-coding-agent");
 const proposalStore = new InMemoryProposalStore();
 const proposalApi = new BrainProposalApi(proposalStore);
-await registerBrainProposalRoutes(fastify, proposalApi);
+await fastify.register(async (scoped) => {
+	await registerBrainProposalRoutes(scoped, proposalApi);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Reflection API Routes (P17.G — Reflection API)
@@ -4742,7 +4880,9 @@ const { registerBrainReflectionRoutes } = await import("./routes/brain/reflectio
 const { BrainReflectionApi, ReflectionEngine } = await import("@earendil-works/pi-coding-agent");
 const reflectionEngine = new ReflectionEngine();
 const reflectionApi = new BrainReflectionApi(reflectionEngine);
-await registerBrainReflectionRoutes(fastify, reflectionApi);
+await fastify.register(async (scoped) => {
+	await registerBrainReflectionRoutes(scoped, reflectionApi);
+}, { prefix: "/api/brain" });
 
 // ---------------------------------------------------------------------------
 // Brain Approval Queue API Routes (P18.D — Approval Queue API)
@@ -4760,7 +4900,19 @@ const auditAdapter = {
 const approvalGate = new ApprovalGate(auditAdapter);
 await approvalGate.initialize();
 const approvalQueueApi = new ApprovalQueueApi(approvalGate);
-await registerBrainApprovalRoutes(fastify, approvalQueueApi);
+await fastify.register(async (scoped) => {
+	await registerBrainApprovalRoutes(scoped, approvalQueueApi);
+}, { prefix: "/api/brain" });
+
+// ---------------------------------------------------------------------------
+// Project-Scoped Brain Routes (continued) — proposals, reflections, approvals
+// ---------------------------------------------------------------------------
+
+await fastify.register(async (scoped) => {
+	await registerBrainProposalRoutes(scoped, proposalApi);
+	await registerBrainReflectionRoutes(scoped, reflectionApi);
+	await registerBrainApprovalRoutes(scoped, approvalQueueApi);
+}, { prefix: "/api/projects/:projectId/brain" });
 
 // ---------------------------------------------------------------------------
 // Health Check

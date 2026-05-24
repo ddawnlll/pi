@@ -4,13 +4,13 @@
  * REST API for listing, approving, rejecting, and deferring approval requests.
  *
  * Endpoints:
- *   GET  /api/brain/approvals              List approvals (query: status, limit, offset)
- *   GET  /api/brain/approvals/stats        Approval queue statistics
- *   GET  /api/brain/approvals/history      Completed approval history
- *   GET  /api/brain/approvals/{id}         Get single approval request
- *   POST /api/brain/approvals/{id}/approve Approve request
- *   POST /api/brain/approvals/{id}/reject  Reject request with optional reason
- *   POST /api/brain/approvals/{id}/defer   Extend deadline
+ *   GET  /approvals              List approvals (query: status, limit, offset)
+ *   GET  /approvals/stats        Approval queue statistics
+ *   GET  /approvals/history      Completed approval history
+ *   GET  /approvals/{id}         Get single approval request
+ *   POST /approvals/{id}/approve Approve request
+ *   POST /approvals/{id}/reject  Reject request with optional reason
+ *   POST /approvals/{id}/defer   Extend deadline
  *
  * All responses follow { success: boolean, ... } format.
  *
@@ -90,7 +90,7 @@ export interface ApprovalQueueApiLike {
  */
 export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api: ApprovalQueueApiLike): Promise<void> {
 	// -----------------------------------------------------------------------
-	// GET /api/brain/approvals — List approvals
+	// GET /approvals — List approvals
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
@@ -99,7 +99,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 			limit?: number;
 			offset?: number;
 		};
-	}>("/api/brain/approvals", async (request, reply) => {
+	}>("/approvals", async (request, reply) => {
 		try {
 			const { query } = request;
 			const result = await api.listApprovals({
@@ -124,13 +124,13 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/approvals/stats — Approval queue statistics
+	// GET /approvals/stats — Approval queue statistics
 	//
 	// NOTE: This must be registered BEFORE the /:id routes to avoid
 	// Fastify interpreting "stats" as an :id param.
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/approvals/stats", async (_request, reply) => {
+	fastify.get("/approvals/stats", async (_request, reply) => {
 		try {
 			const stats = await api.getStats();
 			return reply.send({
@@ -147,7 +147,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/approvals/history — Completed approval history
+	// GET /approvals/history — Completed approval history
 	//
 	// NOTE: Must be registered BEFORE /:id routes to avoid Fastify
 	// interpreting "history" as an :id param.
@@ -160,7 +160,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 			since?: string;
 			until?: string;
 		};
-	}>("/api/brain/approvals/history", async (request, reply) => {
+	}>("/approvals/history", async (request, reply) => {
 		try {
 			const { query } = request;
 			const result = await api.getHistory({
@@ -185,12 +185,12 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/approvals/:id — Get single approval request
+	// GET /approvals/:id — Get single approval request
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { id: string };
-	}>("/api/brain/approvals/:id", async (request, reply) => {
+	}>("/approvals/:id", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const approval = await api.getApproval(id);
@@ -216,7 +216,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/approvals/:id/approve — Approve approval request
+	// POST /approvals/:id/approve — Approve approval request
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -224,7 +224,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 		Body: {
 			approvedBy?: string;
 		};
-	}>("/api/brain/approvals/:id/approve", async (request, reply) => {
+	}>("/approvals/:id/approve", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { approvedBy } = request.body ?? {};
@@ -254,7 +254,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/approvals/:id/reject — Reject approval request
+	// POST /approvals/:id/reject — Reject approval request
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -263,7 +263,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 			rejectedBy?: string;
 			reason?: string;
 		};
-	}>("/api/brain/approvals/:id/reject", async (request, reply) => {
+	}>("/approvals/:id/reject", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { rejectedBy, reason } = request.body ?? {};
@@ -293,7 +293,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/approvals/:id/defer — Defer approval request (extend deadline)
+	// POST /approvals/:id/defer — Defer approval request (extend deadline)
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -301,7 +301,7 @@ export async function registerBrainApprovalRoutes(fastify: FastifyInstance, api:
 		Body: {
 			newDeadline?: string;
 		};
-	}>("/api/brain/approvals/:id/defer", async (request, reply) => {
+	}>("/approvals/:id/defer", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { newDeadline } = request.body ?? {};

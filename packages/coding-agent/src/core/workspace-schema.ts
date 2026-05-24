@@ -715,14 +715,16 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 			});
 		}
 
-		// Warn when worktree mode is not enabled (deprecated)
+		// P22.C: Worktree-only mode — worktree isolation is mandatory.
+		// All plans must use git worktree isolation.
 		if (!queue.planExecution?.worktree?.enabled) {
-			warnings.push({
+			errors.push({
 				type: "missing_field",
 				message:
-					"Plan is using stable_3 mode without git worktree isolation. " +
-					"Worktree mode (experimental_6) is required for parallel execution. " +
-					"Set planExecution.worktree.enabled to true to enable worktree mode.",
+					"Worktree isolation is required for workspace execution. " +
+					"All plans must use git worktree isolation. " +
+					"Set planExecution.worktree.enabled to true.",
+				context: { requiredField: "planExecution.worktree" },
 			});
 		}
 

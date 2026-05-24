@@ -1009,7 +1009,7 @@ describe("v2.2.0: planExecution.interactiveParallelismReview parsing", () => {
 		expect(result.queue?.planExecution?.interactiveParallelismReview).toBeUndefined();
 	});
 
-	it("should not break v2.1.0 plans without planExecution", () => {
+	it("should fill in default planExecution for v2.1.0 plans without planExecution (P22.C: worktree-only)", () => {
 		const planContent = `
 # Part 3 — Workspace Queue
 
@@ -1028,7 +1028,10 @@ describe("v2.2.0: planExecution.interactiveParallelismReview parsing", () => {
 
 		const result = parsePlan(planContent);
 		expect(result.success).toBe(true);
-		expect(result.queue?.planExecution).toBeUndefined();
+		// P22.C: worktree-only mode — parser always fills in planExecution defaults
+		expect(result.queue?.planExecution).toBeDefined();
+		expect(result.queue?.planExecution?.worktree?.enabled).toBe(true);
+		expect(result.queue?.planExecution?.scale?.selectedMode).toBe("experimental_6");
 	});
 });
 

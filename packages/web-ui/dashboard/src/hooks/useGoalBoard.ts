@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { brainClient } from "../api/brain";
 import type { GoalDriftReport, GoalRecord, GoalStats } from "../types-brain";
 
@@ -15,19 +15,27 @@ export interface UseGoalBoardReturn {
 	refresh: () => Promise<void>;
 }
 
-export function useGoalBoard(): UseGoalBoardReturn {
+/**
+ * Hook for goal board data. Supports project-scoped API calls.
+ *
+ * @param projectId - Optional project ID for project-scoped brain API
+ */
+export function useGoalBoard(projectId?: string | null): UseGoalBoardReturn {
 	const [goals, setGoals] = useState<GoalRecord[]>([]);
 	const [stats, setStats] = useState<GoalStats | null>(null);
 	const [driftReports, setDriftReports] = useState<GoalDriftReport[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const projectIdRef = useRef(projectId);
+	projectIdRef.current = projectId;
 
 	const fetch = useCallback(async () => {
+		const pid = projectIdRef.current;
 		try {
 			const [goalsData, statsData, driftData] = await Promise.all([
-				brainClient.getGoals(),
-				brainClient.getGoalStats().catch(() => null),
-				brainClient.getDriftReports().catch(() => []),
+				brainClient.getGoals({}, pid),
+				brainClient.getGoalStats(pid).catch(() => null),
+				brainClient.getDriftReports(pid).catch(() => []),
 			]);
 			setGoals(goalsData);
 			if (statsData) setStats(statsData);
@@ -46,7 +54,7 @@ export function useGoalBoard(): UseGoalBoardReturn {
 
 	const create = useCallback(
 		async (data: { title: string; description?: string; priority?: string; milestones?: string[] }) => {
-			await brainClient.createGoal(data);
+			await brainClient.createGoal(data, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
@@ -54,7 +62,7 @@ export function useGoalBoard(): UseGoalBoardReturn {
 
 	const update = useCallback(
 		async (id: string, data: Partial<GoalRecord>) => {
-			await brainClient.updateGoal(id, data);
+			await brainClient.updateGoal(id, data, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
@@ -62,7 +70,7 @@ export function useGoalBoard(): UseGoalBoardReturn {
 
 	const complete = useCallback(
 		async (id: string) => {
-			await brainClient.completeGoal(id);
+			await brainClient.completeGoal(id, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
@@ -70,11 +78,22 @@ export function useGoalBoard(): UseGoalBoardReturn {
 
 	const deleteGoal = useCallback(
 		async (id: string) => {
-			await brainClient.deleteGoal(id);
+			await brainClient.deleteGoal(id, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
 	);
 
-	return { goals, stats, driftReports, loading, error, create, update, complete, deleteGoal, refresh: fetch };
+	return {
+		goals,
+		stats,
+		driftReports,
+		loading,
+		error,
+		create,
+		update,
+		complete,
+		deleteGoal,
+		refresh: fetch,
+	};
 }

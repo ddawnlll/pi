@@ -51,6 +51,10 @@ export interface ExecutionMeta {
 	worktreeConfig?: { enabled: true };
 	/** Workspace execution timeout in milliseconds persisted for crash recovery. */
 	workspaceTimeoutMs?: number;
+	/** User-provided phase title override (P22.E). */
+	phaseTitle?: string;
+	/** Whether this plan execution is archived (hidden from default runs list) (P22.E). */
+	archived?: boolean;
 }
 
 export interface ActiveExecution {
@@ -348,6 +352,82 @@ export async function loadExecutionMeta(workspaceRoot: string, planExecId: strin
 		const content = await readFile(metaPath, "utf-8");
 		return JSON.parse(content) as ExecutionMeta;
 	} catch {
+		return null;
+	}
+}
+
+/**
+ * Write the meta file for a plan execution with partial updates.
+ */
+export async function updateExecutionMeta(
+	workspaceRoot: string,
+	planExecId: string,
+	updates: Partial<ExecutionMeta>,
+): Promise<void> {
+	const existing = await loadExecutionMeta(workspaceRoot, planExecId);
+	const merged: ExecutionMeta = {
+		...existing,
+		...updates,
+		startedAt: updates.startedAt ?? existing?.startedAt ?? Date.now(),
+		planFile: updates.planFile ?? existing?.planFile ?? "",
+		title: updates.title ?? existing?.title ?? "Untitled Phase",
+		phase: updates.phase ?? existing?.phase ?? "P2",
+	};
+	await writeExecutionMeta(workspaceRoot, planExecId, merged);
+}
+
+/**
+ * Rename a plan execution by updating its title in the state store and meta file.
+ * Returns true on success, false if the execution was not found.
+ */
+export async function renameExecution(
+	workspaceRoot: string,
+	planExecId: string,
+	newTitle: string,
+): Promise<boolean> {
+	try {
+		// Update the meta file
+		await updateExecutionMeta(workspaceRoot, planExecId, { title: newTitle });
+
+		// Update the active execution in-memory (if still running)
+		const active = activeExecutions.get(planExecId);
+		if (active) {
+			active.title = newTitle;
+		}
+
+		// Update the persisted state store
+		const { getStateStore } = await import("./state-store-provider.js");
+		const stateStore = getStateStore();
+		const state = await stateStore.loadState(planExecId);
+		if (state) {
+			state.title = newTitle;
+			await stateStore.saveState(planExecId);
+		}
+
+		return true;
+	} catch (error) {
+		console.error(`[renameExecution] Failed to rename ${planExecId}:`, error);
+		return false;
+	}
+}
+
+/**
+ * Archive or unarchive a plan execution by updating the meta file.
+ * Returns the new archived state, or null if the execution was not found.
+ */
+export async function archiveExecution(
+	workspaceRoot: string,
+	planExecId: string,
+	archived: boolean,
+): Promise<boolean | null> {
+	try {
+		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+		if (!meta) return null;
+
+		await updateExecutionMeta(workspaceRoot, planExecId, { archived });
+		return archived;
+	} catch (error) {
+		console.error(`[archiveExecution] Failed to archive ${planExecId}:`, error);
 		return null;
 	}
 }

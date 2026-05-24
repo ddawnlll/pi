@@ -549,6 +549,15 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		}
 	}
 
+	// P22.C: Worktree-only mode — always provide default planExecution with
+	// worktree isolation enabled, even when planExecution is missing from source.
+	if (!planExecution) {
+		planExecution = {
+			scale: { selectedMode: "experimental_6" },
+			worktree: { enabled: true },
+		};
+	}
+
 	return {
 		phase,
 		title,

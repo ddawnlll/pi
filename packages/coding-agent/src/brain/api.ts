@@ -22,14 +22,29 @@ let _brainStore: InMemoryBrainTimelineStore | null = null;
 let _goalStore: GoalStore | null = null;
 let _auditLedger: ReturnType<typeof createAuditLedger> | null = null;
 
+// Per-project brain stores keyed by projectId
+const _projectBrainStores = new Map<string, InMemoryBrainTimelineStore>();
+
 /** Injected (or default-initialised) stores  */
 
-export function getBrainStore(): InMemoryBrainTimelineStore {
+export function getBrainStore(projectId?: string | null): InMemoryBrainTimelineStore {
+	if (projectId) {
+		let store = _projectBrainStores.get(projectId);
+		if (!store) {
+			store = new InMemoryBrainTimelineStore();
+			_projectBrainStores.set(projectId, store);
+		}
+		return store;
+	}
 	if (!_brainStore) _brainStore = new InMemoryBrainTimelineStore();
 	return _brainStore;
 }
-export function setBrainStore(s: InMemoryBrainTimelineStore): void {
-	_brainStore = s;
+export function setBrainStore(s: InMemoryBrainTimelineStore, projectId?: string | null): void {
+	if (projectId) {
+		_projectBrainStores.set(projectId, s);
+	} else {
+		_brainStore = s;
+	}
 }
 
 export function getGoalStore(): GoalStore {
@@ -140,9 +155,11 @@ export interface BrainTimelineResult {
 
 /**
  * Return the current brain daemon status and aggregate stats.
+ *
+ * @param projectId - Optional project ID for per-project brain state
  */
-export async function getBrainState(): Promise<BrainState> {
-	const store = getBrainStore();
+export async function getBrainState(projectId?: string | null): Promise<BrainState> {
+	const store = getBrainStore(projectId);
 	const events = await store.list({ limit: 10000 });
 
 	let observationCount = 0;
@@ -172,9 +189,15 @@ export async function getBrainState(): Promise<BrainState> {
 /**
  * Return observations matching the given filters.
  * Observations are timeline events with eventType === "observation".
+ *
+ * @param options - Query options
+ * @param projectId - Optional project ID for per-project observations
  */
-export async function getObservations(options?: BrainQueryOptions): Promise<BrainObservationsResult> {
-	const store = getBrainStore();
+export async function getObservations(
+	options?: BrainQueryOptions,
+	projectId?: string | null,
+): Promise<BrainObservationsResult> {
+	const store = getBrainStore(projectId);
 	const events = await store.list({
 		eventTypes: ["observation"],
 		limit: options?.limit ?? 50,
@@ -212,9 +235,12 @@ export async function getObservations(options?: BrainQueryOptions): Promise<Brai
 /**
  * Return signals matching the given filters.
  * Signals are timeline events with eventType === "signal".
+ *
+ * @param options - Query options
+ * @param projectId - Optional project ID for per-project signals
  */
-export async function getSignals(options?: BrainQueryOptions): Promise<BrainSignalsResult> {
-	const store = getBrainStore();
+export async function getSignals(options?: BrainQueryOptions, projectId?: string | null): Promise<BrainSignalsResult> {
+	const store = getBrainStore(projectId);
 	const events = await store.list({
 		eventTypes: ["signal"],
 		limit: options?.limit ?? 50,
@@ -244,9 +270,15 @@ export async function getSignals(options?: BrainQueryOptions): Promise<BrainSign
 
 /**
  * Return timeline events matching the given filters.
+ *
+ * @param options - Query options
+ * @param projectId - Optional project ID for per-project timeline
  */
-export async function getTimeline(options?: BrainQueryOptions): Promise<BrainTimelineResult> {
-	const store = getBrainStore();
+export async function getTimeline(
+	options?: BrainQueryOptions,
+	projectId?: string | null,
+): Promise<BrainTimelineResult> {
+	const store = getBrainStore(projectId);
 	const events = await store.list({
 		limit: options?.limit ?? 50,
 		offset: options?.offset ?? 0,
@@ -261,11 +293,14 @@ export async function getTimeline(options?: BrainQueryOptions): Promise<BrainTim
 // Audit API
 // ---------------------------------------------------------------------------
 
-export async function getAuditEntries(options?: {
-	limit?: number;
-	offset?: number;
-	action?: string;
-}): Promise<AuditEntriesResult> {
+export async function getAuditEntries(
+	options?: {
+		limit?: number;
+		offset?: number;
+		action?: string;
+	},
+	_projectId?: string | null,
+): Promise<AuditEntriesResult> {
 	try {
 		const ledger = getAuditLedger();
 		const query = options?.action ? { action: options.action } : {};
@@ -279,7 +314,7 @@ export async function getAuditEntries(options?: {
 	}
 }
 
-export async function getAuditStats(): Promise<AuditStatsResult> {
+export async function getAuditStats(_projectId?: string | null): Promise<AuditStatsResult> {
 	try {
 		const ledger = getAuditLedger();
 		const stats = await ledger.getStats();
@@ -295,7 +330,10 @@ export async function getAuditStats(): Promise<AuditStatsResult> {
 	}
 }
 
-export async function getProvenance(targetId: string): Promise<{ targetId: string; chain: unknown[] } | null> {
+export async function getProvenance(
+	targetId: string,
+	_projectId?: string | null,
+): Promise<{ targetId: string; chain: unknown[] } | null> {
 	try {
 		const ledger = getAuditLedger();
 		const entries = await ledger.query({});
@@ -311,7 +349,7 @@ export async function getProvenance(targetId: string): Promise<{ targetId: strin
 	}
 }
 
-export async function explainDecision(targetId: string): Promise<string> {
+export async function explainDecision(targetId: string, _projectId?: string | null): Promise<string> {
 	try {
 		const provenance = await getProvenance(targetId);
 		if (!provenance) return "No decision found for the given target.";
@@ -327,7 +365,7 @@ export async function explainDecision(targetId: string): Promise<string> {
 
 let _emergencyStop = false;
 
-export async function getAutonomyProfile(): Promise<AutonomyProfileResult> {
+export async function getAutonomyProfile(_projectId?: string | null): Promise<AutonomyProfileResult> {
 	return {
 		level: 3,
 		levelLabel: "Operator",
@@ -338,19 +376,22 @@ export async function getAutonomyProfile(): Promise<AutonomyProfileResult> {
 	};
 }
 
-export async function updateAutonomyProfile(_updates: Record<string, unknown>): Promise<AutonomyProfileResult> {
+export async function updateAutonomyProfile(
+	_updates: Record<string, unknown>,
+	_projectId?: string | null,
+): Promise<AutonomyProfileResult> {
 	return getAutonomyProfile();
 }
 
-export async function emergencyStop(): Promise<void> {
+export async function emergencyStop(_projectId?: string | null): Promise<void> {
 	_emergencyStop = true;
 }
 
-export async function releaseStop(): Promise<void> {
+export async function releaseStop(_projectId?: string | null): Promise<void> {
 	_emergencyStop = false;
 }
 
-export async function getEmergencyStatus(): Promise<EmergencyStatusResult> {
+export async function getEmergencyStatus(_projectId?: string | null): Promise<EmergencyStatusResult> {
 	return { stopped: _emergencyStop };
 }
 
@@ -358,48 +399,58 @@ export async function getEmergencyStatus(): Promise<EmergencyStatusResult> {
 // Memory API
 // ---------------------------------------------------------------------------
 
-export async function getMemories(_options?: {
-	limit?: number;
-	offset?: number;
-	search?: string;
-	type?: string;
-	lifecycle?: string;
-	tags?: string[];
-}): Promise<MemoryListResult> {
+export async function getMemories(
+	_options?: {
+		limit?: number;
+		offset?: number;
+		search?: string;
+		type?: string;
+		lifecycle?: string;
+		tags?: string[];
+	},
+	_projectId?: string | null,
+): Promise<MemoryListResult> {
 	return { memories: [], total: 0 };
 }
 
-export async function getMemoryStats(): Promise<MemoryStatsResult> {
+export async function getMemoryStats(_projectId?: string | null): Promise<MemoryStatsResult> {
 	return { total: 0, byType: {}, byLifecycle: {}, averageConfidence: 0 };
 }
 
-export async function getMemory(_id: string): Promise<MemoryRecord | null> {
+export async function getMemory(_id: string, _projectId?: string | null): Promise<MemoryRecord | null> {
 	return null;
 }
 
-export async function createMemory(_input: {
-	title: string;
-	content: string;
-	type?: string;
-	tags?: string[];
-	confidence?: number;
-}): Promise<MemoryRecord> {
+export async function createMemory(
+	_input: {
+		title: string;
+		content: string;
+		type?: string;
+		tags?: string[];
+		confidence?: number;
+	},
+	_projectId?: string | null,
+): Promise<MemoryRecord> {
 	throw new Error("Memory store not configured");
 }
 
-export async function updateMemory(_id: string, _updates: Record<string, unknown>): Promise<MemoryRecord> {
+export async function updateMemory(
+	_id: string,
+	_updates: Record<string, unknown>,
+	_projectId?: string | null,
+): Promise<MemoryRecord> {
 	throw new Error("Memory store not configured");
 }
 
-export async function deleteMemory(_id: string): Promise<void> {
+export async function deleteMemory(_id: string, _projectId?: string | null): Promise<void> {
 	// no-op
 }
 
-export async function rejectMemory(id: string): Promise<{ id: string; status: string }> {
+export async function rejectMemory(id: string, _projectId?: string | null): Promise<{ id: string; status: string }> {
 	return { id, status: "rejected" };
 }
 
-export async function activateMemory(id: string): Promise<{ id: string; status: string }> {
+export async function activateMemory(id: string, _projectId?: string | null): Promise<{ id: string; status: string }> {
 	return { id, status: "active" };
 }
 
@@ -407,11 +458,11 @@ export async function activateMemory(id: string): Promise<{ id: string; status: 
 // Overnight API
 // ---------------------------------------------------------------------------
 
-export async function getOvernightHistory(): Promise<unknown[]> {
+export async function getOvernightHistory(_projectId?: string | null): Promise<unknown[]> {
 	return [];
 }
 
-export async function cancelOvernight(_sessionId: string): Promise<{ success: boolean }> {
+export async function cancelOvernight(_sessionId: string, _projectId?: string | null): Promise<{ success: boolean }> {
 	return { success: true };
 }
 
@@ -419,17 +470,18 @@ export async function cancelOvernight(_sessionId: string): Promise<{ success: bo
 // Policy API
 // ---------------------------------------------------------------------------
 
-export async function getPolicyRules(): Promise<PolicyRuleListResult> {
+export async function getPolicyRules(_projectId?: string | null): Promise<PolicyRuleListResult> {
 	return { rules: [], total: 0 };
 }
 
-export async function toggleRule(id: string): Promise<{ id: string; enabled: boolean }> {
+export async function toggleRule(id: string, _projectId?: string | null): Promise<{ id: string; enabled: boolean }> {
 	return { id, enabled: false };
 }
 
 export async function evaluateAction(
 	action: string,
 	_context?: Record<string, unknown>,
+	_projectId?: string | null,
 ): Promise<PolicyEvaluateResult> {
 	return { decision: "deny", explanation: `No policy engine configured. Action "${action}" denied by default.` };
 }

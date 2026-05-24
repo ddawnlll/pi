@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { brainClient } from "../api/brain";
 import type { ReflectionReport } from "../types-brain";
 
@@ -10,17 +10,25 @@ export interface UseReflectionsReturn {
 	refresh: () => Promise<void>;
 }
 
-export function useReflections(): UseReflectionsReturn {
+/**
+ * Hook for reflection data. Supports project-scoped API calls.
+ *
+ * @param projectId - Optional project ID for project-scoped brain API
+ */
+export function useReflections(projectId?: string | null): UseReflectionsReturn {
 	const [reflections, setReflections] = useState<ReflectionReport[]>([]);
 	const [stats, setStats] = useState<{ total: number; memoriesCreated: number; suggestionsGenerated: number } | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const projectIdRef = useRef(projectId);
+	projectIdRef.current = projectId;
 
 	const fetch = useCallback(async () => {
+		const pid = projectIdRef.current;
 		try {
 			const [refData, statsData] = await Promise.all([
-				brainClient.getReflections().catch(() => []),
-				brainClient.getReflectionStats().catch(() => null),
+				brainClient.getReflections(pid).catch(() => []),
+				brainClient.getReflectionStats(pid).catch(() => null),
 			]);
 			setReflections(refData);
 			if (statsData) setStats(statsData);

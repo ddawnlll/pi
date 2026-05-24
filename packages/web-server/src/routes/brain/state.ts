@@ -1,15 +1,20 @@
 /**
  * Brain state routes — P13 brain daemon status, observations, signals, timeline
+ *
+ * Routes use relative paths so they can be registered under any prefix:
+ * - Globally: prefix "/api/brain" → /api/brain/state
+ * - Per-project: prefix "/api/projects/:projectId/brain" → /api/projects/:projectId/brain/state
  */
 
 import type { FastifyInstance } from "fastify";
 
 export async function registerBrainStateRoutes(fastify: FastifyInstance): Promise<void> {
-	// GET /api/brain/state - Brain daemon status summary
-	fastify.get("/api/brain/state", async (_request, reply) => {
+	// GET /state - Brain daemon status summary
+	fastify.get("/state", async (request, reply) => {
 		try {
 			const { getBrainState } = await import("@earendil-works/pi-coding-agent");
-			const state = await getBrainState();
+			const { projectId } = request.params as { projectId?: string };
+			const state = await getBrainState(projectId);
 			return state;
 		} catch {
 			return reply.code(500).send({
@@ -21,46 +26,49 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 		}
 	});
 
-	// GET /api/brain/observations - List observations
+	// GET /observations - List observations
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; severity?: string };
-	}>("/api/brain/observations", async (request, _reply) => {
+	}>("/observations", async (request, _reply) => {
 		try {
 			const { getObservations } = await import("@earendil-works/pi-coding-agent");
+			const { projectId } = request.params as { projectId?: string };
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
-			const result = await getObservations({ limit, offset, severity: request.query.severity });
+			const result = await getObservations({ limit, offset, severity: request.query.severity }, projectId);
 			return result;
 		} catch {
 			return { observations: [], total: 0 };
 		}
 	});
 
-	// GET /api/brain/signals - List signals
+	// GET /signals - List signals
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; resolved?: string };
-	}>("/api/brain/signals", async (request, _reply) => {
+	}>("/signals", async (request, _reply) => {
 		try {
 			const { getSignals } = await import("@earendil-works/pi-coding-agent");
+			const { projectId } = request.params as { projectId?: string };
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
 			const resolved = request.query.resolved !== undefined ? request.query.resolved === "true" : undefined;
-			const result = await getSignals({ limit, offset, resolved });
+			const result = await getSignals({ limit, offset, resolved }, projectId);
 			return result;
 		} catch {
 			return { signals: [], total: 0 };
 		}
 	});
 
-	// GET /api/brain/timeline - Get timeline events
+	// GET /timeline - Get timeline events
 	fastify.get<{
 		Querystring: { limit?: string; offset?: string; severity?: string };
-	}>("/api/brain/timeline", async (request, _reply) => {
+	}>("/timeline", async (request, _reply) => {
 		try {
 			const { getTimeline } = await import("@earendil-works/pi-coding-agent");
+			const { projectId } = request.params as { projectId?: string };
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
-			const result = await getTimeline({ limit, offset, severity: request.query.severity });
+			const result = await getTimeline({ limit, offset, severity: request.query.severity }, projectId);
 			return result;
 		} catch {
 			return { events: [], total: 0 };

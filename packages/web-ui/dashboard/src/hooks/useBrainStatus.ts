@@ -22,7 +22,12 @@ export interface UseBrainStatusReturn {
 	setAutoRefresh: (v: boolean) => void;
 }
 
-export function useBrainStatus(): UseBrainStatusReturn {
+/**
+ * Hook for brain state data. Supports project-scoped API calls.
+ *
+ * @param projectId - Optional project ID for project-scoped brain API
+ */
+export function useBrainStatus(projectId?: string | null): UseBrainStatusReturn {
 	const [state, setState] = useState<BrainStateData | null>(null);
 	const [observations, setObservations] = useState<BrainObservation[]>([]);
 	const [signals, setSignals] = useState<BrainSignal[]>([]);
@@ -34,10 +39,10 @@ export function useBrainStatus(): UseBrainStatusReturn {
 	const fetch = useCallback(async () => {
 		try {
 			const [stateData, obsData, sigData, tlData] = await Promise.all([
-				brainClient.getState().catch(() => null),
-				brainClient.getObservations({ limit: 50 }).catch(() => ({ observations: [], total: 0 })),
-				brainClient.getSignals({ limit: 50 }).catch(() => ({ signals: [], total: 0 })),
-				brainClient.getTimeline({ limit: 50 }).catch(() => ({ events: [], total: 0 })),
+				brainClient.getState(projectId).catch(() => null),
+				brainClient.getObservations({ limit: 50 }, projectId).catch(() => ({ observations: [], total: 0 })),
+				brainClient.getSignals({ limit: 50 }, projectId).catch(() => ({ signals: [], total: 0 })),
+				brainClient.getTimeline({ limit: 50 }, projectId).catch(() => ({ events: [], total: 0 })),
 			]);
 
 			if (stateData) setState(stateData);
@@ -50,7 +55,7 @@ export function useBrainStatus(): UseBrainStatusReturn {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [projectId]);
 
 	useEffect(() => {
 		fetch();

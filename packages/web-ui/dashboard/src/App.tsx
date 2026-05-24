@@ -28,6 +28,7 @@ import { WorkerDetail } from "./components/WorkerDetail";
 import { DiffViewer } from "./components/DiffViewer";
 import { OpenProjectDialog } from "./components/OpenProjectDialog";
 import { PlanUploadDialog } from "./components/PlanUploadDialog";
+import { TaskCreateDialog } from "./components/TaskCreateDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
 import { WarningBanner } from "./components/WarningBanner";
@@ -201,6 +202,7 @@ export function App() {
   const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
+  const [showTaskCreateDialog, setShowTaskCreateDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showRerunDialog, setShowRerunDialog] = useState(false);
   const [rerunning, setRerunning] = useState(false);
@@ -502,9 +504,7 @@ export function App() {
   }, []);
 
   const handleCreateTask = useCallback(() => {
-    // Open task creation dialog or navigate to task creation flow
-    // For now, set activeView to show task creation
-    setActiveView({ type: "task" });
+    setShowTaskCreateDialog(true);
   }, []);
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
@@ -885,6 +885,15 @@ export function App() {
         <PlanUploadDialog isOpen={showPlanUploadDialog} onClose={() => setShowPlanUploadDialog(false)}
           projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted}
           onEnqueued={handlePlanEnqueued} />
+      )}
+      {showTaskCreateDialog && selectedProjectId && (
+        <TaskCreateDialog isOpen={showTaskCreateDialog} onClose={() => setShowTaskCreateDialog(false)}
+          projectId={selectedProjectId} onTaskCreated={(taskId) => {
+            setShowTaskCreateDialog(false);
+            setSelectedTaskId(taskId);
+            setActiveView({ type: "task" });
+            queryClient.invalidateQueries({ queryKey: ["tasks", selectedProjectId] });
+          }} />
       )}
       <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
         project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />

@@ -5,16 +5,16 @@
  * approval/rejection, night run configuration, and decision explanations.
  *
  * Endpoints:
- *   GET    /api/brain/protocol/morning        Get morning report data (JSON)
- *   GET    /api/brain/protocol/morning/markdown  Get morning report (Markdown)
- *   POST   /api/brain/protocol/approval       Process an approval/rejection
- *   POST   /api/brain/protocol/rejection      Record a rejection
- *   POST   /api/brain/protocol/memory-correction  Record a memory correction
- *   POST   /api/brain/protocol/night/configure  Configure a night run
- *   POST   /api/brain/protocol/night/:sessionId/start  Start a night run
- *   GET    /api/brain/protocol/night/:sessionId/status  Check night run status
- *   POST   /api/brain/protocol/explain         Explain a decision
- *   GET    /api/brain/protocol/rejections      Get all rejection records
+ *   GET    /protocol/morning        Get morning report data (JSON)
+ *   GET    /protocol/morning/markdown  Get morning report (Markdown)
+ *   POST   /protocol/approval       Process an approval/rejection
+ *   POST   /protocol/rejection      Record a rejection
+ *   POST   /protocol/memory-correction  Record a memory correction
+ *   POST   /protocol/night/configure  Configure a night run
+ *   POST   /protocol/night/:sessionId/start  Start a night run
+ *   GET    /protocol/night/:sessionId/status  Check night run status
+ *   POST   /protocol/explain         Explain a decision
+ *   GET    /protocol/rejections      Get all rejection records
  *
  * Dependencies: P15.F (UserProtocol)
  *
@@ -127,10 +127,10 @@ export interface BrainProtocolApi {
  */
 export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api: BrainProtocolApi): Promise<void> {
 	// -----------------------------------------------------------------------
-	// GET /api/brain/protocol/morning — Get morning report data (JSON)
+	// GET /protocol/morning — Get morning report data (JSON)
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/protocol/morning", async (_request, reply) => {
+	fastify.get("/protocol/morning", async (_request, reply) => {
 		try {
 			const data = await api.getMorningData();
 			return { success: true, data };
@@ -144,10 +144,10 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/protocol/morning/markdown — Get morning report (Markdown)
+	// GET /protocol/morning/markdown — Get morning report (Markdown)
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/protocol/morning/markdown", async (_request, reply) => {
+	fastify.get("/protocol/morning/markdown", async (_request, reply) => {
 		try {
 			const markdown = await api.generateMorningMarkdown();
 			return reply.header("Content-Type", "text/markdown; charset=utf-8").send(markdown);
@@ -161,7 +161,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/approval — Process an approval/rejection
+	// POST /protocol/approval — Process an approval/rejection
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -170,7 +170,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 			approved: boolean;
 			by: string;
 		};
-	}>("/api/brain/protocol/approval", async (request, reply) => {
+	}>("/protocol/approval", async (request, reply) => {
 		try {
 			const { requestId, approved, by } = request.body;
 			if (!requestId || by === undefined || by === null) {
@@ -192,7 +192,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/rejection — Record a rejection
+	// POST /protocol/rejection — Record a rejection
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -201,7 +201,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 			by: string;
 			reason?: string;
 		};
-	}>("/api/brain/protocol/rejection", async (request, reply) => {
+	}>("/protocol/rejection", async (request, reply) => {
 		try {
 			const { proposalId, by, reason } = request.body;
 			if (!proposalId || !by) {
@@ -222,7 +222,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/memory-correction — Record a memory correction
+	// POST /protocol/memory-correction — Record a memory correction
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -231,7 +231,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 			correction: string;
 			by: string;
 		};
-	}>("/api/brain/protocol/memory-correction", async (request, reply) => {
+	}>("/protocol/memory-correction", async (request, reply) => {
 		try {
 			const { memoryId, correction, by } = request.body;
 			if (!memoryId || !correction || !by) {
@@ -252,7 +252,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/night/configure — Configure a night run
+	// POST /protocol/night/configure — Configure a night run
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -264,7 +264,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 			notificationEmail?: string;
 			generateMorningReport: boolean;
 		};
-	}>("/api/brain/protocol/night/configure", async (request, reply) => {
+	}>("/protocol/night/configure", async (request, reply) => {
 		try {
 			const config = {
 				queue: request.body.queue,
@@ -294,12 +294,12 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/night/:sessionId/start — Start a night run
+	// POST /protocol/night/:sessionId/start — Start a night run
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
 		Params: { sessionId: string };
-	}>("/api/brain/protocol/night/:sessionId/start", async (request, reply) => {
+	}>("/protocol/night/:sessionId/start", async (request, reply) => {
 		try {
 			await api.startNightRun(request.params.sessionId);
 			return { success: true };
@@ -314,12 +314,12 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/protocol/night/:sessionId/status — Check night run status
+	// GET /protocol/night/:sessionId/status — Check night run status
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { sessionId: string };
-	}>("/api/brain/protocol/night/:sessionId/status", async (request, reply) => {
+	}>("/protocol/night/:sessionId/status", async (request, reply) => {
 		try {
 			const status = await api.checkNightRunStatus(request.params.sessionId);
 			return { success: true, ...status };
@@ -334,7 +334,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/protocol/explain — Explain a decision
+	// POST /protocol/explain — Explain a decision
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -342,7 +342,7 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 			action: string;
 			context?: Record<string, unknown>;
 		};
-	}>("/api/brain/protocol/explain", async (request, reply) => {
+	}>("/protocol/explain", async (request, reply) => {
 		try {
 			const { action, context = {} } = request.body;
 			if (!action) {
@@ -363,10 +363,10 @@ export async function registerBrainProtocolRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/protocol/rejections — Get all rejection records
+	// GET /protocol/rejections — Get all rejection records
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/protocol/rejections", async (_request, reply) => {
+	fastify.get("/protocol/rejections", async (_request, reply) => {
 		try {
 			const records = api.getRejectionRecords();
 			return { success: true, records };

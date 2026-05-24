@@ -4,12 +4,12 @@
  * REST API for listing, reading, and extracting data from reflection reports.
  *
  * Endpoints:
- *   GET    /api/brain/reflections              List reflections (query: planExecId, planTitle, limit, offset, since, until)
- *   GET    /api/brain/reflections/stats        Reflection aggregate statistics
- *   GET    /api/brain/reflections/:planExecId  Get single reflection detail
- *   POST   /api/brain/reflections/:planExecId/generate  Generate/regenerate a reflection
- *   GET    /api/brain/reflections/:planExecId/memories  Get memory proposals from a reflection
- *   GET    /api/brain/reflections/:planExecId/future    Get future suggestions from a reflection
+ *   GET    /reflections              List reflections (query: planExecId, planTitle, limit, offset, since, until)
+ *   GET    /reflections/stats        Reflection aggregate statistics
+ *   GET    /reflections/:planExecId  Get single reflection detail
+ *   POST   /reflections/:planExecId/generate  Generate/regenerate a reflection
+ *   GET    /reflections/:planExecId/memories  Get memory proposals from a reflection
+ *   GET    /reflections/:planExecId/future    Get future suggestions from a reflection
  *
  * All list endpoints return { success: true, ... } format.
  * Errors return { success: false, error: "..." }.
@@ -85,7 +85,7 @@ export async function registerBrainReflectionRoutes(
 	api: BrainReflectionApiLike,
 ): Promise<void> {
 	// -----------------------------------------------------------------------
-	// GET /api/brain/reflections — List reflections
+	// GET /reflections — List reflections
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
@@ -97,7 +97,7 @@ export async function registerBrainReflectionRoutes(
 			since?: string;
 			until?: string;
 		};
-	}>("/api/brain/reflections", async (request, reply) => {
+	}>("/reflections", async (request, reply) => {
 		try {
 			const { query } = request;
 			const result = await api.listReflections({
@@ -124,13 +124,13 @@ export async function registerBrainReflectionRoutes(
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/reflections/stats — Reflection aggregate statistics
+	// GET /reflections/stats — Reflection aggregate statistics
 	//
 	// NOTE: This MUST be registered BEFORE the /:planExecId route to avoid
 	// Fastify interpreting "stats" as a planExecId parameter.
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/reflections/stats", async (_request, reply) => {
+	fastify.get("/reflections/stats", async (_request, reply) => {
 		try {
 			const stats = await api.getStats();
 			return reply.send({
@@ -147,12 +147,12 @@ export async function registerBrainReflectionRoutes(
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/reflections/:planExecId — Get single reflection detail
+	// GET /reflections/:planExecId — Get single reflection detail
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { planExecId: string };
-	}>("/api/brain/reflections/:planExecId", async (request, reply) => {
+	}>("/reflections/:planExecId", async (request, reply) => {
 		try {
 			const { planExecId } = request.params;
 			const report = await api.getReflection(planExecId);
@@ -178,7 +178,7 @@ export async function registerBrainReflectionRoutes(
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/reflections/:planExecId/generate — Generate/regenerate
+	// POST /reflections/:planExecId/generate — Generate/regenerate
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -187,7 +187,7 @@ export async function registerBrainReflectionRoutes(
 			force?: boolean;
 			input?: Record<string, unknown>;
 		};
-	}>("/api/brain/reflections/:planExecId/generate", async (request, reply) => {
+	}>("/reflections/:planExecId/generate", async (request, reply) => {
 		try {
 			const { planExecId } = request.params;
 			const { force, input: rawInput } = request.body ?? {};
@@ -234,12 +234,12 @@ export async function registerBrainReflectionRoutes(
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/reflections/:planExecId/memories — Get memory proposals
+	// GET /reflections/:planExecId/memories — Get memory proposals
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { planExecId: string };
-	}>("/api/brain/reflections/:planExecId/memories", async (request, reply) => {
+	}>("/reflections/:planExecId/memories", async (request, reply) => {
 		try {
 			const { planExecId } = request.params;
 			const result = await api.getMemories(planExecId);
@@ -265,12 +265,12 @@ export async function registerBrainReflectionRoutes(
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/reflections/:planExecId/future — Get future suggestions
+	// GET /reflections/:planExecId/future — Get future suggestions
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { planExecId: string };
-	}>("/api/brain/reflections/:planExecId/future", async (request, reply) => {
+	}>("/reflections/:planExecId/future", async (request, reply) => {
 		try {
 			const { planExecId } = request.params;
 			const result = await api.getFuture(planExecId);

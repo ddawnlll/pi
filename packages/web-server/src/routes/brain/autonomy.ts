@@ -1,15 +1,18 @@
 /**
  * Autonomy routes — P15 autonomy profile, emergency stop
+ *
+ * Routes use relative paths so they can be registered under any prefix.
  */
 
 import type { FastifyInstance } from "fastify";
 
 export async function registerBrainAutonomyRoutes(fastify: FastifyInstance): Promise<void> {
-	// GET /api/brain/autonomy - Get autonomy profile
-	fastify.get("/api/brain/autonomy", async () => {
+	// GET /autonomy - Get autonomy profile
+	fastify.get("/autonomy", async (request) => {
 		try {
 			const { getAutonomyProfile } = await import("@earendil-works/pi-coding-agent");
-			return await getAutonomyProfile();
+			const { projectId } = request.params as { projectId?: string };
+			return await getAutonomyProfile(projectId);
 		} catch {
 			return {
 				level: 3,
@@ -22,43 +25,47 @@ export async function registerBrainAutonomyRoutes(fastify: FastifyInstance): Pro
 		}
 	});
 
-	// PATCH /api/brain/autonomy - Update autonomy profile
-	fastify.patch<{ Body: Record<string, unknown> }>("/api/brain/autonomy", async (request, reply) => {
+	// PATCH /autonomy - Update autonomy profile
+	fastify.patch<{ Body: Record<string, unknown> }>("/autonomy", async (request, reply) => {
 		try {
 			const { updateAutonomyProfile } = await import("@earendil-works/pi-coding-agent");
-			return await updateAutonomyProfile(request.body);
+			const { projectId } = request.params as { projectId?: string };
+			return await updateAutonomyProfile(request.body, projectId);
 		} catch (error) {
 			return reply.code(500).send({ error: "Failed to update autonomy profile", message: String(error) });
 		}
 	});
 
-	// POST /api/brain/autonomy/emergency-stop
-	fastify.post("/api/brain/autonomy/emergency-stop", async () => {
+	// POST /autonomy/emergency-stop
+	fastify.post("/autonomy/emergency-stop", async (request) => {
 		try {
 			const { emergencyStop } = await import("@earendil-works/pi-coding-agent");
-			await emergencyStop();
+			const { projectId } = request.params as { projectId?: string };
+			await emergencyStop(projectId);
 			return { success: true };
 		} catch {
 			return { success: true };
 		}
 	});
 
-	// POST /api/brain/autonomy/release-stop
-	fastify.post("/api/brain/autonomy/release-stop", async () => {
+	// POST /autonomy/release-stop
+	fastify.post("/autonomy/release-stop", async (request) => {
 		try {
 			const { releaseStop } = await import("@earendil-works/pi-coding-agent");
-			await releaseStop();
+			const { projectId } = request.params as { projectId?: string };
+			await releaseStop(projectId);
 			return { success: true };
 		} catch {
 			return { success: true };
 		}
 	});
 
-	// GET /api/brain/autonomy/emergency-status
-	fastify.get("/api/brain/autonomy/emergency-status", async () => {
+	// GET /autonomy/emergency-status
+	fastify.get("/autonomy/emergency-status", async (request) => {
 		try {
 			const { getEmergencyStatus } = await import("@earendil-works/pi-coding-agent");
-			return await getEmergencyStatus();
+			const { projectId } = request.params as { projectId?: string };
+			return await getEmergencyStatus(projectId);
 		} catch {
 			return { stopped: false };
 		}

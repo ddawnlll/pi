@@ -5,18 +5,18 @@
  * stats, and evidence retrieval.
  *
  * Endpoints:
- *   GET    /api/brain/proposals                    List proposals (query: status, type, minScore, limit, offset)
- *   POST   /api/brain/proposals                    Create proposal
- *   GET    /api/brain/proposals/inbox              Top-3 inbox view
- *   GET    /api/brain/proposals/stats              Proposal statistics
- *   GET    /api/brain/proposals/{id}               Get single proposal
- *   PUT    /api/brain/proposals/{id}               Update proposal
- *   DELETE /api/brain/proposals/{id}               Delete proposal
- *   POST   /api/brain/proposals/{id}/accept        Accept proposal
- *   POST   /api/brain/proposals/{id}/reject        Reject proposal
- *   POST   /api/brain/proposals/{id}/correct       Correct proposal
- *   POST   /api/brain/proposals/{id}/expire        Manually expire
- *   GET    /api/brain/proposals/{id}/evidence      Get evidence detail
+ *   GET    /proposals                    List proposals (query: status, type, minScore, limit, offset)
+ *   POST   /proposals                    Create proposal
+ *   GET    /proposals/inbox              Top-3 inbox view
+ *   GET    /proposals/stats              Proposal statistics
+ *   GET    /proposals/{id}               Get single proposal
+ *   PUT    /proposals/{id}               Update proposal
+ *   DELETE /proposals/{id}               Delete proposal
+ *   POST   /proposals/{id}/accept        Accept proposal
+ *   POST   /proposals/{id}/reject        Reject proposal
+ *   POST   /proposals/{id}/correct       Correct proposal
+ *   POST   /proposals/{id}/expire        Manually expire
+ *   GET    /proposals/{id}/evidence      Get evidence detail
  *
  * All responses follow { success: boolean, ... } format.
  *
@@ -129,7 +129,7 @@ export interface BrainProposalApiLike {
  */
 export async function registerBrainProposalRoutes(fastify: FastifyInstance, api: BrainProposalApiLike): Promise<void> {
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals — List proposals
+	// GET /proposals — List proposals
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
@@ -147,7 +147,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 			sortBy?: "score" | "createdAt" | "updatedAt";
 			sortOrder?: "asc" | "desc";
 		};
-	}>("/api/brain/proposals", async (request, reply) => {
+	}>("/proposals", async (request, reply) => {
 		try {
 			const { query } = request;
 			const proposals = await api.listProposals({
@@ -180,12 +180,12 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/proposals — Create proposal
+	// POST /proposals — Create proposal
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
 		Body: Record<string, unknown>;
-	}>("/api/brain/proposals", async (request, reply) => {
+	}>("/proposals", async (request, reply) => {
 		try {
 			const body = request.body;
 			if (!body.type || !body.title || !body.description) {
@@ -221,10 +221,10 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals/inbox — Top-3 inbox view
+	// GET /proposals/inbox — Top-3 inbox view
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/proposals/inbox", async (_request, reply) => {
+	fastify.get("/proposals/inbox", async (_request, reply) => {
 		try {
 			const inbox = await api.getInbox();
 			return reply.send({
@@ -241,10 +241,10 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals/stats — Proposal statistics
+	// GET /proposals/stats — Proposal statistics
 	// -----------------------------------------------------------------------
 
-	fastify.get("/api/brain/proposals/stats", async (_request, reply) => {
+	fastify.get("/proposals/stats", async (_request, reply) => {
 		try {
 			const stats = await api.getStats();
 			return reply.send({
@@ -261,12 +261,12 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals/:id — Get single proposal
+	// GET /proposals/:id — Get single proposal
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { id: string };
-	}>("/api/brain/proposals/:id", async (request, reply) => {
+	}>("/proposals/:id", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const proposal = await api.getProposal(id);
@@ -292,13 +292,13 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// PUT /api/brain/proposals/:id — Update proposal
+	// PUT /proposals/:id — Update proposal
 	// -----------------------------------------------------------------------
 
 	fastify.put<{
 		Params: { id: string };
 		Body: Record<string, unknown>;
-	}>("/api/brain/proposals/:id", async (request, reply) => {
+	}>("/proposals/:id", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const body = request.body;
@@ -325,12 +325,12 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// DELETE /api/brain/proposals/:id — Delete proposal
+	// DELETE /proposals/:id — Delete proposal
 	// -----------------------------------------------------------------------
 
 	fastify.delete<{
 		Params: { id: string };
-	}>("/api/brain/proposals/:id", async (request, reply) => {
+	}>("/proposals/:id", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const deleted = await api.deleteProposal(id);
@@ -356,7 +356,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/proposals/:id/accept — Accept proposal
+	// POST /proposals/:id/accept — Accept proposal
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -364,7 +364,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 		Body: {
 			approvedBy?: string;
 		};
-	}>("/api/brain/proposals/:id/accept", async (request, reply) => {
+	}>("/proposals/:id/accept", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { approvedBy } = request.body ?? {};
@@ -394,7 +394,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/proposals/:id/reject — Reject proposal
+	// POST /proposals/:id/reject — Reject proposal
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -403,7 +403,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 			rejectedBy?: string;
 			reason?: string;
 		};
-	}>("/api/brain/proposals/:id/reject", async (request, reply) => {
+	}>("/proposals/:id/reject", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { rejectedBy, reason } = request.body ?? {};
@@ -433,7 +433,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/proposals/:id/correct — Correct proposal
+	// POST /proposals/:id/correct — Correct proposal
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
@@ -441,7 +441,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 		Body: {
 			corrections: Record<string, unknown>;
 		};
-	}>("/api/brain/proposals/:id/correct", async (request, reply) => {
+	}>("/proposals/:id/correct", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const { corrections } = request.body ?? {};
@@ -478,12 +478,12 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// POST /api/brain/proposals/:id/expire — Manually expire proposal
+	// POST /proposals/:id/expire — Manually expire proposal
 	// -----------------------------------------------------------------------
 
 	fastify.post<{
 		Params: { id: string };
-	}>("/api/brain/proposals/:id/expire", async (request, reply) => {
+	}>("/proposals/:id/expire", async (request, reply) => {
 		try {
 			const { id } = request.params;
 
@@ -512,12 +512,12 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals/:id/evidence — Get evidence detail
+	// GET /proposals/:id/evidence — Get evidence detail
 	// -----------------------------------------------------------------------
 
 	fastify.get<{
 		Params: { id: string };
-	}>("/api/brain/proposals/:id/evidence", async (request, reply) => {
+	}>("/proposals/:id/evidence", async (request, reply) => {
 		try {
 			const { id } = request.params;
 			const evidence = await api.getEvidence(id);
@@ -543,7 +543,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	});
 
 	// -----------------------------------------------------------------------
-	// GET /api/brain/proposals/inbox/refresh — Refresh inbox
+	// GET /proposals/inbox/refresh — Refresh inbox
 	//
 	// NOTE: This must be registered AFTER the /:id routes to avoid
 	// Fastify interpreting "inbox" as an :id param. However, because
@@ -552,7 +552,7 @@ export async function registerBrainProposalRoutes(fastify: FastifyInstance, api:
 	// to guarantee no conflict.
 	// -----------------------------------------------------------------------
 
-	fastify.post("/api/brain/proposals/inbox/refresh", async (_request, reply) => {
+	fastify.post("/proposals/inbox/refresh", async (_request, reply) => {
 		try {
 			const inbox = await api.refreshInbox();
 			return reply.send({

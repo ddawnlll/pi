@@ -20,7 +20,7 @@
  * 4. User can compare original and edited dependency graph
  */
 
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
 	AlertTriangle,
@@ -184,6 +184,29 @@ export function PlanUploadDialog({
 	// ── Multi-file state ──
 	const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
 	const [executionMode, setExecutionMode] = useState<"parallel" | "sequential">("parallel");
+
+	// ── Phase name override (P22.E) ──
+	const [phaseName, setPhaseName] = useState<string>("");
+
+	// Extract phase name from first file's content when files change
+	useEffect(() => {
+		if (fileEntries.length > 0 && !phaseName) {
+			const content = fileEntries[0].content;
+			if (content) {
+				// Try format: # Phase P22 — Title Here
+				const headingMatch = content.match(/# Phase P\d+[^\n]*[—\-–]\s*([^\n]+)/i);
+				if (headingMatch) {
+					setPhaseName(headingMatch[1].trim());
+				} else {
+					// Try format: Title: Value
+					const titleFieldMatch = content.match(/Title[^\n]*:\s*([^\n]+)/i);
+					if (titleFieldMatch) {
+						setPhaseName(titleFieldMatch[1].trim());
+					}
+				}
+			}
+		}
+	}, [fileEntries, phaseName]);
 	const [validationResults, setValidationResults] = useState<Map<string, ValidateWithPreviewResponse>>(new Map());
 	const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
 	const [fixingFile, setFixingFile] = useState<string | null>(null);
@@ -484,6 +507,14 @@ export function PlanUploadDialog({
 			// Use the old hook run method directly
 			const result = await hookRun("", safetyOverrides);
 			if (result?.success && result.planExecutionId) {
+				// Apply phase name override if set (P22.E)
+				if (phaseName.trim()) {
+					fetch(`${API_BASE}/api/projects/${projectId}/plans/${result.planExecutionId}/rename`, {
+						method: "PATCH",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ title: phaseName.trim() }),
+					}).catch(() => {});
+				}
 				onExecutionStarted(result.planExecutionId);
 				onClose();
 			} else if (result?.errors) {
@@ -532,6 +563,14 @@ export function PlanUploadDialog({
 					);
 					if (!executionId && i === 0) {
 						setExecutionId(result.planExecutionId);
+						// Apply phase name override if set (P22.E)
+						if (phaseName.trim()) {
+							fetch(`${API_BASE}/api/projects/${projectId}/plans/${result.planExecutionId}/rename`, {
+								method: "PATCH",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ title: phaseName.trim() }),
+							}).catch(() => {});
+						}
 						onExecutionStarted(result.planExecutionId);
 					}
 				} else {
@@ -580,6 +619,7 @@ export function PlanUploadDialog({
 		setApprovalChecks({});
 		setExecutions([]);
 		setExecutionId(undefined);
+		setPhaseName("");
 		setError(null);
 		setShowGraphDiff(false);
 		setPendingPatches([]);
@@ -742,12 +782,30 @@ export function PlanUploadDialog({
 									)}
 									{/* Multi-file select */}
 									{(fileEntries.length > 0 || previewState.validationResponse) && (
-										<FileSelectScreen
-											files={fileEntries}
-											onFilesChange={setFileEntries}
-											executionMode={executionMode}
-											onExecutionModeChange={setExecutionMode}
-										/>
+										<>
+											<FileSelectScreen
+												files={fileEntries}
+												onFilesChange={setFileEntries}
+												executionMode={executionMode}
+												onExecutionModeChange={setExecutionMode}
+											/>
+											{/* Phase name override (P22.E) */}
+											<div className="border border-gray-700 rounded-lg p-3 bg-gray-800/50">
+												<label className="block text-xs text-gray-400 mb-1.5 font-medium">
+													Phase name <span className="text-gray-500">(override)</span>
+												</label>
+												<input
+													type="text"
+													value={phaseName}
+													onChange={(e) => setPhaseName(e.target.value)}
+													placeholder="Parsed from plan header, or type to override..."
+													className="w-full px-3 py-2 text-sm bg-gray-900 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+												/>
+												<p className="text-[10px] text-gray-500 mt-1">
+													Override the phase name shown throughout the dashboard. Can be changed after execution.
+												</p>
+											</div>
+										</>
 									)}
 								</>
 							)}

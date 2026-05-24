@@ -101,6 +101,10 @@ export interface PlanExecution {
 	status: PlanExecutionStatus;
 	startedAt: string;
 	completedAt: string | null;
+	/** Whether this plan is archived (hidden from default runs list) */
+	archived?: boolean;
+	/** User-provided phase title override */
+	phaseTitle?: string;
 }
 
 export type PlanExecutionStatus =
@@ -120,6 +124,12 @@ export interface PlanExecutionDetail {
 	startedAt: number;
 	completedAt: number | null;
 	workspaces: WorkspaceSummary[];
+	/** Whether this plan is archived (hidden from default runs list) */
+	archived?: boolean;
+	/** User-provided phase title override */
+	phaseTitle?: string;
+	/** Display title (phaseTitle → title → "Untitled Phase") */
+	displayTitle?: string;
 }
 
 export interface WorkspaceSummary {

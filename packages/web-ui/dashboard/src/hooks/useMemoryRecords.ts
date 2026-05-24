@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { brainClient } from "../api/brain";
 import type { MemoryRecord, MemoryStats } from "../types-brain";
 
@@ -27,7 +27,12 @@ export interface UseMemoriesReturn {
 	setPage: (p: number) => void;
 }
 
-export function useMemories(): UseMemoriesReturn {
+/**
+ * Hook for memory CRUD operations. Supports project-scoped API calls.
+ *
+ * @param projectId - Optional project ID for project-scoped brain API
+ */
+export function useMemories(projectId?: string | null): UseMemoriesReturn {
 	const [memories, setMemories] = useState<MemoryRecord[]>([]);
 	const [total, setTotal] = useState(0);
 	const [stats, setStats] = useState<MemoryStats | null>(null);
@@ -41,19 +46,25 @@ export function useMemories(): UseMemoriesReturn {
 	});
 	const [page, setPage] = useState(1);
 	const limit = 20;
+	const projectIdRef = useRef(projectId);
+	projectIdRef.current = projectId;
 
 	const fetch = useCallback(async () => {
+		const pid = projectIdRef.current;
 		try {
 			const [memData, statsData] = await Promise.all([
-				brainClient.getMemories({
-					limit,
-					offset: (page - 1) * limit,
-					search: filters.search || undefined,
-					type: filters.type || undefined,
-					lifecycle: filters.lifecycle || undefined,
-					tags: filters.tags.length > 0 ? filters.tags : undefined,
-				}),
-				brainClient.getMemoryStats().catch(() => null),
+				brainClient.getMemories(
+					{
+						limit,
+						offset: (page - 1) * limit,
+						search: filters.search || undefined,
+						type: filters.type || undefined,
+						lifecycle: filters.lifecycle || undefined,
+						tags: filters.tags.length > 0 ? filters.tags : undefined,
+					},
+					pid,
+				),
+				brainClient.getMemoryStats(pid).catch(() => null),
 			]);
 			setMemories(memData.memories);
 			setTotal(memData.total);
@@ -82,7 +93,7 @@ export function useMemories(): UseMemoriesReturn {
 
 	const create = useCallback(
 		async (data: { title: string; content: string; type?: string; tags?: string[]; confidence?: number }) => {
-			const created = await brainClient.createMemory(data);
+			const created = await brainClient.createMemory(data, projectIdRef.current);
 			await fetch();
 			return created;
 		},
@@ -91,7 +102,7 @@ export function useMemories(): UseMemoriesReturn {
 
 	const update = useCallback(
 		async (id: string, data: Partial<MemoryRecord>) => {
-			await brainClient.updateMemory(id, data);
+			await brainClient.updateMemory(id, data, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
@@ -99,7 +110,7 @@ export function useMemories(): UseMemoriesReturn {
 
 	const reject = useCallback(
 		async (id: string) => {
-			await brainClient.rejectMemory(id);
+			await brainClient.rejectMemory(id, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
@@ -107,7 +118,7 @@ export function useMemories(): UseMemoriesReturn {
 
 	const activate = useCallback(
 		async (id: string) => {
-			await brainClient.activateMemory(id);
+			await brainClient.activateMemory(id, projectIdRef.current);
 			await fetch();
 		},
 		[fetch],
