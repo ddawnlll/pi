@@ -286,36 +286,14 @@ export class AutonomousExecutor {
 	}
 
 	/**
-	 * Check if the state store has a running execution that matches the given queue.
-	 * Used to prevent duplicate execution start.
-	 */
-	private async hasRunningExecution(queue: WQ): Promise<boolean> {
-		try {
-			const executions = await this.stateStore.listPlanExecutions(this.projectId);
-			return executions.some(
-				(e) =>
-					e.phase === queue.phase &&
-					(e.status === "running" || e.status === "paused" || e.status === "awaiting_handoff"),
-			);
-		} catch {
-			return false;
-		}
-	}
-
-	/**
 	 * Initialize execution for a plan
 	 *
 	 * @param queue - Workspace queue
 	 */
 	async initialize(queue: WQ): Promise<string> {
-		// Check for existing running execution to prevent duplicates
-		const existingRunning = await this.hasRunningExecution(queue);
-		if (existingRunning) {
-			throw new Error(
-				`A plan execution for phase "${queue.phase}" is already running. ` +
-					"Stop or wait for it to complete before starting a new one.",
-			);
-		}
+		// NOTE: The old hasRunningExecution phase-based dedup check was removed.
+		// Each plan upload should always create a fresh execution. The in-flight
+		// guard in runPlan() prevents concurrent calls for the same project.
 
 		const planExecutionId = await this.stateStore.initializeState(this.projectId, queue);
 		this.planExecutionId = planExecutionId;

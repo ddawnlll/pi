@@ -306,10 +306,18 @@ export class WorkspaceAgentExecutor {
 		this.timeoutHandle.unref();
 
 		try {
-			// P22.C: Worktree-only mode — always execute in worktree when worktree mode is enabled.
-			// The inner executor (scoped to the worktree path) has worktree disabled to avoid recursion
-			// and falls through to direct agent execution via executeAgentInPlace().
-			if (this.isWorktreeModeEnabled && this.planExecutionId) {
+			// P22.C: Worktree-only mode — always execute inside an isolated git worktree.
+			// The outer executor (from AutonomousExecutor) always has worktree mode enabled
+			// and creates a worktree, then an inner executor scoped to the worktree path.
+			// The inner executor has worktree disabled to avoid recursion and falls through
+			// to direct agent execution via executeAgentInPlace().
+			if (this.isWorktreeModeEnabled) {
+				if (!this.planExecutionId) {
+					throw new Error(
+						"Worktree-only mode requires planExecutionId for worktree-based execution. " +
+							"All workspace execution must run inside an isolated git worktree.",
+					);
+				}
 				return await this.executeInWorktree(packet, workspaceId);
 			}
 
@@ -911,13 +919,9 @@ export class WorkspaceAgentExecutor {
 			log(`Executing agent in worktree: ${createResult.state.worktreePath}`);
 			const result = await worktreeExecutor.execute(packet, workspaceId);
 
-			// Clean up the worktree after execution completes
-			try {
-				await this.worktreeExecutor.removeWorktree(!result.success);
-				log(`Worktree cleaned up (quarantine=${!result.success})`);
-			} catch (cleanupErr) {
-				log(`Worktree cleanup warning: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
-			}
+			// Do NOT remove the worktree after execution — the agent's changes are in it.
+			// The plan-runner or a separate cleanup pass handles worktree cleanup.
+			log(`Worktree preserved at: ${createResult.state.worktreePath}`);
 
 			// Attach worktree state to the result
 			return {
@@ -928,13 +932,8 @@ export class WorkspaceAgentExecutor {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			log(`Worktree execution error: ${errorMessage}`);
 
-			// Clean up worktree on error
-			try {
-				await this.worktreeExecutor?.removeWorktree(true);
-				log(`Worktree quarantined after error`);
-			} catch (cleanupErr) {
-				log(`Worktree cleanup warning: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
-			}
+			// Preserve worktree on error too — the agent's partial work may be salvageable.
+			log(`Worktree preserved (worktree execution had error)`);
 
 			return {
 				success: false,
