@@ -7,9 +7,10 @@ const API_BASE = "";
 // List plan executions
 // ---------------------------------------------------------------------------
 
-async function fetchPlanExecutions(projectId: string): Promise<PlanExecution[]> {
+async function fetchPlanExecutions(projectId: string, includeArchived = false): Promise<PlanExecution[]> {
 	try {
-		const response = await fetch(`${API_BASE}/api/projects/${projectId}/plans`);
+		const params = includeArchived ? "?includeArchived=true" : "";
+		const response = await fetch(`${API_BASE}/api/projects/${projectId}/plans${params}`);
 		if (!response.ok) return [];
 		const data = await response.json();
 		return data.executions ?? [];
@@ -19,10 +20,10 @@ async function fetchPlanExecutions(projectId: string): Promise<PlanExecution[]> 
 	}
 }
 
-export function usePlanExecutions(projectId: string | null) {
+export function usePlanExecutions(projectId: string | null, includeArchived = false) {
 	return useQuery<PlanExecution[]>({
-		queryKey: ["plan-executions", projectId],
-		queryFn: () => fetchPlanExecutions(projectId!),
+		queryKey: ["plan-executions", projectId, includeArchived],
+		queryFn: () => fetchPlanExecutions(projectId!, includeArchived),
 		enabled: !!projectId,
 		refetchInterval: 10_000,
 		refetchIntervalInBackground: false,

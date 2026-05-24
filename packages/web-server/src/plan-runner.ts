@@ -386,8 +386,9 @@ export async function renameExecution(
 	newTitle: string,
 ): Promise<boolean> {
 	try {
-		// Update the meta file
-		await updateExecutionMeta(workspaceRoot, planExecId, { title: newTitle });
+		// Update the meta file with phaseTitle override (P22.E)
+		// phaseTitle is the user-facing display name; title is the original plan title.
+		await updateExecutionMeta(workspaceRoot, planExecId, { phaseTitle: newTitle });
 
 		// Update the active execution in-memory (if still running)
 		const active = activeExecutions.get(planExecId);

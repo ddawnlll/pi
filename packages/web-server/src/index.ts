@@ -79,6 +79,7 @@ import {
 	signalExecutionEvent,
 } from "./plan-runner.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
+import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
@@ -4719,6 +4720,12 @@ registerLogStreamRoutes(fastify, getWorkspaceRoot, getStateStore);
 // ---------------------------------------------------------------------------
 
 registerPerformanceRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
+// File Explorer Routes (P22.D)
+// ---------------------------------------------------------------------------
+
+await registerFileExplorerRoutes(fastify);
 
 // ---------------------------------------------------------------------------
 // Scale Dashboard Routes (Workspace 6.J)

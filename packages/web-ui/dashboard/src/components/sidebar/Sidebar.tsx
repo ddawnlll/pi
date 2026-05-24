@@ -14,17 +14,20 @@
 import { useState, useCallback } from "react";
 import {
 	Activity,
+	Archive,
 	ChevronDown,
 	ChevronRight,
 	Cpu,
 	Database,
 	Eye,
 	FileText,
+	Filter,
 	FolderOpen,
 	History,
 	Lightbulb,
 	ListOrdered,
 	Moon,
+	Pencil,
 	Plus,
 	Puzzle,
 	Settings,
@@ -150,6 +153,10 @@ export interface SidebarProps {
 	onCreateTask?: () => void;
 	/** Default-expand sections */
 	defaultExpanded?: Record<string, boolean>;
+	/** Whether to include archived plans in the runs list (P22.E) */
+	includeArchived?: boolean;
+	/** Toggle archived plan visibility (P22.E) */
+	onToggleArchived?: () => void;
 }
 
 export function Sidebar({
@@ -173,10 +180,20 @@ export function Sidebar({
 	onSelectTask,
 	onCreateTask,
 	defaultExpanded,
+	includeArchived = false,
+	onToggleArchived,
 }: SidebarProps) {
 	// Track collapsed state per section
 	const [expanded, setExpanded] = useState<Record<string, boolean>>(() => ({
 		brain: defaultExpanded?.brain ?? true,
+		// P22.E: Rename/archive state
+		renamingExecId: null as string | null,
+		renameValue: "",
+	}));
+
+	// ── Plan rename/archive state (P22.E) ──
+	const [renamingExecId, setRenamingExecId] = useState<string | null>(null);
+	const [renameValue, setRenameValue] = useState("");
 		tasks: defaultExpanded?.tasks ?? true,
 		runs: defaultExpanded?.runs ?? true,
 		platform: defaultExpanded?.platform ?? false,
@@ -483,6 +500,22 @@ export function Sidebar({
 										<Upload size={13} strokeWidth={2} />
 										<span>Upload plan...</span>
 									</button>
+
+									{/* Archive toggle (P22.E) */}
+									{onToggleArchived && (
+										<button
+											onClick={onToggleArchived}
+											className={`flex items-center gap-2 px-3 py-1.5 rounded text-[10px] w-full text-left ${
+												includeArchived
+													? `${ACC_BG} ${ACC_TXT}`
+													: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+											}`}
+										>
+											<Filter size={11} strokeWidth={1.5} />
+											<span>{includeArchived ? "Showing all runs" : "Show archived runs"}</span>
+										</button>
+									)}
+
 									{/* Execution list */}
 									{executionsLoading ? (
 										<div className={`px-3 py-2 text-xs ${MUT}`}>Loading...</div>
@@ -490,31 +523,89 @@ export function Sidebar({
 										<div className={`px-3 py-2 text-xs ${MUT}`}>No runs yet</div>
 									) : (
 										executions.map((ex) => (
-											<button
-												key={ex.id}
-												onClick={() => onSelectExecution?.(ex.id)}
-												className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors text-left w-full ${
-													activeItem === ex.id
-														? `${ACC_BG} ${ACC_TXT}`
-														: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
-												}`}
-											>
-												<History size={13} strokeWidth={1.6} className="shrink-0" />
-												<span className={`flex-1 truncate ${activeItem === ex.id ? ACC_TXT : TXT}`}>
-													{ex.title || ex.phase || `Run ${ex.id.slice(0, 6)}`}
-												</span>
-												<span className={`text-[10px] ${
-													ex.status === "complete"
-														? "text-emerald-600 dark:text-emerald-400"
-														: ex.status === "running"
-															? "text-blue-600 dark:text-blue-400"
-															: ex.status === "failed"
-																? "text-red-600 dark:text-red-400"
-																: MUT
-												}`}>
-													{ex.status}
-												</span>
-											</button>
+											<div key={ex.id} className="group relative">
+												{renamingExecId === ex.id ? (
+													<div className="flex items-center gap-1 px-2 py-1">
+														<input
+															autoFocus
+															value={renameValue}
+															onChange={(e) => setRenameValue(e.target.value)}
+															onKeyDown={(e) => {
+																if (e.key === "Enter" && renameValue.trim() && project) {
+																	fetch(`/api/projects/${project.id}/plans/${ex.id}/rename`, {
+																		method: "PATCH",
+																		headers: { "Content-Type": "application/json" },
+																		body: JSON.stringify({ title: renameValue.trim() }),
+																	}).catch(() => {});
+																	setRenamingExecId(null);
+																} else if (e.key === "Escape") {
+																	setRenamingExecId(null);
+																}
+															}}
+															onBlur={() => setRenamingExecId(null)}
+															className="flex-1 min-w-0 px-2 py-1 text-xs bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+															placeholder="Rename plan..."
+														/>
+													</div>
+												) : (
+													<>
+														<button
+															onClick={() => onSelectExecution?.(ex.id)}
+															className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors text-left w-full pr-16 ${
+																activeItem === ex.id
+																	? `${ACC_BG} ${ACC_TXT}`
+																	: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+															}`}
+														>
+															<History size={13} strokeWidth={1.6} className="shrink-0" />
+															<span className={`flex-1 truncate ${activeItem === ex.id ? ACC_TXT : TXT}`}>
+																{(ex as any).phaseTitle || ex.title || ex.phase || `Run ${ex.id.slice(0, 6)}`}
+															</span>
+															<span className={`text-[10px] ${
+																ex.status === "complete"
+																	? "text-emerald-600 dark:text-emerald-400"
+																	: ex.status === "running"
+																		? "text-blue-600 dark:text-blue-400"
+																		: ex.status === "failed"
+																			? "text-red-600 dark:text-red-400"
+																			: MUT
+															}`}>
+																{ex.status}
+															</span>
+														</button>
+														{/* Rename / Archive controls (P22.E) */}
+														<span className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+															<button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	setRenamingExecId(ex.id);
+																	setRenameValue(ex.title || "");
+																}}
+																className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+																title="Rename"
+															>
+																<Pencil size={10} />
+															</button>
+															<button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	if (project) {
+																		fetch(`/api/projects/${project.id}/plans/${ex.id}/archive`, {
+																			method: "PATCH",
+																			headers: { "Content-Type": "application/json" },
+																			body: JSON.stringify({ archived: !ex.archived }),
+																		}).catch(() => {});
+																	}
+																}}
+																className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+																title={ex.archived ? "Unarchive" : "Archive"}
+															>
+																<Archive size={10} />
+															</button>
+														</span>
+													</>
+												)}
+											</div>
 										))
 									)}
 								</>
@@ -549,6 +640,12 @@ export function Sidebar({
 			tasksLoading,
 			executions,
 			executionsLoading,
+			includeArchived,
+			onToggleArchived,
+			renamingExecId,
+			renameValue,
+			setRenamingExecId,
+			setRenameValue,
 		],
 	);
 

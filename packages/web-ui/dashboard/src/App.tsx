@@ -272,7 +272,8 @@ export function App() {
     saveSelectedProjectId(selectedProjectId);
   }, [selectedProjectId]);
 
-  const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId);
+  const [includeArchivedPlans, setIncludeArchivedPlans] = useState(false);
+  const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId, includeArchivedPlans);
   const { data: executionDetail } = usePlanExecutionDetail(selectedProjectId, selectedPlanExecId);
   const { data: planStats } = usePlanStats(selectedProjectId, selectedPlanExecId);
   const { budgets: contextBudgets } = useSettings();
@@ -606,6 +607,8 @@ export function App() {
                 onSelectExecution={handleSelectExecution}
                 onSelectTask={handleSelectTask}
                 onCreateTask={handleCreateTask}
+                includeArchived={includeArchivedPlans}
+                onToggleArchived={() => setIncludeArchivedPlans(a => !a)}
               />
             </motion.aside>
           )}
