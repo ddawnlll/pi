@@ -59,6 +59,7 @@ import Fastify from "fastify";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerExtensionRoutes } from "./extensions-routes.js";
+import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import { registerPerformanceRoutes } from "./performance-routes.js";
 import {
@@ -79,7 +80,6 @@ import {
 	signalExecutionEvent,
 } from "./plan-runner.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
-import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
@@ -4764,69 +4764,90 @@ registerSkillRoutes(fastify);
 
 const { registerBrainStateRoutes } = await import("./routes/brain/state.js");
 // Register global brain routes (legacy fallback) under /api/brain prefix
-await fastify.register(async (scoped) => {
-	await registerBrainStateRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainStateRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Memory Routes (P14 — Memory Explorer)
 // ---------------------------------------------------------------------------
 
 const { registerBrainMemoryRoutes } = await import("./routes/brain/memories.js");
-await fastify.register(async (scoped) => {
-	await registerBrainMemoryRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainMemoryRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Autonomy Routes (P15 — Autonomy Controls)
 // ---------------------------------------------------------------------------
 
 const { registerBrainAutonomyRoutes } = await import("./routes/brain/autonomy.js");
-await fastify.register(async (scoped) => {
-	await registerBrainAutonomyRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainAutonomyRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Policy Routes (P18 — Policy Rules)
 // ---------------------------------------------------------------------------
 
 const { registerBrainPolicyRoutes } = await import("./routes/brain/policy.js");
-await fastify.register(async (scoped) => {
-	await registerBrainPolicyRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainPolicyRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Audit Routes (P18 — Audit)
 // ---------------------------------------------------------------------------
 
 const { registerBrainAuditRoutes } = await import("./routes/brain/audit.js");
-await fastify.register(async (scoped) => {
-	await registerBrainAuditRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainAuditRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Overnight Routes (P20 — Overnight Queue)
 // ---------------------------------------------------------------------------
 
 const { registerBrainOvernightRoutes } = await import("./routes/brain/overnight.js");
-await fastify.register(async (scoped) => {
-	await registerBrainOvernightRoutes(scoped);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainOvernightRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Project-Scoped Brain Routes (P22.B — Per-Project Brain Architecture)
 // Registered under /api/projects/:projectId/brain/* in addition to global routes.
 // ---------------------------------------------------------------------------
 
-await fastify.register(async (scoped) => {
-	// Re-register same brain route handlers under project prefix
-	await registerBrainStateRoutes(scoped);
-	await registerBrainMemoryRoutes(scoped);
-	await registerBrainAutonomyRoutes(scoped);
-	await registerBrainPolicyRoutes(scoped);
-	await registerBrainAuditRoutes(scoped);
-	await registerBrainOvernightRoutes(scoped);
-}, { prefix: "/api/projects/:projectId/brain" });
+await fastify.register(
+	async (scoped) => {
+		// Re-register same brain route handlers under project prefix
+		await registerBrainStateRoutes(scoped);
+		await registerBrainMemoryRoutes(scoped);
+		await registerBrainAutonomyRoutes(scoped);
+		await registerBrainPolicyRoutes(scoped);
+		await registerBrainAuditRoutes(scoped);
+		await registerBrainOvernightRoutes(scoped);
+	},
+	{ prefix: "/api/projects/:projectId/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Memory Routes (P11.Q — Memory Cockpit)
@@ -4875,9 +4896,12 @@ const { registerBrainProposalRoutes } = await import("./routes/brain/proposals.j
 const { BrainProposalApi, InMemoryProposalStore } = await import("@earendil-works/pi-coding-agent");
 const proposalStore = new InMemoryProposalStore();
 const proposalApi = new BrainProposalApi(proposalStore);
-await fastify.register(async (scoped) => {
-	await registerBrainProposalRoutes(scoped, proposalApi);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainProposalRoutes(scoped, proposalApi);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Reflection API Routes (P17.G — Reflection API)
@@ -4887,9 +4911,12 @@ const { registerBrainReflectionRoutes } = await import("./routes/brain/reflectio
 const { BrainReflectionApi, ReflectionEngine } = await import("@earendil-works/pi-coding-agent");
 const reflectionEngine = new ReflectionEngine();
 const reflectionApi = new BrainReflectionApi(reflectionEngine);
-await fastify.register(async (scoped) => {
-	await registerBrainReflectionRoutes(scoped, reflectionApi);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainReflectionRoutes(scoped, reflectionApi);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Brain Approval Queue API Routes (P18.D — Approval Queue API)
@@ -4907,19 +4934,25 @@ const auditAdapter = {
 const approvalGate = new ApprovalGate(auditAdapter);
 await approvalGate.initialize();
 const approvalQueueApi = new ApprovalQueueApi(approvalGate);
-await fastify.register(async (scoped) => {
-	await registerBrainApprovalRoutes(scoped, approvalQueueApi);
-}, { prefix: "/api/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainApprovalRoutes(scoped, approvalQueueApi);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Project-Scoped Brain Routes (continued) — proposals, reflections, approvals
 // ---------------------------------------------------------------------------
 
-await fastify.register(async (scoped) => {
-	await registerBrainProposalRoutes(scoped, proposalApi);
-	await registerBrainReflectionRoutes(scoped, reflectionApi);
-	await registerBrainApprovalRoutes(scoped, approvalQueueApi);
-}, { prefix: "/api/projects/:projectId/brain" });
+await fastify.register(
+	async (scoped) => {
+		await registerBrainProposalRoutes(scoped, proposalApi);
+		await registerBrainReflectionRoutes(scoped, reflectionApi);
+		await registerBrainApprovalRoutes(scoped, approvalQueueApi);
+	},
+	{ prefix: "/api/projects/:projectId/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Health Check

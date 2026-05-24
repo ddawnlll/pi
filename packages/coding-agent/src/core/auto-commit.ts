@@ -5,10 +5,10 @@
  * Never pushes, never merges, only commits approved changes.
  */
 
+import { createGitRunner, type GitRunner } from "./git-runner.js";
 import type { WorkspaceState } from "./plan-state.js";
 import type { Workspace } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
-import { createGitRunner, type GitRunner } from "./git-runner.js";
 
 /**
  * Commit result
@@ -322,10 +322,7 @@ export class AutoCommit {
 	}> {
 		try {
 			const runner = this.getRunner();
-			const result = await runner.run(
-				["status", "--porcelain", "--untracked-files=all"],
-				{ scope: "read_only" },
-			);
+			const result = await runner.run(["status", "--porcelain", "--untracked-files=all"], { scope: "read_only" });
 			const stdout = result.stdout;
 
 			const modified: string[] = [];

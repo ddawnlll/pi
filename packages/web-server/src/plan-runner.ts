@@ -380,11 +380,7 @@ export async function updateExecutionMeta(
  * Rename a plan execution by updating its title in the state store and meta file.
  * Returns true on success, false if the execution was not found.
  */
-export async function renameExecution(
-	workspaceRoot: string,
-	planExecId: string,
-	newTitle: string,
-): Promise<boolean> {
+export async function renameExecution(workspaceRoot: string, planExecId: string, newTitle: string): Promise<boolean> {
 	try {
 		// Update the meta file with phaseTitle override (P22.E)
 		// phaseTitle is the user-facing display name; title is the original plan title.
@@ -2014,7 +2010,8 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 	const execError = currentExec?.error ?? null;
 
 	// Determine if the phase actually failed (not just "completed" with errors)
-	const phaseFailed = execStatus === "failed" || execStatus === "cancelled" || (execStatus === "complete" && execError);
+	const phaseFailed =
+		execStatus === "failed" || execStatus === "cancelled" || (execStatus === "complete" && execError);
 
 	// Update the phase execution with current status
 	const phaseStatus = phaseFailed ? "failed" : "complete";

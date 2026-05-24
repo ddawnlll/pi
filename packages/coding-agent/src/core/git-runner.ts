@@ -549,7 +549,11 @@ export class GitRunner {
 
 		if (command === "branch") {
 			// branch -D, branch <name> <base>, branch -f <name> <base> are repo-wide
-			if (subcommand === "-D" || subcommand === "-f" || (subcommand && !subcommand.startsWith("--") && args.length >= 3)) {
+			if (
+				subcommand === "-D" ||
+				subcommand === "-f" ||
+				(subcommand && !subcommand.startsWith("--") && args.length >= 3)
+			) {
 				return "repo_wide_mutation";
 			}
 			return "read_only";

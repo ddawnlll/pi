@@ -135,11 +135,7 @@ export class ValidationLaneTracker {
 	 * @param validationCommand - The validation command being run
 	 * @param canRunTargetedOnly - Whether this workspace can run targeted-only validation
 	 */
-	startValidation(
-		workspaceId: string,
-		validationCommand: string | undefined,
-		canRunTargetedOnly: boolean,
-	): void {
+	startValidation(workspaceId: string, validationCommand: string | undefined, canRunTargetedOnly: boolean): void {
 		const isHeavy = !canRunTargetedOnly && this.isHeavyValidation(validationCommand);
 		if (isHeavy) {
 			this.heavyCount++;

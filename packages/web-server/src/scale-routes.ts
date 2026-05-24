@@ -683,7 +683,10 @@ export async function registerScaleRoutes(
 							leaseId: "",
 							cwd: wt.path,
 						});
-						const statusResult = await gitRunnerWt.read(["status", "--porcelain"], { cwd: wt.path, timeout: 5000 });
+						const statusResult = await gitRunnerWt.read(["status", "--porcelain"], {
+							cwd: wt.path,
+							timeout: 5000,
+						});
 						wt.dirty = statusResult.stdout.trim().length > 0;
 					} catch {
 						wt.dirty = false;
@@ -880,7 +883,10 @@ export async function registerScaleRoutes(
 
 				if (isWorktreeSafeToPrune(wt, activeQueueIds)) {
 					try {
-						await gitRunner.writeRepo(["worktree", "remove", "--force", wt.path], { cwd: workspaceRoot, timeout: 30000 });
+						await gitRunner.writeRepo(["worktree", "remove", "--force", wt.path], {
+							cwd: workspaceRoot,
+							timeout: 30000,
+						});
 						result.removed++;
 						result.removedNames.push(wt.name);
 					} catch (e) {
@@ -932,7 +938,10 @@ export async function registerScaleRoutes(
 				});
 			}
 
-			await gitRunner.writeRepo(["worktree", "remove", "--force", target.path], { cwd: workspaceRoot, timeout: 30000 });
+			await gitRunner.writeRepo(["worktree", "remove", "--force", target.path], {
+				cwd: workspaceRoot,
+				timeout: 30000,
+			});
 
 			return { success: true, removed: worktreeName, path: target.path };
 		} catch (error) {

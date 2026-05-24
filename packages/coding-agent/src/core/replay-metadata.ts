@@ -11,11 +11,11 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createGitRunner } from "./git-runner.js";
 import type { PlanState, WorkspaceState } from "./plan-state.js";
 import { createSafetyDoctor } from "./safety-doctor.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
-import { createGitRunner } from "./git-runner.js";
 
 // ---------------------------------------------------------------------------
 // Glob pattern matching

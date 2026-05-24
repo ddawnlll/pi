@@ -186,14 +186,6 @@ export function Sidebar({
 	// Track collapsed state per section
 	const [expanded, setExpanded] = useState<Record<string, boolean>>(() => ({
 		brain: defaultExpanded?.brain ?? true,
-		// P22.E: Rename/archive state
-		renamingExecId: null as string | null,
-		renameValue: "",
-	}));
-
-	// ── Plan rename/archive state (P22.E) ──
-	const [renamingExecId, setRenamingExecId] = useState<string | null>(null);
-	const [renameValue, setRenameValue] = useState("");
 		tasks: defaultExpanded?.tasks ?? true,
 		runs: defaultExpanded?.runs ?? true,
 		platform: defaultExpanded?.platform ?? false,
@@ -204,6 +196,10 @@ export function Sidebar({
 	const [renamingProject, setRenamingProject] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+	// ── Plan rename/archive state (P22.E) ──
+	const [renamingExecId, setRenamingExecId] = useState<string | null>(null);
+	const [planRenameValue, setPlanRenameValue] = useState("");
 
 	const toggleSection = useCallback((sectionId: string) => {
 		setExpanded((prev) => ({
@@ -579,7 +575,7 @@ export function Sidebar({
 																onClick={(e) => {
 																	e.stopPropagation();
 																	setRenamingExecId(ex.id);
-																	setRenameValue(ex.title || "");
+																	setRenameValue((ex as any).phaseTitle || ex.title || "");
 																}}
 																className={`p-0.5 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
 																title="Rename"

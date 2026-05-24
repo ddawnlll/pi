@@ -13,9 +13,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { checkDraftGates, isDraftPlan } from "./draft-planner.js";
+import { createGitRunner } from "./git-runner.js";
 import type { IStateStore } from "./state-store.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
-import { createGitRunner } from "./git-runner.js";
 
 /**
  * Status of a plan entry in the queue.

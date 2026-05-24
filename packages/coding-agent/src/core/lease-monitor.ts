@@ -420,12 +420,7 @@ export class LeaseMonitor {
 		const { leaseId, workspaceId, planExecId, cwd } = heartbeat;
 
 		// Find the worktree directory for this workspace
-		const worktreeDir = path.join(
-			this.workspaceRoot,
-			this.worktreeRoot,
-			planExecId,
-			workspaceId,
-		);
+		const worktreeDir = path.join(this.workspaceRoot, this.worktreeRoot, planExecId, workspaceId);
 
 		const quarantinedDir = `${worktreeDir}.quarantined`;
 
@@ -505,21 +500,18 @@ export class LeaseMonitor {
 			const heartbeat: LeaseHeartbeat = JSON.parse(content);
 
 			// Check worktree state
-			const worktreeStatePath = path.join(
-				this.workspaceRoot,
-				".pi",
-				"worktree-state.json",
-			);
+			const worktreeStatePath = path.join(this.workspaceRoot, ".pi", "worktree-state.json");
 			let worktreeState: string | null = null;
 			try {
 				const stateContent = await fs.readFile(worktreeStatePath, "utf-8");
 				const state = JSON.parse(stateContent);
 				// Check if this workspace has a state entry
 				const stateKey = `${heartbeat.planExecId}::${heartbeat.workspaceId}`;
-				worktreeState = state.worktrees?.find((w: any) => {
-					const key = `${w.planExecutionId}::${w.workspaceId}`;
-					return key === stateKey;
-				})?.status ?? null;
+				worktreeState =
+					state.worktrees?.find((w: any) => {
+						const key = `${w.planExecutionId}::${w.workspaceId}`;
+						return key === stateKey;
+					})?.status ?? null;
 			} catch {
 				// Worktree state file may not exist
 			}
@@ -528,9 +520,10 @@ export class LeaseMonitor {
 			if (worktreeState === null || worktreeState === "completed") {
 				// Disagreement: lease says running but worktree says completed or doesn't exist
 				const event: LeaseReconciliationEvent = {
-					disagreementType: worktreeState === "completed"
-						? "lease_says_running_worktree_says_completed"
-						: "lease_says_running_worktree_missing",
+					disagreementType:
+						worktreeState === "completed"
+							? "lease_says_running_worktree_says_completed"
+							: "lease_says_running_worktree_missing",
 					leaseId,
 					workspaceId: heartbeat.workspaceId,
 					planExecId: heartbeat.planExecId,
@@ -563,9 +556,6 @@ export class LeaseMonitor {
  * @param workspaceRoot - Workspace root directory
  * @returns A new LeaseMonitor instance
  */
-export function createLeaseMonitor(
-	config: Partial<LeaseMonitorConfig>,
-	workspaceRoot: string,
-): LeaseMonitor {
+export function createLeaseMonitor(config: Partial<LeaseMonitorConfig>, workspaceRoot: string): LeaseMonitor {
 	return new LeaseMonitor(config, workspaceRoot);
 }

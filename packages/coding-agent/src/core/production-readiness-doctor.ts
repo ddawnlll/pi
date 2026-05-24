@@ -15,8 +15,8 @@
  * execution archive and rendered in the dashboard.
  */
 
-import { SafetyDoctor, type SafetyIssue } from "./safety-doctor.js";
 import { createGitRunner } from "./git-runner.js";
+import { SafetyDoctor, type SafetyIssue } from "./safety-doctor.js";
 
 import { SkillRegistry } from "./skill-registry.js";
 import type { WorkspaceCapabilityManifest, WorkspaceQueue } from "./workspace-schema.js";

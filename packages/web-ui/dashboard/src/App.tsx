@@ -336,7 +336,7 @@ export function App() {
   /** Context refs for the chat panel derived from current dashboard selections. */
   const chatContextRefs: ContextRef[] = [
     ...(selectedProjectId ? [{ kind: "plan" as const, id: selectedProjectId, label: projects.find(p => p.id === selectedProjectId)?.name ?? selectedProjectId }] : []),
-    ...(selectedPlanExecId ? [{ kind: "run" as const, id: selectedPlanExecId, label: executionDetail?.title ?? `Run ${selectedPlanExecId.slice(0, 6)}` }] : []),
+    ...(selectedPlanExecId ? [{ kind: "run" as const, id: selectedPlanExecId, label: (executionDetail as any)?.displayTitle ?? executionDetail?.title ?? `Run ${selectedPlanExecId.slice(0, 6)}` }] : []),
     ...(selectedWorkerId ? [{ kind: "workspace" as const, id: selectedWorkerId, label: selectedWorkerId }] : []),
   ];
 
@@ -525,7 +525,7 @@ export function App() {
 
       {/* ── topbar ── */}
       <Topbar
-        planTitle={executionDetail?.title ?? null}
+        planTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
         statusBadge={activePlanStatus !== "unknown" ? <StatusBadge status={activePlanStatus} /> : undefined}
         onToggleMobileNav={() => setMobileNav(mobileNav === "left" ? null : "left")}
         onToggleLeftSidebar={() => setLeftOpen(o => !o)}

@@ -146,12 +146,7 @@ export class WriteSetDriftDetector {
 		const empiricalWriteSet = await this.getChangedFiles(worktreeDir, baseCommit);
 
 		// Compare empirical vs declared
-		const result = this.compare(
-			workspaceId,
-			planExecId,
-			empiricalWriteSet,
-			declaredConflictScope,
-		);
+		const result = this.compare(workspaceId, planExecId, empiricalWriteSet, declaredConflictScope);
 
 		// Persist drift report
 		await this.persistDriftReport(result, planExecId, workspaceId);
@@ -172,9 +167,7 @@ export class WriteSetDriftDetector {
 				leaseId: "",
 				cwd,
 			});
-			const args = baseCommit
-				? ["diff", "--name-only", baseCommit, "HEAD"]
-				: ["diff", "--name-only", "HEAD"];
+			const args = baseCommit ? ["diff", "--name-only", baseCommit, "HEAD"] : ["diff", "--name-only", "HEAD"];
 			const result = await runner.read(args, { cwd });
 			return result.stdout ? result.stdout.split("\n").filter(Boolean) : [];
 		} catch {
@@ -284,13 +277,7 @@ export class WriteSetDriftDetector {
 			generatedAt: Date.now(),
 		};
 
-		const artifactDir = path.join(
-			this.workspaceRoot,
-			".pi",
-			"executions",
-			planExecId,
-			"worktrees",
-		);
+		const artifactDir = path.join(this.workspaceRoot, ".pi", "executions", planExecId, "worktrees");
 
 		try {
 			await fs.mkdir(artifactDir, { recursive: true });

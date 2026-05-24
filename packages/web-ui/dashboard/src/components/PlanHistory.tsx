@@ -48,7 +48,7 @@ export function PlanHistory({
 							>
 								<div className="flex items-center justify-between">
 									<span className="font-medium truncate mr-2">
-										{exec.title}
+										{(exec as any).phaseTitle || exec.title}
 									</span>
 									<StatusBadge status={exec.status} />
 								</div>

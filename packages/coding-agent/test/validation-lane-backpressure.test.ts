@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ValidationLaneTracker, type ValidationLaneState } from "../src/core/validation-lane.js";
+import { type ValidationLaneState, ValidationLaneTracker } from "../src/core/validation-lane.js";
 
 describe("ValidationLaneTracker", () => {
 	// -----------------------------------------------------------------------
@@ -149,7 +149,9 @@ describe("ValidationLaneTracker", () => {
 			});
 
 			let emittedEvent: string | null = null;
-			tracker.setEventCallback((event) => { emittedEvent = event; });
+			tracker.setEventCallback((event) => {
+				emittedEvent = event;
+			});
 
 			tracker.startValidation("ws-1", "npx vitest run", false);
 			tracker.shouldDeferWorkspace("ws-2", "npx vitest run", false);

@@ -11,6 +11,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createGitRunner } from "./git-runner.js";
 import type { JournalEvent, PlanState, WorkerTranscriptEvent, WorkspaceState } from "./plan-state.js";
 import {
 	buildTranscriptSummary,
@@ -26,7 +27,6 @@ import type {
 	ProjectSummary,
 	StateStoreBackend,
 } from "./state-store.js";
-import { createGitRunner } from "./git-runner.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 

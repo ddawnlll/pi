@@ -117,7 +117,7 @@ export class MergePriorityScorer {
 		const criticalPathPosition = this.computeCriticalPathPosition(workspaceId, entries, workspaceDependencies);
 
 		// 3. Wait time boost: minutes in queue, capped at 10
-		const entry = entries.find(e => e.workspaceId === workspaceId);
+		const entry = entries.find((e) => e.workspaceId === workspaceId);
 		const minutesInQueue = entry ? (now - entry.queuedAt) / 60_000 : 0;
 		const waitTimeBoost = Math.min(Math.floor(minutesInQueue), 10);
 
@@ -154,9 +154,9 @@ export class MergePriorityScorer {
 		for (const [depId, deps] of workspaceDependencies) {
 			if (deps.includes(workspaceId)) {
 				// This workspace depends on us. Check if all OTHER deps are already merged.
-				const otherDepsMerged = deps.every(d => d === workspaceId || this.isEntryMerged(d, entries));
+				const otherDepsMerged = deps.every((d) => d === workspaceId || this.isEntryMerged(d, entries));
 				if (otherDepsMerged) {
-					const depEntry = entries.find(e => e.workspaceId === depId);
+					const depEntry = entries.find((e) => e.workspaceId === depId);
 					if (depEntry && depEntry.status === "queued") {
 						count++;
 					}
@@ -181,9 +181,10 @@ export class MergePriorityScorer {
 		// Check if this workspace is part of any dependency chain.
 		// An orphan workspace is not in the map at all and is not listed
 		// as a dependency of any other workspace.
-		const isReferenced = workspaceDependencies.has(workspaceId) || 
-			Array.from(workspaceDependencies.values()).some(deps => deps.includes(workspaceId));
-		
+		const isReferenced =
+			workspaceDependencies.has(workspaceId) ||
+			Array.from(workspaceDependencies.values()).some((deps) => deps.includes(workspaceId));
+
 		if (!isReferenced) return 0;
 
 		// Find the longest chain of workspaces that depend on this one
@@ -215,17 +216,22 @@ export class MergePriorityScorer {
 	}
 
 	private isEntryMerged(workspaceId: string, entries: QueueEntry[]): boolean {
-		const entry = entries.find(e => e.workspaceId === workspaceId);
+		const entry = entries.find((e) => e.workspaceId === workspaceId);
 		return entry?.status === "merged";
 	}
 
 	private getBandMultiplier(queuePriority?: string): number {
 		switch (queuePriority) {
-			case "critical": return 2.0;
-			case "high": return 1.5;
-			case "normal": return 1.0;
-			case "low": return 0.5;
-			default: return 1.0;
+			case "critical":
+				return 2.0;
+			case "high":
+				return 1.5;
+			case "normal":
+				return 1.0;
+			case "low":
+				return 0.5;
+			default:
+				return 1.0;
 		}
 	}
 }
@@ -569,8 +575,7 @@ export class IntegrationQueue {
 		};
 
 		// Collect all queued entries whose dependencies are met
-		const eligible = this.state.entries
-			.filter((e) => e.status === "queued" && allMerged(e.workspaceId));
+		const eligible = this.state.entries.filter((e) => e.status === "queued" && allMerged(e.workspaceId));
 
 		if (eligible.length === 0) return undefined;
 		if (eligible.length === 1) return eligible[0];

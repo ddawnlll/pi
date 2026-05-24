@@ -9,12 +9,12 @@
  * - Operation scope classification
  */
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GitRunner, createGitRunner } from "../src/core/git-runner.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createGitRunner, type GitRunner } from "../src/core/git-runner.js";
 
 function createTestRepo(): string {
 	const dir = join(tmpdir(), `git-runner-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);

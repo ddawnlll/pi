@@ -10,7 +10,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { GitRunner, createGitRunner } from "../core/git-runner.js";
+import { createGitRunner, type GitRunner } from "../core/git-runner.js";
 import { WorktreeCleanup } from "./worktree-cleanup.js";
 
 import {

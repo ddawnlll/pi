@@ -10,11 +10,16 @@
  * - start/stop lifecycle
  */
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LeaseMonitor, createLeaseMonitor, type LeaseReconciliationEvent, type QuarantineResult } from "../src/core/lease-monitor.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	createLeaseMonitor,
+	type LeaseMonitor,
+	type LeaseReconciliationEvent,
+	type QuarantineResult,
+} from "../src/core/lease-monitor.js";
 
 describe("LeaseMonitor", () => {
 	let tempDir: string;
@@ -38,10 +43,7 @@ describe("LeaseMonitor", () => {
 
 	describe("lease lifecycle", () => {
 		it("can acquire and release a lease", async () => {
-			monitor = createLeaseMonitor(
-				{ enabled: true, staleThresholdSeconds: 999 },
-				tempDir,
-			);
+			monitor = createLeaseMonitor({ enabled: true, staleThresholdSeconds: 999 }, tempDir);
 
 			const heartbeat = await monitor.acquireLease("lease-1", "ws-1", "plan-1", process.pid, tempDir);
 			expect(heartbeat.leaseId).toBe("lease-1");
@@ -110,7 +112,9 @@ describe("LeaseMonitor", () => {
 
 			// Record quarantine event
 			let quarantined: QuarantineResult | null = null;
-			monitor.setQuarantineCallback((r) => { quarantined = r; });
+			monitor.setQuarantineCallback((r) => {
+				quarantined = r;
+			});
 
 			// Run reconcileAll to trigger quarantine
 			await (monitor as any).reconcileAll();
@@ -140,7 +144,9 @@ describe("LeaseMonitor", () => {
 
 			// Monitor quarantine events
 			let quarantined = false;
-			monitor.setQuarantineCallback(() => { quarantined = true; });
+			monitor.setQuarantineCallback(() => {
+				quarantined = true;
+			});
 
 			// Run checkAndQuarantine through a simulated watchdog iteration
 			// Directly test checkAndQuarantine behavior
@@ -164,25 +170,32 @@ describe("LeaseMonitor", () => {
 			const piDir = join(tempDir, ".pi");
 			mkdirSync(piDir, { recursive: true });
 			const stateFile = join(piDir, "worktree-state.json");
-			writeFileSync(stateFile, JSON.stringify({
-				worktrees: [{
-					planExecutionId: "plan-6",
-					workspaceId: "ws-6",
-					status: "completed",
-				}],
-			}));
+			writeFileSync(
+				stateFile,
+				JSON.stringify({
+					worktrees: [
+						{
+							planExecutionId: "plan-6",
+							workspaceId: "ws-6",
+							status: "completed",
+						},
+					],
+				}),
+			);
 
 			// Create lease file saying running
 			await monitor.acquireLease("lease-6", "ws-6", "plan-6", 999999, tempDir);
 
 			// Record reconciliation events
 			const events: LeaseReconciliationEvent[] = [];
-			monitor.setReconciliationCallback((e) => { events.push(e); });
+			monitor.setReconciliationCallback((e) => {
+				events.push(e);
+			});
 
 			await (monitor as any).reconcileAll();
 
 			expect(events.length).toBeGreaterThan(0);
-			const event = events.find(e => e.leaseId === "lease-6");
+			const event = events.find((e) => e.leaseId === "lease-6");
 			if (event) {
 				expect(event.disagreementType).toBe("lease_says_running_worktree_says_completed");
 				expect(event.action).toBe("treat_as_completed");
@@ -204,12 +217,14 @@ describe("LeaseMonitor", () => {
 
 			// Record reconciliation events
 			const events: LeaseReconciliationEvent[] = [];
-			monitor.setReconciliationCallback((e) => { events.push(e); });
+			monitor.setReconciliationCallback((e) => {
+				events.push(e);
+			});
 
 			await (monitor as any).reconcileAll();
 
 			// Should have reconciled with quarantine_and_requeue
-			const event = events.find(e => e.leaseId === "lease-7");
+			const event = events.find((e) => e.leaseId === "lease-7");
 			if (event) {
 				expect(event.disagreementType).toBe("lease_says_running_worktree_missing");
 				expect(event.action).toBe("quarantine_and_requeue");
@@ -223,10 +238,7 @@ describe("LeaseMonitor", () => {
 
 	describe("lifecycle", () => {
 		it("start and stop do not throw", async () => {
-			monitor = createLeaseMonitor(
-				{ enabled: true, staleThresholdSeconds: 999 },
-				tempDir,
-			);
+			monitor = createLeaseMonitor({ enabled: true, staleThresholdSeconds: 999 }, tempDir);
 			await monitor.start();
 			monitor.stop();
 			// Should not crash
@@ -234,10 +246,7 @@ describe("LeaseMonitor", () => {
 		});
 
 		it("disabled monitor does not start timers", async () => {
-			monitor = createLeaseMonitor(
-				{ enabled: false },
-				tempDir,
-			);
+			monitor = createLeaseMonitor({ enabled: false }, tempDir);
 			await monitor.start();
 			monitor.stop();
 			expect(true).toBe(true);

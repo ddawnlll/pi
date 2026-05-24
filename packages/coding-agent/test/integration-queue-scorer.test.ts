@@ -44,11 +44,7 @@ describe("MergePriorityScorer", () => {
 				["ws-B", ["ws-A"]],
 				["ws-C", ["ws-A"]],
 			]);
-			const entries = [
-				makeEntry("ws-A", 1000),
-				makeEntry("ws-B", 2000),
-				makeEntry("ws-C", 3000),
-			];
+			const entries = [makeEntry("ws-A", 1000), makeEntry("ws-B", 2000), makeEntry("ws-C", 3000)];
 
 			const score = scorer.computeScore("ws-A", entries, deps, "normal");
 			expect(score.downstreamReadyCount).toBe(2);
@@ -60,11 +56,7 @@ describe("MergePriorityScorer", () => {
 				["ws-B", ["ws-A"]],
 				["ws-C", ["ws-B"]],
 			]);
-			const entries = [
-				makeEntry("ws-A", 1000),
-				makeEntry("ws-B", 2000),
-				makeEntry("ws-C", 3000),
-			];
+			const entries = [makeEntry("ws-A", 1000), makeEntry("ws-B", 2000), makeEntry("ws-C", 3000)];
 
 			// ws-A is at the start of a chain of length 3 (A -> B -> C)
 			const scoreA = scorer.computeScore("ws-A", entries, deps, "normal");

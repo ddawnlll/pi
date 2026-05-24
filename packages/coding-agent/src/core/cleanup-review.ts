@@ -17,8 +17,8 @@ import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { PiLogger } from "../utils/logger.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
-import { createAgentSession } from "./sdk.js";
 import { createGitRunner } from "./git-runner.js";
+import { createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 
@@ -440,7 +440,11 @@ async function executeCleanupAgent(config: {
 				const unstagedResult = await gitRunner.read(["diff", "--name-only"], { cwd: workspaceRoot });
 				if (stagedResult.stdout.trim() || unstagedResult.stdout.trim()) {
 					await gitRunner.stageAll("_cleanup", workspaceRoot);
-					await gitRunner.commit("_cleanup", "chore(cleanup): auto-commit worktree changes after timeout", workspaceRoot);
+					await gitRunner.commit(
+						"_cleanup",
+						"chore(cleanup): auto-commit worktree changes after timeout",
+						workspaceRoot,
+					);
 					await logAndArchive("Commited worktree changes after timeout");
 				}
 			} catch (commitErr) {
