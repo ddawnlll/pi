@@ -49,8 +49,6 @@ export interface WorkspaceAgentExecutorConfig {
 	model?: Model<any>;
 	/** Maximum turns before timeout */
 	maxTurns?: number;
-	/** Log file path */
-	logPath?: string;
 	/** State store for persisting logs */
 	stateStore?: import("./state-store.js").IStateStore;
 	/** Plan execution ID for log persistence */
@@ -69,56 +67,69 @@ export interface WorkspaceAgentExecutorConfig {
 }
 
 /**
+ * P26.C: Per-execution context — holds all mutable state for a single
+ * workspace execution. Created fresh per execute() call so concurrent
+ * workspaces cannot interfere with each other's timers, abort state,
+ * or worktree executor.
+ */
+interface ExecutionContext {
+	/** Log path for the current execution */
+	logPath?: string;
+	/** Abort controller for the current execution */
+	abortController: AbortController;
+	/** Execution timeout handle */
+	timeoutHandle: ReturnType<typeof setTimeout>;
+	/** LLM idle timeout handle */
+	llmIdleHandle: ReturnType<typeof setTimeout> | null;
+	/** Timestamp of last LLM event */
+	lastLLMEventTime: number;
+	/** Worktree executor scoped to this execution */
+	worktreeExecutor: WorktreeWorkspaceExecutor | null;
+}
+
+/**
  * Workspace Agent Executor
  *
  * Creates and runs agent sessions for workspace execution.
+ *
+ * P26.C: All mutable execution state (abortController, timeoutHandle,
+ * llmIdleHandle, lastLLMEventTime, worktreeExecutor, logPath) is held
+ * in an ExecutionContext created per execute() call. This prevents
+ * concurrent workspaces from interfering with each other's state.
  */
 export class WorkspaceAgentExecutor {
 	private workspaceRoot: string;
 	private model: Model<any>;
 	private maxTurns: number;
-	private logPath?: string;
 	private stateStore?: import("./state-store.js").IStateStore;
 	private planExecutionId?: string;
 	/** Worktree isolation config. Always enabled in P22.C. */
 	private worktreeConfig: WorktreeConfig;
 	/** Execution timeout in milliseconds. */
 	private timeoutMs: number;
-	/** The worktree executor. */
-	private worktreeExecutor: WorktreeWorkspaceExecutor | null = null;
 
 	/**
-	 * Get all worktree states for recovery reconciliation.
-	 * @returns Array of worktree states
+	 * P26.C: worktree executor is created per-execution inside ExecutionContext.
+	 * getAllWorktreeStates now iterates over WorktreeManager directly.
 	 */
-	getWorktreeStates(): WorktreeState[] {
-		if (!this.worktreeExecutor) {
-			return [];
-		}
-		return this.worktreeExecutor.getAllWorktreeStates?.() ?? [];
+	async getAllWorktreeStates(): Promise<WorktreeState[]> {
+		const { WorktreeManager } = await import("../worktree/worktree-manager.js");
+		const manager = new WorktreeManager(this.workspaceRoot);
+		await manager.loadState();
+		return manager.list();
 	}
-
-	/** P4.6.3: AbortController for the current execution, created per execute() call. */
-	private abortController: AbortController | null = null;
-	/** Timeout handle for the current execution, created per execute() call. */
-	private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * LLM streaming idle timeout in milliseconds.
-	 * If no events arrive from the LLM stream within this window,
-	 * the workspace is considered hung and the agent is aborted.
-	 * Default: 5 minutes (300000 ms).
 	 */
 	private readonly llmStreamIdleTimeoutMs: number = 5 * 60 * 1000;
-	/** Handle for the LLM idle timeout */
-	private llmIdleHandle: ReturnType<typeof setTimeout> | null = null;
-	/** Timestamp of the last LLM event, for hung detection logging */
-	private lastLLMEventTime: number = 0;
+
+	/** P26.C: Current execution context — null when not executing. */
+	private currentContext: ExecutionContext | null = null;
 
 	constructor(config: WorkspaceAgentExecutorConfig) {
 		this.workspaceRoot = config.workspaceRoot;
 		this.maxTurns = config.maxTurns ?? 50;
-		this.logPath = config.logPath;
 		this.stateStore = config.stateStore;
 		this.planExecutionId = config.planExecutionId;
 		this.worktreeConfig = config.worktree;
@@ -160,20 +171,24 @@ export class WorkspaceAgentExecutor {
 	}
 
 	/**
-	 * Set the log path for the current execution.
+	 * P26.C: Set the log path for the current execution context.
 	 * Called by the executor owner before each execute() call.
+	 * Sets the log path on the active context; no-op if no context.
 	 */
 	setLogPath(logPath: string): void {
-		this.logPath = logPath;
+		if (this.currentContext) {
+			this.currentContext.logPath = logPath;
+		}
 	}
 
 	/**
 	 * Abort the current execution, if one is active.
 	 * The in-flight execute() promise will resolve with a FAILED verdict.
+	 * P26.C: Uses currentContext.abortController instead of a class field.
 	 */
 	abort(): void {
-		if (this.abortController && !this.abortController.signal.aborted) {
-			this.abortController.abort();
+		if (this.currentContext?.abortController && !this.currentContext.abortController.signal.aborted) {
+			this.currentContext.abortController.abort();
 		}
 	}
 
@@ -188,43 +203,47 @@ export class WorkspaceAgentExecutor {
 
 	/**
 	 * Get the current worktree state, if worktree mode is active.
+	 * P26.C: Reads from currentContext.worktreeExecutor.
 	 */
 	get currentWorktreeState(): WorktreeState | null {
-		return this.worktreeExecutor?.currentWorktreeState ?? null;
+		return this.currentContext?.worktreeExecutor?.currentWorktreeState ?? null;
 	}
 
 	/**
 	 * Get the worktree path, if worktree mode is active.
+	 * P26.C: Reads from currentContext.worktreeExecutor.
 	 */
 	get worktreePath(): string | null {
-		return this.worktreeExecutor?.worktreePath ?? null;
+		return this.currentContext?.worktreeExecutor?.worktreePath ?? null;
 	}
 
 	/**
 	 * Get the base commit hash for the worktree, if available.
+	 * P26.C: Reads from currentContext.worktreeExecutor.
 	 */
 	get baseCommit(): string | null {
-		return this.worktreeExecutor?.baseCommit ?? null;
+		return this.currentContext?.worktreeExecutor?.baseCommit ?? null;
 	}
 
 	/**
 	 * Get the effective workspace root for agent execution.
 	 * Returns the worktree path when mode is enabled, or the original root otherwise.
+	 * P26.C: Reads from currentContext.worktreeExecutor.
 	 */
 	getEffectiveWorkspaceRoot(): string {
-		return this.worktreeExecutor?.getEffectiveWorkspaceRoot() ?? this.workspaceRoot;
+		return this.currentContext?.worktreeExecutor?.getEffectiveWorkspaceRoot() ?? this.workspaceRoot;
 	}
 
 	/**
 	 * Set the plan execution ID for log persistence context.
 	 * Used by AutonomousExecutor to update context after initialization
 	 * without needing to recreate the entire executor.
-	 * Also updates the worktree executor if created.
+	 * Also updates the current context's worktree executor if present.
 	 */
 	setPlanExecutionId(id: string): void {
 		this.planExecutionId = id;
-		if (this.worktreeExecutor) {
-			this.worktreeExecutor.setPlanExecutionId(id);
+		if (this.currentContext?.worktreeExecutor) {
+			this.currentContext.worktreeExecutor.setPlanExecutionId(id);
 		}
 	}
 
@@ -238,14 +257,17 @@ export class WorkspaceAgentExecutor {
 	 * Call this BEFORE abort() when stopping a plan mid-execution to avoid
 	 * losing in-progress work.
 	 *
+	 * P26.C: Reads worktree executor from currentContext.
+	 *
 	 * @returns The generated diff artifact, or undefined if no worktree was active.
 	 */
 	async saveWorktreeArtifactsBeforeStop(): Promise<WorktreeDiffArtifact | undefined> {
-		if (!this.worktreeExecutor || !this.worktreeExecutor.currentWorktreeState) {
+		const wtExec = this.currentContext?.worktreeExecutor;
+		if (!wtExec || !wtExec.currentWorktreeState) {
 			return undefined;
 		}
 
-		const ws = this.worktreeExecutor.currentWorktreeState;
+		const ws = wtExec.currentWorktreeState;
 		const worktreeDir = ws.worktreePath;
 
 		// Check the worktree directory still exists
@@ -303,28 +325,55 @@ export class WorkspaceAgentExecutor {
 	 * @param workspaceId - Workspace ID for logging
 	 * @returns Execution result
 	 */
+	/**
+	 * Execute a workspace using the provided packet
+	 *
+	 * P22.C: Worktree-only mode — execution always happens inside an isolated git worktree.
+	 * The inner executor (scoped to the worktree path) has worktree disabled to avoid recursion.
+	 *
+	 * P26.C: Creates an ExecutionContext per call, passed to inner methods.
+	 * All mutable state (abortController, timeoutHandle, llmIdleHandle,
+	 * lastLLMEventTime, worktreeExecutor, logPath) lives in the context.
+	 *
+	 * @param packet - Hashed workspace packet
+	 * @param workspaceId - Workspace ID for logging
+	 * @param _options - Options including _skipWorktreeCheck and logPath
+	 * @returns Execution result
+	 */
 	async execute(
 		packet: HashedPacket,
 		workspaceId: string,
 		/**
 		 * Internal flag used ONLY by executeInWorktree() when creating the inner
-		 * executor scoped to the worktree. The inner executor has worktree mode
+		 * executor scoped to the worktree path. The inner executor has worktree mode
 		 * disabled to avoid recursion — it is ALREADY inside a worktree, so the
 		 * security check is bypassed for it only.
+		 *
+		 * P26.C: logPath parameter replaces setLogPath() for concurrent execution safety.
 		 */
-		_options?: { _skipWorktreeCheck?: boolean },
+		_options?: { _skipWorktreeCheck?: boolean; logPath?: string },
 	): Promise<AgentExecutionResult> {
-		// Set up abort controller and timeout
-		this.abortController = new AbortController();
-		this.timeoutHandle = setTimeout(() => {
-			if (!this.abortController?.signal.aborted) {
+		// P26.C: Create per-execution context
+		const abortController = new AbortController();
+		const timeoutHandle = setTimeout(() => {
+			if (!abortController.signal.aborted) {
 				console.log(
 					`[workspace-agent-executor] Execution timed out after ${this.timeoutMs}ms, aborting workspace ${workspaceId}`,
 				);
-				this.abortController?.abort();
+				abortController.abort();
 			}
 		}, this.timeoutMs);
-		this.timeoutHandle.unref();
+		timeoutHandle.unref();
+
+		const ctx: ExecutionContext = {
+			logPath: _options?.logPath,
+			abortController,
+			timeoutHandle,
+			llmIdleHandle: null,
+			lastLLMEventTime: 0,
+			worktreeExecutor: null,
+		};
+		this.currentContext = ctx;
 
 		try {
 			// ====================================================================
@@ -347,7 +396,7 @@ export class WorkspaceAgentExecutor {
 
 			if (skipWorktree) {
 				// Inner executor: already inside a worktree, run agent directly.
-				return await this.executeAgentInPlace(packet, workspaceId);
+				return await this.executeAgentInPlace(packet, workspaceId, ctx);
 			}
 
 			if (!this.isWorktreeModeEnabled) {
@@ -369,14 +418,11 @@ export class WorkspaceAgentExecutor {
 						"All workspace execution must run inside an isolated git worktree.",
 				);
 			}
-			return await this.executeInWorktree(packet, workspaceId);
+			return await this.executeInWorktree(packet, workspaceId, ctx);
 		} finally {
-			// Always clear timeout on completion
-			if (this.timeoutHandle) {
-				clearTimeout(this.timeoutHandle);
-				this.timeoutHandle = null;
-			}
-			this.abortController = null;
+			// P26.C: Clear context and timeout on completion
+			this.currentContext = null;
+			clearTimeout(ctx.timeoutHandle);
 		}
 	}
 
@@ -389,7 +435,11 @@ export class WorkspaceAgentExecutor {
 	 * P22.C: This is called by the inner executor (scoped to the worktree path)
 	 * with worktree mode disabled to avoid recursion.
 	 */
-	private async executeAgentInPlace(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+	private async executeAgentInPlace(
+		packet: HashedPacket,
+		workspaceId: string,
+		ctx: ExecutionContext,
+	): Promise<AgentExecutionResult> {
 		const logs: string[] = [];
 		let thinkingBuffer = "";
 		const log = async (message: string) => {
@@ -410,8 +460,8 @@ export class WorkspaceAgentExecutor {
 		};
 
 		try {
-			// P4.6.3: Use the abort controller set up by execute()
-			const abortSignal = this.abortController!.signal;
+			// P26.C: Use the abort controller from the execution context
+			const abortSignal = ctx.abortController.signal;
 
 			log(`Starting execution for workspace ${workspaceId}`);
 			log(`Provider: ${this.model.provider}`);
@@ -513,24 +563,24 @@ export class WorkspaceAgentExecutor {
 
 			// LLM stream idle watchdog: reset on every agent event
 			const resetIdleWatchdog = () => {
-				this.lastLLMEventTime = Date.now();
-				if (this.llmIdleHandle) {
-					clearTimeout(this.llmIdleHandle);
+				ctx.lastLLMEventTime = Date.now();
+				if (ctx.llmIdleHandle) {
+					clearTimeout(ctx.llmIdleHandle);
 				}
-				this.llmIdleHandle = setTimeout(() => {
-					const elapsed = Date.now() - this.lastLLMEventTime;
+				ctx.llmIdleHandle = setTimeout(() => {
+					const elapsed = Date.now() - ctx.lastLLMEventTime;
 					const warnMsg = `LLM stream idle for ${Math.round(elapsed / 1000)}s — aborting workspace ${workspaceId} to trigger retry`;
 					log(`WARNING: ${warnMsg}`);
 					console.error(`[workspace-agent-executor] ${warnMsg}`);
 					// Flush logs before aborting
-					if (this.logPath && logs.length > 0) {
-						fs.writeFile(this.logPath, logs.join("\n"), "utf-8").catch(() => {});
+					if (ctx.logPath && logs.length > 0) {
+						fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8").catch(() => {});
 					}
-					if (this.abortController && !this.abortController.signal.aborted) {
-						this.abortController.abort();
+					if (ctx.abortController && !ctx.abortController.signal.aborted) {
+						ctx.abortController.abort();
 					}
 				}, this.llmStreamIdleTimeoutMs);
-				this.llmIdleHandle.unref();
+				ctx.llmIdleHandle.unref();
 			};
 
 			const completionPromise = new Promise<void>((resolve) => {
@@ -546,9 +596,9 @@ export class WorkspaceAgentExecutor {
 						_agentCompleted = true;
 						emitStatus("deciding", "Agent completed");
 						unsubscribe();
-						if (this.llmIdleHandle) {
-							clearTimeout(this.llmIdleHandle);
-							this.llmIdleHandle = null;
+						if (ctx.llmIdleHandle) {
+							clearTimeout(ctx.llmIdleHandle);
+							ctx.llmIdleHandle = null;
 						}
 						resolve();
 					} else if (event.type === "turn_start") {
@@ -685,9 +735,9 @@ export class WorkspaceAgentExecutor {
 						_agentCompleted = true;
 						unsubscribe();
 						session.agent.abort();
-						if (this.llmIdleHandle) {
-							clearTimeout(this.llmIdleHandle);
-							this.llmIdleHandle = null;
+						if (ctx.llmIdleHandle) {
+							clearTimeout(ctx.llmIdleHandle);
+							ctx.llmIdleHandle = null;
 						}
 						resolve();
 					},
@@ -872,12 +922,12 @@ export class WorkspaceAgentExecutor {
 
 			// Flush buffered output to disk before returning, even on abort.
 			// This ensures partial work artifacts are not lost on cancellation.
-			if (this.logPath) {
-				await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
+			if (ctx.logPath) {
+				await fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8");
 			}
 
 			// P4.6.3: Check if aborted mid-execution
-			if (this.abortController?.signal.aborted) {
+			if (ctx.abortController.signal.aborted) {
 				log("Execution aborted during finalization");
 				return {
 					success: false,
@@ -900,7 +950,7 @@ export class WorkspaceAgentExecutor {
 				error instanceof Error &&
 				(error.message === "aborted" ||
 					error.message.includes("abort") ||
-					(this.abortController?.signal.aborted ?? false));
+					(ctx.abortController.signal.aborted ?? false));
 			const errorMessage = isAborted
 				? "Execution aborted by user"
 				: error instanceof Error
@@ -910,9 +960,9 @@ export class WorkspaceAgentExecutor {
 			log(`Execution ${isAborted ? "aborted" : "failed"}: ${errorMessage}`);
 
 			// Write logs even on error
-			if (this.logPath) {
+			if (ctx.logPath) {
 				try {
-					await fs.writeFile(this.logPath, logs.join("\n"), "utf-8");
+					await fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8");
 				} catch (writeError) {
 					console.error("Failed to write error logs:", writeError);
 				}
@@ -937,7 +987,11 @@ export class WorkspaceAgentExecutor {
 	 *
 	 * P22.C: Worktree-only mode — this is the primary execution path for all workspaces.
 	 */
-	private async executeInWorktree(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+	private async executeInWorktree(
+		packet: HashedPacket,
+		workspaceId: string,
+		ctx: ExecutionContext,
+	): Promise<AgentExecutionResult> {
 		const logs: string[] = [];
 		const log = (message: string) => {
 			const timestamp = new Date().toISOString();
@@ -946,31 +1000,28 @@ export class WorkspaceAgentExecutor {
 			console.log(`[workspace-agent-executor] ${logLine}`);
 		};
 
-		// Listen for abort signal from execute() timeout and abort the worktree executor
-		const abortSignal = this.abortController?.signal;
+		// Listen for abort signal from the execution context and abort the worktree executor
 		const abortWorktree = () => {
-			if (this.worktreeExecutor) {
+			if (ctx.worktreeExecutor) {
 				log("Abort signal received, aborting worktree creation...");
-				this.worktreeExecutor.abort();
+				ctx.worktreeExecutor.abort();
 			}
 		};
-		abortSignal?.addEventListener("abort", abortWorktree, { once: true });
+		ctx.abortController.signal.addEventListener("abort", abortWorktree, { once: true });
 
 		try {
 			log(`Worktree mode enabled for workspace ${workspaceId}`);
 
-			// Create or reuse the worktree executor
-			if (!this.worktreeExecutor) {
-				this.worktreeExecutor = new WorktreeWorkspaceExecutor({
-					workspaceRoot: this.workspaceRoot,
-					planExecutionId: this.planExecutionId!,
-					workspaceId,
-					worktree: this.worktreeConfig,
-				});
-			}
+			// P26.C: Create the worktree executor in the execution context
+			ctx.worktreeExecutor = new WorktreeWorkspaceExecutor({
+				workspaceRoot: this.workspaceRoot,
+				planExecutionId: this.planExecutionId!,
+				workspaceId,
+				worktree: this.worktreeConfig,
+			});
 
 			// Create the worktree
-			const createResult = await this.worktreeExecutor.createWorktree();
+			const createResult = await ctx.worktreeExecutor.createWorktree();
 			if (createResult.error) {
 				log(`Failed to create worktree: ${createResult.error}`);
 				return {
@@ -1017,11 +1068,10 @@ export class WorkspaceAgentExecutor {
 					logs,
 				};
 			}
-			const worktreeExecutor = new WorkspaceAgentExecutor({
+			const innerExecutor = new WorkspaceAgentExecutor({
 				workspaceRoot: createResult.state.worktreePath,
 				model: innerModel,
 				maxTurns: this.maxTurns,
-				logPath: this.logPath,
 				stateStore: this.stateStore,
 				planExecutionId: this.planExecutionId,
 				timeoutMs: this.timeoutMs,
@@ -1036,7 +1086,7 @@ export class WorkspaceAgentExecutor {
 			// Race the inner executor against a 10-minute timeout.
 			const INNER_TIMEOUT_MS = 10 * 60 * 1000;
 			const result = await Promise.race([
-				worktreeExecutor.execute(packet, workspaceId, { _skipWorktreeCheck: true }),
+				innerExecutor.execute(packet, workspaceId, { _skipWorktreeCheck: true, logPath: ctx.logPath }),
 				new Promise<AgentExecutionResult>((_, reject) =>
 					setTimeout(
 						() => reject(new Error(`Inner executor timed out after ${INNER_TIMEOUT_MS / 60000} min`)),

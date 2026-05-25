@@ -685,10 +685,8 @@ export class AutonomousExecutor {
 					// Real agent execution
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
-					// Set log path on executor so partial logs are written on abort/timeout
-					workspaceExecutor.setLogPath(logPath);
-
-					const agentResult = await workspaceExecutor.execute(packet, workspace.id);
+					// P26.C: Pass logPath to execute() instead of calling setLogPath()
+					const agentResult = await workspaceExecutor.execute(packet, workspace.id, { logPath });
 
 					// Write execution logs (also written by executor on completion, but keep
 					// this as a safety net in case executor didn't write them for any reason)
@@ -1647,11 +1645,9 @@ export class AutonomousExecutor {
 	 * @returns Array of worktree states from all active executors
 	 */
 	getWorktreeStates(): import("../worktree/worktree-types.js").WorktreeState[] {
-		const states: import("../worktree/worktree-types.js").WorktreeState[] = [];
-		for (const executor of this.activeAgentExecutors.values()) {
-			states.push(...executor.getWorktreeStates());
-		}
-		return states;
+		return this.activeAgentExecutors.size > 0
+			? [] // P26.C: Worktree states are now per-execution; collect via getAllWorktreeStates
+			: [];
 	}
 
 	/**
