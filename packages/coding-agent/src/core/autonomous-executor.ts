@@ -178,8 +178,11 @@ export class AutonomousExecutor {
 	private workspaceQueue: WorkspaceQueue | null = null;
 	/** Approved preview metadata from the dependency graph (AC1 + AC2). */
 	private approvedPreview: ApprovedPreviewMetadata | null = null;
-	private agentExecutor: WorkspaceAgentExecutor | null = null;
+	/** P26.B: Per-workspace executor instances, keyed by workspace ID */
+	private activeAgentExecutors = new Map<string, WorkspaceAgentExecutor>();
 	private enableRealExecution: boolean;
+	/** Stored config for lazy per-workspace executor creation */
+	private executorConfig: WorkspaceAgentExecutorConfig | null = null;
 	private autoCommitEnabled: boolean;
 	private postPlanHandoffEnabled: boolean;
 	private handoffTimeoutMs: number;
@@ -194,11 +197,15 @@ export class AutonomousExecutor {
 	 */
 	private trackExecution(workspaceId: string, promise: Promise<WorkspaceExecutionResult>): void {
 		this.inFlightExecutions.set(workspaceId, promise);
-		promise.finally(() => {
-			if (this.inFlightExecutions.get(workspaceId) === promise) {
-				this.inFlightExecutions.delete(workspaceId);
-			}
-		});
+		// Suppress unhandled rejection from the .finally() side-chain
+		// The caller (executeWorkspace) handles the rejection via catch.
+		promise
+			.finally(() => {
+				if (this.inFlightExecutions.get(workspaceId) === promise) {
+					this.inFlightExecutions.delete(workspaceId);
+				}
+			})
+			.catch(() => {});
 	}
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
@@ -229,11 +236,11 @@ export class AutonomousExecutor {
 			this.projectId = "default";
 		}
 
-		// Create agent executor if real execution is enabled.
-		// planExecutionId is null here — it's set later via initialize() or
-		// adoptExistingExecution(), both of which call updateAgentExecutorContext().
+		// P26.B: Store config for lazy per-workspace executor creation.
+		// Each executeWorkspace call creates its own WorkspaceAgentExecutor
+		// so concurrent workspaces have isolated executor instances.
 		if (this.enableRealExecution) {
-			const agentConfig: WorkspaceAgentExecutorConfig = {
+			this.executorConfig = {
 				workspaceRoot: config.workspaceRoot,
 				model: config.model,
 				maxTurns: 50,
@@ -244,18 +251,45 @@ export class AutonomousExecutor {
 				// at the WorkspaceAgentExecutor.execute() level.
 				worktree: { enabled: true },
 			};
-			this.agentExecutor = new WorkspaceAgentExecutor(agentConfig);
 		}
 	}
 
 	/**
-	 * Update agent executor with current plan execution ID after initialization
-	 * or when adopting an existing execution.
+	 * Update all active agent executors with current plan execution ID after
+	 * initialization or when adopting an existing execution.
 	 */
 	private updateAgentExecutorContext(): void {
-		if (this.agentExecutor && this.planExecutionId) {
-			this.agentExecutor.setPlanExecutionId(this.planExecutionId);
+		if (this.planExecutionId) {
+			for (const executor of this.activeAgentExecutors.values()) {
+				executor.setPlanExecutionId(this.planExecutionId);
+			}
 		}
+	}
+
+	/**
+	 * Create a workspace-scoped WorkspaceAgentExecutor for the given workspace.
+	 * Registers the executor in activeAgentExecutors for stop/artifact handling.
+	 * The executor is removed from the map after execution completes (via
+	 * trackExecution cleanup) or abort.
+	 */
+	private createWorkspaceExecutor(workspaceId: string): WorkspaceAgentExecutor | null {
+		if (!this.enableRealExecution || !this.executorConfig) {
+			return null;
+		}
+
+		// Remove any stale executor for this workspace (from a prior attempt)
+		const existing = this.activeAgentExecutors.get(workspaceId);
+		if (existing) {
+			existing.abort();
+			this.activeAgentExecutors.delete(workspaceId);
+		}
+
+		const executor = new WorkspaceAgentExecutor(this.executorConfig);
+		if (this.planExecutionId) {
+			executor.setPlanExecutionId(this.planExecutionId);
+		}
+		this.activeAgentExecutors.set(workspaceId, executor);
+		return executor;
 	}
 
 	/**
@@ -637,19 +671,24 @@ export class AutonomousExecutor {
 			// Save packet to snapshot
 			await this.savePacketSnapshot(snapshot, packet, wsStateForPacket.attempts);
 
+			// P26.B: Create a workspace-scoped executor for this call.
+			// Each executeWorkspace call gets its own WorkspaceAgentExecutor so
+			// concurrent workspaces cannot overwrite each other's executor state.
+			const workspaceExecutor = this.createWorkspaceExecutor(workspace.id);
+
 			// Execute workspace with real agent or simulate
 			// P4.6.3: Wrap execution in a tracked promise so stopAllActiveWorkspaces() can await it.
 			const executionPromise = (async (): Promise<WorkspaceExecutionResult> => {
 				let result: WorkspaceExecutionResult;
 
-				if (this.enableRealExecution && this.agentExecutor) {
+				if (this.enableRealExecution && workspaceExecutor) {
 					// Real agent execution
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
 					// Set log path on executor so partial logs are written on abort/timeout
-					this.agentExecutor.setLogPath(logPath);
+					workspaceExecutor.setLogPath(logPath);
 
-					const agentResult = await this.agentExecutor.execute(packet, workspace.id);
+					const agentResult = await workspaceExecutor.execute(packet, workspace.id);
 
 					// Write execution logs (also written by executor on completion, but keep
 					// this as a safety net in case executor didn't write them for any reason)
@@ -681,6 +720,11 @@ export class AutonomousExecutor {
 
 			this.trackExecution(workspace.id, executionPromise);
 			const result = await executionPromise;
+
+			// P26.B: Remove workspace-scoped executor now that execution is complete.
+			// This ensures the executor is cleaned up even on success so concurrent
+			// workspaces cannot reference a stale executor instance identity.
+			this.activeAgentExecutors.delete(workspace.id);
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
@@ -795,6 +839,9 @@ export class AutonomousExecutor {
 		} catch (error) {
 			// Handle failure
 			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			// P26.B: Clean up workspace-scoped executor on failure
+			this.activeAgentExecutors.delete(workspace.id);
 
 			// Release locks on failure
 			this.scheduler.releaseFileLocks(workspace);
@@ -1572,39 +1619,39 @@ export class AutonomousExecutor {
 	}
 
 	/**
-	 * Save diff artifacts from the active worktree (if any) before stopping.
+	 * Save diff artifacts from all active worktrees before stopping.
 	 *
 	 * Must be called BEFORE stopAllActiveWorkspaces() to capture the state
-	 * of the in-flight worktree before the agent is aborted and the worktree
-	 * directory becomes stale.
+	 * of the in-flight worktrees before the agent is aborted and worktree
+	 * directories become stale.
 	 *
-	 * The diff is persisted to `.pi/executions/{planExecId}/worktrees/{wsId}.patch`
-	 * — outside the worktree directory so it survives cleanup.
+	 * P26.B: Iterates all per-workspace executors instead of a singleton.
+	 * Each concurrent workspace's worktree diff is preserved.
 	 *
-	 * Note: since AutonomousExecutor shares a single WorkspaceAgentExecutor
-	 * across all workspaces (sequential per-slot), this only captures the
-	 * last active worktree. For true concurrent worktree isolation, each
-	 * parallel worker would need its own executor.
-	 *
-	 * @returns 1 if a worktree artifact was saved, 0 otherwise.
+	 * @returns Number of worktree artifacts saved.
 	 */
 	async saveAllWorktreeArtifactsBeforeStop(): Promise<number> {
-		if (!this.agentExecutor?.isWorktreeModeEnabled) {
-			return 0;
+		let saved = 0;
+		for (const executor of this.activeAgentExecutors.values()) {
+			if (!executor.isWorktreeModeEnabled) continue;
+			const artifact = await executor.saveWorktreeArtifactsBeforeStop();
+			if (artifact) saved++;
 		}
-
-		const artifact = await this.agentExecutor.saveWorktreeArtifactsBeforeStop();
-		return artifact ? 1 : 0;
+		return saved;
 	}
 
 	/**
-	 * Get worktree states for recovery reconciliation.
+	 * Get worktree states for recovery reconciliation from all active executors.
 	 * During crash recovery, this helps identify orphaned worktrees that
 	 * need cleanup or reconciliation.
-	 * @returns Array of worktree states from the active executor
+	 * @returns Array of worktree states from all active executors
 	 */
 	getWorktreeStates(): import("../worktree/worktree-types.js").WorktreeState[] {
-		return this.agentExecutor?.getWorktreeStates() ?? [];
+		const states: import("../worktree/worktree-types.js").WorktreeState[] = [];
+		for (const executor of this.activeAgentExecutors.values()) {
+			states.push(...executor.getWorktreeStates());
+		}
+		return states;
 	}
 
 	/**
@@ -1613,10 +1660,8 @@ export class AutonomousExecutor {
 	 * @returns Number of worktrees loaded
 	 */
 	async loadWorktreeManagerState(): Promise<number> {
-		if (!this.agentExecutor?.isWorktreeModeEnabled) {
-			return 0;
-		}
-		// Load worktree manager state from .pi/worktree-state.json
+		// Load worktree manager state from .pi/worktree-state.json.
+		// P26.B: No singleton executor guard — always try to load from disk.
 		const { WorktreeManager } = await import("../worktree/worktree-manager.js");
 		const manager = new WorktreeManager(this.workspaceRoot);
 		await manager.loadState();
@@ -1634,8 +1679,12 @@ export class AutonomousExecutor {
 	 * method to preserve in-progress worktree changes.
 	 */
 	async stopAllActiveWorkspaces(): Promise<void> {
-		// Abort the agent executor first (sends signal to in-flight LLM calls)
-		this.agentExecutor?.abort();
+		// P26.B: Abort all per-workspace executors (sends signal to in-flight LLM calls)
+		for (const executor of this.activeAgentExecutors.values()) {
+			executor.abort();
+		}
+		// Clear the map after aborting all executors
+		this.activeAgentExecutors.clear();
 
 		// Wait for all tracked in-flight executions to settle
 		if (this.inFlightExecutions.size > 0) {
