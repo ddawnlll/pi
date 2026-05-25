@@ -32,19 +32,9 @@ async function acquireWorktreeMutex(): Promise<void> {
 				resolve();
 			};
 		});
-		// Safety timeout: if release() is never called (e.g. crash mid-operation),
-		// auto-release after 5 seconds so other operations don't hang forever.
-		// 5s is enough — the actual work (ensureBranch + git worktree add) has its
-		// own 5-minute timeout. If release() isn't called within 5s, something
-		// went wrong (crash, unhandled throw) and we must unblock the queue.
-		const capturedRelease = worktreeMutex.release;
-		setTimeout(() => {
-			// Only release if the captured function is still the active one.
-			// If a new acquire() has replaced it, the chain is alive.
-			if (worktreeMutex.release === capturedRelease) {
-				capturedRelease?.();
-			}
-		}, 5_000).unref();
+		// P26.E: No auto-release bypass. If release() is never called (crash,
+		// unhandled throw), the mutex chain hangs — preventing silent unlocked
+		// execution. Recovery requires restart or manual cleanup.
 	});
 }
 
@@ -77,10 +67,16 @@ function getRunner(cwd: string, workspaceId?: string): GitRunner {
 
 /**
  * Run a git command via GitRunner and return stdout trimmed, or empty string on failure.
+ *
+ * P26.E: Operations that mutate repo state (worktree add/remove, branch, etc.)
+ * run through GitRunner.writeRepo() so they acquire the repo-wide mutex.
+ * Read-only operations still use GitRunner.read().
  */
-async function git(args: string[], cwd: string, _timeoutMs: number = 60_000): Promise<string> {
+async function git(args: string[], cwd: string, _timeoutMs: number = 60_000, isRepoMutation = false): Promise<string> {
 	const runner = getRunner(cwd);
-	const result = await runner.read(args, { cwd, timeout: _timeoutMs });
+	const result = isRepoMutation
+		? await runner.writeRepo(args, { cwd, timeout: _timeoutMs })
+		: await runner.read(args, { cwd, timeout: _timeoutMs });
 	return result.stdout;
 }
 
@@ -305,9 +301,11 @@ export class WorktreeWorkspaceExecutor {
 				// Non-fatal — another worker may have cleaned it
 			}
 		}
+		let acquired = false;
 		for (let attempt = 1; attempt <= 30; attempt++) {
 			try {
 				await fs.writeFile(lockPath, this.workspaceId, { flag: "wx" });
+				acquired = true;
 				break; // lock acquired
 			} catch {
 				// Lock held by another worker — wait and retry
@@ -315,12 +313,23 @@ export class WorktreeWorkspaceExecutor {
 			}
 		}
 
+		// P26.E: If the lock cannot be acquired after 30 retries (~6s), throw
+		// instead of proceeding unlocked. This prevents silent unlocked branch
+		// creation that could cause git ref lock conflicts.
+		if (!acquired) {
+			throw new Error(
+				`Failed to acquire branch lock after 30 retries for workspace ${this.workspaceId}. ` +
+					`Lock file: ${lockPath}`,
+			);
+		}
+
 		try {
 			// Clean up any stale branches from crashed worktree runs.
 			// When a workspace agent is killed mid-execution, the worktree and its
 			// branch may be left in a bad state. Prune before creating.
+			// P26.E: prune is a repo-wide mutation, runs inside GitRunner mutex.
 			try {
-				await git(["worktree", "prune"], cwd);
+				await git(["worktree", "prune"], cwd, 60_000, true);
 			} catch {
 				// Non-fatal
 			}
@@ -332,8 +341,8 @@ export class WorktreeWorkspaceExecutor {
 				const existing = await git(["branch", "--list", currentBranch], cwd);
 
 				if (!existing) {
-					// Fresh branch — create it
-					await git(["branch", currentBranch, baseCommit], cwd);
+					// Fresh branch — create it (repo-wide mutation)
+					await git(["branch", currentBranch, baseCommit], cwd, 60_000, true);
 					if (retry > 0) {
 						this.branchName = currentBranch;
 						this.branchRetryCount = retry;
@@ -345,7 +354,7 @@ export class WorktreeWorkspaceExecutor {
 				// skip to next retry with a unique name (preserving the old worktree's work).
 				// If it's from a crashed run (no worktree), force-reset works.
 				try {
-					await git(["branch", "-f", currentBranch, baseCommit], cwd);
+					await git(["branch", "-f", currentBranch, baseCommit], cwd, 60_000, true);
 					break; // success, no conflict
 				} catch {}
 			}
@@ -420,7 +429,7 @@ export class WorktreeWorkspaceExecutor {
 				// re-create it fresh. This prevents 'fatal: '<path>' already exists'
 				// First try git worktree remove (cleaner), then fall back to rm
 				try {
-					await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
+					await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot, 60_000, true);
 				} catch {
 					try {
 						await fs.rm(worktreeDir, { recursive: true, force: true });
@@ -455,7 +464,12 @@ export class WorktreeWorkspaceExecutor {
 			await Promise.race([
 				(async () => {
 					await this.ensureBranch(this.workspaceRoot, baseCommit);
-					await git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
+					await git(
+						["worktree", "add", "--checkout", worktreeDir, this.branchName],
+						this.workspaceRoot,
+						60_000,
+						true,
+					);
 				})(),
 				new Promise<void>((_, reject) =>
 					setTimeout(
@@ -517,11 +531,11 @@ export class WorktreeWorkspaceExecutor {
 			// Check if the worktree directory still exists before trying to remove it
 			const wtExists = await directoryExists(worktreeDir);
 			if (wtExists) {
-				await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot);
+				await git(["worktree", "remove", "--force", worktreeDir], this.workspaceRoot, 60_000, true);
 			}
 			// Also remove the branch to keep things clean
 			try {
-				await git(["branch", "-D", this.branchName], this.workspaceRoot);
+				await git(["branch", "-D", this.branchName], this.workspaceRoot, 60_000, true);
 			} catch {
 				// Ignore branch deletion errors
 			}
@@ -537,7 +551,7 @@ export class WorktreeWorkspaceExecutor {
 
 		// Prune stale worktree references
 		try {
-			await git(["worktree", "prune"], this.workspaceRoot);
+			await git(["worktree", "prune"], this.workspaceRoot, 60_000, true);
 		} catch {
 			// Ignore prune errors
 		}
