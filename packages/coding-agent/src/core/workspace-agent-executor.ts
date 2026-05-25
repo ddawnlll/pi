@@ -109,6 +109,13 @@ export class WorkspaceAgentExecutor {
 	private worktreeConfig: WorktreeConfig;
 	/** Execution timeout in milliseconds. */
 	private timeoutMs: number;
+	/**
+	 * P26.J: Circuit breaker state for consecutive provider failures.
+	 * After threshold consecutive failures, the circuit opens and halts
+	 * execution of this workspace to prevent infinite retry loops.
+	 */
+	private consecutiveProviderFailures = 0;
+	private readonly MAX_CONSECUTIVE_PROVIDER_FAILURES = 3;
 
 	/**
 	 * P26.C: worktree executor is created per-execution inside ExecutionContext.
@@ -941,6 +948,12 @@ export class WorkspaceAgentExecutor {
 				};
 			}
 
+			// P26.J: Reset circuit breaker on successful execution
+			if (finalVerdict === "COMPLETE" && this.consecutiveProviderFailures > 0) {
+				this.consecutiveProviderFailures = 0;
+				log("Circuit breaker reset — workspace completed successfully");
+			}
+
 			return {
 				success: finalVerdict === "COMPLETE",
 				verdict: finalVerdict,
@@ -961,6 +974,14 @@ export class WorkspaceAgentExecutor {
 					: String(error);
 
 			log(`Execution ${isAborted ? "aborted" : "failed"}: ${errorMessage}`);
+
+			// P26.J: Increment circuit breaker on execution failure (not abort)
+			if (!isAborted) {
+				this.consecutiveProviderFailures++;
+				log(
+					`Circuit breaker: ${this.consecutiveProviderFailures}/${this.MAX_CONSECUTIVE_PROVIDER_FAILURES} consecutive failures`,
+				);
+			}
 
 			// Write logs even on error
 			if (ctx.logPath) {
