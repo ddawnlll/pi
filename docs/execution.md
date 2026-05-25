@@ -110,9 +110,8 @@ AutonomousExecutor.executeWorkspace(ws, false, signal?)
     ├─ Create snapshot directory
     │
     ▼
-    freshExecutor.setLogPath(...)     ← per-workspace log path
-    freshExecutor.execute(packet, workspaceId, signal?)  
-    │     signal wired to executor.abort()
+    freshExecutor.execute(packet, workspaceId, { signal, logPath, attemptNo })  
+    │     signal wired to executor.abort(); logPath and attemptNo passed as options
     │
     ▼
 WorkspaceAgentExecutor.execute()
@@ -127,7 +126,7 @@ WorkspaceAgentExecutor.execute()
     │     ▼
     │   executeInWorktree()
     │     │
-    │     ├─ Create/reuse WorktreeWorkspaceExecutor
+    │     ├─ Create attempt-scoped WorktreeWorkspaceExecutor for this ExecutionContext
     │     │     │
     │     │     ├─ acquireWorktreeMutex()  [NO safety timeout bypass]
     │     │     ├─ git rev-parse HEAD      [base commit]
@@ -313,7 +312,7 @@ The `PromotionGates` class (P26.N) tracks which P26 workstream gates have passed
 ### P26.A — Repair-Mode Lockdown and Promotion Guard
 
 - SafetyDoctor detects `autonomousExecutionEnabled: false` in workspace config and raises a critical issue blocking execution
-- Promotion gate validation: `checkPromotionGates()` ensures `stable_6` requires all 3 gates, `stable_3` requires `stable_3` gate
+- Promotion gate validation: `stable_3` requires all core correctness gates plus `stable_3_dogfood` gate; `stable_6` requires all `stable_3` gates plus `stable_6_stress` gate
 - Repair-mode plans are blocked from autonomous execution before scheduling
 - Worker concurrency validates experimental mode prerequisites
 
@@ -407,11 +406,22 @@ The `PromotionGates` class (P26.N) tracks which P26 workstream gates have passed
 ### P26.N — Promotion Gates
 
 - **NEW**: `PromotionGates` class with 15 gates across all P26 workstreams
-- `stable_3` requires all gates to pass
-- `stable_6` requires all gates + stress gates to pass
+- `stable_3` requires all non-stress P26 gates plus `stable_3_dogfood`
+- `stable_6` requires all stable_3 gates plus `stable_6_stress`
 - Persistent JSON-backed gate records with load/save
 - Integration with SafetyDoctor for scale mode permission checks
 - `createP26PromotionGates()` factory for standard gate set
+
+### Promotion Mode Matrix
+
+The following table summarises which scale mode requires which promotion gates:
+
+| Mode | Allowed? | Required Gates |
+|------|----------|----------------|
+| `manual_1` | Always allowed | None |
+| `stable_1` | After core isolation | executor isolation, execution context, abort chain |
+| `stable_3` | After core reliability | git serialization, attempt-scoped worktrees, state store concurrency, validation runner, validation lane, llm watchdog, lease monitor, integration queue, anti-stall, stable_3 dogfood |
+| `stable_6` | After stress | all stable_3 gates + stable_6 stress |
 
 ## Observability
 
@@ -446,7 +456,7 @@ Each active workspace execution tracks:
 | `test/p26i-validation-lane-backpressure.test.ts` | P26.I | 20 |
 | `test/p26j-llm-provider-watchdog.test.ts` | P26.J | 12 |
 | `test/p26k-lease-monitor.test.ts` | P26.K | 13 |
-| `test/p26l-integration-queue-drif.test.ts` | P26.L | 12 |
+| `test/p26l-integration-queue-drift.test.ts` | P26.L | 12 |
 | `test/p26m-plan-intake-anti-stall.test.ts` | P26.M | 11 |
 | `test/p26n-promotion-gates.test.ts` | P26.N | 17 |
 | **Total** | | **187** |
