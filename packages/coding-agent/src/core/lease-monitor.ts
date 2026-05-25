@@ -89,8 +89,12 @@ export interface QuarantineResult {
 	leaseId: string;
 	/** Workspace ID */
 	workspaceId: string;
+	/** Plan execution ID */
+	planExecId: string;
 	/** Path to the quarantined worktree (renamed with .quarantined suffix) */
 	quarantinedPath: string;
+	/** Path to the quarantine snapshot artifact */
+	snapshotPath?: string;
 	/** Error message if quarantine failed */
 	error?: string;
 }
@@ -421,7 +425,7 @@ export class LeaseMonitor {
 		// Find the worktree directory for this workspace
 		const worktreeDir = path.join(this.workspaceRoot, this.worktreeRoot, planExecId, workspaceId);
 
-		const quarantinedDir = `${worktreeDir}.quarantined`;
+		const quarantinedDir = `${worktreeDir}.quarantined.${Date.now()}`;
 
 		try {
 			// Rename worktree to quarantined
@@ -432,6 +436,38 @@ export class LeaseMonitor {
 				// Worktree may not exist — that's fine
 			}
 
+			// P26.K: Write quarantine snapshot artifact with lease state, worktree state, and decision
+			const snapshotDir = path.join(this.workspaceRoot, ".pi", "quarantine");
+			await fs.mkdir(snapshotDir, { recursive: true });
+			const snapshotPath = path.join(snapshotDir, `${leaseId}.${Date.now()}.snapshot.json`);
+
+			// Capture worktree state if available
+			let worktreeState: any = null;
+			try {
+				const stateContent = await fs.readFile(
+					path.join(this.workspaceRoot, ".pi", "worktree-state.json"),
+					"utf-8",
+				);
+				worktreeState = JSON.parse(stateContent);
+			} catch {
+				// Worktree state file may not exist
+			}
+
+			const snapshot = {
+				quarantineTimestamp: new Date().toISOString(),
+				lease: heartbeat,
+				worktreeState,
+				worktreePath: worktreeDir,
+				quarantinedPath: quarantinedDir,
+				decision: {
+					action: "quarantine",
+					reason: `Lease ${leaseId} stale (heartbeat age exceeded threshold, PID ${heartbeat.pid} not alive)`,
+					recoveryAction: "requeue_workspace",
+				},
+			};
+
+			await fs.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2), "utf-8");
+
 			// Delete lease file
 			await this.releaseLease(leaseId);
 
@@ -439,7 +475,9 @@ export class LeaseMonitor {
 				success: true,
 				leaseId,
 				workspaceId,
+				planExecId,
 				quarantinedPath: quarantinedDir,
+				snapshotPath,
 			};
 
 			this.onQuarantine?.(result);
@@ -448,6 +486,7 @@ export class LeaseMonitor {
 				success: false,
 				leaseId,
 				workspaceId,
+				planExecId,
 				quarantinedPath: quarantinedDir,
 				error: error instanceof Error ? error.message : String(error),
 			};
