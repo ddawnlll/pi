@@ -38,6 +38,7 @@ import { IconBtn, LabeledBtn } from "./components/IconBtn";
 import { StatCard } from "./components/StatCard";
 
 import { ChatPanel, type ContextRef } from "./components/ChatPanel";
+import { BrainContextPanel } from "./components/BrainContextPanel";
 import { RightSidebar, type AlertEntry } from "./components/right-sidebar";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
@@ -253,6 +254,7 @@ export function App() {
   const [showGitDialog, setShowGitDialog] = useState(false);
   const [showCommandsDialog, setShowCommandsDialog] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showBrainContext, setShowBrainContext] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -599,6 +601,8 @@ export function App() {
         onCommands={() => setShowCommandsDialog(true)}
         onChat={() => setShowChat(o => !o)}
         showChat={showChat}
+        onBrainContext={() => setShowBrainContext(o => !o)}
+        showBrainContext={showBrainContext}
         onArtifacts={() => setShowArtifacts(o => !o)}
         showArtifacts={showArtifacts}
         onExecutionLog={() => setShowExecutionLog(true)}
@@ -676,6 +680,8 @@ export function App() {
             onCommands={() => setShowCommandsDialog(true)}
             onChat={() => setShowChat(o => !o)}
             showChat={showChat}
+            onBrainContext={() => setShowBrainContext(o => !o)}
+            showBrainContext={showBrainContext}
             onArtifacts={() => setShowArtifacts(o => !o)}
             showArtifacts={showArtifacts}
             onExecutionLog={() => setShowExecutionLog(true)}
@@ -908,6 +914,23 @@ export function App() {
                 totalAlertIssues={totalAlertIssues}
                 projectId={selectedProjectId}
                 planExecId={selectedPlanExecId}
+              />
+            </motion.aside>
+          )}
+        </AnimatePresence>
+
+        {/* -- brain context panel -- */}
+        <AnimatePresence>
+          {showBrainContext && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              className="shrink-0 overflow-hidden relative z-20"
+            >
+              <BrainContextPanel
+                projectId={selectedProjectId}
+                isOpen={showBrainContext}
+                onClose={() => setShowBrainContext(false)}
               />
             </motion.aside>
           )}
