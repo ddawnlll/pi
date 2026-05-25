@@ -15,6 +15,7 @@ import { useState, useCallback } from "react";
 import {
 	Activity,
 	Archive,
+	Bell,
 	ChevronDown,
 	ChevronRight,
 	Cpu,
@@ -32,12 +33,14 @@ import {
 	Puzzle,
 	Settings,
 	Shield,
+	Sunrise,
 	Target,
 	Upload,
 	X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Project, PlanExecution, MultiPhaseTask } from "../../types";
+import { BrainNudgeCard } from "./BrainNudgeCard.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +81,7 @@ const SURF = "bg-white dark:bg-[#1E1E1E]";
 // ---------------------------------------------------------------------------
 
 export const BRAIN_ITEMS: SidebarItem[] = [
+	{ id: "brain_digest", label: "Morning Digest", icon: Sunrise },
 	{ id: "brain_state", label: "State / Overview", icon: Activity },
 	{ id: "brain_memory", label: "Memory Explorer", icon: Database },
 	{ id: "brain_reflections", label: "Reflections", icon: Lightbulb },
@@ -95,6 +99,7 @@ export const PLATFORM_ITEMS: SidebarItem[] = [
 	{ id: "plan_intake", label: "Plan Intake", icon: Upload },
 	{ id: "extensions_skills", label: "Extensions & Skills", icon: Puzzle },
 	{ id: "proposal_inbox", label: "Proposals", icon: FileText },
+	{ id: "pi_inbox", label: "Pi Inbox", icon: Bell },
 	{ id: "registry_settings", label: "Registry Settings", icon: Shield },
 ];
 
@@ -138,6 +143,14 @@ export interface SidebarProps {
 	/** Toggle brain enabled */
 	onToggleBrain: (enabled: boolean) => void;
 	/** Executions for the current project (for Runs section) */
+	/** Unread brain counts for nudges and badges */
+	unreadCounts?: {
+		observations: number;
+		proposals: number;
+		approvals: number;
+	};
+	/** Loading state for unread counts */
+	unreadCountsLoading?: boolean;
 	executions?: PlanExecution[];
 	/** Tasks for the current project (for Tasks section) */
 	tasks?: MultiPhaseTask[];
@@ -172,6 +185,8 @@ export function Sidebar({
 	onUploadPlan,
 	brainEnabled,
 	onToggleBrain,
+	unreadCounts,
+	unreadCountsLoading = false,
 	executions = [],
 	tasks = [],
 	executionsLoading = false,
@@ -440,6 +455,18 @@ export function Sidebar({
 						}`}
 					>
 						<div className="flex flex-col gap-0.5 px-1 pt-0.5">
+							{/* Brain nudge card — show inside brain section when brain is enabled */}
+							{section.id === "brain" && brainEnabled && unreadCounts && (
+								<div className="px-0.5 pt-1 pb-1.5">
+									<BrainNudgeCard
+										observations={unreadCounts.observations}
+										proposals={unreadCounts.proposals}
+										approvals={unreadCounts.approvals}
+										loading={unreadCountsLoading}
+									/>
+								</div>
+							)}
+
 							{/* Dynamic sections: tasks, runs */}
 							{section.id === "tasks" && (
 								<>
@@ -609,11 +636,31 @@ export function Sidebar({
 
 							{/* Static sections: brain & platform */}
 							{section.id !== "tasks" && section.id !== "runs" &&
-								section.items.map((item) => 
-									section.id === "brain" && !brainEnabled
+								section.items.map((item) => {
+									// Inject badge counts from unreadCounts onto platform items
+									let badgeOverride: number | undefined = item.badge;
+									if (
+										section.id === "platform" &&
+										unreadCounts &&
+										item.id === "proposal_inbox"
+									) {
+										badgeOverride = unreadCounts.proposals;
+									}
+									if (
+										section.id === "platform" &&
+										unreadCounts &&
+										item.id === "pi_inbox"
+									) {
+										// Pi Inbox badge = observations + approvals (attention-needed items)
+										badgeOverride = unreadCounts.observations + unreadCounts.approvals;
+									}
+									const itemWithBadge: SidebarItem = badgeOverride !== item.badge
+										? { ...item, badge: badgeOverride }
+										: item;
+									return section.id === "brain" && !brainEnabled
 										? null
-										: renderItem(item)
-								)
+										: renderItem(itemWithBadge);
+								})
 							}
 						</div>
 					</div>
@@ -642,6 +689,8 @@ export function Sidebar({
 			planRenameValue,
 			setRenamingExecId,
 			setPlanRenameValue,
+			unreadCounts,
+			unreadCountsLoading,
 		],
 	);
 

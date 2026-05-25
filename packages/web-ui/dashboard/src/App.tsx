@@ -40,6 +40,7 @@ import { StatCard } from "./components/StatCard";
 import { ChatPanel, type ContextRef } from "./components/ChatPanel";
 import { BrainContextPanel } from "./components/BrainContextPanel";
 import { RightSidebar, type AlertEntry } from "./components/right-sidebar";
+import { useUnreadCount } from "./hooks/useUnreadCount";
 import { CommandsPanel } from "./components/CommandsPanel";
 import { ArtifactBrowser } from "./components/ArtifactBrowser";
 import { formatTokens, formatCost, formatPercent, formatPercentOrUnknown } from "./utils/format";
@@ -238,6 +239,9 @@ export function App() {
   const hasProjects = projects.length > 0;
   // Restore project selection from localStorage
   const initialProjectId = loadSelectedProjectId();
+  // ── Unread brain counts for sidebar nudges and badges ───────────────────
+  const { observations, proposals, approvals } = useUnreadCount();
+
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     initialProjectId && projects.find(p => p.id === initialProjectId) ? initialProjectId : null
   );
@@ -664,6 +668,7 @@ export function App() {
                 onCreateTask={handleCreateTask}
                 includeArchived={includeArchivedPlans}
                 onToggleArchived={() => setIncludeArchivedPlans(a => !a)}
+                unreadCounts={{ observations, proposals, approvals }}
               />
             </motion.aside>
           )}
