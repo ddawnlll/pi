@@ -155,6 +155,7 @@ export class WorktreeWorkspaceExecutor {
 	private workspaceRoot: string;
 	private planExecutionId: string;
 	private workspaceId: string;
+	private attemptNo: number;
 	private worktreeConfig: WorktreeConfig;
 	private branchName: string;
 	private branchRetryCount = 0;
@@ -166,16 +167,29 @@ export class WorktreeWorkspaceExecutor {
 		workspaceRoot: string;
 		planExecutionId: string;
 		workspaceId: string;
+		attemptNo?: number;
 		worktree?: WorktreeConfig;
 		branchName?: string;
 	}) {
 		this.workspaceRoot = config.workspaceRoot;
 		this.planExecutionId = config.planExecutionId;
 		this.workspaceId = config.workspaceId;
+		this.attemptNo = config.attemptNo ?? 0;
 		this.worktreeConfig = config.worktree ?? DEFAULT_WORKTREE_CONFIG;
-		this.branchName =
-			config.branchName ??
-			`worktree/${sanitizeForPath(config.planExecutionId)}/${sanitizeForPath(config.workspaceId)}`;
+		this.branchName = this.buildBranchName(config.branchName);
+	}
+
+	/**
+	 * Build a branch name that includes attempt identity.
+	 * P26.F: Branch names include planExecutionId, workspaceId, and attemptNo.
+	 */
+	private buildBranchName(override?: string): string {
+		if (override) return override;
+		const base = `worktree/${sanitizeForPath(this.planExecutionId)}/${sanitizeForPath(this.workspaceId)}`;
+		if (this.attemptNo > 0) {
+			return `${base}-a${this.attemptNo}`;
+		}
+		return base;
 	}
 
 	/**
@@ -263,15 +277,17 @@ export class WorktreeWorkspaceExecutor {
 
 	/**
 	 * Get the worktree root directory for this plan execution and workspace.
+	 * P26.F: Worktree paths include attempt identity.
 	 */
 	private getWorktreeRootDir(): string {
 		const base = this.worktreeConfig.root ?? DEFAULT_WORKTREE_ROOT;
 		const suffix = this.branchRetryCount > 0 ? `-r${this.branchRetryCount}` : "";
+		const attemptSuffix = this.attemptNo > 0 ? `-a${this.attemptNo}` : "";
 		return path.join(
 			this.workspaceRoot,
 			base,
 			sanitizeForPath(this.planExecutionId),
-			sanitizeForPath(this.workspaceId) + suffix,
+			sanitizeForPath(this.workspaceId) + attemptSuffix + suffix,
 		);
 	}
 
@@ -414,6 +430,7 @@ export class WorktreeWorkspaceExecutor {
 						branchName: this.branchName,
 						workspaceId: this.workspaceId,
 						planExecutionId: this.planExecutionId,
+						attemptNo: this.attemptNo,
 						createdAt: Date.now(),
 						status: "created",
 						statusChangedAt: Date.now(),
@@ -494,6 +511,7 @@ export class WorktreeWorkspaceExecutor {
 			branchName: this.branchName,
 			workspaceId: this.workspaceId,
 			planExecutionId: this.planExecutionId,
+			attemptNo: this.attemptNo,
 			createdAt: Date.now(),
 			status: "active",
 			statusChangedAt: Date.now(),
@@ -687,6 +705,7 @@ export function createWorktreeWorkspaceExecutor(config: {
 	workspaceRoot: string;
 	planExecutionId: string;
 	workspaceId: string;
+	attemptNo?: number;
 	worktree?: WorktreeConfig;
 	branchName?: string;
 }): WorktreeWorkspaceExecutor {

@@ -120,6 +120,7 @@ export class WorktreeManager {
 					branchName: entry.branchName,
 					workspaceId: entry.workspaceId,
 					planExecutionId: entry.planExecutionId,
+					attemptNo: entry.attemptNo ?? 0,
 					createdAt: entry.createdAt,
 					status: entry.status,
 					statusChangedAt: entry.statusChangedAt,
@@ -233,6 +234,7 @@ export class WorktreeManager {
 				planExecutionId: state.planExecutionId,
 				branchName: state.branchName,
 				baseCommit: state.baseCommit,
+				attemptNo: state.attemptNo,
 				status: state.status,
 				createdAt: state.createdAt,
 				statusChangedAt: state.statusChangedAt,
@@ -510,6 +512,7 @@ export class WorktreeManager {
 			completed: 0,
 			failed: 0,
 			quarantined: 0,
+			abandoned: 0,
 		};
 
 		// Snapshot the map to avoid mid-iteration mutation issues

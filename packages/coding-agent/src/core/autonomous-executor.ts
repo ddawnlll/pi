@@ -713,7 +713,11 @@ export class AutonomousExecutor {
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
 					// P26.C: Pass logPath to execute() instead of calling setLogPath()
-					const agentResult = await workspaceExecutor.execute(packet, workspace.id, { logPath });
+					// P26.F: Pass attemptNo for attempt-scoped worktree paths and branch names
+					const agentResult = await workspaceExecutor.execute(packet, workspace.id, {
+						logPath,
+						attemptNo: wsStateForPacket.attempts,
+					});
 
 					// Write execution logs (also written by executor on completion, but keep
 					// this as a safety net in case executor didn't write them for any reason)

@@ -72,6 +72,7 @@ function createTestState(
 		workspaceId,
 		planExecutionId,
 		createdAt: now,
+		attemptNo: 0,
 		status,
 		statusChangedAt: now,
 	};
@@ -298,6 +299,7 @@ describe("WorktreeManager", () => {
 			planExecutionId,
 			createdAt: Date.now(),
 			status: "active",
+			attemptNo: 0,
 			statusChangedAt: Date.now(),
 		};
 		manager.register(state);
@@ -334,6 +336,7 @@ describe("WorktreeManager", () => {
 			planExecutionId,
 			createdAt: Date.now(),
 			status: "active",
+			attemptNo: 0,
 			statusChangedAt: Date.now(),
 		};
 		manager.register(state);
@@ -356,6 +359,7 @@ describe("WorktreeManager", () => {
 			planExecutionId,
 			createdAt: Date.now(),
 			status: "active",
+			attemptNo: 0,
 			statusChangedAt: Date.now(),
 		};
 		manager.register(state);
@@ -599,6 +603,7 @@ describe("WorktreeCleanup", () => {
 			planExecutionId,
 			createdAt: Date.now(),
 			status: "completed",
+			attemptNo: 0,
 			statusChangedAt: Date.now(),
 		};
 		const manager = new WorktreeManager(tmpRepo);
@@ -638,6 +643,7 @@ describe("WorktreeCleanup", () => {
 			planExecutionId,
 			createdAt: Date.now(),
 			status: "quarantined",
+			attemptNo: 0,
 			statusChangedAt: Date.now(),
 		};
 		const manager = new WorktreeManager(tmpRepo);

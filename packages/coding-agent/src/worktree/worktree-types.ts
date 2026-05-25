@@ -13,7 +13,7 @@
 /**
  * Lifecycle status of a git worktree.
  */
-export type WorktreeStatus = "created" | "active" | "completed" | "failed" | "quarantined";
+export type WorktreeStatus = "created" | "active" | "completed" | "failed" | "quarantined" | "abandoned";
 
 // ---------------------------------------------------------------------------
 // Worktree State
@@ -33,6 +33,8 @@ export interface WorktreeState {
 	workspaceId: string;
 	/** Plan execution ID that owns this worktree */
 	planExecutionId: string;
+	/** Attempt number (0-based), used for retry/recovery path uniqueness */
+	attemptNo: number;
 	/** Epoch ms when the worktree was created */
 	createdAt: number;
 	/** Current lifecycle status */
@@ -150,6 +152,8 @@ export interface WorktreeListEntry {
 	branchName: string;
 	/** Base commit hash */
 	baseCommit: string;
+	/** Attempt number (0-based) */
+	attemptNo: number;
 	/** Current lifecycle status */
 	status: WorktreeStatus;
 	/** ISO-8601 timestamp when the worktree was created */

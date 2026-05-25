@@ -95,6 +95,7 @@ function createTestState(
 		branchName: `worktree/${planExecutionId}/${workspaceId}`,
 		workspaceId,
 		planExecutionId,
+		attemptNo: 0,
 		createdAt: now,
 		status,
 		statusChangedAt: now,

@@ -75,6 +75,8 @@ export interface WorkspaceAgentExecutorConfig {
 interface ExecutionContext {
 	/** Log path for the current execution */
 	logPath?: string;
+	/** Attempt number (0-based), used for retry/recovery path uniqueness (P26.F) */
+	attemptNo?: number;
 	/** Abort controller for the current execution */
 	abortController: AbortController;
 	/** Execution timeout handle */
@@ -351,7 +353,7 @@ export class WorkspaceAgentExecutor {
 		 *
 		 * P26.C: logPath parameter replaces setLogPath() for concurrent execution safety.
 		 */
-		_options?: { _skipWorktreeCheck?: boolean; logPath?: string },
+		_options?: { _skipWorktreeCheck?: boolean; logPath?: string; attemptNo?: number },
 	): Promise<AgentExecutionResult> {
 		// P26.C: Create per-execution context
 		const abortController = new AbortController();
@@ -367,6 +369,7 @@ export class WorkspaceAgentExecutor {
 
 		const ctx: ExecutionContext = {
 			logPath: _options?.logPath,
+			attemptNo: _options?.attemptNo,
 			abortController,
 			timeoutHandle,
 			llmIdleHandle: null,
@@ -1013,10 +1016,12 @@ export class WorkspaceAgentExecutor {
 			log(`Worktree mode enabled for workspace ${workspaceId}`);
 
 			// P26.C: Create the worktree executor in the execution context
+			// P26.F: Pass attemptNo for attempt-scoped worktree paths and branch names
 			ctx.worktreeExecutor = new WorktreeWorkspaceExecutor({
 				workspaceRoot: this.workspaceRoot,
 				planExecutionId: this.planExecutionId!,
 				workspaceId,
+				attemptNo: ctx.attemptNo,
 				worktree: this.worktreeConfig,
 			});
 
