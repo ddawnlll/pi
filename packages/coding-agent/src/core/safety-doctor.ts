@@ -73,6 +73,9 @@ export enum SafetyIssueType {
 
 	/** P26.A: Experimental/stable_6 requested before promotion gates pass */
 	ScaleModeBlockedByPromotionGates = "scale_mode_blocked_by_promotion_gates",
+
+	/** P26.I: Validation lane saturated, scheduler deferring workspaces */
+	ValidationLaneSaturated = "validation_lane_saturated",
 }
 
 /**
@@ -855,6 +858,40 @@ export class SafetyDoctor {
 					});
 				}
 			}
+		}
+
+		return issues;
+	}
+
+	/**
+	 * P26.I: Detect validation lane saturation issues.
+	 *
+	 * Uses the ValidationLaneTracker's current state to determine if
+	 * the scheduler is deferring workspaces due to heavy validation lane
+	 * saturation. The dashboard/doctor uses this to explain why workspaces
+	 * are blocked.
+	 *
+	 * @param laneState - Current lane state snapshot
+	 * @returns Safety issues
+	 */
+	detectValidationLaneIssues(laneState: {
+		heavyCount: number;
+		maxHeavy: number;
+		targetedCount: number;
+		maxTargeted: number;
+	}): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+
+		if (laneState.heavyCount >= laneState.maxHeavy) {
+			issues.push({
+				type: SafetyIssueType.ValidationLaneSaturated,
+				severity: SafetyIssueSeverity.Warning,
+				message:
+					`Heavy validation lane is saturated (${laneState.heavyCount}/${laneState.maxHeavy}). ` +
+					`Scheduler is deferring heavy-validation workspaces until a slot opens. ` +
+					`(validation_lane_saturated_blocking_scheduler)`,
+				context: laneState,
+			});
 		}
 
 		return issues;
