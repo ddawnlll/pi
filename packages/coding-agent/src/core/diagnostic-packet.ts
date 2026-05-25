@@ -1,603 +1,417 @@
 /**
  * Diagnostic Packet and Evidence Model - Workspace 25.E
  *
- * Structured diagnostic packet that carries evidence-backed diagnostics
- * through the workspace execution pipeline. Bridges failure classification,
- * scheduling diagnostics, execution outcomes, and brain observations into
- * a single, self-contained diagnostic unit with budget, cooldown, dedupe,
- * and stop-condition handling.
+ * Defines a structured diagnostic packet format that carries evidence-backed
+ * diagnostics with built-in budget enforcement, cooldown, deduplication,
+ * and stop-condition tracking for autonomous workspace execution.
  *
- * No silent errors — every diagnostic must be backed by at least one
- * piece of evidence. Empty evidence triggers a "placeholder" evidence
- * entry describing the gap.
+ * ## Design Principles
  *
- * @packageDocumentation
+ * - No silent errors: every packet carries at least placeholder evidence
+ * - Budget limits prevent unbounded evidence accumulation
+ * - Cooldown prevents rapid re-emission of duplicate diagnostics
+ * - Deduplication via content hashing identifies identical evidence
+ * - Stop conditions are tracked explicitly in each packet
+ * - Packet integrity is verified via content hashing
+ * - Serialization round-trips preserve all fields
  */
 
-import * as crypto from "node:crypto";
-import type { FailureClassification, FailureCategory } from "../failure/failure-classifier.js";
-import type { SchedulerDiagnostics, SkipReason } from "./scheduler.js";
+import { createHash, randomUUID } from "node:crypto";
 
 // ---------------------------------------------------------------------------
-// Evidence Types
+// Types
 // ---------------------------------------------------------------------------
 
 /**
- * Categories of evidence that can back a diagnostic.
+ * Evidence category for classifying the type of evidence data carried.
  */
 export type EvidenceCategory =
-	| "file" // File content or file metadata
-	| "test_output" // Test run output (stdout/stderr)
-	| "log_output" // Execution log entry
-	| "git_diff" // Git diff between two refs
-	| "git_log" // Git log / commit history
-	| "error_message" // Error message or stack trace
-	| "scheduling_decision" // Scheduler decision record
-	| "failure_classification" // Failure classification result
-	| "agent_report" // Agent execution report
-	| "system_state" // System state snapshot (memory, CPU, disk)
-	| "budget_snapshot" // Budget state at time of diagnostic
-	| "policy_evaluation" // Policy engine evaluation result
-	| "cooldown_state" // Cooldown state record
-	| "placeholder"; // Placeholder when evidence is missing
+	| "file"
+	| "test_output"
+	| "log_output"
+	| "git_diff"
+	| "git_log"
+	| "error_message"
+	| "scheduling_decision"
+	| "failure_classification"
+	| "agent_report"
+	| "system_state"
+	| "budget_snapshot"
+	| "policy_evaluation"
+	| "cooldown_state"
+	| "placeholder";
 
 /**
- * All valid EvidenceCategory values for runtime validation.
+ * Packet severity level.
  */
-export const ALL_EVIDENCE_CATEGORIES: EvidenceCategory[] = [
-	"file",
-	"test_output",
-	"log_output",
-	"git_diff",
-	"git_log",
-	"error_message",
-	"scheduling_decision",
-	"failure_classification",
-	"agent_report",
-	"system_state",
-	"budget_snapshot",
-	"policy_evaluation",
-	"cooldown_state",
-	"placeholder",
-];
+export type PacketSeverity = "info" | "warning" | "error" | "critical";
 
 /**
- * File-specific evidence data.
+ * Diagnostic type categorizing the nature of the diagnostic.
  */
-export interface FileEvidenceData {
-	/** Absolute or relative file path */
+export type DiagnosticType =
+	| "failure"
+	| "block"
+	| "observation"
+	| "execution_complete"
+	| "resource_pressure"
+	| "stop_condition_triggered"
+	| "budget_exceeded"
+	| "cooldown_active";
+
+/**
+ * Agent verdict matching the workspace output contract.
+ */
+export type AgentVerdict = "COMPLETE" | "BLOCKED" | "FAILED";
+
+// ---------------------------------------------------------------------------
+// Evidence entry data structures (category-specific payloads)
+// ---------------------------------------------------------------------------
+
+export interface FileData {
 	filePath: string;
-	/** Content snippet or full content */
 	content?: string;
-	/** Total file size in bytes */
-	fileSizeBytes?: number;
-	/** Line range relevant to the diagnostic */
-	lineRange?: LineRange;
-	/** File modification timestamp (ISO 8601) */
-	modifiedAt?: string;
-	/** Git commit hash that last modified this file */
-	lastCommitHash?: string;
+	lineRange?: { start: number; end: number };
 }
 
-/**
- * Test output evidence data.
- */
-export interface TestOutputEvidenceData {
-	/** Test suite name */
-	testSuite?: string;
-	/** Test name or identifier */
+export interface TestData {
+	testSuite: string;
 	testName?: string;
-	/** Exit code of the test run */
 	exitCode?: number;
-	/** Number of passing tests */
 	passed?: number;
-	/** Number of failing tests */
 	failed?: number;
-	/** Number of skipped tests */
 	skipped?: number;
-	/** Raw stdout output */
 	stdout?: string;
-	/** Raw stderr output */
-	stderr?: string;
-	/** Duration in milliseconds */
-	durationMs?: number;
 }
 
-/**
- * Error evidence data.
- */
-export interface ErrorEvidenceData {
-	/** Error type (e.g., "TypeError", "AssertionError") */
-	errorType?: string;
-	/** Error message */
+export interface ErrorData {
 	message: string;
-	/** Stack trace */
+	errorType?: string;
 	stackTrace?: string;
-	/** Exit code */
 	exitCode?: number;
-	/** Error code (e.g., "EACCES", "ENOENT") */
-	code?: string;
 }
 
-/**
- * Git diff evidence data.
- */
-export interface GitDiffEvidenceData {
-	/** Base ref (commit hash) */
-	baseRef: string;
-	/** Head ref (commit hash) */
-	headRef: string;
-	/** Raw diff output */
-	diff: string;
-	/** Files changed */
-	filesChanged?: string[];
-	/** Insertions count */
-	insertions?: number;
-	/** Deletions count */
-	deletions?: number;
-}
-
-/**
- * Scheduling decision evidence data.
- */
-export interface SchedulingEvidenceData {
-	/** Workspace ID that was decided upon */
+export interface SkipReason {
 	workspaceId: string;
-	/** Decision type */
-	decision: "selected" | "skipped" | "blocked" | "idle";
-	/** Skip reason if applicable */
-	skipReason?: SkipReason;
-	/** Batch ID if assigned */
-	batchId?: number;
+	category: string;
+	reason: string;
+	missingDependencyIds?: string[];
 }
 
-/**
- * Failure classification evidence data.
- */
-export interface FailureClassificationEvidenceData {
-	/** The failure category */
-	category: FailureCategory;
-	/** Confidence of classification */
+export interface SchedulingData {
+	workspaceId?: string;
+	decision: string;
+	skipReason?: SkipReason;
+}
+
+export interface FailureData {
+	category: string;
 	confidence: number;
-	/** Whether this failure is recoverable */
 	recoverable: boolean;
-	/** Human-readable details */
 	details?: string;
 }
 
-/**
- * Agent report evidence data.
- */
-export interface AgentReportEvidenceData {
-	/** Verdict from the agent */
-	verdict: "COMPLETE" | "BLOCKED" | "FAILED";
-	/** Full agent report text */
+export interface AgentReportData {
+	verdict: AgentVerdict;
 	report: string;
-	/** Number of turns taken */
 	turns?: number;
-	/** Whether a diff was generated */
 	diffGenerated?: boolean;
 }
 
-/**
- * Cooldown state evidence data.
- */
-export interface CooldownEvidenceData {
-	/** Whether cooldown is active */
+export interface CooldownData {
 	isActive: boolean;
-	/** Reason for cooldown */
-	reason: string;
-	/** Cooldown expiration timestamp (ISO 8601) */
-	expiresAt: string | null;
-	/** Time remaining in milliseconds */
+	reason?: string;
+	expiresAt?: string;
 	remainingMs: number;
 }
 
 /**
- * Budget snapshot evidence data.
- */
-export interface BudgetEvidenceData {
-	/** Maximum input tokens */
-	maxInputTokens: number;
-	/** Estimated tokens consumed */
-	estimatedTokens: number;
-	/** Usage ratio (0-1) */
-	usageRatio: number;
-	/** Whether budget is exhausted */
-	isExhausted: boolean;
-	/** Number of attempts */
-	attempts?: number;
-	/** Maximum retries */
-	maxRetries?: number;
-}
-
-/**
- * Line range in a file.
- */
-export interface LineRange {
-	/** Start line (1-indexed, inclusive) */
-	start: number;
-	/** End line (1-indexed, inclusive) */
-	end: number;
-}
-
-/**
- * A single evidence entry backing a diagnostic.
- *
- * Every evidence entry must have at least a category, timestamp,
- * description, and source. Additional structured data is stored
- * in the typed data fields or the generic `data` record.
- */
-export interface EvidenceEntry {
-	/** Unique identifier (SHA-256 content hash of the evidence) */
-	id: string;
-	/** Evidence category */
-	category: EvidenceCategory;
-	/** ISO 8601 timestamp when the evidence was collected */
-	timestamp: string;
-	/** Human-readable description of this evidence */
-	description: string;
-	/** Source component that produced this evidence */
-	source: string;
-	/** Confidence level (0-1) */
-	confidence: number;
-	/** Content hash for deduplication */
-	contentHash: string;
-	/** Whether this is a placeholder (evidence gap) */
-	isPlaceholder: boolean;
-	/** File evidence data (if category === "file") */
-	fileData?: FileEvidenceData;
-	/** Test output evidence data (if category === "test_output") */
-	testData?: TestOutputEvidenceData;
-	/** Error evidence data (if category === "error_message") */
-	errorData?: ErrorEvidenceData;
-	/** Git diff evidence data (if category === "git_diff") */
-	gitDiffData?: GitDiffEvidenceData;
-	/** Scheduling evidence data (if category === "scheduling_decision") */
-	schedulingData?: SchedulingEvidenceData;
-	/** Failure classification evidence data (if category === "failure_classification") */
-	failureData?: FailureClassificationEvidenceData;
-	/** Agent report evidence data (if category === "agent_report") */
-	agentReportData?: AgentReportEvidenceData;
-	/** Cooldown evidence data (if category === "cooldown_state") */
-	cooldownData?: CooldownEvidenceData;
-	/** Budget evidence data (if category === "budget_snapshot") */
-	budgetData?: BudgetEvidenceData;
-	/** Generic structured data for extensibility */
-	data: Record<string, unknown>;
-}
-
-/**
- * A group of related evidence entries that together support a single
- * diagnostic conclusion.
- */
-export interface EvidenceGroup {
-	/** Unique identifier (SHA-256 content hash of the group) */
-	id: string;
-	/** Human-readable label for this group */
-	label: string;
-	/** ISO 8601 timestamp when the group was created */
-	timestamp: string;
-	/** Evidence entries in this group */
-	entries: EvidenceEntry[];
-	/** Whether this group has sufficient evidence to support a conclusion */
-	isComplete: boolean;
-	/** Confidence that this group supports the diagnostic (0-1) */
-	groupConfidence: number;
-}
-
-// ---------------------------------------------------------------------------
-// Diagnostic Types
-// ---------------------------------------------------------------------------
-
-/**
- * Diagnostic severity levels.
- */
-export type DiagnosticSeverity = "info" | "warning" | "error" | "critical";
-
-/**
- * All valid DiagnosticSeverity values for runtime validation.
- */
-export const ALL_DIAGNOSTIC_SEVERITIES: DiagnosticSeverity[] = ["info", "warning", "error", "critical"];
-
-/**
- * Type of diagnostic this packet represents.
- */
-export type DiagnosticType =
-	| "failure" // Execution failure
-	| "skip" // Scheduling skip
-	| "block" // Dependency block
-	| "idle" // Scheduler idle
-	| "resource_pressure" // Resource pressure
-	| "budget_exceeded" // Budget limit exceeded
-	| "policy_violation" // Policy engine violation
-	| "cooldown_active" // Cooldown is active
-	| "dedupe_suppression" // Suppressed as duplicate
-	| "stop_condition_triggered" // Stop condition hit
-	| "execution_complete" // Execution completed successfully
-	| "execution_incomplete" // Execution completed but with issues
-	| "observation"; // General observation
-
-/**
- * All valid DiagnosticType values for runtime validation.
- */
-export const ALL_DIAGNOSTIC_TYPES: DiagnosticType[] = [
-	"failure",
-	"skip",
-	"block",
-	"idle",
-	"resource_pressure",
-	"budget_exceeded",
-	"policy_violation",
-	"cooldown_active",
-	"dedupe_suppression",
-	"stop_condition_triggered",
-	"execution_complete",
-	"execution_incomplete",
-	"observation",
-];
-
-// ---------------------------------------------------------------------------
-// Budget
-// ---------------------------------------------------------------------------
-
-/**
- * Budget constraints for a diagnostic packet.
- *
- * Prevents unbounded evidence accumulation by enforcing hard limits
- * on evidence entries, groups, and total serialized size.
- */
-export interface PacketBudget {
-	/** Maximum number of evidence entries per packet */
-	maxEvidenceEntries: number;
-	/** Current number of evidence entries in the packet */
-	currentEvidenceCount: number;
-	/** Maximum number of evidence groups per packet */
-	maxEvidenceGroups: number;
-	/** Current number of evidence groups in the packet */
-	currentGroupCount: number;
-	/** Maximum serialized size in bytes */
-	maxPacketSizeBytes: number;
-	/** Estimated serialized size in bytes */
-	estimatedSizeBytes: number;
-	/** Whether the budget has been exceeded */
-	isOverBudget: boolean;
-}
-
-/**
- * Default budget constraints.
- */
-export const DEFAULT_PACKET_BUDGET: Omit<PacketBudget, "currentEvidenceCount" | "currentGroupCount" | "estimatedSizeBytes" | "isOverBudget"> = {
-	maxEvidenceEntries: 50,
-	maxEvidenceGroups: 10,
-	maxPacketSizeBytes: 1_000_000, // 1 MB
-};
-
-// ---------------------------------------------------------------------------
-// Cooldown
-// ---------------------------------------------------------------------------
-
-/**
- * Cooldown state for a diagnostic.
- *
- * Prevents the same diagnostic from being re-emitted within a
- * configurable time window.
+ * Cooldown state tracking for diagnostic packet re-emission prevention.
  */
 export interface CooldownState {
-	/** Whether cooldown is currently active */
 	isActive: boolean;
-	/** ISO 8601 timestamp when cooldown expires, or null */
 	cooldownUntil: string | null;
-	/** Human-readable reason for cooldown */
 	cooldownReason: string | null;
-	/** Remaining cooldown time in milliseconds */
 	remainingMs: number;
-	/** Cooldown duration in milliseconds */
 	durationMs: number;
-	/** Number of times this diagnostic has been emitted */
 	emitCount: number;
 }
 
 /**
- * Default cooldown duration in milliseconds (5 minutes).
- */
-export const DEFAULT_COOLDOWN_DURATION_MS = 5 * 60 * 1000;
-
-/**
- * Minimum cooldown duration (30 seconds).
- */
-export const MIN_COOLDOWN_DURATION_MS = 30_000;
-
-/**
- * Maximum cooldown duration (1 hour).
- */
-export const MAX_COOLDOWN_DURATION_MS = 60 * 60 * 1000;
-
-// ---------------------------------------------------------------------------
-// Deduplication
-// ---------------------------------------------------------------------------
-
-/**
- * Deduplication identifier and state.
- *
- * Two diagnostics are considered duplicates if they share the same
- * dedupeId. The dedupeId should be derived from the diagnostic's
- * essential properties (category, workspace ID, failure details, etc.).
+ * Deduplication state tracking for suppressing duplicate diagnostics.
  */
 export interface DedupeState {
-	/** Deduplication identifier */
 	dedupeId: string;
-	/** Whether this packet was suppressed as a duplicate */
 	isSuppressed: boolean;
-	/** ISO 8601 timestamp of the original (first) occurrence */
-	originalTimestamp: string | null;
-	/** Number of times this dedupeId has been seen */
 	occurrenceCount: number;
-	/** ISO 8601 timestamp when this dedupe entry expires */
-	expiresAt: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Stop Conditions
-// ---------------------------------------------------------------------------
-
 /**
- * Stop condition that triggered for this diagnostic.
- *
- * Stop conditions are used by autonomous execution to determine
- * when to halt activity (e.g., night protocol, max duration exceeded).
- * Each diagnostic that triggers a stop condition records which condition
- * fired and when.
+ * Stop condition state tracking for execution halts.
  */
 export interface StopConditionState {
-	/** Whether a stop condition was triggered */
 	triggered: boolean;
-	/** The stop condition that fired */
 	condition: string;
-	/** ISO 8601 timestamp when the condition triggered */
+	detail?: string;
 	triggeredAt: string | null;
-	/** Human-readable detail about the condition */
-	detail: string;
-	/** Arbitrary metadata about the stop condition */
 	metadata: Record<string, unknown>;
 }
 
+/**
+ * Budget tracking for evidence accumulation limits.
+ */
+export interface PacketBudget {
+	maxEvidenceEntries: number;
+	maxEvidenceGroups: number;
+	currentEvidenceCount: number;
+	currentGroupCount: number;
+	isOverBudget: boolean;
+}
+
+/**
+ * Validation result for packet validation.
+ */
+export interface ValidationResult {
+	valid: boolean;
+	errors: string[];
+}
+
 // ---------------------------------------------------------------------------
-// Diagnostic Packet
+// Evidence entry - the atomic unit of evidence
 // ---------------------------------------------------------------------------
 
 /**
- * A self-contained diagnostic packet.
+ * A single piece of evidence with category-specific structured data.
  *
- * Carries structured, evidence-backed diagnostics through the execution
- * pipeline. Every packet must have at least one evidence group with at
- * least one evidence entry. If no evidence is available, a placeholder
- * entry must be created describing the gap.
- *
- * Key design properties:
- * - No silent errors: every diagnostic is backed by evidence
- * - Budget enforcement: bounded number of entries and groups
- * - Cooldown: prevents rapid re-emission of identical diagnostics
- * - Dedupe: content-based deduplication across the execution pipeline
- * - Stop condition: records when autonomous halts are triggered
- * - Evidence-chain: groups link related evidence for auditability
+ * Each entry has a content hash for deduplication and can be flagged
+ * as a placeholder when real evidence is unavailable (no silent errors).
  */
-export interface DiagnosticPacket {
-	/** Unique identifier (UUID v4) */
+export interface EvidenceEntry {
+	/** Unique identifier derived from content hash */
 	id: string;
-	/** ISO 8601 timestamp of packet creation */
-	timestamp: string;
-	/** Content hash for integrity verification */
-	packetHash: string;
-	/** Diagnostic severity */
-	severity: DiagnosticSeverity;
-	/** Type of diagnostic */
-	diagnosticType: DiagnosticType;
-	/** Workspace ID this diagnostic relates to */
-	workspaceId: string;
-	/** Plan execution ID this diagnostic relates to (optional) */
-	planExecutionId?: string;
-	/** Human-readable title */
-	title: string;
+	/** SHA-256 content hash for deduplication */
+	contentHash: string;
+	/** Evidence category (determines which data field carries the payload) */
+	category: EvidenceCategory;
 	/** Human-readable description */
 	description: string;
-	/** Evidence groups backing this diagnostic (must be non-empty) */
+	/** Source component (e.g., "test-runner", "scheduler", "executor") */
+	source: string;
+	/** Confidence score (0.0 to 1.0), defaults to 0.8 */
+	confidence: number;
+	/** Whether this entry is a placeholder (real evidence unavailable) */
+	isPlaceholder: boolean;
+	/** Generic data payload (for categories without specific data types) */
+	data: Record<string, unknown>;
+	/** File evidence data */
+	fileData?: FileData;
+	/** Test output evidence data */
+	testData?: TestData;
+	/** Error evidence data */
+	errorData?: ErrorData;
+	/** Scheduling decision evidence data */
+	schedulingData?: SchedulingData;
+	/** Failure classification evidence data */
+	failureData?: FailureData;
+	/** Agent report evidence data */
+	agentReportData?: AgentReportData;
+	/** Cooldown state evidence data */
+	cooldownData?: CooldownData;
+}
+
+/**
+ * A labeled group of related evidence entries.
+ */
+export interface EvidenceGroup {
+	/** Display label for the group */
+	label: string;
+	/** Evidence entries in this group */
+	entries: EvidenceEntry[];
+	/** Average confidence of all entries */
+	groupConfidence: number;
+	/** Whether all entries are non-placeholder (complete) */
+	isComplete: boolean;
+}
+
+/**
+ * A diagnostic packet carrying evidence-backed diagnostics.
+ *
+ * Every packet includes:
+ * - Unique ID and timestamp
+ * - Packet hash for integrity verification
+ * - Severity and diagnostic type classification
+ * - Evidence groups with category-specific structured data
+ * - Budget tracking for evidence accumulation limits
+ * - Cooldown state preventing rapid re-emission
+ * - Dedupe state for identifying duplicate diagnostics
+ * - Stop condition tracking for execution halts
+ */
+export interface DiagnosticPacket {
+	/** Unique packet identifier */
+	id: string;
+	/** ISO timestamp of packet creation */
+	timestamp: string;
+	/** SHA-256 hash of packet content for integrity verification */
+	packetHash: string;
+	/** Severity level */
+	severity: PacketSeverity;
+	/** Diagnostic type classification */
+	diagnosticType: DiagnosticType;
+	/** Workspace identifier this diagnostic pertains to */
+	workspaceId: string;
+	/** Short title */
+	title: string;
+	/** Detailed description */
+	description: string;
+	/** Evidence groups backing this diagnostic */
 	evidence: EvidenceGroup[];
-	/** Failure classification, if applicable */
-	failureClassification?: FailureClassification;
-	/** Scheduling diagnostics snapshot, if applicable */
-	schedulingDiagnostics?: SchedulerDiagnostics;
-	/** Budget state */
+	/** Budget tracking for evidence accumulation */
 	budget: PacketBudget;
-	/** Cooldown state */
+	/** Cooldown state preventing rapid re-emission */
 	cooldown: CooldownState;
 	/** Deduplication state */
 	dedupe: DedupeState;
-	/** Stop condition state */
+	/** Stop condition tracking */
 	stopCondition: StopConditionState;
-	/** Arbitrary metadata for extensibility */
-	metadata: Record<string, unknown>;
+	/** Optional failure classification result */
+	failureClassification?: FailureData;
+	/** Optional plan execution identifier */
+	planExecutionId?: string;
+	/** Custom cooldown duration in milliseconds */
+	cooldownDurationMs?: number;
 }
 
 // ---------------------------------------------------------------------------
-// Factory: EvidenceEntry
+// Defaults and constants
+// ---------------------------------------------------------------------------
+
+/** Default cooldown duration in milliseconds (5 seconds). */
+export const DEFAULT_COOLDOWN_DURATION_MS = 5_000;
+
+/** Default budget limits. */
+const DEFAULT_MAX_EVIDENCE_ENTRIES = 50;
+const DEFAULT_MAX_EVIDENCE_GROUPS = 10;
+
+/** Default confidence for regular evidence entries. */
+const DEFAULT_CONFIDENCE = 0.8;
+
+/** Confidence for placeholder evidence entries. */
+const PLACEHOLDER_CONFIDENCE = 0.3;
+
+// ---------------------------------------------------------------------------
+// Hashing utilities
 // ---------------------------------------------------------------------------
 
 /**
- * Input for creating an EvidenceEntry.
+ * Generate a stable JSON representation of an object with sorted keys
+ * for deterministic hashing.
  */
-export interface EvidenceEntryInput {
+function stableStringify(obj: Record<string, unknown>): string {
+	return JSON.stringify(obj, stableSortReplacer);
+}
+
+/**
+ * JSON.stringify replacer that recursively sorts object keys.
+ */
+function stableSortReplacer(_key: string, value: unknown): unknown {
+	if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+		const keys = Object.keys(value).sort();
+		const sorted: Record<string, unknown> = {};
+		for (const k of keys) {
+			sorted[k] = (value as Record<string, unknown>)[k];
+		}
+		return sorted;
+	}
+	return value;
+}
+
+/**
+ * Compute a SHA-256 hex hash of the given data.
+ */
+function sha256(data: string): string {
+	return createHash("sha256").update(data, "utf-8").digest("hex");
+}
+
+// ---------------------------------------------------------------------------
+// Evidence entry creation
+// ---------------------------------------------------------------------------
+
+export interface CreateEvidenceEntryOptions {
 	category: EvidenceCategory;
 	description: string;
 	source: string;
 	confidence?: number;
 	isPlaceholder?: boolean;
-	fileData?: FileEvidenceData;
-	testData?: TestOutputEvidenceData;
-	errorData?: ErrorEvidenceData;
-	gitDiffData?: GitDiffEvidenceData;
-	schedulingData?: SchedulingEvidenceData;
-	failureData?: FailureClassificationEvidenceData;
-	agentReportData?: AgentReportEvidenceData;
-	cooldownData?: CooldownEvidenceData;
-	budgetData?: BudgetEvidenceData;
 	data?: Record<string, unknown>;
+	fileData?: FileData;
+	testData?: TestData;
+	errorData?: ErrorData;
+	schedulingData?: SchedulingData;
+	failureData?: FailureData;
+	agentReportData?: AgentReportData;
+	cooldownData?: CooldownData;
 }
 
 /**
- * Create an EvidenceEntry with defaults applied.
- *
- * Generates a content-hash-based ID for deduplication.
- * If no confidence is provided, defaults to 1.0 for concrete evidence
- * and 0.3 for placeholders.
+ * Compute the content hash for an evidence entry from its category,
+ * description, source, and data fields.
  */
-export function createEvidenceEntry(input: EvidenceEntryInput): EvidenceEntry {
-	const timestamp = new Date().toISOString();
-	const confidence = input.confidence ?? (input.isPlaceholder ? 0.3 : 1.0);
+function computeEvidenceContentHash(options: CreateEvidenceEntryOptions): string {
+	const hashInput: Record<string, unknown> = {
+		category: options.category,
+		description: options.description,
+		source: options.source,
+	};
+	if (options.fileData) hashInput.fileData = options.fileData;
+	if (options.testData) hashInput.testData = options.testData;
+	if (options.errorData) hashInput.errorData = options.errorData;
+	if (options.schedulingData) hashInput.schedulingData = options.schedulingData;
+	if (options.failureData) hashInput.failureData = options.failureData;
+	if (options.agentReportData) hashInput.agentReportData = options.agentReportData;
+	if (options.cooldownData) hashInput.cooldownData = options.cooldownData;
+	if (options.data) hashInput.data = options.data;
+	return sha256(stableStringify(hashInput));
+}
 
-	// Build a content hash from the essential properties for deduplication
-	const hashContent = JSON.stringify({
-		category: input.category,
-		description: input.description,
-		source: input.source,
-		fileData: input.fileData,
-		errorData: input.errorData ? { message: input.errorData.message, errorType: input.errorData.errorType } : undefined,
-		testData: input.testData ? { testSuite: input.testData.testSuite, testName: input.testData.testName } : undefined,
-		schedulingData: input.schedulingData
-			? { workspaceId: input.schedulingData.workspaceId, decision: input.schedulingData.decision }
-			: undefined,
-	});
-	const contentHash = crypto.createHash("sha256").update(hashContent).digest("hex");
-	const id = contentHash; // Use content hash as ID for natural deduplication
-
+/**
+ * Create an evidence entry with the given options.
+ *
+ * The entry's ID and contentHash are derived from its content for
+ * deterministic deduplication.
+ *
+ * @param options - Entry creation options
+ * @returns A new EvidenceEntry
+ */
+export function createEvidenceEntry(options: CreateEvidenceEntryOptions): EvidenceEntry {
+	const contentHash = computeEvidenceContentHash(options);
+	const id = contentHash;
 	return {
 		id,
-		category: input.category,
-		timestamp,
-		description: input.description,
-		source: input.source,
-		confidence,
 		contentHash,
-		isPlaceholder: input.isPlaceholder ?? false,
-		fileData: input.fileData,
-		testData: input.testData,
-		errorData: input.errorData,
-		gitDiffData: input.gitDiffData,
-		schedulingData: input.schedulingData,
-		failureData: input.failureData,
-		agentReportData: input.agentReportData,
-		cooldownData: input.cooldownData,
-		budgetData: input.budgetData,
-		data: input.data ?? {},
+		category: options.category,
+		description: options.description,
+		source: options.source,
+		confidence: options.confidence ?? DEFAULT_CONFIDENCE,
+		isPlaceholder: options.isPlaceholder ?? false,
+		data: options.data ?? {},
+		...(options.fileData !== undefined ? { fileData: options.fileData } : {}),
+		...(options.testData !== undefined ? { testData: options.testData } : {}),
+		...(options.errorData !== undefined ? { errorData: options.errorData } : {}),
+		...(options.schedulingData !== undefined ? { schedulingData: options.schedulingData } : {}),
+		...(options.failureData !== undefined ? { failureData: options.failureData } : {}),
+		...(options.agentReportData !== undefined ? { agentReportData: options.agentReportData } : {}),
+		...(options.cooldownData !== undefined ? { cooldownData: options.cooldownData } : {}),
 	};
 }
 
 /**
- * Create a placeholder evidence entry.
+ * Create a placeholder evidence entry indicating that real evidence
+ * was unavailable (no silent errors guarantee).
  *
- * Placeholders are used when diagnostic packets must be created
- * but no concrete evidence is available. This prevents silent errors
- * by explicitly documenting the evidence gap.
+ * @param description - Description of what evidence is missing
+ * @param source - Source component
+ * @param gapReason - Explanation of why evidence is absent
+ * @returns A placeholder EvidenceEntry
  */
 export function createPlaceholderEvidenceEntry(
 	description: string,
@@ -608,160 +422,249 @@ export function createPlaceholderEvidenceEntry(
 		category: "placeholder",
 		description,
 		source,
-		confidence: 0.3,
+		confidence: PLACEHOLDER_CONFIDENCE,
 		isPlaceholder: true,
 		data: { gapReason },
 	});
 }
 
 // ---------------------------------------------------------------------------
-// Factory: EvidenceGroup
+// Evidence group creation
 // ---------------------------------------------------------------------------
 
 /**
- * Create an EvidenceGroup from entries.
+ * Compute the group confidence as the average of entry confidences.
+ */
+function computeGroupConfidence(entries: EvidenceEntry[]): number {
+	if (entries.length === 0) return 0;
+	const sum = entries.reduce((acc, e) => acc + e.confidence, 0);
+	return sum / entries.length;
+}
+
+/**
+ * Determine if the group is complete (no placeholder entries).
+ */
+function computeGroupIsComplete(entries: EvidenceEntry[]): boolean {
+	return entries.every((e) => !e.isPlaceholder);
+}
+
+/**
+ * Create an evidence group with the given label and entries.
+ *
+ * Automatically computes group confidence and completeness.
+ *
+ * @param label - Display label for the group
+ * @param entries - Evidence entries
+ * @returns A new EvidenceGroup
  */
 export function createEvidenceGroup(label: string, entries: EvidenceEntry[]): EvidenceGroup {
-	const timestamp = new Date().toISOString();
-
-	// Compute group confidence as the average of entry confidences
-	const groupConfidence =
-		entries.length > 0
-			? entries.reduce((sum, e) => sum + e.confidence, 0) / entries.length
-			: 0;
-
-	// A group is complete if it has at least one non-placeholder entry
-	const isComplete = entries.some((e) => !e.isPlaceholder);
-
-	// Generate group ID from sorted entry content hashes
-	const hashContent = entries
-		.map((e) => e.contentHash)
-		.sort()
-		.join("::");
-	const id = crypto.createHash("sha256").update(hashContent).digest("hex");
-
 	return {
-		id,
 		label,
-		timestamp,
 		entries,
-		isComplete,
-		groupConfidence,
+		groupConfidence: computeGroupConfidence(entries),
+		isComplete: computeGroupIsComplete(entries),
 	};
 }
 
 /**
- * Merge two evidence groups with the same label by combining their
- * entries (deduplicating by content hash).
+ * Merge two evidence groups with the same label.
+ *
+ * Deduplicates entries by their content hash. Throws if labels differ.
+ *
+ * @param a - First evidence group
+ * @param b - Second evidence group
+ * @returns A new merged EvidenceGroup
  */
 export function mergeEvidenceGroups(a: EvidenceGroup, b: EvidenceGroup): EvidenceGroup {
 	if (a.label !== b.label) {
-		throw new Error(`Cannot merge groups with different labels: "${a.label}" vs "${b.label}"`);
+		throw new Error("Cannot merge evidence groups with different labels");
 	}
 
 	const seen = new Set<string>();
-	const merged: EvidenceEntry[] = [];
+	const mergedEntries: EvidenceEntry[] = [];
 
 	for (const entry of [...a.entries, ...b.entries]) {
 		if (!seen.has(entry.contentHash)) {
 			seen.add(entry.contentHash);
-			merged.push(entry);
+			mergedEntries.push(entry);
 		}
 	}
 
-	return createEvidenceGroup(a.label, merged);
+	return createEvidenceGroup(a.label, mergedEntries);
 }
 
 // ---------------------------------------------------------------------------
-// Factory: PacketBudget
+// Packet budget
 // ---------------------------------------------------------------------------
 
-/**
- * Create a PacketBudget from configuration, counting current entries and groups.
- */
-export function createPacketBudget(
-	config: Partial<PacketBudget> & { evidence: EvidenceGroup[] },
-): PacketBudget {
-	const currentEvidenceCount = config.evidence.reduce((sum, g) => sum + g.entries.length, 0);
-
-	const budget: PacketBudget = {
-		maxEvidenceEntries: config.maxEvidenceEntries ?? DEFAULT_PACKET_BUDGET.maxEvidenceEntries,
-		currentEvidenceCount,
-		maxEvidenceGroups: config.maxEvidenceGroups ?? DEFAULT_PACKET_BUDGET.maxEvidenceGroups,
-		currentGroupCount: config.evidence.length,
-		maxPacketSizeBytes: config.maxPacketSizeBytes ?? DEFAULT_PACKET_BUDGET.maxPacketSizeBytes,
-		estimatedSizeBytes: 0,
-		isOverBudget: false,
-	};
-
-	// Estimate size by serializing a minimal representation
-	budget.estimatedSizeBytes = estimatePacketSize(config.evidence);
-	budget.isOverBudget =
-		budget.currentEvidenceCount > budget.maxEvidenceEntries ||
-		budget.currentGroupCount > budget.maxEvidenceGroups ||
-		budget.estimatedSizeBytes > budget.maxPacketSizeBytes;
-
-	return budget;
+export interface CreatePacketBudgetOptions {
+	evidence: EvidenceGroup[];
+	maxEvidenceEntries?: number;
+	maxEvidenceGroups?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Factory: CooldownState
-// ---------------------------------------------------------------------------
-
 /**
- * Create a CooldownState.
+ * Create packet budget state from evidence and optional limits.
+ *
+ * Computes current counts and over-budget status.
+ *
+ * @param options - Budget creation options
+ * @returns A new PacketBudget
  */
-export function createCooldownState(
-	overrides?: Partial<CooldownState>,
-): CooldownState {
-	const now = Date.now();
-	const durationMs = overrides?.durationMs ?? DEFAULT_COOLDOWN_DURATION_MS;
-	const emitCount = overrides?.emitCount ?? 0;
-
-	if (overrides?.isActive && overrides?.cooldownUntil) {
-		const remaining = Math.max(0, new Date(overrides.cooldownUntil).getTime() - now);
-		return {
-			isActive: true,
-			cooldownUntil: overrides.cooldownUntil,
-			cooldownReason: overrides.cooldownReason ?? "Cooldown active",
-			remainingMs: remaining,
-			durationMs,
-			emitCount,
-		};
-	}
-
-	// If isActive is requested but no cooldownUntil, auto-calculate it
-	if (overrides?.isActive) {
-		const cooldownUntil = new Date(now + (overrides.remainingMs ?? durationMs)).toISOString();
-		return {
-			isActive: true,
-			cooldownUntil,
-			cooldownReason: overrides.cooldownReason ?? "Cooldown active",
-			remainingMs: overrides.remainingMs ?? durationMs,
-			durationMs,
-			emitCount,
-		};
-	}
+export function createPacketBudget(options: CreatePacketBudgetOptions): PacketBudget {
+	const maxEvidenceEntries = options.maxEvidenceEntries ?? DEFAULT_MAX_EVIDENCE_ENTRIES;
+	const maxEvidenceGroups = options.maxEvidenceGroups ?? DEFAULT_MAX_EVIDENCE_GROUPS;
+	const currentEvidenceCount = options.evidence.reduce((acc, g) => acc + g.entries.length, 0);
+	const currentGroupCount = options.evidence.length;
+	const isOverBudget = currentEvidenceCount > maxEvidenceEntries || currentGroupCount > maxEvidenceGroups;
 
 	return {
-		isActive: false,
-		cooldownUntil: null,
-		cooldownReason: null,
-		remainingMs: 0,
-		durationMs,
-		emitCount,
+		maxEvidenceEntries,
+		maxEvidenceGroups,
+		currentEvidenceCount,
+		currentGroupCount,
+		isOverBudget,
 	};
 }
 
 /**
- * Activate cooldown for a given state, setting the expiration time.
+ * Check whether a packet is within its budget limits.
+ *
+ * @param packet - The diagnostic packet
+ * @returns True if within budget
+ */
+export function isPacketWithinBudget(packet: DiagnosticPacket): boolean {
+	return !packet.budget.isOverBudget;
+}
+
+/**
+ * Compact a diagnostic packet to fit within its budget.
+ *
+ * Compaction strategy:
+ * 1. Remove placeholder entries first
+ * 2. If still over budget by entries, remove excess groups (least confident last)
+ *
+ * Returns the same packet reference if already within budget.
+ *
+ * @param packet - The diagnostic packet to compact
+ * @returns The compacted packet (may be the same reference)
+ */
+export function compactDiagnosticPacket(packet: DiagnosticPacket): DiagnosticPacket {
+	if (!packet.budget.isOverBudget) {
+		return packet;
+	}
+
+	const maxEntries = packet.budget.maxEvidenceEntries;
+	const maxGroups = packet.budget.maxEvidenceGroups;
+
+	// Strategy 1: Remove placeholder entries from all groups
+	const compactedGroups: EvidenceGroup[] = [];
+	for (const group of packet.evidence) {
+		const nonPlaceholder = group.entries.filter((e) => !e.isPlaceholder);
+		compactedGroups.push(createEvidenceGroup(group.label, nonPlaceholder));
+	}
+
+	// Recalculate counts after placeholder removal
+	let totalEntries = compactedGroups.reduce((acc, g) => acc + g.entries.length, 0);
+	let totalGroups = compactedGroups.length;
+
+	// Strategy 2: If still over max entries, trim groups (keep highest confidence)
+	if (totalEntries > maxEntries) {
+		// Sort groups by average confidence descending, keep best ones
+		const sortedGroups = [...compactedGroups].sort(
+			(a, b) => b.groupConfidence - a.groupConfidence,
+		);
+
+		const trimmedGroups: EvidenceGroup[] = [];
+		let entryCount = 0;
+
+		for (const group of sortedGroups) {
+			if (entryCount + group.entries.length <= maxEntries) {
+				trimmedGroups.push(group);
+				entryCount += group.entries.length;
+			} else {
+				// Partially include the group up to the limit
+				const remaining = maxEntries - entryCount;
+				if (remaining > 0) {
+					const partialEntries = group.entries.slice(0, remaining);
+					trimmedGroups.push(createEvidenceGroup(group.label, partialEntries));
+					entryCount += remaining;
+				}
+				break;
+			}
+		}
+
+		compactedGroups.length = 0;
+		compactedGroups.push(...trimmedGroups);
+		totalEntries = entryCount;
+		totalGroups = compactedGroups.length;
+	}
+
+	// Strategy 3: If still over max groups, trim groups
+	if (totalGroups > maxGroups) {
+		const sortedGroups = [...compactedGroups].sort(
+			(a, b) => b.groupConfidence - a.groupConfidence,
+		);
+		compactedGroups.length = 0;
+		compactedGroups.push(...sortedGroups.slice(0, maxGroups));
+		totalGroups = compactedGroups.length;
+	}
+
+	// Recalculate
+	const isOverBudget = totalEntries > maxEntries || totalGroups > maxGroups;
+
+	packet.evidence = compactedGroups;
+	packet.budget.currentEvidenceCount = totalEntries;
+	packet.budget.currentGroupCount = totalGroups;
+	packet.budget.isOverBudget = isOverBudget;
+
+	return packet;
+}
+
+// ---------------------------------------------------------------------------
+// Cooldown state
+// ---------------------------------------------------------------------------
+
+export interface CreateCooldownStateOptions {
+	isActive?: boolean;
+	cooldownUntil?: string | null;
+	cooldownReason?: string | null;
+	remainingMs?: number;
+	durationMs?: number;
+	emitCount?: number;
+}
+
+/**
+ * Create a cooldown state, defaulting to inactive.
+ *
+ * @param options - Optional cooldown state overrides
+ * @returns A new CooldownState
+ */
+export function createCooldownState(options: CreateCooldownStateOptions = {}): CooldownState {
+	return {
+		isActive: options.isActive ?? false,
+		cooldownUntil: options.cooldownUntil ?? null,
+		cooldownReason: options.cooldownReason ?? null,
+		remainingMs: options.remainingMs ?? 0,
+		durationMs: options.durationMs ?? DEFAULT_COOLDOWN_DURATION_MS,
+		emitCount: options.emitCount ?? 0,
+	};
+}
+
+/**
+ * Activate cooldown with the given reason.
+ *
+ * Sets the cooldown duration and increments the emit count.
+ *
+ * @param state - Current cooldown state
+ * @param reason - Reason for cooldown activation
+ * @returns A new CooldownState with cooldown activated
  */
 export function activateCooldown(
 	state: CooldownState,
 	reason: string,
-	now: number = Date.now(),
 ): CooldownState {
-	const cooldownUntil = new Date(now + state.durationMs).toISOString();
+	const cooldownUntil = new Date(Date.now() + state.durationMs).toISOString();
 	return {
 		...state,
 		isActive: true,
@@ -773,18 +676,27 @@ export function activateCooldown(
 }
 
 /**
- * Check if a cooldown has expired and deactivate it if so.
+ * Check if cooldown has expired and clear it if so.
+ *
+ * Returns the same reference if cooldown is already inactive.
+ *
+ * @param state - Current cooldown state
+ * @returns Updated CooldownState (may be same reference if inactive)
  */
-export function checkAndClearCooldown(
-	state: CooldownState,
-	now: number = Date.now(),
-): CooldownState {
-	if (!state.isActive || !state.cooldownUntil) {
+export function checkAndClearCooldown(state: CooldownState): CooldownState {
+	if (!state.isActive) {
 		return state;
 	}
 
+	if (!state.cooldownUntil) {
+		return state;
+	}
+
+	const now = Date.now();
 	const expiryTime = new Date(state.cooldownUntil).getTime();
-	if (now >= expiryTime) {
+	const remainingMs = Math.max(0, expiryTime - now);
+
+	if (remainingMs <= 0) {
 		return {
 			...state,
 			isActive: false,
@@ -796,375 +708,77 @@ export function checkAndClearCooldown(
 
 	return {
 		...state,
-		remainingMs: Math.max(0, expiryTime - now),
+		remainingMs,
 	};
 }
 
 // ---------------------------------------------------------------------------
-// Factory: DedupeState
+// Deduplication state
 // ---------------------------------------------------------------------------
 
+export interface CreateDedupeStateOptions {
+	isSuppressed?: boolean;
+	occurrenceCount?: number;
+}
+
 /**
- * Create a DedupeState.
+ * Create a deduplication state for the given dedupe ID.
+ *
+ * @param dedupeId - Unique identifier for deduplication
+ * @param options - Optional overrides
+ * @returns A new DedupeState
  */
 export function createDedupeState(
 	dedupeId: string,
-	overrides?: Partial<DedupeState>,
+	options: CreateDedupeStateOptions = {},
 ): DedupeState {
 	return {
 		dedupeId,
-		isSuppressed: overrides?.isSuppressed ?? false,
-		originalTimestamp: overrides?.originalTimestamp ?? null,
-		occurrenceCount: overrides?.occurrenceCount ?? 1,
-		expiresAt: overrides?.expiresAt ?? null,
+		isSuppressed: options.isSuppressed ?? false,
+		occurrenceCount: options.occurrenceCount ?? 1,
 	};
 }
 
 // ---------------------------------------------------------------------------
-// Factory: StopConditionState
+// Stop condition state
 // ---------------------------------------------------------------------------
 
-/**
- * Create a StopConditionState.
- */
-export function createStopConditionState(overrides?: Partial<StopConditionState>): StopConditionState {
-	return {
-		triggered: overrides?.triggered ?? false,
-		condition: overrides?.condition ?? "",
-		triggeredAt: overrides?.triggeredAt ?? null,
-		detail: overrides?.detail ?? "",
-		metadata: overrides?.metadata ?? {},
-	};
-}
-
-// ---------------------------------------------------------------------------
-// Factory: DiagnosticPacket
-// ---------------------------------------------------------------------------
-
-/**
- * Input for creating a DiagnosticPacket.
- */
-export interface DiagnosticPacketInput {
-	severity: DiagnosticSeverity;
-	diagnosticType: DiagnosticType;
-	workspaceId: string;
-	title: string;
-	description: string;
-	evidence: EvidenceGroup[];
-	planExecutionId?: string;
-	failureClassification?: FailureClassification;
-	schedulingDiagnostics?: SchedulerDiagnostics;
-	cooldownDurationMs?: number;
-	dedupeId?: string;
-	stopCondition?: Partial<StopConditionState>;
+export interface CreateStopConditionStateOptions {
+	triggered?: boolean;
+	condition?: string;
+	detail?: string;
+	triggeredAt?: string | null;
 	metadata?: Record<string, unknown>;
 }
 
 /**
- * Create a DiagnosticPacket from input.
+ * Create a stop condition state, defaulting to inactive.
  *
- * Enforces the "no silent errors" rule: if evidence is empty,
- * a placeholder group is automatically created.
+ * @param options - Optional stop condition overrides
+ * @returns A new StopConditionState
  */
-export function createDiagnosticPacket(input: DiagnosticPacketInput): DiagnosticPacket {
-	const id = crypto.randomUUID();
-	const timestamp = new Date().toISOString();
-
-	// Ensure at least one evidence group exists (no silent errors)
-	let evidence = input.evidence;
-	if (evidence.length === 0) {
-		evidence = [
-			createEvidenceGroup("Missing Evidence", [
-				createPlaceholderEvidenceEntry(
-					`No evidence provided for diagnostic: ${input.title}`,
-					"diagnostic-packet-factory",
-					"No evidence groups were provided in the input. This diagnostic was created without supporting evidence, which violates the no-silent-errors rule.",
-				),
-			]),
-		];
-	}
-
-	// Budget
-	const budget = createPacketBudget({ evidence });
-
-	// Cooldown
-	const cooldown = createCooldownState({
-		durationMs: input.cooldownDurationMs ?? DEFAULT_COOLDOWN_DURATION_MS,
-	});
-
-	// Dedupe
-	const dedupeContent = JSON.stringify({
-		diagnosticType: input.diagnosticType,
-		workspaceId: input.workspaceId,
-		title: input.title,
-		failureCategory: input.failureClassification?.category,
-	});
-	const defaultDedupeId = crypto.createHash("sha256").update(dedupeContent).digest("hex");
-	const dedupe = createDedupeState(input.dedupeId ?? defaultDedupeId);
-
-	// Stop condition
-	const stopCondition = createStopConditionState(input.stopCondition);
-
-	// Packet hash (content integrity)
-	const hashContent = JSON.stringify({
-		id,
-		timestamp,
-		severity: input.severity,
-		diagnosticType: input.diagnosticType,
-		workspaceId: input.workspaceId,
-		title: input.title,
-		description: input.description,
-		evidenceCount: evidence.reduce((sum, g) => sum + g.entries.length, 0),
-		groupCount: evidence.length,
-		budget,
-		dedupeId: defaultDedupeId,
-	});
-	const packetHash = crypto.createHash("sha256").update(hashContent).digest("hex");
-
+export function createStopConditionState(
+	options: CreateStopConditionStateOptions = {},
+): StopConditionState {
 	return {
-		id,
-		timestamp,
-		packetHash,
-		severity: input.severity,
-		diagnosticType: input.diagnosticType,
-		workspaceId: input.workspaceId,
-		planExecutionId: input.planExecutionId,
-		title: input.title,
-		description: input.description,
-		evidence,
-		failureClassification: input.failureClassification,
-		schedulingDiagnostics: input.schedulingDiagnostics,
-		budget,
-		cooldown,
-		dedupe,
-		stopCondition,
-		metadata: input.metadata ?? {},
+		triggered: options.triggered ?? false,
+		condition: options.condition ?? "",
+		detail: options.detail,
+		triggeredAt: options.triggeredAt ?? null,
+		metadata: options.metadata ?? {},
 	};
 }
 
 // ---------------------------------------------------------------------------
-// Validation
+// Packet hash computation
 // ---------------------------------------------------------------------------
 
 /**
- * Result of a diagnostic packet validation.
+ * Compute the packet hash from the packet's content fields (excluding
+ * the packetHash itself for integrity verification).
  */
-export interface PacketValidationResult {
-	valid: boolean;
-	errors: string[];
-	warnings: string[];
-}
-
-/**
- * Validate a DiagnosticPacket for structural correctness.
- */
-export function validateDiagnosticPacket(packet: unknown): PacketValidationResult {
-	const errors: string[] = [];
-	const warnings: string[] = [];
-
-	if (!packet || typeof packet !== "object") {
-		return { valid: false, errors: ["Packet must be a non-null object"], warnings: [] };
-	}
-
-	const p = packet as Record<string, unknown>;
-
-	// Required fields
-	if (typeof p.id !== "string" || p.id.length === 0) errors.push("id must be a non-empty string");
-	if (typeof p.timestamp !== "string" || p.timestamp.length === 0) errors.push("timestamp must be a non-empty string");
-	if (typeof p.packetHash !== "string" || p.packetHash.length === 0) errors.push("packetHash must be a non-empty string");
-	if (!ALL_DIAGNOSTIC_SEVERITIES.includes(p.severity as DiagnosticSeverity)) {
-		errors.push(`severity must be one of: ${ALL_DIAGNOSTIC_SEVERITIES.join(", ")}`);
-	}
-	if (!ALL_DIAGNOSTIC_TYPES.includes(p.diagnosticType as DiagnosticType)) {
-		errors.push(`diagnosticType must be one of: ${ALL_DIAGNOSTIC_TYPES.join(", ")}`);
-	}
-	if (typeof p.workspaceId !== "string" || p.workspaceId.length === 0) errors.push("workspaceId must be a non-empty string");
-	if (typeof p.title !== "string" || p.title.length === 0) errors.push("title must be a non-empty string");
-
-	// Evidence checks
-	if (!Array.isArray(p.evidence)) {
-		errors.push("evidence must be an array");
-	} else if (p.evidence.length === 0) {
-		warnings.push("evidence array is empty — no silent errors rule may be violated");
-	} else {
-		for (let i = 0; i < p.evidence.length; i++) {
-			const group = p.evidence[i] as Record<string, unknown>;
-			if (typeof group.label !== "string") errors.push(`evidence[${i}].label must be a string`);
-			if (!Array.isArray(group.entries)) {
-				errors.push(`evidence[${i}].entries must be an array`);
-			} else if (group.entries.length === 0) {
-				warnings.push(`evidence[${i}] has no entries`);
-			} else {
-				for (let j = 0; j < (group.entries as unknown[]).length; j++) {
-					const entry = (group.entries as Record<string, unknown>[])[j];
-					if (!ALL_EVIDENCE_CATEGORIES.includes(entry.category as EvidenceCategory)) {
-						errors.push(`evidence[${i}].entries[${j}].category must be one of: ${ALL_EVIDENCE_CATEGORIES.join(", ")}`);
-					}
-					if (typeof entry.description !== "string" || entry.description.length === 0) {
-						errors.push(`evidence[${i}].entries[${j}].description must be a non-empty string`);
-					}
-					if (typeof entry.source !== "string" || entry.source.length === 0) {
-						errors.push(`evidence[${i}].entries[${j}].source must be a non-empty string`);
-					}
-				}
-			}
-		}
-	}
-
-	// Budget check
-	if (p.budget && typeof p.budget === "object") {
-		const b = p.budget as Record<string, unknown>;
-		if (typeof b.isOverBudget === "boolean" && b.isOverBudget === true) {
-			warnings.push("packet is over budget and may need compaction");
-		}
-	}
-
-	return { valid: errors.length === 0, errors, warnings };
-}
-
-// ---------------------------------------------------------------------------
-// Budget helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Estimate the serialized size of evidence in bytes.
- */
-function estimatePacketSize(evidence: EvidenceGroup[]): number {
-	let size = 0;
-	for (const group of evidence) {
-		size += group.label.length * 2; // rough UTF-8 estimate
-		for (const entry of group.entries) {
-			size += entry.description.length * 2;
-			size += entry.source.length * 2;
-			size += 200; // overhead per entry
-		}
-		size += 100; // overhead per group
-	}
-	return size;
-}
-
-/**
- * Check whether a packet is within its budget constraints.
- */
-export function isPacketWithinBudget(packet: DiagnosticPacket): boolean {
-	return !packet.budget.isOverBudget;
-}
-
-/**
- * Compress a diagnostic packet by trimming evidence to fit within budget.
- *
- * Strategy (in order):
- * 1. Remove placeholder entries first (lowest value)
- * 2. Merge small groups where possible
- * 3. Truncate long descriptions
- */
-export function compactDiagnosticPacket(packet: DiagnosticPacket): DiagnosticPacket {
-	if (isPacketWithinBudget(packet)) {
-		return packet;
-	}
-
-	const compacted = { ...packet, evidence: [...packet.evidence] };
-	const targetMaxEntries = packet.budget.maxEvidenceEntries;
-	const targetMaxGroups = packet.budget.maxEvidenceGroups;
-	const targetMaxSizeBytes = packet.budget.maxPacketSizeBytes;
-
-	// Phase 1: Remove placeholder entries from groups (but keep at least one entry per group)
-	for (let i = 0; i < compacted.evidence.length; i++) {
-		const group = compacted.evidence[i];
-		const nonPlaceholders = group.entries.filter((e) => !e.isPlaceholder);
-		if (nonPlaceholders.length > 0) {
-			compacted.evidence[i] = { ...group, entries: nonPlaceholders };
-		}
-	}
-
-	// Phase 2: Recalculate budget
-	compacted.budget = createPacketBudget({
-		evidence: compacted.evidence,
-		maxEvidenceEntries: targetMaxEntries,
-		maxEvidenceGroups: targetMaxGroups,
-		maxPacketSizeBytes: targetMaxSizeBytes,
-	});
-
-	if (isPacketWithinBudget(compacted)) {
-		return compacted;
-	}
-
-	// Phase 3: Remove excess groups (keep the most confident ones)
-	// Use the packet's own budget limits instead of defaults
-	while (
-		compacted.evidence.length > targetMaxGroups ||
-		compacted.evidence.reduce((sum, g) => sum + g.entries.length, 0) > targetMaxEntries
-	) {
-		// Sort by group confidence ascending, remove least confident
-		compacted.evidence.sort((a, b) => a.groupConfidence - b.groupConfidence);
-		compacted.evidence.shift();
-	}
-
-	compacted.budget = createPacketBudget({
-		evidence: compacted.evidence,
-		maxEvidenceEntries: targetMaxEntries,
-		maxEvidenceGroups: targetMaxGroups,
-		maxPacketSizeBytes: targetMaxSizeBytes,
-	});
-
-	if (isPacketWithinBudget(compacted)) {
-		return compacted;
-	}
-
-	// Phase 4: Truncate descriptions to reduce size
-	for (const group of compacted.evidence) {
-		for (const entry of group.entries) {
-			if (entry.description.length > 500) {
-				entry.description = entry.description.slice(0, 497) + "...";
-			}
-		}
-	}
-
-	compacted.budget = createPacketBudget({
-		evidence: compacted.evidence,
-		maxEvidenceEntries: targetMaxEntries,
-		maxEvidenceGroups: targetMaxGroups,
-		maxPacketSizeBytes: targetMaxSizeBytes,
-	});
-
-	return compacted;
-}
-
-// ---------------------------------------------------------------------------
-// Serialization
-// ---------------------------------------------------------------------------
-
-/**
- * Serialize a DiagnosticPacket to JSON.
- */
-export function serializeDiagnosticPacket(packet: DiagnosticPacket): string {
-	return JSON.stringify(packet, null, 2);
-}
-
-/**
- * Deserialize a DiagnosticPacket from JSON with validation.
- */
-export function deserializeDiagnosticPacket(json: string): DiagnosticPacket {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(json);
-	} catch (e) {
-		throw new Error(`Failed to parse DiagnosticPacket JSON: ${(e as Error).message}`);
-	}
-
-	const result = validateDiagnosticPacket(parsed);
-	if (!result.valid) {
-		throw new Error(`Invalid DiagnosticPacket: ${result.errors.join("; ")}`);
-	}
-
-	return parsed as DiagnosticPacket;
-}
-
-/**
- * Verify a packet's integrity by recomputing its hash.
- */
-export function verifyPacketIntegrity(packet: DiagnosticPacket): boolean {
-	const hashContent = JSON.stringify({
+function computePacketHash(packet: Omit<DiagnosticPacket, "packetHash">): string {
+	const hashInput: Record<string, unknown> = {
 		id: packet.id,
 		timestamp: packet.timestamp,
 		severity: packet.severity,
@@ -1172,67 +786,326 @@ export function verifyPacketIntegrity(packet: DiagnosticPacket): boolean {
 		workspaceId: packet.workspaceId,
 		title: packet.title,
 		description: packet.description,
-		evidenceCount: packet.evidence.reduce((sum, g) => sum + g.entries.length, 0),
-		groupCount: packet.evidence.length,
-		budget: packet.budget,
-		dedupeId: packet.dedupe.dedupeId,
-	});
-	const computedHash = crypto.createHash("sha256").update(hashContent).digest("hex");
-	return computedHash === packet.packetHash;
+		evidence: packet.evidence.map((g) => ({
+			label: g.label,
+			entries: g.entries.map((e) => ({
+				id: e.id,
+				contentHash: e.contentHash,
+				category: e.category,
+				description: e.description,
+				source: e.source,
+				confidence: e.confidence,
+				isPlaceholder: e.isPlaceholder,
+				data: e.data,
+				fileData: e.fileData,
+				testData: e.testData,
+				errorData: e.errorData,
+				schedulingData: e.schedulingData,
+				failureData: e.failureData,
+				agentReportData: e.agentReportData,
+				cooldownData: e.cooldownData,
+			})),
+		})),
+	};
+
+	return sha256(stableStringify(hashInput));
+}
+
+/**
+ * Derive a deduplication ID from diagnostic properties.
+ */
+function deriveDedupeId(
+	diagnosticType: DiagnosticType,
+	workspaceId: string,
+	title: string,
+	evidence: EvidenceGroup[],
+): string {
+	const hashInput: Record<string, unknown> = {
+		diagnosticType,
+		workspaceId,
+		title,
+		evidenceHashes: evidence.map((g) =>
+			g.entries.map((e) => e.contentHash),
+		),
+	};
+	return sha256(stableStringify(hashInput));
 }
 
 // ---------------------------------------------------------------------------
-// Display
+// Diagnostic packet creation
+// ---------------------------------------------------------------------------
+
+export interface CreateDiagnosticPacketOptions {
+	severity: PacketSeverity;
+	diagnosticType: DiagnosticType;
+	workspaceId: string;
+	title: string;
+	description: string;
+	evidence: EvidenceGroup[];
+	stopCondition?: Partial<StopConditionState>;
+	cooldownDurationMs?: number;
+	failureClassification?: FailureData;
+	planExecutionId?: string;
+}
+
+/**
+ * Create a diagnostic packet with the given options.
+ *
+ * Automatically generates:
+ * - Unique ID
+ * - ISO timestamp
+ * - Content hash for integrity verification
+ * - Budget state
+ * - Cooldown state
+ * - Dedupe state
+ * - Stop condition state
+ * - Placeholder evidence if no evidence is provided (no silent errors)
+ *
+ * @param options - Packet creation options
+ * @returns A new DiagnosticPacket
+ */
+export function createDiagnosticPacket(options: CreateDiagnosticPacketOptions): DiagnosticPacket {
+	const id = randomUUID();
+	const timestamp = new Date().toISOString();
+
+	// Auto-create placeholder evidence if none provided (no silent errors)
+	let evidence = options.evidence;
+	if (evidence.length === 0) {
+		const placeholder = createPlaceholderEvidenceEntry(
+			"No evidence collected",
+			"diagnostic-packet",
+			"Diagnostic was created without evidence; auto-generated placeholder to avoid silent error",
+		);
+		evidence = [createEvidenceGroup("Missing Evidence", [placeholder])];
+	}
+
+	const budget = createPacketBudget({ evidence });
+	const cooldown = createCooldownState({
+		durationMs: options.cooldownDurationMs ?? DEFAULT_COOLDOWN_DURATION_MS,
+	});
+	const dedupeId = deriveDedupeId(options.diagnosticType, options.workspaceId, options.title, evidence);
+	const dedupe = createDedupeState(dedupeId);
+	const stopCondition = createStopConditionState(options.stopCondition);
+
+	const basePacket: Omit<DiagnosticPacket, "packetHash"> = {
+		id,
+		timestamp,
+		severity: options.severity,
+		diagnosticType: options.diagnosticType,
+		workspaceId: options.workspaceId,
+		title: options.title,
+		description: options.description,
+		evidence,
+		budget,
+		cooldown,
+		dedupe,
+		stopCondition,
+		failureClassification: options.failureClassification,
+		planExecutionId: options.planExecutionId,
+		cooldownDurationMs: options.cooldownDurationMs,
+	};
+
+	const packetHash = computePacketHash(basePacket);
+
+	return {
+		...basePacket,
+		packetHash,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Packet validation
 // ---------------------------------------------------------------------------
 
 /**
- * Format a DiagnosticPacket for human-readable display.
+ * Validate a diagnostic packet structure.
+ *
+ * Checks for required fields and returns a validation result with
+ * error messages.
+ *
+ * @param packet - The packet to validate
+ * @returns Validation result
+ */
+export function validateDiagnosticPacket(
+	packet: Record<string, unknown>,
+): ValidationResult {
+	const errors: string[] = [];
+
+	if (!packet.id || typeof packet.id !== "string") {
+		errors.push("Missing or invalid 'id': must be a non-empty string");
+	}
+	if (!packet.timestamp || typeof packet.timestamp !== "string") {
+		errors.push("Missing or invalid 'timestamp': must be a non-empty string");
+	}
+	if (!packet.packetHash || typeof packet.packetHash !== "string") {
+		errors.push("Missing or invalid 'packetHash': must be a non-empty string");
+	}
+	if (!packet.severity || typeof packet.severity !== "string") {
+		errors.push("Missing or invalid 'severity': must be a non-empty string");
+	}
+	if (!packet.diagnosticType || typeof packet.diagnosticType !== "string") {
+		errors.push("Missing or invalid 'diagnosticType': must be a non-empty string");
+	}
+	if (!packet.workspaceId || typeof packet.workspaceId !== "string") {
+		errors.push("Missing or invalid 'workspaceId': must be a non-empty string");
+	}
+	if (!packet.title || typeof packet.title !== "string") {
+		errors.push("Missing or invalid 'title': must be a non-empty string");
+	}
+	if (!packet.description || typeof packet.description !== "string") {
+		errors.push("Missing or invalid 'description': must be a non-empty string");
+	}
+	if (!Array.isArray(packet.evidence)) {
+		errors.push("Missing or invalid 'evidence': must be an array");
+	}
+
+	return {
+		valid: errors.length === 0,
+		errors,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Serialization and deserialization
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialize a diagnostic packet to a JSON string.
+ *
+ * @param packet - The diagnostic packet
+ * @returns JSON string representation
+ */
+export function serializeDiagnosticPacket(packet: DiagnosticPacket): string {
+	return JSON.stringify(packet, null, 2);
+}
+
+/**
+ * Deserialize a diagnostic packet from a JSON string.
+ *
+ * Validates the structure and throws if the JSON is invalid or
+ * the packet structure doesn't match the expected format.
+ *
+ * @param json - JSON string representation
+ * @returns The deserialized DiagnosticPacket
+ * @throws If JSON is malformed or packet structure is invalid
+ */
+export function deserializeDiagnosticPacket(json: string): DiagnosticPacket {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch {
+		throw new Error("Invalid JSON: cannot parse diagnostic packet");
+	}
+
+	// Basic structural validation
+	if (!parsed || typeof parsed !== "object") {
+		throw new Error("Invalid DiagnosticPacket: must be an object");
+	}
+
+	const obj = parsed as Record<string, unknown>;
+
+	if (!obj.id || !obj.timestamp || !obj.packetHash || !obj.severity) {
+		throw new Error("Invalid DiagnosticPacket: missing required fields");
+	}
+
+	if (!Array.isArray(obj.evidence)) {
+		throw new Error("Invalid DiagnosticPacket: evidence must be an array");
+	}
+
+	return parsed as DiagnosticPacket;
+}
+
+// ---------------------------------------------------------------------------
+// Integrity verification
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify the integrity of a diagnostic packet by recomputing its hash.
+ *
+ * @param packet - The diagnostic packet
+ * @returns True if the packet hash matches the recomputed hash
+ */
+export function verifyPacketIntegrity(packet: DiagnosticPacket): boolean {
+	if (!packet.packetHash) return false;
+
+	const { packetHash: _ignored, ...rest } = packet;
+
+	// For verification, we strip the hash and recompute
+	const hashInput: Record<string, unknown> = {
+		id: rest.id,
+		timestamp: rest.timestamp,
+		severity: rest.severity,
+		diagnosticType: rest.diagnosticType,
+		workspaceId: rest.workspaceId,
+		title: rest.title,
+		description: rest.description,
+		evidence: rest.evidence.map((g) => ({
+			label: g.label,
+			entries: g.entries.map((e) => ({
+				id: e.id,
+				contentHash: e.contentHash,
+				category: e.category,
+				description: e.description,
+				source: e.source,
+				confidence: e.confidence,
+				isPlaceholder: e.isPlaceholder,
+				data: e.data,
+			})),
+		})),
+	};
+
+	const recomputed = sha256(stableStringify(hashInput));
+	return recomputed === packet.packetHash;
+}
+
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a diagnostic packet for human-readable output.
+ *
+ * @param packet - The diagnostic packet
+ * @returns Formatted string representation
  */
 export function formatDiagnosticPacket(packet: DiagnosticPacket): string {
 	const lines: string[] = [];
-	const budgetStatus = packet.budget.isOverBudget ? "OVER BUDGET" : "OK";
-	const cooldownStatus = packet.cooldown.isActive ? `ACTIVE (${Math.round(packet.cooldown.remainingMs / 1000)}s remaining)` : "inactive";
-	const dedupeStatus = packet.dedupe.isSuppressed ? "SUPPRESSED" : "active";
-	const stopStatus = packet.stopCondition.triggered ? `TRIGGERED: ${packet.stopCondition.condition}` : "none";
-
 	lines.push("=".repeat(60));
-	lines.push(`DIAGNOSTIC PACKET: ${packet.title}`);
+	lines.push("DIAGNOSTIC PACKET");
 	lines.push("=".repeat(60));
-	lines.push(`ID: ${packet.id.slice(0, 12)}...`);
-	lines.push(`Timestamp: ${packet.timestamp}`);
-	lines.push(`Workspace: ${packet.workspaceId}${packet.planExecutionId ? ` [Plan: ${packet.planExecutionId}]` : ""}`);
-	lines.push(`Severity: ${packet.severity.toUpperCase()} / Type: ${packet.diagnosticType}`);
+	lines.push(`ID:          ${packet.id}`);
+	lines.push(`Timestamp:   ${packet.timestamp}`);
+	lines.push(`Workspace:   ${packet.workspaceId}`);
+	lines.push(`Severity:    ${packet.severity}`);
+	lines.push(`Type:        ${packet.diagnosticType}`);
+	lines.push(`Title:       ${packet.title}`);
 	lines.push(`Description: ${packet.description}`);
-	lines.push("");
-	lines.push("--- Budget ---");
-	lines.push(`  Evidence: ${packet.budget.currentEvidenceCount}/${packet.budget.maxEvidenceEntries}`);
-	lines.push(`  Groups: ${packet.budget.currentGroupCount}/${packet.budget.maxEvidenceGroups}`);
-	lines.push(`  Size: ${(packet.budget.estimatedSizeBytes / 1024).toFixed(1)} KB / ${(packet.budget.maxPacketSizeBytes / 1024).toFixed(1)} KB`);
-	lines.push(`  Status: ${budgetStatus}`);
-	lines.push("");
-	lines.push("--- State ---");
-	lines.push(`  Cooldown: ${cooldownStatus}`);
-	lines.push(`  Dedupe: ${dedupeStatus} (seen ${packet.dedupe.occurrenceCount}x)`);
-	lines.push(`  Stop Condition: ${stopStatus}`);
 	lines.push("");
 
 	if (packet.failureClassification) {
-		lines.push(`--- Failure Classification ---`);
-		lines.push(`  Category: ${packet.failureClassification.category}`);
-		lines.push(`  Confidence: ${Math.round(packet.failureClassification.confidence * 100)}%`);
-		lines.push(`  Recoverable: ${packet.failureClassification.recoverable ? "yes" : "no"}`);
+		lines.push("Failure Classification:");
+		lines.push(`  Category:    ${packet.failureClassification.category}`);
+		lines.push(`  Confidence:  ${packet.failureClassification.confidence}`);
+		lines.push(`  Recoverable: ${packet.failureClassification.recoverable}`);
 		lines.push("");
 	}
 
-	lines.push(`--- Evidence (${packet.evidence.length} groups) ---`);
+	lines.push("Evidence:");
 	for (const group of packet.evidence) {
-		lines.push(`  [${group.isComplete ? "OK" : "INCOMPLETE"}] ${group.label} (confidence: ${Math.round(group.groupConfidence * 100)}%)`);
+		lines.push(`  [${group.label}] (confidence: ${group.groupConfidence.toFixed(2)}, complete: ${group.isComplete})`);
 		for (const entry of group.entries) {
 			const placeholder = entry.isPlaceholder ? " [PLACEHOLDER]" : "";
-			lines.push(`    - [${entry.category}] ${entry.description}${placeholder}`);
+			lines.push(`    - [${entry.category}] ${entry.description} (source: ${entry.source})${placeholder}`);
 		}
 	}
+	lines.push("");
 
+	lines.push(`Budget:      ${packet.budget.currentEvidenceCount}/${packet.budget.maxEvidenceEntries} entries, ${packet.budget.currentGroupCount}/${packet.budget.maxEvidenceGroups} groups${packet.budget.isOverBudget ? " [OVER BUDGET]" : ""}`);
+	lines.push(`Cooldown:    ${packet.cooldown.isActive ? `Active (${packet.cooldown.remainingMs}ms remaining, reason: ${packet.cooldown.cooldownReason})` : "Inactive"}`);
+	lines.push(`Dedupe:      ${packet.dedupe.dedupeId}${packet.dedupe.isSuppressed ? " [SUPPRESSED]" : ""}`);
+	lines.push(`Stop Cond:   ${packet.stopCondition.triggered ? `Triggered: ${packet.stopCondition.condition}` : "Not triggered"}`);
+	lines.push(`Packet Hash: ${packet.packetHash.substring(0, 16)}...`);
 	lines.push("=".repeat(60));
+
 	return lines.join("\n");
 }

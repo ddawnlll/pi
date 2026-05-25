@@ -433,7 +433,8 @@ export function validateContractAgainstRequirements(
 	}
 
 	// 5. Dependency resolution
-	if (availableContracts && availableContracts.length > 0) {
+	// Run when availableContracts is explicitly provided (even if empty)
+	if (availableContracts !== undefined) {
 		const depResult = resolveDependencies(contract, availableContracts);
 		if (!depResult.resolved) {
 			errors.push(...depResult.errors);

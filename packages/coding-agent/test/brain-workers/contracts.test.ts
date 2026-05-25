@@ -1466,7 +1466,8 @@ describe("WorkerLifecycleEngine — Health & Diagnostics", () => {
 
 		const summary = engine.getHealthSummary();
 		expect(summary.total).toBe(2);
-		expect(summary.healthy).toBe(0); // both dormant, healthy=false... actually dormant is non-operational
+		// Dormant workers are created with healthy=true
+		expect(summary.healthy).toBe(2);
 	});
 
 	test("healthCheck transitions active worker over runtime budget to cooling", () => {
