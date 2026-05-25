@@ -84,7 +84,8 @@ describe("ALL_WORKER_ROLES", () => {
 		expect(ALL_WORKER_ROLES).toContain("auditor");
 		expect(ALL_WORKER_ROLES).toContain("ideaScout");
 		expect(ALL_WORKER_ROLES).toContain("fixStrategist");
-		expect(ALL_WORKER_ROLES.length).toBe(10);
+		expect(ALL_WORKER_ROLES).toContain("regressionHunter");
+		expect(ALL_WORKER_ROLES.length).toBe(11);
 	});
 
 	test("every role has a label", () => {
@@ -577,6 +578,27 @@ describe("generateContractForRole", () => {
 		expect(contract.errors.some((e) => e.code === "TEST_PLAN_GENERATION_FAILED")).toBe(true);
 		expect(contract.dependencies).toContain("brain-worker.diagnostician");
 		expect(contract.dependencies).toContain("brain-worker.debugger");
+	});
+
+	test("generates a regressionHunter contract", () => {
+		const contract = generateContractForRole("regressionHunter");
+
+		expect(contract.id).toContain("brain-worker.regressionHunter");
+		expect(contract.capabilities).toContain("compare_baselines");
+		expect(contract.capabilities).toContain("detect_regressions");
+		expect(contract.capabilities).toContain("classify_severity");
+		expect(contract.capabilities).toContain("produce_findings");
+		expect(contract.capabilities).toContain("evidence_chain_tracing");
+		expect(contract.inputs.some((i) => i.name === "baseline_snapshot")).toBe(true);
+		expect(contract.inputs.some((i) => i.name === "current_snapshot")).toBe(true);
+		expect(contract.outputs.some((o) => o.name === "regression_analysis")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "NO_BASELINE")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "NO_CURRENT_DATA")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "ANALYSIS_FAILED")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "BUDGET_EXCEEDED")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "DUP_SESSION")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "TOO_MANY_FINDINGS")).toBe(true);
+		expect(contract.dependencies).toContain("baseline-store");
 	});
 
 	test("accepts custom version string", () => {

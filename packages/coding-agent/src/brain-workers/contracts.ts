@@ -674,6 +674,103 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				supportsCancellation: true,
 			};
 
+		case "regressionHunter":
+			return {
+				id: `${baseId}.v${version}`,
+				name: `${label} Contract`,
+				description: `Compares current outputs, metrics, and behavior against known-good baselines to detect regressions, producing structured findings with severity ratings, evidence chains, and remediation suggestions.`,
+				version,
+				capabilities: [
+					"compare_baselines",
+					"detect_regressions",
+					"classify_severity",
+					"produce_findings",
+					"evidence_chain_tracing",
+				],
+				inputs: [
+					{
+						name: "baseline_snapshot",
+						description: "Known-good baseline reference data",
+						type: "BaselineSnapshot",
+						required: true,
+						sources: ["baseline-store", "test-runner", "ci-pipeline"],
+					},
+					{
+						name: "current_snapshot",
+						description: "Current data to compare against the baseline",
+						type: "CurrentSnapshot",
+						required: true,
+						sources: ["test-runner", "ci-pipeline", "build-system"],
+					},
+					{
+						name: "worker_diagnostics",
+						description: "Diagnostics from related workers",
+						type: "WorkerDiagnostic[]",
+						required: false,
+						sources: ["worker-lifecycle", "supervisor"],
+					},
+				],
+				outputs: [
+					{
+						name: "regression_analysis",
+						description: "Full regression analysis with findings and evidence chains",
+						type: "RegressionAnalysis",
+						destinations: ["supervisor", "plan-executor", "remediation-engine"],
+					},
+					{
+						name: "diagnostic_report",
+						description: "Evidence-backed diagnostic report on failures",
+						type: "WorkerDiagnostic",
+						destinations: ["worker-lifecycle", "observability"],
+					},
+				],
+				errors: [
+					{
+						code: "NO_BASELINE",
+						description: "No baseline snapshot was provided for comparison",
+						severity: "warning",
+						remediation:
+							"Ensure a baseline snapshot is captured and provided before starting a regression hunt session",
+					},
+					{
+						code: "NO_CURRENT_DATA",
+						description: "No current snapshot was provided for comparison",
+						severity: "warning",
+						remediation:
+							"Ensure current data is collected and provided before starting a regression hunt session",
+					},
+					{
+						code: "ANALYSIS_FAILED",
+						description: "Regression analysis failed unexpectedly",
+						severity: "critical",
+						remediation: "Check the comparison data for consistency and retry the analysis",
+					},
+					{
+						code: "BUDGET_EXCEEDED",
+						description: "Token or runtime budget was exceeded during the session",
+						severity: "warning",
+						remediation:
+							"Consider increasing the regression hunt budget or reducing the scope of comparison",
+					},
+					{
+						code: "DUP_SESSION",
+						description: "A duplicate regression hunt session was detected and suppressed",
+						severity: "info",
+						remediation:
+							"Verify that the regression signature is new or wait for the dedup window to expire",
+					},
+					{
+						code: "TOO_MANY_FINDINGS",
+						description: "Number of findings exceeded maxFindings limit",
+						severity: "info",
+						remediation: "Increase maxFindings or narrow the comparison scope",
+					},
+				],
+				dependencies: ["baseline-store"],
+				supportsStreaming: false,
+				supportsCancellation: true,
+			};
+
 		default: {
 			const _exhaustive: never = role;
 			throw new Error(`Unknown worker role: ${_exhaustive}`);

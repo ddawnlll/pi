@@ -25,3 +25,5 @@ export * from "./debugger/index.js";
 export * from "./idea-scout/index.js";
 // Fix Strategist Worker (25.J)
 export * from "./fix-strategist/index.js";
+// Regression Hunter Worker (25.L)
+export * from "./regression-hunter/index.js";

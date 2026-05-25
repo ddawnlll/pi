@@ -35,6 +35,7 @@ import { randomUUID } from "node:crypto";
  * - auditor:          Audits decisions, policy compliance, and provenance chains
  * - ideaScout:        Scouts for ideas from signals, observations, and trend data
  * - fixStrategist:    Analyzes evidence from debug diagnostics and generates fix strategies and test plans
+ * - regressionHunter: Detects regressions by comparing current behavior against baselines
  */
 export type WorkerRole =
 	| "observer"
@@ -46,7 +47,8 @@ export type WorkerRole =
 	| "coordinator"
 	| "auditor"
 	| "ideaScout"
-	| "fixStrategist";
+	| "fixStrategist"
+	| "regressionHunter";
 
 /**
  * All valid WorkerRole values for runtime validation.
@@ -62,6 +64,7 @@ export const ALL_WORKER_ROLES: readonly WorkerRole[] = [
 	"auditor",
 	"ideaScout",
 	"fixStrategist",
+	"regressionHunter",
 ] as const;
 
 /**
@@ -78,6 +81,7 @@ export const WORKER_ROLE_LABELS: Record<WorkerRole, string> = {
 	auditor: "Auditor",
 	ideaScout: "Idea Scout",
 	fixStrategist: "Fix Strategist",
+	regressionHunter: "Regression Hunter",
 };
 
 /**
@@ -143,6 +147,12 @@ export const DEFAULT_ROLE_BUDGETS: Record<WorkerRole, WorkerBudget> = {
 		maxConsecutiveFailures: 2,
 		cooldownMs: 180_000,
 		maxRuntimeMs: 900_000,
+	},
+	regressionHunter: {
+		maxTokensPerCycle: 150_000,
+		maxConsecutiveFailures: 3,
+		cooldownMs: 120_000,
+		maxRuntimeMs: 600_000,
 	},
 };
 
