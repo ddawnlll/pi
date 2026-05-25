@@ -81,6 +81,7 @@ import {
 } from "./plan-runner.js";
 import { registerActivityTimelineRoutes } from "./activity-timeline-routes.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
+import { registerPiInboxRoutes } from "./pi-inbox-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
@@ -4960,6 +4961,14 @@ await fastify.register(
 	},
 	{ prefix: "/api/projects/:projectId/brain" },
 );
+
+// ---------------------------------------------------------------------------
+// Pi Inbox Routes (24.M — Pi Inbox and Message Center)
+// ---------------------------------------------------------------------------
+
+const { PiInboxStore } = await import("@earendil-works/pi-coding-agent");
+const piInboxStore = new PiInboxStore();
+await registerPiInboxRoutes(fastify, piInboxStore);
 
 // ---------------------------------------------------------------------------
 // Health Check

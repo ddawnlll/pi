@@ -58,6 +58,7 @@ import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
+import { PiInbox } from "./components/inbox/PiInbox";
 import { Topbar, ContextualToolbar } from "./components/topbar/Topbar";
 import { BrainStatePage } from "./pages/BrainStatePage";
 import { BrainMemoryPage } from "./pages/BrainMemoryPage";
@@ -274,6 +275,7 @@ export function App() {
   const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
   const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
+  const showPiInbox            = activeView.type === "platform" && activeView.screen === "pi_inbox";
   // P19 brain pages
   const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
   const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
@@ -843,6 +845,8 @@ export function App() {
                           <AutonomyCenter className="flex-1 min-h-0" />
                         ) : showProposalInbox ? (
                           <ProposalInbox className="flex-1 min-h-0" />
+                        ) : showPiInbox ? (
+                          <PiInbox className="flex-1 min-h-0" />
                         ) : showBrainState ? (
                           <BrainStatePage />
                         ) : showBrainProposals ? (
