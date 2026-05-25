@@ -353,14 +353,22 @@ export class WorkspaceAgentExecutor {
 		packet: HashedPacket,
 		workspaceId: string,
 		/**
-		 * Internal flag used ONLY by executeInWorktree() when creating the inner
-		 * executor scoped to the worktree path. The inner executor has worktree mode
-		 * disabled to avoid recursion — it is ALREADY inside a worktree, so the
-		 * security check is bypassed for it only.
+		 * Options for per-call execution state.
 		 *
-		 * P26.C: logPath parameter replaces setLogPath() for concurrent execution safety.
+		 * - `signal`: External AbortSignal (e.g. from ContinuousExecutor) wired to
+		 *   the execution's internal abortController so both timeout and external
+		 *   abort trigger the same abort path.
+		 * - `logPath`: Path for the execution log file (replaces old setLogPath()).
+		 * - `attemptNo`: Current attempt number, used for attempt-scoped worktrees.
+		 * - `_skipWorktreeCheck`: Internal flag used ONLY by executeInWorktree()
+		 *   when creating the inner executor scoped to the worktree path.
 		 */
-		_options?: { _skipWorktreeCheck?: boolean; logPath?: string; attemptNo?: number },
+		_options?: {
+			_signal?: AbortSignal;
+			_skipWorktreeCheck?: boolean;
+			logPath?: string;
+			attemptNo?: number;
+		},
 	): Promise<AgentExecutionResult> {
 		// P26.C: Create per-execution context
 		const abortController = new AbortController();
@@ -373,6 +381,26 @@ export class WorkspaceAgentExecutor {
 			}
 		}, this.timeoutMs);
 		timeoutHandle.unref();
+
+		// P26.D: Wire external abort signal to the execution's internal controller.
+		// When the ContinuousExecutor aborts, both the timeout and the external
+		// signal trigger the same abort path, ensuring in-flight workspaces
+		// respect pause/stop immediately.
+		if (_options?._signal) {
+			if (_options._signal.aborted) {
+				abortController.abort();
+			} else {
+				_options._signal.addEventListener(
+					"abort",
+					() => {
+						if (!abortController.signal.aborted) {
+							abortController.abort();
+						}
+					},
+					{ once: true },
+				);
+			}
+		}
 
 		const ctx: ExecutionContext = {
 			logPath: _options?.logPath,

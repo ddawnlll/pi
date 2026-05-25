@@ -692,19 +692,10 @@ export class AutonomousExecutor {
 			// concurrent workspaces cannot overwrite each other's executor state.
 			const workspaceExecutor = this.createWorkspaceExecutor(workspace.id);
 
-			// P26.D: Wire external abort signal to the workspace executor.
-			// When the ContinuousExecutor (or any caller) aborts, the executor
-			// is aborted and the in-flight execute() call resolves with FAILED.
-			if (abortSignal && workspaceExecutor) {
-				if (abortSignal.aborted) {
-					workspaceExecutor.abort();
-				} else {
-					abortSignal.addEventListener("abort", () => workspaceExecutor.abort(), { once: true });
-				}
-			}
-
 			// Execute workspace with real agent or simulate
 			// P4.6.3: Wrap execution in a tracked promise so stopAllActiveWorkspaces() can await it.
+			// P26.D: External abort signal is passed to execute() via _signal option;
+			// execute() wires it to the internal abortController internally.
 			const executionPromise = (async (): Promise<WorkspaceExecutionResult> => {
 				let result: WorkspaceExecutionResult;
 
@@ -713,8 +704,10 @@ export class AutonomousExecutor {
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
 					// P26.C: Pass logPath to execute() instead of calling setLogPath()
+					// P26.D: Pass abortSignal so execute() wires it to the internal abortController
 					// P26.F: Pass attemptNo for attempt-scoped worktree paths and branch names
 					const agentResult = await workspaceExecutor.execute(packet, workspace.id, {
+						_signal: abortSignal,
 						logPath,
 						attemptNo: wsStateForPacket.attempts,
 					});
