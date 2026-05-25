@@ -25,6 +25,7 @@
  */
 
 import {
+	Activity,
 	Bell,
 	Cpu,
 	Database,
@@ -57,6 +58,7 @@ const BORD = "border-[#E8E6E1] dark:border-[#333]";
 export type PlatformNavItem =
 	| "autonomy"
 	| "goals"
+	| "observability"
 	| "proposal_inbox"
 	| "pi_inbox"
 	| "plan_intake"
@@ -90,6 +92,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Autonomy",
 		icon: Cpu,
 		description: "Orchestrator health, proposals, self-improvement triggers",
+	},
+	{
+		id: "observability",
+		label: "Observability",
+		icon: Activity,
+		description: "Telemetry events, stats, errors, time-series",
 	},
 	{
 		id: "proposal_inbox",
@@ -245,6 +253,9 @@ function renderEntries(
 export function LeftNav({ activeItem, onNavigate, showBrainSection = true }: LeftNavProps) {
 	return (
 		<div className="flex flex-col gap-0.5 px-2 pb-2">
+			<div className={`mt-0 mb-0.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+				Platform
+			</div>
 			{renderEntries(PLATFORM_NAV_ENTRIES, activeItem, onNavigate)}
 
 			{showBrainSection && (

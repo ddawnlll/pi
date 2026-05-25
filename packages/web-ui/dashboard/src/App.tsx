@@ -61,6 +61,7 @@ import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
+import { ObservabilityCockpit } from "./features/observability/ObservabilityCockpit";
 import { PiInbox } from "./components/inbox/PiInbox";
 import { Topbar, ContextualToolbar } from "./components/topbar/Topbar";
 import { BrainStatePage } from "./pages/BrainStatePage";
@@ -274,6 +275,7 @@ export function App() {
   // ── Derived booleans from activeView ──────────────────────────────────
   const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
   const showGoals            = activeView.type === "platform" && activeView.screen === "goals";
+  const showObservability    = activeView.type === "platform" && activeView.screen === "observability";
   const showProposalInbox    = activeView.type === "platform" && activeView.screen === "proposal_inbox";
   const showExtensions       = activeView.type === "platform" && activeView.screen === "extensions_skills";
   const showSkills           = activeView.type === "platform" && activeView.screen === "extensions_skills";
@@ -301,7 +303,8 @@ export function App() {
     if (item.startsWith("brain_")) {
       setActiveView({ type: "platform", screen: item as PlatformNavItem });
     } else if (item === "autonomy" || item === "plan_intake" || item === "extensions_skills" ||
-               item === "proposal_inbox" || item === "registry_settings") {
+               item === "proposal_inbox" || item === "registry_settings" ||
+               item === "observability") {
       setActiveView({ type: "platform", screen: item as PlatformNavItem });
     } else {
       // Default: try as a run or task selection handled by parent
@@ -876,6 +879,8 @@ export function App() {
                           <GoalBoard className="flex-1 min-h-0" />
                         ) : showAutonomy ? (
                           <AutonomyCenter className="flex-1 min-h-0" />
+                        ) : showObservability ? (
+                          <ObservabilityCockpit className="flex-1 min-h-0" />
                         ) : showProposalInbox ? (
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showPiInbox ? (
