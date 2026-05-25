@@ -23,3 +23,5 @@ export * from "./types.js";
 export * from "./debugger/index.js";
 // Idea Scout Worker (25.K)
 export * from "./idea-scout/index.js";
+// Fix Strategist Worker (25.J)
+export * from "./fix-strategist/index.js";

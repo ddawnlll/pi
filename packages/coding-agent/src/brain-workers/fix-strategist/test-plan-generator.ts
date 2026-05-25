@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { PatchAction, PatchStrategy, RootCauseFinding } from "./patch-strategy.js";
+import type { PatchAction, PatchStrategy, FixRootCauseFinding } from "./patch-strategy.js";
 
 // ---------------------------------------------------------------------------
 // Test Case
@@ -253,7 +253,7 @@ export class TestPlanGenerator {
 	 * @param rootCauses - Root cause findings linked to this action.
 	 * @returns An array of generated test cases.
 	 */
-	generateTestCasesForAction(action: PatchAction, rootCauses: RootCauseFinding[]): TestCase[] {
+	generateTestCasesForAction(action: PatchAction, rootCauses: FixRootCauseFinding[]): TestCase[] {
 		const testCases: TestCase[] = [];
 		const rootCauseRefs = rootCauses.map((r) => r.id);
 
@@ -301,7 +301,7 @@ export class TestPlanGenerator {
 	 * @param finding - The root cause finding.
 	 * @returns A test case, or null if no test can be generated.
 	 */
-	generateTestCaseForRootCause(finding: RootCauseFinding): TestCase | null {
+	generateTestCaseForRootCause(finding: FixRootCauseFinding): TestCase | null {
 		const targetFile = finding.affectedFiles.length > 0 ? finding.affectedFiles[0]! : "src/unknown.ts";
 		const testFile = this.inferTestFilePath(targetFile);
 
@@ -329,7 +329,7 @@ export class TestPlanGenerator {
 	 * @param finding - The root cause finding.
 	 * @returns An array of generated edge case tests.
 	 */
-	generateEdgeCasesForRootCause(finding: RootCauseFinding): TestCase[] {
+	generateEdgeCasesForRootCause(finding: FixRootCauseFinding): TestCase[] {
 		if (!this.config.autoGenerateEdgeCases) return [];
 
 		const targetFile = finding.affectedFiles.length > 0 ? finding.affectedFiles[0]! : "src/unknown.ts";

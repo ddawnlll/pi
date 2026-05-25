@@ -72,7 +72,7 @@ export interface PatchAction {
 /**
  * A root cause finding derived from evidence analysis.
  */
-export interface RootCauseFinding {
+export interface FixRootCauseFinding {
 	/** Unique finding identifier */
 	id: string;
 
@@ -141,7 +141,7 @@ export interface PatchStrategy {
 	description: string;
 
 	/** Root cause findings that drive this strategy */
-	rootCauses: RootCauseFinding[];
+	rootCauses: FixRootCauseFinding[];
 
 	/** Patch actions to execute */
 	actions: PatchAction[];
@@ -305,8 +305,8 @@ export class PatchStrategyGenerator {
 	extractRootCauses(
 		evidenceItems: Array<{ label: string; content: string; type?: string; confidence?: string }>,
 		_sessionId?: string,
-	): RootCauseFinding[] {
-		const findings: RootCauseFinding[] = [];
+	): FixRootCauseFinding[] {
+		const findings: FixRootCauseFinding[] = [];
 		const maxFindings = this.config.maxRootCauseFindings;
 
 		// Categorize evidence by type indicator
@@ -334,7 +334,7 @@ export class PatchStrategyGenerator {
 				description: err.content.length > 200 ? `${err.content.slice(0, 200)}...` : err.content,
 				category,
 				evidenceRefs: [err.label],
-				confidence: (err.confidence as RootCauseFinding["confidence"]) ?? "medium",
+				confidence: (err.confidence as FixRootCauseFinding["confidence"]) ?? "medium",
 				affectedFiles,
 				suggestedApproach: this.suggestApproach(category, err.content),
 			});
@@ -399,7 +399,7 @@ export class PatchStrategyGenerator {
 	/**
 	 * Categorize an error message by content keywords.
 	 */
-	private categorizeError(content: string): RootCauseFinding["category"] {
+	private categorizeError(content: string): FixRootCauseFinding["category"] {
 		const lower = content.toLowerCase();
 		if (
 			lower.includes("cannot read properties of null") ||
@@ -468,7 +468,7 @@ export class PatchStrategyGenerator {
 	/**
 	 * Suggest a fix approach based on error category.
 	 */
-	private suggestApproach(category: RootCauseFinding["category"], _content: string): string {
+	private suggestApproach(category: FixRootCauseFinding["category"], _content: string): string {
 		switch (category) {
 			case "logic_error":
 				return "Review the conditional logic and ensure all branches are covered";
@@ -513,7 +513,7 @@ export class PatchStrategyGenerator {
 	generateStrategy(
 		title: string,
 		description: string,
-		rootCauses: RootCauseFinding[],
+		rootCauses: FixRootCauseFinding[],
 		actions: PatchAction[],
 		evidenceSummaryIds: string[],
 		sessionId?: string,
@@ -577,7 +577,7 @@ export class PatchStrategyGenerator {
 	/**
 	 * Calculate risk level for a strategy.
 	 */
-	private calculateRiskLevel(rootCauses: RootCauseFinding[], actions: PatchAction[]): RiskLevel {
+	private calculateRiskLevel(rootCauses: FixRootCauseFinding[], actions: PatchAction[]): RiskLevel {
 		if (actions.length === 0) return "critical";
 
 		const highRiskActions = actions.filter((a) => a.confidence === "low" || a.confidence === "speculative").length;
@@ -596,7 +596,7 @@ export class PatchStrategyGenerator {
 	 * Calculate a priority score (0-100) based on findings and actions.
 	 */
 	private calculatePriorityScore(
-		rootCauses: RootCauseFinding[],
+		rootCauses: FixRootCauseFinding[],
 		actions: PatchAction[],
 		riskLevel: RiskLevel,
 	): number {
