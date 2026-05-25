@@ -28,6 +28,9 @@ export {
 
 // ── Overnight Collector (run sessions, status updates, stop conditions) ─
 export {
+	DEFAULT_OVERNIGHT_COLLECTOR_BUDGET,
+	DEFAULT_OVERNIGHT_COLLECTOR_DEDUPE,
+	OvernightCollector,
 	type OvernightCollectorBudget,
 	type OvernightCollectorBufferEntry,
 	type OvernightCollectorCooldown,
@@ -36,13 +39,13 @@ export {
 	type OvernightCollectorDiagnostics,
 	type OvernightCollectorEventType,
 	type OvernightCollectorStopCondition,
-	OvernightCollector,
-	DEFAULT_OVERNIGHT_COLLECTOR_BUDGET,
-	DEFAULT_OVERNIGHT_COLLECTOR_DEDUPE,
 } from "./overnight-collector.js";
 
 // ── Proposal Collector (proposal lifecycle events) ──────────────────
 export {
+	DEFAULT_PROPOSAL_COLLECTOR_BUDGET,
+	DEFAULT_PROPOSAL_COLLECTOR_DEDUPE,
+	ProposalCollector,
 	type ProposalCollectorBudget,
 	type ProposalCollectorBufferEntry,
 	type ProposalCollectorCooldown,
@@ -54,7 +57,4 @@ export {
 	type ProposalDedupeInput,
 	type ProposalScoreInput,
 	type ProposalStatusChangeInput,
-	ProposalCollector,
-	DEFAULT_PROPOSAL_COLLECTOR_BUDGET,
-	DEFAULT_PROPOSAL_COLLECTOR_DEDUPE,
 } from "./proposal-collector.js";

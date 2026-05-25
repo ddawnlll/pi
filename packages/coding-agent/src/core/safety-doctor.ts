@@ -64,6 +64,15 @@ export enum SafetyIssueType {
 	DryRunForbiddenMutation = "dry_run_forbidden_mutation",
 	/** Self-modification detected (proposal targets pi's own code/config) */
 	SelfModification = "self_modification",
+
+	/** P26.A: Autonomous execution requested during repair mode */
+	AutonomousExecutionDuringRepair = "autonomous_execution_during_repair",
+
+	/** P26.A: Promotion gate failed or missing for requested scale mode */
+	PromotionGateFailedOrMissing = "promotion_gate_failed_or_missing",
+
+	/** P26.A: Experimental/stable_6 requested before promotion gates pass */
+	ScaleModeBlockedByPromotionGates = "scale_mode_blocked_by_promotion_gates",
 }
 
 /**
@@ -294,6 +303,9 @@ export class SafetyDoctor {
 			});
 		}
 
+		// P26.A: Detect repair mode / promotion gate issues
+		issues.push(...this.detectRepairModeIssues(queue, queue.maxParallelWorkspaces));
+
 		return this.buildReport(issues);
 	}
 
@@ -388,6 +400,9 @@ export class SafetyDoctor {
 				},
 			});
 		}
+
+		// P26.A: Detect repair mode / promotion gate issues
+		issues.push(...this.detectRepairModeIssues(queue, queue.maxParallelWorkspaces));
 
 		// Compute parallelism diagnostics from DAG analysis
 		let parallelism: ParallelismDiagnostics | undefined;
@@ -729,6 +744,117 @@ export class SafetyDoctor {
 		// Validate retry policy if present
 		if (workspace.retryPolicy) {
 			issues.push(...this.validateRetryPolicy(workspace.retryPolicy, workspace.id));
+		}
+
+		return issues;
+	}
+
+	/**
+	 * P26.A: Detect issues related to repair-mode execution.
+	 *
+	 * Checks whether the queue has executionAutomation.autonomousExecutionEnabled
+	 * set to false, which means the plan is a repair plan and must not be run
+	 * through the autonomous executor. Also checks that no unsafe scale mode is
+	 * requested when promotion gates are pending.
+	 *
+	 * @param queue - Workspace queue to check
+	 * @param requestedWorkerCount - The worker count being validated (optional)
+	 * @returns Array of safety issues
+	 */
+	detectRepairModeIssues(queue: WorkspaceQueue, requestedWorkerCount?: number): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+
+		const executionAutomation = queue.executionAutomation;
+		const repairMode = queue.repairMode;
+		const promotionGates = queue.promotionGates;
+
+		// Check 1: Autonomous execution requested during repair mode
+		if (executionAutomation?.autonomousExecutionEnabled === false) {
+			issues.push({
+				type: SafetyIssueType.AutonomousExecutionDuringRepair,
+				severity: SafetyIssueSeverity.Critical,
+				message:
+					"Autonomous execution is disabled for this repair-mode plan. " +
+					"Repair plans must not be launched with `pi plan run` or the " +
+					"autonomous executor. Manual patch application is required. " +
+					"(autonomous_execution_requested_during_repair_mode)",
+				context: {
+					executionAutomation,
+					repairMode: repairMode?.selectedMode ?? "unknown",
+				},
+			});
+		}
+
+		// Check 2: Promotion gates — are any required gates pending/failed
+		// for the requested worker count or scale mode?
+		if (promotionGates && promotionGates.gates.length > 0) {
+			// Determine which scale mode applies
+			const targetMode = promotionGates.targetMode ?? "stable_6";
+
+			// If requested worker count is given, compute required mode
+			let requiredMode: string | undefined;
+			if (requestedWorkerCount !== undefined) {
+				if (requestedWorkerCount >= 6) {
+					requiredMode = "stable_6";
+				} else if (requestedWorkerCount >= 4) {
+					requiredMode = "stable_6"; // experimental_6 requires stable_6
+				} else if (requestedWorkerCount >= 2) {
+					requiredMode = "stable_3";
+				} else {
+					requiredMode = "stable_1";
+				}
+			} else {
+				requiredMode = targetMode;
+			}
+
+			// Find gates required for the target/required mode
+			const pendingOrFailedGates = promotionGates.gates.filter(
+				(gate) => gate.requiredFor.includes(requiredMode ?? "") && gate.status !== "passed",
+			);
+
+			if (pendingOrFailedGates.length > 0) {
+				issues.push({
+					type: SafetyIssueType.PromotionGateFailedOrMissing,
+					severity: SafetyIssueSeverity.Critical,
+					message:
+						`Scale mode "${requiredMode ?? "unknown"}" requires promotion gates that ` +
+						`have not passed: ${pendingOrFailedGates.map((g) => `${g.id} (${g.status})`).join(", ")}. ` +
+						"Execution is blocked until all required gates pass. " +
+						"(promotion_gate_failed_or_missing)",
+					context: {
+						requiredMode,
+						requestedWorkerCount,
+						pendingOrFailedGates: pendingOrFailedGates.map((g) => ({
+							id: g.id,
+							status: g.status,
+						})),
+					},
+				});
+			}
+
+			// Check 3: Scale mode blocked — target mode requires gates
+			if (requiredMode === "stable_6") {
+				const stable6Gates = promotionGates.gates.filter(
+					(g) => g.requiredFor.includes("stable_6") && g.status !== "passed",
+				);
+				if (stable6Gates.length > 0) {
+					issues.push({
+						type: SafetyIssueType.ScaleModeBlockedByPromotionGates,
+						severity: SafetyIssueSeverity.Critical,
+						message:
+							`stable_6/experimental_6 cannot be selected while required promotion gates are pending: ` +
+							`${stable6Gates.map((g) => `${g.id} (${g.status})`).join(", ")}. ` +
+							"Complete all required promotion gates before enabling stable_6.",
+						context: {
+							blockedMode: "stable_6",
+							pendingGates: stable6Gates.map((g) => ({
+								id: g.id,
+								status: g.status,
+							})),
+						},
+					});
+				}
+			}
 		}
 
 		return issues;

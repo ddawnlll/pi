@@ -574,6 +574,69 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		};
 	}
 
+	// P26.A: Parse executionAutomation
+	let executionAutomation: import("./workspace-schema.js").ExecutionAutomation | undefined;
+	if (
+		parsed.executionAutomation &&
+		typeof parsed.executionAutomation === "object" &&
+		!Array.isArray(parsed.executionAutomation)
+	) {
+		const ea = parsed.executionAutomation;
+		executionAutomation = {
+			autonomousExecutionEnabled:
+				typeof ea.autonomousExecutionEnabled === "boolean" ? ea.autonomousExecutionEnabled : undefined,
+			agentMayMutateRepo: typeof ea.agentMayMutateRepo === "boolean" ? ea.agentMayMutateRepo : undefined,
+			agentMayRunCommands: typeof ea.agentMayRunCommands === "boolean" ? ea.agentMayRunCommands : undefined,
+			manualPatchApplicationRequired:
+				typeof ea.manualPatchApplicationRequired === "boolean" ? ea.manualPatchApplicationRequired : undefined,
+			humanApprovalRequiredForEveryPatch:
+				typeof ea.humanApprovalRequiredForEveryPatch === "boolean"
+					? ea.humanApprovalRequiredForEveryPatch
+					: undefined,
+		};
+	}
+
+	// P26.A: Parse repairMode
+	let repairMode: import("./workspace-schema.js").RepairMode | undefined;
+	if (parsed.repairMode && typeof parsed.repairMode === "object" && !Array.isArray(parsed.repairMode)) {
+		const rm = parsed.repairMode;
+		repairMode = {
+			selectedMode: typeof rm.selectedMode === "string" ? rm.selectedMode : undefined,
+			targetPromotionMode: typeof rm.targetPromotionMode === "string" ? rm.targetPromotionMode : undefined,
+			reason: typeof rm.reason === "string" ? rm.reason : undefined,
+			schedulerRuntimeUse: typeof rm.schedulerRuntimeUse === "string" ? rm.schedulerRuntimeUse : undefined,
+		};
+	}
+
+	// P26.A: Parse promotionGates
+	let promotionGates: import("./workspace-schema.js").PromotionGates | undefined;
+	if (parsed.promotionGates && typeof parsed.promotionGates === "object" && !Array.isArray(parsed.promotionGates)) {
+		const pg = parsed.promotionGates;
+		const gates: import("./workspace-schema.js").PromotionGate[] = [];
+		if (Array.isArray(pg.gates)) {
+			for (const gate of pg.gates) {
+				if (gate && typeof gate === "object") {
+					gates.push({
+						id: typeof gate.id === "string" ? gate.id : "",
+						requiredFor: Array.isArray(gate.requiredFor)
+							? gate.requiredFor.filter((r: unknown) => typeof r === "string")
+							: [],
+						status:
+							gate.status === "passed" || gate.status === "failed" || gate.status === "pending"
+								? gate.status
+								: "pending",
+						evidence: typeof gate.evidence === "string" ? gate.evidence : undefined,
+					});
+				}
+			}
+		}
+		promotionGates = {
+			initialMode: typeof pg.initialMode === "string" ? pg.initialMode : "manual_1",
+			targetMode: typeof pg.targetMode === "string" ? pg.targetMode : "stable_6",
+			gates,
+		};
+	}
+
 	return {
 		phase,
 		title,
@@ -585,6 +648,9 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		contractVersion,
 		planExecution,
 		parallelismReview,
+		executionAutomation,
+		repairMode,
+		promotionGates,
 	};
 }
 

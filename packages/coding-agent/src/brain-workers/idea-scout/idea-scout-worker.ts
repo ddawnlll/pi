@@ -22,12 +22,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type {
-	WorkerContract,
-	WorkerDedupConfig,
-	WorkerDiagnostic,
-	WorkerManifest,
-} from "../types.js";
+import type { WorkerContract, WorkerDedupConfig, WorkerDiagnostic, WorkerManifest } from "../types.js";
 import { createWorkerDiagnostic, createWorkerManifest } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -42,12 +37,7 @@ export type IdeaPriority = "low" | "medium" | "high" | "critical";
 /**
  * All valid IdeaPriority values for runtime validation.
  */
-export const ALL_IDEA_PRIORITIES: readonly IdeaPriority[] = [
-	"low",
-	"medium",
-	"high",
-	"critical",
-] as const;
+export const ALL_IDEA_PRIORITIES: readonly IdeaPriority[] = ["low", "medium", "high", "critical"] as const;
 
 /**
  * Source reference for an idea — where the idea originated.
@@ -350,12 +340,7 @@ export function createIdeaScoutContract(version: string = "1.0.0"): WorkerContra
 		description:
 			"Scouts for ideas by mining signals, detecting trends, and identifying opportunities from observations, signals, and memory context.",
 		version,
-		capabilities: [
-			"signal_mining",
-			"idea_generation",
-			"trend_detection",
-			"opportunity_identification",
-		],
+		capabilities: ["signal_mining", "idea_generation", "trend_detection", "opportunity_identification"],
 		inputs: [
 			{
 				name: "signals",
@@ -482,8 +467,7 @@ export class IdeaTrendDetector {
 			}
 
 			// Compute average confidence
-			const avgConfidence =
-				groupSignals.reduce((sum, s) => sum + s.confidence, 0) / groupSignals.length;
+			const avgConfidence = groupSignals.reduce((sum, s) => sum + s.confidence, 0) / groupSignals.length;
 
 			// Determine direction based on confidence spread
 			const direction = this.determineDirection(groupSignals);
@@ -512,8 +496,7 @@ export class IdeaTrendDetector {
 		const allHighConfidence = _signals.every((s) => s.confidence >= 0.7);
 		if (allHighConfidence) return "stable";
 
-		const avgConfidence =
-			_signals.reduce((sum, s) => sum + s.confidence, 0) / _signals.length;
+		const avgConfidence = _signals.reduce((sum, s) => sum + s.confidence, 0) / _signals.length;
 		if (avgConfidence >= 0.5) return "emerging";
 
 		return "emerging";
@@ -584,8 +567,7 @@ export class IdeaScoutWorker {
 	 */
 	constructor(config?: Partial<IdeaScoutWorkerConfig>) {
 		this.config = {
-			maxTokensPerSession:
-				config?.maxTokensPerSession ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.maxTokensPerSession,
+			maxTokensPerSession: config?.maxTokensPerSession ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.maxTokensPerSession,
 			maxRuntimeMsPerSession:
 				config?.maxRuntimeMsPerSession ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.maxRuntimeMsPerSession,
 			maxConsecutiveFailures:
@@ -593,14 +575,10 @@ export class IdeaScoutWorker {
 			cooldownMs: config?.cooldownMs ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.cooldownMs,
 			dedupWindowMs: config?.dedupWindowMs ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.dedupWindowMs,
 			dedupEnabled: config?.dedupEnabled ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.dedupEnabled,
-			minSignalConfidence:
-				config?.minSignalConfidence ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.minSignalConfidence,
-			minIdeaConfidence:
-				config?.minIdeaConfidence ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.minIdeaConfidence,
-			maxIdeasPerSession:
-				config?.maxIdeasPerSession ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.maxIdeasPerSession,
-			trendDetectionEnabled:
-				config?.trendDetectionEnabled ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.trendDetectionEnabled,
+			minSignalConfidence: config?.minSignalConfidence ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.minSignalConfidence,
+			minIdeaConfidence: config?.minIdeaConfidence ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.minIdeaConfidence,
+			maxIdeasPerSession: config?.maxIdeasPerSession ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.maxIdeasPerSession,
+			trendDetectionEnabled: config?.trendDetectionEnabled ?? DEFAULT_IDEA_SCOUT_WORKER_CONFIG.trendDetectionEnabled,
 		};
 
 		this.sessions = new Map();
@@ -623,8 +601,7 @@ export class IdeaScoutWorker {
 	 * Update the worker configuration.
 	 */
 	setConfig(config: Partial<IdeaScoutWorkerConfig>): void {
-		if (config.maxTokensPerSession !== undefined)
-			this.config.maxTokensPerSession = config.maxTokensPerSession;
+		if (config.maxTokensPerSession !== undefined) this.config.maxTokensPerSession = config.maxTokensPerSession;
 		if (config.maxRuntimeMsPerSession !== undefined)
 			this.config.maxRuntimeMsPerSession = config.maxRuntimeMsPerSession;
 		if (config.maxConsecutiveFailures !== undefined)
@@ -632,12 +609,9 @@ export class IdeaScoutWorker {
 		if (config.cooldownMs !== undefined) this.config.cooldownMs = config.cooldownMs;
 		if (config.dedupWindowMs !== undefined) this.config.dedupWindowMs = config.dedupWindowMs;
 		if (config.dedupEnabled !== undefined) this.config.dedupEnabled = config.dedupEnabled;
-		if (config.minSignalConfidence !== undefined)
-			this.config.minSignalConfidence = config.minSignalConfidence;
-		if (config.minIdeaConfidence !== undefined)
-			this.config.minIdeaConfidence = config.minIdeaConfidence;
-		if (config.maxIdeasPerSession !== undefined)
-			this.config.maxIdeasPerSession = config.maxIdeasPerSession;
+		if (config.minSignalConfidence !== undefined) this.config.minSignalConfidence = config.minSignalConfidence;
+		if (config.minIdeaConfidence !== undefined) this.config.minIdeaConfidence = config.minIdeaConfidence;
+		if (config.maxIdeasPerSession !== undefined) this.config.maxIdeasPerSession = config.maxIdeasPerSession;
 		if (config.trendDetectionEnabled !== undefined) {
 			this.config.trendDetectionEnabled = config.trendDetectionEnabled;
 			this.trendDetector.setConfig({ enabled: config.trendDetectionEnabled });
@@ -670,10 +644,7 @@ export class IdeaScoutWorker {
 		name: string,
 		description: string,
 		overrides?: Partial<
-			Omit<
-				WorkerManifest,
-				"id" | "role" | "name" | "description" | "contract" | "budget" | "dedupConfig"
-			>
+			Omit<WorkerManifest, "id" | "role" | "name" | "description" | "contract" | "budget" | "dedupConfig">
 		>,
 	): WorkerManifest {
 		return createWorkerManifest({
@@ -844,11 +815,7 @@ export class IdeaScoutWorker {
 	 * @param runtimeMs - Runtime in milliseconds for the evaluation.
 	 * @returns The generated ideas, or null if session not found or budget exceeded.
 	 */
-	evaluate(
-		sessionId: string,
-		tokensConsumed: number = 0,
-		runtimeMs: number = 0,
-	): ScoutedIdea[] | null {
+	evaluate(sessionId: string, tokensConsumed: number = 0, runtimeMs: number = 0): ScoutedIdea[] | null {
 		const session = this.sessions.get(sessionId);
 		if (!session) return null;
 		if (session.status !== "mining") return null;
@@ -941,11 +908,7 @@ export class IdeaScoutWorker {
 	cancelSession(sessionId: string, reason: string): ScoutSession | null {
 		const session = this.sessions.get(sessionId);
 		if (!session) return null;
-		if (
-			session.status === "completed" ||
-			session.status === "failed" ||
-			session.status === "cancelled"
-		) {
+		if (session.status === "completed" || session.status === "failed" || session.status === "cancelled") {
 			return null; // Already terminal
 		}
 
@@ -1117,67 +1080,31 @@ export class IdeaScoutWorker {
 	private inferTrendLabel(text: string): string {
 		const lower = text.toLowerCase();
 
-		if (
-			lower.includes("error") ||
-			lower.includes("fail") ||
-			lower.includes("exception")
-		) {
+		if (lower.includes("error") || lower.includes("fail") || lower.includes("exception")) {
 			return "errors-and-failures";
 		}
-		if (
-			lower.includes("performance") ||
-			lower.includes("slow") ||
-			lower.includes("timeout")
-		) {
+		if (lower.includes("performance") || lower.includes("slow") || lower.includes("timeout")) {
 			return "performance";
 		}
-		if (
-			lower.includes("memory") ||
-			lower.includes("storage") ||
-			lower.includes("disk")
-		) {
+		if (lower.includes("memory") || lower.includes("storage") || lower.includes("disk")) {
 			return "memory-and-storage";
 		}
-		if (
-			lower.includes("security") ||
-			lower.includes("auth") ||
-			lower.includes("permission")
-		) {
+		if (lower.includes("security") || lower.includes("auth") || lower.includes("permission")) {
 			return "security";
 		}
-		if (
-			lower.includes("queue") ||
-			lower.includes("schedul") ||
-			lower.includes("wait")
-		) {
+		if (lower.includes("queue") || lower.includes("schedul") || lower.includes("wait")) {
 			return "queue-and-scheduling";
 		}
-		if (
-			lower.includes("integration") ||
-			lower.includes("api") ||
-			lower.includes("connect")
-		) {
+		if (lower.includes("integration") || lower.includes("api") || lower.includes("connect")) {
 			return "integration";
 		}
-		if (
-			lower.includes("config") ||
-			lower.includes("setting") ||
-			lower.includes("param")
-		) {
+		if (lower.includes("config") || lower.includes("setting") || lower.includes("param")) {
 			return "configuration";
 		}
-		if (
-			lower.includes("test") ||
-			lower.includes("spec") ||
-			lower.includes("coverage")
-		) {
+		if (lower.includes("test") || lower.includes("spec") || lower.includes("coverage")) {
 			return "testing";
 		}
-		if (
-			lower.includes("doc") ||
-			lower.includes("readme") ||
-			lower.includes("comment")
-		) {
+		if (lower.includes("doc") || lower.includes("readme") || lower.includes("comment")) {
 			return "documentation";
 		}
 
@@ -1200,11 +1127,7 @@ export class IdeaScoutWorker {
 	 * @param diagnostic - Evidence-backed diagnostic.
 	 * @returns null (for convenience in callers that return arrays).
 	 */
-	private failSession(
-		sessionId: string,
-		error: string,
-		diagnostic: WorkerDiagnostic,
-	): null {
+	private failSession(sessionId: string, error: string, diagnostic: WorkerDiagnostic): null {
 		const session = this.sessions.get(sessionId);
 		if (!session) return null;
 
@@ -1272,11 +1195,7 @@ export class IdeaScoutWorker {
 		const failed = allSessions.filter((s) => s.status === "failed");
 		const cancelled = allSessions.filter((s) => s.status === "cancelled");
 		const pending = allSessions.filter(
-			(s) =>
-				s.status === "idle" ||
-				s.status === "scouting" ||
-				s.status === "mining" ||
-				s.status === "evaluating",
+			(s) => s.status === "idle" || s.status === "scouting" || s.status === "mining" || s.status === "evaluating",
 		);
 
 		return {
@@ -1360,8 +1279,6 @@ export class IdeaScoutWorker {
  * @param config - Optional partial configuration overrides.
  * @returns A new IdeaScoutWorker instance.
  */
-export function createIdeaScoutWorker(
-	config?: Partial<IdeaScoutWorkerConfig>,
-): IdeaScoutWorker {
+export function createIdeaScoutWorker(config?: Partial<IdeaScoutWorkerConfig>): IdeaScoutWorker {
 	return new IdeaScoutWorker(config);
 }

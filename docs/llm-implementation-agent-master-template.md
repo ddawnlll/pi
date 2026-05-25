@@ -1,27 +1,31 @@
-# LLM Implementation Agent — Master Template v2.6
+# LLM Implementation Agent — Repair & Execution Correctness Template v3.0
 
-**Version:** 2.6.0  
-**Last Updated:** 2026-05-24  
-**Purpose:** Canonical template for creating executable implementation plans for Pi autonomous multi-agent execution with PostgreSQL-backed multi-project support, interactive parallelism review, P6 scale-aware isolated execution, queue-aware optimization with priority metadata, plan-intake auto-analysis with DAG optimization, continuous (batchless) scheduling with worktree pool and critical-path priority, and v2.6 Git serialization with GitRunner, continuous lease watchdog, merge-priority scorer, validation lane backpressure, and empirical writeSet drift detection.
+**Version:** 3.0.0  
+**Last Updated:** 2026-05-25  
+**Purpose:** Canonical template for creating repair-first execution correctness plans for Pi. This template is used when the autonomous execution substrate is untrusted and plans must be manually gated and promotion-gated before restoration of autonomous execution. v3.0 plans support manual repair, assisted repair, and staged promotion back to stable automation. Autonomous execution MUST NOT run when `executionAutomation.autonomousExecutionEnabled` is false.
 
 ---
 
 ## Overview
 
-This template provides a structured format for implementation plans that can be:
+This template provides a structured format for **repair and execution correctness plans** that can be:
 
-1. **Read by humans** for reasoning, risk assessment, dependency review, and decision-making.
-2. **Parsed by Pi** for autonomous multi-agent execution.
-3. **Previewed interactively** before execution so authors can see the real dependency graph, effective parallelism, safe effective parallelism, and batch plan.
-4. **Executed safely at larger scale** when P6 prerequisites such as git worktree isolation, integration queue, validation lock, and scale-mode readiness pass.
-5. **Executed with continuous (batchless) scheduling** — no batch barriers, all 6 worktree slots filled immediately, priority-based refill as workspaces complete.
-6. **Optimized for queue efficiency** with priority metadata, queue optimization strategies, and workspace-level queue priority that minimize merge contention and accelerate critical-path delivery.
-7. **Analyzed automatically on upload** with DAG recomputation, bottleneck detection, optimizer proposals, and graph diffs that require approval before execution.
+1. **Read by humans** for reasoning, risk assessment, dependency review, rollback analysis, and decision-making.
+2. **Parsed by Pi** for machine-readable execution contract validation, but NOT for autonomous execution unless explicitly enabled.
+3. **Previewed interactively** before execution so authors can see the dependency graph, repair order, and promotion readiness.
+4. **Executed via manual, assisted, or staged autonomous modes** depending on the promotion ladder position.
+5. **Promoted from manual_0 through stable_6** as the execution substrate is repaired and validated.
 
-The template balances human authority in Markdown with machine executability in the JSON execution contract.
+**Plans using this template MUST NOT be executed autonomously when `executionAutomation.autonomousExecutionEnabled` is false.**
 
-Markdown explains purpose, risks, scope, rollback, and reasoning.  
-Part 3 JSON is the authoritative execution contract. Authored batch previews are advisory until Pi recomputes and persists the approved graph.
+v3.0 supports three execution classes:
+- **Repair plans**: executionClass="repair" — manual-first, autonomous execution disabled until promotion gates pass.
+- **Verification plans**: executionClass="verification" — for validating that repairs are effective.
+- **Implementation plans**: executionClass="implementation" — normal autonomous plans after promotion to stable.
+
+For repair plans, autonomous execution is disabled by default. The workflow is: **analyze -> propose patch -> human review -> manual apply -> targeted validation -> checkpoint -> next patch**. No `pi plan run` or autonomous mode is permitted until promotion gates pass.
+
+The template balances human authority in Markdown with machine-readable validation in the JSON execution contract. Part 3 JSON is the authoritative execution contract. In repair mode it is a **validation contract only** — it describes what the repair plan expects but does not authorize autonomous mutation.
 
 ---
 
@@ -77,6 +81,28 @@ Key changes:
 - Updated `contractVersion` to `2.6.0`.
 
 ---
+
+## What Changed in v3.0.0
+
+v3.0.0 is a **major semantic migration** from "autonomous implementation plan template" to **"repair/recovery/execution-correctness template"**. This version assumes the autonomous execution substrate is NOT trusted and must be repaired first.
+
+Key changes:
+
+- **Repair-first execution semantics**: Plans default to `executionClass: "repair"`, not `"implementation"`. The template is designed for repairing the execution system itself.
+- **Autonomous execution disabled by default for repair plans**: `executionAutomation.autonomousExecutionEnabled: false`. No `pi plan run` or autonomous scheduler may execute repair workspaces before promotion.
+- **Agent repo mutation disabled by default**: `executionAutomation.agentMayMutateRepo: false`. The agent is an advisor/reviewer/patch author, not an autonomous executor.
+- **Manual patch application and human approval required for every patch**: `manualPatchApplicationRequired: true`, `humanApprovalRequiredForEveryPatch: true`.
+- **Promotion ladder**: `manual_0 -> manual_1 -> assisted_1 -> stable_1 -> stable_3 -> stable_6 -> scale_8`. Each step requires passing corresponding promotion gates.
+- **Bounded liveness contract**: No indefinite waits. LLM provider calls require request timeout and stream idle watchdog. Validation commands require timeout, process tree kill, output cap, and CI env. Git lock bypass is forbidden. State writes must be serialized.
+- **LLM runtime timeout contract**: `providerRequestTimeoutMs`, `streamIdleTimeoutMs`, `workspaceOverallTimeoutMs`, circuit breaker with configurable cooldown.
+- **Managed validation runtime contract**: `managedRunnerRequired`, `processGroupRequired`, `killTreeOnTimeout`, `maxOutputBytes`, forbidden interactive commands, separate heavy/targeted lanes.
+- **Known broken subsystem registry**: Lists known broken subsystems (e.g., `executor_singleton_race`, `abort_signal_not_wired`, `worktree_mutex_bypass`, `validation_process_hang`, `json_state_store_concurrent_writes`) with severity, blocking status, and required fix gates.
+- **Promotion gates and dogfood matrix**: 8 promotion gates (executor isolation, abort signal, validation hang kill, git serialization stress, state store concurrency, crash recovery, stable_3 dogfood, stable_6 stress) with status tracking per gate.
+- **No-autonomous-mutation hard stops**: 20 new hard stops preventing autonomous execution during repair mode, missing timeouts, validation without process tree kills, git lock bypass, state store write without serialization, missing rollback/validation/approval on repair workspaces, and promotion gate failures.
+- **contractVersion** updated to `3.0.0`.
+- **Scale mode defaults** changed for repair: `scheduling.continuous: false`, `scheduling.slotCount: 1`, `schedulerRuntimeUse: "disabled_until_promotion"`.
+- **Execution policies** restructured with `repair_modes`, `execution_automation`, and `bounded_liveness` sections.
+- **Parser priority** updated: repair-mode safety validation and known broken subsystem gate take precedence before execution gate.
 
 ## What Changed in v2.4.0
 
@@ -173,42 +199,60 @@ v2.3.0 keeps this behavior and adds P6 safety constraints on top.
 
 ## How to Use This Template
 
+v3.0 plans can be used in **two classes**:
+
+a) **Normal implementation plans** (after promotion to stable automation) — follow the standard implementation flow.
+b) **Repair plans** (before promotion) — follow the repair-first workflow.
+
+### For repair plans:
+
 1. **Fill Part 1 — Phase Plan**  
-   Define goals, risks, workstreams, implementation order, and rollback strategy.
+   Define goals, risks, repair workstreams, repair order, rollback strategy, and promotion targets.
 
 2. **Fill Part 2 — Agent Brief**  
-   Provide mission, hard requirements, execution policies, and safety stops.
+   Provide mission as advisor/reviewer/patch author, hard requirements (including repair-mode constraints), execution policies, and safety stops. The agent is NOT an autonomous executor for repair plans.
 
 3. **Fill Part 3 — Machine-Readable Execution Contract**  
-   Define the executable contract with project, plan execution, controls, safety, parallelism review, scale mode, worktree, integration queue, queue optimization, validation policy, and workspace details in valid JSON.
+   Define the repair execution contract with `executionClass: "repair"`, `executionAutomation` disabled, `repairMode` configuration, known broken subsystems, bounded liveness, manual patch protocol, promotion gates, dogfood matrix, and workspace details in valid JSON.
 
 4. **Fill Part 4 — Machine-Readable Summary**  
-   Provide phase-level execution metadata.
+   Provide phase-level repair execution metadata.
 
 5. **Review validation rules**  
-   Ensure JSON is valid, all placeholders are resolved, scale-mode readiness is valid, queue optimization settings are consistent, and no safety policy is violated.
+   Ensure JSON is valid, all placeholders are resolved, contractVersion is 3.0.0, executionClass is valid, repair-mode safety passes, known broken subsystems are listed, bounded liveness is configured, manual patch protocol is enforced, and promotion gates are documented.
 
-6. **Configure queue optimization**  
-   Set queue priority levels for workspaces that must merge early. Enable queue optimization and select a strategy. The queue will process safe merges in priority order before falling back to FIFO within the same priority level.
+6. **Repair workflow** (NOT autonomous execution):  
+   `analyze -> propose patch -> human review -> manual apply -> targeted validation -> checkpoint -> next patch`
 
-7. **Run preflight review** when enabled  
-   Inspect the dependency graph, DAG batches, safe batches, effective parallelism, safe effective parallelism, blocked reasons, scale-mode readiness, and queue optimization preview before execution.
+7. **DO NOT run `pi plan run` or any autonomous execution mode for repair plans until promotion gates pass.**
 
-8. **Approve or patch the graph**  
-   Execution must not begin until the approved graph, scale readiness, and queue optimization settings are current.
+8. **Promote through the ladder**:  
+   `manual_0 -> manual_1 -> assisted_1 -> stable_1 -> stable_3 -> stable_6 -> scale_8`
+   Each step requires passing the corresponding promotion gates before moving forward.
 
 ---
 
 ## Critical Requirements
 
 - Every executable plan MUST include valid JSON in Part 3.
+- `contractVersion` MUST be `"3.0.0"` for v3.0 plans.
 - Markdown remains human authority for purpose, risks, rollback, and reasoning.
-- Part 3 JSON is the execution contract.
+- Part 3 JSON is the execution contract (or validation contract for repair plans).
 - Unresolved `{{ placeholders }}` make the plan non-executable.
 - Pi parses Part 3 JSON first; Markdown heading fallback is recovery mode only.
 - PostgreSQL backend uses project/plan/workspace hierarchy for multi-project execution.
 - Dashboard is enabled by default for real-time monitoring.
-- When `interactiveParallelismReview.preflightRequired` is true, execution must not begin until the dependency graph is reviewed and approved.
+- **Repair plans MUST set `executionClass: "repair"`.**
+- **Repair plans MUST set `executionAutomation.autonomousExecutionEnabled: false`.**
+- **Repair plans MUST set `executionAutomation.agentMayMutateRepo: false`.**
+- **Repair plans MUST set `executionAutomation.manualPatchApplicationRequired: true`.**
+- **No autonomous scheduler/runtime may execute repair workspaces before promotion.**
+- **Every repair workspace MUST include rollback, targeted validation, and human approval metadata.**
+- **No LLM call may be made without a provider request timeout and stream idle watchdog.**
+- **No validation command may run without timeout, no-watch guard, output cap, and process tree kill support.**
+- **No git repo-wide mutation may bypass GitRunner / repo-wide lock.**
+- **State writes must be transaction-backed or serialized by a write queue.**
+- **Promotion to `stable_6` requires dogfood/stress gates.**
 - Scale modes above `stable_3` require worktree isolation, integration queue, global validation lock, archive support, and completion gate hardening.
 - If worktree isolation is disabled, `maxParallelWorkspaces` must not exceed 3.
 - If integration queue is disabled, `experimental_6` and `scale_8` are invalid.
@@ -217,7 +261,7 @@ v2.3.0 keeps this behavior and adds P6 safety constraints on top.
 - `git push` remains forbidden in every scale mode.
 - Raw destructive cleanup such as `rm -rf` remains forbidden in every scale mode.
 - Watch-mode validation commands remain forbidden.
-- The executor remains the only component that mutates execution state.
+- The executor remains the only component that mutates execution state after promotion.
 
 ---
 
@@ -230,8 +274,15 @@ v2.3.0 keeps this behavior and adds P6 safety constraints on top.
 **Why now:** `{{ Why this phase is being executed at this point }}`  
 **Blast radius:** `{{ What systems/files/components will be affected }}`  
 **Rollback path:** `{{ How to safely revert if things go wrong }}`  
+**Repair class:** `{{ implementation / repair / verification }}`  
+**Execution automation:** `{{ enabled / disabled }}`  
+**Selected repair mode:** `{{ manual_0 / manual_1 / assisted_1 / stable_1 / stable_3 / stable_6 / scale_8 }}`  
+**Target promotion mode:** `{{ Target stable mode after repair }}`  
+**Autonomous execution allowed:** `{{ true / false }}`  
+**Agent repo mutation allowed:** `{{ true / false }}`  
+**Promotion gate status:** `{{ pending / in_progress / passed }}`  
 **Scale mode:** `{{ stable_3 / experimental_6 / scale_8 }}`  
-**Safe parallelism target:** `{{ Expected safe effective parallelism, e.g. 2, 3, 6 }}`  
+**Safe parallelism target:** `{{ Expected safe effective parallelism, e.g. 1, 2, 3 }}`  
 **Done when:** `{{ Clear definition of completion criteria }}`
 
 ---
@@ -248,6 +299,13 @@ v2.3.0 keeps this behavior and adds P6 safety constraints on top.
 | Target environment | `{{ Local / Staging / Production }}` |
 | Primary focus | `{{ Main technical focus area }}` |
 | Product-code changes | `{{ Allowed / Forbidden / Restricted }}` |
+| Repair class | `{{ implementation / repair / verification }}` |
+| Execution automation | `{{ enabled / disabled }}` |
+| Selected repair mode | `{{ manual_0 / manual_1 / assisted_1 / stable_1 / stable_3 / stable_6 / scale_8 }}` |
+| Target promotion mode | `{{ stable_3 / stable_6 }}` |
+| Autonomous execution allowed | `{{ true / false }}` |
+| Agent repo mutation allowed | `{{ true / false }}` |
+| Promotion gate status | `{{ pending / in_progress / passed }}` |
 | Selected scale mode | `{{ stable_3 / experimental_6 / scale_8 }}` |
 | Requested max workers | `{{ integer }}` |
 | Expected DAG effective parallelism | `{{ integer or TBD }}` |
@@ -448,7 +506,9 @@ List all known blockers and unimplemented components:
 
 `{{ Clear mission statement for the implementing agent }}`
 
-If this plan uses P6 scale-aware execution, the agent must optimize for safe parallelism, not maximum concurrency. Higher worker counts are allowed only when scale-mode readiness passes and the executor can preserve correctness through worktree isolation, integration queue, validation locks, and completion gates.
+**For repair plans**, the agent is an **advisor/reviewer/patch author**, NOT an autonomous executor. The agent may propose patches but must NOT apply them if `agentMayMutateRepo` is false. Human approval is required for every patch.
+
+If this plan uses P6 scale-aware execution (after promotion), the agent must optimize for safe parallelism, not maximum concurrency. Higher worker counts are allowed only when scale-mode readiness passes and the executor can preserve correctness through worktree isolation, integration queue, validation locks, and completion gates.
 
 If this plan uses queue optimization, the agent must assign meaningful queue priority levels to workspaces and document the optimization rationale. Critical-path workspaces should receive `high` or `critical` priority. Workspaces with no downstream dependents should receive `normal` or `low` priority. The agent must not use queue optimization to bypass safety constraints — validation gates still apply regardless of priority level.
 
@@ -459,27 +519,79 @@ If this plan uses queue optimization, the agent must assign meaningful queue pri
 1. `{{ Non-negotiable requirement 1 }}`
 2. `{{ Non-negotiable requirement 2 }}`
 3. `{{ Non-negotiable requirement 3 }}`
-4. Do not exceed selected scale-mode worker cap.
-5. Do not run more than 3 workers unless worktree isolation and integration queue readiness pass.
-6. Do not merge workspace output without passed workspace validation.
-7. Do not mark a plan complete if integration validation fails.
-8. Do not treat merge conflict as ordinary worker failure.
-9. Do not start the next plan while integration queue state is dirty.
-10. Do not run watch-mode validation.
-11. Do not run `git push`.
-12. Do not run raw destructive cleanup commands.
-13. Do not access secrets or forbidden files.
-14. The executor remains the only component that mutates execution state.
-15. If queue optimization is enabled, the queue must respect workspace-level `queuePriority` and the selected optimization strategy.
-16. Queue optimization must not bypass safety checks: workspace validation and integration validation remain required regardless of priority.
-17. Priority-based reordering must not cause starvation: low-priority workspaces must still be merged within a reasonable window.
-18. Queue optimization strategy must be one of the supported strategies: `priority_then_fifo`, `critical_path_first`, or `weighted_shortest_job_first`.
+4. **Do not run autonomous execution for repair plans.**
+5. **Do not mutate repo unless explicitly allowed (`agentMayMutateRepo` is true).**
+6. **Do not run commands unless explicitly allowed (`agentMayRunCommands` is true).**
+7. **Do not enable continuous scheduling until promotion gates pass.**
+8. **Do not claim `stable_6` until the stable_6 stress gate passes.**
+9. **Do not use the broken executor to repair itself.**
+10. Do not exceed selected scale-mode worker cap.
+11. Do not run more than 3 workers unless worktree isolation and integration queue readiness pass.
+12. Do not merge workspace output without passed workspace validation.
+13. Do not mark a plan complete if integration validation fails.
+14. Do not treat merge conflict as ordinary worker failure.
+15. Do not start the next plan while integration queue state is dirty.
+16. Do not run watch-mode validation.
+17. Do not run `git push`.
+18. Do not run raw destructive cleanup commands.
+19. Do not access secrets or forbidden files.
+20. The executor remains the only component that mutates execution state after promotion.
+21. If queue optimization is enabled, the queue must respect workspace-level `queuePriority` and the selected optimization strategy.
+22. Queue optimization must not bypass safety checks: workspace validation and integration validation remain required regardless of priority.
+23. Priority-based reordering must not cause starvation: low-priority workspaces must still be merged within a reasonable window.
+24. Queue optimization strategy must be one of the supported strategies: `priority_then_fifo`, `critical_path_first`, or `weighted_shortest_job_first`.
 
 ---
 
 ## Execution Policies
 
 ```yaml
+repair_modes:
+  manual_0:
+    description: analysis only, no repo mutation
+    autonomous_execution_allowed: false
+    agent_may_mutate_repo: false
+  manual_1:
+    description: human applies one patch at a time
+    autonomous_execution_allowed: false
+    agent_may_mutate_repo: false
+  assisted_1:
+    description: agent may propose patches, human applies
+    autonomous_execution_allowed: false
+    agent_may_mutate_repo: false
+  stable_1:
+    description: one autonomous workspace allowed after isolation gates
+    autonomous_execution_allowed: true
+    agent_may_mutate_repo: true
+  stable_3:
+    description: three autonomous workspaces after stable_3 dogfood
+    autonomous_execution_allowed: true
+    agent_may_mutate_repo: true
+  stable_6:
+    description: six autonomous workspaces after stable_6 stress
+    autonomous_execution_allowed: true
+    agent_may_mutate_repo: true
+  scale_8:
+    description: explicit approval and future phase only
+    autonomous_execution_allowed: true
+    agent_may_mutate_repo: true
+
+execution_automation:
+  autonomous_execution_enabled: false
+  agent_may_mutate_repo: false
+  agent_may_run_commands: false
+  manual_patch_application_required: true
+  human_approval_required_for_every_patch: true
+
+bounded_liveness:
+  no_indefinite_waits: true
+  llm_provider_timeout_required: true
+  llm_stream_idle_watchdog_required: true
+  validation_timeout_required: true
+  process_tree_kill_required: true
+  git_lock_bypass_forbidden: true
+  state_write_serialization_required: true
+
 scale:
   default_mode: stable_3
   selected_mode: stable_3
@@ -571,6 +683,23 @@ Hard stop execution only for:
 * `{{ Safety condition 1 }}`
 * `{{ Safety condition 2 }}`
 * `{{ Safety condition 3 }}`
+* `autonomous_execution_requested_during_repair_mode`
+* `agent_repo_mutation_requested_during_manual_repair`
+* `agent_command_execution_requested_during_manual_repair`
+* `scheduler_enabled_before_executor_isolation_gate`
+* `stable_6_requested_before_promotion_gates`
+* `llm_call_without_provider_timeout`
+* `llm_stream_without_idle_watchdog`
+* `validation_command_without_timeout`
+* `validation_process_without_process_group`
+* `validation_watch_or_dev_server_command`
+* `git_lock_bypass_detected`
+* `state_store_write_without_serialization`
+* `workspace_patch_without_human_approval`
+* `repair_workspace_missing_rollback`
+* `repair_workspace_missing_targeted_validation`
+* `dogfood_required_but_missing`
+* `promotion_gate_failed_or_missing`
 * Dependency cycles
 * Invalid dependency patches
 * Required preflight review not approved
@@ -596,13 +725,14 @@ Hard stop execution only for:
 
 # Part 3 — Machine-Readable Execution Contract
 
-**Purpose:** This JSON structure is the authoritative execution contract for Pi's PostgreSQL-backed multi-project autonomous execution system. Pi parses this section first to build the execution plan.
+**Purpose:** This JSON structure is the authoritative execution contract (or validation contract for repair plans) for Pi's PostgreSQL-backed multi-project execution system. Pi parses this section first to validate the plan. In repair mode, this JSON describes what the repair plan expects but does NOT authorize autonomous mutation.
 
-**Validation:** This JSON must be valid and complete before execution begins. Use `pi plan doctor` to validate. If interactive review is required, use the dashboard preflight editor or equivalent CLI approval before running. If P6 scale-aware execution is requested, doctor must also validate scale-mode readiness, worktree readiness, integration queue readiness, and safe effective parallelism.
+**Validation:** This JSON must be valid and complete before any action proceeds. Use `pi plan doctor` to validate. For repair plans, doctor must also validate: contractVersion, executionClass, repair-mode safety, known broken subsystems, bounded liveness, manual patch protocol, and promotion gate status. Autonomous execution gates are only checked after promotion permits them.
 
 ```json
 {
-  "contractVersion": "2.6.0",
+  "contractVersion": "3.0.0",
+  "executionClass": "repair",
   "executionBackend": "postgres",
   "project": {
     "name": "{{ project_name }}",
@@ -610,24 +740,69 @@ Hard stop execution only for:
     "type": "repo",
     "tags": []
   },
+  "executionAutomation": {
+    "autonomousExecutionEnabled": false,
+    "agentMayMutateRepo": false,
+    "agentMayRunCommands": false,
+    "manualPatchApplicationRequired": true,
+    "humanApprovalRequiredForEveryPatch": true
+  },
+  "repairMode": {
+    "selectedMode": "manual_1",
+    "targetPromotionMode": "stable_6",
+    "schedulerRuntimeUse": "disabled_until_promotion",
+    "reason": "{{ Why autonomous execution is disabled for this plan }}"
+  },
+  "knownBrokenSubsystems": [
+    {
+      "id": "executor_singleton_race",
+      "severity": "critical",
+      "autonomousExecutionBlocked": true,
+      "mustFixBefore": ["stable_1", "stable_3", "stable_6"]
+    },
+    {
+      "id": "abort_signal_not_wired",
+      "severity": "critical",
+      "autonomousExecutionBlocked": true,
+      "mustFixBefore": ["stable_1", "stable_3", "stable_6"]
+    },
+    {
+      "id": "worktree_mutex_bypass",
+      "severity": "high",
+      "autonomousExecutionBlocked": true,
+      "mustFixBefore": ["stable_3", "stable_6"]
+    },
+    {
+      "id": "validation_process_hang",
+      "severity": "high",
+      "autonomousExecutionBlocked": true,
+      "mustFixBefore": ["stable_3", "stable_6"]
+    },
+    {
+      "id": "json_state_store_concurrent_writes",
+      "severity": "high",
+      "autonomousExecutionBlocked": true,
+      "mustFixBefore": ["stable_3", "stable_6"]
+    }
+  ],
   "planExecution": {
     "phase": "{{ Phase ID }}",
     "title": "{{ Short Title }}",
-    "mode": "autonomous",
-    "maxParallelWorkspaces": 3,
+    "mode": "manual_repair",
+    "maxParallelWorkspaces": 1,
     "scheduling": {
-      "continuous": true,
-      "slotCount": 6,
-      "priorityStrategy": "critical_path_first"
+      "continuous": false,
+      "slotCount": 1,
+      "priorityStrategy": "manual_order"
     },
     "stateBackend": "postgres",
     "jsonFallbackEnabled": true,
     "dashboardEnabled": true,
-    "autoCommit": true,
+    "autoCommit": false,
     "autoPush": false,
     "scale": {
-      "defaultMode": "experimental_6",
-      "selectedMode": "experimental_6",
+      "defaultMode": "stable_3",
+      "selectedMode": "stable_3",
       "modes": {
         "stable_3": {
           "maxParallelWorkspaces": 3,
@@ -686,6 +861,31 @@ Hard stop execution only for:
       "finalIntegrationValidationRequired": true,
       "watchModeForbidden": true
     },
+    "leaseMonitor": {
+      "enabled": true,
+      "heartbeatIntervalSeconds": 15,
+      "staleThresholdSeconds": 45,
+      "monitorLoopIntervalSeconds": 30,
+      "stalePolicy": "quarantine_and_replace",
+      "reconciliationPrecedence": {
+        "wasRunning": "lease_file",
+        "whatIsOnDisk": "worktree_state",
+        "onDisagreement": "quarantine_and_requeue"
+      }
+    },
+    "validationLane": {
+      "maxConcurrentHeavyValidations": 1,
+      "maxConcurrentTargetedValidations": 3,
+      "backpressureEnabled": true,
+      "backpressureStrategy": "prefer_targeted_when_heavy_saturated",
+      "schedulerFeedbackEnabled": true
+    },
+    "mergePriorityScorer": {
+      "enabled": true,
+      "formula": "downstreamReadyCount * 50 + criticalPathPosition * 30 + waitTimeBoost * 10",
+      "recomputeOnEachDequeue": true,
+      "tiebreaker": "fifo"
+    },
     "interactiveParallelismReview": {
       "enabled": true,
       "preflightRequired": true,
@@ -707,7 +907,14 @@ Hard stop execution only for:
       "runOnUpload": true,
       "parserPriority": [
         "part3_json",
-        "markdown_fallback"
+        "contractVersion_and_executionClass",
+        "repair_mode_safety",
+        "known_broken_subsystem_gate",
+        "bounded_liveness",
+        "manual_patch_protocol",
+        "promotion_gate",
+        "doctor",
+        "execution_gate"
       ],
       "autoNormalize": true,
       "autoDoctor": true,
@@ -748,11 +955,145 @@ Hard stop execution only for:
       ]
     }
   },
+  "boundedLiveness": {
+    "required": true,
+    "noIndefiniteWaits": true,
+    "llm": {
+      "providerRequestTimeoutMs": 120000,
+      "streamIdleTimeoutMs": 300000,
+      "workspaceOverallTimeoutMs": 1800000,
+      "maxConsecutiveProviderTimeouts": 2,
+      "onCircuitOpen": "fail_workspace_not_plan"
+    },
+    "validation": {
+      "defaultTimeoutMs": 600000,
+      "heavyTimeoutMs": 1200000,
+      "killProcessTreeOnTimeout": true,
+      "watchModeForbidden": true,
+      "stdinClosed": true,
+      "ciEnvRequired": true,
+      "maxOutputBytes": 52428800
+    },
+    "git": {
+      "repoMutationLockTimeoutMs": 60000,
+      "lockBypassForbidden": true,
+      "onLockTimeout": "fail_fast_and_retry_or_handoff"
+    },
+    "scheduler": {
+      "stallDetectionEnabled": true,
+      "noProgressTimeoutMs": 300000,
+      "onNoProgress": "emit_blocked_reason"
+    },
+    "stateStore": {
+      "transactionOrWriteQueueRequired": true,
+      "atomicSnapshotRequired": true,
+      "journalLineAtomicityRequired": true
+    }
+  },
+  "llmRuntime": {
+    "boundedProviderCallsRequired": true,
+    "providerRequestTimeoutMs": 120000,
+    "streamIdleTimeoutMs": 300000,
+    "workspaceOverallTimeoutMs": 1800000,
+    "circuitBreaker": {
+      "enabled": true,
+      "openAfterConsecutiveTimeouts": 2,
+      "cooldownMs": 300000
+    },
+    "fallbackPolicy": {
+      "enabled": false,
+      "reason": "Repair patches must remain deterministic and human-reviewed unless explicitly approved."
+    }
+  },
+  "validationRuntime": {
+    "managedRunnerRequired": true,
+    "processGroupRequired": true,
+    "killTreeOnTimeout": true,
+    "maxOutputBytes": 52428800,
+    "forbiddenInteractiveCommands": [
+      "vitest --watch",
+      "jest --watch",
+      "npm run dev",
+      "vite --host"
+    ],
+    "lanes": {
+      "heavy": { "maxConcurrent": 1 },
+      "targeted": { "maxConcurrent": 3 }
+    }
+  },
+  "promotionGates": {
+    "initialMode": "manual_1",
+    "targetMode": "stable_6",
+    "gates": [
+      {
+        "id": "executor_isolation_passed",
+        "requiredFor": ["stable_1", "stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "abort_signal_chain_passed",
+        "requiredFor": ["stable_1", "stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "validation_hang_kill_passed",
+        "requiredFor": ["stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "git_serialization_stress_passed",
+        "requiredFor": ["stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "state_store_concurrency_passed",
+        "requiredFor": ["stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "crash_recovery_passed",
+        "requiredFor": ["stable_3", "stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "stable_3_dogfood_passed",
+        "requiredFor": ["stable_6"],
+        "status": "pending"
+      },
+      {
+        "id": "stable_6_stress_passed",
+        "requiredFor": ["stable_6"],
+        "status": "pending"
+      }
+    ]
+  },
+  "manualPatchProtocol": {
+    "required": true,
+    "onePatchAtATime": true,
+    "humanReviewBeforeApply": true,
+    "rollbackRequiredForEachPatch": true,
+    "targetedValidationRequiredForEachPatch": true,
+    "checkpointAfterEachPatch": true
+  },
+  "dogfoodMatrix": {
+    "required": true,
+    "scenarios": [
+      "executor_isolation_stress",
+      "abort_signal_chain",
+      "llm_stream_idle_timeout",
+      "validation_process_hang_kill",
+      "git_worktree_lock_stress",
+      "state_store_concurrent_write_stress",
+      "crash_recovery_requeue",
+      "stable_3_dogfood",
+      "stable_6_stress"
+    ]
+  },
   "controls": {
     "allowPause": true,
     "allowStop": true,
     "allowCancel": true,
-    "resumePolicy": "paused_or_stopped_only"
+    "resumePolicy": "manual_repair_checkpoint_only"
   },
   "safety": {
     "hardStops": [
@@ -781,7 +1122,24 @@ Hard stop execution only for:
       "memory_forbidden_source_indexing",
       "optimizer_patch_without_approval",
       "integration_merge_with_unresolved_write_set_drift_in_block_mode",
-      "lease_reconciliation_disagreement_without_quarantine"
+      "lease_reconciliation_disagreement_without_quarantine",
+      "autonomous_execution_requested_during_repair_mode",
+      "agent_repo_mutation_requested_during_manual_repair",
+      "agent_command_execution_requested_during_manual_repair",
+      "scheduler_enabled_before_executor_isolation_gate",
+      "stable_6_requested_before_promotion_gates",
+      "llm_call_without_provider_timeout",
+      "llm_stream_without_idle_watchdog",
+      "validation_command_without_timeout",
+      "validation_process_without_process_group",
+      "validation_watch_or_dev_server_command",
+      "git_lock_bypass_detected",
+      "state_store_write_without_serialization",
+      "workspace_patch_without_human_approval",
+      "repair_workspace_missing_rollback",
+      "repair_workspace_missing_targeted_validation",
+      "dogfood_required_but_missing",
+      "promotion_gate_failed_or_missing"
     ],
     "forbiddenCommands": [
       "git push",
@@ -808,7 +1166,7 @@ Hard stop execution only for:
     ]
   },
   "parallelismReview": {
-    "requestedMaxParallelWorkspaces": 3,
+    "requestedMaxParallelWorkspaces": 1,
     "selectedScaleMode": "stable_3",
     "scaleModeReadiness": {
       "ready": true,
@@ -841,8 +1199,8 @@ Hard stop execution only for:
         }
       ]
     },
-    "expectedDagEffectiveParallelismMin": 2,
-    "expectedSafeEffectiveParallelismMin": 2,
+    "expectedDagEffectiveParallelismMin": 1,
+    "expectedSafeEffectiveParallelismMin": 1,
     "dagEffectiveParallelism": null,
     "safeEffectiveParallelism": null,
     "preflightStatus": "required",
@@ -935,7 +1293,18 @@ Hard stop execution only for:
       "merge_priority_score_log",
       "empirical_write_set",
       "write_set_drift_report",
-      "validation_lane_saturation_log"
+      "validation_lane_saturation_log",
+      "repair_checkpoint",
+      "manual_patch_approval",
+      "patch_review_record",
+      "rollback_artifact",
+      "targeted_validation_artifact",
+      "promotion_gate_result",
+      "dogfood_matrix_result",
+      "llm_timeout_circuit_breaker_event",
+      "validation_process_kill_record",
+      "git_lock_timeout_quarantine_record",
+      "state_write_serialization_evidence"
     ]
   },
   "workspaces": [
@@ -945,6 +1314,15 @@ Hard stop execution only for:
       "dependencies": [],
       "parallelGroup": "batch_1",
       "dependencyReason": "{{ Why this workspace has no dependencies or why these dependencies are required }}",
+      "manualApplicationRequired": true,
+      "humanApprovalRequired": true,
+      "autonomousExecutionAllowed": false,
+      "rollbackRequired": true,
+      "targetedValidationRequired": true,
+      "patchReview": {
+        "required": true,
+        "reviewer": "{{ role_or_person }}"
+      },
       "parallelism": {
         "expectedBatch": "batch_1",
         "canRunWith": [],
@@ -969,15 +1347,20 @@ Hard stop execution only for:
       "validation": {
         "profile": "targeted_then_final",
         "heavyCommandUsesGlobalLock": true,
-        "watchModeForbidden": true
+        "watchModeForbidden": true,
+        "timeoutMs": 600000,
+        "managedRunnerRequired": true,
+        "processGroupRequired": true,
+        "killTreeOnTimeout": true,
+        "maxOutputBytes": 52428800
       },
       "allowedFiles": [],
       "forbiddenFiles": [],
       "acceptanceCriteria": [],
       "targetCommand": null,
       "roleBudget": "worker",
-      "maxRetries": 3,
-      "riskLevel": "low",
+      "maxRetries": 0,
+      "riskLevel": "high",
       "capabilityManifest": {
         "canEdit": [],
         "cannotEdit": [
@@ -1010,7 +1393,17 @@ Hard stop execution only for:
 
 ### Contract Metadata
 
-- **`contractVersion`**: Must be `"2.6.0"` for v2.6 Git serialization, lease hardening, and execution correctness support. `2.3.0`, `2.3.1`, `2.3.2`, `2.4.0`, `2.5.0`, and `2.5.1` remain supported for plans using earlier defaults.
+- **`contractVersion`**: Must be `"3.0.0"` for v3.0 repair-first execution correctness plans. Earlier versions (`2.3.0` through `2.6.0`) remain supported for plans using earlier defaults but MUST NOT be used for repair-mode plans.
+- **`executionClass`**: The class of execution plan. Must be one of `"implementation"` (normal autonomous execution after promotion), `"repair"` (repair-first, manual-gated, promotion-gated), or `"verification"` (for validating that repairs are effective). Repair plans disable autonomous execution until promotion gates pass.
+- **`executionAutomation`**: Defines whether autonomous execution, repo mutation, command execution are enabled, and whether manual patch application and human approval are required. See field definitions below.
+- **`repairMode`**: Defines the repair mode, target promotion mode, scheduler runtime behavior, and the reason autonomous execution is disabled.
+- **`knownBrokenSubsystems`**: Registry of known broken subsystems that block autonomous execution until certain promotion gates pass. Each entry has `id`, `severity`, `autonomousExecutionBlocked`, and `mustFixBefore` (array of mode identifiers).
+- **`boundedLiveness`**: Defines liveness contracts for LLM, validation, git, scheduler, and state store operations. No indefinite waits are permitted.
+- **`llmRuntime`**: Defines LLM provider call constraints: request timeout, stream idle timeout, workspace overall timeout, circuit breaker configuration, and fallback policy.
+- **`validationRuntime`**: Defines managed validation runner requirements: process group, kill tree on timeout, output cap, forbidden interactive commands, and lane configurations.
+- **`manualPatchProtocol`**: Defines the manual patch protocol: one patch at a time, human review before apply, rollback required, targeted validation required, checkpoint after each patch.
+- **`promotionGates`**: Defines the promotion gate ladder from `initialMode` to `targetMode` with individual `gates` having `id`, `requiredFor` mode list, and `status`.
+- **`dogfoodMatrix`**: Defines required dogfood/stress scenarios that must pass before certain promotion modes are reached.
 - **`executionBackend`**: Must be `"postgres"` or `"json"`.
 - **`project`**: Defines the repository/project being executed.
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
@@ -1037,13 +1430,115 @@ Hard stop execution only for:
 
 ---
 
+### Execution Automation Fields
+
+- **`executionAutomation.autonomousExecutionEnabled`**: Whether autonomous execution (e.g., `pi plan run`) is allowed. For repair plans, MUST be `false` unless all required promotion gates have passed.
+- **`executionAutomation.agentMayMutateRepo`**: Whether the agent may directly mutate the repository. For repair plans at `manual_0` through `assisted_1`, MUST be `false`.
+- **`executionAutomation.agentMayRunCommands`**: Whether the agent may run commands autonomously. For repair plans, MUST be `false` until promotion permits it.
+- **`executionAutomation.manualPatchApplicationRequired`**: Whether patches must be applied manually by a human. For repair plans, MUST be `true`.
+- **`executionAutomation.humanApprovalRequiredForEveryPatch`**: Whether every patch requires explicit human approval. For repair plans, MUST be `true`.
+
+### Repair Mode Fields
+
+- **`repairMode.selectedMode`**: The current repair mode. Valid values: `manual_0` (analysis only), `manual_1` (human applies patches), `assisted_1` (agent proposes, human applies), `stable_1` (one autonomous workspace after isolation gates), `stable_3` (three autonomous workspaces after dogfood), `stable_6` (six autonomous workspaces after stress gates), `scale_8` (explicit approval only).
+- **`repairMode.targetPromotionMode`**: The target stable automation mode to reach after all promotions pass. Typically `stable_6`.
+- **`repairMode.schedulerRuntimeUse`**: One of `"disabled_until_promotion"`, `"enabled_after_isolation"`, or `"enabled"`. For repair plans, MUST be `"disabled_until_promotion"`.
+- **`repairMode.reason`**: Human-readable explanation for why autonomous execution is disabled for this plan.
+
+### Known Broken Subsystems Fields
+
+- **`knownBrokenSubsystems[].id`**: Unique identifier for the known broken subsystem.
+- **`knownBrokenSubsystems[].severity`**: One of `"critical"`, `"high"`, `"medium"`, `"low"`.
+- **`knownBrokenSubsystems[].autonomousExecutionBlocked`**: Whether this subsystem being broken blocks autonomous execution.
+- **`knownBrokenSubsystems[].mustFixBefore`**: Array of mode identifiers (e.g., `"stable_1"`, `"stable_3"`, `"stable_6"`) that require this subsystem to be fixed before promotion to that mode.
+
+### Bounded Liveness Fields
+
+- **`boundedLiveness.required`**: Whether bounded liveness is required. For repair plans, MUST be `true`.
+- **`boundedLiveness.noIndefiniteWaits`**: Whether indefinite waits are prohibited. MUST be `true`.
+- **`boundedLiveness.llm.providerRequestTimeoutMs`**: Maximum time (ms) for a single LLM provider request. Default 120000.
+- **`boundedLiveness.llm.streamIdleTimeoutMs`**: Maximum idle time (ms) for an LLM stream before watchdog triggers. Default 300000.
+- **`boundedLiveness.llm.workspaceOverallTimeoutMs`**: Maximum total time (ms) for a workspace's LLM usage. Default 1800000.
+- **`boundedLiveness.llm.maxConsecutiveProviderTimeouts`**: Number of consecutive provider timeouts before circuit breaker opens. Default 2.
+- **`boundedLiveness.llm.onCircuitOpen`**: Behavior when circuit breaker opens. Must be `"fail_workspace_not_plan"`.
+- **`boundedLiveness.validation.defaultTimeoutMs`**: Default validation command timeout (ms). Default 600000.
+- **`boundedLiveness.validation.heavyTimeoutMs`**: Heavy validation command timeout (ms). Default 1200000.
+- **`boundedLiveness.validation.killProcessTreeOnTimeout`**: Whether to kill the entire process tree on timeout. MUST be `true`.
+- **`boundedLiveness.validation.watchModeForbidden`**: Whether watch/dev-server mode validation commands are forbidden. MUST be `true`.
+- **`boundedLiveness.validation.stdinClosed`**: Whether stdin is closed for validation commands. MUST be `true`.
+- **`boundedLiveness.validation.ciEnvRequired`**: Whether CI-like environment is required for validation. MUST be `true`.
+- **`boundedLiveness.validation.maxOutputBytes`**: Maximum output bytes from a validation command. Default 52428800 (50MB).
+- **`boundedLiveness.git.repoMutationLockTimeoutMs`**: Maximum time (ms) to wait for git repo-wide mutation lock. Default 60000.
+- **`boundedLiveness.git.lockBypassForbidden`**: Whether bypassing the git lock is forbidden. MUST be `true`.
+- **`boundedLiveness.git.onLockTimeout`**: Behavior on lock timeout. Must be `"fail_fast_and_retry_or_handoff"`.
+- **`boundedLiveness.scheduler.stallDetectionEnabled`**: Whether scheduler stall detection is enabled. MUST be `true`.
+- **`boundedLiveness.scheduler.noProgressTimeoutMs`**: Maximum time without progress before stall is declared. Default 300000.
+- **`boundedLiveness.scheduler.onNoProgress`**: Action on stall detection. Must be `"emit_blocked_reason"`.
+- **`boundedLiveness.stateStore.transactionOrWriteQueueRequired`**: Whether state writes must be transaction-backed or serialized by a write queue. MUST be `true`.
+- **`boundedLiveness.stateStore.atomicSnapshotRequired`**: Whether state snapshots must be atomic. MUST be `true`.
+- **`boundedLiveness.stateStore.journalLineAtomicityRequired`**: Whether journal writes must be line-atomic. MUST be `true`.
+
+### LLM Runtime Fields
+
+- **`llmRuntime.boundedProviderCallsRequired`**: Whether LLM provider calls must be bounded (timeout + watchdog). MUST be `true`.
+- **`llmRuntime.providerRequestTimeoutMs`**: Maximum time (ms) for a single LLM provider request. Default 120000.
+- **`llmRuntime.streamIdleTimeoutMs`**: Maximum idle time (ms) for an LLM stream. Default 300000.
+- **`llmRuntime.workspaceOverallTimeoutMs`**: Maximum total time (ms) per workspace. Default 1800000.
+- **`llmRuntime.circuitBreaker.enabled`**: Whether the circuit breaker is enabled. For repair plans, MUST be `true`.
+- **`llmRuntime.circuitBreaker.openAfterConsecutiveTimeouts`**: Consecutive timeouts before circuit opens. Default 2.
+- **`llmRuntime.circuitBreaker.cooldownMs`**: Cooldown period before circuit resets (ms). Default 300000.
+- **`llmRuntime.fallbackPolicy.enabled`**: Whether LLM provider fallback is enabled. MUST be `false` for repair plans (patches must remain deterministic).
+- **`llmRuntime.fallbackPolicy.reason`**: Explanation for fallback policy choice.
+
+### Validation Runtime Fields
+
+- **`validationRuntime.managedRunnerRequired`**: Whether a managed validation runner is required. MUST be `true`.
+- **`validationRuntime.processGroupRequired`**: Whether validation processes must be in a managed process group. MUST be `true`.
+- **`validationRuntime.killTreeOnTimeout`**: Whether the entire process tree is killed on timeout. MUST be `true`.
+- **`validationRuntime.maxOutputBytes`**: Maximum output bytes captured from a validation command. Default 52428800.
+- **`validationRuntime.forbiddenInteractiveCommands`**: Array of forbidden interactive/daemon commands (e.g., `vitest --watch`, `npm run dev`).
+- **`validationRuntime.lanes.heavy.maxConcurrent`**: Maximum concurrent heavy validation commands. Default 1.
+- **`validationRuntime.lanes.targeted.maxConcurrent`**: Maximum concurrent targeted validation commands. Default 3.
+
+### Manual Patch Protocol Fields
+
+- **`manualPatchProtocol.required`**: Whether the manual patch protocol is required. For repair plans, MUST be `true`.
+- **`manualPatchProtocol.onePatchAtATime`**: Whether patches must be applied one at a time. MUST be `true`.
+- **`manualPatchProtocol.humanReviewBeforeApply`**: Whether human review is required before applying each patch. MUST be `true`.
+- **`manualPatchProtocol.rollbackRequiredForEachPatch`**: Whether rollback must be prepared for each patch. MUST be `true`.
+- **`manualPatchProtocol.targetedValidationRequiredForEachPatch`**: Whether targeted validation is required after each patch. MUST be `true`.
+- **`manualPatchProtocol.checkpointAfterEachPatch`**: Whether a checkpoint must be created after each patch. MUST be `true`.
+
+### Promotion Gates Fields
+
+- **`promotionGates.initialMode`**: The initial repair mode (e.g., `"manual_1"`).
+- **`promotionGates.targetMode`**: The target promotion mode (e.g., `"stable_6"`).
+- **`promotionGates.gates[].id`**: Unique gate identifier.
+- **`promotionGates.gates[].requiredFor`**: Array of mode identifiers this gate is required for.
+- **`promotionGates.gates[].status`**: One of `"pending"`, `"in_progress"`, `"passed"`, `"failed"`.
+
+### Dogfood Matrix Fields
+
+- **`dogfoodMatrix.required`**: Whether dogfood/stress testing is required. MUST be `true`.
+- **`dogfoodMatrix.scenarios`**: Array of required stress scenario identifiers (e.g., `"executor_isolation_stress"`, `"stable_6_stress"`).
+
+### Repair Workspace Metadata Fields
+
+- **`workspaces[].manualApplicationRequired`**: Whether manual patch application is required for this workspace. For repair workspaces, MUST be `true`.
+- **`workspaces[].humanApprovalRequired`**: Whether human approval is required for this workspace. For repair workspaces, MUST be `true`.
+- **`workspaces[].autonomousExecutionAllowed`**: Whether autonomous execution is allowed for this workspace. For repair workspaces, MUST be `false`.
+- **`workspaces[].rollbackRequired`**: Whether rollback metadata must be prepared for this workspace. For repair workspaces, MUST be `true`.
+- **`workspaces[].targetedValidationRequired`**: Whether targeted validation is required for this workspace. For repair workspaces, MUST be `true`.
+- **`workspaces[].patchReview.required`**: Whether patch review is required. MUST be `true`.
+- **`workspaces[].patchReview.reviewer`**: Role or person responsible for reviewing the patch.
+
 ### P6 Scale-Aware Execution Fields
 
 - **`planExecution.scale`**: Defines available scale modes and prerequisites.
-- **`selectedMode`**: Requested scale mode for this plan. Must be one of `stable_3`, `experimental_6`, or `scale_8`.
-- **`stable_3`**: Default safe mode. Maximum 3 workers. Does not require worktree isolation or integration queue, though both may still be enabled.
-- **`experimental_6`**: Allows up to 6 workers only when worktree isolation, integration queue, validation lock, archive, and completion gate hardening are active.
-- **`scale_8`**: Allows up to 8 workers only when all `experimental_6` prerequisites pass, dogfood has passed, and explicit approval is present.
+- **`selectedMode`**: Requested scale mode for this plan. Must be one of `stable_3`, `experimental_6`, or `scale_8`. For repair plans, the executor does not use scale mode scheduling until promotion permits it.
+- **`stable_3`**: Default safe mode. Maximum 3 workers. Does not require worktree isolation or integration queue, though both may still be enabled. For repair plans, `stable_3` is a promotion target, not a default execution assumption.
+- **`experimental_6`**: Allows up to 6 workers only when worktree isolation, integration queue, validation lock, archive, and completion gate hardening are active. Not used during repair mode; only reachable after promotion gates pass.
+- **`scale_8`**: Allows up to 8 workers only when all `experimental_6` prerequisites pass, dogfood has passed, and explicit approval is present. Not used during repair mode.
 - **`planExecution.worktree`**: Defines git worktree isolation behavior, root path, quarantine policy, and cleanup safety requirements.
 - **`planExecution.integrationQueue`**: Defines controlled merge behavior for successful workspace outputs.
 - **`planExecution.integrationQueue.queuePriority`**: Configures queue priority levels. When `enabled`, the queue reorders pending merges by priority before falling back to FIFO within the same priority band. `defaultLevel` sets the priority for workspaces that do not specify an explicit priority. `levels` enumerates valid priority values.
@@ -1141,7 +1636,7 @@ Hard stop execution only for:
 Pi's `doctor` command validates the execution contract against these rules:
 
 1. JSON must be syntactically valid.
-2. `contractVersion` must be present and valid.
+2. `contractVersion` must be present and valid. For v3.0 repair plans, `contractVersion` must be `"3.0.0"`.
 3. `project.name` must be non-empty.
 4. `project.rootPath` must be valid.
 5. `executionBackend` must be `postgres` or `json`.
@@ -1182,7 +1677,7 @@ Pi's `doctor` command validates the execution contract against these rules:
 40. If watch-mode validation command is present, execution must stop.
 41. `git push` must remain forbidden in every mode.
 42. Dashboard controls must not directly mutate execution state.
-43. Executor must remain the source of truth for state transitions.
+43. Executor must remain the source of truth for state transitions after promotion.
 44. If `queueOptimization.enabled` is true, `queueOptimization.strategy` must be one of the supported strategies.
 45. If `queuePriority.enabled` is true, each workspace `integration.queuePriority` must be one of the configured `queuePriority.levels`.
 46. If `queuePriority.enabled` is true, workspaces without an explicit `queuePriority` must use `queuePriority.defaultLevel`.
@@ -1194,6 +1689,25 @@ Pi's `doctor` command validates the execution contract against these rules:
 52. If `planExecution.scheduling.continuous` is `true` (default), the scheduler MUST NOT use batch barriers. All `maxParallelWorkspaces` slots must be filled immediately and refilled as workspaces complete.
 53. Batch previews (`batchPreview`, `safeBatchPreview`) are advisory/display only when continuous scheduling is enabled. The scheduler must not wait for batch completion.
 54. If `planExecution.scheduling.slotCount` is set, the worktree pool must prewarm that many slots at plan start.
+
+### v3.0 Repair Validation Rules
+
+55. `contractVersion` must be `3.0.0` for v3.0 execution contracts.
+56. `executionClass` must be one of `"implementation"`, `"repair"`, or `"verification"`.
+57. If `executionClass` is `"repair"`, `executionAutomation.autonomousExecutionEnabled` MUST be `false` unless all required promotion gates have passed.
+58. If `executionAutomation.autonomousExecutionEnabled` is `false`, `repairMode.schedulerRuntimeUse` MUST be `"disabled_until_promotion"`.
+59. If `executionAutomation.agentMayMutateRepo` is `false`, no workspace may require autonomous mutation.
+60. If `executionAutomation.agentMayRunCommands` is `false`, no workspace may require autonomous command execution.
+61. Repair workspace MUST include `rollbackRequired`, `targetedValidationRequired`, and `humanApprovalRequired` metadata.
+62. LLM runtime (`llmRuntime` or `boundedLiveness.llm`) MUST include `providerRequestTimeoutMs` and `streamIdleTimeoutMs`.
+63. Validation runtime (`validationRuntime` or `boundedLiveness.validation`) MUST include `timeout`, `processGroupRequired`, `killTreeOnTimeout`, `maxOutputBytes`, `ciEnvRequired`, `stdinClosed`, and `watchModeForbidden`.
+64. Git lock bypass (`boundedLiveness.git.lockBypassForbidden`) MUST be `true`.
+65. State store MUST use transactions or write queue (`boundedLiveness.stateStore.transactionOrWriteQueueRequired` must be `true`).
+66. Promotion to `stable_1` requires `executor_isolation_passed` and `abort_signal_chain_passed` gates.
+67. Promotion to `stable_3` requires `validation_hang_kill_passed`, `git_serialization_stress_passed`, `state_store_concurrency_passed`, and `crash_recovery_passed` gates.
+68. Promotion to `stable_6` requires `stable_3_dogfood_passed` and `stable_6_stress_passed` gates.
+69. Repair plans MUST NOT be run via autonomous plan execution (`pi plan run`). Any attempt to run a repair plan autonomously is a hard stop.
+70. If `executionClass` is `"repair"` and `autonomousExecutionEnabled` is `false`, `planExecution.scheduling.continuous` MUST be `false`.
 
 ---
 
@@ -1233,17 +1747,39 @@ Workspace Execution → Queue Priority Assignment
 Workspace Execution → Queue Optimization Notes
 ```
 
+v3.0 additionally persists:
+
+```text
+Plan Execution → Repair Checkpoint
+Plan Execution → Promotion Gate Result
+Plan Execution → Dogfood Matrix Result
+Plan Execution → LLM Timeout / Circuit Breaker Events
+Plan Execution → State Write Serialization Evidence
+Workspace Execution → Manual Patch Approval
+Workspace Execution → Patch Review Record
+Workspace Execution → Rollback Artifact
+Workspace Execution → Targeted Validation Artifact
+Workspace Execution → Validation Process Kill Record
+Workspace Execution → Git Lock Timeout / Quarantine Record
+```
+
 The `batchPreview` object is persisted with the plan execution so audit trails show the exact DAG batch decomposition that was reviewed and approved.
 
 The `safeBatchPreview` object is persisted so audit trails also show the exact P6-constrained execution batch decomposition.
 
-The executor must use the approved dependency graph and must also verify current scale-mode readiness before starting workspaces. If the approved graph is current but scale-mode readiness has become stale or invalid, execution must stop before any workspace starts.
+The executor must use the approved dependency graph and must also verify current scale-mode readiness before starting workspaces. If the approved graph is current but scale-mode readiness has become stale or invalid, execution must stop before any workspace starts. For repair plans, the execution contract is a **validation contract** — the executor does not start workspaces autonomously; instead, repair actions are coordinated through the manual patch protocol.
 
 ---
 
 ## Control Model
 
-Pause, stop, cancel, and resume remain executor-mediated. The dashboard may request control actions, but the executor remains the only component that mutates execution state.
+Pause, stop, cancel, and resume remain executor-mediated. The dashboard may request control actions, but the executor remains the only component that mutates execution state after promotion.
+
+**For repair plans**:
+- Dashboard may request repair actions (e.g., propose patch, approve patch, rollback) but must NOT directly mutate execution state.
+- **In repair mode, human patch application is the source of truth.** No automated component may bypass human review and approval.
+- Executor state mutation remains disabled until promotion gate permits it.
+- Promotion is executor-validated and human-approved.
 
 Interactive parallelism approval is executor-validated. The UI can submit approval, but execution starts only after the executor verifies that the approved graph is current, acyclic, and within safety limits.
 
@@ -1257,6 +1793,18 @@ Queue optimization controls are executor-mediated. The dashboard may display que
 
 ## Parser Priority
 
+For v3.0:
+1. Part 3 JSON first.
+2. `contractVersion` and `executionClass` validation.
+3. Repair-mode safety validation.
+4. Known broken subsystem gate.
+5. Bounded liveness validation.
+6. Manual patch protocol validation.
+7. Promotion gate validation.
+8. Doctor validation.
+9. Execution gate only if `autonomousExecutionEnabled` is true and promotion permits it.
+
+For v2.x backward compatibility:
 1. Part 3 JSON first.
 2. Markdown heading fallback only as recovery mode.
 3. Doctor validation.
@@ -1273,21 +1821,28 @@ Queue optimization controls are executor-mediated. The dashboard may display que
 
 ```json
 {
-  "contractVersion": "2.6.0",
+  "contractVersion": "3.0.0",
   "phase": "{{ Phase ID }}",
   "title": "{{ Phase Title }}",
+  "executionClass": "repair",
+  "executionAutomation": "disabled",
+  "selectedRepairMode": "manual_1",
+  "targetPromotionMode": "stable_6",
+  "autonomousExecutionAllowed": false,
+  "agentMayMutateRepo": false,
+  "schedulerRuntimeUse": "disabled_until_promotion",
   "primaryGoal": "{{ One sentence summary of the phase goal }}",
   "projectName": "{{ project_name }}",
   "stateBackend": "postgres",
   "selectedScaleMode": "stable_3",
-  "maxParallelWorkspaces": 3,
+  "maxParallelWorkspaces": 1,
   "requiresWorktreeIsolation": false,
   "requiresIntegrationQueue": true,
   "queueOptimizationEnabled": true,
   "queueOptimizationStrategy": "priority_then_fifo",
-  "continuousScheduling": true,
-  "continuousSlotCount": 6,
-  "safeEffectiveParallelismTarget": 2,
+  "continuousScheduling": false,
+  "continuousSlotCount": 1,
+  "safeEffectiveParallelismTarget": 1,
   "notInScope": [
     "{{ Thing explicitly not in scope }}"
   ],
@@ -1307,9 +1862,11 @@ Queue optimization controls are executor-mediated. The dashboard may display que
     "unsafe_scale_mode",
     "queue_next_plan_while_integration_dirty",
     "queue_optimization_invalid_strategy",
-    "queue_priority_invalid_level"
+    "queue_priority_invalid_level",
+    "autonomous_execution_requested_during_repair_mode",
+    "promotion_gate_failed_or_missing"
   ],
-  "completionGate": "{{ Definition of done summary }}",
+  "completionGate": "{{ P26 complete only when all repair and promotion gates pass }}",
   "nextPhase": "{{ Next Phase ID or null }}"
 }
 ```
@@ -1528,6 +2085,33 @@ Do not treat `dagEffectiveParallelism` as permission to run that many workers. T
 ---
 
 ## Template Changelog
+
+### v3.0.0 (2026-05-25)
+
+- **Major semantic migration**: From "autonomous implementation plan template" to "repair/recovery/execution-correctness template".
+- **Title changed** to "Repair & Execution Correctness Template v3.0".
+- **Added `executionClass`**: Plans must declare `"implementation"`, `"repair"`, or `"verification"`.
+- **Repair-first semantics**: Plans default to `executionClass: "repair"` with autonomous execution disabled.
+- **Added `executionAutomation`**: Controls for `autonomousExecutionEnabled`, `agentMayMutateRepo`, `agentMayRunCommands`, `manualPatchApplicationRequired`, `humanApprovalRequiredForEveryPatch`.
+- **Added `repairMode`**: Selected repair mode, target promotion mode, scheduler runtime use, and reason.
+- **Added `knownBrokenSubsystems`**: Registry of known broken subsystems blocking autonomous execution.
+- **Added `boundedLiveness`**: LLM, validation, git, scheduler, and state store timeout/contract fields.
+- **Added `llmRuntime`**: Provider request timeout, stream idle watchdog, circuit breaker, fallback policy.
+- **Added `validationRuntime`**: Managed runner, process group, kill tree, output cap, forbidden interactive commands, lanes.
+- **Added `manualPatchProtocol`**: One patch at a time, human review, rollback, targeted validation, checkpoint.
+- **Added `promotionGates`**: 8-gate promotion ladder with `requiredFor` per mode and status tracking.
+- **Added `dogfoodMatrix`**: Required stress scenarios for promotion to `stable_6`.
+- **Added v3.0 repair workspace metadata**: `manualApplicationRequired`, `humanApprovalRequired`, `autonomousExecutionAllowed`, `rollbackRequired`, `targetedValidationRequired`, `patchReview`.
+- **Added v3.0 safety hard stops**: 20 new hard stops for repair-mode safety, bounded liveness, git lock, state store serialization, promotion gates, and missing repair workspace metadata.
+- **Added v3.0 persisted artifacts**: Repair checkpoint, manual patch approval, patch review record, rollback artifact, targeted validation artifact, promotion gate result, dogfood matrix result, LLM timeout/circuit-breaker events, validation process kill record, git lock timeout/quarantine record, state write serialization evidence.
+- **Added v3.0 validation rules** (55-70): contractVersion, executionClass, repair-mode safety, bounded liveness, promotion gates, and autonomous execution prohibition.
+- **Updated execution policies YAML**: Added `repair_modes`, `execution_automation`, `bounded_liveness` sections.
+- **Updated parser priority**: Repair-mode safety, known broken subsystem gate, bounded liveness, manual patch protocol, promotion gate take precedence before execution gate.
+- **Updated control model**: Human patch application is source of truth in repair mode; executor state mutation disabled until promotion.
+- **Updated Part 1 fields**: Added repair class, execution automation, repair mode, promotion gate status fields.
+- **Default values changed for repair**: `scheduling.continuous: false`, `slotCount: 1`, `autoCommit: false`, `autoPush: false`, `scale.defaultMode: "stable_3"`.
+- **Promotion ladder**: `manual_0 -> manual_1 -> assisted_1 -> stable_1 -> stable_3 -> stable_6 -> scale_8`.
+- **contractVersion** updated to `3.0.0`.
 
 ### v2.4.0 (2026-05-16)
 

@@ -23,8 +23,8 @@
  * All endpoints require optional authentication (use existing auth middleware).
  */
 
+import type { InMemoryTelemetryStore, RetentionEngine, TelemetryQueryApi } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
-import type { InMemoryTelemetryStore, TelemetryQueryApi, RetentionEngine } from "@earendil-works/pi-coding-agent";
 
 // ─────────────────────────────────────────────────────────────────────
 // Route Registration
@@ -387,9 +387,7 @@ export async function registerTelemetryRoutes(
 		};
 	}>("/api/telemetry/time-series", async (request, reply) => {
 		try {
-			const bucketWidthMs = request.query.bucketWidthMs
-				? Number(request.query.bucketWidthMs)
-				: 3600000; // default 1h
+			const bucketWidthMs = request.query.bucketWidthMs ? Number(request.query.bucketWidthMs) : 3600000; // default 1h
 
 			if (!request.query.since || !request.query.until) {
 				return reply.status(400).send({

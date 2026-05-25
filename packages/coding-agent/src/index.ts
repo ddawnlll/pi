@@ -129,14 +129,14 @@ export {
 	type CorrelationModel,
 	createObservabilityEvent,
 	createTraceContext,
+	// 25.B — Telemetry store, retention, and query API
+	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
 	DEFAULT_TRACE_MANAGER_CONFIG,
 	type DedupeConfig,
 	type ErrorAnalysis,
 	type EventStatistics,
-	// 25.B — Telemetry store, retention, and query API
-	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
-	type FileTelemetryTargetConfig,
 	FileTelemetryFlushTarget,
+	type FileTelemetryTargetConfig,
 	type FlushResult,
 	InMemoryTelemetryStore,
 	type ObservabilityEvent,

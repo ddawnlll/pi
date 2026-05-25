@@ -200,6 +200,99 @@ export interface PlanExecutionValidation {
 }
 
 /**
+ * Execution automation policy — repair-mode lockdown and promotion guards.
+ *
+ * Controls whether autonomous execution is enabled, whether the agent
+ * may mutate the repo or run commands, and whether manual patch
+ * application / human approval is required.
+ *
+ * P26.A: Repair-mode lockdown and promotion guard.
+ */
+export interface ExecutionAutomation {
+	/**
+	 * Whether autonomous execution is enabled for this plan.
+	 * When false, `pi plan run` and scheduler-based execution are blocked.
+	 * Default: true
+	 */
+	autonomousExecutionEnabled?: boolean;
+
+	/**
+	 * Whether the agent may mutate the repository.
+	 * When false, the agent cannot write files or make git commits.
+	 * Default: true
+	 */
+	agentMayMutateRepo?: boolean;
+
+	/**
+	 * Whether the agent may run commands on the host.
+	 * When false, the agent cannot execute shell commands.
+	 * Default: true
+	 */
+	agentMayRunCommands?: boolean;
+
+	/**
+	 * Whether manual patch application is required.
+	 * When true, patches must be applied manually (not by the agent).
+	 * Default: false
+	 */
+	manualPatchApplicationRequired?: boolean;
+
+	/**
+	 * Whether human approval is required for every patch.
+	 * When true, every patch must be reviewed and approved by a human.
+	 * Default: false
+	 */
+	humanApprovalRequiredForEveryPatch?: boolean;
+}
+
+/**
+ * Repair mode configuration.
+ *
+ * Describes the selected repair mode, target promotion mode, and reason
+ * for the repair. Used by repair-mode phases like P26.
+ */
+export interface RepairMode {
+	/** Selected repair mode (e.g., "manual_1") */
+	selectedMode?: string;
+	/** Target promotion mode (e.g., "stable_6") */
+	targetPromotionMode?: string;
+	/** Human-readable reason for entering repair mode */
+	reason?: string;
+	/** Whether the scheduler runtime is disabled until promotion */
+	schedulerRuntimeUse?: string;
+}
+
+/**
+ * Status of a single promotion gate.
+ */
+export interface PromotionGate {
+	/** Unique gate identifier (e.g., "executor_isolation_passed") */
+	id: string;
+	/** Scale modes that require this gate (e.g., ["stable_1", "stable_3", "stable_6"]) */
+	requiredFor: string[];
+	/** Current gate status: "passed", "failed", or "pending" */
+	status: "passed" | "failed" | "pending";
+	/** Optional human-readable evidence description */
+	evidence?: string;
+}
+
+/**
+ * Promotion gate matrix for scale mode eligibility.
+ *
+ * Defines which gates must pass before a given scale mode (e.g., stable_1,
+ * stable_3, stable_6) is allowed. Used by the safety doctor to block
+ * worker concurrency modes when prerequisite gates have not passed.
+ */
+export interface PromotionGates {
+	/** The initial/current mode before promotion */
+	initialMode: string;
+	/** The target mode after promotion */
+	targetMode: string;
+	/** List of gates with their status and requirements */
+	gates: PromotionGate[];
+}
+
+/**
  * Workspace execution stage (state machine)
  */
 export enum WorkspaceStage {
@@ -550,6 +643,38 @@ export interface WorkspaceQueue {
 	 * P8.E field.
 	 */
 	leadAgentId?: string;
+
+	/**
+	 * Execution automation policy.
+	 *
+	 * Controls autonomous execution, repo mutation, command execution,
+	 * and patch application policy. Used by repair-mode plans to
+	 * enforce lockdown.
+	 *
+	 * P26.A field.
+	 */
+	executionAutomation?: ExecutionAutomation;
+
+	/**
+	 * Repair mode configuration.
+	 *
+	 * Present when the plan is a repair-mode phase (e.g., P26).
+	 * Describes the selected repair mode and target promotion mode.
+	 *
+	 * P26.A field.
+	 */
+	repairMode?: RepairMode;
+
+	/**
+	 * Promotion gate matrix.
+	 *
+	 * Defines which gates must pass before each scale mode is allowed.
+	 * Used by the safety doctor and worker concurrency validation to
+	 * block unsafe scale modes.
+	 *
+	 * P26.A field.
+	 */
+	promotionGates?: PromotionGates;
 }
 
 /**

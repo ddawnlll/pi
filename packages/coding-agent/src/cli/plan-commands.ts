@@ -38,10 +38,12 @@ import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
 import {
+	checkPromotionGates,
 	DEFAULT_WORKERS,
 	isExperimentalWorkerCount,
 	MAX_EXPERIMENTAL_WORKERS,
 	MIN_STABLE_WORKERS,
+	PROMOTION_GATES,
 	validateWorkerConcurrency,
 	type WorkerConcurrencySettings,
 } from "../core/worker-concurrency.js";
@@ -103,14 +105,44 @@ function buildWorkerConcurrencyFromOptions(options: PlanCommandOptions): WorkerC
  * Validate and potentially prompt for experimental worker mode confirmation.
  *
  * Returns the resolved worker concurrency settings, or null if the user
- * declines experimental mode.
+ * declines experimental mode or if required promotion gates are not passed.
  *
  * @param options - Plan command options
+ * @param promotionGates - Optional promotion gates from the plan contract
  * @returns WorkerConcurrencySettings or null if declined
  */
-function resolveWorkerConcurrencyWithConfirmation(options: PlanCommandOptions): WorkerConcurrencySettings | null {
+function resolveWorkerConcurrencyWithConfirmation(
+	options: PlanCommandOptions,
+	promotionGates?: import("../core/workspace-schema.js").PromotionGates,
+): WorkerConcurrencySettings | null {
 	const workers = options.workers ?? DEFAULT_WORKERS;
 	const isExperimental = isExperimentalWorkerCount(workers);
+
+	// P26.A: Check promotion gates for stable_6 / experimental_6
+	if (promotionGates && workers >= 4) {
+		const checkResult = checkPromotionGates(promotionGates.gates, PROMOTION_GATES.STABLE_6);
+		if (!checkResult.passed) {
+			const reasons: string[] = [];
+			if (checkResult.missing.length > 0) {
+				reasons.push(`missing gates: ${checkResult.missing.join(", ")}`);
+			}
+			if (checkResult.pending.length > 0) {
+				reasons.push(`pending gates: ${checkResult.pending.join(", ")}`);
+			}
+			if (checkResult.failed.length > 0) {
+				reasons.push(`failed gates: ${checkResult.failed.join(", ")}`);
+			}
+			console.error(
+				chalk.red(
+					`✗ Worker count ${workers} (experimental_6 range) requires promotion ` +
+						`gates that are not passed: ${reasons.join("; ")}. ` +
+						`(promotion_gate_failed_or_missing)\n` +
+						`Complete all required promotion gates before enabling stable_6 mode.`,
+				),
+			);
+			return null;
+		}
+	}
 
 	if (isExperimental) {
 		// Experimental mode requires explicit confirmation (force flag)
@@ -750,8 +782,37 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 			return PlanExitCode.SafetyError;
 		}
 
+		// P26.A: Block autonomous execution for repair-mode plans
+		const queue = parseResult.queue;
+		if (queue.executionAutomation?.autonomousExecutionEnabled === false) {
+			if (json) {
+				console.log(
+					JSON.stringify(
+						{
+							success: false,
+							error:
+								"Autonomous execution is disabled for this repair-mode plan. " +
+								"Repair plans require manual patch application. " +
+								"(autonomous_execution_requested_during_repair_mode)",
+						},
+						null,
+						2,
+					),
+				);
+			} else {
+				console.error(
+					chalk.red(
+						"✗ Autonomous execution is disabled for this repair-mode plan.\n" +
+							"Repair plans require manual patch application. " +
+							"(autonomous_execution_requested_during_repair_mode)",
+					),
+				);
+			}
+			return PlanExitCode.SafetyError;
+		}
+
 		// Resolve worker concurrency with experimental mode confirmation
-		const resolvedWorkerConcurrency = resolveWorkerConcurrencyWithConfirmation(options);
+		const resolvedWorkerConcurrency = resolveWorkerConcurrencyWithConfirmation(options, queue.promotionGates);
 		if (resolvedWorkerConcurrency === null) {
 			// User declined or prerequisites not met for experimental mode
 			return PlanExitCode.SafetyError;

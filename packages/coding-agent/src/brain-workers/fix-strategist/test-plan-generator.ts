@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { PatchAction, PatchStrategy, FixRootCauseFinding } from "./patch-strategy.js";
+import type { FixRootCauseFinding, PatchAction, PatchStrategy } from "./patch-strategy.js";
 
 // ---------------------------------------------------------------------------
 // Test Case

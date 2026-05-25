@@ -14,7 +14,7 @@
  * - Cancellation
  */
 
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
 	ALL_IDEA_PRIORITIES,
 	ALL_SCOUT_SESSION_STATUSES,
@@ -134,10 +134,7 @@ describe("IdeaScoutWorker — Contract & Manifest", () => {
 
 	test("generateManifest produces a valid manifest", () => {
 		const worker = new IdeaScoutWorker();
-		const manifest = worker.generateManifest(
-			"Test Idea Scout",
-			"Test description for idea scout worker",
-		);
+		const manifest = worker.generateManifest("Test Idea Scout", "Test description for idea scout worker");
 
 		expect(manifest.role).toBe("ideaScout");
 		expect(manifest.name).toBe("Test Idea Scout");
@@ -342,9 +339,7 @@ describe("IdeaScoutWorker — Cancellation", () => {
 
 	test("cannot cancel a completed session", () => {
 		const worker = new IdeaScoutWorker();
-		const session = worker.createSession("Complete Cancel Test", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session = worker.createSession("Complete Cancel Test", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session!.id);
 		worker.mineSignals(session!.id);
 		worker.evaluate(session!.id, 100, 100);
@@ -379,9 +374,7 @@ describe("IdeaScoutWorker — Budget Enforcement", () => {
 			minSignalConfidence: 0.1,
 		});
 
-		const session = worker.createSession("Token Budget Test", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session = worker.createSession("Token Budget Test", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session!.id);
 		worker.mineSignals(session!.id);
 
@@ -403,9 +396,7 @@ describe("IdeaScoutWorker — Budget Enforcement", () => {
 			minSignalConfidence: 0.1,
 		});
 
-		const session = worker.createSession("Runtime Budget Test", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session = worker.createSession("Runtime Budget Test", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session!.id);
 		worker.mineSignals(session!.id);
 
@@ -434,10 +425,10 @@ describe("IdeaScoutWorker — Deduplication", () => {
 
 		const taskHash = worker.computeTaskHash("signal-signature-123");
 
-		const session1 = worker.createSession("First", [], {}, undefined, taskHash);
+		const session1 = worker.createSession("First", [], [], undefined, taskHash);
 		expect(session1).not.toBeNull();
 
-		const session2 = worker.createSession("Duplicate", [], {}, undefined, taskHash);
+		const session2 = worker.createSession("Duplicate", [], [], undefined, taskHash);
 		expect(session2).toBeNull(); // Deduped
 	});
 
@@ -448,10 +439,10 @@ describe("IdeaScoutWorker — Deduplication", () => {
 
 		const taskHash = worker.computeTaskHash("signal-signature");
 
-		const session1 = worker.createSession("First", [], {}, undefined, taskHash);
+		const session1 = worker.createSession("First", [], [], undefined, taskHash);
 		expect(session1).not.toBeNull();
 
-		const session2 = worker.createSession("Second", [], {}, undefined, taskHash);
+		const session2 = worker.createSession("Second", [], [], undefined, taskHash);
 		expect(session2).not.toBeNull(); // Not deduped
 	});
 
@@ -464,13 +455,13 @@ describe("IdeaScoutWorker — Deduplication", () => {
 
 		const taskHash = worker.computeTaskHash("signal-signature");
 
-		const session1 = worker.createSession("First", [], {}, undefined, taskHash);
+		const session1 = worker.createSession("First", [], [], undefined, taskHash);
 		expect(session1).not.toBeNull();
 
 		// Wait for dedup window to expire
 		return new Promise<void>((resolve) => {
 			setTimeout(() => {
-				const session2 = worker.createSession("Second", [], {}, undefined, taskHash);
+				const session2 = worker.createSession("Second", [], [], undefined, taskHash);
 				expect(session2).not.toBeNull(); // Window expired
 				resolve();
 			}, 5);
@@ -523,9 +514,7 @@ describe("IdeaScoutWorker — Health & Diagnostics", () => {
 		expect(worker.checkHealth()).toBeNull();
 
 		// Simulate failure by directly causing a fail scenario
-		const session1 = worker.createSession("Fail 1", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session1 = worker.createSession("Fail 1", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session1!.id);
 		worker.mineSignals(session1!.id);
 		// Force fail via token budget
@@ -534,9 +523,7 @@ describe("IdeaScoutWorker — Health & Diagnostics", () => {
 
 		expect(worker.getHealthStatus()).toBe("degraded");
 
-		const session2 = worker.createSession("Fail 2", [
-			{ id: "sig-2", pattern: "test", summary: "test" },
-		]);
+		const session2 = worker.createSession("Fail 2", [{ id: "sig-2", pattern: "test", summary: "test" }]);
 		worker.startScouting(session2!.id);
 		worker.mineSignals(session2!.id);
 		worker.evaluate(session2!.id, 100, 0);
@@ -555,9 +542,7 @@ describe("IdeaScoutWorker — Health & Diagnostics", () => {
 		});
 
 		// Fail once
-		const session1 = worker.createSession("Fail", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session1 = worker.createSession("Fail", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session1!.id);
 		worker.mineSignals(session1!.id);
 		worker.setConfig({ maxTokensPerSession: 1 });
@@ -567,9 +552,7 @@ describe("IdeaScoutWorker — Health & Diagnostics", () => {
 
 		// Reset budget and succeed
 		worker.setConfig({ maxTokensPerSession: 120_000 });
-		const session2 = worker.createSession("Succeed", [
-			{ id: "sig-2", pattern: "test", summary: "test" },
-		]);
+		const session2 = worker.createSession("Succeed", [{ id: "sig-2", pattern: "test", summary: "test" }]);
 		worker.startScouting(session2!.id);
 		worker.mineSignals(session2!.id);
 		const ideas = worker.evaluate(session2!.id, 100, 100);
@@ -584,9 +567,7 @@ describe("IdeaScoutWorker — Health & Diagnostics", () => {
 			maxTokensPerSession: 1,
 		});
 
-		const session = worker.createSession("Fail Stats", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session = worker.createSession("Fail Stats", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session!.id);
 		worker.mineSignals(session!.id);
 		worker.evaluate(session!.id, 100, 0);
@@ -611,9 +592,7 @@ describe("IdeaScoutWorker — Clear & Reset", () => {
 			minSignalConfidence: 0.1,
 		});
 
-		const session = worker.createSession("Clear Test", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const session = worker.createSession("Clear Test", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.startScouting(session!.id);
 		worker.mineSignals(session!.id);
 		worker.evaluate(session!.id, 100, 100);
@@ -659,9 +638,7 @@ describe("IdeaScoutWorker — Session Query Methods", () => {
 			minSignalConfidence: 0.1,
 		});
 
-		const s1 = worker.createSession("Complete Me", [
-			{ id: "sig-1", pattern: "test", summary: "test" },
-		]);
+		const s1 = worker.createSession("Complete Me", [{ id: "sig-1", pattern: "test", summary: "test" }]);
 		worker.createSession("Idle Session");
 
 		worker.startScouting(s1!.id);
@@ -872,9 +849,7 @@ describe("IdeaScoutWorker — Idea Generation", () => {
 		const ideas = worker.evaluate(session!.id, 100, 100);
 
 		expect(ideas!.length).toBeGreaterThanOrEqual(1);
-		const signalSources = ideas!.filter((i) =>
-			i.sourceRefs.some((r) => r.type === "signal"),
-		);
+		const signalSources = ideas!.filter((i) => i.sourceRefs.some((r) => r.type === "signal"));
 		expect(signalSources.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -924,7 +899,7 @@ describe("Edge Cases", () => {
 	test("session metadata is preserved", () => {
 		const worker = new IdeaScoutWorker();
 		const metadata = { source: "test-suite", priority: "high" };
-		const session = worker.createSession("Metadata Test", [], {}, metadata);
+		const session = worker.createSession("Metadata Test", [], [], metadata);
 
 		expect(session!.metadata).toEqual(metadata);
 	});
@@ -933,8 +908,8 @@ describe("Edge Cases", () => {
 		const worker = new IdeaScoutWorker({ dedupEnabled: false });
 		const hash = "test-hash";
 
-		const s1 = worker.createSession("First", [], {}, undefined, hash);
-		const s2 = worker.createSession("Second", [], {}, undefined, hash);
+		const s1 = worker.createSession("First", [], [], undefined, hash);
+		const s2 = worker.createSession("Second", [], [], undefined, hash);
 		expect(s1).not.toBeNull();
 		expect(s2).not.toBeNull();
 	});

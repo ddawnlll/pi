@@ -14,19 +14,16 @@ export {
 	DEFAULT_IDEA_SCOUT_BUDGET,
 	DEFAULT_IDEA_SCOUT_DEDUP_CONFIG,
 	DEFAULT_IDEA_SCOUT_WORKER_CONFIG,
-	IdeaScoutWorker,
 	type IdeaPriority,
+	IdeaScoutWorker,
 	type IdeaScoutWorkerConfig,
 	type IdeaScoutWorkerStats,
 	type IdeaSourceRef,
 	type IdeaTrend,
+	IdeaTrendDetector,
+	type IdeaTrendDetector as IdeaTrendDetectorType,
 	type MinedSignal,
 	type ScoutedIdea,
 	type ScoutSession,
 	type ScoutSessionStatus,
-} from "./idea-scout-worker.js";
-
-export {
-	IdeaTrendDetector,
-	type IdeaTrendDetector as IdeaTrendDetectorType,
 } from "./idea-scout-worker.js";

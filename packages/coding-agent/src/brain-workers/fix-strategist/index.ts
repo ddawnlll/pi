@@ -9,10 +9,10 @@
 export {
 	createFixStrategistWorker,
 	DEFAULT_FIX_STRATEGIST_WORKER_CONFIG,
+	type FailureContext,
+	type FixEvidenceItem,
 	FixStrategistWorker,
 	type FixStrategistWorkerConfig,
-	type FixEvidenceItem,
-	type FailureContext,
 	type FixStrategyResult,
 } from "./fix-strategist-worker.js";
 
@@ -21,13 +21,13 @@ export {
 	ALL_RISK_LEVELS,
 	createPatchStrategyGenerator,
 	DEFAULT_PATCH_STRATEGY_GENERATOR_CONFIG,
+	type FixRootCauseFinding,
 	type PatchAction,
 	type PatchActionType,
 	type PatchStrategy,
 	PatchStrategyGenerator,
 	type PatchStrategyGeneratorConfig,
 	type RiskLevel,
-	type FixRootCauseFinding,
 	type StrategyRank,
 } from "./patch-strategy.js";
 

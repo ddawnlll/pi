@@ -24,6 +24,68 @@ export const MAX_EXPERIMENTAL_WORKERS = 6;
 export const DEFAULT_WORKERS = 3;
 
 /**
+ * Promotion gate names for scale mode eligibility.
+ * These gate IDs must appear in a plan's promotionGates array.
+ */
+export const PROMOTION_GATES = {
+	STABLE_1: ["executor_isolation_passed", "abort_signal_chain_passed"] as const,
+	STABLE_3: [
+		"executor_isolation_passed",
+		"abort_signal_chain_passed",
+		"validation_hang_kill_passed",
+		"git_serialization_stress_passed",
+		"state_store_concurrency_passed",
+		"crash_recovery_passed",
+	] as const,
+	STABLE_6: [
+		"executor_isolation_passed",
+		"abort_signal_chain_passed",
+		"validation_hang_kill_passed",
+		"git_serialization_stress_passed",
+		"state_store_concurrency_passed",
+		"crash_recovery_passed",
+		"stable_3_dogfood_passed",
+		"stable_6_stress_passed",
+	] as const,
+} as const;
+
+/**
+ * Check whether promotion gates from a plan are all passed for a given scale mode.
+ *
+ * @param gates - Array of promotion gates from the plan contract
+ * @param requiredGateIds - Gate IDs required for the scale mode
+ * @returns Object with result and missing/failed gates
+ */
+export function checkPromotionGates(
+	gates: Array<{ id: string; status: "passed" | "failed" | "pending" }>,
+	requiredGateIds: readonly string[],
+): { passed: boolean; missing: string[]; failed: string[]; pending: string[] } {
+	const missing: string[] = [];
+	const failed: string[] = [];
+	const pending: string[] = [];
+
+	const gateMap = new Map(gates.map((g) => [g.id, g.status]));
+
+	for (const requiredId of requiredGateIds) {
+		const status = gateMap.get(requiredId);
+		if (!status) {
+			missing.push(requiredId);
+		} else if (status === "failed") {
+			failed.push(requiredId);
+		} else if (status === "pending") {
+			pending.push(requiredId);
+		}
+	}
+
+	return {
+		passed: missing.length === 0 && failed.length === 0 && pending.length === 0,
+		missing,
+		failed,
+		pending,
+	};
+}
+
+/**
  * Worker concurrency settings from user configuration.
  */
 export interface WorkerConcurrencySettings {

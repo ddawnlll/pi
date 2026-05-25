@@ -5060,12 +5060,9 @@ await registerNotificationRoutes(fastify);
 // ---------------------------------------------------------------------------
 
 try {
-	const {
-		InMemoryTelemetryStore,
-		TelemetryQueryApi,
-		RetentionEngine,
-		FileTelemetryFlushTarget,
-	} = await import("@earendil-works/pi-coding-agent");
+	const { InMemoryTelemetryStore, TelemetryQueryApi, RetentionEngine, FileTelemetryFlushTarget } = await import(
+		"@earendil-works/pi-coding-agent"
+	);
 	const { registerTelemetryRoutes } = await import("./telemetry-routes.js");
 
 	// Create local in-memory telemetry store with file-based persistence
@@ -5085,7 +5082,7 @@ try {
 
 	await registerTelemetryRoutes(fastify, telemetryStore, telemetryQueryApi, retentionEngine);
 
-	console.log("[server] Telemetry routes registered (local store, " + persistedEvents.length + " loaded)");
+	console.log(`[server] Telemetry routes registered (local store, ${persistedEvents.length} loaded)`);
 } catch (err) {
 	console.warn("[server] Failed to register telemetry routes:", (err as Error).message);
 }

@@ -749,15 +749,13 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 						code: "BUDGET_EXCEEDED",
 						description: "Token or runtime budget was exceeded during the session",
 						severity: "warning",
-						remediation:
-							"Consider increasing the regression hunt budget or reducing the scope of comparison",
+						remediation: "Consider increasing the regression hunt budget or reducing the scope of comparison",
 					},
 					{
 						code: "DUP_SESSION",
 						description: "A duplicate regression hunt session was detected and suppressed",
 						severity: "info",
-						remediation:
-							"Verify that the regression signature is new or wait for the dedup window to expire",
+						remediation: "Verify that the regression signature is new or wait for the dedup window to expire",
 					},
 					{
 						code: "TOO_MANY_FINDINGS",

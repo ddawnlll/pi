@@ -14,17 +14,17 @@
  * 5. Time-series bucketing works correctly
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 // Import from source path to avoid needing dist rebuild
 import {
 	createObservabilityEvent,
 	createTraceContext,
-	InMemoryTelemetryStore,
-	TelemetryQueryApi,
-	RetentionEngine,
 	FileTelemetryFlushTarget,
+	InMemoryTelemetryStore,
+	RetentionEngine,
+	TelemetryQueryApi,
 } from "../../coding-agent/src/observability/index.js";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -34,24 +34,26 @@ import {
 /**
  * Create a test event with controlled fields.
  */
-function createTestEvent(overrides: {
-	id?: string;
-	name?: string;
-	eventType?: string;
-	source?: string;
-	severity?: string;
-	status?: string;
-	timestamp?: string;
-	durationMs?: number | null;
-	error?: string | null;
-	traceId?: string;
-	spanId?: string;
-	parentSpanId?: string | null;
-	projectId?: string | null;
-	planExecutionId?: string | null;
-	workspaceExecutionId?: string | null;
-	correlationId?: string | null;
-} = {}) {
+function createTestEvent(
+	overrides: {
+		id?: string;
+		name?: string;
+		eventType?: string;
+		source?: string;
+		severity?: string;
+		status?: string;
+		timestamp?: string;
+		durationMs?: number | null;
+		error?: string | null;
+		traceId?: string;
+		spanId?: string;
+		parentSpanId?: string | null;
+		projectId?: string | null;
+		planExecutionId?: string | null;
+		workspaceExecutionId?: string | null;
+		correlationId?: string | null;
+	} = {},
+) {
 	const ctx = createTraceContext({
 		name: overrides.name ?? "test-event",
 		traceId: overrides.traceId,
@@ -384,28 +386,28 @@ describe("Telemetry routes — time-series endpoint", () => {
 describe("Telemetry routes — prune endpoint", () => {
 	it("prunes by retention engine policy", () => {
 		const store = new InMemoryTelemetryStore({ maxBufferSize: 100 });
-		const retention = new RetentionEngine(
-			{
-				rules: [
-					{
-						name: "remove-old",
-						severity: "all",
-						maxAgeMs: 1, // Remove events older than 1ms
-						maxCount: 0,
-						priority: 10,
-					},
-				],
-				globalMaxCount: 0,
-				pruneIntervalMs: 60000,
-				autoPrune: false,
-			},
-		);
+		const retention = new RetentionEngine({
+			rules: [
+				{
+					name: "remove-old",
+					severity: "all",
+					maxAgeMs: 1, // Remove events older than 1ms
+					maxCount: 0,
+					priority: 10,
+				},
+			],
+			globalMaxCount: 0,
+			pruneIntervalMs: 60000,
+			autoPrune: false,
+		});
 
 		// Create an event with an old timestamp
-		store.record(createTestEvent({
-			name: "removable",
-			timestamp: new Date(Date.now() - 1000).toISOString(), // 1 second ago
-		}));
+		store.record(
+			createTestEvent({
+				name: "removable",
+				timestamp: new Date(Date.now() - 1000).toISOString(), // 1 second ago
+			}),
+		);
 
 		const allEvents = store.query({ limit: 100000, order: "asc" });
 		const { retained, result } = retention.prune(allEvents);
@@ -473,23 +475,21 @@ describe("Telemetry routes — retention policy endpoint", () => {
 	});
 
 	it("returns custom policy when configured", () => {
-		const retention = new RetentionEngine(
-			{
-				name: "custom",
-				rules: [
-					{
-						name: "custom-rule",
-						severity: "info",
-						maxAgeMs: 3600000,
-						maxCount: 100,
-						priority: 10,
-					},
-				],
-				globalMaxCount: 500,
-				pruneIntervalMs: 60000,
-				autoPrune: false,
-			},
-		);
+		const retention = new RetentionEngine({
+			name: "custom",
+			rules: [
+				{
+					name: "custom-rule",
+					severity: "info",
+					maxAgeMs: 3600000,
+					maxCount: 100,
+					priority: 10,
+				},
+			],
+			globalMaxCount: 500,
+			pruneIntervalMs: 60000,
+			autoPrune: false,
+		});
 
 		const policy = retention.getPolicy();
 		expect(policy.name).toBe("custom");
@@ -522,7 +522,7 @@ describe("FileTelemetryFlushTarget", () => {
 		expect(loaded[0].name).toBe("file-persist");
 
 		// Verify file exists
-		expect(existsSync(tmpDir + "/events.json")).toBe(true);
+		expect(existsSync(`${tmpDir}/events.json`)).toBe(true);
 
 		// Cleanup
 		target.clear();

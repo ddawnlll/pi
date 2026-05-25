@@ -13,8 +13,8 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { ObservabilityEvent } from "../types.js";
 import type { TelemetryFlushTarget } from "../telemetry-store.js";
+import type { ObservabilityEvent } from "../types.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Types

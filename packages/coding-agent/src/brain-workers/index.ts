@@ -15,15 +15,15 @@
  */
 
 export * from "./contracts.js";
+// Debugger Worker (25.I)
+export * from "./debugger/index.js";
+// Fix Strategist Worker (25.J)
+export * from "./fix-strategist/index.js";
+// Idea Scout Worker (25.K)
+export * from "./idea-scout/index.js";
 export * from "./lifecycle.js";
+// Regression Hunter Worker (25.L)
+export * from "./regression-hunter/index.js";
 // Brain Orchestrator Supervisor (25.D)
 export * from "./supervisor/index.js";
 export * from "./types.js";
-// Debugger Worker (25.I)
-export * from "./debugger/index.js";
-// Idea Scout Worker (25.K)
-export * from "./idea-scout/index.js";
-// Fix Strategist Worker (25.J)
-export * from "./fix-strategist/index.js";
-// Regression Hunter Worker (25.L)
-export * from "./regression-hunter/index.js";

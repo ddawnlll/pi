@@ -485,8 +485,7 @@ export function createRegressionHunterContract(version: string = "1.0.0"): Worke
 				code: "NO_CURRENT_DATA",
 				description: "No current snapshot was provided for comparison",
 				severity: "warning",
-				remediation:
-					"Ensure current data is collected and provided before starting a regression hunt session",
+				remediation: "Ensure current data is collected and provided before starting a regression hunt session",
 			},
 			{
 				code: "ANALYSIS_FAILED",
@@ -504,8 +503,7 @@ export function createRegressionHunterContract(version: string = "1.0.0"): Worke
 				code: "DUP_SESSION",
 				description: "A duplicate regression hunt session was detected and suppressed",
 				severity: "info",
-				remediation:
-					"Verify that the regression signature is new or wait for the dedup window to expire",
+				remediation: "Verify that the regression signature is new or wait for the dedup window to expire",
 			},
 			{
 				code: "TOO_MANY_FINDINGS",
@@ -571,8 +569,7 @@ export class RegressionHunterWorker {
 	 */
 	constructor(config?: Partial<RegressionHunterConfig>) {
 		this.config = {
-			maxTokensPerSession:
-				config?.maxTokensPerSession ?? DEFAULT_REGRESSION_HUNTER_CONFIG.maxTokensPerSession,
+			maxTokensPerSession: config?.maxTokensPerSession ?? DEFAULT_REGRESSION_HUNTER_CONFIG.maxTokensPerSession,
 			maxRuntimeMsPerSession:
 				config?.maxRuntimeMsPerSession ?? DEFAULT_REGRESSION_HUNTER_CONFIG.maxRuntimeMsPerSession,
 			maxConsecutiveFailures:
@@ -678,11 +675,7 @@ export class RegressionHunterWorker {
 	 * @param taskHash - Optional content hash for deduplication.
 	 * @returns The created RegressionSession, or null if deduped.
 	 */
-	createSession(
-		label: string,
-		metadata?: Record<string, unknown>,
-		taskHash?: string,
-	): RegressionSession | null {
+	createSession(label: string, metadata?: Record<string, unknown>, taskHash?: string): RegressionSession | null {
 		// Dedup check
 		if (this.config.dedupEnabled && taskHash) {
 			const existingTimestamp = this.dedupHistory.get(taskHash);
@@ -731,11 +724,7 @@ export class RegressionHunterWorker {
 	 * @param current - Current snapshot to evaluate.
 	 * @returns The updated session, or null if not found or not pending.
 	 */
-	startComparison(
-		sessionId: string,
-		baseline: BaselineSnapshot,
-		current: CurrentSnapshot,
-	): RegressionSession | null {
+	startComparison(sessionId: string, baseline: BaselineSnapshot, current: CurrentSnapshot): RegressionSession | null {
 		const session = this.sessions.get(sessionId);
 		if (!session) return null;
 		if (session.status !== "pending") return null;
@@ -901,10 +890,7 @@ export class RegressionHunterWorker {
 					actualValue: "<missing>",
 					delta: `Expected "${expectation.path}" but it was not present in the current snapshot`,
 					confidence: 0.8,
-					evidenceRefs: [
-						`baseline://expectations/${expectation.path}`,
-						`current://missing/${expectation.path}`,
-					],
+					evidenceRefs: [`baseline://expectations/${expectation.path}`, `current://missing/${expectation.path}`],
 					metadata: {
 						expectationDescription: expectation.description,
 					},
@@ -977,10 +963,7 @@ export class RegressionHunterWorker {
 					delta: `Metric "${metricKey}" was present in baseline but missing from current snapshot`,
 					confidence: 0.7,
 					description: `Baseline metric "${metricKey}" = ${String(expectedMetric)} was not found in the current snapshot.`,
-					evidenceRefs: [
-						`baseline://metrics/${metricKey}`,
-						`current://missing/metrics/${metricKey}`,
-					],
+					evidenceRefs: [`baseline://metrics/${metricKey}`, `current://missing/metrics/${metricKey}`],
 					metadata: {},
 				});
 
@@ -1002,10 +985,7 @@ export class RegressionHunterWorker {
 					delta: `Changed from ${String(expectedMetric)} to ${String(actualMetric)}`,
 					confidence: 0.9,
 					description: `Metric "${metricKey}" changed from ${String(expectedMetric)} to ${String(actualMetric)}.`,
-					evidenceRefs: [
-						`baseline://metrics/${metricKey}`,
-						`current://metrics/${metricKey}`,
-					],
+					evidenceRefs: [`baseline://metrics/${metricKey}`, `current://metrics/${metricKey}`],
 					metadata: {
 						baselineMetric: expectedMetric,
 						currentMetric: actualMetric,
@@ -1046,8 +1026,7 @@ export class RegressionHunterWorker {
 		}
 
 		// Compute change ratio
-		const totalComparisons =
-			baseline.expectations.length + Object.keys(baseline.metrics).length;
+		const totalComparisons = baseline.expectations.length + Object.keys(baseline.metrics).length;
 		const changedCount = truncatedFindings.length;
 		const changeRatio = totalComparisons > 0 ? Math.min(changedCount / totalComparisons, 1) : 0;
 
@@ -1154,19 +1133,29 @@ export class RegressionHunterWorker {
 	/**
 	 * Infer regression type from the nature of the delta.
 	 */
-	private inferTypeFromDelta(expected: unknown, actual: unknown, path: string): RegressionType {
+	private inferTypeFromDelta(_expected: unknown, _actual: unknown, path: string): RegressionType {
 		const pathLower = path.toLowerCase();
 
 		if (pathLower.includes("type") || pathLower.includes("typescript") || pathLower.includes("ts-")) {
 			return "type";
 		}
-		if (pathLower.includes("perf") || pathLower.includes("performance") || pathLower.includes("latency") || pathLower.includes("speed")) {
+		if (
+			pathLower.includes("perf") ||
+			pathLower.includes("performance") ||
+			pathLower.includes("latency") ||
+			pathLower.includes("speed")
+		) {
 			return "performance";
 		}
 		if (pathLower.includes("contract") || pathLower.includes("interface")) {
 			return "contract";
 		}
-		if (pathLower.includes("visual") || pathLower.includes("css") || pathLower.includes("style") || pathLower.includes("ui-")) {
+		if (
+			pathLower.includes("visual") ||
+			pathLower.includes("css") ||
+			pathLower.includes("style") ||
+			pathLower.includes("ui-")
+		) {
 			return "visual";
 		}
 		if (pathLower.includes("struct") || pathLower.includes("shape") || pathLower.includes("schema")) {
@@ -1253,7 +1242,7 @@ export class RegressionHunterWorker {
 	 * Infer severity for a metric change.
 	 */
 	private inferMetricSeverity(
-		key: string,
+		_key: string,
 		expected: number | string | boolean,
 		actual: number | string | boolean,
 	): RegressionSeverity {
@@ -1525,8 +1514,6 @@ export class RegressionHunterWorker {
  * @param config - Optional partial configuration overrides.
  * @returns A new RegressionHunterWorker instance.
  */
-export function createRegressionHunterWorker(
-	config?: Partial<RegressionHunterConfig>,
-): RegressionHunterWorker {
+export function createRegressionHunterWorker(config?: Partial<RegressionHunterConfig>): RegressionHunterWorker {
 	return new RegressionHunterWorker(config);
 }

@@ -32,6 +32,11 @@ export {
 	type BrainCollectorStopCondition,
 	DEFAULT_BRAIN_COLLECTOR_BUDGET,
 	DEFAULT_BRAIN_COLLECTOR_DEDUPE,
+	DEFAULT_OVERNIGHT_COLLECTOR_BUDGET,
+	DEFAULT_OVERNIGHT_COLLECTOR_DEDUPE,
+	DEFAULT_PROPOSAL_COLLECTOR_BUDGET,
+	DEFAULT_PROPOSAL_COLLECTOR_DEDUPE,
+	OvernightCollector,
 	type OvernightCollectorBudget,
 	type OvernightCollectorBufferEntry,
 	type OvernightCollectorCooldown,
@@ -40,9 +45,7 @@ export {
 	type OvernightCollectorDiagnostics,
 	type OvernightCollectorEventType,
 	type OvernightCollectorStopCondition,
-	OvernightCollector,
-	DEFAULT_OVERNIGHT_COLLECTOR_BUDGET,
-	DEFAULT_OVERNIGHT_COLLECTOR_DEDUPE,
+	ProposalCollector,
 	type ProposalCollectorBudget,
 	type ProposalCollectorBufferEntry,
 	type ProposalCollectorCooldown,
@@ -54,9 +57,6 @@ export {
 	type ProposalDedupeInput,
 	type ProposalScoreInput,
 	type ProposalStatusChangeInput,
-	ProposalCollector,
-	DEFAULT_PROPOSAL_COLLECTOR_BUDGET,
-	DEFAULT_PROPOSAL_COLLECTOR_DEDUPE,
 } from "./collectors/brain/index.js";
 
 // Re-export correlation helpers
@@ -102,6 +102,12 @@ export {
 	serializeObservabilityEvent,
 	serializeTraceContext,
 } from "./schema.js";
+// Re-export file telemetry target (25.B)
+export {
+	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
+	FileTelemetryFlushTarget,
+	type FileTelemetryTargetConfig,
+} from "./store/file-telemetry-target.js";
 // Re-export telemetry store (25.B)
 export {
 	DEFAULT_TELEMETRY_STORE_CONFIG,
@@ -112,12 +118,6 @@ export {
 	type TelemetryStoreConfig,
 	type TelemetryStoreDiagnostics,
 } from "./telemetry-store.js";
-// Re-export file telemetry target (25.B)
-export {
-	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
-	FileTelemetryFlushTarget,
-	type FileTelemetryTargetConfig,
-} from "./store/file-telemetry-target.js";
 // Re-export all types
 export {
 	ALL_OBSERVABILITY_SEVERITIES,

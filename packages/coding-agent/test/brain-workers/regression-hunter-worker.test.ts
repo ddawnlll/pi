@@ -14,6 +14,10 @@
  */
 
 import { describe, expect, test } from "vitest";
+import type {
+	BaselineSnapshot,
+	CurrentSnapshot,
+} from "../../src/brain-workers/regression-hunter/regression-hunter-worker.js";
 import {
 	ALL_REGRESSION_SESSION_STATUSES,
 	ALL_REGRESSION_SEVERITIES,
@@ -22,11 +26,10 @@ import {
 	DEFAULT_REGRESSION_HUNTER_BUDGET,
 	DEFAULT_REGRESSION_HUNTER_CONFIG,
 	DEFAULT_REGRESSION_HUNTER_DEDUP_CONFIG,
-	RegressionHunterWorker,
 	REGRESSION_SEVERITY_LABELS,
 	REGRESSION_TYPE_LABELS,
+	RegressionHunterWorker,
 } from "../../src/brain-workers/regression-hunter/regression-hunter-worker.js";
-import type { BaselineSnapshot, CurrentSnapshot } from "../../src/brain-workers/regression-hunter/regression-hunter-worker.js";
 import { validateWorkerManifest } from "../../src/brain-workers/types.js";
 
 // =============================================================================
@@ -416,9 +419,7 @@ describe("RegressionHunterWorker — Budget Enforcement", () => {
 		expect(failedSession!.diagnostic).not.toBeNull();
 		expect(failedSession!.diagnostic!.context).toHaveProperty("tokensConsumed");
 		expect(failedSession!.diagnostic!.context).toHaveProperty("maxTokensPerSession");
-		expect(failedSession!.diagnostic!.evidenceRefs).toContain(
-			`regression-hunter://sessions/${session!.id}`,
-		);
+		expect(failedSession!.diagnostic!.evidenceRefs).toContain(`regression-hunter://sessions/${session!.id}`);
 	});
 });
 
