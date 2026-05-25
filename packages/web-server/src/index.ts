@@ -4997,6 +4997,13 @@ const piInboxStore = new PiInboxStore();
 await registerPiInboxRoutes(fastify, piInboxStore);
 
 // ---------------------------------------------------------------------------
+// Notification Routes (24.H — Notification Channels & Delivery Preferences)
+// ---------------------------------------------------------------------------
+
+const { registerNotificationRoutes } = await import("./notification-routes.js");
+await registerNotificationRoutes(fastify);
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 
