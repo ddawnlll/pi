@@ -463,4 +463,422 @@ describe("ObservabilityEventRepository", { skip: !isIntegration }, () => {
 		const deletedCount = await repo.deleteTrace(traceId);
 		assert.strictEqual(deletedCount, 2);
 	});
+
+	// ─────────────────────────────────────────────────────────────────
+	// Retention methods (25.B)
+	// ─────────────────────────────────────────────────────────────────
+
+	it("prunes events older than a given timestamp", async () => {
+		const oldTs = "2023-01-01T00:00:00.000Z";
+		const recentTs = now();
+
+		// Create an old event
+		const oldEvent = await repo.create({
+			trace_id: generateId(),
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "retention_test",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "old-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: oldTs,
+		});
+
+		// Create a recent event
+		const recentEvent = await repo.create({
+			trace_id: generateId(),
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "retention_test",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "recent-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: recentTs,
+		});
+
+		// Prune old events
+		const deletedCount = await repo.pruneOlderThan("2023-06-01T00:00:00.000Z");
+		assert.strictEqual(deletedCount, 1);
+
+		// Old event should be gone
+		const foundOld = await repo.findById(oldEvent.id);
+		assert.strictEqual(foundOld, undefined);
+
+		// Recent event should remain
+		const foundRecent = await repo.findById(recentEvent.id);
+		assert.ok(foundRecent);
+	});
+
+	it("prunes events to max count, keeping most recent", async () => {
+		const traceId = generateId();
+
+		// Create 5 events with different timestamps
+		for (let i = 0; i < 5; i++) {
+			const ts = new Date(2024, 0, i + 1).toISOString();
+			await repo.create({
+				trace_id: traceId,
+				span_id: generateId(),
+				parent_span_id: null,
+				correlation_id: null,
+				event_type: "prune_count_test",
+				source: "test-suite",
+				severity: "info",
+				status: "ok",
+				name: `count-event-${i}`,
+				message: null,
+				project_id: null,
+				plan_execution_id: null,
+				workspace_execution_id: null,
+				duration_ms: null,
+				data: {},
+				error: null,
+				timestamp: ts,
+			});
+		}
+
+		// Prune to max 3 events
+		const deletedCount = await repo.pruneToMaxCount(3);
+		assert.strictEqual(deletedCount, 2);
+
+		// Verify only 3 remain
+		const remaining = await repo.query({ eventType: "prune_count_test" });
+		assert.strictEqual(remaining.length, 3);
+	});
+
+	it("prunes events by severity filter", async () => {
+		const traceId = generateId();
+		const oldTs = "2023-01-01T00:00:00.000Z";
+		const recentTs = now();
+
+		// Create an old debug event
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "filtered_prune",
+			source: "test-suite",
+			severity: "debug",
+			status: "ok",
+			name: "debug-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: oldTs,
+		});
+
+		// Create an old info event
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "filtered_prune",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "info-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: oldTs,
+		});
+
+		// Prune only debug events older than cutoff
+		const deletedCount = await repo.pruneOlderThan("2023-06-01T00:00:00.000Z", { severity: "debug" });
+		assert.strictEqual(deletedCount, 1);
+
+		// Info event should still be there
+		const remaining = await repo.query({ eventType: "filtered_prune" });
+		assert.strictEqual(remaining.length, 1);
+		assert.strictEqual(remaining[0].severity, "info");
+	});
+
+	// ─────────────────────────────────────────────────────────────────
+	// Aggregation methods (25.B)
+	// ─────────────────────────────────────────────────────────────────
+
+	it("counts events by severity", async () => {
+		const traceId = generateId();
+		const ts = now();
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "agg_test",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "info-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "agg_test",
+			source: "test-suite",
+			severity: "error",
+			status: "error",
+			name: "error-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: "Test error",
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "agg_test",
+			source: "test-suite",
+			severity: "warning",
+			status: "ok",
+			name: "warning-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		const bySeverity = await repo.countBySeverity({ eventType: "agg_test" });
+		assert.strictEqual(bySeverity["info"], 1);
+		assert.strictEqual(bySeverity["error"], 1);
+		assert.strictEqual(bySeverity["warning"], 1);
+	});
+
+	it("counts events by event type", async () => {
+		const traceId = generateId();
+		const ts = now();
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "type_a",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "type-a-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "type_a",
+			source: "test-suite",
+			severity: "error",
+			status: "error",
+			name: "type-a-error",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: "err",
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "type_b",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "type-b-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		const byType = await repo.countByEventType();
+		assert.strictEqual(byType["type_a"], 2);
+		assert.strictEqual(byType["type_b"], 1);
+	});
+
+	it("counts events by source", async () => {
+		const traceId = generateId();
+		const ts = now();
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "source_test",
+			source: "source_a",
+			severity: "info",
+			status: "ok",
+			name: "source-a-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "source_test",
+			source: "source_a",
+			severity: "info",
+			status: "ok",
+			name: "source-a-another",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "source_test",
+			source: "source_b",
+			severity: "info",
+			status: "ok",
+			name: "source-b-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: ts,
+		});
+
+		const bySource = await repo.countBySource();
+		assert.strictEqual(bySource["source_a"], 2);
+		assert.strictEqual(bySource["source_b"], 1);
+	});
+
+	it("gets time range of stored events", async () => {
+		const traceId = generateId();
+		const earlyTs = "2024-01-01T00:00:00.000Z";
+		const lateTs = "2024-12-31T23:59:59.000Z";
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "range_test",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "early-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: earlyTs,
+		});
+
+		await repo.create({
+			trace_id: traceId,
+			span_id: generateId(),
+			parent_span_id: null,
+			correlation_id: null,
+			event_type: "range_test",
+			source: "test-suite",
+			severity: "info",
+			status: "ok",
+			name: "late-event",
+			message: null,
+			project_id: null,
+			plan_execution_id: null,
+			workspace_execution_id: null,
+			duration_ms: null,
+			data: {},
+			error: null,
+			timestamp: lateTs,
+		});
+
+		const timeRange = await repo.getTimeRange({ eventType: "range_test" });
+		assert.ok(timeRange);
+		assert.ok(new Date(timeRange.minTimestamp) <= new Date(timeRange.maxTimestamp));
+	});
 });

@@ -1296,7 +1296,27 @@ async function executePlanInBackground(
 			}
 
 			await log(`Executing ${nextWorkspaces.length} workspace(s) in parallel...`);
-			const settled = await Promise.allSettled(nextWorkspaces.map((ws) => executor.executeWorkspace(ws)));
+
+			// Wrap each workspace execution with an individual timeout so a hung
+			// workspace (e.g. stuck during worktree creation or LLM stream) does
+			// not block the rest of the batch. The timeout matches the executor's
+			// built-in workspaceTimeoutMs (default 30 min), but applying it here
+			// prevents Promise.allSettled from waiting forever on a workspace
+			// whose timeout was already missed due to worktree serialization delays.
+			const workspaceTimeout = Math.max(queue.workspaceTimeoutMs ?? 30 * 60 * 1000, 5 * 60 * 1000);
+			const settled = await Promise.allSettled(
+				nextWorkspaces.map((ws) =>
+					Promise.race([
+						executor.executeWorkspace(ws),
+						new Promise<never>((_, reject) =>
+							setTimeout(
+								() => reject(new Error(`Workspace ${ws.id} timed out after ${workspaceTimeout / 60000} min`)),
+								workspaceTimeout,
+							).unref(),
+						),
+					]),
+				),
+			);
 			const results: WorkspaceExecutionResult[] = [];
 			for (let i = 0; i < settled.length; i++) {
 				const r = settled[i];

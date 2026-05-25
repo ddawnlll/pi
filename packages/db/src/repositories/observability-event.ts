@@ -11,7 +11,7 @@
  * - Filter by execution hierarchy (project, plan, workspace)
  */
 
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { Database, NewObservabilityEvent, ObservabilityEvent } from "../types.js";
 
 /**
@@ -347,6 +347,331 @@ export class ObservabilityEventRepository {
 			.orderBy("timestamp", "desc")
 			.limit(limit)
 			.execute();
+	}
+
+	/**
+	 * Prune events older than a given timestamp (retention).
+	 *
+	 * @param beforeISO - ISO timestamp: events older than this are deleted
+	 * @param filter - Optional additional filter to scope the deletion (e.g., by severity or event type)
+	 * @returns Number of deleted rows
+	 */
+	async pruneOlderThan(
+		beforeISO: string,
+		filter?: Pick<ObservabilityEventFilter, "severity" | "eventType" | "source" | "projectId">,
+	): Promise<number> {
+		let query = this.db.deleteFrom("observability_events").where("timestamp", "<", beforeISO);
+
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			query = query.where("event_type", "=", filter.eventType);
+		}
+		if (filter?.source) {
+			query = query.where("source", "=", filter.source);
+		}
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+
+		const result = await query.executeTakeFirst();
+		return Number(result.numDeletedRows);
+	}
+
+	/**
+	 * Prune events beyond a maximum count, keeping the most recent.
+	 *
+	 * @param maxCount - Maximum number of events to retain
+	 * @param filter - Optional additional filter to scope the operation
+	 * @returns Number of deleted rows
+	 */
+	async pruneToMaxCount(
+		maxCount: number,
+		filter?: Pick<ObservabilityEventFilter, "severity" | "eventType" | "source" | "projectId">,
+	): Promise<number> {
+		// Count total matching events
+		let countQuery = this.db
+			.selectFrom("observability_events")
+			.select(this.db.fn.countAll<number>().as("count"));
+
+		if (filter?.severity) {
+			countQuery = countQuery.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			countQuery = countQuery.where("event_type", "=", filter.eventType);
+		}
+		if (filter?.source) {
+			countQuery = countQuery.where("source", "=", filter.source);
+		}
+		if (filter?.projectId) {
+			countQuery = countQuery.where("project_id", "=", filter.projectId);
+		}
+
+		const countResult = await countQuery.executeTakeFirst();
+		const total = Number(countResult?.count ?? 0);
+
+		if (total <= maxCount) return 0;
+
+		const toDelete = total - maxCount;
+
+		// Find the cutoff: the timestamp of the Nth most recent event
+		let thresholdQuery = this.db
+			.selectFrom("observability_events")
+			.select("timestamp")
+			.orderBy("timestamp", "desc")
+			.limit(1)
+			.offset(maxCount - 1);
+
+		if (filter?.severity) {
+			thresholdQuery = thresholdQuery.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			thresholdQuery = thresholdQuery.where("event_type", "=", filter.eventType);
+		}
+		if (filter?.source) {
+			thresholdQuery = thresholdQuery.where("source", "=", filter.source);
+		}
+		if (filter?.projectId) {
+			thresholdQuery = thresholdQuery.where("project_id", "=", filter.projectId);
+		}
+
+		const threshold = await thresholdQuery.executeTakeFirst();
+		if (!threshold) return 0;
+
+		return this.pruneOlderThan(threshold.timestamp, filter);
+	}
+
+	/**
+	 * Get aggregation counts by severity.
+	 *
+	 * @param filter - Optional time range or scope filter
+	 * @returns Record of severity -> count
+	 */
+	async countBySeverity(
+		filter?: Pick<ObservabilityEventFilter, "since" | "until" | "projectId" | "eventType">,
+	): Promise<Record<string, number>> {
+		let query = this.db
+			.selectFrom("observability_events")
+			.select(["severity", this.db.fn.countAll<number>().as("count")]);
+
+		if (filter?.since) {
+			query = query.where("timestamp", ">=", filter.since);
+		}
+		if (filter?.until) {
+			query = query.where("timestamp", "<=", filter.until);
+		}
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.eventType) {
+			query = query.where("event_type", "=", filter.eventType);
+		}
+
+		query = query.groupBy("severity");
+
+		const rows = await query.execute();
+		const result: Record<string, number> = {};
+		for (const row of rows) {
+			result[row.severity] = Number(row.count);
+		}
+		return result;
+	}
+
+	/**
+	 * Get aggregation counts by event type.
+	 *
+	 * @param filter - Optional time range or scope filter
+	 * @returns Record of event_type -> count
+	 */
+	async countByEventType(
+		filter?: Pick<ObservabilityEventFilter, "since" | "until" | "projectId" | "severity">,
+	): Promise<Record<string, number>> {
+		let query = this.db
+			.selectFrom("observability_events")
+			.select(["event_type", this.db.fn.countAll<number>().as("count")]);
+
+		if (filter?.since) {
+			query = query.where("timestamp", ">=", filter.since);
+		}
+		if (filter?.until) {
+			query = query.where("timestamp", "<=", filter.until);
+		}
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+
+		query = query.groupBy("event_type");
+
+		const rows = await query.execute();
+		const result: Record<string, number> = {};
+		for (const row of rows) {
+			result[row.event_type] = Number(row.count);
+		}
+		return result;
+	}
+
+	/**
+	 * Get aggregation counts by source.
+	 *
+	 * @param filter - Optional time range or scope filter
+	 * @returns Record of source -> count
+	 */
+	async countBySource(
+		filter?: Pick<ObservabilityEventFilter, "since" | "until" | "projectId" | "severity" | "eventType">,
+	): Promise<Record<string, number>> {
+		let query = this.db
+			.selectFrom("observability_events")
+			.select(["source", this.db.fn.countAll<number>().as("count")]);
+
+		if (filter?.since) {
+			query = query.where("timestamp", ">=", filter.since);
+		}
+		if (filter?.until) {
+			query = query.where("timestamp", "<=", filter.until);
+		}
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			query = query.where("event_type", "=", filter.eventType);
+		}
+
+		query = query.groupBy("source");
+
+		const rows = await query.execute();
+		const result: Record<string, number> = {};
+		for (const row of rows) {
+			result[row.source] = Number(row.count);
+		}
+		return result;
+	}
+
+	/**
+	 * Get average duration for events that have duration_ms, grouped by event type.
+	 *
+	 * @param filter - Optional time range or scope filter
+	 * @returns Record of event_type -> avg duration
+	 */
+	async averageDurationByEventType(
+		filter?: Pick<ObservabilityEventFilter, "since" | "until" | "projectId" | "severity">,
+	): Promise<Record<string, number>> {
+		let query = this.db
+			.selectFrom("observability_events")
+			.select(["event_type", this.db.fn.avg<number>("duration_ms").as("avg_duration")])
+			.where("duration_ms", "is not", null);
+
+		if (filter?.since) {
+			query = query.where("timestamp", ">=", filter.since);
+		}
+		if (filter?.until) {
+			query = query.where("timestamp", "<=", filter.until);
+		}
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+
+		query = query.groupBy("event_type");
+
+		const rows = await query.execute();
+		const result: Record<string, number> = {};
+		for (const row of rows) {
+			result[row.event_type] = Number(row.avg_duration);
+		}
+		return result;
+	}
+
+	/**
+	 * Get time-series bucket counts for dashboard-style queries.
+	 *
+	 * Uses epoch-second arithmetic for cross-version PostgreSQL compatibility.
+	 *
+	 * @param bucketWidthMs - Width of each time bucket in milliseconds
+	 * @param since - Start of the time range
+	 * @param until - End of the time range
+	 * @param filter - Optional additional filters
+	 * @returns Array of { bucket, count } ordered by bucket
+	 */
+	async timeSeriesCount(
+		bucketWidthMs: number,
+		since: string,
+		until: string,
+		filter?: Pick<ObservabilityEventFilter, "projectId" | "severity" | "eventType" | "source">,
+	): Promise<Array<{ bucket: string; count: number }>> {
+		const widthSec = Math.max(Math.round(bucketWidthMs / 1000), 1);
+		const sinceSec = Math.floor(new Date(since).getTime() / 1000);
+
+		// Use epoch arithmetic: bucket = to_timestamp(floor(extract(epoch from timestamp) / width) * width)
+		// This works on all PostgreSQL versions and does not require date_bin
+		let query = this.db
+			.selectFrom("observability_events")
+			.select([
+				sql<string>`to_timestamp(floor(extract(epoch from "timestamp") / ${sql.literal(widthSec)}) * ${sql.literal(widthSec)})`.as("bucket"),
+				this.db.fn.countAll<number>().as("count"),
+			])
+			.where("timestamp", ">=", since)
+			.where("timestamp", "<=", until);
+
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			query = query.where("event_type", "=", filter.eventType);
+		}
+		if (filter?.source) {
+			query = query.where("source", "=", filter.source);
+		}
+
+		query = query.groupBy("bucket").orderBy("bucket", "asc");
+
+		const rows = await query.execute();
+		return rows.map((r) => ({
+			bucket: String((r as any).bucket),
+			count: Number(r.count),
+		}));
+	}
+
+	/**
+	 * Get the time range (min/max timestamp) of stored events.
+	 *
+	 * @param filter - Optional scope filter
+	 * @returns Object with min and max timestamp, or null if no events
+	 */
+	async getTimeRange(
+		filter?: Pick<ObservabilityEventFilter, "projectId" | "severity" | "eventType">,
+	): Promise<{ minTimestamp: string; maxTimestamp: string } | null> {
+		let query = this.db
+			.selectFrom("observability_events")
+			.select([
+				this.db.fn.min<string>("timestamp").as("min_ts"),
+				this.db.fn.max<string>("timestamp").as("max_ts"),
+			]);
+
+		if (filter?.projectId) {
+			query = query.where("project_id", "=", filter.projectId);
+		}
+		if (filter?.severity) {
+			query = query.where("severity", "=", filter.severity);
+		}
+		if (filter?.eventType) {
+			query = query.where("event_type", "=", filter.eventType);
+		}
+
+		const row = await query.executeTakeFirst();
+		if (!row || !row.min_ts || !row.max_ts) return null;
+		return { minTimestamp: row.min_ts, maxTimestamp: row.max_ts };
 	}
 
 	/**

@@ -36,6 +36,36 @@ export {
 	validateObservabilityEvent,
 } from "../observability/index.js";
 
+// 25.B — Telemetry store, retention, and query API exports
+export {
+	type FlushResult,
+	type TelemetryFlushTarget,
+	type TelemetryQueryFilter,
+	type TelemetryStoreConfig,
+	type TelemetryStoreDiagnostics,
+	DEFAULT_TELEMETRY_STORE_CONFIG,
+	InMemoryTelemetryStore,
+	type DedupeConfig,
+	type PruneResult,
+	type RetentionBudget,
+	type RetentionPolicy,
+	type RetentionRule,
+	DEFAULT_DEDUPE_CONFIG,
+	DEFAULT_RETENTION_BUDGET,
+	DEFAULT_RETENTION_POLICY,
+	RetentionEngine,
+	type Aggregation,
+	type AggregationFunction,
+	type AggregationResult,
+	type ErrorAnalysis,
+	type EventStatistics,
+	type TelemetryQuery,
+	type TimeBucketConfig,
+	type TimeSeriesPoint,
+	type TimeSeriesResult,
+	TelemetryQueryApi,
+} from "../observability/index.js";
+
 export type {
 	CorrelationModel,
 	ObservabilityEvent,

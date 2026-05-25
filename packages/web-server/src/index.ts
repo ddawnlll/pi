@@ -5055,6 +5055,30 @@ const { registerNotificationRoutes } = await import("./notification-routes.js");
 await registerNotificationRoutes(fastify);
 
 // ---------------------------------------------------------------------------
+// Telemetry Routes (25.B — Local telemetry store, retention, and query API)
+// ---------------------------------------------------------------------------
+
+const backend_type = detectStateStoreBackend();
+if (backend_type === "postgres") {
+	try {
+		const { getKysely, ObservabilityEventRepository: ObsRepo } = await import("@earendil-works/pi-db");
+		const { TelemetryQueryApi } = await import("@earendil-works/pi-coding-agent");
+		const { registerTelemetryRoutes } = await import("./telemetry-routes.js");
+
+		const db = getKysely();
+		const telemetryRepo = new ObsRepo(db);
+		const telemetryQueryApi = new TelemetryQueryApi();
+		await registerTelemetryRoutes(fastify, telemetryRepo, telemetryQueryApi);
+
+		console.log("[server] Telemetry routes registered");
+	} catch (err) {
+		console.warn("[server] Failed to register telemetry routes:", (err as Error).message);
+	}
+} else {
+	console.log("[server] Skipping telemetry routes — requires PostgreSQL backend");
+}
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 
