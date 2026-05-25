@@ -1,4 +1,4 @@
-import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen, Brain } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +130,8 @@ export interface TopbarProps {
   showArtifacts: boolean;
   onExecutionLog: () => void;
   hasSelectedPlanExecId: boolean;
+  onBrainContext: () => void;
+  showBrainContext: boolean;
 }
 
 export function Topbar({
@@ -160,6 +162,8 @@ export function Topbar({
   showArtifacts,
   onExecutionLog,
   hasSelectedPlanExecId,
+  onBrainContext,
+  showBrainContext,
 }: TopbarProps) {
   return (
     <header
@@ -281,6 +285,8 @@ export interface ContextualToolbarProps {
   showArtifacts: boolean;
   onExecutionLog: () => void;
   hasSelectedPlanExecId: boolean;
+  onBrainContext: () => void;
+  showBrainContext: boolean;
 }
 
 export function ContextualToolbar({
@@ -294,6 +300,8 @@ export function ContextualToolbar({
   showArtifacts,
   onExecutionLog,
   hasSelectedPlanExecId,
+  onBrainContext,
+  showBrainContext,
 }: ContextualToolbarProps) {
   return (
     <div
@@ -349,6 +357,15 @@ export function ContextualToolbar({
               group="contextual"
             />
           )}
+          <div className={`w-px h-5 border-[#E8E6E1] dark:border-[#333] mx-0.5`} />
+          <LabeledActionBtn
+            id="brain-context"
+            icon={Brain}
+            label="Brain"
+            onClick={onBrainContext}
+            accent={showBrainContext}
+            group="contextual"
+          />
         </>
       )}
       {activeViewType === "empty" && (

@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useSettings, useProjectMeta } from "../hooks/useSettings";
 import { ScaleModeSettings } from "./ScaleModeSettings";
 import { useAuth } from "../hooks/useAuth";
+import { NotificationPreferences } from "./settings/NotificationPreferences";
 import type { Project } from "../types";
 
-type TabId = "general" | "budgets" | "project" | "auth" | "advanced" | "scale";
+type TabId = "general" | "budgets" | "project" | "auth" | "advanced" | "scale" | "notifications";
 
 const DASHBOARD_THEME_KEY = "pi-dashboard-theme";
 
@@ -426,6 +427,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 		{ id: "auth", label: "Auth" },
 		{ id: "advanced", label: "Advanced" },
 		{ id: "scale", label: "Scale & Safety", changes: scaleChanges },
+		{ id: "notifications", label: "Notifications" },
 	];
 
 	const inputClass =
@@ -1155,6 +1157,13 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													{isSaving ? "Saving..." : scaleDirty ? "Save" : "No changes"}
 												</button>
 											</div>
+										</div>
+									)}
+
+									{/* Notifications Tab */}
+									{activeTab === "notifications" && (
+										<div className="space-y-4">
+											<NotificationPreferences />
 										</div>
 									)}
 								</>

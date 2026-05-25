@@ -11,8 +11,8 @@
  *   GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files
  *       — List files in a worktree (recursive with directory nesting)
  *
- *   GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/:path(*)
- *       — Read a single file's content from a worktree
+ *   GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/*
+ *       — Read a single file's content from a worktree (wildcard path, e.g. src/index.ts)
  *
  *   GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/diff
  *       — Get git diff for a worktree
@@ -433,10 +433,11 @@ export async function registerFileExplorerRoutes(fastify: FastifyInstance): Prom
 	 *   maxBytes — maximum bytes to read (default: 1 MB, max: 5 MB)
 	 */
 	fastify.get<{
-		Params: { projectId: string; planExecId: string; workspaceId: string; path: string };
+		Params: { projectId: string; planExecId: string; workspaceId: string };
 		Querystring: { maxBytes?: string };
-	}>("/api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/:path(*)", async (request, reply) => {
-		const { planExecId, workspaceId, path: filePath } = request.params;
+	}>("/api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/*", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		const filePath = (request.params as Record<string, string>)["*"] ?? "";
 		const maxBytes = Math.min(5 * 1024 * 1024, Number.parseInt(request.query.maxBytes ?? "", 10) || MAX_FILE_BYTES);
 
 		if (!filePath || filePath.trim() === "") {

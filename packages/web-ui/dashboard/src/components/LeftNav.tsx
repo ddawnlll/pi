@@ -14,6 +14,7 @@
  * - Registry Settings → RegistrySettings
  *
  * Brain entries (P19):
+ * - Morning Digest → DigestPage
  * - Brain State → BrainStatePage
  * - Memory Explorer → BrainMemoryPage
  * - Reflections → BrainReflectionsPage
@@ -24,6 +25,7 @@
  */
 
 import {
+	Bell,
 	Cpu,
 	Database,
 	Inbox,
@@ -34,6 +36,7 @@ import {
 	Shield,
 	ShieldAlert,
 	Sliders,
+	Sunrise,
 	Target,
 } from "lucide-react";
 
@@ -55,6 +58,7 @@ export type PlatformNavItem =
 	| "autonomy"
 	| "goals"
 	| "proposal_inbox"
+	| "pi_inbox"
 	| "plan_intake"
 	| "extensions_skills"
 	| "memory"
@@ -62,6 +66,7 @@ export type PlatformNavItem =
 	| "trust_dashboard"
 	| "registry_settings"
 	// P19 brain pages
+	| "brain_digest"
 	| "brain_state"
 	| "brain_memory"
 	| "brain_reflections"
@@ -129,6 +134,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		description: "Trust metrics, safety, approvals, audit health",
 	},
 	{
+		id: "pi_inbox",
+		label: "Pi Inbox",
+		icon: Bell,
+		description: "Message center, system notifications, alerts",
+	},
+	{
 		id: "registry_settings",
 		label: "Registry Settings",
 		icon: Sliders,
@@ -139,6 +150,12 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 // ── P19 Brain entries ──
 
 export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
+	{
+		id: "brain_digest",
+		label: "Morning Digest",
+		icon: Sunrise,
+		description: "Morning overview, top signals, pending proposals, goal progress",
+	},
 	{
 		id: "brain_state",
 		label: "Brain State",

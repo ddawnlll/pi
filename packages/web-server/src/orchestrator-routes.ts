@@ -51,6 +51,13 @@ export interface OrchestratorBudget {
 	windowResetAt: number;
 }
 
+export interface OrchestratorActivityEntry {
+	timestamp: number;
+	level: "info" | "warn" | "error" | "debug";
+	message: string;
+	scanCycle?: number;
+}
+
 export interface OrchestratorHealth {
 	status: OrchestratorStatus;
 	health: OrchestratorHealthLevel;
@@ -62,6 +69,8 @@ export interface OrchestratorHealth {
 	paused: boolean;
 	pauseReason: string | null;
 	lastHeartbeatAt: number;
+	/** Rolling activity log (last N entries, newest first) */
+	activityLog: OrchestratorActivityEntry[];
 }
 
 export interface OrchestratorProposalItem {
@@ -202,6 +211,7 @@ function generateDefaultHealth(): OrchestratorHealth {
 		paused: false,
 		pauseReason: null,
 		lastHeartbeatAt: now,
+		activityLog: [],
 	};
 }
 
@@ -286,6 +296,12 @@ function generateRunningHealth(): OrchestratorHealth {
 		paused: false,
 		pauseReason: null,
 		lastHeartbeatAt: now,
+		activityLog: [
+			{ timestamp: now - 3600000, level: "info", message: "Orchestrator daemon started", scanCycle: 0 },
+			{ timestamp: now - 3590000, level: "info", message: "Scan #1 starting — repo health check", scanCycle: 1 },
+			{ timestamp: now - 3585000, level: "info", message: "Git status: 3 modified files detected", scanCycle: 1 },
+			{ timestamp: now - 3570000, level: "info", message: "Scan #1 complete (5 proposals generated)", scanCycle: 1 },
+		],
 	};
 }
 
@@ -713,6 +729,49 @@ export async function registerOrchestratorRoutes(
 				error: "Failed to process orchestrator control action",
 			});
 		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/orchestrator/activity/stream — SSE stream of daemon activity
+	//
+	// Pushes new activity entries as they appear in health.json.
+	// Polls every 2 seconds and sends any new entries since last check.
+	// -----------------------------------------------------------------------
+
+	fastify.get("/api/orchestrator/activity/stream", async (request, reply) => {
+		reply.raw.writeHead(200, {
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-cache",
+			Connection: "keep-alive",
+			"Access-Control-Allow-Origin": "*",
+		});
+
+		let lastActivityCount = 0;
+
+		const pollInterval = setInterval(async () => {
+			try {
+				const health = await loadHealth(piDir);
+				const log = health.activityLog ?? [];
+				// Send new entries since last check
+				const newEntries = log.slice(0, log.length - lastActivityCount);
+				if (newEntries.length > 0) {
+					for (const entry of newEntries.reverse()) {
+						reply.raw.write(
+							`data: ${JSON.stringify({ type: "activity", entry })}\n\n`,
+						);
+					}
+					lastActivityCount = log.length;
+				}
+				// Also send a heartbeat every 10s to keep connection alive
+				reply.raw.write(`data: ${JSON.stringify({ type: "heartbeat", ts: Date.now() })}\n\n`);
+			} catch {
+				// Ignore poll errors
+			}
+		}, 2000);
+
+		request.raw.on("close", () => {
+			clearInterval(pollInterval);
+		});
 	});
 
 	// -----------------------------------------------------------------------
@@ -1282,4 +1341,97 @@ export async function registerOrchestratorRoutes(
 
 	// Run auto-seed on route registration
 	await autoSeedIfNeeded();
+
+	// -----------------------------------------------------------------------
+	// Brain Prompt Configuration
+	//
+	// The brain prompt is stored in .pi/orchestrator/brain-prompt.json
+	// and controls how the orchestrator / observation engine generates
+	// observations, proposals, and analysis.
+	//
+	// Endpoints:
+	//   GET  /api/orchestrator/brain-prompt  — Get current brain prompt
+	//   PUT  /api/orchestrator/brain-prompt  — Update brain prompt
+	// -----------------------------------------------------------------------
+
+	const BRAIN_PROMPT_PATH = join(piDir, "orchestrator", "brain-prompt.json");
+
+	function getDefaultBrainPrompt(): {
+		systemPrompt: string;
+		observationRules: string[];
+		scanPriorities: string[];
+	} {
+		return {
+			systemPrompt:
+				"You are Pi's brain — a continuous improvement orchestrator. " +
+				"Your job is to observe the codebase, identify opportunities for improvement, " +
+				"generate proposals, and track goals. Focus on actionable, high-confidence " +
+				"observations that improve code quality, performance, security, and developer experience.",
+			observationRules: [
+				"Scan git status for uncommitted changes and suggest commits",
+				"Detect code quality issues: missing tests, large files, duplicated code",
+				"Monitor dependency health: outdated packages, security advisories",
+				"Track performance regressions and suggest optimizations",
+				"Identify documentation gaps and suggest improvements",
+			],
+			scanPriorities: [
+				"security_critical",
+				"performance_regression",
+				"code_quality",
+				"documentation",
+				"dependency_health",
+			],
+		};
+	}
+
+	async function loadBrainPrompt(): Promise<Record<string, unknown>> {
+		try {
+			if (existsSync(BRAIN_PROMPT_PATH)) {
+				const content = await readFile(BRAIN_PROMPT_PATH, "utf-8");
+				return JSON.parse(content);
+			}
+		} catch {
+			// fall through
+		}
+		return getDefaultBrainPrompt();
+	}
+
+	async function saveBrainPrompt(prompt: Record<string, unknown>): Promise<void> {
+		await writeFile(BRAIN_PROMPT_PATH, JSON.stringify(prompt, null, 2), "utf-8");
+	}
+
+	fastify.get("/api/orchestrator/brain-prompt", async (_request, reply) => {
+		try {
+			const prompt = await loadBrainPrompt();
+			return reply.send({ success: true, prompt });
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to load brain prompt");
+			return reply.code(500).send({
+				success: false,
+				error: "Failed to load brain prompt",
+			});
+		}
+	});
+
+	fastify.put<{
+		Body: { prompt: Record<string, unknown> };
+	}>("/api/orchestrator/brain-prompt", async (request, reply) => {
+		try {
+			const { prompt } = request.body;
+			if (!prompt || typeof prompt !== "object") {
+				return reply.code(400).send({
+					success: false,
+					error: "prompt must be a JSON object",
+				});
+			}
+			await saveBrainPrompt(prompt);
+			return reply.send({ success: true, prompt });
+		} catch (error) {
+			fastify.log.error({ error }, "Failed to save brain prompt");
+			return reply.code(500).send({
+				success: false,
+				error: "Failed to save brain prompt",
+			});
+		}
+	});
 }

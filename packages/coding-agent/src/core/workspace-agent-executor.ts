@@ -103,6 +103,18 @@ export class WorkspaceAgentExecutor {
 	/** Timeout handle for the current execution, created per execute() call. */
 	private timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
+	/**
+	 * LLM streaming idle timeout in milliseconds.
+	 * If no events arrive from the LLM stream within this window,
+	 * the workspace is considered hung and the agent is aborted.
+	 * Default: 5 minutes (300000 ms).
+	 */
+	private readonly llmStreamIdleTimeoutMs: number = 5 * 60 * 1000;
+	/** Handle for the LLM idle timeout */
+	private llmIdleHandle: ReturnType<typeof setTimeout> | null = null;
+	/** Timestamp of the last LLM event, for hung detection logging */
+	private lastLLMEventTime: number = 0;
+
 	constructor(config: WorkspaceAgentExecutorConfig) {
 		this.workspaceRoot = config.workspaceRoot;
 		this.maxTurns = config.maxTurns ?? 50;
@@ -451,7 +463,7 @@ export class WorkspaceAgentExecutor {
 			log(`Active tools: ${activeTools.join(", ")}`);
 			log(`Agent has ${session.agent.state.tools.length} tools registered`);
 
-			// Subscribe to agent events for live status tracking and completion
+		// Track last event timestamp for LLM idle timeout
 			let _agentCompleted = false;
 			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
 			let agentTurnCount = 0;
@@ -464,8 +476,33 @@ export class WorkspaceAgentExecutor {
 				}
 			};
 
+			// LLM stream idle watchdog: reset on every agent event
+			const resetIdleWatchdog = () => {
+				this.lastLLMEventTime = Date.now();
+				if (this.llmIdleHandle) {
+					clearTimeout(this.llmIdleHandle);
+				}
+				this.llmIdleHandle = setTimeout(() => {
+					const elapsed = Date.now() - this.lastLLMEventTime;
+					const warnMsg = `LLM stream idle for ${Math.round(elapsed / 1000)}s — aborting workspace ${workspaceId} to trigger retry`;
+					log(`WARNING: ${warnMsg}`);
+					console.error(`[workspace-agent-executor] ${warnMsg}`);
+					// Flush logs before aborting
+					if (this.logPath && logs.length > 0) {
+						fs.writeFile(this.logPath, logs.join("\n"), "utf-8").catch(() => {});
+					}
+					if (this.abortController && !this.abortController.signal.aborted) {
+						this.abortController.abort();
+					}
+				}, this.llmStreamIdleTimeoutMs);
+				this.llmIdleHandle.unref();
+			};
+
 			const completionPromise = new Promise<void>((resolve) => {
 				const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+					// Reset idle watchdog on every agent event (any event = stream is alive)
+					resetIdleWatchdog();
+
 					// --- Agent lifecycle ---
 					if (event.type === "agent_start") {
 						agentTurnCount = 0;
@@ -474,6 +511,10 @@ export class WorkspaceAgentExecutor {
 						_agentCompleted = true;
 						emitStatus("deciding", "Agent completed");
 						unsubscribe();
+						if (this.llmIdleHandle) {
+							clearTimeout(this.llmIdleHandle);
+							this.llmIdleHandle = null;
+						}
 						resolve();
 					} else if (event.type === "turn_start") {
 						agentTurnCount++;
@@ -609,11 +650,18 @@ export class WorkspaceAgentExecutor {
 						_agentCompleted = true;
 						unsubscribe();
 						session.agent.abort();
+						if (this.llmIdleHandle) {
+							clearTimeout(this.llmIdleHandle);
+							this.llmIdleHandle = null;
+						}
 						resolve();
 					},
 					{ once: true },
 				);
 			});
+
+			// Start the idle watchdog (will fire on first event)
+			resetIdleWatchdog();
 
 			// Run the agent with the prompt
 			log("Starting agent execution...");

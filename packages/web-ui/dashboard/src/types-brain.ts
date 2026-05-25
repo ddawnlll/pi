@@ -25,7 +25,7 @@ export interface ApiError {
 // Daemon / Brain State (P13)
 // =========================================================================
 
-export type DaemonState = "running" | "stopped" | "error";
+export type DaemonState = "running" | "stopped" | "paused" | "error";
 
 export interface DaemonStatus {
 	state: DaemonState;
@@ -201,7 +201,7 @@ export interface GoalStats {
 	total: number;
 	byStatus: Record<string, number>;
 	byPriority: Record<string, number>;
-	averageProgress: number;
+	averageProgress?: number;
 }
 
 export interface GoalDriftReport {
@@ -332,4 +332,76 @@ export interface OvernightSession {
 	plansCompleted: number;
 	totalPlans: number;
 	error?: string;
+}
+
+// =========================================================================
+// Feedback (24.J — Feedback Loop)
+// =========================================================================
+
+export type FeedbackRating = 1 | -1;
+
+export type FeedbackItemType =
+	| "digest_entry"
+	| "signal"
+	| "observation"
+	| "proposal"
+	| "goal"
+	| "memory"
+	| "reflection"
+	| "plan_result";
+
+export interface FeedbackEntry {
+	id: string;
+	itemType: FeedbackItemType;
+	itemId: string;
+	itemTitle: string;
+	rating: FeedbackRating;
+	comment: string;
+	applied: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface FeedbackStats {
+	total: number;
+	positive: number;
+	negative: number;
+	unapplied: number;
+	byType: Record<string, { total: number; positive: number; negative: number }>;
+}
+
+export interface FeedbackQueryResult {
+	entries: FeedbackEntry[];
+	total: number;
+}
+
+// =========================================================================
+// Morning Digest
+// =========================================================================
+
+export interface MorningDigest {
+	summary: {
+		daemonState: DaemonState;
+		daemonUptime: string;
+		totalObservations: number;
+		criticalObservations: number;
+		activeSignals: number;
+		pendingProposals: number;
+		lastUpdated: string;
+	};
+	topSignals: BrainSignal[];
+	recentObservations: BrainObservation[];
+	pendingProposals: Proposal[];
+	goalProgress: Array<{
+		id: string;
+		title: string;
+		progress: number;
+		status: GoalStatus;
+		priority: GoalPriority;
+	}>;
+	reflectionCounts: {
+		total: number;
+		today: number;
+		newMemories: number;
+	};
 }

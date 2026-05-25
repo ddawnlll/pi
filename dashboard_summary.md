@@ -35,7 +35,7 @@
 │  ── Platform  │  TaskDetailView                       │                       │
 │  │ Autonomy   │  (phase plans, timeline, logs)        │                       │
 │  │ Plan Intake│                                       │                       │
-│  │ Extensions │  PLATFORM / BRAIN views:              │                       │
+│  │ Extensions │  PLATFORM / BRAIN views (30+ pages):  │                       │
 │  │ Memory     │  · AutonomyCenter                     │                       │
 │  │ PolicyAudt │  · PlanIntakePanel                    │                       │
 │  │ Trust Dsh  │  · ExtensionsManager                  │                       │
@@ -67,7 +67,7 @@
 │ [☰] [◀]  Planner  [●running] — Plan Title       [▶] [⏸] [■] [↻] [⚙] [▶] │
 │  ^hamburger ^collapse          ^status      ^plan name  ^ctrl btns  ^settings ^collapse
 │  mobile     left               badge                    Resume              right
-│             sidebar                                      Pause              sidebar
+│             sidebar                                     Pause               sidebar
 │                                                          Stop
 │                                                          Restart
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -159,7 +159,80 @@
 
 ---
 
-## 4. Center Column — View Router
+## 4. P22.A — Project-Centric Sidebar
+
+The new P22.A sidebar (`components/sidebar/Sidebar.tsx`) replaces the 4-tab system with a project-centric hierarchy:
+
+```
+┌─ Sidebar (320px) ─────────────────────────────────┐
+│  ┌─ Project Selector ──────────────────────────┐   │
+│  │ [📁 my-project        ▼]                    │   │
+│  │  ┌─ Dropdown ──────────────────────────┐    │   │
+│  │  │ 📁 project-1                    ✎ ✕ │    │   │
+│  │  │ 📁 project-2  (active)           ✎ ✕ │    │   │
+│  │  │ ─────────────────────                │    │   │
+│  │  │ + New project...                     │    │   │
+│  │  └──────────────────────────────────────┘    │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                     │
+│  🧠 my-project Brain  [ON]  ▼                      │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ ● State / Overview                           │    │
+│  │ ● Memory Explorer                            │    │
+│  │ ● Reflections                                │    │
+│  │ ● Overnight                                  │    │
+│  │ ● Goals                                      │    │
+│  │ ● Trust                                      │    │
+│  └─────────────────────────────────────────────┘    │
+│  ────────────────────────────────────────────        │
+│  TASKS                              ▼               │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ + Create task                                │    │
+│  │ ○ Implement auth (running)                   │    │
+│  │ ○ Add tests (complete)                       │    │
+│  └─────────────────────────────────────────────┘    │
+│  ────────────────────────────────────────────        │
+│  RUNS                               ▼               │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ + Upload plan...                             │    │
+│  │ [Show archived runs]                        │    │
+│  │ ○ auth-flow   (complete)                    │    │
+│  │ ○ test-suite  (failed)                      │    │
+│  │ ○ refactor    (running)                     │    │
+│  └─────────────────────────────────────────────┘    │
+│  ────────────────────────────────────────────        │
+│  PLATFORM                            ▼              │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ ● Autonomy                                   │    │
+│  │ ● Plan Intake                                │    │
+│  │ ● Extensions & Skills                        │    │
+│  │ ● Proposals                                  │    │
+│  │ ● Registry Settings                          │    │
+│  └─────────────────────────────────────────────┘    │
+│  ────────────────────────────────────────────        │
+│  [⚙ Project settings]                                │
+└─────────────────────────────────────────────────────┘
+```
+
+**Key features:**
+- Project selector dropdown at top: switch projects, rename, delete, create
+- Per-project brain section with ON/OFF toggle
+- Tasks section with inline create and status badges
+- Runs section with upload CTA, archive toggle, inline rename/archive per run
+- Platform items at bottom (collapsible, off by default)
+- Settings gear at bottom
+- Responsive: section headers collapse/expand with chevron animation
+- P22.E: Archive toggle and inline plan rename
+
+**Responsible files:**
+| File | Purpose |
+|---|---|
+| `components/sidebar/Sidebar.tsx` | Full sidebar implementation |
+| `components/sidebar/index.ts` | Barrel export |
+| `App.tsx` | Sidebar integration, wiring |
+
+
+## 5. Center Column — View Router
 
 The center column switches content based on `activeView.type`:
 
@@ -170,7 +243,7 @@ activeView.type ──┬── "run"      → Plan execution dashboard
                   └── "empty"     → "No execution selected" placeholder
 ```
 
-### 4a. RUN View (activeView.type === "run")
+### 5a. RUN View (activeView.type === "run")
 
 ```
 ┌── Contextual Toolbar ──────────────────────────────────────────────────────┐
@@ -213,7 +286,7 @@ activeView.type ──┬── "run"      → Plan execution dashboard
 | LiveLogTerminal | `components/LiveLogTerminal.tsx` | — | Real-time log stream display |
 | WarningBanner | `components/WarningBanner.tsx` | — | Cost/budget/policy warnings |
 
-### 4b. PLATFORM / BRAIN View (activeView.type === "platform")
+### 5b. PLATFORM / BRAIN View (activeView.type === "platform")
 
 When `activeView.screen` matches a platform nav item, the corresponding feature page is rendered:
 
@@ -235,36 +308,88 @@ showBrainReflections ? <BrainReflectionsPage />
 showBrainOvernight   ? <BrainOvernightPage />
 ```
 
+### 5c. Navigation State Persistence (P22 local storage)
+
+The dashboard persists selected state across page reloads via localStorage:
+
+| Key | Stored Value | Purpose |
+|---|---|---|
+| `pi_selected_project_id` | string \| null | Last selected project |
+| `pi_selected_exec_id` | string \| null | Last selected plan execution |
+| `pi_selected_view` | JSON (ActiveView) | Last active view (run/task/platform) |
+| `pi_selected_task_id` | string \| null | Last selected task |
+
+On reload, the dashboard restores the project, execution, and view so the user lands exactly where they left off.
+
 ---
 
-## 5. Brain Pages — Detailed View
+## 6. Brain Pages — Detailed View
 
-### 5a. BrainStatePage (`pages/BrainStatePage.tsx`)
+### 6a. BrainStatePage (`pages/BrainStatePage.tsx`)
 
 ```
 ┌─ Brain State ─────────────────────────────────────────────────────────────┐
-│ ● Daemon running  [Auto-refresh ◼] [↻ Refresh]                           │
+│ ● Daemon running  [Brain Prompt] [Auto-refresh ◼] [↻ Refresh]           │
 ├─ DaemonStatusCard ─────────────────────────────────────────────────────────┤
-│ State: running | Uptime: 2h 34m | Observations: 47 | Last heartbeat: 12s  │
-├─ SignalSummaryCards (severity cards) ───────────────────────────────────────┤
-│ [Info: 12] [Warning: 3] [Critical: 1]                                    │
-├─ ObservationStats (bar chart) ─────────────────────────────────────────────┤
-│ │████████████████ 12 info                                                  │
-│ │██████ 3 warning                                                          │
-│ │██ 1 critical                                                             │
+│ State: running | Uptime: 2h 34m | Observations: 47                      │
+│ [Start daemon] [Stop daemon] [Resume] (context-dependent buttons)        │
+│ ─── Action buttons appear based on state:                                │
+│     Stopped/Error → "Start daemon"                                       │
+│     Running       → "Stop daemon"                                        │
+│     Paused        → "Resume" + "Stop daemon"                            │
+├─ ObservationStats ────────────────────────────────────────────────────────┤
+│ [Info: 12] [Warning: 3] [Critical: 1]                                   │
+├─ SignalSummaryCards (severity cards) ──────────────────────────────────────┤
+│ Signals summary                                                          │
+├─ 2-column grid ───────────────────────────────────────────────────────────┤
+│ ┌─ Live Daemon Activity ───┐  ┌─ Brain Prompt ────────────────┐         │
+│ │ [🟢 Live] 47 events      │  │ System Prompt                  │         │
+│ │                          │  │ "You are Pi's brain..."        │         │
+│ │ [12:34:05] [#2] Scan...  │  │                                │         │
+│ │ [12:34:02] Git status... │  │ Observation Rules (5)          │         │
+│ │ [12:33:58] Proposal...   │  │ · Scan git status...           │         │
+│ │ ...                      │  │ · Detect code quality...       │         │
+│ └──────────────────────────┘  │ [+2 more]                     │         │
+│                               └────────────────────────────────┘         │
 ├─ TimelineList ─────────────────────────────────────────────────────────────┤
-│ [12:34:05] workspace ws-4 completed  ─── info                             │
-│ [12:33:12] memory pressure detected    ─── warning                        │
-│ [12:32:00] daemon heartbeat missed     ─── critical                       │
-│ ...                                                                        │
+│ [12:34:05] workspace ws-4 completed  ─── info                            │
+│ [12:33:12] memory pressure detected    ─── warning                       │
+│ ...                                                                       │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Sub-components:** `DaemonStatusCard`, `SignalSummaryCards`, `ObservationStats`, `TimelineList`
+**Sub-components:** `DaemonStatusCard`, `SignalSummaryCards`, `ObservationStats`, `TimelineList`, `LiveDaemonActivity`, `BrainPromptEditor`
 **Hooks:** `useBrainStatus` — fetches daemon state, observations, signals, timeline from `/api/brain/state`
 **API client:** `BrainClient.getState()`, `BrainClient.getObservations()`, `BrainClient.getSignals()`, `BrainClient.getTimeline()`
 
-### 5b. BrainMemoryPage (`pages/BrainMemoryPage.tsx`)
+### 6b. DaemonStatusCard (`components/brain/overview/DaemonStatusCard.tsx`)
+
+Shows daemon state with color-coded dot + label, real uptime (from orchestrator health.json), and observation count. Includes action buttons:
+
+| Daemon State | Dot Color | Label | Buttons |
+|---|---|---|---|
+| `running` | 🟢 emerald | Running | Stop daemon |
+| `stopped` | 🔴 red | Stopped | Start daemon |
+| `paused` | 🟡 amber | Paused | Resume + Stop daemon |
+| `error` | 🟠 amber | Error | Start daemon |
+
+### 6c. LiveDaemonActivity (`components/brain/overview/LiveDaemonActivity.tsx`)
+
+SSE-based live stream of daemon activity (connects to `GET /api/orchestrator/activity/stream`):
+- Color-coded log lines (info/warn/error/debug) with timestamps
+- Scan cycle number `[#N]` prefix
+- Live/disconnected indicator dot
+- Auto-scrolls to newest entries
+- Caps at 200 entries, newest first
+
+### 6d. BrainPromptEditor (`components/brain/overview/BrainPromptEditor.tsx`)
+
+View and edit the brain prompt config via `GET/PUT /api/orchestrator/brain-prompt`:
+- **Read-only mode**: Shows system prompt (truncated), observation rule count, scan priority tags
+- **Edit mode**: Textarea for system prompt, dynamic add/remove input rows for rules and priorities, Save/Cancel buttons with loading states
+- Prompt persisted as JSON at `.pi/orchestrator/brain-prompt.json`
+
+### 6e. BrainMemoryPage (`pages/BrainMemoryPage.tsx`)
 
 ```
 ┌─ Memory Explorer ─────────────────────────────────────────────────────────┐
@@ -289,7 +414,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 **Hooks:** `useMemoryRecords` — CRUD operations via `BrainClient`
 **API client:** `BrainClient.getMemories()`, `BrainClient.createMemory()`, `BrainClient.updateMemory()`, `BrainClient.deleteMemory()`
 
-### 5c. BrainReflectionsPage (`pages/BrainReflectionsPage.tsx`)
+### 6f. BrainReflectionsPage (`pages/BrainReflectionsPage.tsx`)
 
 ```
 ┌─ Reflections ─────────────────────────────────────────────────────────────┐
@@ -312,7 +437,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 **Hooks:** `useReflections` — fetch reflections, generate proposals from reflections
 **API client:** `BrainClient.getReflections()`, `BrainClient.generateProposalFromReflection()`
 
-### 5d. BrainOvernightPage (`pages/BrainOvernightPage.tsx`)
+### 6g. BrainOvernightPage (`pages/BrainOvernightPage.tsx`)
 
 ```
 ┌─ Overnight ──────────────────────────────────────────────────────────────┐
@@ -344,7 +469,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 ---
 
-## 6. Right Sidebar
+## 7. Right Sidebar
 
 ```
 ┌─ Events ──────────────────────────────────────────────────────────────────┐
@@ -381,7 +506,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 ---
 
-## 7. Dialogs & Overlays
+## 8. Dialogs & Overlays
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -413,7 +538,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 ---
 
-## 8. Data Flow Architecture
+## 9. Data Flow Architecture
 
 ```
 ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────────┐
@@ -444,8 +569,17 @@ showBrainOvernight   ? <BrainOvernightPage />
 | `/api/brain/autonomy` | GET | `useBrainStatus` | Autonomy profile |
 | `/api/brain/goals` | GET | `useGoals` | Goal index |
 | `/api/brain/proposals` | GET | `useBrainProposals` | Proposals |
-| `/api/executions/:id/control` | POST | (inline) | Pause/stop/cancel/resume |
-| `/api/projects/:pid/plans/:eid/rerun` | POST | (inline) | Rerun execution |
+| `/api/orchestrator/health` | GET | — | Orchestrator daemon health snapshot |
+| `/api/orchestrator/health/stream` | GET (SSE) | — | Live health updates |
+| `/api/orchestrator/activity/stream` | GET (SSE) | `LiveDaemonActivity` | Live daemon activity log stream |
+| `/api/orchestrator/brain-prompt` | GET/PUT | `BrainPromptEditor` | Read/write brain prompt config |
+| `/api/orchestrator/control` | POST | `BrainStatePage` | Pause/resume/request-scan daemon control |
+| `/api/orchestrator/health` | GET | `useOrchestratorHealth` | Orchestrator health snapshot |
+| `/api/orchestrator/proposals` | GET | — | Orchestrator-generated proposals |
+| `/api/orchestrator/seed-proposals` | POST | — | Seed demo proposals |
+| `/api/orchestrator/run-lead-agent` | POST | — | Trigger lead agent analysis |
+| `/api/orchestrator/lead-agent/stream` | GET (SSE) | — | Lead agent thinking transcript |
+| `/api/orchestrator/lead-agent/control` | POST | — | Pause/resume/stop lead agent |
 | `/api/projects` | GET | `useProjects` | List projects |
 | `/api/projects/:pid/plans` | GET | `usePlanExecutions` | List plan executions |
 | `/api/projects/:pid/plans/:eid` | GET | `usePlanExecutionDetail` | Single execution detail |
@@ -461,7 +595,69 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 ---
 
-## 9. Component File Responsibility Table
+## 10. Orkestrator Daemon Activity & Brain Prompt
+
+### 10a. Live Daemon Activity Stream
+
+The daemon writes activity entries to `.pi/orchestrator/health.json` during scans. The dashboard connects via SSE to `GET /api/orchestrator/activity/stream` which polls health.json every 2 seconds and pushes new entries to connected clients.
+
+```
+SSE event format:
+data: { "type": "activity", "entry": { "timestamp": 1712345678000, "level": "info", "message": "Scan #3 starting", "scanCycle": 3 } }
+
+data: { "type": "heartbeat", "ts": 1712345678000 }
+```
+
+Activity entry fields:
+| Field | Type | Description |
+|---|---|---|
+| `timestamp` | number | Unix ms timestamp |
+| `level` | string | `info` / `warn` / `error` / `debug` |
+| `message` | string | Human-readable activity description |
+| `scanCycle` | number (optional) | Scan cycle number when applicable |
+
+### 10b. Brain Prompt Config
+
+Stored as JSON at `.pi/orchestrator/brain-prompt.json`:
+```json
+{
+  "systemPrompt": "You are Pi's brain — a continuous improvement orchestrator...",
+  "observationRules": [
+    "Scan git status for uncommitted changes and suggest commits",
+    "Detect code quality issues: missing tests, large files, duplicated code"
+  ],
+  "scanPriorities": [
+    "security_critical",
+    "performance_regression",
+    "code_quality"
+  ]
+}
+```
+
+### 10c. Daemon Health → Brain State Bridge
+
+The brain state API (`/api/brain/state`) now reads orchestrator health data from `.pi/orchestrator/health.json` to get real daemon status (running/stopped/error) and uptime, instead of hardcoding `running` + `0s`.
+
+### 10d. Brain State API Response Wrapper Fixes
+
+Several brain API routes wrap responses in `{ success: true, ... }` which broke the frontend `apiFetch` calls that expected the raw type. Fixed in `api/brain.ts`:
+
+| Method | Response Shape | Fix |
+|---|---|---|
+| `getReflections()` | `{ success, reflections, total }` | Unwrap `.reflections` |
+| `getReflection()` | `{ success, reflection }` | Unwrap `.reflection` |
+| `getReflectionStats()` | `{ success, stats }` | Unwrap `.stats` |
+| `getGoals()` | `{ success, goals, count }` | Unwrap `.goals` |
+| `getGoal()` | `{ success, goal }` | Unwrap `.goal` |
+| `getGoalStats()` | `{ success, stats }` | Unwrap `.stats`, map keys |
+| `getDriftReports()` | `{ success, reports, count }` | Unwrap `.reports` |
+| `createGoal()` | `{ success, goal }` | Unwrap `.goal` |
+| `updateGoal()` | `{ success, goal }` | Unwrap `.goal` |
+| `completeGoal()` | `{ success, goal }` | Unwrap `.goal` |
+
+---
+
+## 11. Component File Responsibility Table
 
 ### Core Layout
 
@@ -476,6 +672,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 | File | Lines | Purpose |
 |---|---|---|
 | `components/LeftNav.tsx` | ~120 | `PlatformNavItem` type, `PLATFORM_NAV_ENTRIES[]`, `LeftNav` component, `PlatformSectionHeader` |
+| `components/sidebar/Sidebar.tsx` | ~400 | P22.A project-centric sidebar: project selector, brain/tasks/runs/platform sections |
 | `components/ProjectItem.tsx` | ~30 | Single project row in Projects tab |
 | `components/HistoryItem.tsx` | ~40 | Single execution row in Runs tab (status badge, title, date) |
 | `components/TaskList.tsx` | ~80 | Task list and tree view in Tasks tab |
@@ -514,7 +711,7 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 | File | Lines | Purpose |
 |---|---|---|
-| `pages/BrainStatePage.tsx` | ~150 | P19 Brain state: daemon status, observations, signals, timeline |
+| `pages/BrainStatePage.tsx` | ~150 | P19 Brain state: daemon status, observations, signals, timeline, live activity, prompt editor |
 | `pages/BrainMemoryPage.tsx` | ~150 | P19 Memory explorer: full CRUD, search, filters |
 | `pages/BrainReflectionsPage.tsx` | ~150 | P19 Reflections: post-plan reflections, suggestions |
 | `pages/BrainOvernightPage.tsx` | ~150 | P19 Overnight: queue runs, schedule, history |
@@ -525,9 +722,11 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 | File | Lines | Purpose |
 |---|---|---|
-| `components/brain/overview/DaemonStatusCard.tsx` | ~50 | Daemon running/stopped/error state card |
+| `components/brain/overview/DaemonStatusCard.tsx` | ~80 | Daemon running/stopped/paused/error state card with Start/Stop/Resume buttons |
 | `components/brain/overview/SignalSummaryCards.tsx` | ~60 | Signal severity summary (info/warning/critical) |
 | `components/brain/overview/TimelineList.tsx` | ~70 | Timeline event list with severity badges |
+| `components/brain/overview/LiveDaemonActivity.tsx` | ~90 | SSE-based live daemon activity log stream |
+| `components/brain/overview/BrainPromptEditor.tsx` | ~200 | Read/edit brain prompt config (system prompt, rules, priorities) |
 | `components/brain/overview/index.ts` | ~10 | Barrel re-exports |
 | `components/brain/memory/MemoryList.tsx` | ~80 | Memory list with search/filter |
 | `components/brain/memory/MemoryCard.tsx` | ~50 | Single memory entry card |
@@ -606,30 +805,15 @@ showBrainOvernight   ? <BrainOvernightPage />
 
 ---
 
-## 10. Current Issues & Improvement Ideas
+## 12. Current Issues & Improvement Ideas
 
 ### Issue 1: Brain Section Missing from LeftNav
 
 **Problem:** P19 brain entries are currently mixed into the same flat list as P11 platform entries under a single "Platform" section header. Users can't visually distinguish between platform features and brain features.
 
-**Fix needed in:**
-1. `components/LeftNav.tsx`:
-   - Split `PLATFORM_NAV_ENTRIES` into two arrays: `PLATFORM_NAV_ENTRIES` (P11) and `BRAIN_NAV_ENTRIES` (P19)
-   - Accept optional `showBrainSection` prop
-   - When `showBrainSection` is true, render a second `<PlatformSectionHeader title="Brain (P19)" />` followed by brain entries
-
-2. `App.tsx`:
-   - Pass `showBrainSection={true}` to `LeftNav`
-   - Or: render `PlatformSectionHeader` + `LeftNav` for P11, then another `PlatformSectionHeader` + `LeftNav` for brain
-
 ### Issue 2: Duplicate Entries
 
 **Problem:** "Proposal Inbox" and "Memory/Memory Explorer" appear twice (once in P11, once in P19). This is confusing.
-
-**Options:**
-- Option A: Remove P11 duplicates and keep only brain versions
-- Option B: Remove brain duplicates and keep only P11 versions (brain features accessible from P11 screens)
-- Option C: Keep both but put in separate sections so the distinction is clear
 
 ### Issue 3: Brain Page Consistency
 
@@ -641,11 +825,12 @@ When navigating between platform and brain views, there's no breadcrumb or back 
 
 ---
 
-## 11. File Dependency Graph
+## 13. File Dependency Graph
 
 ```
 App.tsx
   ├── components/LeftNav.tsx (PlatformNavItem, PLATFORM_NAV_ENTRIES, LeftNav, PlatformSectionHeader)
+  ├── components/sidebar/Sidebar.tsx
   ├── components/StatCard.tsx
   ├── components/StatusBadge.tsx
   ├── components/WarningBanner.tsx
@@ -675,6 +860,13 @@ App.tsx
   │   └── BrainTrustPage.tsx
   ├── components/ChatPanel.tsx
   ├── components/ArtifactBrowser.tsx
+  ├── components/brain/overview/
+  │   ├── DaemonStatusCard.tsx
+  │   ├── LiveDaemonActivity.tsx
+  │   ├── BrainPromptEditor.tsx
+  │   ├── SignalSummaryCards.tsx
+  │   ├── TimelineList.tsx
+  │   └── index.ts
   ├── hooks/ (30+ hooks)
   ├── api/brain.ts
   └── types.ts / types-brain.ts
@@ -682,7 +874,7 @@ App.tsx
 
 ---
 
-## 12. Key Architecture Decisions
+## 14. Key Architecture Decisions
 
 1. **Single ActiveView state**: The entire center column is driven by one `activeView` state variable (`{ type: "run" | "task" | "platform" | "empty", screen?: PlatformNavItem }`). This keeps the routing simple and avoids React Router dependency.
 
@@ -697,3 +889,7 @@ App.tsx
    - **Project mode** (`hasProjects`): Uses `usePlanExecutions` + `usePlanExecutionDetail` + `usePlanStats`, renders the full dashboard with stat cards, scheduler, worker detail, etc.
 
 6. **Platform nav items are extensible**: The `PlatformNavItem` type union and `PLATFORM_NAV_ENTRIES[]` array make it easy to add new pages without modifying the routing logic — just add to the array and create a ternary in the render section.
+
+7. **Daemon health via file-based bridge**: The orchestrator daemon (running in pi interactive mode) writes its health and activity to `.pi/orchestrator/health.json`. The web-server reads this file for brain state and live activity streams. The dashboard's "Start/Stop/Resume" buttons write control requests to `.pi/orchestrator/control-request.json` which the daemon picks up asynchronously.
+
+8. **SSE for real-time updates**: Both health and daemon activity use Server-Sent Events (SSE) for push-based updates to the dashboard, polling health.json for changes every 2-10 seconds.

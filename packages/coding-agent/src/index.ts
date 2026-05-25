@@ -324,6 +324,22 @@ export type {
 	PreferenceCreateInput,
 	PreferenceRecord,
 	PreferenceSource,
+	// Pi Inbox (24.M)
+	PiInboxStoreConfig,
+	PiInboxListResult,
+	PiInboxQuery,
+	PiInboxMessage,
+	PiInboxMessagePriority,
+	PiInboxMessageType,
+	PiInboxStats,
+	PiInboxValidationResult,
+	// Feedback Store (24.J)
+	FeedbackEntry,
+	FeedbackItemType,
+	FeedbackQuery,
+	FeedbackQueryResult,
+	FeedbackRating,
+	FeedbackStats,
 } from "./brain/index.js";
 // Brain — V2 cognitive OS (Goal & Preference Domain, P15) + Reflection (P17)
 export {
@@ -411,6 +427,17 @@ export {
 	type WhatCompletedEntry,
 	type WhatRanEntry,
 	type WhatStoppedEntry,
+	// Pi Inbox (24.M)
+	PiInboxStore,
+	ALL_PI_INBOX_MESSAGE_TYPES,
+	ALL_PI_INBOX_PRIORITIES,
+	createPiInboxMessage,
+	validatePiInboxMessage,
+	// Feedback Store (24.J)
+	FeedbackStore,
+	ALL_FEEDBACK_ITEM_TYPES,
+	createFeedbackEntry,
+	validateFeedbackEntry,
 } from "./brain/index.js";
 // P1 Token Budget and Safety - CLI and Reporting
 export {

@@ -25,12 +25,17 @@ import type {
 	BrainSignal,
 	BrainStateData,
 	DaemonState,
+	FeedbackEntry,
+	FeedbackItemType,
+	FeedbackQueryResult,
+	FeedbackStats,
 	GoalDriftReport,
 	GoalRecord,
 	GoalStats,
 	InboxView,
 	MemoryRecord,
 	MemoryStats,
+	MorningDigest,
 	OvernightSession,
 	PolicyResult,
 	PolicyRule,
@@ -259,11 +264,13 @@ export class BrainClient {
 	): Promise<GoalRecord[]> {
 		const qs = new URLSearchParams();
 		if (params?.status) qs.set("status", params.status);
-		return apiFetch<GoalRecord[]>(`${brainUrl("/goals", projectId)}?${qs}`);
+		const data = await apiFetch<{ goals: GoalRecord[] }>(`${brainUrl("/goals", projectId)}?${qs}`);
+		return data.goals ?? [];
 	}
 
 	async getGoal(id: string, projectId?: string | null): Promise<GoalRecord> {
-		return apiFetch<GoalRecord>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}`);
+		const data = await apiFetch<{ goal: GoalRecord }>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}`);
+		return data.goal;
 	}
 
 	async createGoal(
@@ -275,17 +282,19 @@ export class BrainClient {
 		},
 		projectId?: string | null,
 	): Promise<GoalRecord> {
-		return apiFetch<GoalRecord>(brainUrl("/goals", projectId), {
+		const result = await apiFetch<{ goal: GoalRecord }>(brainUrl("/goals", projectId), {
 			method: "POST",
 			body: JSON.stringify(data),
 		});
+		return result.goal;
 	}
 
 	async updateGoal(id: string, data: Partial<GoalRecord>, projectId?: string | null): Promise<GoalRecord> {
-		return apiFetch<GoalRecord>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}`, {
+		const result = await apiFetch<{ goal: GoalRecord }>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}`, {
 			method: "PATCH",
 			body: JSON.stringify(data),
 		});
+		return result.goal;
 	}
 
 	async deleteGoal(id: string, projectId?: string | null): Promise<void> {
@@ -295,17 +304,25 @@ export class BrainClient {
 	}
 
 	async completeGoal(id: string, projectId?: string | null): Promise<GoalRecord> {
-		return apiFetch<GoalRecord>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}/complete`, {
+		const result = await apiFetch<{ goal: GoalRecord }>(`${brainUrl("/goals", projectId)}/${encodeURIComponent(id)}/complete`, {
 			method: "POST",
 		});
+		return result.goal;
 	}
 
 	async getGoalStats(projectId?: string | null): Promise<GoalStats> {
-		return apiFetch<GoalStats>(brainUrl("/goals/stats", projectId));
+		const data = await apiFetch<{ stats: Record<string, unknown> }>(brainUrl("/goals/stats", projectId));
+		const s = data.stats;
+		return {
+			total: (s.totalGoals as number) ?? 0,
+			byStatus: (s.byStatus as Record<string, number>) ?? {},
+			byPriority: (s.byPriority as Record<string, number>) ?? {},
+		};
 	}
 
 	async getDriftReports(projectId?: string | null): Promise<GoalDriftReport[]> {
-		return apiFetch<GoalDriftReport[]>(brainUrl("/goals/drift", projectId));
+		const data = await apiFetch<{ reports: GoalDriftReport[] }>(brainUrl("/goals/drift", projectId));
+		return data.reports ?? [];
 	}
 
 	// =========================================================================
@@ -400,11 +417,13 @@ export class BrainClient {
 	// =========================================================================
 
 	async getReflections(projectId?: string | null): Promise<ReflectionReport[]> {
-		return apiFetch<ReflectionReport[]>(brainUrl("/reflections", projectId));
+		const data = await apiFetch<{ reflections: ReflectionReport[] }>(brainUrl("/reflections", projectId));
+		return data.reflections ?? [];
 	}
 
 	async getReflection(planExecId: string, projectId?: string | null): Promise<ReflectionReport> {
-		return apiFetch<ReflectionReport>(`${brainUrl("/reflections", projectId)}/${encodeURIComponent(planExecId)}`);
+		const data = await apiFetch<{ reflection: ReflectionReport }>(`${brainUrl("/reflections", projectId)}/${encodeURIComponent(planExecId)}`);
+		return data.reflection;
 	}
 
 	async getReflectionStats(projectId?: string | null): Promise<{
@@ -412,7 +431,8 @@ export class BrainClient {
 		memoriesCreated: number;
 		suggestionsGenerated: number;
 	}> {
-		return apiFetch(brainUrl("/reflections/stats", projectId));
+		const data = await apiFetch<{ stats: { total: number; memoriesCreated: number; suggestionsGenerated: number } }>(brainUrl("/reflections/stats", projectId));
+		return data.stats;
 	}
 
 	// =========================================================================
@@ -480,6 +500,84 @@ export class BrainClient {
 		return apiFetch<void>(`${brainUrl("/overnight", projectId)}/${encodeURIComponent(sessionId)}/cancel`, {
 			method: "POST",
 		});
+	}
+
+	// =========================================================================
+	// Morning Digest
+	// =========================================================================
+
+	async getDigest(projectId?: string | null): Promise<MorningDigest> {
+		return apiFetch<MorningDigest>(brainUrl("/digest", projectId));
+	}
+
+	// =========================================================================
+	// Feedback (24.J — Feedback Loop)
+	// =========================================================================
+
+	async submitFeedback(
+		data: {
+			itemType: FeedbackItemType;
+			itemId: string;
+			itemTitle: string;
+			rating: 1 | -1;
+			comment?: string;
+		},
+		projectId?: string | null,
+	): Promise<FeedbackEntry> {
+		return apiFetch<FeedbackEntry>(brainUrl("/feedback", projectId), {
+			method: "POST",
+			body: JSON.stringify(data),
+		});
+	}
+
+	async listFeedback(
+		params?: {
+			itemType?: string;
+			itemId?: string;
+			rating?: number;
+			applied?: boolean;
+			limit?: number;
+			offset?: number;
+		},
+		projectId?: string | null,
+	): Promise<FeedbackQueryResult> {
+		const qs = new URLSearchParams();
+		if (params?.itemType) qs.set("itemType", params.itemType);
+		if (params?.itemId) qs.set("itemId", params.itemId);
+		if (params?.rating !== undefined) qs.set("rating", String(params.rating));
+		if (params?.applied !== undefined) qs.set("applied", String(params.applied));
+		if (params?.limit) qs.set("limit", String(params.limit));
+		if (params?.offset) qs.set("offset", String(params.offset));
+		return apiFetch<FeedbackQueryResult>(`${brainUrl("/feedback", projectId)}?${qs}`);
+	}
+
+	async getFeedbackStats(projectId?: string | null): Promise<FeedbackStats> {
+		return apiFetch<FeedbackStats>(brainUrl("/feedback/stats", projectId));
+	}
+
+	async updateFeedback(
+		id: string,
+		updates: {
+			rating?: 1 | -1;
+			comment?: string;
+			applied?: boolean;
+		},
+		projectId?: string | null,
+	): Promise<FeedbackEntry> {
+		return apiFetch<FeedbackEntry>(
+			`${brainUrl("/feedback", projectId)}/${encodeURIComponent(id)}`,
+			{
+				method: "PATCH",
+				body: JSON.stringify(updates),
+			},
+		);
+	}
+
+	async deleteFeedback(id: string, projectId?: string | null): Promise<void> {
+		return apiFetch<void>(
+			`${brainUrl("/feedback", projectId)}/${encodeURIComponent(id)}`,
+			{ method: "DELETE" },
+		);
 	}
 }
 

@@ -241,14 +241,17 @@ describe("P19 — Hooks export correctly", () => {
 // =========================================================================
 
 describe("P19.H — LeftNav integration", () => {
-	it("PLATFORM_NAV_ENTRIES includes all brain pages", async () => {
+	it("BRAIN_NAV_ENTRIES includes all brain pages", async () => {
 		const mod = await import("../src/components/LeftNav");
-		const ids = mod.PLATFORM_NAV_ENTRIES.map((e: any) => e.id);
+		const ids = mod.BRAIN_NAV_ENTRIES.map((e: any) => e.id);
+		expect(ids).toContain("brain_digest");
 		expect(ids).toContain("brain_state");
-		expect(ids).toContain("brain_inbox");
+		expect(ids).toContain("brain_proposals");
 		expect(ids).toContain("brain_memory");
 		expect(ids).toContain("brain_reflections");
 		expect(ids).toContain("brain_overnight");
+		expect(ids).toContain("brain_goals");
+		expect(ids).toContain("brain_trust");
 	});
 });
 

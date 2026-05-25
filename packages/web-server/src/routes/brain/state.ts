@@ -6,7 +6,19 @@
  * - Per-project: prefix "/api/projects/:projectId/brain" → /api/projects/:projectId/brain/state
  */
 
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
+
+/**
+ * Resolve the .pi directory the same way the orchestrator routes do.
+ */
+function resolvePiDir(): string {
+	let piDir = resolve(process.cwd(), ".pi");
+	if (!existsSync(piDir)) piDir = resolve(process.cwd(), "../..", ".pi");
+	if (!existsSync(piDir)) piDir = resolve(process.cwd(), "../../..", ".pi");
+	return piDir;
+}
 
 export async function registerBrainStateRoutes(fastify: FastifyInstance): Promise<void> {
 	// GET /state - Brain daemon status summary
@@ -14,7 +26,8 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 		try {
 			const { getBrainState } = await import("@earendil-works/pi-coding-agent");
 			const { projectId } = request.params as { projectId?: string };
-			const state = await getBrainState(projectId);
+			const piDir = resolvePiDir();
+			const state = await getBrainState(projectId, piDir);
 			return state;
 		} catch {
 			return reply.code(500).send({

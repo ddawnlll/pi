@@ -350,3 +350,36 @@ export {
 	validateBrainSignal,
 	validateBrainTimelineEvent,
 } from "./types.js";
+
+// Pi Inbox (24.M)
+export { PiInboxStore } from "./inbox/pi-inbox-store.js";
+export type { PiInboxStoreConfig, PiInboxListResult, PiInboxQuery } from "./inbox/pi-inbox-store.js";
+export type {
+	PiInboxMessage,
+	PiInboxMessagePriority,
+	PiInboxMessageType,
+	PiInboxStats,
+	ValidationResult as PiInboxValidationResult,
+} from "./inbox/types.js";
+export {
+	ALL_PI_INBOX_MESSAGE_TYPES,
+	ALL_PI_INBOX_PRIORITIES,
+	createPiInboxMessage,
+	validatePiInboxMessage,
+} from "./inbox/types.js";
+
+// Feedback Store (24.J)
+export { FeedbackStore } from "./attention/feedback-store.js";
+export type {
+	FeedbackEntry,
+	FeedbackItemType,
+	FeedbackQuery,
+	FeedbackQueryResult,
+	FeedbackRating,
+	FeedbackStats,
+} from "./attention/feedback-store.js";
+export {
+	ALL_FEEDBACK_ITEM_TYPES,
+	createFeedbackEntry,
+	validateFeedbackEntry,
+} from "./attention/feedback-store.js";
