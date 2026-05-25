@@ -4834,6 +4834,18 @@ await fastify.register(
 );
 
 // ---------------------------------------------------------------------------
+// Brain Digest Action Routes (24.K — Digest Quick Actions)
+// ---------------------------------------------------------------------------
+
+const { registerDigestActionRoutes } = await import("./digest-action-routes.js");
+await fastify.register(
+	async (scoped) => {
+		await registerDigestActionRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
+
+// ---------------------------------------------------------------------------
 // Brain Overnight Routes (P20 — Overnight Queue)
 // ---------------------------------------------------------------------------
 
@@ -4871,6 +4883,7 @@ await fastify.register(
 		await registerBrainPolicyRoutes(scoped);
 		await registerBrainAuditRoutes(scoped);
 		await registerBrainDigestRoutes(scoped);
+		await registerDigestActionRoutes(scoped);
 		await registerBrainOvernightRoutes(scoped);
 		await registerFeedbackRoutes(scoped);
 	},
