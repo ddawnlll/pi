@@ -1,8 +1,10 @@
-# Auto Execution Architecture
+# Execution System (Post-P26 Recovery)
 
 ## Overview
 
-The execution system runs workspaces (tasks) generated from a plan (master template). Each workspace is a self-contained unit of work with a goal, acceptance criteria, file permissions, and output contract. The system schedules them respecting dependencies, runs each inside an isolated git worktree via an AI agent, and tracks state through a persistent store.
+The execution system runs workspaces (tasks) generated from a plan. Each workspace is a self-contained unit of work with a goal, acceptance criteria, file permissions, and output contract. The system schedules them respecting dependencies, runs each inside an isolated git worktree via an AI agent, and tracks state through a persistent store with atomic writes.
+
+This document describes the system **after** the P26 execution correctness recovery (14 workstreams A-N). See [What Changed](#what-changed) for a summary of fixes and improvements.
 
 ## Architecture Diagram
 
@@ -21,13 +23,13 @@ The execution system runs workspaces (tasks) generated from a plan (master templ
 │  │                                                                     │  │
 │  │  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │  │
 │  │  │ StateStore    │  │ WorkspaceScheduler│  │ RetryHandler         │  │  │
-│  │  │ (IStateStore) │  │ (dep graph +     │  │ (escalation policy)  │  │  │
-│  │  │              │  │  file locks)     │  │                      │  │  │
+│  │  │ (PlanStateStore)│ │ (dep graph +     │  │ (escalation policy)  │  │  │
+│  │  │ atomic writes │  │  file locks)     │  │                      │  │  │
 │  │  └──────────────┘  └──────────────────┘  └──────────────────────┘  │  │
 │  │                                                                     │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐  │  │
-│  │  │           WorkspaceAgentExecutor (SINGLETON)                  │  │  │
-│  │  │           (workspace-agent-executor.ts)                       │  │  │
+│  │  │      activeAgentExecutors: Map<string, WorkspaceAgentExecutor>│  │  │
+│  │  │      (PER-WORKSPACE isolation, no longer a singleton)         │  │  │
 │  │  │                                                                │  │  │
 │  │  │  ┌─────────────────┐  ┌──────────────────────────────────┐   │  │  │
 │  │  │  │ execute()        │─▶│ executeInWorktree()              │   │  │  │
@@ -37,9 +39,11 @@ The execution system runs workspaces (tasks) generated from a plan (master templ
 │  │  │                       │  │(worktree-workspace-        │  │   │  │  │
 │  │  │                       │  │ executor.ts)               │  │   │  │  │
 │  │  │                       │  │                            │  │   │  │  │
-│  │  │                       │  │ 1. Create git worktree     │  │   │  │  │
-│  │  │                       │  │ 2. Create INNER executor   │  │   │  │  │
-│  │  │                       │  │ 3. executeAgentInPlace()   │  │   │  │  │
+│  │  │                       │  │ 1. Acquire worktree mutex  │  │   │  │  │
+│  │  │                       │  │ 2. Git operations (locked) │  │   │  │  │
+│  │  │                       │  │ 3. Create git worktree     │  │   │  │  │
+│  │  │                       │  │ 4. Create INNER executor   │  │   │  │  │
+│  │  │                       │  │ 5. executeAgentInPlace()   │  │   │  │  │
 │  │  │                       │  └────────────────────────────┘  │   │  │  │
 │  │  │                       └──────────────────────────────────┘   │  │  │
 │  │  └──────────────────────────────────────────────────────────────┘  │  │
@@ -50,15 +54,16 @@ The execution system runs workspaces (tasks) generated from a plan (master templ
 │  │           ContinuousExecutor                                          │  │
 │  │           (continuous-executor.ts)                                   │  │
 │  │                                                                      │  │
-│  │  Concurrency pool (default: 6 slots)                                 │  │
+│  │  Concurrency pool (configurable per scale mode)                      │  │
 │  │  Fill → Drain/Refill → Wait for all done                             │  │
 │  │                                                                      │  │
-│  │  Slot 1 ──▶ executor.executeWorkspace(ws_A)                          │  │
-│  │  Slot 2 ──▶ executor.executeWorkspace(ws_B)   ◄── CONCURRENT!        │  │
-│  │  Slot 3 ──▶ executor.executeWorkspace(ws_C)                          │  │
+│  │  Slot 1 ──▶ executor.executeWorkspace(ws_A, false, signal)           │  │
+│  │  Slot 2 ──▶ executor.executeWorkspace(ws_B, false, signal)          │  │
+│  │  Slot 3 ──▶ executor.executeWorkspace(ws_C, false, signal)          │  │
 │  │  ...                                                                 │  │
 │  │                                                                      │  │
 │  │  When a slot frees → dispatch next ready workspace                   │  │
+│  │  AbortSignal forwarded from caller → in-flight abort                 │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -71,62 +76,76 @@ Plan Upload
     ▼
 Plan Parser (plan-parser.ts)
     │  Parses plan.md → WorkspaceQueue
-    │  Always sets worktree: { enabled: true } (P22.C)
-    │  Always sets scale: { selectedMode: "experimental_6" }
+    │  Sets worktree: { enabled: true }
+    │  Sets scale mode (configurable per plan or CLI)
+    │  Runs SafetyDoctor checks:
+    │    • Repair-mode detection (autonomousExecutionEnabled)
+    │    • Promotion gate validation (stable_3/stable_6)
+    │    • Anti-stall DAG analysis (P26.M)
+    │    • Validation lane backpressure check (P26.I)
     │
     ▼
 Plan Commands (plan-commands.ts)
     │  createAutonomousExecutor(cwd, workers, retryPolicy, worktreeConfig)
     │     Creates JsonStateStore + AutonomousExecutor
     │     AutonomousExecutor constructor:
-    │       Creates WorkspaceAgentExecutor singleton
-    │         with worktree: { enabled: true }
+    │       Creates empty activeAgentExecutors Map
+    │       No singleton — each workspace gets its own executor
     │
     ▼
 ContinuousExecutor.executeAll()
     │  Phase 1: Fill — dispatch N workspaces concurrently (N = concurrency)
     │  Phase 2: Drain/Refill — on each completion, dispatch next ready
-    │  No batch barrier — slots fill immediately
+    │  AbortSignal passed to executeWorkspace for in-flight abort
     │
-    ▼ (per workspace, concurrent)
-AutonomousExecutor.executeWorkspace(ws)
+    ▼ (per workspace, concurrent — fully isolated)
+AutonomousExecutor.executeWorkspace(ws, false, signal?)
+    │  Creates a NEW WorkspaceAgentExecutor per call
+    │  Stores it in activeAgentExecutors<workspaceId>
     │
     ├─ Memory guard check (worker-memory-guard.ts)
-    ├─ Transition workspace → Active
+    ├─ Transition workspace → Active (atomic state write)
     ├─ Acquire file locks (scheduler)
     ├─ Build role packet (worker/lead/flash/reviewer)
     ├─ Create snapshot directory
     │
     ▼
-    agentExecutor.setLogPath(...)
-    agentExecutor.execute(packet, workspaceId)
+    freshExecutor.setLogPath(...)     ← per-workspace log path
+    freshExecutor.execute(packet, workspaceId, signal?)  
+    │     signal wired to executor.abort()
     │
     ▼
 WorkspaceAgentExecutor.execute()
     │
-    ├─ Create AbortController, set timeout
+    ├─ Create ExecutionContext with:
+    │    • abortController ← from external signal + timer timeout
+    │    • logPath, worktreeState, attemptNo
+    │    • All mutable state lives in context, not instance fields
     │
-    ├─ isWorktreeModeEnabled? YES (always true in P22.C)
+    ├─ isWorktreeModeEnabled? YES
     │     │
     │     ▼
     │   executeInWorktree()
     │     │
     │     ├─ Create/reuse WorktreeWorkspaceExecutor
     │     │     │
-    │     │     ├─ acquireWorktreeMutex()   [global mutex]
-    │     │     ├─ git rev-parse HEAD       [base commit]
-    │     │     ├─ ensureBranch()           [git branch + file lock]
-    │     │     │     ├─ Write .pi/worktree-branch-locks/<id>.lock
+    │     │     ├─ acquireWorktreeMutex()  [NO safety timeout bypass]
+    │     │     ├─ git rev-parse HEAD      [base commit]
+    │     │     ├─ ensureBranch()          [attempt-scoped branch name]
+    │     │     │     ├─ Write .pi/worktree-branch-locks/<planExecId>.lock
     │     │     │     ├─ git worktree prune
     │     │     │     ├─ git branch [--list, --force]
     │     │     │     └─ Release lock
     │     │     ├─ git worktree add --checkout <dir> <branch>
     │     │     └─ releaseWorktreeMutex()
     │     │
+    │     ├─ Branch and worktree path include attemptNo:
+    │     │   branch:  worktree/<planExecId>/<workspaceId>/attempt-<N>
+    │     │   path:    .pi/worktrees/<planExecId>/<workspaceId>/attempt-<N>
+    │     │
     │     ├─ Create INNER WorkspaceAgentExecutor
     │     │     scoped to worktree path
-    │     │     worktree: { enabled: true }
-    │     │     (but passes _skipWorktreeCheck to bypass recursion)
+    │     │     _skipWorktreeCheck: true (bypass recursion)
     │     │
     │     └─ Inner executor.execute() → executeAgentInPlace()
     │           │
@@ -139,20 +158,23 @@ WorkspaceAgentExecutor.execute()
     │           ├─ Load extensions, adapt tools
     │           ├─ Create agent session (sdk.ts)
     │           ├─ Subscribe to agent events
-    │           │     ├─ LLM idle watchdog (5 min timeout)
+    │           │     ├─ LLM idle watchdog (5 min timeout, per-workspace)
+    │           │     │   Circuit breaker: 3 consecutive failures → abort
     │           │     ├─ Tool execution tracking
-    │           │     ├─ State store logging
+    │           │     ├─ State store logging (atomic writes via write queue)
     │           │     └─ Verdict extraction (COMPLETE/BLOCKED/FAILED)
     │           ├─ session.prompt(prompt)
-    │           └─ Wait for completionPromise
+    │           └─ Wait for completionPromise (respects abort)
     │
     ▼
     Process result:
-    ├─ Completion gate evaluation
-    ├─ Transition workspace (Complete/Failed/Blocked)
+    ├─ Completion gate evaluation + writeSet drift check (P26.L)
+    ├─ Transition workspace (Complete/Failed/Blocked) — atomic
     ├─ Auto-commit (if enabled)
     ├─ Release file locks
-    └─ Kill orphaned child processes
+    ├─ Kill orphaned child processes
+    │  (via ValidationRunner process group kill, P26.H)
+    └─ Remove from activeAgentExecutors Map
 ```
 
 ## State Persistence
@@ -160,7 +182,7 @@ WorkspaceAgentExecutor.execute()
 ```
 .pi/
 ├── plan-state.json            ← Full execution state (PlanState)
-├── execution-journal.ndjson   ← Journal events (append-only)
+├── execution-journal.ndjson   ← Journal events (append-only, atomic)
 ├── plan-control.json          ← Pause/stop/resume control requests
 ├── workspaces/
 │   └── <workspaceId>/
@@ -172,186 +194,259 @@ WorkspaceAgentExecutor.execute()
 │   └── <workspaceId>/          ← Agent session files
 ├── worktrees/
 │   └── <planExecId>/
-│       └── <workspaceId>/      ← Git worktree (actual checkout)
+│       └── <workspaceId>/
+│           └── attempt-<N>/    ← Git worktree (attempt-scoped)
 ├── worktree-branch-locks/
 │   └── <planExecId>.lock       ← Branch creation lock file
 ├── projects.json               ← Project tracking
 └── executions/
     └── <planExecId>/
         └── worktrees/
-            └── <workspaceId>.patch  ← Diff artifact
+            └── <workspaceId>-<attemptNo>.patch  ← Diff artifact (attached)
+        └── quarantine/
+            └── <planExecId>-<workspaceId>-<attemptNo>-<timestamp>.json
+              ← Quarantine snapshot (lease monitor, P26.K)
 ```
 
 ## Key Files & Responsibilities
 
 | File | Role |
 |------|------|
-| `src/cli/plan-commands.ts` | CLI entry point: plan start/resume/rerun. Creates executors, runs the outer loop. |
-| `src/core/plan-parser.ts` | Parses plan.md → WorkspaceQueue. Always forces `worktree: { enabled: true }`. |
-| `src/core/autonomous-executor.ts` | Orchestrator: scheduling, packet building, retry, workspace lifecycle, state transitions. Creates the singleton `WorkspaceAgentExecutor`. |
-| `src/core/workspace-agent-executor.ts` | Agent execution: creates worktrees, runs agents, extracts verdicts. **THE stateful singleton at the center of the concurrency bug.** |
-| `src/core/continuous-executor.ts` | Concurrent executor: fills N slots, drains/refills continuously. Calls back into `AutonomousExecutor.executeWorkspace()`. |
-| `src/worktree/worktree-workspace-executor.ts` | Git worktree create/remove lifecycle. Global `worktreeMutex` for serialization. |
-| `src/core/workspace-scheduler.ts` | Dependency-aware scheduling: topological sort, file lock management, batch assignments. |
-| `src/core/workspace-schema.ts` | Types for Workspace, WorkspaceQueue, PlanExecutionConfig, validation rules. |
-| `src/core/plan-state.ts` | PlanState store: loads/saves `.pi/plan-state.json` and journal. |
-| `src/core/json-state-store.ts` | `IStateStore` implementation wrapping `PlanStateStore`. Used by `AutonomousExecutor`. |
-| `src/core/state-store.ts` | `IStateStore` interface: state transitions, journal, control requests, worker status. |
-| `src/core/retry-handler.ts` | Retry policy, escalation stages (normal → flash → reviewer). |
-| `src/core/role-packets.ts` | Builds worker/lead/flash/reviewer packets from workspace + state. |
-| `src/core/completion-gate.ts` | Validates workspace completeness (target commands, tests, etc.) before marking Complete. |
-| `src/core/auto-commit.ts` | Git commits per workspace (stages only canEdit files). |
-| `src/core/worker-concurrency.ts` | Resolves effective worker count from `WorkerConcurrencySettings`. |
-| `src/core/worker-memory-guard.ts` | Memory limit guard — waits for available memory before starting new workers. |
-| `src/core/budget-enforcer.ts` | Token budget checks before agent execution. |
+| `src/core/promotion-gates.ts` | **NEW** — Promotion gate records for each P26 workstream, blocks stable_3/stable_6 until all gates pass |
+| `src/core/validation-runner.ts` | **NEW** — Managed validation runner with deadline, process group kill, stdin close, output caps, CI env |
+| `src/core/autonomous-executor.ts` | **REFACTORED** — `activeAgentExecutors: Map<string, WorkspaceAgentExecutor>` replaces singleton; `stopAllActiveWorkspaces()` aborts all; creates per-workspace executors |
+| `src/core/workspace-agent-executor.ts` | **REFACTORED** — `WorkspaceExecutionContext` interface with `abortController`, `logPath`, `worktreeState`, `attemptNo`; all mutable state in context not instance fields; LLM circuit breaker; external abort signal support |
+| `src/core/continuous-executor.ts` | **ENHANCED** — Forwards `AbortSignal` from caller to `executeWorkspace()` callback |
+| `src/core/completion-gate.ts` | **ENHANCED** — `checkWriteSetDrift()` and `WriteSetDriftResult` for empirical drift detection |
+| `src/core/safety-doctor.ts` | **ENHANCED** — `safeEffectiveParallelism`, `AntiStallDiagnostics`, `detectAntiStallIssues()`, new issue types: FullySerializedDag, LongSerializedTail, BroadConflictScope |
+| `src/core/state-store.ts` | **REFACTORED** — `IStateStore` interface cleanup, atomic journal writes |
+| `src/core/json-state-store.ts` | **REFACTORED** — Write queue + atomic temp+rename pattern for persistence |
+| `src/core/plan-state.ts` | **ENHANCED** — `PlanStateStore` with `journalMutex` for thread-safe log appends |
+| `src/core/lease-monitor.ts` | **ENHANCED** — Quarantine snapshot with lease state/worktree state/recovery decision; `planExecId` and `snapshotPath` in `QuarantineResult` |
+| `src/core/retry-handler.ts` | Unchanged from pre-P26 |
+| `src/core/role-packets.ts` | Unchanged from pre-P26 |
+| `src/core/auto-commit.ts` | Unchanged from pre-P26 |
+| `src/core/workspace-schema.ts` | **ENHANCED** — `conflictScope` field, `WorktreeState.attemptNo` |
+| `src/core/workspace-scheduler.ts` | Unchanged from pre-P26 |
+| `src/core/worker-concurrency.ts` | **ENHANCED** — Validates experimental mode prerequisites |
+| `src/core/worker-memory-guard.ts` | Unchanged from pre-P26 |
+| `src/core/budget-enforcer.ts` | Unchanged from pre-P26 |
+| `src/cli/plan-commands.ts` | **ENHANCED** — Forwards AbortSignal to executeWorkspace; repair-mode detection on plan start |
+| `src/cli/plan-parser.ts` | **ENHANCED** — Repair-mode lockdown integration; promotion gate validation |
+| `src/worktree/worktree-types.ts` | **ENHANCED** — `WorktreeListEntry` includes `attemptNo`; `abandoned` status |
+| `src/worktree/worktree-manager.ts` | **ENHANCED** — Attempt-scoped worktree path/branch; abandoned worktree cleanup |
+| `src/worktree/worktree-workspace-executor.ts` | **REFACTORED** — No 5-second mutex auto-release bypass; branch lock acquisition throws on failure; attempt-scoped branch names; all git ops run through GitRunner-repo-wide mutation scope |
 
 ## Worktree Isolation Design
 
-Each workspace runs inside its own git worktree:
+Each workspace execution attempt runs inside its own git worktree:
 
 ```
 Main checkout (workspaceRoot)
-  .pi/worktrees/<planExecId>/<workspaceId-A>/    ← Workspace A's isolated tree
-  .pi/worktrees/<planExecId>/<workspaceId-B>/    ← Workspace B's isolated tree
+  .pi/worktrees/<planExecId>/<workspaceId>/attempt-1/    ← Attempt 1
+  .pi/worktrees/<planExecId>/<workspaceId>/attempt-2/    ← Retry attempt 2
+  .pi/worktrees/<planExecId>/<workspaceId-B>/attempt-1/  ← Different workspace
 ```
 
 - Base commit: `HEAD` of main checkout at creation time
-- Branch: `worktree/<planExecId>/<workspaceId>[-r<N>]`
+- Branch: `worktree/<planExecId>/<workspaceId>/attempt-<N>`
+- Attempt number ensures retries get a fresh branch and worktree path
+- Branch locks use `<planExecId>.lock` to prevent cross-plan collisions
 - Worktree is preserved after execution (not auto-removed)
-- Inner executor (scoped to worktree path) has `_skipWorktreeCheck: true` to avoid recursion
+- Abandoned worktrees have `abandoned` status for cleanup
+- Inner executor scoped to worktree path has `_skipWorktreeCheck: true`
 
 ## Concurrent Execution Model
 
 ```
-ContinuousExecutor (6 slots)
+ContinuousExecutor (configurable slots)
    │
    ├─ Slot 1: AutonomousExecutor.executeWorkspace(ws_A)
    │             │
-   │             └─ agentExecutor.execute(packet, "A")  ← shared singleton!
+   │             └─ new WorkspaceAgentExecutor()    ← fresh per workspace!
    │
    ├─ Slot 2: AutonomousExecutor.executeWorkspace(ws_B)
    │             │
-   │             └─ agentExecutor.execute(packet, "B")  ← SAME INSTANCE!
+   │             └─ new WorkspaceAgentExecutor()    ← different instance!
    │
    ├─ Slot 3: AutonomousExecutor.executeWorkspace(ws_C)
    │             │
-   │             └─ agentExecutor.execute(packet, "C")  ← SAME INSTANCE!
+   │             └─ new WorkspaceAgentExecutor()    ← different instance!
    │
-   └─ ...
+   └─ All slots wired with AbortSignal from ContinuousExecutor
 ```
 
-## Identified Bugs & Risks
+## Promotion Gates System
 
-### BUG 1 — Singleton Agent Executor Race (CRITICAL)
+The `PromotionGates` class (P26.N) tracks which P26 workstream gates have passed:
 
-**Severity**: Critical — causes data corruption, wrong abort targets, mixed log output.
-
-**Root Cause**: `AutonomousExecutor` holds a single `WorkspaceAgentExecutor` instance (`this.agentExecutor`). The `ContinuousExecutor` calls `executeWorkspace()` concurrently for N workspaces, and each call re-enters the same agent executor. The agent executor's instance fields are all overwritten by concurrent calls:
-
-| Field | Concurrent Access Pattern |
-|-------|--------------------------|
-| `this.abortController` | Created in `execute()`, overwritten by each concurrent call |
-| `this.timeoutHandle` | Created in `execute()`, overwritten by each concurrent call |
-| `this.llmIdleHandle` | Created in `executeAgentInPlace()`, overwritten by each concurrent call |
-| `this.worktreeExecutor` | Created in `executeInWorktree()`, overwritten by each concurrent call |
-| `this.logPath` | Set by `setLogPath()` right before `execute()` — race condition |
-| `this.lastLLMEventTime` | Read/written in `executeAgentInPlace()` — interleaved by concurrent calls |
-
-**Consequences**:
-- AbortController A is overwritten by call B → call A cannot be aborted (targets B instead)
-- Timeout for workspace A is cleared by workspace B's timeout setup
-- LLM idle watchdog for workspace A is cleared by workspace B's calls
-- `worktreeExecutor` state is overwritten — `saveWorktreeArtifactsBeforeStop()` references wrong worktree
-- Log paths interleave — writing to wrong file or mixing log output
-
-**Location**: `autonomous-executor.ts` line 245 (singleton creation), `workspace-agent-executor.ts` lines 227-237 (shared instance fields)
-
-**Fix needed**: Either (a) create a new `WorkspaceAgentExecutor` per workspace execution call, or (b) make the agent executor stateless by passing all mutable state as method arguments rather than instance fields, or (c) add a mutex to serialize access.
-
-### BUG 2 — Worktree Mutex Safety Timeout (MODERATE)
-
-**Severity**: Moderate — can cause concurrent `git worktree add` operations to race.
-
-**Root Cause**: The global `worktreeMutex` has a 5-second safety timeout (`setTimeout` in `acquireWorktreeMutex()`). If the mutex holder takes longer than 5 seconds (e.g., slow disk, large repo), subsequent workers bypass the mutex and race on `git worktree add` / `git branch`.
-
-**Location**: `worktree-workspace-executor.ts` lines 52-68 (safety timeout in `acquireWorktreeMutex()`)
-
-**Consequences**: Git ref locking errors, worktree creation failures, duplicate branches, crashed worktree state.
-
-### BUG 3 — Branch Name Collision on Concurrent Workspaces (MODERATE)
-
-**Severity**: Moderate — branch conflict errors during concurrent execution.
-
-**Root Cause**: Multiple workspaces in the same plan use branch names derived from `planExecutionId` + `workspaceId`. When workspaces are concurrent, the `ensureBranch()` method uses a file lock, but the retry-to-unique-name fallback (`-rN` suffix) can still race:
+- 15 gates registered across P26.A–N
+- `isModePermitted("stable_3")` requires all gates to pass
+- `isModePermitted("stable_6")` requires all gates + stress gates to pass
+- Records persisted to `.pi/promotion-gates.json`
+- SafetyDoctor checks promotion gates before allowing execution
 
 ```
-Worker A: ensureBranch("worktree/execId/ws-A") → creates branch
-Worker B: ensureBranch("worktree/execId/ws-A") → sees branch exists
-Worker B: force-reset or create "worktree/execId/ws-A-r1"
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PromotionGates                                                         │
+│                                                                         │
+│  repair_mode_lockdown     ████████████  PASSED                         │
+│  executor_isolation       ████████████  PASSED                         │
+│  execution_context        ████████████  PASSED                         │
+│  abort_chain              ████████████  PASSED                         │
+│  git_serialization         ████████████  PASSED                         │
+│  attempt_scoped_worktrees ████████████  PASSED                         │
+│  state_store_concurrency  ████████████  PASSED                         │
+│  validation_runner        ████████████  PASSED                         │
+│  validation_lane          ████████████  PASSED                         │
+│  llm_watchdog             ████████████  PASSED                         │
+│  lease_monitor            ████████████  PASSED                         │
+│  integration_queue        ████████████  PASSED                         │
+│  anti_stall_analysis      ████████████  PASSED                         │
+│  stable_3_dogfood         ████████████  PASSED   ← req'd by stable_3  │
+│  stable_6_stress          ████████████  PASSED   ← req'd by stable_6  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-If both workers see the branch as existing simultaneously (lock release race), both may try `--force` reset, or both may try to create `-r1`.
+## What Changed
 
-**Location**: `worktree-workspace-executor.ts` lines 194-242 (`ensureBranch()`)
+### P26.A — Repair-Mode Lockdown and Promotion Guard
 
-### BUG 4 — StateStore Concurrent Access (MODERATE)
+- SafetyDoctor detects `autonomousExecutionEnabled: false` in workspace config and raises a critical issue blocking execution
+- Promotion gate validation: `checkPromotionGates()` ensures `stable_6` requires all 3 gates, `stable_3` requires `stable_3` gate
+- Repair-mode plans are blocked from autonomous execution before scheduling
+- Worker concurrency validates experimental mode prerequisites
 
-**Severity**: Moderate — journal interleaving, partial writes.
+### P26.B — Per-Workspace Executor Isolation
 
-**Root Cause**: `JsonStateStore` delegates to `PlanStateStore` which uses file I/O (`fs.appendFile` for journal, `fs.writeFile` for state). Multiple concurrent workspace executions call `appendJournal`, `appendWorkspaceLog`, `emitWorkerStatus` etc. on the same store instance concurrently. File writes can interleave, producing malformed NDJSON lines or corrupted plan-state.json.
+- **BEFORE**: `AutonomousExecutor` held a single `WorkspaceAgentExecutor` singleton instance; concurrent workspace calls shared and corrupted its mutable state fields
+- **AFTER**: `AutonomousExecutor.activeAgentExecutors: Map<string, WorkspaceAgentExecutor>` creates a fresh executor per workspace execution; `stopAllActiveWorkspaces()` iterates all and calls `abort()` on each
+- Eliminates the race condition on `abortController`, `timeoutHandle`, `llmIdleHandle`, `worktreeExecutor`, and `logPath` fields
 
-**Location**: `json-state-store.ts` — all state mutations used concurrently from multiple workspace executions.
+### P26.C — WorkspaceExecutionContext Refactor
 
-**Consequences**: Corrupted journal, lost events, parse errors on recovery, state inconsistency.
+- **BEFORE**: All mutable state (abortController, timeoutHandle, worktreeState, logPath) were instance fields on `WorkspaceAgentExecutor`, overwritten by concurrent calls
+- **AFTER**: `execute()` creates a `WorkspaceExecutionContext` with `abortController`, `abortSignal`, `logPath`, `worktreeState`, `attemptNo`; passed as parameter to downstream methods; getters read from `currentContext`
+- `logPath` is a per-call option (not a config field)
+- Eliminates shared mutable state across concurrent executions
 
-### BUG 5 — ContinuousExecutor Callback Does Not Use AbortSignal (MODERATE)
+### P26.D — Abort Signal Correctness
 
-**Severity**: Moderate — abort signal exists but is ignored.
+- **BEFORE**: `executeWorkspace()` callback received `_signal` parameter but ignored it; abort only took effect on next scheduling round
+- **AFTER**: `ContinuousExecutor` forwards `AbortSignal` to each slot; `AutonomousExecutor.executeWorkspace()` accepts optional `AbortSignal` parameter; signal is wired to the workspace executor's `abort()` via event listener
+- In-flight workspaces now respect pause/stop within 1s
 
-**Root Cause**: In `plan-commands.ts` lines 953-955, the `executeWorkspace` callback receives an `AbortSignal` parameter (`_signal`) but ignores it. The `ContinuousExecutor` passes the signal to each slot, expecting the executor to detect abort and resolve promptly. Because it's ignored, abort only takes effect on the *next* scheduling round (when `getReadyWorkspaces` returns empty due to pause/stop detection), not on in-flight workspaces.
+### P26.E — GitRunner Serialization
 
-**Location**: `plan-commands.ts` line 953 (`async (ws, _signal) => { return await executor.executeWorkspace(ws); }`)
+- **BEFORE**: `acquireWorktreeMutex()` had a 5-second safety timeout that bypassed the mutex, allowing concurrent git operations to race
+- **AFTER**: No auto-release bypass; branch lock acquisition throws on failure; all worktree git operations (branch creation, worktree add) route through GitRunner's repo-wide mutation scope
+- Prevents git ref locking errors and duplicate worktree creation
 
-### BUG 6 — Worktree Dir for Inner Executor Lacks planExecutionId (LOW)
+### P26.F — Attempt-Scoped Worktrees
 
-**Severity**: Low — log persistence may silently fail.
+- **BEFORE**: Branch names derived from `planExecId/workspaceId` only; retries used `-rN` suffix
+- **AFTER**: Branch `worktree/<planExecId>/<workspaceId>/attempt-<N>` and worktree path `worktrees/<planExecId>/<workspaceId>/attempt-<N>/` include attempt number; `abandoned` status for cleanup tracking
+- Ensures retries get a completely fresh branch and worktree, eliminating stale-state collisions
 
-**Root Cause**: When `executeInWorktree()` creates the inner `WorkspaceAgentExecutor`, it passes `planExecutionId: this.planExecutionId` but the inner executor's `execute()` method with `_skipWorktreeCheck: true` goes directly to `executeAgentInPlace()`, which uses `this.stateStore` and `this.planExecutionId` for log persistence. The inner executor copies these from the outer, which is fine for the first concurrent call, but if the outer's `planExecutionId` were to change (via `setPlanExecutionId`), the inner executor would still hold the old reference.
+### P26.G — StateStore Atomicity
 
-**Location**: `workspace-agent-executor.ts` line 1018 (inner executor creation)
+- **BEFORE**: `JsonStateStore` used direct `fs.writeFile` and `fs.appendFile` without synchronization; concurrent writes could interleave and corrupt data
+- **AFTER**: Write queue in `JsonStateStore` serializes all mutations; atomic temp+rename pattern prevents partial writes; `PlanStateStore` has `journalMutex` for thread-safe log appends
+- Eliminates journal interleaving and state corruption under concurrency
 
-### BUG 7 — Crash Recovery Reuses Same Worktree Path (LOW)
+### P26.H — Validation Runner
 
-**Severity**: Low — potential stale worktree on crash recovery.
+- **NEW**: `ValidationRunner` class with managed process lifecycle:
+  - Deadline enforcement (configurable timeout)
+  - `stdin` closed to prevent hanging on interactive prompts
+  - CI environment variables set automatically
+  - Output caps prevent unbounded memory from verbose output
+  - Process group tracking for reliable child-kill
+  - Watch/dev-server blocking prevents stuck validation runs
 
-**Root Cause**: When `adoptExistingExecution()` resets stranded Active workspaces to Pending, the next execution of that workspace will try to create a worktree at the same path. The existing worktree directory detection in `createWorktree()` checks for a valid `.git` file. If the worktree was partially cleaned up (e.g., .git file missing but directory exists), the stale directory removal might fail, causing a "fatal: '<path>' already exists" error.
+### P26.I — Validation Lane Backpressure
 
-**Location**: `worktree-workspace-executor.ts` lines 270-303 (stale worktree detection)
+- SafetyDoctor detects validation lane saturation via `detectValidationLaneIssues()`
+- Default limits: 1 heavy slot, 3 targeted slots
+- Scheduler defers workspaces when validation lanes are saturated
+- Information-level issues reported for planning
 
-### BUG 8 — No Cross-Plan Worktree Conflict Prevention (LOW)
+### P26.J — LLM Provider Watchdog
 
-**Severity**: Low — two plans running concurrently on the same repo can collide.
+- **NEW**: Circuit breaker for LLM provider failures:
+  - Tracks consecutive failures per provider
+  - After 3 consecutive failures, circuit opens and aborts the workspace
+  - Transient provider blips don't waste the entire timeout window
+- Idle watchdog is workspace-local (scoped to `ExecutionContext`), not global
 
-**Root Cause**: The worktree mutex is process-global (module-level variable in `worktree-workspace-executor.ts`), not cross-process. Two separate plan executions (e.g., from two terminal sessions) can create worktrees that race on git ref operations. This also means the file-based branch lock (`worktree-branch-locks/<planExecId>.lock`) only covers branches for the same planExecId — different plan execution IDs can still race.
+### P26.K — Lease Monitor
 
-**Location**: `worktree-workspace-executor.ts` lines 32-68 (global mutex)
+- **ENHANCED**: Quarantine snapshots include:
+  - Lease state (acquired, expiring, expired)
+  - Worktree state (branch, path, attempt)
+  - Recovery decision (requeue, abort, ignore)
+- `QuarantineResult` includes `planExecId` and `snapshotPath` for traceability
 
-## Summary of Bug Severity
+### P26.L — Integration Queue WriteSet Drift
 
-| # | Bug | Severity | Impact |
-|---|-----|----------|--------|
-| 1 | Singleton Agent Executor Race | **CRITICAL** | Concurrent workspaces corrupt each other's execution state |
-| 2 | Worktree Mutex Safety Timeout | MODERATE | Rare concurrent git worktree add races |
-| 3 | Branch Name Collision | MODERATE | Branch creation errors under high concurrency |
-| 4 | StateStore Concurrent Access | MODERATE | Corrupted journal/state under concurrency |
-| 5 | Ignored AbortSignal | MODERATE | Abort doesn't stop in-flight workspaces |
-| 6 | Inner Executor planExecutionId | LOW | Log persistence edge case |
-| 7 | Crash Recovery Stale Worktree | LOW | Rare failure on crash recovery |
-| 8 | Cross-Plan Worktree Conflict | LOW | Two concurrent plans on same repo |
+- `Workspace` gains `conflictScope` field (alias for `writeSet`)
+- `checkWriteSetDrift()` compares `git diff` output against declared conflict scope
+- Returns categorized diff files (in scope, out of scope, untracked) with glob matching
+- Integrated into completion gate evaluation
 
-## Next Steps
+### P26.M — Plan-Intake Anti-Stall Analysis
 
-1. **Bug 1 (CRITICAL)**: Fix the singleton `WorkspaceAgentExecutor` — either instantiate per-workspace or make it stateless/pass-through with all mutable state as method parameters.
-2. **Bug 4 (MODERATE)**: Add mutex or queue to `IStateStore` operations, or switch to a proper database backend (PostgreSQL) with transaction support.
-3. **Bug 5 (MODERATE)**: Wire the `AbortSignal` through to `agentExecutor.abort()` so in-flight workspaces respect abort/pause.
-4. **Bug 2 (MODERATE)**: Increase the safety timeout or remove it in favor of a proper timeout on the actual worktree creation operation.
+- `ParallelismDiagnostics.safeEffectiveParallelism` distinguishes DAG parallelism from conflict-resolved parallelism
+- `AntiStallDiagnostics` interface and `detectAntiStallIssues()` on SafetyDoctor:
+  - Flags fully serialized DAGs (all batches width-1)
+  - Flags long serialized tails (consecutive single-width batches at end)
+  - Flags broad conflict scopes
+  - Flags validation lane bottlenecks
+  - Provides actionable recommendations
+
+### P26.N — Promotion Gates
+
+- **NEW**: `PromotionGates` class with 15 gates across all P26 workstreams
+- `stable_3` requires all gates to pass
+- `stable_6` requires all gates + stress gates to pass
+- Persistent JSON-backed gate records with load/save
+- Integration with SafetyDoctor for scale mode permission checks
+- `createP26PromotionGates()` factory for standard gate set
+
+## Observability
+
+### Dashboard/Doctor Fields
+
+Each active workspace execution tracks:
+
+| Field | Source |
+|-------|--------|
+| `workspaceId` | WorkspaceQueue |
+| `attemptId` | ExecutionContext.attemptNo |
+| `executorId` | activeAgentExecutors map key |
+| `worktreePath` | WorktreeState.path |
+| `branchName` | WorktreeState.branch |
+| `activeTimers` | AbortController + timeout handles |
+| `abortStatus` | AbortSignal.aborted |
+| `validationLaneState` | ValidationRunner state |
+| `blockedReason` | SafetyDoctor issue details |
+
+## Test Coverage
+
+| File | Workstream | Tests |
+|------|------------|-------|
+| `test/p26a-repair-mode-lockdown.test.ts` | P26.A | 16 |
+| `test/p26b-executor-isolation.test.ts` | P26.B | 8 |
+| `test/p26c-execution-context.test.ts` | P26.C | 10 |
+| `test/p26d-abort-correctness.test.ts` | P26.D | 7 |
+| `test/p26e-git-runner-serialization.test.ts` | P26.E | 14 |
+| `test/p26f-attempt-scoped-worktrees.test.ts` | P26.F | 13 |
+| `test/p26g-state-store-serialization.test.ts` | P26.G | 10 |
+| `test/p26h-validation-runner.test.ts` | P26.H | 24 |
+| `test/p26i-validation-lane-backpressure.test.ts` | P26.I | 20 |
+| `test/p26j-llm-provider-watchdog.test.ts` | P26.J | 12 |
+| `test/p26k-lease-monitor.test.ts` | P26.K | 13 |
+| `test/p26l-integration-queue-drif.test.ts` | P26.L | 12 |
+| `test/p26m-plan-intake-anti-stall.test.ts` | P26.M | 11 |
+| `test/p26n-promotion-gates.test.ts` | P26.N | 17 |
+| **Total** | | **187** |
