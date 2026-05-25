@@ -33,6 +33,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
 import { WarningBanner } from "./components/WarningBanner";
 import { RerunDialog } from "./components/RerunDialog";
+import { ForceKillDialog } from "./components/ForceKillDialog";
 import { StatusBadge } from "./components/StatusBadge";
 import { IconBtn, LabeledBtn } from "./components/IconBtn";
 import { StatCard } from "./components/StatCard";
@@ -85,7 +86,7 @@ function platformScreen(s: PlatformNavItem): React.ReactNode | null {
 
 const API_BASE = "";
 
-async function sendControlCommand(action: "pause" | "stop" | "cancel" | "resume", planExecId: string | null) {
+async function sendControlCommand(action: "pause" | "stop" | "cancel" | "resume" | "force-kill", planExecId: string | null) {
   try {
     const url = planExecId ? `${API_BASE}/api/executions/${planExecId}/control` : `${API_BASE}/api/control`;
     const body = planExecId ? { action } : { action, requestedAt: new Date().toISOString(), requestedBy: "dashboard" };
@@ -362,6 +363,7 @@ export function App() {
   const canStop = activePlanStatus === "running" || activePlanStatus === "paused";
   const canRerun = activePlanStatus === "failed" || activePlanStatus === "stopped" || activePlanStatus === "cancelled";
   const controlDisabled = selectedPlanExecId === null;
+  const canForceKill = activePlanStatus === "running" || activePlanStatus === "paused";
 
   const activeWorkspaces: WorkspaceSummary[] = isLegacyMode
     ? (legacyPlanState?.workspaces?.map(ws => ({ id: ws.workspaceId, stage: ws.stage, attempts: ws.attempts, error: ws.error ?? null, startedAt: ws.startedAt ?? null, completedAt: ws.completedAt ?? null })) ?? [])
@@ -420,9 +422,19 @@ export function App() {
     if (!res.success) showError(res.error || `Failed to ${action}`);
   }, [showError, selectedPlanExecId]);
 
+  const [showForceKillConfirm, setShowForceKillConfirm] = useState(false);
+
+  const handleForceKill = useCallback(async () => {
+    if (!selectedPlanExecId) return;
+    setShowForceKillConfirm(false);
+    const res = await sendControlCommand("force-kill", selectedPlanExecId);
+    if (!res.success) showError(res.error || "Failed to force kill workers");
+  }, [showError, selectedPlanExecId]);
+
   const handleStopWorker = useCallback(async (workerId: string) => {
-    // Force stop: stop the entire plan execution (kills all active workers)
-    const res = await sendControlCommand("stop", selectedPlanExecId);
+    // Individual worker stop: force-kill the entire plan
+    if (!selectedPlanExecId) return;
+    const res = await sendControlCommand("force-kill", selectedPlanExecId);
     if (!res.success) showError(res.error || `Failed to stop worker ${workerId}`);
   }, [showError, selectedPlanExecId]);
 
@@ -598,6 +610,8 @@ export function App() {
         onStop={() => handleControl("stop")}
         canRerun={!!selectedPlanExecId && canRerun}
         onRerun={() => setShowRerunDialog(true)}
+        canForceKill={canForceKill}
+        onForceKill={() => setShowForceKillConfirm(true)}
         onSettings={() => setShowSettingsDialog(true)}
         activeViewType={activeView.type}
         onUploadPlan={handleUploadPlan}
@@ -990,6 +1004,12 @@ export function App() {
         onConfirm={handleRerun}
         executionDetail={executionDetail ?? null}
         loading={rerunning}
+      />
+      <ForceKillDialog
+        isOpen={showForceKillConfirm}
+        onClose={() => setShowForceKillConfirm(false)}
+        onConfirm={handleForceKill}
+        executionTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
       />
       <ChatPanel
         isOpen={showChat}

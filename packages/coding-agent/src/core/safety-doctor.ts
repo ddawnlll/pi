@@ -441,6 +441,24 @@ export class SafetyDoctor {
 					});
 				}
 			}
+
+			// Promote file overlap warnings to CRITICAL errors — same-batch workspaces
+			// that share canEdit files cannot actually run concurrently, making the
+			// effective parallelism lower than the batch width implies.
+			for (const warning of batchPlanResult.warnings) {
+				if (warning.type === "file_overlap") {
+					issues.push({
+						type: SafetyIssueType.FileConflict,
+						severity: SafetyIssueSeverity.Critical,
+						message: warning.message,
+						workspaceId: warning.workspaceIds?.[0],
+						context: {
+							batchIndex: warning.batchIndex,
+							workspaceIds: warning.workspaceIds,
+						},
+					});
+				}
+			}
 		}
 
 		return this.buildReport(issues, parallelism);

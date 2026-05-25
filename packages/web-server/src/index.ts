@@ -3823,13 +3823,13 @@ fastify.delete<{
  */
 fastify.post<{
 	Params: { planExecId: string };
-	Body: { action: "pause" | "stop" | "cancel" | "resume" };
+	Body: { action: "pause" | "stop" | "cancel" | "resume" | "force-kill" };
 }>("/api/executions/:planExecId/control", async (request, reply) => {
 	const { planExecId } = request.params;
 	const { action } = request.body;
 
 	// Validate action
-	if (!["pause", "stop", "cancel", "resume"].includes(action)) {
+	if (!["pause", "stop", "cancel", "resume", "force-kill"].includes(action)) {
 		return reply.code(400).send({ success: false, error: "Invalid action" });
 	}
 
@@ -3879,6 +3879,44 @@ fastify.post<{
 			case "resume":
 				await stateStore.resumePlan(planExecId);
 				signalExecutionEvent(planExecId, "complete");
+				break;
+			case "force-kill":
+				// Forcefully kill all active workers, child processes, and worktrees
+				await stateStore.stopPlan(planExecId, "Force killed by user");
+				// Import and call the force-kill helper
+				const { killTrackedDetachedChildren } = await import("@earendil-works/pi-coding-agent");
+				try {
+					// Kill all tracked child processes (vitest, npm, etc.)
+					killTrackedDetachedChildren();
+					// Forcefully remove worktrees for this execution
+					const workspaceRoot = getWorkspaceRoot();
+					const worktreeDir = join(workspaceRoot, ".pi", "worktrees", planExecId);
+					const { rm } = await import("node:fs/promises");
+					const { existsSync } = await import("node:fs");
+					if (existsSync(worktreeDir)) {
+						// Use git worktree remove --force for each subdirectory first
+						const { readdir } = await import("node:fs/promises");
+						const { execSync } = await import("node:child_process");
+						try {
+							const wsDirs = await readdir(worktreeDir);
+							for (const wsId of wsDirs) {
+								const wtPath = join(worktreeDir, wsId);
+								try {
+									execSync(`git worktree remove --force "${wtPath}" 2>/dev/null`, { timeout: 5000 });
+								} catch {
+									// Fallback: remove directory directly
+									await rm(wtPath, { recursive: true, force: true });
+								}
+							}
+						} catch {
+							// If anything fails, just rm -rf the whole thing
+							await rm(worktreeDir, { recursive: true, force: true });
+						}
+					}
+				} catch {
+					// Non-fatal — best-effort cleanup
+				}
+				signalExecutionEvent(planExecId, "stop");
 				break;
 		}
 

@@ -314,6 +314,28 @@ export interface ProposalScoreTable {
 	created_at: Generated<string>;
 }
 
+export interface ObservabilityEventTable {
+	id: Generated<string>;
+	trace_id: string;
+	span_id: string;
+	parent_span_id: string | null;
+	correlation_id: string | null;
+	event_type: string;
+	source: string;
+	severity: string;
+	status: string;
+	name: string;
+	message: string | null;
+	project_id: string | null;
+	plan_execution_id: string | null;
+	workspace_execution_id: string | null;
+	duration_ms: number | null;
+	data: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	error: string | null;
+	timestamp: string;
+	created_at: Generated<string>;
+}
+
 export interface Database {
 	projects: ProjectTable;
 	plan_executions: PlanExecutionTable;
@@ -329,6 +351,7 @@ export interface Database {
 	transcript_events: TranscriptEventTable;
 	proposal_rubrics: ProposalRubricTable;
 	proposal_scores: ProposalScoreTable;
+	observability_events: ObservabilityEventTable;
 	_migrations: MigrationsTable;
 }
 
@@ -501,3 +524,7 @@ export type ProposalRubricUpdate = Updateable<ProposalRubricTable>;
 export type ProposalScore = Selectable<ProposalScoreTable>;
 export type NewProposalScore = Insertable<ProposalScoreTable>;
 export type ProposalScoreUpdate = Updateable<ProposalScoreTable>;
+
+export type ObservabilityEvent = Selectable<ObservabilityEventTable>;
+export type NewObservabilityEvent = Insertable<ObservabilityEventTable>;
+export type ObservabilityEventUpdate = Updateable<ObservabilityEventTable>;

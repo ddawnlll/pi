@@ -15,7 +15,7 @@ import type { IStateStore } from "./state-store.js";
 /**
  * Control action types
  */
-export type ControlAction = "pause" | "stop" | "cancel" | "resume";
+export type ControlAction = "pause" | "stop" | "cancel" | "resume" | "force-kill";
 
 /**
  * Control request state

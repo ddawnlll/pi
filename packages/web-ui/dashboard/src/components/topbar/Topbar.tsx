@@ -1,4 +1,4 @@
-import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen, Brain } from "lucide-react";
+import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen, Brain, AlertTriangle } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +116,10 @@ export interface TopbarProps {
   canRerun: boolean;
   onRerun: () => void;
 
+  // Force Kill
+  canForceKill?: boolean;
+  onForceKill?: () => void;
+
   // Settings
   onSettings: () => void;
 
@@ -151,6 +155,8 @@ export function Topbar({
   onStop,
   canRerun,
   onRerun,
+  canForceKill = false,
+  onForceKill,
   onSettings,
   activeViewType,
   onUploadPlan,
@@ -234,6 +240,18 @@ export function Topbar({
           group="playback"
           primary
         />
+        {canForceKill && onForceKill && (
+          <LabeledActionBtn
+            id="force-kill"
+            icon={AlertTriangle}
+            label="Force Kill"
+            onClick={onForceKill}
+            danger
+            disabled={controlDisabled || !canForceKill}
+            group="playback"
+            primary
+          />
+        )}
         {canRerun && (
           <LabeledActionBtn
             id="restart"

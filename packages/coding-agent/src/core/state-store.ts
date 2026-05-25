@@ -18,7 +18,7 @@ export type PlanStatus = "running" | "complete" | "failed" | "paused" | "stopped
 /**
  * Control action types.
  */
-export type ControlAction = "pause" | "stop" | "cancel" | "resume";
+export type ControlAction = "pause" | "stop" | "cancel" | "resume" | "force-kill";
 
 /**
  * Control request state.

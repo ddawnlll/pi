@@ -120,6 +120,20 @@ export {
 	type LeaseReconciliationEvent,
 	type QuarantineResult,
 } from "./core/lease-monitor.js";
+export {
+	ALL_OBSERVABILITY_SEVERITIES,
+	ALL_OBSERVABILITY_STATUSES,
+	type CorrelationModel,
+	createObservabilityEvent,
+	createTraceContext,
+	type ObservabilityEvent,
+	type ObservabilitySeverity,
+	type ObservabilityStatus,
+	type TraceContext,
+	TraceManager,
+	type ValidationResult,
+	validateObservabilityEvent,
+} from "./core/observability.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
 export {

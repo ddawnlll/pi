@@ -33,6 +33,7 @@ import * as m007 from "./007_add_memory_vectors.js";
 import * as m008 from "./008_add_audit_events.js";
 import * as m009 from "./009_schema_alignment.js";
 import * as m010 from "./010_add_proposal_scoring.js";
+import * as m011 from "./011_observability_events.js";
 
 /**
  * All registered migrations in version order.
@@ -48,6 +49,7 @@ const migrations: Migration[] = [
 	{ version: 8, name: "add_audit_events", up: m008.up, down: m008.down },
 	{ version: 9, name: "schema_alignment", up: m009.up, down: m009.down },
 	{ version: 10, name: "add_proposal_scoring", up: m010.up, down: m010.down },
+	{ version: 11, name: "add_observability_events", up: m011.up, down: m011.down },
 ];
 
 /**
