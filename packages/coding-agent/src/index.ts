@@ -1047,3 +1047,6 @@ export {
 	trackProcess,
 	untrackDetachedChildPid,
 } from "./utils/shell.js";
+
+// 25.C — Brain Worker contracts, roles, manifests, and lifecycle states
+export * from "./brain-workers/index.js";

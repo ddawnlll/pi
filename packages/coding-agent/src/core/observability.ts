@@ -13,10 +13,11 @@
  */
 
 // Re-export all types, schema, and correlation helpers from the modular structure.
+// Type-only re-exports use `export type { ... }` for proper isolatedModules compat.
 export {
 	ALL_OBSERVABILITY_SEVERITIES,
 	ALL_OBSERVABILITY_STATUSES,
-	type CorrelationModel,
+	correlationFromTraceContext,
 	createCorrelation,
 	createObservabilityEvent,
 	createTraceContext,
@@ -30,26 +31,36 @@ export {
 	isValidStatus,
 	isValidTimestamp,
 	mergeCorrelation,
-	type ObservabilityEvent,
-	type ObservabilitySeverity,
-	type ObservabilityStatus,
 	serializeObservabilityEvent,
 	serializeTraceContext,
-	type TraceContext,
-	type ValidationResult,
 	validateObservabilityEvent,
+} from "../observability/index.js";
+
+export type {
+	CorrelationModel,
+	ObservabilityEvent,
+	ObservabilitySeverity,
+	ObservabilityStatus,
+	TraceContext,
+	ValidationResult,
 } from "../observability/index.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // TraceManager — trace/span lifecycle management
 // ─────────────────────────────────────────────────────────────────────
 
-export type { ObservabilityEvent, ObservabilityStatus, TraceContext } from "../observability/index.js";
-export type { CorrelationModel } from "../observability/index.js";
-
 import { randomUUID } from "node:crypto";
-import { createObservabilityEvent, createTraceContext } from "../observability/index.js";
-import type { CorrelationModel, ObservabilityEvent, ObservabilityStatus, TraceContext } from "../observability/index.js";
+import {
+	createObservabilityEvent,
+	createTraceContext,
+} from "../observability/index.js";
+
+import type {
+	CorrelationModel,
+	ObservabilityEvent,
+	ObservabilityStatus,
+	TraceContext,
+} from "../observability/index.js";
 
 /**
  * Callback for span lifecycle events.
