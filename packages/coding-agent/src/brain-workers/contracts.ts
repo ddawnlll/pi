@@ -17,7 +17,6 @@ import {
 	type WorkerContract,
 	type WorkerManifest,
 	type WorkerRole,
-	ALL_WORKER_ROLES,
 	DEFAULT_ROLE_BUDGETS,
 	DEFAULT_WORKER_DEDUP_CONFIG,
 	WORKER_ROLE_LABELS,
