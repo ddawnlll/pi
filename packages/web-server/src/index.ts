@@ -4822,6 +4822,18 @@ await fastify.register(
 );
 
 // ---------------------------------------------------------------------------
+// Brain Digest Routes (24.G — Morning Digest)
+// ---------------------------------------------------------------------------
+
+const { registerBrainDigestRoutes } = await import("./routes/brain/digest.js");
+await fastify.register(
+	async (scoped) => {
+		await registerBrainDigestRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
+
+// ---------------------------------------------------------------------------
 // Brain Overnight Routes (P20 — Overnight Queue)
 // ---------------------------------------------------------------------------
 
@@ -4829,6 +4841,18 @@ const { registerBrainOvernightRoutes } = await import("./routes/brain/overnight.
 await fastify.register(
 	async (scoped) => {
 		await registerBrainOvernightRoutes(scoped);
+	},
+	{ prefix: "/api/brain" },
+);
+
+// ---------------------------------------------------------------------------
+// Brain Feedback Routes (24.J — Feedback Loop)
+// ---------------------------------------------------------------------------
+
+const { registerFeedbackRoutes } = await import("./feedback-routes.js");
+await fastify.register(
+	async (scoped) => {
+		await registerFeedbackRoutes(scoped);
 	},
 	{ prefix: "/api/brain" },
 );
@@ -4846,7 +4870,9 @@ await fastify.register(
 		await registerBrainAutonomyRoutes(scoped);
 		await registerBrainPolicyRoutes(scoped);
 		await registerBrainAuditRoutes(scoped);
+		await registerBrainDigestRoutes(scoped);
 		await registerBrainOvernightRoutes(scoped);
+		await registerFeedbackRoutes(scoped);
 	},
 	{ prefix: "/api/projects/:projectId/brain" },
 );
