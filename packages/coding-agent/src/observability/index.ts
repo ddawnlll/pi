@@ -73,6 +73,12 @@ export {
 	type TelemetryStoreConfig,
 	type TelemetryStoreDiagnostics,
 } from "./telemetry-store.js";
+// Re-export file telemetry target (25.B)
+export {
+	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
+	FileTelemetryFlushTarget,
+	type FileTelemetryTargetConfig,
+} from "./store/file-telemetry-target.js";
 // Re-export all types
 export {
 	ALL_OBSERVABILITY_SEVERITIES,
