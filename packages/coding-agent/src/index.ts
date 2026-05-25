@@ -134,6 +134,9 @@ export {
 	type ErrorAnalysis,
 	type EventStatistics,
 	// 25.B — Telemetry store, retention, and query API
+	DEFAULT_FILE_TELEMETRY_TARGET_CONFIG,
+	type FileTelemetryTargetConfig,
+	FileTelemetryFlushTarget,
 	type FlushResult,
 	InMemoryTelemetryStore,
 	type ObservabilityEvent,

@@ -19,3 +19,5 @@ export * from "./lifecycle.js";
 // Brain Orchestrator Supervisor (25.D)
 export * from "./supervisor/index.js";
 export * from "./types.js";
+// Debugger Worker (25.I)
+export * from "./debugger/index.js";

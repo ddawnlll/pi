@@ -5059,24 +5059,35 @@ await registerNotificationRoutes(fastify);
 // Telemetry Routes (25.B — Local telemetry store, retention, and query API)
 // ---------------------------------------------------------------------------
 
-const backend_type = detectStateStoreBackend();
-if (backend_type === "postgres") {
-	try {
-		const { getKysely, ObservabilityEventRepository: ObsRepo } = await import("@earendil-works/pi-db");
-		const { TelemetryQueryApi } = await import("@earendil-works/pi-coding-agent");
-		const { registerTelemetryRoutes } = await import("./telemetry-routes.js");
+try {
+	const {
+		InMemoryTelemetryStore,
+		TelemetryQueryApi,
+		RetentionEngine,
+		FileTelemetryFlushTarget,
+	} = await import("@earendil-works/pi-coding-agent");
+	const { registerTelemetryRoutes } = await import("./telemetry-routes.js");
 
-		const db = getKysely();
-		const telemetryRepo = new ObsRepo(db);
-		const telemetryQueryApi = new TelemetryQueryApi();
-		await registerTelemetryRoutes(fastify, telemetryRepo, telemetryQueryApi);
+	// Create local in-memory telemetry store with file-based persistence
+	const telemetryStore = new InMemoryTelemetryStore({ maxBufferSize: 10000, autoFlush: true });
+	const fileTarget = new FileTelemetryFlushTarget();
+	telemetryStore.setFlushTarget(fileTarget);
+	telemetryStore.start();
 
-		console.log("[server] Telemetry routes registered");
-	} catch (err) {
-		console.warn("[server] Failed to register telemetry routes:", (err as Error).message);
+	// Load any previously persisted events
+	const persistedEvents = fileTarget.load();
+	if (persistedEvents.length > 0) {
+		telemetryStore.recordBatch(persistedEvents);
 	}
-} else {
-	console.log("[server] Skipping telemetry routes — requires PostgreSQL backend");
+
+	const telemetryQueryApi = new TelemetryQueryApi();
+	const retentionEngine = new RetentionEngine();
+
+	await registerTelemetryRoutes(fastify, telemetryStore, telemetryQueryApi, retentionEngine);
+
+	console.log("[server] Telemetry routes registered (local store, " + persistedEvents.length + " loaded)");
+} catch (err) {
+	console.warn("[server] Failed to register telemetry routes:", (err as Error).message);
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,45 @@
  * @module observability
  */
 
+// Re-export brain collectors (25.G)
+export {
+	BrainCollector,
+	type BrainCollectorBudget,
+	type BrainCollectorBufferEntry,
+	type BrainCollectorCooldown,
+	type BrainCollectorDedupeConfig,
+	type BrainCollectorDedupeEntry,
+	type BrainCollectorDiagnostics,
+	type BrainCollectorStopCondition,
+	DEFAULT_BRAIN_COLLECTOR_BUDGET,
+	DEFAULT_BRAIN_COLLECTOR_DEDUPE,
+	type OvernightCollectorBudget,
+	type OvernightCollectorBufferEntry,
+	type OvernightCollectorCooldown,
+	type OvernightCollectorDedupeConfig,
+	type OvernightCollectorDedupeEntry,
+	type OvernightCollectorDiagnostics,
+	type OvernightCollectorEventType,
+	type OvernightCollectorStopCondition,
+	OvernightCollector,
+	DEFAULT_OVERNIGHT_COLLECTOR_BUDGET,
+	DEFAULT_OVERNIGHT_COLLECTOR_DEDUPE,
+	type ProposalCollectorBudget,
+	type ProposalCollectorBufferEntry,
+	type ProposalCollectorCooldown,
+	type ProposalCollectorDedupeConfig,
+	type ProposalCollectorDedupeEntry,
+	type ProposalCollectorDiagnostics,
+	type ProposalCollectorEventType,
+	type ProposalCollectorStopCondition,
+	type ProposalDedupeInput,
+	type ProposalScoreInput,
+	type ProposalStatusChangeInput,
+	ProposalCollector,
+	DEFAULT_PROPOSAL_COLLECTOR_BUDGET,
+	DEFAULT_PROPOSAL_COLLECTOR_DEDUPE,
+} from "./collectors/brain/index.js";
+
 // Re-export correlation helpers
 export {
 	correlationFromTraceContext,
