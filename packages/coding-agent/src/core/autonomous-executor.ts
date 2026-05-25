@@ -566,7 +566,23 @@ export class AutonomousExecutor {
 	 * @param workspace - Workspace to execute
 	 * @returns Execution result
 	 */
-	async executeWorkspace(workspace: Workspace, simulateFailure = false): Promise<WorkspaceExecutionResult> {
+	/**
+	 * Execute a single workspace.
+	 *
+	 * P26.D: Accepts an optional AbortSignal. When the signal fires,
+	 * the workspace-scoped executor is aborted and execution resolves
+	 * with a FAILED verdict.
+	 *
+	 * @param workspace - Workspace to execute
+	 * @param simulateFailure - Simulate a failure (for testing)
+	 * @param abortSignal - Optional external abort signal
+	 * @returns Execution result
+	 */
+	async executeWorkspace(
+		workspace: Workspace,
+		simulateFailure = false,
+		abortSignal?: AbortSignal,
+	): Promise<WorkspaceExecutionResult> {
 		const { planExecutionId, wsState } = await this.stateCacheMutex.runExclusive(async () => {
 			const planExecutionId = this.planExecutionId;
 			if (!planExecutionId) {
@@ -675,6 +691,17 @@ export class AutonomousExecutor {
 			// Each executeWorkspace call gets its own WorkspaceAgentExecutor so
 			// concurrent workspaces cannot overwrite each other's executor state.
 			const workspaceExecutor = this.createWorkspaceExecutor(workspace.id);
+
+			// P26.D: Wire external abort signal to the workspace executor.
+			// When the ContinuousExecutor (or any caller) aborts, the executor
+			// is aborted and the in-flight execute() call resolves with FAILED.
+			if (abortSignal && workspaceExecutor) {
+				if (abortSignal.aborted) {
+					workspaceExecutor.abort();
+				} else {
+					abortSignal.addEventListener("abort", () => workspaceExecutor.abort(), { once: true });
+				}
+			}
 
 			// Execute workspace with real agent or simulate
 			// P4.6.3: Wrap execution in a tracked promise so stopAllActiveWorkspaces() can await it.

@@ -1005,8 +1005,8 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 					}
 					return await executor.getNextWorkspaces(workspaces);
 				},
-				async (ws, _signal) => {
-					return await executor.executeWorkspace(ws);
+				async (ws, signal) => {
+					return await executor.executeWorkspace(ws, false, signal);
 				},
 			);
 
@@ -1394,8 +1394,8 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 					}
 					return await executor.getNextWorkspaces(workspaces);
 				},
-				async (ws, _signal) => {
-					return await executor.executeWorkspace(ws);
+				async (ws, signal) => {
+					return await executor.executeWorkspace(ws, false, signal);
 				},
 			);
 
@@ -1675,8 +1675,8 @@ export async function planResume(options: PlanCommandOptions = {}): Promise<numb
 					}
 					return await executor.getNextWorkspaces(workspaces);
 				},
-				async (ws, _signal) => {
-					return await executor.executeWorkspace(ws);
+				async (ws, signal) => {
+					return await executor.executeWorkspace(ws, false, signal);
 				},
 			);
 
