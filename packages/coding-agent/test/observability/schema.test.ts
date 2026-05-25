@@ -23,9 +23,13 @@ import {
 import {
 	ALL_OBSERVABILITY_SEVERITIES,
 	ALL_OBSERVABILITY_STATUSES,
+	deserializeObservabilityEvent,
+	deserializeTraceContext,
 	isValidSeverity,
 	isValidStatus,
 	isValidTimestamp,
+	serializeObservabilityEvent,
+	serializeTraceContext,
 	validateObservabilityEvent,
 } from "../../src/observability/index.js";
 
@@ -312,5 +316,135 @@ describe("trace context and correlation integration", () => {
 		expect(ctx.correlationId).toBe("req-1");
 		expect(ctx.projectId).toBe("proj-1");
 		expect(ctx.planExecutionId).toBe("plan-42");
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Serialization round-trip with nested/full data
+// ─────────────────────────────────────────────────────────────────────
+
+describe("serialization round-trip with full data", () => {
+	it("round-trips a fully populated event", () => {
+		const ctx = createTraceContext({
+			name: "full-event",
+			correlationId: "req-1",
+			projectId: "proj-1",
+			planExecutionId: "plan-1",
+			workspaceExecutionId: "ws-1",
+			parentSpanId: "parent-span-1",
+		});
+
+		const event = createObservabilityEvent(ctx, {
+			eventType: "tool_call",
+			source: "executor",
+			severity: "error",
+			status: "error",
+			name: "overridden-name",
+			message: "File not found",
+			durationMs: 1234,
+			data: { tool: "read", file: "test.ts", attempts: 3 },
+			error: "ENOENT: no such file or directory",
+		});
+
+		const json = serializeObservabilityEvent(event);
+		const deserialized = deserializeObservabilityEvent(json);
+
+		expect(deserialized.id).toBe(event.id);
+		expect(deserialized.eventType).toBe("tool_call");
+		expect(deserialized.source).toBe("executor");
+		expect(deserialized.severity).toBe("error");
+		expect(deserialized.status).toBe("error");
+		expect(deserialized.name).toBe("overridden-name");
+		expect(deserialized.message).toBe("File not found");
+		expect(deserialized.traceId).toBe(ctx.traceId);
+		expect(deserialized.spanId).toBe(ctx.spanId);
+		expect(deserialized.parentSpanId).toBe("parent-span-1");
+		expect(deserialized.correlationId).toBe("req-1");
+		expect(deserialized.projectId).toBe("proj-1");
+		expect(deserialized.planExecutionId).toBe("plan-1");
+		expect(deserialized.workspaceExecutionId).toBe("ws-1");
+		expect(deserialized.durationMs).toBe(1234);
+		expect(deserialized.data).toEqual({ tool: "read", file: "test.ts", attempts: 3 });
+		expect(deserialized.error).toBe("ENOENT: no such file or directory");
+	});
+
+	it("round-trips event with null fields", () => {
+		const ctx = createTraceContext({ name: "minimal" });
+		const event = createObservabilityEvent(ctx, {
+			eventType: "test",
+			source: "test-suite",
+		});
+
+		const json = serializeObservabilityEvent(event);
+		const deserialized = deserializeObservabilityEvent(json);
+
+		expect(deserialized.message).toBeNull();
+		expect(deserialized.parentSpanId).toBeNull();
+		expect(deserialized.correlationId).toBeNull();
+		expect(deserialized.projectId).toBeNull();
+		expect(deserialized.planExecutionId).toBeNull();
+		expect(deserialized.workspaceExecutionId).toBeNull();
+		expect(deserialized.durationMs).toBeNull();
+		expect(deserialized.error).toBeNull();
+	});
+
+	it("throws on valid JSON with invalid field types", () => {
+		// Simulate a corrupt event with wrong types
+		expect(() => deserializeObservabilityEvent('{"id":123}')).toThrow();
+	});
+
+	it("trace context serialization round-trip", () => {
+		const ctx = createTraceContext({
+			name: "roundtrip-context",
+			traceId: "fixed-trace-id",
+			spanId: "fixed-span-id",
+			correlationId: "req-99",
+			metadata: { env: "test", version: 2 },
+		});
+
+		const json = serializeTraceContext(ctx);
+		const deserialized = deserializeTraceContext(json);
+
+		expect(deserialized.traceId).toBe("fixed-trace-id");
+		expect(deserialized.spanId).toBe("fixed-span-id");
+		expect(deserialized.correlationId).toBe("req-99");
+		expect(deserialized.metadata).toEqual({ env: "test", version: 2 });
+		expect(deserialized.name).toBe("roundtrip-context");
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Enhanced validation coverage
+// ─────────────────────────────────────────────────────────────────────
+
+describe("validateObservabilityEvent — null/edge cases", () => {
+	it("rejects non-object values", () => {
+		expect(validateObservabilityEvent(undefined).valid).toBe(false);
+		expect(validateObservabilityEvent("string").valid).toBe(false);
+		expect(validateObservabilityEvent(42).valid).toBe(false);
+	});
+
+	it("rejects missing data field", () => {
+		const ctx = createTraceContext({ name: "nodata" });
+		const event = createObservabilityEvent(ctx, {
+			eventType: "test",
+			source: "test-suite",
+		});
+		delete (event as any).data;
+
+		const result = validateObservabilityEvent(event);
+		expect(result.valid).toBe(false);
+		expect(result.errors.some((e) => e.includes("data"))).toBe(true);
+	});
+
+	it("accepts a minimal valid event", () => {
+		const ctx = createTraceContext({ name: "minimal-valid" });
+		const event = createObservabilityEvent(ctx, {
+			eventType: "test",
+			source: "src",
+		});
+
+		expect(validateObservabilityEvent(event).valid).toBe(true);
+		expect(validateObservabilityEvent(event).errors).toEqual([]);
 	});
 });

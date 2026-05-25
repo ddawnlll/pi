@@ -229,14 +229,38 @@ export function validateObservabilityEvent(value: unknown): ValidationResult {
 	if (typeof event.name !== "string" || event.name.length === 0) {
 		errors.push("name must be a non-empty string");
 	}
+	if (event.message !== null && typeof event.message !== "string") {
+		errors.push("message must be a string or null");
+	}
 	if (typeof event.traceId !== "string" || event.traceId.length === 0) {
 		errors.push("traceId must be a non-empty string");
 	}
 	if (typeof event.spanId !== "string" || event.spanId.length === 0) {
 		errors.push("spanId must be a non-empty string");
 	}
-	if (event.data !== undefined && (typeof event.data !== "object" || event.data === null)) {
+	if (event.parentSpanId !== null && typeof event.parentSpanId !== "string") {
+		errors.push("parentSpanId must be a string or null");
+	}
+	if (event.correlationId !== null && typeof event.correlationId !== "string") {
+		errors.push("correlationId must be a string or null");
+	}
+	if (event.projectId !== null && typeof event.projectId !== "string") {
+		errors.push("projectId must be a string or null");
+	}
+	if (event.planExecutionId !== null && typeof event.planExecutionId !== "string") {
+		errors.push("planExecutionId must be a string or null");
+	}
+	if (event.workspaceExecutionId !== null && typeof event.workspaceExecutionId !== "string") {
+		errors.push("workspaceExecutionId must be a string or null");
+	}
+	if (event.durationMs !== null && typeof event.durationMs !== "number") {
+		errors.push("durationMs must be a number or null");
+	}
+	if (typeof event.data !== "object" || event.data === null) {
 		errors.push("data must be a non-null object");
+	}
+	if (event.error !== null && typeof event.error !== "string") {
+		errors.push("error must be a string or null");
 	}
 
 	return { valid: errors.length === 0, errors };
