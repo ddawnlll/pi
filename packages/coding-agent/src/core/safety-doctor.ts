@@ -76,6 +76,15 @@ export enum SafetyIssueType {
 
 	/** P26.I: Validation lane saturated, scheduler deferring workspaces */
 	ValidationLaneSaturated = "validation_lane_saturated",
+
+	/** P26.M: Fully serialized DAG — no parallelism possible */
+	FullySerializedDag = "fully_serialized_dag",
+
+	/** P26.M: Long serialized tail in DAG */
+	LongSerializedTail = "long_serialized_tail",
+
+	/** P26.M: Broad conflict scope detected */
+	BroadConflictScope = "broad_conflict_scope",
 }
 
 /**
@@ -98,7 +107,7 @@ export interface SafetyIssue {
  * Parallelism diagnostics reported by the safety doctor.
  */
 export interface ParallelismDiagnostics {
-	/** Effective parallelism (max width across topological batches) */
+	/** Effective parallelism (max width across topological batches, DAG only) */
 	effectiveParallelism: number;
 	/** Critical path length (number of topological batches) */
 	criticalPathLength: number;
@@ -108,6 +117,30 @@ export interface ParallelismDiagnostics {
 	requestedParallelism: number;
 	/** Delta between requested and effective parallelism */
 	parallelismDelta: number;
+
+	/** P26.M: Safe effective parallelism after conflict/dependency resolution */
+	safeEffectiveParallelism?: number;
+}
+
+/**
+ * P26.M: Anti-stall diagnostics for plan-intake analysis.
+ * Flags conditions that could stall execution despite passing the DAG check.
+ */
+export interface AntiStallDiagnostics {
+	/** Whether the graph is fully serialized (all batches width=1) */
+	fullySerialized: boolean;
+	/** Length of the serialized tail (consecutive width-1 batches at end) */
+	serializedTailLength: number;
+	/** Whether the serialized tail exceeds the threshold */
+	serializedTailExceedsThreshold: boolean;
+	/** Threshold for serialized tail warning */
+	serializedTailThreshold: number;
+	/** Number of workspaces with broad conflict scopes */
+	broadConflictScopeCount: number;
+	/** Whether validation lane bottlenecks are expected */
+	validationBottleneckExpected: boolean;
+	/** Recommended actions */
+	recommendations: string[];
 }
 
 /**
@@ -891,6 +924,81 @@ export class SafetyDoctor {
 					`Scheduler is deferring heavy-validation workspaces until a slot opens. ` +
 					`(validation_lane_saturated_blocking_scheduler)`,
 				context: laneState,
+			});
+		}
+
+		return issues;
+	}
+
+	/**
+	 * P26.M: Detect anti-stall conditions in a plan's DAG.
+	 *
+	 * Flags fully serialized graphs, long serialized tails, broad conflict
+	 * scopes, and validation lane bottlenecks — conditions that could stall
+	 * execution despite passing the basic DAG/conflict check.
+	 *
+	 * @param diagnostics - Anti-stall diagnostics
+	 * @returns Safety issues (warnings/info)
+	 */
+	detectAntiStallIssues(diagnostics: AntiStallDiagnostics): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+
+		if (diagnostics.fullySerialized) {
+			issues.push({
+				type: SafetyIssueType.FullySerializedDag,
+				severity: SafetyIssueSeverity.Warning,
+				message:
+					`DAG is fully serialized: all ${diagnostics.serializedTailLength} batches have width 1. ` +
+					`No parallelism is possible regardless of concurrency setting. ` +
+					`(fully_serialized_dag)`,
+				context: diagnostics as unknown as Record<string, unknown>,
+			});
+		}
+
+		if (diagnostics.serializedTailExceedsThreshold) {
+			issues.push({
+				type: SafetyIssueType.LongSerializedTail,
+				severity: SafetyIssueSeverity.Warning,
+				message:
+					`Long serialized tail detected: ${diagnostics.serializedTailLength} consecutive ` +
+					`single-width batches at the end of the DAG. This reduces effective parallelism ` +
+					`as most workers finish early. (long_serialized_tail)`,
+				context: diagnostics as unknown as Record<string, unknown>,
+			});
+		}
+
+		if (diagnostics.broadConflictScopeCount > 0) {
+			issues.push({
+				type: SafetyIssueType.BroadConflictScope,
+				severity: SafetyIssueSeverity.Info,
+				message:
+					`${diagnostics.broadConflictScopeCount} workspaces have broad conflict scopes ` +
+					`that may prevent safe parallel execution. Consider narrowing file patterns ` +
+					`in canEdit/writeSet to improve parallelism. (broad_conflict_scope)`,
+				context: diagnostics as unknown as Record<string, unknown>,
+			});
+		}
+
+		if (diagnostics.validationBottleneckExpected) {
+			issues.push({
+				type: SafetyIssueType.ValidationLaneSaturated,
+				severity: SafetyIssueSeverity.Info,
+				message:
+					`Validation lane bottleneck expected: heavy validation commands may saturate ` +
+					`the heavy validation slot, causing the scheduler to defer workspaces. ` +
+					`Consider reducing heavy validation commands or enabling targeted-only mode. ` +
+					`(validation_lane_bottleneck_expected)`,
+				context: diagnostics as unknown as Record<string, unknown>,
+			});
+		}
+
+		// Add recommendations if present
+		if (diagnostics.recommendations.length > 0) {
+			issues.push({
+				type: SafetyIssueType.Placeholder,
+				severity: SafetyIssueSeverity.Info,
+				message: `Plan optimization recommendations:\n${diagnostics.recommendations.map((r) => `  - ${r}`).join("\n")}`,
+				context: diagnostics as unknown as Record<string, unknown>,
 			});
 		}
 
