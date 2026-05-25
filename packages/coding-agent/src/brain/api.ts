@@ -154,11 +154,66 @@ export interface BrainTimelineResult {
 }
 
 /**
+ * Try to load orchestrator daemon health from the .pi/orchestrator/health.json file.
+ */
+async function tryLoadOrchestratorHealth(piDir: string): Promise<{
+	state: "running" | "stopped" | "error";
+	uptime: string;
+	startedAt: string | null;
+} | null> {
+	try {
+		const { readFile, existsSync } = await import("node:fs");
+		const { join } = await import("node:path");
+		const healthPath = join(piDir, "orchestrator", "health.json");
+		if (!existsSync(healthPath)) return null;
+
+		const content = await new Promise<string>((resolve, reject) => {
+			readFile(healthPath, "utf-8", (err, data) => {
+				if (err) reject(err);
+				else resolve(data);
+			});
+		});
+		const health = JSON.parse(content);
+
+		const daemonStatus = health.status as string;
+		let state: "running" | "stopped" | "error" = "stopped";
+		if (daemonStatus === "running") state = "running";
+		else if (daemonStatus === "paused") state = "running"; // treat paused as running for display
+		else if (daemonStatus === "error" || daemonStatus === "failed") state = "error";
+
+		const startedAt: string | null = health.startedAt
+			? new Date(health.startedAt).toISOString()
+			: null;
+
+		// Compute uptime
+		let uptime = "0s";
+		if (startedAt) {
+			const startMs = new Date(startedAt).getTime();
+			const elapsed = Date.now() - startMs;
+			const hours = Math.floor(elapsed / 3600000);
+			const mins = Math.floor((elapsed % 3600000) / 60000);
+			const secs = Math.floor((elapsed % 60000) / 1000);
+			if (hours > 0) uptime = `${hours}h ${mins}m`;
+			else if (mins > 0) uptime = `${mins}m ${secs}s`;
+			else uptime = `${secs}s`;
+		}
+
+		return { state, uptime, startedAt };
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Return the current brain daemon status and aggregate stats.
  *
+ * If `piDir` is provided, attempts to read the orchestrator daemon health
+ * file for real daemon state and uptime. Falls back to store-based inference.
+ *
  * @param projectId - Optional project ID for per-project brain state
+ * @param piDir - Optional .pi directory path for reading orchestrator health
  */
-export async function getBrainState(projectId?: string | null): Promise<BrainState> {
+export async function getBrainState(projectId?: string | null, piDir?: string | null): Promise<BrainState> {
 	const store = getBrainStore(projectId);
 	const events = await store.list({ limit: 10000 });
 
@@ -166,6 +221,46 @@ export async function getBrainState(projectId?: string | null): Promise<BrainSta
 	let signalCount = 0;
 	const bySeverity: Record<string, number> = {};
 	const byType: Record<string, number> = {};
+
+	let daemonStatus: "running" | "stopped" | "error" = "stopped";
+	let uptime = "0s";
+
+	// Try to get real daemon status from orchestrator health file
+	let daemonStartedAt: string | null = null;
+	if (piDir) {
+		const orchHealth = await tryLoadOrchestratorHealth(piDir);
+		if (orchHealth) {
+			daemonStatus = orchHealth.state;
+			uptime = orchHealth.uptime;
+			daemonStartedAt = orchHealth.startedAt;
+		}
+	}
+
+	// Fall back to store-based inference if no health file
+	if (!daemonStartedAt) {
+		for (const e of events) {
+			if (e.eventType === "daemon_start") {
+				daemonStatus = "running";
+				if (!daemonStartedAt || e.timestamp < daemonStartedAt) {
+					daemonStartedAt = e.timestamp;
+				}
+			}
+			if (e.eventType === "daemon_stop") daemonStatus = "stopped";
+			if (e.eventType === "daemon_error") daemonStatus = "error";
+			if (e.eventType === "daemon_heartbeat") daemonStatus = "running";
+		}
+
+		if (daemonStartedAt) {
+			const startMs = new Date(daemonStartedAt).getTime();
+			const elapsed = Date.now() - startMs;
+			const hours = Math.floor(elapsed / 3600000);
+			const mins = Math.floor((elapsed % 3600000) / 60000);
+			const secs = Math.floor((elapsed % 60000) / 1000);
+			if (hours > 0) uptime = `${hours}h ${mins}m`;
+			else if (mins > 0) uptime = `${mins}m ${secs}s`;
+			else uptime = `${secs}s`;
+		}
+	}
 
 	for (const e of events) {
 		bySeverity[e.severity] = (bySeverity[e.severity] ?? 0) + 1;
@@ -180,7 +275,7 @@ export async function getBrainState(projectId?: string | null): Promise<BrainSta
 	}
 
 	return {
-		daemon: { state: "running", uptime: "0s", observationCount },
+		daemon: { state: daemonStatus, uptime, observationCount },
 		observationStats: { total: observationCount, bySeverity },
 		signalStats: { total: signalCount, active: signalCount, resolved: 0, byType },
 	};
