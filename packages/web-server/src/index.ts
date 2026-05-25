@@ -79,6 +79,7 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
+import { registerActivityTimelineRoutes } from "./activity-timeline-routes.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
@@ -4855,6 +4856,12 @@ await fastify.register(
 
 const { registerMemoryRoutes } = await import("./memory-routes.js");
 registerMemoryRoutes(fastify, getPiDir, getWorkspaceRoot);
+
+// ---------------------------------------------------------------------------
+// Activity Timeline Routes
+// ---------------------------------------------------------------------------
+
+registerActivityTimelineRoutes(fastify, getStateStore);
 
 // ---------------------------------------------------------------------------
 // Goal Routes (P15.G — Goal Board)
