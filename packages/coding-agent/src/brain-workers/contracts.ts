@@ -537,6 +537,74 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				supportsCancellation: true,
 			};
 
+		case "fixStrategist":
+			return {
+				id: `${baseId}.v${version}`,
+				name: `${label} Contract`,
+				description: `Analyzes debug evidence to generate fix strategies, patch plans, and test plans for resolving identified issues.`,
+				version,
+				capabilities: [
+					"evidence_analysis",
+					"root_cause_identification",
+					"patch_strategy_generation",
+					"test_plan_generation",
+					"fix_priority_scoring",
+				],
+				inputs: [
+					{
+						name: "evidence_summary",
+						description: "Summarized debug evidence from the debugger worker for analysis",
+						type: "EvidenceSummary",
+						required: true,
+						sources: ["debugger", "evidence-summarizer"],
+					},
+					{
+						name: "failure_context",
+						description: "Additional context about the failure environment and constraints",
+						type: "FailureContext",
+						required: false,
+						sources: ["diagnostician", "execution-store"],
+					},
+				],
+				outputs: [
+					{
+						name: "fix_strategies",
+						description: "Generated fix strategies with patches and test plans",
+						type: "FixStrategy[]",
+						destinations: ["proposal-generator", "proposal-inbox", "fix-executor"],
+					},
+					{
+						name: "strategy_diagnostics",
+						description: "Diagnostics about the strategy generation process",
+						type: "WorkerDiagnostic[]",
+						destinations: ["brain-timeline", "brain-audit"],
+					},
+				],
+				errors: [
+					{
+						code: "INSUFFICIENT_EVIDENCE",
+						description: "Not enough evidence to generate a reliable fix strategy",
+						severity: "warning",
+						remediation: "Collect more debug evidence before re-running",
+					},
+					{
+						code: "STRATEGY_GENERATION_FAILED",
+						description: "Failed to generate a fix strategy from available evidence",
+						severity: "critical",
+						remediation: "Check evidence quality and retry with additional context",
+					},
+					{
+						code: "TEST_PLAN_GENERATION_FAILED",
+						description: "Failed to generate a test plan for the proposed fix",
+						severity: "warning",
+						remediation: "Re-run with explicit test generation parameters",
+					},
+				],
+				dependencies: ["brain-worker.diagnostician", "brain-worker.debugger"],
+				supportsStreaming: false,
+				supportsCancellation: true,
+			};
+
 		case "ideaScout":
 			return {
 				id: `${baseId}.v${version}`,

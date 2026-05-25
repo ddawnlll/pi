@@ -21,3 +21,5 @@ export * from "./supervisor/index.js";
 export * from "./types.js";
 // Debugger Worker (25.I)
 export * from "./debugger/index.js";
+// Idea Scout Worker (25.K)
+export * from "./idea-scout/index.js";

@@ -83,7 +83,8 @@ describe("ALL_WORKER_ROLES", () => {
 		expect(ALL_WORKER_ROLES).toContain("coordinator");
 		expect(ALL_WORKER_ROLES).toContain("auditor");
 		expect(ALL_WORKER_ROLES).toContain("ideaScout");
-		expect(ALL_WORKER_ROLES.length).toBe(9);
+		expect(ALL_WORKER_ROLES).toContain("fixStrategist");
+		expect(ALL_WORKER_ROLES.length).toBe(10);
 	});
 
 	test("every role has a label", () => {
@@ -558,6 +559,24 @@ describe("generateContractForRole", () => {
 		expect(contract.outputs.length).toBeGreaterThan(0);
 		expect(contract.errors.length).toBeGreaterThan(0);
 		expect(contract.dependencies).toContain("brain-worker.analyst");
+	});
+
+	test("generates a fixStrategist contract", () => {
+		const contract = generateContractForRole("fixStrategist");
+
+		expect(contract.id).toContain("brain-worker.fixStrategist");
+		expect(contract.capabilities).toContain("evidence_analysis");
+		expect(contract.capabilities).toContain("root_cause_identification");
+		expect(contract.capabilities).toContain("patch_strategy_generation");
+		expect(contract.capabilities).toContain("test_plan_generation");
+		expect(contract.capabilities).toContain("fix_priority_scoring");
+		expect(contract.inputs.some((i) => i.name === "evidence_summary")).toBe(true);
+		expect(contract.outputs.some((o) => o.name === "fix_strategies")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "INSUFFICIENT_EVIDENCE")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "STRATEGY_GENERATION_FAILED")).toBe(true);
+		expect(contract.errors.some((e) => e.code === "TEST_PLAN_GENERATION_FAILED")).toBe(true);
+		expect(contract.dependencies).toContain("brain-worker.diagnostician");
+		expect(contract.dependencies).toContain("brain-worker.debugger");
 	});
 
 	test("accepts custom version string", () => {
