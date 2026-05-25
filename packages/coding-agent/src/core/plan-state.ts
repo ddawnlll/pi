@@ -283,6 +283,9 @@ export class PlanStateStore {
 	 */
 	private stateModificationMutex: Promise<void> = Promise.resolve();
 
+	/** P26.G: Mutex to serialize concurrent appendJournal calls */
+	private journalMutex: Promise<void> = Promise.resolve();
+
 	constructor(workspaceRoot: string, piDir = ".pi") {
 		this.stateFilePath = path.join(workspaceRoot, piDir, "plan-state.json");
 		this.journalFilePath = path.join(workspaceRoot, piDir, "execution-journal.ndjson");
@@ -462,22 +465,34 @@ export class PlanStateStore {
 	 * @param event - Journal event
 	 */
 	async appendJournal(event: JournalEvent): Promise<void> {
-		// Ensure .pi directory exists
-		const piDir = path.dirname(this.journalFilePath);
-		await fs.mkdir(piDir, { recursive: true });
+		// P26.G: Serialize journal appends through a promise-chain mutex.
+		// Ensures NDJSON lines are written atomically and in order.
+		await this.journalMutex;
+		let release!: () => void;
+		this.journalMutex = new Promise<void>((resolve) => {
+			release = resolve;
+		});
 
-		// Append as NDJSON (one JSON object per line)
-		const line = `${JSON.stringify(event)}\n`;
-		await fs.appendFile(this.journalFilePath, line, "utf-8");
-
-		// fsync to ensure data is flushed to disk before returning
 		try {
-			const fd = fsSync.openSync(this.journalFilePath, "r");
-			fsSync.fsyncSync(fd);
-			fsSync.closeSync(fd);
-		} catch {
-			// fsync failure should not break execution — warn instead
-			console.error(`[plan-state] Failed to fsync journal: ${this.journalFilePath}`);
+			// Ensure .pi directory exists
+			const piDir = path.dirname(this.journalFilePath);
+			await fs.mkdir(piDir, { recursive: true });
+
+			// Append as NDJSON (one JSON object per line)
+			const line = `${JSON.stringify(event)}\n`;
+			await fs.appendFile(this.journalFilePath, line, "utf-8");
+
+			// fsync to ensure data is flushed to disk before returning
+			try {
+				const fd = fsSync.openSync(this.journalFilePath, "r");
+				fsSync.fsyncSync(fd);
+				fsSync.closeSync(fd);
+			} catch {
+				// fsync failure should not break execution — warn instead
+				console.error(`[plan-state] Failed to fsync journal: ${this.journalFilePath}`);
+			}
+		} finally {
+			release();
 		}
 
 		// Archive transcript event for workspace-level timeline

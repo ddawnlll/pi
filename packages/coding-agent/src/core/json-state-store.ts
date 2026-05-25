@@ -67,6 +67,27 @@ export class JsonStateStore implements IStateStore {
 	private readonly MAX_BUFFER_LINES = 1000;
 	private readonly MAX_BUFFER_BYTES = 50 * 1024 * 1024; // 50 MB
 
+	// P26.G: Serialized write queue for all mutating operations.
+	// Ensures atomicity and prevents concurrent write races.
+	private writeQueue: Promise<void> = Promise.resolve();
+
+	/**
+	 * Run a mutation through the serialized write queue.
+	 * All mutating file writes must go through this to guarantee ordering
+	 * and prevent lost updates under concurrent access.
+	 */
+	private enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+		return new Promise<T>((resolve, reject) => {
+			this.writeQueue = this.writeQueue.then(async () => {
+				try {
+					resolve(await fn());
+				} catch (err) {
+					reject(err);
+				}
+			});
+		});
+	}
+
 	constructor(workspaceRoot: string, config?: JsonStateStoreConfig) {
 		this.workspaceRoot = workspaceRoot;
 		this.piDir = config?.piDir ?? ".pi";
@@ -96,6 +117,23 @@ export class JsonStateStore implements IStateStore {
 		} catch {
 			// Non-fatal — cleanup is best-effort
 		}
+	}
+
+	/**
+	 * P26.G: Atomic write — writes data to a temp file, fsyncs, then renames.
+	 * Prevents partial writes / torn reads on crash.
+	 */
+	private async atomicWrite(filePath: string, data: string): Promise<void> {
+		const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+		await fs.writeFile(tmpPath, data, "utf-8");
+		try {
+			const fd = require("node:fs").openSync(tmpPath, "r");
+			require("node:fs").fsyncSync(fd);
+			require("node:fs").closeSync(fd);
+		} catch {
+			// Non-fatal
+		}
+		await fs.rename(tmpPath, filePath);
 	}
 
 	getBackendType(): StateStoreBackend {
@@ -222,10 +260,10 @@ export class JsonStateStore implements IStateStore {
 			completedAt: null,
 		});
 
-		// Store plan execution ID reference
+		// P26.G: Store plan execution ID reference with atomic write through queue
 		const statePath = path.join(this.workspaceRoot, this.piDir, "current-execution.json");
 		await fs.mkdir(path.dirname(statePath), { recursive: true });
-		await fs.writeFile(statePath, JSON.stringify({ planExecutionId: id }), "utf-8");
+		await this.enqueueWrite(() => this.atomicWrite(statePath, JSON.stringify({ planExecutionId: id })));
 
 		return id;
 	}
@@ -760,7 +798,10 @@ export class JsonStateStore implements IStateStore {
 	async saveExecutionLog(planExecutionId: string, logContent: string): Promise<void> {
 		const logFilePath = path.join(this.workspaceRoot, this.piDir, `execution-${planExecutionId}.log`);
 		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
-		await fs.appendFile(logFilePath, logContent, "utf-8");
+		// P26.G: Serialize log writes through the write queue
+		await this.enqueueWrite(async () => {
+			await fs.appendFile(logFilePath, logContent, "utf-8");
+		});
 	}
 
 	async loadExecutionLog(planExecutionId: string): Promise<string | null> {
@@ -799,10 +840,12 @@ export class JsonStateStore implements IStateStore {
 			entry.bytes -= Buffer.byteLength(removed, "utf-8");
 		}
 
-		// Persist to file
+		// P26.G: Persist to file through serialized write queue
 		const logFilePath = path.join(this.workspaceRoot, this.piDir, `workspace-${planExecutionId}-${workspaceId}.log`);
 		await fs.mkdir(path.dirname(logFilePath), { recursive: true });
-		await fs.appendFile(logFilePath, `${logLine}\n`, "utf-8");
+		await this.enqueueWrite(async () => {
+			await fs.appendFile(logFilePath, `${logLine}\n`, "utf-8");
+		});
 	}
 
 	/**
