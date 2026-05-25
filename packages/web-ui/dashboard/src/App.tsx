@@ -64,6 +64,7 @@ import { BrainMemoryPage } from "./pages/BrainMemoryPage";
 import { BrainReflectionsPage } from "./pages/BrainReflectionsPage";
 import { BrainTrustPage } from "./pages/BrainTrustPage";
 import { BrainOvernightPage } from "./pages/BrainOvernightPage";
+import { DigestPage } from "./pages/DigestPage";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -162,25 +163,66 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
 // ─── localStorage keys ───────────────────────────────────────────────────
 
 const SELECTED_PROJECT_KEY = "pi_selected_project_id";
+const SELECTED_EXEC_KEY = "pi_selected_exec_id";
+const SELECTED_VIEW_KEY = "pi_selected_view";
+const SELECTED_TASK_KEY = "pi_selected_task_id";
 
-function loadSelectedProjectId(): string | null {
+function loadLocal(key: string): string | null {
   try {
-    return localStorage.getItem(SELECTED_PROJECT_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function saveSelectedProjectId(id: string | null): void {
+function saveLocal(key: string, value: string | null): void {
   try {
-    if (id) {
-      localStorage.setItem(SELECTED_PROJECT_KEY, id);
+    if (value) {
+      localStorage.setItem(key, value);
     } else {
-      localStorage.removeItem(SELECTED_PROJECT_KEY);
+      localStorage.removeItem(key);
     }
   } catch {
     // ignore
   }
+}
+
+function loadSelectedProjectId(): string | null {
+  return loadLocal(SELECTED_PROJECT_KEY);
+}
+
+function saveSelectedProjectId(id: string | null): void {
+  saveLocal(SELECTED_PROJECT_KEY, id);
+}
+
+function loadSelectedExecId(): string | null {
+  return loadLocal(SELECTED_EXEC_KEY);
+}
+
+function saveSelectedExecId(id: string | null): void {
+  saveLocal(SELECTED_EXEC_KEY, id);
+}
+
+function loadSelectedView(): ActiveView {
+  try {
+    const raw = localStorage.getItem(SELECTED_VIEW_KEY);
+    if (raw) return JSON.parse(raw) as ActiveView;
+  } catch {
+    // ignore
+  }
+  return { type: "empty" };
+}
+
+function saveSelectedView(view: ActiveView): void {
+  saveLocal(SELECTED_VIEW_KEY, JSON.stringify(view));
+}
+
+function loadSelectedTaskId(): string | null {
+  return loadLocal(SELECTED_TASK_KEY);
+}
+
+function saveSelectedTaskId(id: string | null): void {
+  saveLocal(SELECTED_TASK_KEY, id);
 }
 
 // ─── main app ─────────────────────────────────────────────────────────────────
@@ -197,8 +239,8 @@ export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     initialProjectId && projects.find(p => p.id === initialProjectId) ? initialProjectId : null
   );
-  const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedPlanExecId, setSelectedPlanExecId] = useState<string | null>(loadSelectedExecId());
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(loadSelectedTaskId());
   const [selectedTask, setSelectedTask] = useState<MultiPhaseTask | null>(null);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
   const [showPlanUploadDialog, setShowPlanUploadDialog] = useState(false);
@@ -219,7 +261,7 @@ export function App() {
   const [brainEnabled, setBrainEnabled] = useState(true);
 
   // ── New state: active view ─────────────────────────────────────────────
-  const [activeView, setActiveView] = useState<ActiveView>({ type: "empty" });
+  const [activeView, setActiveView] = useState<ActiveView>(loadSelectedView());
 
   // ── Derived booleans from activeView ──────────────────────────────────
   const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
@@ -236,6 +278,7 @@ export function App() {
   const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
   const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
   const showBrainReflections = activeView.type === "platform" && activeView.screen === "brain_reflections";
+  const showBrainDigest      = activeView.type === "platform" && activeView.screen === "brain_digest";
   const showBrainOvernight   = activeView.type === "platform" && activeView.screen === "brain_overnight";
   const showBrainGoals       = activeView.type === "platform" && activeView.screen === "brain_goals";
   const showBrainProposals   = activeView.type === "platform" && activeView.screen === "brain_proposals";
@@ -267,10 +310,11 @@ export function App() {
     }
   }, [projects, selectedProjectId]);
 
-  // Save project selection to localStorage whenever it changes
-  useEffect(() => {
-    saveSelectedProjectId(selectedProjectId);
-  }, [selectedProjectId]);
+  // Save project/exec/view/task to localStorage whenever they change
+  useEffect(() => { saveSelectedProjectId(selectedProjectId); }, [selectedProjectId]);
+  useEffect(() => { saveSelectedExecId(selectedPlanExecId); }, [selectedPlanExecId]);
+  useEffect(() => { saveSelectedView(activeView); }, [activeView]);
+  useEffect(() => { saveSelectedTaskId(selectedTaskId); }, [selectedTaskId]);
 
   const [includeArchivedPlans, setIncludeArchivedPlans] = useState(false);
   const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId, includeArchivedPlans);
@@ -280,15 +324,20 @@ export function App() {
   const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { data: integrationQueueData } = useIntegrationQueueStatus(hasProjects);
-  // Auto-select first execution when none selected
+  // Auto-select execution: restore saved one, or fall back to first
   useEffect(() => {
-    if (!selectedPlanExecId && executions.length > 0) {
-      const running = executions.find(e => e.status === "running");
-      setSelectedPlanExecId(running?.id ?? executions[0].id);
-      if (activeView.type === "empty") {
-        setActiveView({ type: "run" });
-      }
+    if (executions.length === 0) return;
+    // Don't override platform/task views with run selection
+    if (activeView.type !== "empty") return;
+    if (selectedPlanExecId && executions.find(e => e.id === selectedPlanExecId)) {
+      // Our saved execution is still valid
+      setActiveView({ type: "run" });
+      return;
     }
+    // Saved execution not found in current list — pick first
+    const running = executions.find(e => e.status === "running");
+    setSelectedPlanExecId(running?.id ?? executions[0].id);
+    setActiveView({ type: "run" });
   }, [executions, selectedPlanExecId, activeView.type]);
 
   const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState(!hasProjects);
@@ -802,6 +851,8 @@ export function App() {
                           <BrainMemoryPage />
                         ) : showBrainReflections ? (
                           <BrainReflectionsPage />
+                        ) : showBrainDigest ? (
+                          <DigestPage />
                         ) : showBrainOvernight ? (
                           <BrainOvernightPage />
                         ) : showBrainGoals ? (
