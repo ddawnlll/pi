@@ -542,7 +542,7 @@ export async function registerTelemetryRoutes(
 				},
 			};
 		} catch (err) {
-			request.log.error({ err }, "Failed to get retention policy");
+			_request.log.error({ err }, "Failed to get retention policy");
 			return reply.status(500).send({
 				error: "Failed to get retention policy",
 				message: (err as Error).message,
