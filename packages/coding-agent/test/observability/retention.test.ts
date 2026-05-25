@@ -6,9 +6,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { RetentionEngine } from "../../src/observability/retention.js";
-import type { RetentionPolicy } from "../../src/observability/retention.js";
 import { createObservabilityEvent, createTraceContext } from "../../src/observability/index.js";
+import { RetentionEngine } from "../../src/observability/retention.js";
 
 // Helper to create test events with controlled timestamps
 function createEvent(overrides: {
@@ -156,22 +155,20 @@ describe("RetentionEngine — count limits", () => {
 	});
 
 	it("enforces globalMaxCount", () => {
-		const engine = new RetentionEngine(
-			{
-				rules: [
-					{
-						name: "no-limit",
-						severity: "all",
-						maxAgeMs: 86_400_000 * 30,
-						maxCount: 0, // No per-rule limit
-						priority: 10,
-					},
-				],
-				globalMaxCount: 2,
-				pruneIntervalMs: 60000,
-				autoPrune: false,
-			},
-		);
+		const engine = new RetentionEngine({
+			rules: [
+				{
+					name: "no-limit",
+					severity: "all",
+					maxAgeMs: 86_400_000 * 30,
+					maxCount: 0, // No per-rule limit
+					priority: 10,
+				},
+			],
+			globalMaxCount: 2,
+			pruneIntervalMs: 60000,
+			autoPrune: false,
+		});
 
 		const now = Date.now();
 		const events = Array.from({ length: 5 }, (_, i) =>
@@ -421,10 +418,12 @@ describe("RetentionEngine — budget and cooldown", () => {
 		);
 
 		const now = Date.now();
-		const events = [createEvent({
-			name: "removable",
-			timestamp: new Date(now - 1000).toISOString(),
-		})];
+		const events = [
+			createEvent({
+				name: "removable",
+				timestamp: new Date(now - 1000).toISOString(),
+			}),
+		];
 
 		// First call should succeed
 		const result1 = await engine.pruneIfNeeded(events);

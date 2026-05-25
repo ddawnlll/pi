@@ -30,12 +30,7 @@ import type { AttentionItem } from "./types.js";
 /**
  * The type of brain item that can be checked for staleness.
  */
-export type StalenessCheckableType =
-	| "observation"
-	| "signal"
-	| "memory_record"
-	| "goal"
-	| "attention_item";
+export type StalenessCheckableType = "observation" | "signal" | "memory_record" | "goal" | "attention_item";
 
 /**
  * Configurable staleness thresholds per item type (in days).
@@ -491,14 +486,8 @@ export class StalenessDetector {
 		const half = Math.max(1, Math.floor(window / 2));
 		const firstHalf = scores.slice(-window, -half || window);
 		const secondHalf = scores.slice(-half || -1);
-		const firstAvg =
-			firstHalf.length > 0
-				? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
-				: current;
-		const secondAvg =
-			secondHalf.length > 0
-				? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
-				: current;
+		const firstAvg = firstHalf.length > 0 ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length : current;
+		const secondAvg = secondHalf.length > 0 ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length : current;
 
 		const velocity = secondAvg - firstAvg;
 
@@ -535,9 +524,7 @@ export class StalenessDetector {
 	 * @param items - Array of item IDs and optional current scores.
 	 * @returns Array of momentum results (only items with sufficient data).
 	 */
-	computeMomentumBatch(
-		items: Array<{ itemId: string; currentScore?: number }>,
-	): MomentumResult[] {
+	computeMomentumBatch(items: Array<{ itemId: string; currentScore?: number }>): MomentumResult[] {
 		const results: MomentumResult[] = [];
 		for (const { itemId, currentScore } of items) {
 			const momentum = this.computeMomentum(itemId, currentScore);
@@ -588,14 +575,10 @@ export class StalenessDetector {
 		const daysSinceActivity = Math.max(0, (now - lastActivity) / (1000 * 60 * 60 * 24));
 
 		// Linear staleness score: 0 at last activity, 1 at threshold days
-		const stalenessScore = Math.min(
-			this.config.maxStalenessScore,
-			daysSinceActivity / (thresholdDays || 1),
-		);
+		const stalenessScore = Math.min(this.config.maxStalenessScore, daysSinceActivity / (thresholdDays || 1));
 
 		// Map score to severity
-		const severity: Severity =
-			stalenessScore >= 0.8 ? "critical" : stalenessScore >= 0.5 ? "warning" : "info";
+		const severity: Severity = stalenessScore >= 0.8 ? "critical" : stalenessScore >= 0.5 ? "warning" : "info";
 
 		// Track staleness history for decay detection
 		if (!this.stalenessHistory.has(params.itemId)) {
@@ -610,8 +593,7 @@ export class StalenessDetector {
 			history.splice(0, history.length - 10);
 		}
 
-		const isDecaying =
-			previousScore !== undefined && stalenessScore > previousScore;
+		const isDecaying = previousScore !== undefined && stalenessScore > previousScore;
 
 		return {
 			itemId: params.itemId,

@@ -16,7 +16,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createGitRunner, type GitRunner } from "./git-runner.js";
+import { createGitRunner } from "./git-runner.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -242,7 +242,7 @@ export class WriteSetDriftDetector {
 		// Directory pattern ending with / (e.g., "src/scheduler/")
 		if (trimmed.endsWith("/")) {
 			const dirPrefix = trimmed.replace(/\/+$/, "");
-			return filePath.startsWith(dirPrefix) || filePath.startsWith(dirPrefix + "/");
+			return filePath.startsWith(dirPrefix) || filePath.startsWith(`${dirPrefix}/`);
 		}
 
 		// Simple glob pattern with wildcards

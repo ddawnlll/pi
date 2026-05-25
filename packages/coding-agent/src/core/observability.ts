@@ -12,60 +12,6 @@
  * @module core/observability
  */
 
-// Re-export all types, schema, and correlation helpers from the modular structure.
-// Type-only re-exports use `export type { ... }` for proper isolatedModules compat.
-export {
-	ALL_OBSERVABILITY_SEVERITIES,
-	ALL_OBSERVABILITY_STATUSES,
-	correlationFromTraceContext,
-	createCorrelation,
-	createObservabilityEvent,
-	createTraceContext,
-	deserializeObservabilityEvent,
-	deserializeTraceContext,
-	EMPTY_CORRELATION,
-	formatCorrelation,
-	isCorrelationEmpty,
-	isCorrelationPopulated,
-	isValidSeverity,
-	isValidStatus,
-	isValidTimestamp,
-	mergeCorrelation,
-	serializeObservabilityEvent,
-	serializeTraceContext,
-	validateObservabilityEvent,
-} from "../observability/index.js";
-
-// 25.B — Telemetry store, retention, and query API exports
-export {
-	type FlushResult,
-	type TelemetryFlushTarget,
-	type TelemetryQueryFilter,
-	type TelemetryStoreConfig,
-	type TelemetryStoreDiagnostics,
-	DEFAULT_TELEMETRY_STORE_CONFIG,
-	InMemoryTelemetryStore,
-	type DedupeConfig,
-	type PruneResult,
-	type RetentionBudget,
-	type RetentionPolicy,
-	type RetentionRule,
-	DEFAULT_DEDUPE_CONFIG,
-	DEFAULT_RETENTION_BUDGET,
-	DEFAULT_RETENTION_POLICY,
-	RetentionEngine,
-	type Aggregation,
-	type AggregationFunction,
-	type AggregationResult,
-	type ErrorAnalysis,
-	type EventStatistics,
-	type TelemetryQuery,
-	type TimeBucketConfig,
-	type TimeSeriesPoint,
-	type TimeSeriesResult,
-	TelemetryQueryApi,
-} from "../observability/index.js";
-
 export type {
 	CorrelationModel,
 	ObservabilityEvent,
@@ -74,16 +20,64 @@ export type {
 	TraceContext,
 	ValidationResult,
 } from "../observability/index.js";
+// Re-export all types, schema, and correlation helpers from the modular structure.
+// Type-only re-exports use `export type { ... }` for proper isolatedModules compat.
+// 25.B — Telemetry store, retention, and query API exports
+export {
+	type Aggregation,
+	type AggregationFunction,
+	type AggregationResult,
+	ALL_OBSERVABILITY_SEVERITIES,
+	ALL_OBSERVABILITY_STATUSES,
+	correlationFromTraceContext,
+	createCorrelation,
+	createObservabilityEvent,
+	createTraceContext,
+	DEFAULT_DEDUPE_CONFIG,
+	DEFAULT_RETENTION_BUDGET,
+	DEFAULT_RETENTION_POLICY,
+	DEFAULT_TELEMETRY_STORE_CONFIG,
+	type DedupeConfig,
+	deserializeObservabilityEvent,
+	deserializeTraceContext,
+	EMPTY_CORRELATION,
+	type ErrorAnalysis,
+	type EventStatistics,
+	type FlushResult,
+	formatCorrelation,
+	InMemoryTelemetryStore,
+	isCorrelationEmpty,
+	isCorrelationPopulated,
+	isValidSeverity,
+	isValidStatus,
+	isValidTimestamp,
+	mergeCorrelation,
+	type PruneResult,
+	type RetentionBudget,
+	RetentionEngine,
+	type RetentionPolicy,
+	type RetentionRule,
+	serializeObservabilityEvent,
+	serializeTraceContext,
+	type TelemetryFlushTarget,
+	type TelemetryQuery,
+	TelemetryQueryApi,
+	type TelemetryQueryFilter,
+	type TelemetryStoreConfig,
+	type TelemetryStoreDiagnostics,
+	type TimeBucketConfig,
+	type TimeSeriesPoint,
+	type TimeSeriesResult,
+	validateObservabilityEvent,
+} from "../observability/index.js";
+
+// Export TraceManager-level types
+// Bug fix: TraceManagerConfig and TraceManagerDiagnostics are defined in this file,
+// not re-exported from another module. Remove the self-referencing re-export.
 
 // ─────────────────────────────────────────────────────────────────────
 // TraceManager — trace/span lifecycle management
 // ─────────────────────────────────────────────────────────────────────
-
-import { randomUUID } from "node:crypto";
-import {
-	createObservabilityEvent,
-	createTraceContext,
-} from "../observability/index.js";
 
 import type {
 	CorrelationModel,
@@ -91,11 +85,71 @@ import type {
 	ObservabilityStatus,
 	TraceContext,
 } from "../observability/index.js";
+import { createObservabilityEvent, createTraceContext } from "../observability/index.js";
+
+/**
+ * Configuration for TraceManager budget/cooldown/dedupe/stop-condition.
+ */
+export interface TraceManagerConfig {
+	/** Maximum number of concurrent active traces (budget). 0 = unlimited. Default 0. */
+	maxActiveTraces?: number;
+	/** Minimum interval in ms between trace creations (cooldown). 0 = no cooldown. Default 0. */
+	minTraceIntervalMs?: number;
+	/** Whether to reject duplicate trace IDs when creating new traces. Default false. */
+	rejectDuplicateTraceIds?: boolean;
+	/** Whether to reject duplicate span IDs within the same trace. Default false. */
+	rejectDuplicateSpanIds?: boolean;
+}
+
+/**
+ * Default configuration for TraceManager.
+ */
+export const DEFAULT_TRACE_MANAGER_CONFIG: TraceManagerConfig = {
+	maxActiveTraces: 0,
+	minTraceIntervalMs: 0,
+	rejectDuplicateTraceIds: false,
+	rejectDuplicateSpanIds: false,
+};
+
+/**
+ * Diagnostic information about the TraceManager's budget/cooldown/dedupe state.
+ */
+export interface TraceManagerDiagnostics {
+	activeTraceCount: number;
+	maxActiveTraces: number;
+	minTraceIntervalMs: number;
+	rejectDuplicateTraceIds: boolean;
+	rejectDuplicateSpanIds: boolean;
+	lastTraceTimestamp: string | null;
+	cooldownRemainingMs: number | null;
+	isStopped: boolean;
+	totalTracesStarted: number;
+	totalTracesEnded: number;
+	totalSpansStarted: number;
+	totalSpansEnded: number;
+	totalBudgetRejections: number;
+	totalCooldownRejections: number;
+	totalDedupeRejections: number;
+}
 
 /**
  * Callback for span lifecycle events.
  */
 export type SpanEventHandler = (event: ObservabilityEvent) => void;
+
+/**
+ * Error thrown when a trace operation is rejected by budget, cooldown, or dedupe.
+ */
+export class TraceManagerError extends Error {
+	constructor(
+		message: string,
+		public readonly code: "budget" | "cooldown" | "dedupe" | "stopped",
+		public readonly diagnostics: Record<string, unknown> = {},
+	) {
+		super(message);
+		this.name = "TraceManagerError";
+	}
+}
 
 /**
  * TraceManager manages distributed trace and span lifecycle.
@@ -106,6 +160,10 @@ export type SpanEventHandler = (event: ObservabilityEvent) => void;
  * - Event callbacks for persistence or transport
  * - Correlation model propagation
  * - Duration tracking
+ * - Budget enforcement (maxActiveTraces)
+ * - Cooldown enforcement (minTraceIntervalMs)
+ * - Deduplication (rejectDuplicateTraceIds, rejectDuplicateSpanIds)
+ * - Stop-condition (graceful stop)
  *
  * The TraceManager is designed to be instantiated per-component
  * (e.g., one per workspace execution) with optional event handlers
@@ -122,6 +180,36 @@ export class TraceManager {
 	/** Optional event handler for span events */
 	private eventHandler: SpanEventHandler | null = null;
 
+	/** Configuration for budget/cooldown/dedupe/stop */
+	private config: Required<TraceManagerConfig>;
+
+	/** Timestamps of last trace creation per trace name (for cooldown) */
+	private lastTraceTimestamps = new Map<string, number>();
+	/** Timestamp of the last created trace (for cooldown) */
+	private lastTraceTimestamp: number | null = null;
+
+	/** Whether the manager has been stopped */
+	private stopped = false;
+
+	// Counters for diagnostics
+	private totalTracesStarted = 0;
+	private totalTracesEnded = 0;
+	private totalSpansStarted = 0;
+	private totalSpansEnded = 0;
+	private totalBudgetRejections = 0;
+	private totalCooldownRejections = 0;
+	private totalDedupeRejections = 0;
+
+	constructor(config?: TraceManagerConfig) {
+		this.config = {
+			maxActiveTraces: config?.maxActiveTraces ?? DEFAULT_TRACE_MANAGER_CONFIG.maxActiveTraces!,
+			minTraceIntervalMs: config?.minTraceIntervalMs ?? DEFAULT_TRACE_MANAGER_CONFIG.minTraceIntervalMs!,
+			rejectDuplicateTraceIds:
+				config?.rejectDuplicateTraceIds ?? DEFAULT_TRACE_MANAGER_CONFIG.rejectDuplicateTraceIds!,
+			rejectDuplicateSpanIds: config?.rejectDuplicateSpanIds ?? DEFAULT_TRACE_MANAGER_CONFIG.rejectDuplicateSpanIds!,
+		};
+	}
+
 	/**
 	 * Set the event handler for span lifecycle events.
 	 *
@@ -134,18 +222,101 @@ export class TraceManager {
 	}
 
 	/**
+	 * Check whether the manager has been stopped.
+	 */
+	get isStopped(): boolean {
+		return this.stopped;
+	}
+
+	/**
+	 * Get the current TraceManagerConfig.
+	 */
+	getConfig(): Required<TraceManagerConfig> {
+		return { ...this.config };
+	}
+
+	/**
+	 * Update the configuration at runtime.
+	 */
+	updateConfig(overrides: Partial<TraceManagerConfig>): void {
+		if (overrides.maxActiveTraces !== undefined) {
+			this.config.maxActiveTraces = overrides.maxActiveTraces;
+		}
+		if (overrides.minTraceIntervalMs !== undefined) {
+			this.config.minTraceIntervalMs = overrides.minTraceIntervalMs;
+		}
+		if (overrides.rejectDuplicateTraceIds !== undefined) {
+			this.config.rejectDuplicateTraceIds = overrides.rejectDuplicateTraceIds;
+		}
+		if (overrides.rejectDuplicateSpanIds !== undefined) {
+			this.config.rejectDuplicateSpanIds = overrides.rejectDuplicateSpanIds;
+		}
+	}
+
+	/**
+	 * Stop the TraceManager. No new traces or spans can be created after this.
+	 * Existing active traces are left in place (they can still be ended).
+	 */
+	stop(): void {
+		this.stopped = true;
+	}
+
+	/**
 	 * Start a new trace with a root span.
+	 *
+	 * Enforces budget (maxActiveTraces), cooldown (minTraceIntervalMs),
+	 * dedupe (rejectDuplicateTraceIds), and stop-condition (isStopped).
+	 * On rejection, throws TraceManagerError with evidence-backed diagnostics.
 	 *
 	 * @param name - Human-readable trace/span name
 	 * @param correlation - Optional correlation model
 	 * @param metadata - Optional arbitrary metadata
 	 * @returns TraceContext for the root span
+	 * @throws TraceManagerError if budget, cooldown, dedupe, or stop-condition rejects the trace
 	 */
-	startTrace(
-		name: string,
-		correlation?: Partial<CorrelationModel>,
-		metadata?: Record<string, unknown>,
-	): TraceContext {
+	startTrace(name: string, correlation?: Partial<CorrelationModel>, metadata?: Record<string, unknown>): TraceContext {
+		// Stop-condition check
+		if (this.stopped) {
+			this.totalBudgetRejections++;
+			throw new TraceManagerError("TraceManager is stopped; cannot create new traces", "stopped", {
+				traceName: name,
+			});
+		}
+
+		// Budget check
+		const maxTraces = this.config.maxActiveTraces;
+		if (maxTraces > 0 && this.traces.size >= maxTraces) {
+			this.totalBudgetRejections++;
+			throw new TraceManagerError(
+				`Active trace count (${this.traces.size}) exceeds maxActiveTraces budget (${maxTraces})`,
+				"budget",
+				{
+					traceName: name,
+					activeTraceCount: this.traces.size,
+					maxActiveTraces: maxTraces,
+				},
+			);
+		}
+
+		// Cooldown check
+		const cooldownMs = this.config.minTraceIntervalMs;
+		if (cooldownMs > 0 && this.lastTraceTimestamp !== null) {
+			const elapsed = Date.now() - this.lastTraceTimestamp;
+			if (elapsed < cooldownMs) {
+				this.totalCooldownRejections++;
+				throw new TraceManagerError(
+					`Trace creation cooldown active: ${elapsed}ms elapsed, ${cooldownMs}ms required`,
+					"cooldown",
+					{
+						traceName: name,
+						elapsedMs: elapsed,
+						minTraceIntervalMs: cooldownMs,
+						remainingMs: cooldownMs - elapsed,
+					},
+				);
+			}
+		}
+
 		const context = createTraceContext({
 			name,
 			parentSpanId: null,
@@ -156,9 +327,21 @@ export class TraceManager {
 			metadata: metadata ?? {},
 		});
 
+		// Dedupe trace ID check
+		if (this.config.rejectDuplicateTraceIds && this.traces.has(context.traceId)) {
+			this.totalDedupeRejections++;
+			throw new TraceManagerError(`Duplicate trace ID: ${context.traceId}`, "dedupe", {
+				traceName: name,
+				traceId: context.traceId,
+			});
+		}
+
 		this.traces.set(context.traceId, context);
 		this.spanStacks.set(context.traceId, [context]);
 		this.spanStartTimes.set(context.spanId, Date.now());
+		this.lastTraceTimestamp = Date.now();
+		this.lastTraceTimestamps.set(name, Date.now());
+		this.totalTracesStarted++;
 
 		// Emit span start event
 		if (this.eventHandler) {
@@ -178,16 +361,23 @@ export class TraceManager {
 	/**
 	 * Start a child span within an existing trace.
 	 *
+	 * Enforces stop-condition and dedupe (rejectDuplicateSpanIds).
+	 *
 	 * @param parentContext - Parent TraceContext
 	 * @param name - Span name
 	 * @param metadata - Optional arbitrary metadata
 	 * @returns New child TraceContext
+	 * @throws TraceManagerError if stop-condition or dedupe rejects the span
 	 */
-	startSpan(
-		parentContext: TraceContext,
-		name: string,
-		metadata?: Record<string, unknown>,
-	): TraceContext {
+	startSpan(parentContext: TraceContext, name: string, metadata?: Record<string, unknown>): TraceContext {
+		// Stop-condition check
+		if (this.stopped) {
+			throw new TraceManagerError("TraceManager is stopped; cannot create new spans", "stopped", {
+				parentTraceId: parentContext.traceId,
+				spanName: name,
+			});
+		}
+
 		const childContext = createTraceContext({
 			traceId: parentContext.traceId,
 			parentSpanId: parentContext.spanId,
@@ -199,11 +389,29 @@ export class TraceManager {
 			metadata: { ...parentContext.metadata, ...metadata },
 		});
 
+		// Dedupe span ID check within the same trace
+		if (this.config.rejectDuplicateSpanIds) {
+			const stack = this.spanStacks.get(childContext.traceId) ?? [];
+			if (stack.some((s) => s.spanId === childContext.spanId)) {
+				this.totalDedupeRejections++;
+				throw new TraceManagerError(
+					`Duplicate span ID: ${childContext.spanId} in trace ${childContext.traceId}`,
+					"dedupe",
+					{
+						traceId: childContext.traceId,
+						spanId: childContext.spanId,
+						spanName: name,
+					},
+				);
+			}
+		}
+
 		// Push onto span stack for this trace
 		const stack = this.spanStacks.get(childContext.traceId) ?? [];
 		stack.push(childContext);
 		this.spanStacks.set(childContext.traceId, stack);
 		this.spanStartTimes.set(childContext.spanId, Date.now());
+		this.totalSpansStarted++;
 
 		// Emit span start event
 		if (this.eventHandler) {
@@ -253,6 +461,8 @@ export class TraceManager {
 			}
 		}
 
+		this.totalSpansEnded++;
+
 		// Emit span end event
 		if (this.eventHandler) {
 			this.eventHandler(
@@ -279,11 +489,7 @@ export class TraceManager {
 	 * @param data - Optional result data
 	 * @returns Duration in milliseconds, or null
 	 */
-	endTrace(
-		context: TraceContext,
-		status: ObservabilityStatus = "ok",
-		data?: Record<string, unknown>,
-	): number | null {
+	endTrace(context: TraceContext, status: ObservabilityStatus = "ok", data?: Record<string, unknown>): number | null {
 		// End any remaining child spans
 		const stack = this.spanStacks.get(context.traceId);
 		if (stack) {
@@ -299,6 +505,7 @@ export class TraceManager {
 
 		// Clean up trace
 		this.traces.delete(context.traceId);
+		this.totalTracesEnded++;
 
 		return duration;
 	}
@@ -335,12 +542,22 @@ export class TraceManager {
 	}
 
 	/**
-	 * Clear all traces and spans.
+	 * Clear all traces and spans. Resets all counters.
 	 */
 	clear(): void {
 		this.traces.clear();
 		this.spanStacks.clear();
 		this.spanStartTimes.clear();
+		this.lastTraceTimestamps.clear();
+		this.lastTraceTimestamp = null;
+		this.stopped = false;
+		this.totalTracesStarted = 0;
+		this.totalTracesEnded = 0;
+		this.totalSpansStarted = 0;
+		this.totalSpansEnded = 0;
+		this.totalBudgetRejections = 0;
+		this.totalCooldownRejections = 0;
+		this.totalDedupeRejections = 0;
 	}
 
 	/**
@@ -348,5 +565,38 @@ export class TraceManager {
 	 */
 	get activeTraceCount(): number {
 		return this.traces.size;
+	}
+
+	/**
+	 * Get diagnostic information about the TraceManager state.
+	 * Provides evidence-backed diagnostics for all budget/cooldown/dedupe/stop decisions.
+	 */
+	getDiagnostics(): TraceManagerDiagnostics {
+		const now = Date.now();
+		let cooldownRemainingMs: number | null = null;
+		if (this.config.minTraceIntervalMs > 0 && this.lastTraceTimestamp !== null) {
+			const elapsed = now - this.lastTraceTimestamp;
+			if (elapsed < this.config.minTraceIntervalMs) {
+				cooldownRemainingMs = this.config.minTraceIntervalMs - elapsed;
+			}
+		}
+
+		return {
+			activeTraceCount: this.traces.size,
+			maxActiveTraces: this.config.maxActiveTraces,
+			minTraceIntervalMs: this.config.minTraceIntervalMs,
+			rejectDuplicateTraceIds: this.config.rejectDuplicateTraceIds,
+			rejectDuplicateSpanIds: this.config.rejectDuplicateSpanIds,
+			lastTraceTimestamp: this.lastTraceTimestamp ? new Date(this.lastTraceTimestamp).toISOString() : null,
+			cooldownRemainingMs,
+			isStopped: this.stopped,
+			totalTracesStarted: this.totalTracesStarted,
+			totalTracesEnded: this.totalTracesEnded,
+			totalSpansStarted: this.totalSpansStarted,
+			totalSpansEnded: this.totalSpansEnded,
+			totalBudgetRejections: this.totalBudgetRejections,
+			totalCooldownRejections: this.totalCooldownRejections,
+			totalDedupeRejections: this.totalDedupeRejections,
+		};
 	}
 }

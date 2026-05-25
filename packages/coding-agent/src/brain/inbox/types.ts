@@ -104,12 +104,7 @@ export const ALL_PI_INBOX_MESSAGE_TYPES: PiInboxMessageType[] = [
 ];
 
 /** All valid PiInboxMessagePriority values. */
-export const ALL_PI_INBOX_PRIORITIES: PiInboxMessagePriority[] = [
-	"low",
-	"normal",
-	"high",
-	"critical",
-];
+export const ALL_PI_INBOX_PRIORITIES: PiInboxMessagePriority[] = ["low", "normal", "high", "critical"];
 
 // ---------------------------------------------------------------------------
 // Factory Functions

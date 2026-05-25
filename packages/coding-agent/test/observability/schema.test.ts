@@ -10,24 +10,22 @@
 
 import { describe, expect, it } from "vitest";
 import {
+	ALL_OBSERVABILITY_SEVERITIES,
+	ALL_OBSERVABILITY_STATUSES,
 	correlationFromTraceContext,
 	createCorrelation,
 	createObservabilityEvent,
 	createTraceContext,
+	deserializeObservabilityEvent,
+	deserializeTraceContext,
 	EMPTY_CORRELATION,
 	formatCorrelation,
 	isCorrelationEmpty,
 	isCorrelationPopulated,
-	mergeCorrelation,
-} from "../../src/observability/index.js";
-import {
-	ALL_OBSERVABILITY_SEVERITIES,
-	ALL_OBSERVABILITY_STATUSES,
-	deserializeObservabilityEvent,
-	deserializeTraceContext,
 	isValidSeverity,
 	isValidStatus,
 	isValidTimestamp,
+	mergeCorrelation,
 	serializeObservabilityEvent,
 	serializeTraceContext,
 	validateObservabilityEvent,

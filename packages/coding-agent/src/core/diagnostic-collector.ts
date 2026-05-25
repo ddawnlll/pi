@@ -1,96 +1,119 @@
 /**
  * Diagnostic Collector - Workspace 25.E
  *
- * Collects evidence from various execution contexts and builds
- * diagnostic packets. Bridges the failure classifier, scheduling
- * diagnostics, agent execution results, and brain observations into
- * structured diagnostic packets with evidence chains.
+ * Collectors that build diagnostic packets from execution context:
+ * - Failure classification
+ * - Scheduler diagnostics
+ * - Agent results
+ * - Budget exceeded events
+ * - Stop conditions
+ * - Cooldown events
+ * - General observations
  *
- * Key responsibilities:
- * - Collect evidence from file system, git, test output, errors
- * - Build diagnostic packets from failure classifications
- * - Build diagnostic packets from scheduling decisions
- * - Build diagnostic packets from agent execution results
- * - Enforce budget and cooldown constraints
- * - Support deduplication via content hashing
- *
- * @packageDocumentation
+ * Implements:
+ * - Cooldown-based rate limiting to prevent rapid re-emission
+ * - Deduplication registry to suppress repeated diagnostics
+ * - Placeholder evidence for missing data (no silent errors)
  */
 
-import * as crypto from "node:crypto";
-import type { FailureClassification, FailureContext } from "../failure/failure-classifier.js";
-import { createFailureClassifier } from "../failure/failure-classifier.js";
-import type { FileLockConflict, IdleExplanation, SchedulerDiagnostics, SkipReason } from "./scheduler.js";
-import type { AgentExecutionResult } from "./workspace-agent-executor.js";
 import {
+	type AgentVerdict,
 	activateCooldown,
+	type CooldownState,
 	checkAndClearCooldown,
 	createCooldownState,
-	createDedupeState,
 	createDiagnosticPacket,
 	createEvidenceEntry,
 	createEvidenceGroup,
-	createPacketBudget,
-	createPlaceholderEvidenceEntry,
-	createStopConditionState,
-	type CooldownState,
+	DEFAULT_COOLDOWN_DURATION_MS,
 	type DedupeState,
 	type DiagnosticPacket,
-	type DiagnosticSeverity,
 	type DiagnosticType,
 	type EvidenceEntry,
 	type EvidenceGroup,
-	type PacketBudget,
-	type StopConditionState,
-	DEFAULT_COOLDOWN_DURATION_MS,
+	type FailureData,
+	type PacketSeverity,
+	type SkipReason,
 } from "./diagnostic-packet.js";
 
 // ---------------------------------------------------------------------------
-// Cooldown and Dedupe Registry
+// Types
 // ---------------------------------------------------------------------------
 
 /**
- * Tracks cooldown and dedupe state across diagnostics.
- *
- * This is the runtime registry that prevents:
- * - Identical diagnostics from being re-emitted within a cooldown window
- * - Duplicate diagnostics from being emitted multiple times
+ * Failure context for building failure diagnostics.
  */
-export interface CooldownRegistry {
-	/** Cooldown state keyed by dedupe ID */
+export interface FailureContext {
+	error: string;
+	workspaceTitle: string;
+	diagnosticType?: DiagnosticType;
+}
+
+/**
+ * Scheduler diagnostics data structure mirroring the scheduler output.
+ */
+export interface SchedulerDiagnostics {
+	selected: string[];
+	selectedWithReasons: Array<{ workspaceId: string; reason: string }>;
+	skipped: SkipReason[];
+	idle: { isIdle: boolean; reasons: string[] };
+	capacity: {
+		maxWorkers: number;
+		effectiveMaxWorkers: number;
+		activeWorkers: number;
+		availableSlots: number;
+		totalWorkspaces: number;
+		pending: number;
+		active: number;
+		complete: number;
+		blocked: number;
+		failed: number;
+		fileLocks: number;
+		utilization: number;
+		isWorktreeMode: boolean;
+		resourcePressure: number;
+	};
+	batchIds: Map<string, string>;
+}
+
+/**
+ * Agent result data for building execution diagnostics.
+ */
+export interface AgentResult {
+	success: boolean;
+	verdict: AgentVerdict;
+	report: string;
+	error?: string;
+	logs: string[];
+}
+
+/**
+ * Collector registry tracking cooldowns and dedupe states.
+ */
+export interface CollectorRegistry {
 	cooldowns: Map<string, CooldownState>;
-	/** Dedupe state keyed by dedupe ID */
 	dedupes: Map<string, DedupeState>;
 }
 
 /**
- * Create an empty CooldownRegistry.
+ * Options for creating a DiagnosticCollector.
  */
-export function createCooldownRegistry(): CooldownRegistry {
-	return {
-		cooldowns: new Map(),
-		dedupes: new Map(),
-	};
+export interface DiagnosticCollectorOptions {
+	defaultCooldownMs?: number;
+	componentName?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Evidence Collector
+// EvidenceCollector
 // ---------------------------------------------------------------------------
 
 /**
- * Collects evidence from various sources.
- *
- * Each method returns an EvidenceEntry that can be added to a
- * diagnostic packet's evidence group.
+ * Evidence collector providing convenience methods for creating
+ * evidence entries from common data sources.
  */
 export class EvidenceCollector {
 	/**
-	 * Create an evidence entry from a file path.
-	 *
-	 * @param filePath - Absolute or relative file path
-	 * @param description - Description of the file evidence
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from a file.
 	 */
 	collectFromFile(
 		filePath: string,
@@ -105,30 +128,24 @@ export class EvidenceCollector {
 			source,
 			fileData: {
 				filePath,
-				content,
-				lineRange,
+				...(content !== undefined ? { content } : {}),
+				...(lineRange !== undefined ? { lineRange } : {}),
 			},
 		});
 	}
 
 	/**
-	 * Create an evidence entry from test output.
-	 *
-	 * @param output - Test output data
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from test output.
 	 */
 	collectFromTestOutput(
-		output: {
-			testSuite?: string;
+		testData: {
+			testSuite: string;
 			testName?: string;
 			exitCode?: number;
 			passed?: number;
 			failed?: number;
 			skipped?: number;
 			stdout?: string;
-			stderr?: string;
-			durationMs?: number;
 		},
 		description: string,
 		source: string,
@@ -137,34 +154,19 @@ export class EvidenceCollector {
 			category: "test_output",
 			description,
 			source,
-			testData: {
-				testSuite: output.testSuite,
-				testName: output.testName,
-				exitCode: output.exitCode,
-				passed: output.passed,
-				failed: output.failed,
-				skipped: output.skipped,
-				stdout: output.stdout,
-				stderr: output.stderr,
-				durationMs: output.durationMs,
-			},
+			testData,
 		});
 	}
 
 	/**
-	 * Create an evidence entry from an error message.
-	 *
-	 * @param error - Error data
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from an error.
 	 */
 	collectFromError(
-		error: {
+		errorData: {
 			message: string;
 			errorType?: string;
 			stackTrace?: string;
 			exitCode?: number;
-			code?: string;
 		},
 		description: string,
 		source: string,
@@ -173,30 +175,19 @@ export class EvidenceCollector {
 			category: "error_message",
 			description,
 			source,
-			errorData: {
-				message: error.message,
-				errorType: error.errorType,
-				stackTrace: error.stackTrace,
-				exitCode: error.exitCode,
-				code: error.code,
-			},
+			errorData,
 		});
 	}
 
 	/**
-	 * Create an evidence entry from a scheduling skip reason.
-	 *
-	 * @param skipReason - The skip reason from scheduler diagnostics
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from a skip reason.
 	 */
 	collectFromSkipReason(skipReason: SkipReason, source: string): EvidenceEntry {
 		return createEvidenceEntry({
 			category: "scheduling_decision",
-			description: `Skipped: ${skipReason.category} - ${skipReason.reason}`,
+			description: `Skipped workspace ${skipReason.workspaceId}: ${skipReason.reason}`,
 			source,
 			schedulingData: {
-				workspaceId: skipReason.workspaceId,
 				decision: "skipped",
 				skipReason,
 			},
@@ -204,197 +195,342 @@ export class EvidenceCollector {
 	}
 
 	/**
-	 * Create an evidence entry from a failure classification.
-	 *
-	 * @param classification - Failure classification
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from a failure classification.
 	 */
-	collectFromFailureClassification(
-		classification: FailureClassification,
-		source: string,
-	): EvidenceEntry {
+	collectFromFailureClassification(classification: FailureData, source: string): EvidenceEntry {
 		return createEvidenceEntry({
 			category: "failure_classification",
-			description: `Failure: ${classification.category} (confidence: ${Math.round(classification.confidence * 100)}%)`,
+			description: `Failure classified as ${classification.category} (confidence: ${classification.confidence})`,
 			source,
-			failureData: {
-				category: classification.category,
-				confidence: classification.confidence,
-				recoverable: classification.recoverable,
-				details: classification.details,
-			},
+			failureData: classification,
 		});
 	}
 
 	/**
-	 * Create an evidence entry from an agent execution result.
-	 *
-	 * @param result - Agent execution result
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from an agent result.
 	 */
-	collectFromAgentResult(result: AgentExecutionResult, source: string): EvidenceEntry {
+	collectFromAgentResult(result: AgentResult, source: string): EvidenceEntry {
 		return createEvidenceEntry({
 			category: "agent_report",
-			description: `Agent ${result.verdict}: ${result.report.slice(0, 200)}`,
+			description: `Agent verdict: ${result.verdict}`,
 			source,
 			agentReportData: {
 				verdict: result.verdict,
 				report: result.report,
+				turns: result.logs.length,
+				diffGenerated: result.success,
 			},
 		});
 	}
 
 	/**
-	 * Create a cooldown state evidence entry.
-	 *
-	 * @param state - Cooldown state
-	 * @param source - Source component name
-	 * @returns Evidence entry
+	 * Collect evidence from a cooldown state.
 	 */
-	collectFromCooldownState(state: CooldownState, source: string): EvidenceEntry {
+	collectFromCooldownState(cooldownState: CooldownState, source: string): EvidenceEntry {
+		const now = Date.now();
+		const expiryTime = cooldownState.cooldownUntil ? new Date(cooldownState.cooldownUntil).getTime() : now;
+		const remainingMs = Math.max(0, expiryTime - now);
+
 		return createEvidenceEntry({
 			category: "cooldown_state",
-			description: state.isActive
-				? `Cooldown active: ${state.cooldownReason} (${Math.round(state.remainingMs / 1000)}s remaining)`
-				: "Cooldown inactive",
+			description: `Cooldown ${cooldownState.isActive ? "active" : "inactive"}: ${cooldownState.cooldownReason ?? "no reason"}`,
 			source,
 			cooldownData: {
-				isActive: state.isActive,
-				reason: state.cooldownReason ?? "No reason specified",
-				expiresAt: state.cooldownUntil,
-				remainingMs: state.remainingMs,
+				isActive: cooldownState.isActive,
+				reason: cooldownState.cooldownReason ?? undefined,
+				expiresAt: cooldownState.cooldownUntil ?? undefined,
+				remainingMs: cooldownState.isActive ? remainingMs : 0,
 			},
 		});
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Diagnostic Collector
+// DiagnosticCollector
 // ---------------------------------------------------------------------------
 
 /**
- * Configuration for the Diagnostic Collector.
- */
-export interface DiagnosticCollectorConfig {
-	/** Default cooldown duration in milliseconds */
-	defaultCooldownMs?: number;
-	/** Maximum evidence entries per packet */
-	maxEvidenceEntries?: number;
-	/** Maximum evidence groups per packet */
-	maxEvidenceGroups?: number;
-	/** Maximum packet size in bytes */
-	maxPacketSizeBytes?: number;
-	/** Component name used as source for generated evidence */
-	componentName?: string;
-}
-
-/**
- * Default diagnostic collector configuration.
- */
-export const DEFAULT_DIAGNOSTIC_COLLECTOR_CONFIG: DiagnosticCollectorConfig = {
-	defaultCooldownMs: DEFAULT_COOLDOWN_DURATION_MS,
-	maxEvidenceEntries: 50,
-	maxEvidenceGroups: 10,
-	maxPacketSizeBytes: 1_000_000,
-	componentName: "diagnostic-collector",
-};
-
-/**
- * Diagnostic Collector.
+ * Diagnostic collector that builds diagnostic packets from execution context.
  *
- * Builds diagnostic packets from various execution contexts.
- * Enforces budget, cooldown, and deduplication constraints.
+ * Features:
+ * - Cooldown-based rate limiting to prevent rapid re-emission
+ * - Deduplication registry to suppress repeated diagnostics
+ * - Placeholder evidence for missing data (no silent errors)
+ * - Failure classification from error text analysis
  */
 export class DiagnosticCollector {
-	private config: DiagnosticCollectorConfig;
-	private registry: CooldownRegistry;
-	private failureClassifier: ReturnType<typeof createFailureClassifier>;
-	private evidenceCollector: EvidenceCollector;
+	private readonly evidenceCollector: EvidenceCollector;
+	private readonly defaultCooldownMs: number;
+	private readonly componentName: string;
+	private registry: CollectorRegistry;
 
-	constructor(config?: DiagnosticCollectorConfig) {
-		this.config = { ...DEFAULT_DIAGNOSTIC_COLLECTOR_CONFIG, ...config };
-		this.registry = createCooldownRegistry();
-		this.failureClassifier = createFailureClassifier();
+	constructor(options: DiagnosticCollectorOptions = {}) {
 		this.evidenceCollector = new EvidenceCollector();
+		this.defaultCooldownMs = options.defaultCooldownMs ?? DEFAULT_COOLDOWN_DURATION_MS;
+		this.componentName = options.componentName ?? "diagnostic-collector";
+		this.registry = {
+			cooldowns: new Map(),
+			dedupes: new Map(),
+		};
 	}
 
 	/**
-	 * Build a diagnostic packet from a failure.
-	 *
-	 * @param failureContext - The failure context
-	 * @param workspaceId - Workspace ID
-	 * @param planExecutionId - Optional plan execution ID
-	 * @returns Diagnostic packet, or null if suppressed by cooldown/dedupe
+	 * Get the current registry for inspection.
 	 */
-	buildFromFailure(
-		failureContext: FailureContext,
-		workspaceId: string,
-		planExecutionId?: string,
-	): DiagnosticPacket | null {
-		const source = this.config.componentName ?? "diagnostic-collector";
+	getRegistry(): CollectorRegistry {
+		return this.registry;
+	}
 
-		// Classify the failure
-		const classification = this.failureClassifier.classify(failureContext);
+	/**
+	 * Reset the entire registry clearing cooldowns and dedupes.
+	 */
+	resetRegistry(): void {
+		this.registry = {
+			cooldowns: new Map(),
+			dedupes: new Map(),
+		};
+	}
 
-		// Check deduplication
-		const dedupeId = crypto
-			.createHash("sha256")
-			.update(JSON.stringify({ type: "failure", workspaceId, category: classification.category }))
-			.digest("hex");
+	/**
+	 * Suppress a dedupe ID to prevent future diagnostics with the same ID.
+	 */
+	suppressDedupe(dedupeId: string): void {
+		this.registry.dedupes.set(dedupeId, {
+			dedupeId,
+			isSuppressed: true,
+			occurrenceCount: 1,
+		});
+	}
 
-		if (this.isDedupeSuppressed(dedupeId)) {
-			return null;
+	/**
+	 * Check if a dedupe ID is suppressed.
+	 */
+	isDedupeSuppressed(dedupeId: string): boolean {
+		const existing = this.registry.dedupes.get(dedupeId);
+		return existing?.isSuppressed === true;
+	}
+
+	/**
+	 * Check and clear the cooldown for a workspace, returning true
+	 * if the diagnostic should be emitted (not on cooldown).
+	 */
+	private checkCooldown(workspaceId: string): boolean {
+		const existing = this.registry.cooldowns.get(workspaceId);
+		if (!existing) {
+			return true;
 		}
 
+		const cleared = checkAndClearCooldown(existing);
+
+		// If cooldown is still active after check, suppress emission
+		if (cleared.isActive) {
+			this.registry.cooldowns.set(workspaceId, cleared);
+			return false;
+		}
+
+		// Cooldown expired, remove it
+		this.registry.cooldowns.delete(workspaceId);
+		return true;
+	}
+
+	/**
+	 * Activate cooldown for a workspace after emitting a diagnostic.
+	 */
+	private activateCooldown(workspaceId: string, reason: string, durationMs?: number): void {
+		const existing = this.registry.cooldowns.get(workspaceId);
+		const base =
+			existing ??
+			createCooldownState({
+				durationMs: durationMs ?? this.defaultCooldownMs,
+			});
+		// Ensure duration is respected even if a previously configured state had a different duration
+		const state = durationMs ? { ...base, durationMs } : base;
+		const activated = activateCooldown(state, reason);
+		this.registry.cooldowns.set(workspaceId, activated);
+	}
+
+	// -----------------------------------------------------------------------
+	// Classification helpers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Classify an error string into a failure category.
+	 */
+	private classifyFailure(error: string, _workspaceTitle: string): FailureData {
+		const lower = error.toLowerCase();
+
+		if (lower.includes("assertionerror") || lower.includes("fail ") || lower.includes("\n  ")) {
+			return {
+				category: "test",
+				confidence: 0.9,
+				recoverable: true,
+				details: "Test failure detected from assertion error or FAIL marker",
+			};
+		}
+
+		if (lower.includes("merge conflict") || lower.includes("<<<<<<")) {
+			return {
+				category: "merge_conflict",
+				confidence: 0.95,
+				recoverable: true,
+				details: "Merge conflict detected in workspace files",
+			};
+		}
+
+		if (lower.includes("typeerror") || lower.includes("referenceerror") || lower.includes("syntaxerror")) {
+			return {
+				category: "runtime",
+				confidence: 0.85,
+				recoverable: true,
+				details: `Runtime error: ${error.substring(0, 200)}`,
+			};
+		}
+
+		if (
+			lower.includes("build") ||
+			lower.includes("compile") ||
+			lower.includes("webpack") ||
+			lower.includes("esbuild") ||
+			lower.includes("tsc")
+		) {
+			return {
+				category: "build",
+				confidence: 0.8,
+				recoverable: true,
+				details: "Build/compile error detected",
+			};
+		}
+
+		if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("etimedout")) {
+			return {
+				category: "timeout",
+				confidence: 0.9,
+				recoverable: true,
+				details: "Operation timed out",
+			};
+		}
+
+		if (
+			lower.includes("network") ||
+			lower.includes("econnrefused") ||
+			lower.includes("econnreset") ||
+			lower.includes("enotfound")
+		) {
+			return {
+				category: "network",
+				confidence: 0.85,
+				recoverable: true,
+				details: "Network error detected",
+			};
+		}
+
+		if (lower.includes("permission") || lower.includes("eacces") || lower.includes("eperm")) {
+			return {
+				category: "permission",
+				confidence: 0.9,
+				recoverable: false,
+				details: "Permission error detected",
+			};
+		}
+
+		// Default fallback: unknown
+		return {
+			category: "unknown",
+			confidence: 0.5,
+			recoverable: true,
+			details: `Unclassified error: ${error.substring(0, 200)}`,
+		};
+	}
+
+	/**
+	 * Determine severity from failure classification.
+	 */
+	private severityFromFailure(classification: FailureData): PacketSeverity {
+		if (classification.category === "merge_conflict") {
+			return "critical";
+		}
+		if (classification.category === "permission") {
+			return "critical";
+		}
+		if (classification.category === "build") {
+			return "error";
+		}
+		if (classification.category === "test") {
+			return "error";
+		}
+		if (classification.category === "runtime") {
+			return "error";
+		}
+		if (classification.category === "timeout") {
+			return "warning";
+		}
+		if (classification.category === "network") {
+			return "warning";
+		}
+		return "error";
+	}
+
+	// -----------------------------------------------------------------------
+	// Builders
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Build a diagnostic packet from a failure context.
+	 *
+	 * Classifies the error, creates evidence, and applies cooldown/dedupe.
+	 * Returns null if suppressed by cooldown.
+	 *
+	 * @param failure - Failure context
+	 * @param workspaceId - Workspace identifier
+	 * @returns Diagnostic packet or null if suppressed
+	 */
+	buildFromFailure(failure: FailureContext, workspaceId: string): DiagnosticPacket | null {
 		// Check cooldown
-		if (this.isCooldownActive(dedupeId)) {
+		if (!this.checkCooldown(workspaceId)) {
 			return null;
 		}
 
-		// Build evidence
-		const classificationEvidence = this.evidenceCollector.collectFromFailureClassification(classification, source);
+		const classification = this.classifyFailure(failure.error, failure.workspaceTitle);
+		const severity = this.severityFromFailure(classification);
 
-		const errorEvidence = this.evidenceCollector.collectFromError(
+		// Create evidence from error
+		const errorEntry = this.evidenceCollector.collectFromError(
 			{
-				message: failureContext.error,
-				errorType: classification.category,
+				message: failure.error.substring(0, 500),
+				errorType: classification.category === "build" ? "BuildError" : "Error",
 			},
-			`Error: ${failureContext.error.slice(0, 200)}`,
-			source,
+			failure.error.substring(0, 200),
+			"failure-classifier",
 		);
 
-		const evidenceGroup = createEvidenceGroup("Failure Classification", [
-			classificationEvidence,
-			errorEvidence,
-		]);
+		const classificationEntry = this.evidenceCollector.collectFromFailureClassification(
+			classification,
+			this.componentName,
+		);
 
-		// Determine severity from failure category
-		const severity = this.failureToSeverity(classification);
+		const group = createEvidenceGroup("Failure Evidence", [errorEntry, classificationEntry]);
 
-		// Determine diagnostic type
-		const diagnosticType: DiagnosticType = classification.recoverable ? "execution_incomplete" : "failure";
+		const diagnosticType: DiagnosticType =
+			failure.diagnosticType ?? (classification.category === "merge_conflict" ? "block" : "failure");
 
-		// Build the packet
 		const packet = createDiagnosticPacket({
 			severity,
 			diagnosticType,
 			workspaceId,
-			planExecutionId,
-			title: `Failure in workspace ${workspaceId}: ${classification.category}`,
-			description: classification.details
-				? `Workspace ${workspaceId} failed with ${classification.category}: ${classification.details}`
-				: `Workspace ${workspaceId} failed with ${classification.category}`,
-			evidence: [evidenceGroup],
+			title: `Failure: ${failure.workspaceTitle}`,
+			description: failure.error.substring(0, 500),
+			evidence: [group],
 			failureClassification: classification,
-			cooldownDurationMs: this.config.defaultCooldownMs,
-			dedupeId,
+			cooldownDurationMs: this.defaultCooldownMs,
 		});
 
+		// Check dedupe suppression
+		if (this.isDedupeSuppressed(packet.dedupe.dedupeId)) {
+			return null;
+		}
+
 		// Activate cooldown
-		this.activateCooldown(dedupeId, `Failure diagnostic for workspace ${workspaceId}`);
-		this.recordDedupe(dedupeId);
+		this.activateCooldown(workspaceId, `Failure diagnostic emitted for ${workspaceId}`);
 
 		return packet;
 	}
@@ -402,323 +538,287 @@ export class DiagnosticCollector {
 	/**
 	 * Build a diagnostic packet from scheduler diagnostics.
 	 *
-	 * @param schedulerDiagnostics - The scheduler diagnostic output
-	 * @param workspaceId - Workspace ID (or "system" for global diagnostics)
+	 * Analyzes capacity, selected/skipped workspaces, and idle state
+	 * to produce a resource pressure or observation diagnostic.
+	 *
+	 * @param diagnostics - Scheduler diagnostics data
+	 * @param workspaceId - Workspace identifier
 	 * @returns Diagnostic packet
 	 */
-	buildFromSchedulerDiagnostics(
-		schedulerDiagnostics: SchedulerDiagnostics,
-		workspaceId: string,
-	): DiagnosticPacket {
-		const source = this.config.componentName ?? "diagnostic-collector";
-		const groups: EvidenceGroup[] = [];
+	buildFromSchedulerDiagnostics(diagnostics: SchedulerDiagnostics, workspaceId: string): DiagnosticPacket {
+		const evidenceGroups: EvidenceGroup[] = [];
 
-		// Evidence: selected workspaces
-		if (schedulerDiagnostics.selected.length > 0) {
-			const selectedEntries = schedulerDiagnostics.selected.map((wsId) =>
+		// Selected workspaces evidence
+		if (diagnostics.selectedWithReasons.length > 0) {
+			const selectedEntries = diagnostics.selectedWithReasons.map((s) =>
 				createEvidenceEntry({
 					category: "scheduling_decision",
-					description: `Selected: ${wsId}`,
-					source,
-					schedulingData: { workspaceId: wsId, decision: "selected" },
+					description: `Selected ${s.workspaceId}: ${s.reason}`,
+					source: "scheduler",
+					schedulingData: { decision: "selected" },
 				}),
 			);
-			groups.push(createEvidenceGroup("Selected Workspaces", selectedEntries));
+			evidenceGroups.push(createEvidenceGroup("Selected Workspaces", selectedEntries));
 		}
 
-		// Evidence: skipped workspaces
-		if (schedulerDiagnostics.skipped.length > 0) {
-			const skipEntries = schedulerDiagnostics.skipped.map((skip) =>
-				this.evidenceCollector.collectFromSkipReason(skip, source),
+		// Skipped workspaces evidence
+		if (diagnostics.skipped.length > 0) {
+			const skippedEntries = diagnostics.skipped.map((s) =>
+				this.evidenceCollector.collectFromSkipReason(s, "scheduler"),
 			);
-			groups.push(createEvidenceGroup("Skipped Workspaces", skipEntries));
+			evidenceGroups.push(createEvidenceGroup("Skipped Workspaces", skippedEntries));
 		}
 
-		// Evidence: idle explanation
-		if (schedulerDiagnostics.idle.isIdle) {
-			const idleEntries = schedulerDiagnostics.idle.reasons.map((reason, i) =>
-				createEvidenceEntry({
-					category: "scheduling_decision",
-					description: `Idle reason ${i + 1}: ${reason}`,
-					source,
-					schedulingData: { workspaceId: "system", decision: "idle" },
-				}),
-			);
-			groups.push(createEvidenceGroup("Scheduler Idle", idleEntries));
+		// Scheduler idle evidence
+		const idleEntries: EvidenceEntry[] = diagnostics.idle.reasons.map((reason) =>
+			createEvidenceEntry({
+				category: "scheduling_decision",
+				description: `Idle reason: ${reason}`,
+				source: "scheduler",
+				schedulingData: { decision: "idle" },
+			}),
+		);
+
+		if (idleEntries.length > 0) {
+			evidenceGroups.push(createEvidenceGroup("Scheduler Idle", idleEntries));
 		}
 
-		// Evidence: capacity snapshot
-		const cap = schedulerDiagnostics.capacity;
+		// Capacity evidence
 		const capacityEntry = createEvidenceEntry({
-			category: "scheduling_decision",
-			description: `Capacity: ${cap.activeWorkers}/${cap.maxWorkers} workers active, ${cap.availableSlots} slots available`,
-			source,
-			data: {
-				maxWorkers: cap.maxWorkers,
-				activeWorkers: cap.activeWorkers,
-				availableSlots: cap.availableSlots,
-				utilization: cap.utilization,
-				resourcePressure: cap.resourcePressure,
-				fileLocks: cap.fileLocks,
-			},
+			category: "system_state",
+			description: `Capacity: ${diagnostics.capacity.activeWorkers}/${diagnostics.capacity.maxWorkers} workers active, ${diagnostics.capacity.availableSlots} slots available`,
+			source: "scheduler",
+			data: diagnostics.capacity as unknown as Record<string, unknown>,
 		});
-		groups.push(createEvidenceGroup("Capacity Snapshot", [capacityEntry]));
+		evidenceGroups.push(createEvidenceGroup("Scheduler Capacity", [capacityEntry]));
 
-		// Determine severity and type
-		let severity: DiagnosticSeverity = "info";
+		// Determine diagnostic type and severity from resource pressure
 		let diagnosticType: DiagnosticType = "observation";
+		let severity: PacketSeverity = "info";
 
-		if (schedulerDiagnostics.idle.isIdle) {
-			severity = "warning";
-			diagnosticType = "idle";
-		}
-
-		if (schedulerDiagnostics.skipped.some((s) => s.category === "file_lock")) {
-			severity = "warning";
-		}
-
-		if (schedulerDiagnostics.capacity.utilization >= 0.9) {
-			severity = "warning";
-		}
-
-		if (schedulerDiagnostics.capacity.resourcePressure > 0.8) {
-			severity = "warning";
+		if (diagnostics.capacity.resourcePressure >= 0.8) {
 			diagnosticType = "resource_pressure";
+			severity = "warning";
 		}
 
-		return createDiagnosticPacket({
+		// Create the packet
+		const packet = createDiagnosticPacket({
 			severity,
 			diagnosticType,
 			workspaceId,
-			title: `Scheduler diagnostic for workspace ${workspaceId}`,
-			description: `Scheduler evaluated ${schedulerDiagnostics.capacity.totalWorkspaces} workspaces: ${schedulerDiagnostics.selected.length} selected, ${schedulerDiagnostics.skipped.length} skipped`,
-			evidence: groups,
-			schedulingDiagnostics: schedulerDiagnostics,
+			title: `Scheduler diagnostics for ${workspaceId}`,
+			description: `Scheduler capacity: ${diagnostics.capacity.activeWorkers}/${diagnostics.capacity.maxWorkers} workers (utilization: ${(diagnostics.capacity.utilization * 100).toFixed(0)}%)`,
+			evidence: evidenceGroups,
 		});
+
+		return packet;
 	}
 
 	/**
 	 * Build a diagnostic packet from an agent execution result.
 	 *
 	 * @param result - Agent execution result
-	 * @param workspaceId - Workspace ID
-	 * @param planExecutionId - Optional plan execution ID
-	 * @returns Diagnostic packet, or null if suppressed by cooldown/dedupe
+	 * @param workspaceId - Workspace identifier
+	 * @param planExecutionId - Optional plan execution identifier
+	 * @returns Diagnostic packet or null if suppressed by cooldown
 	 */
-	buildFromAgentResult(
-		result: AgentExecutionResult,
-		workspaceId: string,
-		planExecutionId?: string,
-	): DiagnosticPacket | null {
-		const source = this.config.componentName ?? "diagnostic-collector";
-
-		const dedupeId = crypto
-			.createHash("sha256")
-			.update(JSON.stringify({ type: "agent_result", workspaceId, verdict: result.verdict }))
-			.digest("hex");
-
-		if (this.isDedupeSuppressed(dedupeId)) {
+	buildFromAgentResult(result: AgentResult, workspaceId: string, planExecutionId?: string): DiagnosticPacket | null {
+		// Check cooldown
+		if (!this.checkCooldown(workspaceId)) {
 			return null;
 		}
 
-		if (this.isCooldownActive(dedupeId)) {
-			return null;
-		}
-
-		// Build evidence
-		const agentEvidence = this.evidenceCollector.collectFromAgentResult(result, source);
-
-		// If failed, classify and add failure evidence
-		let failureClassification: FailureClassification | undefined;
-		const allEntries: EvidenceEntry[] = [agentEvidence];
-
-		if (result.verdict === "FAILED" && result.error) {
-			const context = { error: result.error, workspaceTitle: workspaceId };
-			const classification = this.failureClassifier.classify(context);
-			failureClassification = classification;
-
-			const failureEvidence = this.evidenceCollector.collectFromFailureClassification(classification, source);
-			allEntries.push(failureEvidence);
-
-			const errorEvidence = this.evidenceCollector.collectFromError(
-				{ message: result.error },
-				`Execution error: ${result.error.slice(0, 200)}`,
-				source,
-			);
-			allEntries.push(errorEvidence);
-		}
-
-		const evidenceGroup = createEvidenceGroup("Agent Execution", allEntries);
-
-		// Determine severity and type
-		let severity: DiagnosticSeverity;
 		let diagnosticType: DiagnosticType;
+		let severity: PacketSeverity;
+		const evidenceGroups: EvidenceGroup[] = [];
 
-		switch (result.verdict) {
-			case "COMPLETE":
-				severity = "info";
-				diagnosticType = "execution_complete";
-				break;
-			case "BLOCKED":
-				severity = "warning";
-				diagnosticType = "block";
-				break;
-			case "FAILED":
-				severity = "error";
-				diagnosticType = "failure";
-				break;
+		// Agent report evidence
+		const agentEntry = this.evidenceCollector.collectFromAgentResult(result, this.componentName);
+		evidenceGroups.push(createEvidenceGroup("Agent Report", [agentEntry]));
+
+		// Logs evidence (if any)
+		if (result.logs.length > 0) {
+			const logEntries = result.logs.map((log, i) =>
+				createEvidenceEntry({
+					category: "log_output",
+					description: log,
+					source: "agent",
+					data: { index: i },
+				}),
+			);
+			evidenceGroups.push(createEvidenceGroup("Execution Logs", logEntries));
+		}
+
+		let failureClassification: FailureData | undefined;
+
+		if (result.success && result.verdict === "COMPLETE") {
+			diagnosticType = "execution_complete";
+			severity = "info";
+		} else if (result.verdict === "BLOCKED") {
+			diagnosticType = "block";
+			severity = "warning";
+
+			if (result.error) {
+				const errorEntry = this.evidenceCollector.collectFromError(
+					{ message: result.error },
+					result.error,
+					this.componentName,
+				);
+				evidenceGroups.push(createEvidenceGroup("Block Reason", [errorEntry]));
+			}
+		} else {
+			diagnosticType = "failure";
+			severity = "error";
+
+			if (result.error) {
+				const errorEntry = this.evidenceCollector.collectFromError(
+					{ message: result.error },
+					result.error,
+					this.componentName,
+				);
+				evidenceGroups.push(createEvidenceGroup("Error Details", [errorEntry]));
+
+				// Classify the error for failure context
+				failureClassification = this.classifyFailure(result.error, workspaceId);
+				const classificationEntry = this.evidenceCollector.collectFromFailureClassification(
+					failureClassification,
+					this.componentName,
+				);
+				evidenceGroups.push(createEvidenceGroup("Failure Classification", [classificationEntry]));
+			}
 		}
 
 		const packet = createDiagnosticPacket({
 			severity,
 			diagnosticType,
 			workspaceId,
+			title: `Agent result: ${result.verdict} for ${workspaceId}`,
+			description: result.report,
+			evidence: evidenceGroups,
+			cooldownDurationMs: this.defaultCooldownMs,
 			planExecutionId,
-			title: `Agent execution result for workspace ${workspaceId}: ${result.verdict}`,
-			description: result.error
-				? `Agent execution ${result.verdict}: ${result.error.slice(0, 300)}`
-				: `Agent execution ${result.verdict}`,
-			evidence: [evidenceGroup],
 			failureClassification,
-			cooldownDurationMs: this.config.defaultCooldownMs,
-			dedupeId,
 		});
 
-		// Activate cooldown
-		this.activateCooldown(dedupeId, `Agent execution diagnostic for workspace ${workspaceId}`);
-		this.recordDedupe(dedupeId);
+		// Check dedupe suppression
+		if (this.isDedupeSuppressed(packet.dedupe.dedupeId)) {
+			return null;
+		}
+
+		// Activate cooldown after any emission to prevent rapid re-emission
+		this.activateCooldown(workspaceId, `Agent ${result.verdict} for ${workspaceId}`);
 
 		return packet;
 	}
 
 	/**
-	 * Build a diagnostic packet for a budget exceeded event.
+	 * Build a diagnostic packet for budget exceeded.
 	 *
-	 * @param workspaceId - Workspace ID
-	 * @param budgetDescription - Description of the budget that was exceeded
-	 * @param metadata - Additional metadata
+	 * @param workspaceId - Workspace identifier
+	 * @param description - Description of budget exceeded
+	 * @param budgetInfo - Budget usage information
 	 * @returns Diagnostic packet
 	 */
 	buildFromBudgetExceeded(
 		workspaceId: string,
-		budgetDescription: string,
-		metadata?: Record<string, unknown>,
+		description: string,
+		budgetInfo: { used: number; max: number; ratio: number },
 	): DiagnosticPacket {
-		const source = this.config.componentName ?? "diagnostic-collector";
-
 		const budgetEntry = createEvidenceEntry({
 			category: "budget_snapshot",
-			description: budgetDescription,
-			source,
-			data: metadata ?? {},
+			description: `Budget exceeded: used ${budgetInfo.used} of ${budgetInfo.max} (${(budgetInfo.ratio * 100).toFixed(0)}%)`,
+			source: "budget-enforcer",
+			data: budgetInfo as unknown as Record<string, unknown>,
 		});
 
-		const evidenceGroup = createEvidenceGroup("Budget Exceeded", [budgetEntry]);
+		const group = createEvidenceGroup("Budget Exceeded", [budgetEntry]);
 
 		return createDiagnosticPacket({
 			severity: "error",
 			diagnosticType: "budget_exceeded",
 			workspaceId,
-			title: `Budget exceeded for workspace ${workspaceId}`,
-			description: budgetDescription,
-			evidence: [evidenceGroup],
-			metadata,
+			title: `Budget exceeded for ${workspaceId}`,
+			description,
+			evidence: [group],
 		});
 	}
 
 	/**
-	 * Build a diagnostic packet for a stop condition being triggered.
+	 * Build a diagnostic packet for a stop condition.
 	 *
-	 * @param workspaceId - Workspace ID
-	 * @param condition - The stop condition that triggered
-	 * @param detail - Human-readable detail
-	 * @param metadata - Additional metadata
+	 * @param workspaceId - Workspace identifier
+	 * @param condition - Stop condition name
+	 * @param detail - Detail about the stop condition
 	 * @returns Diagnostic packet
 	 */
-	buildFromStopCondition(
-		workspaceId: string,
-		condition: string,
-		detail: string,
-		metadata?: Record<string, unknown>,
-	): DiagnosticPacket {
-		const source = this.config.componentName ?? "diagnostic-collector";
-
+	buildFromStopCondition(workspaceId: string, condition: string, detail: string): DiagnosticPacket {
 		const stopEntry = createEvidenceEntry({
 			category: "log_output",
 			description: `Stop condition triggered: ${condition}`,
-			source,
-			data: { condition, detail, ...metadata },
+			source: "stop-condition-handler",
+			data: { condition, detail },
 		});
 
-		const evidenceGroup = createEvidenceGroup("Stop Condition", [stopEntry]);
+		const group = createEvidenceGroup("Stop Condition", [stopEntry]);
 
 		return createDiagnosticPacket({
 			severity: "warning",
 			diagnosticType: "stop_condition_triggered",
 			workspaceId,
-			title: `Stop condition triggered for workspace ${workspaceId}`,
+			title: `Stop condition triggered: ${condition}`,
 			description: detail,
-			evidence: [evidenceGroup],
-			stopCondition: createStopConditionState({
+			evidence: [group],
+			stopCondition: {
 				triggered: true,
 				condition,
 				detail,
-				metadata: metadata ?? {},
-			}),
-			metadata: metadata ?? {},
+			},
 		});
 	}
 
 	/**
-	 * Build a diagnostic packet for a cooldown active event.
+	 * Build a diagnostic packet for cooldown active.
 	 *
-	 * @param workspaceId - Workspace ID
+	 * @param workspaceId - Workspace identifier
 	 * @param reason - Reason for cooldown
-	 * @param remainingMs - Remaining cooldown time
+	 * @param remainingMs - Remaining cooldown in milliseconds
 	 * @returns Diagnostic packet
 	 */
-	buildFromCooldown(
-		workspaceId: string,
-		reason: string,
-		remainingMs: number,
-	): DiagnosticPacket {
-		const source = this.config.componentName ?? "diagnostic-collector";
+	buildFromCooldown(workspaceId: string, reason: string, remainingMs: number): DiagnosticPacket {
+		const expiresAt = new Date(Date.now() + remainingMs).toISOString();
 
-		const cooldownState = createCooldownState({
-			isActive: true,
-			cooldownReason: reason,
-			remainingMs,
-			durationMs: this.config.defaultCooldownMs ?? DEFAULT_COOLDOWN_DURATION_MS,
-		});
+		const cooldownEntry = this.evidenceCollector.collectFromCooldownState(
+			{
+				isActive: true,
+				cooldownUntil: expiresAt,
+				cooldownReason: reason,
+				remainingMs,
+				durationMs: remainingMs,
+				emitCount: 1,
+			},
+			this.componentName,
+		);
 
-		const cooldownEntry = this.evidenceCollector.collectFromCooldownState(cooldownState, source);
-		const evidenceGroup = createEvidenceGroup("Cooldown Active", [cooldownEntry]);
+		const group = createEvidenceGroup("Cooldown Active", [cooldownEntry]);
 
-		// Create the base packet, then patch its cooldown to reflect the active state
-		const packet = createDiagnosticPacket({
+		return createDiagnosticPacket({
 			severity: "info",
 			diagnosticType: "cooldown_active",
 			workspaceId,
-			title: `Cooldown active for workspace ${workspaceId}`,
+			title: `Cooldown active for ${workspaceId}`,
 			description: reason,
-			evidence: [evidenceGroup],
-			cooldownDurationMs: cooldownState.durationMs,
+			evidence: [group],
 		});
-
-		// Override the cooldown state to reflect the actual active cooldown
-		packet.cooldown = cooldownState;
-
-		return packet;
 	}
 
 	/**
-	 * Build a diagnostic packet for a general observation.
+	 * Build a diagnostic packet from a general observation.
 	 *
-	 * @param workspaceId - Workspace ID
-	 * @param title - Diagnostic title
-	 * @param description - Diagnostic description
+	 * @param workspaceId - Workspace identifier
+	 * @param title - Short title
+	 * @param description - Detailed description
 	 * @param evidence - Evidence groups
-	 * @param severity - Severity level
+	 * @param severity - Severity level (default: info)
 	 * @returns Diagnostic packet
 	 */
 	buildObservation(
@@ -726,7 +826,7 @@ export class DiagnosticCollector {
 		title: string,
 		description: string,
 		evidence: EvidenceGroup[],
-		severity: DiagnosticSeverity = "info",
+		severity: PacketSeverity = "info",
 	): DiagnosticPacket {
 		return createDiagnosticPacket({
 			severity,
@@ -737,117 +837,14 @@ export class DiagnosticCollector {
 			evidence,
 		});
 	}
-
-	// -----------------------------------------------------------------------
-	// Cooldown & Dedupe Management
-	// -----------------------------------------------------------------------
-
-	/**
-	 * Check whether a dedupe ID is currently suppressed.
-	 */
-	isDedupeSuppressed(dedupeId: string): boolean {
-		const state = this.registry.dedupes.get(dedupeId);
-		return state?.isSuppressed ?? false;
-	}
-
-	/**
-	 * Check whether a dedupe ID has an active cooldown.
-	 */
-	isCooldownActive(dedupeId: string): boolean {
-		const state = this.registry.cooldowns.get(dedupeId);
-		if (!state) return false;
-		const checked = checkAndClearCooldown(state);
-		this.registry.cooldowns.set(dedupeId, checked);
-		return checked.isActive;
-	}
-
-	/**
-	 * Activate cooldown for a dedupe ID.
-	 */
-	activateCooldown(dedupeId: string, reason: string): void {
-		const existing = this.registry.cooldowns.get(dedupeId) ?? createCooldownState({
-			durationMs: this.config.defaultCooldownMs ?? DEFAULT_COOLDOWN_DURATION_MS,
-		});
-		this.registry.cooldowns.set(dedupeId, activateCooldown(existing, reason));
-	}
-
-	/**
-	 * Record a deduplication occurrence.
-	 */
-	recordDedupe(dedupeId: string): void {
-		const existing = this.registry.dedupes.get(dedupeId);
-		if (existing) {
-			this.registry.dedupes.set(dedupeId, {
-				...existing,
-				occurrenceCount: existing.occurrenceCount + 1,
-			});
-		} else {
-			this.registry.dedupes.set(dedupeId, createDedupeState(dedupeId));
-		}
-	}
-
-	/**
-	 * Suppress a dedupe ID (mark as duplicate, future packets will be rejected).
-	 */
-	suppressDedupe(dedupeId: string): void {
-		this.registry.dedupes.set(dedupeId, createDedupeState(dedupeId, { isSuppressed: true }));
-	}
-
-	/**
-	 * Clear cooldown for a dedupe ID.
-	 */
-	clearCooldown(dedupeId: string): void {
-		this.registry.cooldowns.delete(dedupeId);
-	}
-
-	/**
-	 * Reset all cooldowns and dedupes.
-	 */
-	resetRegistry(): void {
-		this.registry.cooldowns.clear();
-		this.registry.dedupes.clear();
-	}
-
-	/**
-	 * Get the current cooldown registry (for inspection/diagnostics).
-	 */
-	getRegistry(): CooldownRegistry {
-		return this.registry;
-	}
-
-	// -----------------------------------------------------------------------
-	// Helpers
-	// -----------------------------------------------------------------------
-
-	/**
-	 * Map a failure classification to a diagnostic severity.
-	 */
-	private failureToSeverity(classification: FailureClassification): DiagnosticSeverity {
-		switch (classification.category) {
-			case "merge_conflict":
-			case "permission":
-				return "critical";
-			case "build":
-			case "test":
-			case "runtime":
-				return "error";
-			case "network":
-			case "timeout":
-			case "lint":
-			case "type":
-				return "warning";
-			case "review":
-			case "unknown":
-				return "warning";
-			default:
-				return "error";
-		}
-	}
 }
 
 /**
- * Create a DiagnosticCollector with default configuration.
+ * Create a DiagnosticCollector with the given options.
+ *
+ * @param options - Collector options
+ * @returns A new DiagnosticCollector
  */
-export function createDiagnosticCollector(config?: DiagnosticCollectorConfig): DiagnosticCollector {
-	return new DiagnosticCollector(config);
+export function createDiagnosticCollector(options: DiagnosticCollectorOptions = {}): DiagnosticCollector {
+	return new DiagnosticCollector(options);
 }

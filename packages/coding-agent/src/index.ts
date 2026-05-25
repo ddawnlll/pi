@@ -121,41 +121,45 @@ export {
 	type QuarantineResult,
 } from "./core/lease-monitor.js";
 export {
+	type Aggregation,
+	type AggregationFunction,
+	type AggregationResult,
 	ALL_OBSERVABILITY_SEVERITIES,
 	ALL_OBSERVABILITY_STATUSES,
 	type CorrelationModel,
 	createObservabilityEvent,
 	createTraceContext,
+	DEFAULT_TRACE_MANAGER_CONFIG,
+	type DedupeConfig,
+	type ErrorAnalysis,
+	type EventStatistics,
+	// 25.B — Telemetry store, retention, and query API
+	type FlushResult,
+	InMemoryTelemetryStore,
 	type ObservabilityEvent,
 	type ObservabilitySeverity,
 	type ObservabilityStatus,
-	type TraceContext,
-	TraceManager,
-	type ValidationResult,
-	validateObservabilityEvent,
-	// 25.B — Telemetry store, retention, and query API
-	type FlushResult,
+	type PruneResult,
+	type RetentionBudget,
+	RetentionEngine,
+	type RetentionPolicy,
+	type RetentionRule,
 	type TelemetryFlushTarget,
+	type TelemetryQuery,
+	TelemetryQueryApi,
 	type TelemetryQueryFilter,
 	type TelemetryStoreConfig,
 	type TelemetryStoreDiagnostics,
-	InMemoryTelemetryStore,
-	type DedupeConfig,
-	type PruneResult,
-	type RetentionBudget,
-	type RetentionPolicy,
-	type RetentionRule,
-	RetentionEngine,
-	type Aggregation,
-	type AggregationFunction,
-	type AggregationResult,
-	type ErrorAnalysis,
-	type EventStatistics,
-	type TelemetryQuery,
 	type TimeBucketConfig,
 	type TimeSeriesPoint,
 	type TimeSeriesResult,
-	TelemetryQueryApi,
+	type TraceContext,
+	TraceManager,
+	type TraceManagerConfig,
+	type TraceManagerDiagnostics,
+	TraceManagerError,
+	type ValidationResult,
+	validateObservabilityEvent,
 } from "./core/observability.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
 export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
@@ -345,6 +349,13 @@ export type {
 	DriftCheckState,
 	DriftDetectorConfig,
 	EmergencyStatusResult,
+	// Feedback Store (24.J)
+	FeedbackEntry,
+	FeedbackItemType,
+	FeedbackQuery,
+	FeedbackQueryResult,
+	FeedbackRating,
+	FeedbackStats,
 	GoalCreateInput,
 	GoalDriftReport,
 	GoalPriority,
@@ -355,31 +366,27 @@ export type {
 	MemoryListResult,
 	MemoryStatsResult,
 	Milestone,
+	PiInboxListResult,
+	PiInboxMessage,
+	PiInboxMessagePriority,
+	PiInboxMessageType,
+	PiInboxQuery,
+	PiInboxStats,
+	// Pi Inbox (24.M)
+	PiInboxStoreConfig,
+	PiInboxValidationResult,
 	PolicyEvaluateResult,
 	PolicyRuleListResult,
 	PreferenceCategory,
 	PreferenceCreateInput,
 	PreferenceRecord,
 	PreferenceSource,
-	// Pi Inbox (24.M)
-	PiInboxStoreConfig,
-	PiInboxListResult,
-	PiInboxQuery,
-	PiInboxMessage,
-	PiInboxMessagePriority,
-	PiInboxMessageType,
-	PiInboxStats,
-	PiInboxValidationResult,
-	// Feedback Store (24.J)
-	FeedbackEntry,
-	FeedbackItemType,
-	FeedbackQuery,
-	FeedbackQueryResult,
-	FeedbackRating,
-	FeedbackStats,
 } from "./brain/index.js";
 // Brain — V2 cognitive OS (Goal & Preference Domain, P15) + Reflection (P17)
 export {
+	ALL_FEEDBACK_ITEM_TYPES,
+	ALL_PI_INBOX_MESSAGE_TYPES,
+	ALL_PI_INBOX_PRIORITIES,
 	ApprovalGate,
 	ApprovalQueueApi,
 	AuditLedger,
@@ -395,7 +402,9 @@ export {
 	createApprovalGate,
 	createApprovalQueueApi,
 	createAuditLedger,
+	createFeedbackEntry,
 	createMemory,
+	createPiInboxMessage,
 	DEFAULT_AUTONOMY_CONFIG,
 	DEFAULT_DECISION_RULES,
 	DecisionClassifier,
@@ -407,6 +416,8 @@ export {
 	emergencyStop,
 	evaluateAction,
 	explainDecision,
+	// Feedback Store (24.J)
+	FeedbackStore,
 	FullLoopValidator,
 	GoalDriftDetector,
 	type GoalIndex,
@@ -437,6 +448,8 @@ export {
 	OvernightOrchestrator,
 	type OvernightStatus,
 	type OvernightStopCondition,
+	// Pi Inbox (24.M)
+	PiInboxStore,
 	type PlanQueueRef,
 	type ProfileLevelChangeEvent,
 	type ProposalAcceptResult,
@@ -461,21 +474,14 @@ export {
 	UserProtocol,
 	updateAutonomyProfile,
 	updateMemory,
+	validateFeedbackEntry,
+	validatePiInboxMessage,
 	type WhatCompletedEntry,
 	type WhatRanEntry,
 	type WhatStoppedEntry,
-	// Pi Inbox (24.M)
-	PiInboxStore,
-	ALL_PI_INBOX_MESSAGE_TYPES,
-	ALL_PI_INBOX_PRIORITIES,
-	createPiInboxMessage,
-	validatePiInboxMessage,
-	// Feedback Store (24.J)
-	FeedbackStore,
-	ALL_FEEDBACK_ITEM_TYPES,
-	createFeedbackEntry,
-	validateFeedbackEntry,
 } from "./brain/index.js";
+// 25.C — Brain Worker contracts, roles, manifests, and lifecycle states
+export * from "./brain-workers/index.js";
 // P1 Token Budget and Safety - CLI and Reporting
 export {
 	checkLargeEditableFiles,
@@ -1040,7 +1046,6 @@ export type {
 // P11 — Orchestrator
 // Proposal generation from scan findings and orchestrator types
 export { createOrchestratorProposalGenerator, OrchestratorProposalGenerator } from "./orchestrator/index.js";
-
 // Clipboard utilities
 export { copyToClipboard } from "./utils/clipboard.js";
 export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
@@ -1070,6 +1075,3 @@ export {
 	trackProcess,
 	untrackDetachedChildPid,
 } from "./utils/shell.js";
-
-// 25.C — Brain Worker contracts, roles, manifests, and lifecycle states
-export * from "./brain-workers/index.js";

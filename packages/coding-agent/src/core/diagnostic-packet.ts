@@ -413,11 +413,7 @@ export function createEvidenceEntry(options: CreateEvidenceEntryOptions): Eviden
  * @param gapReason - Explanation of why evidence is absent
  * @returns A placeholder EvidenceEntry
  */
-export function createPlaceholderEvidenceEntry(
-	description: string,
-	source: string,
-	gapReason: string,
-): EvidenceEntry {
+export function createPlaceholderEvidenceEntry(description: string, source: string, gapReason: string): EvidenceEntry {
 	return createEvidenceEntry({
 		category: "placeholder",
 		description,
@@ -571,9 +567,7 @@ export function compactDiagnosticPacket(packet: DiagnosticPacket): DiagnosticPac
 	// Strategy 2: If still over max entries, trim groups (keep highest confidence)
 	if (totalEntries > maxEntries) {
 		// Sort groups by average confidence descending, keep best ones
-		const sortedGroups = [...compactedGroups].sort(
-			(a, b) => b.groupConfidence - a.groupConfidence,
-		);
+		const sortedGroups = [...compactedGroups].sort((a, b) => b.groupConfidence - a.groupConfidence);
 
 		const trimmedGroups: EvidenceGroup[] = [];
 		let entryCount = 0;
@@ -602,9 +596,7 @@ export function compactDiagnosticPacket(packet: DiagnosticPacket): DiagnosticPac
 
 	// Strategy 3: If still over max groups, trim groups
 	if (totalGroups > maxGroups) {
-		const sortedGroups = [...compactedGroups].sort(
-			(a, b) => b.groupConfidence - a.groupConfidence,
-		);
+		const sortedGroups = [...compactedGroups].sort((a, b) => b.groupConfidence - a.groupConfidence);
 		compactedGroups.length = 0;
 		compactedGroups.push(...sortedGroups.slice(0, maxGroups));
 		totalGroups = compactedGroups.length;
@@ -660,10 +652,7 @@ export function createCooldownState(options: CreateCooldownStateOptions = {}): C
  * @param reason - Reason for cooldown activation
  * @returns A new CooldownState with cooldown activated
  */
-export function activateCooldown(
-	state: CooldownState,
-	reason: string,
-): CooldownState {
+export function activateCooldown(state: CooldownState, reason: string): CooldownState {
 	const cooldownUntil = new Date(Date.now() + state.durationMs).toISOString();
 	return {
 		...state,
@@ -728,10 +717,7 @@ export interface CreateDedupeStateOptions {
  * @param options - Optional overrides
  * @returns A new DedupeState
  */
-export function createDedupeState(
-	dedupeId: string,
-	options: CreateDedupeStateOptions = {},
-): DedupeState {
+export function createDedupeState(dedupeId: string, options: CreateDedupeStateOptions = {}): DedupeState {
 	return {
 		dedupeId,
 		isSuppressed: options.isSuppressed ?? false,
@@ -757,9 +743,7 @@ export interface CreateStopConditionStateOptions {
  * @param options - Optional stop condition overrides
  * @returns A new StopConditionState
  */
-export function createStopConditionState(
-	options: CreateStopConditionStateOptions = {},
-): StopConditionState {
+export function createStopConditionState(options: CreateStopConditionStateOptions = {}): StopConditionState {
 	return {
 		triggered: options.triggered ?? false,
 		condition: options.condition ?? "",
@@ -824,9 +808,7 @@ function deriveDedupeId(
 		diagnosticType,
 		workspaceId,
 		title,
-		evidenceHashes: evidence.map((g) =>
-			g.entries.map((e) => e.contentHash),
-		),
+		evidenceHashes: evidence.map((g) => g.entries.map((e) => e.contentHash)),
 	};
 	return sha256(stableStringify(hashInput));
 }
@@ -926,36 +908,41 @@ export function createDiagnosticPacket(options: CreateDiagnosticPacketOptions): 
  * @param packet - The packet to validate
  * @returns Validation result
  */
-export function validateDiagnosticPacket(
-	packet: Record<string, unknown>,
-): ValidationResult {
+export function validateDiagnosticPacket(packet: unknown): ValidationResult {
 	const errors: string[] = [];
 
-	if (!packet.id || typeof packet.id !== "string") {
+	if (!packet || typeof packet !== "object") {
+		errors.push("Missing or invalid packet: must be an object");
+		return { valid: false, errors };
+	}
+
+	const p = packet as Record<string, unknown>;
+
+	if (!p.id || typeof p.id !== "string") {
 		errors.push("Missing or invalid 'id': must be a non-empty string");
 	}
-	if (!packet.timestamp || typeof packet.timestamp !== "string") {
+	if (!p.timestamp || typeof p.timestamp !== "string") {
 		errors.push("Missing or invalid 'timestamp': must be a non-empty string");
 	}
-	if (!packet.packetHash || typeof packet.packetHash !== "string") {
+	if (!p.packetHash || typeof p.packetHash !== "string") {
 		errors.push("Missing or invalid 'packetHash': must be a non-empty string");
 	}
-	if (!packet.severity || typeof packet.severity !== "string") {
+	if (!p.severity || typeof p.severity !== "string") {
 		errors.push("Missing or invalid 'severity': must be a non-empty string");
 	}
-	if (!packet.diagnosticType || typeof packet.diagnosticType !== "string") {
+	if (!p.diagnosticType || typeof p.diagnosticType !== "string") {
 		errors.push("Missing or invalid 'diagnosticType': must be a non-empty string");
 	}
-	if (!packet.workspaceId || typeof packet.workspaceId !== "string") {
+	if (!p.workspaceId || typeof p.workspaceId !== "string") {
 		errors.push("Missing or invalid 'workspaceId': must be a non-empty string");
 	}
-	if (!packet.title || typeof packet.title !== "string") {
+	if (!p.title || typeof p.title !== "string") {
 		errors.push("Missing or invalid 'title': must be a non-empty string");
 	}
-	if (!packet.description || typeof packet.description !== "string") {
+	if (!p.description || typeof p.description !== "string") {
 		errors.push("Missing or invalid 'description': must be a non-empty string");
 	}
-	if (!Array.isArray(packet.evidence)) {
+	if (!Array.isArray(p.evidence)) {
 		errors.push("Missing or invalid 'evidence': must be an array");
 	}
 
@@ -1028,18 +1015,16 @@ export function deserializeDiagnosticPacket(json: string): DiagnosticPacket {
 export function verifyPacketIntegrity(packet: DiagnosticPacket): boolean {
 	if (!packet.packetHash) return false;
 
-	const { packetHash: _ignored, ...rest } = packet;
-
-	// For verification, we strip the hash and recompute
+	// Build the same hash input as computePacketHash, but with the packet's current values
 	const hashInput: Record<string, unknown> = {
-		id: rest.id,
-		timestamp: rest.timestamp,
-		severity: rest.severity,
-		diagnosticType: rest.diagnosticType,
-		workspaceId: rest.workspaceId,
-		title: rest.title,
-		description: rest.description,
-		evidence: rest.evidence.map((g) => ({
+		id: packet.id,
+		timestamp: packet.timestamp,
+		severity: packet.severity,
+		diagnosticType: packet.diagnosticType,
+		workspaceId: packet.workspaceId,
+		title: packet.title,
+		description: packet.description,
+		evidence: packet.evidence.map((g) => ({
 			label: g.label,
 			entries: g.entries.map((e) => ({
 				id: e.id,
@@ -1050,6 +1035,13 @@ export function verifyPacketIntegrity(packet: DiagnosticPacket): boolean {
 				confidence: e.confidence,
 				isPlaceholder: e.isPlaceholder,
 				data: e.data,
+				fileData: e.fileData,
+				testData: e.testData,
+				errorData: e.errorData,
+				schedulingData: e.schedulingData,
+				failureData: e.failureData,
+				agentReportData: e.agentReportData,
+				cooldownData: e.cooldownData,
 			})),
 		})),
 	};
@@ -1100,10 +1092,16 @@ export function formatDiagnosticPacket(packet: DiagnosticPacket): string {
 	}
 	lines.push("");
 
-	lines.push(`Budget:      ${packet.budget.currentEvidenceCount}/${packet.budget.maxEvidenceEntries} entries, ${packet.budget.currentGroupCount}/${packet.budget.maxEvidenceGroups} groups${packet.budget.isOverBudget ? " [OVER BUDGET]" : ""}`);
-	lines.push(`Cooldown:    ${packet.cooldown.isActive ? `Active (${packet.cooldown.remainingMs}ms remaining, reason: ${packet.cooldown.cooldownReason})` : "Inactive"}`);
+	lines.push(
+		`Budget:      ${packet.budget.currentEvidenceCount}/${packet.budget.maxEvidenceEntries} entries, ${packet.budget.currentGroupCount}/${packet.budget.maxEvidenceGroups} groups${packet.budget.isOverBudget ? " [OVER BUDGET]" : ""}`,
+	);
+	lines.push(
+		`Cooldown:    ${packet.cooldown.isActive ? `Active (${packet.cooldown.remainingMs}ms remaining, reason: ${packet.cooldown.cooldownReason})` : "Inactive"}`,
+	);
 	lines.push(`Dedupe:      ${packet.dedupe.dedupeId}${packet.dedupe.isSuppressed ? " [SUPPRESSED]" : ""}`);
-	lines.push(`Stop Cond:   ${packet.stopCondition.triggered ? `Triggered: ${packet.stopCondition.condition}` : "Not triggered"}`);
+	lines.push(
+		`Stop Cond:   ${packet.stopCondition.triggered ? `Triggered: ${packet.stopCondition.condition}` : "Not triggered"}`,
+	);
 	lines.push(`Packet Hash: ${packet.packetHash.substring(0, 16)}...`);
 	lines.push("=".repeat(60));
 

@@ -13,12 +13,8 @@
  *   POST   /api/pi/inbox/clear        — Clear all messages
  */
 
+import type { PiInboxMessagePriority, PiInboxMessageType, PiInboxStore } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
-import type { PiInboxStore } from "@earendil-works/pi-coding-agent";
-import type {
-	PiInboxMessagePriority,
-	PiInboxMessageType,
-} from "@earendil-works/pi-coding-agent";
 
 /**
  * Register Pi inbox routes on the Fastify instance.
@@ -26,10 +22,7 @@ import type {
  * @param fastify - The Fastify server instance
  * @param inboxStore - The PiInboxStore singleton instance
  */
-export async function registerPiInboxRoutes(
-	fastify: FastifyInstance,
-	inboxStore: PiInboxStore,
-): Promise<void> {
+export async function registerPiInboxRoutes(fastify: FastifyInstance, inboxStore: PiInboxStore): Promise<void> {
 	// Seed the inbox with sample messages on first use
 	inboxStore.seed();
 

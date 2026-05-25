@@ -16,14 +16,8 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type {
-	ObservabilityEvent,
-	ObservabilitySeverity,
-	ObservabilityStatus,
-	TraceContext,
-} from "./types.js";
+import type { ObservabilityEvent, ObservabilitySeverity, ObservabilityStatus, TraceContext } from "./types.js";
 import { validateObservabilityEvent } from "./types.js";
-import type { CorrelationModel } from "./types.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Factory functions
@@ -37,9 +31,7 @@ import type { CorrelationModel } from "./types.js";
  * @returns A fully populated TraceContext
  */
 export function createTraceContext(
-	overrides: Partial<
-		Omit<TraceContext, "traceId" | "spanId" | "startTime">
-	> & {
+	overrides: Partial<Omit<TraceContext, "traceId" | "spanId" | "startTime">> & {
 		traceId?: string;
 		spanId?: string;
 		name: string;
@@ -133,16 +125,12 @@ export function deserializeObservabilityEvent(json: string): ObservabilityEvent 
 	try {
 		parsed = JSON.parse(json);
 	} catch (e) {
-		throw new Error(
-			`Failed to parse ObservabilityEvent JSON: ${(e as Error).message}`,
-		);
+		throw new Error(`Failed to parse ObservabilityEvent JSON: ${(e as Error).message}`);
 	}
 
 	const result = validateObservabilityEvent(parsed);
 	if (!result.valid) {
-		throw new Error(
-			`Invalid ObservabilityEvent: ${result.errors.join("; ")}`,
-		);
+		throw new Error(`Invalid ObservabilityEvent: ${result.errors.join("; ")}`);
 	}
 
 	return parsed as ObservabilityEvent;

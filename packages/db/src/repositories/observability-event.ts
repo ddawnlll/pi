@@ -11,7 +11,7 @@
  * - Filter by execution hierarchy (project, plan, workspace)
  */
 
-import { sql, type Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import type { Database, NewObservabilityEvent, ObservabilityEvent } from "../types.js";
 
 /**
@@ -391,9 +391,7 @@ export class ObservabilityEventRepository {
 		filter?: Pick<ObservabilityEventFilter, "severity" | "eventType" | "source" | "projectId">,
 	): Promise<number> {
 		// Count total matching events
-		let countQuery = this.db
-			.selectFrom("observability_events")
-			.select(this.db.fn.countAll<number>().as("count"));
+		let countQuery = this.db.selectFrom("observability_events").select(this.db.fn.countAll<number>().as("count"));
 
 		if (filter?.severity) {
 			countQuery = countQuery.where("severity", "=", filter.severity);
@@ -413,7 +411,7 @@ export class ObservabilityEventRepository {
 
 		if (total <= maxCount) return 0;
 
-		const toDelete = total - maxCount;
+		const _toDelete = total - maxCount;
 
 		// Find the cutoff: the timestamp of the Nth most recent event
 		let thresholdQuery = this.db
@@ -608,14 +606,16 @@ export class ObservabilityEventRepository {
 		filter?: Pick<ObservabilityEventFilter, "projectId" | "severity" | "eventType" | "source">,
 	): Promise<Array<{ bucket: string; count: number }>> {
 		const widthSec = Math.max(Math.round(bucketWidthMs / 1000), 1);
-		const sinceSec = Math.floor(new Date(since).getTime() / 1000);
+		const _sinceSec = Math.floor(new Date(since).getTime() / 1000);
 
 		// Use epoch arithmetic: bucket = to_timestamp(floor(extract(epoch from timestamp) / width) * width)
 		// This works on all PostgreSQL versions and does not require date_bin
 		let query = this.db
 			.selectFrom("observability_events")
 			.select([
-				sql<string>`to_timestamp(floor(extract(epoch from "timestamp") / ${sql.literal(widthSec)}) * ${sql.literal(widthSec)})`.as("bucket"),
+				sql<string>`to_timestamp(floor(extract(epoch from "timestamp") / ${sql.literal(widthSec)}) * ${sql.literal(widthSec)})`.as(
+					"bucket",
+				),
 				this.db.fn.countAll<number>().as("count"),
 			])
 			.where("timestamp", ">=", since)
@@ -654,10 +654,7 @@ export class ObservabilityEventRepository {
 	): Promise<{ minTimestamp: string; maxTimestamp: string } | null> {
 		let query = this.db
 			.selectFrom("observability_events")
-			.select([
-				this.db.fn.min<string>("timestamp").as("min_ts"),
-				this.db.fn.max<string>("timestamp").as("max_ts"),
-			]);
+			.select([this.db.fn.min<string>("timestamp").as("min_ts"), this.db.fn.max<string>("timestamp").as("max_ts")]);
 
 		if (filter?.projectId) {
 			query = query.where("project_id", "=", filter.projectId);

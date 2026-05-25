@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { TelemetryQueryApi } from "../../src/observability/query-api.js";
 import { createObservabilityEvent, createTraceContext } from "../../src/observability/index.js";
+import { TelemetryQueryApi } from "../../src/observability/query-api.js";
 
 // Helper to create test events
 function createEvent(overrides: {
@@ -130,11 +130,14 @@ describe("TelemetryQueryApi — aggregation", () => {
 	it("returns null for empty list aggregations (except count)", () => {
 		const api = new TelemetryQueryApi();
 
-		const result = api.aggregate([], [
-			{ fn: "count", as: "count" },
-			{ fn: "avg", field: "durationMs", as: "avg" },
-			{ fn: "sum", field: "durationMs", as: "sum" },
-		]);
+		const result = api.aggregate(
+			[],
+			[
+				{ fn: "count", as: "count" },
+				{ fn: "avg", field: "durationMs", as: "avg" },
+				{ fn: "sum", field: "durationMs", as: "sum" },
+			],
+		);
 
 		expect(result.aggregations.count).toBe(0);
 		expect(result.aggregations.avg).toBeNull();
@@ -147,7 +150,7 @@ describe("TelemetryQueryApi — aggregation", () => {
 // ─────────────────────────────────────────────────────────────────────
 
 describe("TelemetryQueryApi — time-series", () => {
-	const baseTime = "2024-06-01T00:00:00.000Z";
+	const _baseTime = "2024-06-01T00:00:00.000Z";
 
 	it("buckets events into time windows", () => {
 		const api = new TelemetryQueryApi();
@@ -158,10 +161,11 @@ describe("TelemetryQueryApi — time-series", () => {
 			createEvent({ timestamp: "2024-06-01T02:30:00.000Z" }),
 		];
 
-		const result = api.timeSeries(
-			events,
-			{ widthMs: 3600000, since: "2024-06-01T00:00:00.000Z", until: "2024-06-01T03:00:00.000Z" },
-		);
+		const result = api.timeSeries(events, {
+			widthMs: 3600000,
+			since: "2024-06-01T00:00:00.000Z",
+			until: "2024-06-01T03:00:00.000Z",
+		});
 
 		expect(result.points).toHaveLength(3);
 		expect(result.points[0].count).toBe(2); // 00:00-01:00
@@ -190,10 +194,11 @@ describe("TelemetryQueryApi — time-series", () => {
 	it("handles empty events list", () => {
 		const api = new TelemetryQueryApi();
 
-		const result = api.timeSeries(
-			[],
-			{ widthMs: 3600000, since: "2024-06-01T00:00:00.000Z", until: "2024-06-01T02:00:00.000Z" },
-		);
+		const result = api.timeSeries([], {
+			widthMs: 3600000,
+			since: "2024-06-01T00:00:00.000Z",
+			until: "2024-06-01T02:00:00.000Z",
+		});
 
 		expect(result.points).toHaveLength(2);
 		expect(result.points[0].count).toBe(0);
@@ -204,10 +209,7 @@ describe("TelemetryQueryApi — time-series", () => {
 		const api = new TelemetryQueryApi();
 
 		expect(() =>
-			api.timeSeries(
-				[],
-				{ widthMs: 0, since: "2024-06-01T00:00:00.000Z", until: "2024-06-01T01:00:00.000Z" },
-			),
+			api.timeSeries([], { widthMs: 0, since: "2024-06-01T00:00:00.000Z", until: "2024-06-01T01:00:00.000Z" }),
 		).toThrow("Bucket width must be positive");
 	});
 });
@@ -282,9 +284,27 @@ describe("TelemetryQueryApi — error analysis", () => {
 	it("analyzes error events", () => {
 		const api = new TelemetryQueryApi();
 		const events = [
-			createEvent({ severity: "error", status: "error", source: "executor", eventType: "tool_call", error: "File not found" }),
-			createEvent({ severity: "critical", status: "error", source: "executor", eventType: "tool_call", error: "Out of memory" }),
-			createEvent({ severity: "error", status: "error", source: "trace_manager", eventType: "span_end", error: "Timeout" }),
+			createEvent({
+				severity: "error",
+				status: "error",
+				source: "executor",
+				eventType: "tool_call",
+				error: "File not found",
+			}),
+			createEvent({
+				severity: "critical",
+				status: "error",
+				source: "executor",
+				eventType: "tool_call",
+				error: "Out of memory",
+			}),
+			createEvent({
+				severity: "error",
+				status: "error",
+				source: "trace_manager",
+				eventType: "span_end",
+				error: "Timeout",
+			}),
 			createEvent({ severity: "info", status: "ok", source: "test", eventType: "test" }), // not an error
 		];
 
@@ -330,9 +350,27 @@ describe("TelemetryQueryApi — dashboard summary", () => {
 	it("generates dashboard summary from events", () => {
 		const api = new TelemetryQueryApi();
 		const events = [
-			createEvent({ severity: "info", eventType: "span_start", source: "tm", durationMs: 50, timestamp: "2024-01-01T00:00:00.000Z" }),
-			createEvent({ severity: "error", eventType: "tool_call", source: "exec", durationMs: null, timestamp: "2024-01-02T00:00:00.000Z" }),
-			createEvent({ severity: "info", eventType: "span_end", source: "tm", durationMs: 150, timestamp: "2024-01-03T00:00:00.000Z" }),
+			createEvent({
+				severity: "info",
+				eventType: "span_start",
+				source: "tm",
+				durationMs: 50,
+				timestamp: "2024-01-01T00:00:00.000Z",
+			}),
+			createEvent({
+				severity: "error",
+				eventType: "tool_call",
+				source: "exec",
+				durationMs: null,
+				timestamp: "2024-01-02T00:00:00.000Z",
+			}),
+			createEvent({
+				severity: "info",
+				eventType: "span_end",
+				source: "tm",
+				durationMs: 150,
+				timestamp: "2024-01-03T00:00:00.000Z",
+			}),
 		];
 
 		const summary = api.dashboardSummary(events);
@@ -414,10 +452,7 @@ describe("TelemetryQueryApi — filtering", () => {
 
 	it("filters by project/plan/workspace execution", () => {
 		const api = new TelemetryQueryApi();
-		const events = [
-			createEvent({ projectId: "proj-1" }),
-			createEvent({ projectId: "proj-2" }),
-		];
+		const events = [createEvent({ projectId: "proj-1" }), createEvent({ projectId: "proj-2" })];
 
 		const filtered = api.filter(events, { projectId: "proj-1" });
 		expect(filtered).toHaveLength(1);

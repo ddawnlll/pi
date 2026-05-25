@@ -36,9 +36,7 @@ export type { CorrelationModel };
  * @param fields - Partial correlation fields
  * @returns A fully populated CorrelationModel
  */
-export function createCorrelation(
-	fields?: Partial<CorrelationModel>,
-): CorrelationModel {
+export function createCorrelation(fields?: Partial<CorrelationModel>): CorrelationModel {
 	return {
 		correlationId: fields?.correlationId ?? null,
 		projectId: fields?.projectId ?? null,
@@ -57,16 +55,12 @@ export function createCorrelation(
  * @param override - Override values (typically from child scope)
  * @returns Merged CorrelationModel
  */
-export function mergeCorrelation(
-	base: CorrelationModel,
-	override: Partial<CorrelationModel>,
-): CorrelationModel {
+export function mergeCorrelation(base: CorrelationModel, override: Partial<CorrelationModel>): CorrelationModel {
 	return {
 		correlationId: override.correlationId ?? base.correlationId,
 		projectId: override.projectId ?? base.projectId,
 		planExecutionId: override.planExecutionId ?? base.planExecutionId,
-		workspaceExecutionId:
-			override.workspaceExecutionId ?? base.workspaceExecutionId,
+		workspaceExecutionId: override.workspaceExecutionId ?? base.workspaceExecutionId,
 	};
 }
 
@@ -76,9 +70,7 @@ export function mergeCorrelation(
  * @param context - Trace context to extract from
  * @returns CorrelationModel with the context's correlation fields
  */
-export function correlationFromTraceContext(
-	context: TraceContext,
-): CorrelationModel {
+export function correlationFromTraceContext(context: TraceContext): CorrelationModel {
 	return {
 		correlationId: context.correlationId,
 		projectId: context.projectId,
@@ -123,7 +115,6 @@ export function formatCorrelation(model: CorrelationModel): string {
 	if (model.correlationId) parts.push(`corr=${model.correlationId}`);
 	if (model.projectId) parts.push(`proj=${model.projectId}`);
 	if (model.planExecutionId) parts.push(`plan=${model.planExecutionId}`);
-	if (model.workspaceExecutionId)
-		parts.push(`ws=${model.workspaceExecutionId}`);
+	if (model.workspaceExecutionId) parts.push(`ws=${model.workspaceExecutionId}`);
 	return parts.length > 0 ? parts.join(" ") : "(empty)";
 }

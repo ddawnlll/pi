@@ -33,8 +33,10 @@ async function acquireWorktreeMutex(): Promise<void> {
 			};
 		});
 		// Safety timeout: if release() is never called (e.g. crash mid-operation),
-		// auto-release after 60 seconds so other operations don't hang forever.
-		// Capture the current release function to avoid racing with a new acquire.
+		// auto-release after 5 seconds so other operations don't hang forever.
+		// 5s is enough — the actual work (ensureBranch + git worktree add) has its
+		// own 5-minute timeout. If release() isn't called within 5s, something
+		// went wrong (crash, unhandled throw) and we must unblock the queue.
 		const capturedRelease = worktreeMutex.release;
 		setTimeout(() => {
 			// Only release if the captured function is still the active one.
@@ -42,7 +44,7 @@ async function acquireWorktreeMutex(): Promise<void> {
 			if (worktreeMutex.release === capturedRelease) {
 				capturedRelease?.();
 			}
-		}, 60_000).unref();
+		}, 5_000).unref();
 	});
 }
 
@@ -446,13 +448,22 @@ export class WorktreeWorkspaceExecutor {
 
 		// Acquire global worktree mutex to prevent concurrent git worktree operations
 		// that could cause ref locking conflicts.
+		const WORKTREE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max for worktree creation
 		await acquireWorktreeMutex();
 		try {
-			// Ensure the branch exists
-			await this.ensureBranch(this.workspaceRoot, baseCommit);
-
-			// Create the worktree
-			await git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
+			// Timeout: ensureBranch + git worktree add must complete within the limit
+			await Promise.race([
+				(async () => {
+					await this.ensureBranch(this.workspaceRoot, baseCommit);
+					await git(["worktree", "add", "--checkout", worktreeDir, this.branchName], this.workspaceRoot);
+				})(),
+				new Promise<void>((_, reject) =>
+					setTimeout(
+						() => reject(new Error(`Worktree creation timed out after ${WORKTREE_TIMEOUT_MS / 60000} min`)),
+						WORKTREE_TIMEOUT_MS,
+					).unref(),
+				),
+			]);
 		} catch (err) {
 			return {
 				state: null as unknown as WorktreeState,

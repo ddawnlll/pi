@@ -14,37 +14,35 @@
  * 10. All autonomous behavior has explicit budget, cooldown, dedupe, stop-condition handling
  */
 
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-	createEvidenceEntry,
-	createEvidenceGroup,
-	createDiagnosticPacket,
-	createPlaceholderEvidenceEntry,
-	createPacketBudget,
-	createCooldownState,
-	activateCooldown,
-	checkAndClearCooldown,
-	createDedupeState,
-	createStopConditionState,
-	compactDiagnosticPacket,
-	isPacketWithinBudget,
-	validateDiagnosticPacket,
-	serializeDiagnosticPacket,
-	deserializeDiagnosticPacket,
-	verifyPacketIntegrity,
-	mergeEvidenceGroups,
-	formatDiagnosticPacket,
-	type DiagnosticPacket,
-	type EvidenceEntry,
-	type EvidenceGroup,
-	DEFAULT_COOLDOWN_DURATION_MS,
-} from "../src/core/diagnostic-packet.js";
-
-import {
-	DiagnosticCollector,
 	createDiagnosticCollector,
+	type DiagnosticCollector,
 	EvidenceCollector,
 } from "../src/core/diagnostic-collector.js";
+import {
+	activateCooldown,
+	checkAndClearCooldown,
+	compactDiagnosticPacket,
+	createCooldownState,
+	createDedupeState,
+	createDiagnosticPacket,
+	createEvidenceEntry,
+	createEvidenceGroup,
+	createPacketBudget,
+	createPlaceholderEvidenceEntry,
+	createStopConditionState,
+	DEFAULT_COOLDOWN_DURATION_MS,
+	deserializeDiagnosticPacket,
+	type EvidenceEntry,
+	type EvidenceGroup,
+	formatDiagnosticPacket,
+	isPacketWithinBudget,
+	mergeEvidenceGroups,
+	serializeDiagnosticPacket,
+	validateDiagnosticPacket,
+	verifyPacketIntegrity,
+} from "../src/core/diagnostic-packet.js";
 
 // =========================================================================
 // AC1: Diagnostic packets carry evidence-backed diagnostics (no silent errors)
@@ -313,10 +311,20 @@ describe("AC2: evidence model supports categories with structured data", () => {
 
 	it("should merge evidence groups by label", () => {
 		const groupA = createEvidenceGroup("Same Label", [
-			createEvidenceEntry({ category: "error_message", description: "Error A", source: "test", errorData: { message: "A" } }),
+			createEvidenceEntry({
+				category: "error_message",
+				description: "Error A",
+				source: "test",
+				errorData: { message: "A" },
+			}),
 		]);
 		const groupB = createEvidenceGroup("Same Label", [
-			createEvidenceEntry({ category: "error_message", description: "Error B", source: "test", errorData: { message: "B" } }),
+			createEvidenceEntry({
+				category: "error_message",
+				description: "Error B",
+				source: "test",
+				errorData: { message: "B" },
+			}),
 		]);
 
 		const merged = mergeEvidenceGroups(groupA, groupB);
@@ -326,10 +334,20 @@ describe("AC2: evidence model supports categories with structured data", () => {
 
 	it("should refuse to merge groups with different labels", () => {
 		const groupA = createEvidenceGroup("Label A", [
-			createEvidenceEntry({ category: "error_message", description: "Error", source: "test", errorData: { message: "X" } }),
+			createEvidenceEntry({
+				category: "error_message",
+				description: "Error",
+				source: "test",
+				errorData: { message: "X" },
+			}),
 		]);
 		const groupB = createEvidenceGroup("Label B", [
-			createEvidenceEntry({ category: "error_message", description: "Error", source: "test", errorData: { message: "Y" } }),
+			createEvidenceEntry({
+				category: "error_message",
+				description: "Error",
+				source: "test",
+				errorData: { message: "Y" },
+			}),
 		]);
 
 		expect(() => mergeEvidenceGroups(groupA, groupB)).toThrow("different labels");
@@ -387,7 +405,12 @@ describe("AC2: evidence model supports categories with structured data", () => {
 describe("AC3: budget enforcement limits evidence accumulation", () => {
 	it("should create budget within limits", () => {
 		const group = createEvidenceGroup("Test", [
-			createEvidenceEntry({ category: "error_message", description: "Error", source: "test", errorData: { message: "X" } }),
+			createEvidenceEntry({
+				category: "error_message",
+				description: "Error",
+				source: "test",
+				errorData: { message: "X" },
+			}),
 		]);
 
 		const budget = createPacketBudget({
@@ -457,11 +480,7 @@ describe("AC3: budget enforcement limits evidence accumulation", () => {
 			source: "test",
 			errorData: { message: "Real error" },
 		});
-		const placeholderEntry = createPlaceholderEvidenceEntry(
-			"Missing info",
-			"test",
-			"No additional info available",
-		);
+		const placeholderEntry = createPlaceholderEvidenceEntry("Missing info", "test", "No additional info available");
 
 		const group = createEvidenceGroup("Test", [realEntry, placeholderEntry]);
 		const packet = createDiagnosticPacket({
@@ -778,7 +797,7 @@ describe("AC6: stop condition tracking", () => {
 	});
 
 	it("should create triggered stop condition", () => {
-		const now = new Date().toISOString();
+		const _now = new Date().toISOString();
 		const state = createStopConditionState({
 			triggered: true,
 			condition: "max_duration_exceeded",
@@ -1010,17 +1029,11 @@ describe("AC8: DiagnosticCollector builds packets from execution context", () =>
 
 		it("should return null when cooldown is active", () => {
 			// First call creates packet and activates cooldown
-			const first = collector.buildFromFailure(
-				{ error: "Some error", workspaceTitle: "25.E" },
-				"25.E",
-			);
+			const first = collector.buildFromFailure({ error: "Some error", workspaceTitle: "25.E" }, "25.E");
 			expect(first).not.toBeNull();
 
 			// Second call should be suppressed by cooldown
-			const second = collector.buildFromFailure(
-				{ error: "Some error", workspaceTitle: "25.E" },
-				"25.E",
-			);
+			const second = collector.buildFromFailure({ error: "Some error", workspaceTitle: "25.E" }, "25.E");
 			expect(second).toBeNull();
 		});
 
@@ -1028,7 +1041,7 @@ describe("AC8: DiagnosticCollector builds packets from execution context", () =>
 			collector.suppressDedupe("suppressed-id");
 
 			// Collect a packet manually with the suppressed dedupe ID
-			const packet = collector.buildFromFailure(
+			const _packet = collector.buildFromFailure(
 				{ error: "Some error", workspaceTitle: "25.E" },
 				"suppressed-workspace",
 			);

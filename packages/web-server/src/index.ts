@@ -56,12 +56,14 @@ import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
+import { registerActivityTimelineRoutes } from "./activity-timeline-routes.js";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import { registerPerformanceRoutes } from "./performance-routes.js";
+import { registerPiInboxRoutes } from "./pi-inbox-routes.js";
 import {
 	applyDependencyPatches,
 	computeBatchPlan,
@@ -79,9 +81,7 @@ import {
 	runPlan,
 	signalExecutionEvent,
 } from "./plan-runner.js";
-import { registerActivityTimelineRoutes } from "./activity-timeline-routes.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
-import { registerPiInboxRoutes } from "./pi-inbox-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
@@ -848,7 +848,7 @@ fastify.get<{
 fastify.get<{
 	Params: { projectId: string; planExecId: string };
 }>("/api/projects/:projectId/plans/:planExecId", async (request, reply) => {
-	const { projectId, planExecId } = request.params;
+	const { planExecId } = request.params;
 
 	try {
 		const stateStore = getStateStore();
@@ -3880,7 +3880,7 @@ fastify.post<{
 				await stateStore.resumePlan(planExecId);
 				signalExecutionEvent(planExecId, "complete");
 				break;
-			case "force-kill":
+			case "force-kill": {
 				// Forcefully kill all active workers, child processes, and worktrees
 				await stateStore.stopPlan(planExecId, "Force killed by user");
 				// Import and call the force-kill helper
@@ -3918,6 +3918,7 @@ fastify.post<{
 				}
 				signalExecutionEvent(planExecId, "stop");
 				break;
+			}
 		}
 
 		return { success: true };

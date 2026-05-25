@@ -342,9 +342,7 @@ export class TelemetryQueryApi {
 		}
 
 		// Recent errors (most recent first)
-		const recentErrors = [...errorEvents]
-			.sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-			.slice(0, limit);
+		const recentErrors = [...errorEvents].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, limit);
 
 		return {
 			totalErrors: errorEvents.length,

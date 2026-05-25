@@ -117,9 +117,7 @@ export interface DigestReport {
 /**
  * Result of a digest aggregation, including error states.
  */
-export type DigestResult =
-	| { ok: true; report: DigestReport }
-	| { ok: false; error: string };
+export type DigestResult = { ok: true; report: DigestReport } | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
 // DigestAggregator
@@ -136,10 +134,7 @@ export class DigestAggregator {
 	 * @param momentum - Optional array of momentum results.
 	 * @returns A digest report.
 	 */
-	aggregate(
-		scanEntries: DigestStalenessEntry[],
-		momentum?: DigestMomentumEntry[],
-	): DigestReport {
+	aggregate(scanEntries: DigestStalenessEntry[], momentum?: DigestMomentumEntry[]): DigestReport {
 		const momentumByItemId = new Map<string, DigestMomentumEntry>();
 		if (momentum) {
 			for (const m of momentum) {
@@ -148,9 +143,7 @@ export class DigestAggregator {
 		}
 
 		// Sort by staleness score descending
-		const sorted = [...scanEntries].sort(
-			(a, b) => b.stalenessScore - a.stalenessScore,
-		);
+		const sorted = [...scanEntries].sort((a, b) => b.stalenessScore - a.stalenessScore);
 
 		const entries: DigestEntry[] = sorted.map((result) => {
 			const mom = momentumByItemId.get(result.itemId);
@@ -223,10 +216,7 @@ export class DigestAggregator {
 	 * @param momentum - Optional array of momentum results.
 	 * @returns A DigestResult (ok with report, or ok: false with error string).
 	 */
-	tryAggregate(
-		scanEntries: DigestStalenessEntry[],
-		momentum?: DigestMomentumEntry[],
-	): DigestResult {
+	tryAggregate(scanEntries: DigestStalenessEntry[], momentum?: DigestMomentumEntry[]): DigestResult {
 		try {
 			if (!Array.isArray(scanEntries)) {
 				return { ok: false, error: "scanEntries must be an array" };
@@ -254,12 +244,8 @@ export class DigestAggregator {
 		lines.push(`Total items: ${report.stats.totalItems}`);
 		lines.push(`Stale: ${report.stats.staleCount}`);
 		lines.push(`Decaying (staleness increasing): ${report.stats.decayingCount}`);
-		lines.push(
-			`Accelerating attention (positive momentum): ${report.stats.acceleratingCount}`,
-		);
-		lines.push(
-			`Decaying attention (negative momentum): ${report.stats.momentumDecayingCount}`,
-		);
+		lines.push(`Accelerating attention (positive momentum): ${report.stats.acceleratingCount}`);
+		lines.push(`Decaying attention (negative momentum): ${report.stats.momentumDecayingCount}`);
 		lines.push("");
 
 		if (report.critical.length > 0) {
@@ -275,9 +261,7 @@ export class DigestAggregator {
 		// Per-type breakdown
 		lines.push("Breakdown by type:");
 		for (const [type, stats] of Object.entries(report.stats.byType)) {
-			lines.push(
-				`  ${type}: ${stats.total} total, ${stats.stale} stale, ${stats.decaying} decaying`,
-			);
+			lines.push(`  ${type}: ${stats.total} total, ${stats.stale} stale, ${stats.decaying} decaying`);
 		}
 
 		return lines.join("\n");

@@ -36,9 +36,7 @@ export interface ActivityEvent {
  * Falls back to a reasonable set of default/generated entries when
  * full data sources are unavailable (e.g. no audit ledger).
  */
-async function collectActivities(
-	getStateStore: () => any,
-): Promise<ActivityEvent[]> {
+async function collectActivities(getStateStore: () => any): Promise<ActivityEvent[]> {
 	const events: ActivityEvent[] = [];
 
 	try {
@@ -49,14 +47,10 @@ async function collectActivities(
 		const projects = await stateStore.listProjects().catch(() => [] as any[]);
 
 		for (const project of projects) {
-			const plans = await stateStore
-				.listPlanExecutions(project.id)
-				.catch(() => [] as any[]);
+			const plans = await stateStore.listPlanExecutions(project.id).catch(() => [] as any[]);
 
 			for (const plan of plans) {
-				const ts = plan.startedAt
-					? new Date(plan.startedAt).getTime()
-					: Date.now();
+				const ts = plan.startedAt ? new Date(plan.startedAt).getTime() : Date.now();
 
 				let type: ActivityEvent["type"];
 				let severity: ActivityEvent["severity"] = "info";
@@ -143,10 +137,7 @@ function buildFallbackEvents(): ActivityEvent[] {
 // Route registration
 // ---------------------------------------------------------------------------
 
-export function registerActivityTimelineRoutes(
-	fastify: FastifyInstance,
-	getStateStore: () => any,
-): void {
+export function registerActivityTimelineRoutes(fastify: FastifyInstance, getStateStore: () => any): void {
 	// GET /api/activity-timeline
 	fastify.get("/api/activity-timeline", async (_request, _reply) => {
 		const activities = await collectActivities(getStateStore);

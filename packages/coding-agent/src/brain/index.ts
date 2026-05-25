@@ -11,6 +11,21 @@ export * from "./api.js";
 export { ApprovalQueueApi, createApprovalQueueApi } from "./approvals/api.js";
 // Approval Gate (P18.C)
 export { ApprovalGate, createApprovalGate } from "./approvals/gate.js";
+export type {
+	FeedbackEntry,
+	FeedbackItemType,
+	FeedbackQuery,
+	FeedbackQueryResult,
+	FeedbackRating,
+	FeedbackStats,
+} from "./attention/feedback-store.js";
+// Feedback Store (24.J)
+export {
+	ALL_FEEDBACK_ITEM_TYPES,
+	createFeedbackEntry,
+	FeedbackStore,
+	validateFeedbackEntry,
+} from "./attention/feedback-store.js";
 // Audit Ledger (P18.E)
 export { AuditLedger, createAuditLedger } from "./audit/ledger.js";
 export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";
@@ -107,6 +122,22 @@ export {
 	validateMilestone,
 	validatePreferenceRecord,
 } from "./goals/types.js";
+export type { PiInboxListResult, PiInboxQuery, PiInboxStoreConfig } from "./inbox/pi-inbox-store.js";
+// Pi Inbox (24.M)
+export { PiInboxStore } from "./inbox/pi-inbox-store.js";
+export type {
+	PiInboxMessage,
+	PiInboxMessagePriority,
+	PiInboxMessageType,
+	PiInboxStats,
+	ValidationResult as PiInboxValidationResult,
+} from "./inbox/types.js";
+export {
+	ALL_PI_INBOX_MESSAGE_TYPES,
+	ALL_PI_INBOX_PRIORITIES,
+	createPiInboxMessage,
+	validatePiInboxMessage,
+} from "./inbox/types.js";
 export type { MemoryCorrectionRecord, MemoryListResult, SupersedeResult } from "./memory/api.js";
 // Memory Correction API (P14.F)
 export { MemoryCorrectionApi } from "./memory/api.js";
@@ -350,36 +381,3 @@ export {
 	validateBrainSignal,
 	validateBrainTimelineEvent,
 } from "./types.js";
-
-// Pi Inbox (24.M)
-export { PiInboxStore } from "./inbox/pi-inbox-store.js";
-export type { PiInboxStoreConfig, PiInboxListResult, PiInboxQuery } from "./inbox/pi-inbox-store.js";
-export type {
-	PiInboxMessage,
-	PiInboxMessagePriority,
-	PiInboxMessageType,
-	PiInboxStats,
-	ValidationResult as PiInboxValidationResult,
-} from "./inbox/types.js";
-export {
-	ALL_PI_INBOX_MESSAGE_TYPES,
-	ALL_PI_INBOX_PRIORITIES,
-	createPiInboxMessage,
-	validatePiInboxMessage,
-} from "./inbox/types.js";
-
-// Feedback Store (24.J)
-export { FeedbackStore } from "./attention/feedback-store.js";
-export type {
-	FeedbackEntry,
-	FeedbackItemType,
-	FeedbackQuery,
-	FeedbackQueryResult,
-	FeedbackRating,
-	FeedbackStats,
-} from "./attention/feedback-store.js";
-export {
-	ALL_FEEDBACK_ITEM_TYPES,
-	createFeedbackEntry,
-	validateFeedbackEntry,
-} from "./attention/feedback-store.js";

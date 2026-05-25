@@ -16,9 +16,8 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import type { NotificationChannel, NotificationType } from "./notification-service.js";
+import type { NotificationChannel, NotificationPreferencesUpdate, NotificationType } from "./notification-service.js";
 import { ALL_NOTIFICATION_CHANNELS, ALL_NOTIFICATION_TYPES, NotificationService } from "./notification-service.js";
-import type { NotificationPreferencesUpdate } from "./notification-service.js";
 
 // ---------------------------------------------------------------------------
 // Singleton instance
@@ -200,9 +199,10 @@ export async function registerNotificationRoutes(fastify: FastifyInstance): Prom
 			return reply.send({
 				success: true,
 				channels: result.channels,
-				message: result.channels.length > 0
-					? `Notification dispatched via: ${result.channels.join(", ")}`
-					: "Notification was not dispatched — no active channels or notifications are disabled",
+				message:
+					result.channels.length > 0
+						? `Notification dispatched via: ${result.channels.join(", ")}`
+						: "Notification was not dispatched — no active channels or notifications are disabled",
 			});
 		} catch (error) {
 			fastify.log.error({ error }, "Failed to dispatch notification");

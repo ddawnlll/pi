@@ -189,7 +189,9 @@ function buildBrainApi(mod: Record<string, unknown>) {
 			  })
 			| undefined,
 		MorningReportGenerator: mod.MorningReportGenerator as
-			| (new (...args: unknown[]) => {
+			| (new (
+					...args: unknown[]
+			  ) => {
 					generate: (session: Record<string, unknown>) => Promise<Record<string, unknown>>;
 			  })
 			| undefined,
@@ -285,8 +287,8 @@ export async function registerBrainDigestRoutes(fastify: FastifyInstance): Promi
 						id: safeGetStr(g, "id", ""),
 						title: safeGetStr(g, "title", ""),
 						progress: safeGetNum(g, "progress", 0),
-						status: (safeGetStr(g, "status", "active") as GoalStatus),
-						priority: (safeGetStr(g, "priority", "normal") as GoalPriority),
+						status: safeGetStr(g, "status", "active") as GoalStatus,
+						priority: safeGetStr(g, "priority", "normal") as GoalPriority,
 					}));
 				} catch {
 					// Non-fatal
@@ -304,8 +306,7 @@ export async function registerBrainDigestRoutes(fastify: FastifyInstance): Promi
 						const generator = new api.MorningReportGenerator();
 						const report = await generator.generate(lastSession);
 						reflectionCounts = {
-							total: (safeGetNum(report, "newReflectionsGenerated", 0) +
-								safeGetNum(report, "plansCompleted", 0)),
+							total: safeGetNum(report, "newReflectionsGenerated", 0) + safeGetNum(report, "plansCompleted", 0),
 							today: safeGetNum(report, "newReflectionsGenerated", 0),
 							newMemories: safeGetNum(report, "newMemoriesCreated", 0),
 						};
@@ -337,13 +338,14 @@ export async function registerBrainDigestRoutes(fastify: FastifyInstance): Promi
 			// 7. Extract daemon state from brain state
 			const daemon = (safeGet(brainState, "daemon", {}) as Record<string, unknown>) ?? {};
 			const daemonStateRaw = safeGetStr(daemon, "state", "stopped");
-			const daemonState: DaemonState = daemonStateRaw === "running"
-				? "running"
-				: daemonStateRaw === "paused"
-					? "paused"
-					: daemonStateRaw === "error"
-						? "error"
-						: "stopped";
+			const daemonState: DaemonState =
+				daemonStateRaw === "running"
+					? "running"
+					: daemonStateRaw === "paused"
+						? "paused"
+						: daemonStateRaw === "error"
+							? "error"
+							: "stopped";
 
 			const observationStats = (safeGet(brainState, "observationStats", {}) as Record<string, unknown>) ?? {};
 			const bySeverity = (safeGet(observationStats, "bySeverity", {}) as Record<string, number>) ?? {};
@@ -355,8 +357,7 @@ export async function registerBrainDigestRoutes(fastify: FastifyInstance): Promi
 					daemonState,
 					daemonUptime: safeGetStr(daemon, "uptime", "0s"),
 					totalObservations: safeGetNum(observationStats, "total", 0),
-					criticalObservations: (safeGetNum(bySeverity, "critical", 0) +
-						safeGetNum(bySeverity, "error", 0)),
+					criticalObservations: safeGetNum(bySeverity, "critical", 0) + safeGetNum(bySeverity, "error", 0),
 					activeSignals: safeGetNum(signalStats, "active", signals.length),
 					pendingProposals: pendingProposals.length,
 					lastUpdated: new Date().toISOString(),
@@ -368,10 +369,8 @@ export async function registerBrainDigestRoutes(fastify: FastifyInstance): Promi
 					severity: mapSeverity(safeGetStr(s, "severity", "info")),
 					timestamp: safeGetStr(s, "createdAt", safeGetStr(s, "timestamp", new Date().toISOString())),
 					resolved: (s.resolved as boolean) ?? false,
-					resolvedAt: (s.resolvedAt as string | undefined) ??
-						(s.resolved_at as string | undefined),
-					details: (s.details as string | undefined) ??
-						(s.description as string | undefined),
+					resolvedAt: (s.resolvedAt as string | undefined) ?? (s.resolved_at as string | undefined),
+					details: (s.details as string | undefined) ?? (s.description as string | undefined),
 				})),
 				recentObservations: observations.map((o) => ({
 					id: safeGetStr(o, "id", ""),

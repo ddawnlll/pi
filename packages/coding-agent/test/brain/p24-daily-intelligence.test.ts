@@ -14,16 +14,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type {
-	BrainObservation,
-	BrainSignal,
-	Severity,
-	SignalType,
-	ValidationResult,
-} from "../../src/brain/types.js";
-import { validateBrainObservation, validateBrainSignal } from "../../src/brain/types.js";
 import type { MorningReportData, WhatRanEntry } from "../../src/brain/overnight/morning-report.js";
-import type { TrustAssessment, TrustStatus, TrustDimension } from "../../src/brain/overnight/trust-assessment.js";
+import type { TrustAssessment, TrustDimension, TrustStatus } from "../../src/brain/overnight/trust-assessment.js";
+import type { Severity, SignalType } from "../../src/brain/types.js";
+import { validateBrainObservation, validateBrainSignal } from "../../src/brain/types.js";
 
 // ---------------------------------------------------------------------------
 // Mock MorningReportData helper
@@ -65,13 +59,12 @@ function createMockReport(overrides?: Partial<MorningReportData>): MorningReport
 				description: "Reduce lock contention in concurrent git operations",
 			},
 		],
+		artifactLinks: [],
 		suggestedNextActions: [
 			"Review pending proposals for git optimization",
 			"Extend trust calibration to cover edge cases",
 		],
-		recommendedGoalUpdates: [
-			"Update Stable 6 rollout goal progress to 85%",
-		],
+		recommendedGoalUpdates: ["Update Stable 6 rollout goal progress to 85%"],
 		...overrides,
 	};
 }
@@ -101,20 +94,14 @@ function createMockTrustAssessment(overrides?: Partial<TrustAssessment>): TrustA
 				evidence: "11 test actions evaluated with 100% accuracy",
 			},
 		],
-		recommendations: [
-			"Monitor trust score after each release cycle",
-		],
+		recommendations: ["Monitor trust score after each release cycle"],
 		trend: "first_assessment",
 		assessedAt: new Date().toISOString(),
 		...overrides,
 	};
 }
 
-function createMockDimension(
-	score: number,
-	status: TrustStatus,
-	description: string,
-): TrustDimension {
+function createMockDimension(score: number, status: TrustStatus, description: string): TrustDimension {
 	return {
 		score,
 		status,
@@ -241,7 +228,11 @@ describe("AC2: Trust Assessment", () => {
 	});
 
 	it("computes 100% trust score when no denials", () => {
-		const stats = { totalEntries: 5, byDecision: { allow: 5 }, byResult: { success: 5 } };
+		const stats = {
+			totalEntries: 5,
+			byDecision: { allow: 5, deny: 0, forbidden: 0 } as { allow: number; deny: number; forbidden: number },
+			byResult: { success: 5 },
+		};
 
 		const deniedEntries = (stats.byDecision.deny ?? 0) + (stats.byDecision.forbidden ?? 0);
 		const trustScore = Math.round(
@@ -263,14 +254,17 @@ describe("AC2: Trust Assessment", () => {
 	});
 
 	it("handles empty audit stats gracefully", () => {
-		const stats = { totalEntries: 0, byDecision: {}, byResult: {} };
+		const stats = {
+			totalEntries: 0,
+			byDecision: {} as { allow: number; deny: number; forbidden: number },
+			byResult: {},
+		};
 
 		const deniedEntries = (stats.byDecision.deny ?? 0) + (stats.byDecision.forbidden ?? 0);
-		const trustScore = stats.totalEntries === 0
-			? 100
-			: Math.round(
-				Math.max(0, Math.min(100, ((stats.totalEntries - deniedEntries) / stats.totalEntries) * 100)),
-			);
+		const trustScore =
+			stats.totalEntries === 0
+				? 100
+				: Math.round(Math.max(0, Math.min(100, ((stats.totalEntries - deniedEntries) / stats.totalEntries) * 100)));
 
 		expect(trustScore).toBe(100);
 	});
@@ -489,16 +483,7 @@ describe("AC4: DigestPage UI States", () => {
 
 describe("AC5: Release Readiness", () => {
 	it("validates forbidden paths not accessed", () => {
-		const forbiddenPatterns = [
-			".env",
-			".pem",
-			".key",
-			".p12",
-			".pfx",
-			"id_rsa",
-			"credentials/",
-			"secrets/",
-		];
+		const forbiddenPatterns = [".env", ".pem", ".key", ".p12", ".pfx", "id_rsa", "credentials/", "secrets/"];
 
 		const accessedPaths = [
 			"/Users/hootie/src/pi/packages/coding-agent/src/brain/overnight/morning-report.ts",

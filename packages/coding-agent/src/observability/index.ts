@@ -20,33 +20,6 @@
  * @module observability
  */
 
-// Re-export all types
-export {
-	ALL_OBSERVABILITY_SEVERITIES,
-	ALL_OBSERVABILITY_STATUSES,
-	type CorrelationModel,
-	EMPTY_CORRELATION,
-	type ObservabilityEvent,
-	type ObservabilitySeverity,
-	type ObservabilityStatus,
-	type TraceContext,
-	type ValidationResult,
-	isValidSeverity,
-	isValidStatus,
-	isValidTimestamp,
-	validateObservabilityEvent,
-} from "./types.js";
-
-// Re-export schema factories and serialization
-export {
-	createObservabilityEvent,
-	createTraceContext,
-	deserializeObservabilityEvent,
-	deserializeTraceContext,
-	serializeObservabilityEvent,
-	serializeTraceContext,
-} from "./schema.js";
-
 // Re-export correlation helpers
 export {
 	correlationFromTraceContext,
@@ -56,31 +29,6 @@ export {
 	isCorrelationPopulated,
 	mergeCorrelation,
 } from "./correlation.js";
-
-// Re-export telemetry store (25.B)
-export {
-	type FlushResult,
-	type TelemetryFlushTarget,
-	type TelemetryQueryFilter,
-	type TelemetryStoreConfig,
-	type TelemetryStoreDiagnostics,
-	DEFAULT_TELEMETRY_STORE_CONFIG,
-	InMemoryTelemetryStore,
-} from "./telemetry-store.js";
-
-// Re-export retention engine (25.B)
-export {
-	type DedupeConfig,
-	type PruneResult,
-	type RetentionBudget,
-	type RetentionPolicy,
-	type RetentionRule,
-	DEFAULT_DEDUPE_CONFIG,
-	DEFAULT_RETENTION_BUDGET,
-	DEFAULT_RETENTION_POLICY,
-	RetentionEngine,
-} from "./retention.js";
-
 // Re-export query API (25.B)
 export {
 	type Aggregation,
@@ -89,8 +37,55 @@ export {
 	type ErrorAnalysis,
 	type EventStatistics,
 	type TelemetryQuery,
+	TelemetryQueryApi,
 	type TimeBucketConfig,
 	type TimeSeriesPoint,
 	type TimeSeriesResult,
-	TelemetryQueryApi,
 } from "./query-api.js";
+// Re-export retention engine (25.B)
+export {
+	DEFAULT_DEDUPE_CONFIG,
+	DEFAULT_RETENTION_BUDGET,
+	DEFAULT_RETENTION_POLICY,
+	type DedupeConfig,
+	type PruneResult,
+	type RetentionBudget,
+	RetentionEngine,
+	type RetentionPolicy,
+	type RetentionRule,
+} from "./retention.js";
+// Re-export schema factories and serialization
+export {
+	createObservabilityEvent,
+	createTraceContext,
+	deserializeObservabilityEvent,
+	deserializeTraceContext,
+	serializeObservabilityEvent,
+	serializeTraceContext,
+} from "./schema.js";
+// Re-export telemetry store (25.B)
+export {
+	DEFAULT_TELEMETRY_STORE_CONFIG,
+	type FlushResult,
+	InMemoryTelemetryStore,
+	type TelemetryFlushTarget,
+	type TelemetryQueryFilter,
+	type TelemetryStoreConfig,
+	type TelemetryStoreDiagnostics,
+} from "./telemetry-store.js";
+// Re-export all types
+export {
+	ALL_OBSERVABILITY_SEVERITIES,
+	ALL_OBSERVABILITY_STATUSES,
+	type CorrelationModel,
+	EMPTY_CORRELATION,
+	isValidSeverity,
+	isValidStatus,
+	isValidTimestamp,
+	type ObservabilityEvent,
+	type ObservabilitySeverity,
+	type ObservabilityStatus,
+	type TraceContext,
+	type ValidationResult,
+	validateObservabilityEvent,
+} from "./types.js";

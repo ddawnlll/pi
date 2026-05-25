@@ -20,13 +20,7 @@ export type ObservabilitySeverity = "debug" | "info" | "warning" | "error" | "cr
 /**
  * All valid ObservabilitySeverity values.
  */
-export const ALL_OBSERVABILITY_SEVERITIES: ObservabilitySeverity[] = [
-	"debug",
-	"info",
-	"warning",
-	"error",
-	"critical",
-];
+export const ALL_OBSERVABILITY_SEVERITIES: ObservabilitySeverity[] = ["debug", "info", "warning", "error", "critical"];
 
 /**
  * Status of a span or operation.
@@ -168,20 +162,14 @@ export interface ValidationResult {
  * Validate a severity string.
  */
 export function isValidSeverity(value: unknown): value is ObservabilitySeverity {
-	return (
-		typeof value === "string" &&
-		(ALL_OBSERVABILITY_SEVERITIES as readonly string[]).includes(value)
-	);
+	return typeof value === "string" && (ALL_OBSERVABILITY_SEVERITIES as readonly string[]).includes(value);
 }
 
 /**
  * Validate a status string.
  */
 export function isValidStatus(value: unknown): value is ObservabilityStatus {
-	return (
-		typeof value === "string" &&
-		(ALL_OBSERVABILITY_STATUSES as readonly string[]).includes(value)
-	);
+	return typeof value === "string" && (ALL_OBSERVABILITY_STATUSES as readonly string[]).includes(value);
 }
 
 /**

@@ -33,11 +33,7 @@ import type { FastifyInstance } from "fastify";
  * @param repo - ObservabilityEventRepository instance (from DB)
  * @param queryApi - TelemetryQueryApi instance
  */
-export async function registerTelemetryRoutes(
-	fastify: FastifyInstance,
-	repo: any,
-	_queryApi: any,
-): Promise<void> {
+export async function registerTelemetryRoutes(fastify: FastifyInstance, _repo: any, _queryApi: any): Promise<void> {
 	// ── GET /api/telemetry/summary ────────────────────────────────
 	// Must be registered before /events/:id to avoid route conflict
 
@@ -121,10 +117,7 @@ export async function registerTelemetryRoutes(
 				order: request.query.order ?? "desc",
 			};
 
-			const [events, total] = await Promise.all([
-				Promise.resolve([] as any[]),
-				Promise.resolve(0),
-			]);
+			const [events, total] = await Promise.all([Promise.resolve([] as any[]), Promise.resolve(0)]);
 
 			return { events, total, filter };
 		} catch (err) {
@@ -254,9 +247,9 @@ export async function registerTelemetryRoutes(
 		};
 	}>("/api/telemetry/errors", async (request, reply) => {
 		try {
-			const limit = request.query.limit ? Number(request.query.limit) : 50;
+			const _limit = request.query.limit ? Number(request.query.limit) : 50;
 
-			const filter = {
+			const _filter = {
 				severity: "error",
 				since: request.query.since,
 				until: request.query.until,
@@ -266,8 +259,8 @@ export async function registerTelemetryRoutes(
 				order: "desc" as const,
 			};
 
-			const errorEvents: any[] = [];
-		const analysis = { errors: [], patterns: [] };
+			const _errorEvents: any[] = [];
+			const analysis = { errors: [], patterns: [] };
 
 			return analysis;
 		} catch (err) {
@@ -298,8 +291,8 @@ export async function registerTelemetryRoutes(
 				order: "desc" as const,
 			};
 
-			const events: any[] = [];
-		const summary = {};
+			const _events: any[] = [];
+			const summary = {};
 
 			return { summary, filter };
 		} catch (err) {
@@ -333,7 +326,7 @@ export async function registerTelemetryRoutes(
 				});
 			}
 
-			const filter = {
+			const _filter = {
 				projectId: request.query.projectId,
 				severity: request.query.severity,
 				eventType: request.query.eventType,

@@ -239,8 +239,10 @@ export class AutonomousExecutor {
 				maxTurns: 50,
 				stateStore: this.stateStore,
 				timeoutMs: config.workspaceTimeoutMs,
-				// P22.C: Worktree mode is always enabled. Use provided config or default.
-				worktree: config.worktree ?? { enabled: true },
+				// P22.C: Worktree mode is FORCED enabled regardless of config.
+				// Any plan attempting to disable worktree isolation will be blocked
+				// at the WorkspaceAgentExecutor.execute() level.
+				worktree: { enabled: true },
 			};
 			this.agentExecutor = new WorkspaceAgentExecutor(agentConfig);
 		}

@@ -16,7 +16,6 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createGitRunner, type GitRunner } from "./git-runner.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -417,7 +416,7 @@ export class LeaseMonitor {
 	 * 3. Emit quarantine event
 	 */
 	private async quarantineLease(heartbeat: LeaseHeartbeat): Promise<void> {
-		const { leaseId, workspaceId, planExecId, cwd } = heartbeat;
+		const { leaseId, workspaceId, planExecId } = heartbeat;
 
 		// Find the worktree directory for this workspace
 		const worktreeDir = path.join(this.workspaceRoot, this.worktreeRoot, planExecId, workspaceId);

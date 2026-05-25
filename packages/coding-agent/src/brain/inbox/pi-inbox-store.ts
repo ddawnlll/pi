@@ -10,12 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type {
-	PiInboxMessage,
-	PiInboxMessagePriority,
-	PiInboxMessageType,
-	PiInboxStats,
-} from "./types.js";
+import type { PiInboxMessage, PiInboxMessagePriority, PiInboxMessageType, PiInboxStats } from "./types.js";
 import { createPiInboxMessage } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -86,17 +81,15 @@ export class PiInboxStore {
 	 * @param input - Message fields (type, title, body required, others optional)
 	 * @returns The created message
 	 */
-	push(
-		input: {
-			type: PiInboxMessageType;
-			title: string;
-			body: string;
-			priority?: PiInboxMessagePriority;
-			source?: string;
-			actionUrl?: string;
-			metadata?: Record<string, unknown>;
-		},
-	): PiInboxMessage {
+	push(input: {
+		type: PiInboxMessageType;
+		title: string;
+		body: string;
+		priority?: PiInboxMessagePriority;
+		source?: string;
+		actionUrl?: string;
+		metadata?: Record<string, unknown>;
+	}): PiInboxMessage {
 		const message = createPiInboxMessage({
 			id: randomUUID(),
 			type: input.type,

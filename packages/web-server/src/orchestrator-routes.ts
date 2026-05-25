@@ -756,9 +756,7 @@ export async function registerOrchestratorRoutes(
 				const newEntries = log.slice(0, log.length - lastActivityCount);
 				if (newEntries.length > 0) {
 					for (const entry of newEntries.reverse()) {
-						reply.raw.write(
-							`data: ${JSON.stringify({ type: "activity", entry })}\n\n`,
-						);
+						reply.raw.write(`data: ${JSON.stringify({ type: "activity", entry })}\n\n`);
 					}
 					lastActivityCount = log.length;
 				}

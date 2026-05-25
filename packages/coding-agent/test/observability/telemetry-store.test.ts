@@ -5,15 +5,14 @@
  * and diagnostics.
  */
 
-import { describe, expect, it, vi } from "vitest";
-import {
-	InMemoryTelemetryStore,
-	type TelemetryFlushTarget,
-} from "../../src/observability/telemetry-store.js";
+import { describe, expect, it } from "vitest";
 import { createObservabilityEvent, createTraceContext } from "../../src/observability/index.js";
+import { InMemoryTelemetryStore, type TelemetryFlushTarget } from "../../src/observability/telemetry-store.js";
 
 // Helper to create test events
-function createTestEvent(overrides: Partial<{ name: string; eventType: string; source: string; severity: string; status: string }> = {}) {
+function createTestEvent(
+	overrides: Partial<{ name: string; eventType: string; source: string; severity: string; status: string }> = {},
+) {
 	const ctx = createTraceContext({ name: overrides.name ?? "test-event" });
 	return createObservabilityEvent(ctx, {
 		eventType: overrides.eventType ?? "test",
@@ -227,11 +226,11 @@ describe("InMemoryTelemetryStore flushing", () => {
 
 	it("handles flush failures gracefully", async () => {
 		const store = new InMemoryTelemetryStore({ maxBufferSize: 100 });
-		let callCount = 0;
+		let _callCount = 0;
 
 		const target: TelemetryFlushTarget = {
 			flush: async (_events) => {
-				callCount++;
+				_callCount++;
 				throw new Error("DB connection lost");
 			},
 		};

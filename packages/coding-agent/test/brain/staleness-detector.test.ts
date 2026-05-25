@@ -13,16 +13,16 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { StalenessDetector } from "../../src/brain/attention/staleness-detector.js";
 import {
 	DEFAULT_MOMENTUM_CONFIG,
 	DEFAULT_STALENESS_DETECTOR_CONFIG,
 	DEFAULT_STALENESS_THRESHOLDS,
+	StalenessDetector,
 } from "../../src/brain/attention/staleness-detector.js";
-import type { BrainObservation, BrainSignal, BrainTimelineEvent } from "../../src/brain/types.js";
-import type { MemoryRecord } from "../../src/brain/memory/types.js";
-import type { GoalRecord } from "../../src/brain/goals/types.js";
 import type { AttentionItem } from "../../src/brain/attention/types.js";
+import type { GoalRecord } from "../../src/brain/goals/types.js";
+import type { MemoryRecord } from "../../src/brain/memory/types.js";
+import type { BrainObservation, BrainSignal } from "../../src/brain/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,9 +72,7 @@ function createTestMemoryRecord(overrides?: Partial<MemoryRecord>): MemoryRecord
 		lifecycle: overrides?.lifecycle ?? "active",
 		confidence: overrides?.confidence ?? 0.7,
 		provenance: overrides?.provenance ?? {
-			sourceRefs: [
-				{ type: "observation", path: "test.ts", id: "obs-1", timestamp: new Date().toISOString() },
-			],
+			sourceRefs: [{ type: "observation", path: "test.ts", id: "obs-1", timestamp: new Date().toISOString() }],
 			validatedBy: "system",
 		},
 		createdAt: overrides?.createdAt ?? new Date().toISOString(),
@@ -196,7 +194,9 @@ describe("scanObservations", () => {
 	});
 
 	test("old observation has high staleness score", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const obs = createTestObservation({
 			id: "obs-old",
 			timestamp: daysAgo(6),
@@ -212,7 +212,9 @@ describe("scanObservations", () => {
 	});
 
 	test("partially stale observation", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 10, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 10, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const obs = createTestObservation({
 			id: "obs-partial",
 			timestamp: daysAgo(5),
@@ -254,7 +256,9 @@ describe("scanSignals", () => {
 	});
 
 	test("uses resolvedAt when available", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const sig = createTestSignal({
 			id: "sig-resolved",
 			createdAt: daysAgo(30),
@@ -268,7 +272,9 @@ describe("scanSignals", () => {
 	});
 
 	test("uses createdAt when resolvedAt is undefined", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const sig = createTestSignal({
 			id: "sig-unresolved",
 			createdAt: daysAgo(10),
@@ -300,7 +306,9 @@ describe("scanMemoryRecords", () => {
 	});
 
 	test("old memory record has high staleness score", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const rec = createTestMemoryRecord({
 			id: "mem-old",
 			updatedAt: daysAgo(28),
@@ -331,7 +339,9 @@ describe("scanGoals", () => {
 	});
 
 	test("old goal has high staleness score", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const goal = createTestGoal({
 			id: "goal-old",
 			updatedAt: daysAgo(30),
@@ -362,7 +372,9 @@ describe("scanAttentionItems", () => {
 	});
 
 	test("old attention item has high staleness score", () => {
-		const detector = new StalenessDetector({ thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 } });
+		const detector = new StalenessDetector({
+			thresholds: { observation: 3, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
+		});
 		const item = createTestAttentionItem({
 			id: "attn-old",
 			timestamp: daysAgo(21),
@@ -507,12 +519,18 @@ describe("fullScan", () => {
 		expect(result.byType.goal).toHaveLength(2);
 		// Both stale items have stalenessScore clamped to 1.0 (equal);
 		// check they appear before the fresh items regardless of order
-		const staleIds = result.sorted.slice(0, 2).map((r) => r.itemId).sort();
+		const staleIds = result.sorted
+			.slice(0, 2)
+			.map((r) => r.itemId)
+			.sort();
 		expect(staleIds).toEqual(["goal-stale", "obs-stale"]);
 		expect(result.sorted[0].stalenessScore).toBe(1.0);
 		expect(result.sorted[1].stalenessScore).toBe(1.0);
 		// Fresh items also have equal scores (~0); check they are both at the end
-		const freshIds = result.sorted.slice(2).map((r) => r.itemId).sort();
+		const freshIds = result.sorted
+			.slice(2)
+			.map((r) => r.itemId)
+			.sort();
 		expect(freshIds).toEqual(["goal-fresh", "obs-fresh"]);
 		expect(result.staleCount).toBe(2); // obs-stale (6/3=1.0) and goal-stale (30/14=1.0)
 	});
@@ -536,9 +554,7 @@ describe("fullScan", () => {
 			thresholds: { observation: 10, signal: 5, memory_record: 14, goal: 14, attention_item: 7 },
 		});
 		// Scan once to establish baseline
-		detector.scanObservations([
-			createTestObservation({ id: "obs-decay-1", timestamp: new Date().toISOString() }),
-		]);
+		detector.scanObservations([createTestObservation({ id: "obs-decay-1", timestamp: new Date().toISOString() })]);
 		// Scan again with older timestamps
 		const result = detector.fullScan({
 			observations: [
@@ -597,7 +613,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("returns null for item with insufficient samples", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 3, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 3, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-1", 0.5);
 		detector.recordSnapshot("item-1", 0.5);
 		// 2 samples < minSamples of 3
@@ -605,7 +623,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("detects accelerating momentum", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-accel", 0.2);
 		detector.recordSnapshot("item-accel", 0.4);
 		detector.recordSnapshot("item-accel", 0.6);
@@ -619,7 +639,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("detects decaying momentum (scores decreasing)", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-decay", 0.9);
 		detector.recordSnapshot("item-decay", 0.7);
 		detector.recordSnapshot("item-decay", 0.5);
@@ -632,7 +654,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("detects steady momentum (minimal velocity)", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.1 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.1 },
+		});
 		detector.recordSnapshot("item-steady", 0.5);
 		detector.recordSnapshot("item-steady", 0.51);
 		detector.recordSnapshot("item-steady", 0.5);
@@ -644,7 +668,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("detects stale direction for very low scores with no rise", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-stale", 0.05);
 		detector.recordSnapshot("item-stale", 0.04);
 		detector.recordSnapshot("item-stale", 0.03);
@@ -655,7 +681,9 @@ describe("computeMomentum", () => {
 	});
 
 	test("uses currentScore parameter when provided", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-cur", 0.3);
 		detector.recordSnapshot("item-cur", 0.4);
 		detector.recordSnapshot("item-cur", 0.5);
@@ -676,24 +704,20 @@ describe("computeMomentum", () => {
 describe("computeMomentumBatch", () => {
 	test("returns empty array for items with no history", () => {
 		const detector = new StalenessDetector();
-		const results = detector.computeMomentumBatch([
-			{ itemId: "a" },
-			{ itemId: "b" },
-		]);
+		const results = detector.computeMomentumBatch([{ itemId: "a" }, { itemId: "b" }]);
 		expect(results).toHaveLength(0);
 	});
 
 	test("returns momentum only for items with sufficient history", () => {
-		const detector = new StalenessDetector({ momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 } });
+		const detector = new StalenessDetector({
+			momentum: { movingAverageWindow: 5, minSamples: 2, velocityThreshold: 0.05 },
+		});
 		detector.recordSnapshot("item-a", 0.3);
 		detector.recordSnapshot("item-a", 0.5);
 		detector.recordSnapshot("item-a", 0.7);
 		detector.recordSnapshot("item-b", 0.9); // only 1 sample
 
-		const results = detector.computeMomentumBatch([
-			{ itemId: "item-a" },
-			{ itemId: "item-b" },
-		]);
+		const results = detector.computeMomentumBatch([{ itemId: "item-a" }, { itemId: "item-b" }]);
 		expect(results).toHaveLength(1);
 		expect(results[0].itemId).toBe("item-a");
 	});

@@ -566,7 +566,7 @@ describe("ObservabilityEventRepository", { skip: !isIntegration }, () => {
 	it("prunes events by severity filter", async () => {
 		const traceId = generateId();
 		const oldTs = "2023-01-01T00:00:00.000Z";
-		const recentTs = now();
+		const _recentTs = now();
 
 		// Create an old debug event
 		await repo.create({
@@ -689,9 +689,9 @@ describe("ObservabilityEventRepository", { skip: !isIntegration }, () => {
 		});
 
 		const bySeverity = await repo.countBySeverity({ eventType: "agg_test" });
-		assert.strictEqual(bySeverity["info"], 1);
-		assert.strictEqual(bySeverity["error"], 1);
-		assert.strictEqual(bySeverity["warning"], 1);
+		assert.strictEqual(bySeverity.info, 1);
+		assert.strictEqual(bySeverity.error, 1);
+		assert.strictEqual(bySeverity.warning, 1);
 	});
 
 	it("counts events by event type", async () => {
@@ -759,8 +759,8 @@ describe("ObservabilityEventRepository", { skip: !isIntegration }, () => {
 		});
 
 		const byType = await repo.countByEventType();
-		assert.strictEqual(byType["type_a"], 2);
-		assert.strictEqual(byType["type_b"], 1);
+		assert.strictEqual(byType.type_a, 2);
+		assert.strictEqual(byType.type_b, 1);
 	});
 
 	it("counts events by source", async () => {
@@ -828,8 +828,8 @@ describe("ObservabilityEventRepository", { skip: !isIntegration }, () => {
 		});
 
 		const bySource = await repo.countBySource();
-		assert.strictEqual(bySource["source_a"], 2);
-		assert.strictEqual(bySource["source_b"], 1);
+		assert.strictEqual(bySource.source_a, 2);
+		assert.strictEqual(bySource.source_b, 1);
 	});
 
 	it("gets time range of stored events", async () => {

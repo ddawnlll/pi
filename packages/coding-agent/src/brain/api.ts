@@ -178,12 +178,11 @@ async function tryLoadOrchestratorHealth(piDir: string): Promise<{
 		const daemonStatus = health.status as string;
 		let state: "running" | "stopped" | "error" = "stopped";
 		if (daemonStatus === "running") state = "running";
-		else if (daemonStatus === "paused") state = "running"; // treat paused as running for display
+		else if (daemonStatus === "paused")
+			state = "running"; // treat paused as running for display
 		else if (daemonStatus === "error" || daemonStatus === "failed") state = "error";
 
-		const startedAt: string | null = health.startedAt
-			? new Date(health.startedAt).toISOString()
-			: null;
+		const startedAt: string | null = health.startedAt ? new Date(health.startedAt).toISOString() : null;
 
 		// Compute uptime
 		let uptime = "0s";

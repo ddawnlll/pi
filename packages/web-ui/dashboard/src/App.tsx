@@ -438,6 +438,14 @@ export function App() {
     if (!res.success) showError(res.error || `Failed to stop worker ${workerId}`);
   }, [showError, selectedPlanExecId]);
 
+  // Force kill callback — added after handleStopWorker to avoid babel async parsing issues
+  const handleForceKillWorkers = useCallback(async () => {
+    if (!selectedPlanExecId) return;
+    setShowForceKillConfirm(false);
+    const res = await sendControlCommand("force-kill", selectedPlanExecId);
+    if (!res.success) showError(res.error || "Failed to force kill workers");
+  }, [showError, selectedPlanExecId]);
+
   const handleRerun = useCallback(async () => {
     if (!selectedProjectId || !selectedPlanExecId) return;
     setRerunning(true);

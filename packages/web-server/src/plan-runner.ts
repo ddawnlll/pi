@@ -725,7 +725,8 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				}
 			: undefined;
 
-		// P22.C: Worktree mode is always enabled. Ignore plan-level override.
+		// P22.C: Worktree mode is FORE ENABLED. Ignore any plan-level override.
+		// Worktree-less execution is blocked at WorkspaceAgentExecutor.execute().
 		const worktreeConfig: { enabled: true } = { enabled: true };
 
 		const executor = new AutonomousExecutor(stateStore, {
@@ -1299,19 +1300,19 @@ async function executePlanInBackground(
 
 			// Wrap each workspace execution with an individual timeout so a hung
 			// workspace (e.g. stuck during worktree creation or LLM stream) does
-			// not block the rest of the batch. The timeout matches the executor's
-			// built-in workspaceTimeoutMs (default 30 min), but applying it here
-			// prevents Promise.allSettled from waiting forever on a workspace
-			// whose timeout was already missed due to worktree serialization delays.
-			const workspaceTimeout = Math.max(queue.workspaceTimeoutMs ?? 30 * 60 * 1000, 5 * 60 * 1000);
+			// not block the rest of the batch. Using 10 minutes per workspace
+			// (the LLM idle watchdog is 5 min, the worktree creation timeout is
+			// also 5 min — 10 min covers both plus normal execution time).
+			const WORKSPACE_TIMEOUT_MS = 10 * 60 * 1000;
 			const settled = await Promise.allSettled(
 				nextWorkspaces.map((ws) =>
 					Promise.race([
 						executor.executeWorkspace(ws),
 						new Promise<never>((_, reject) =>
 							setTimeout(
-								() => reject(new Error(`Workspace ${ws.id} timed out after ${workspaceTimeout / 60000} min`)),
-								workspaceTimeout,
+								() =>
+									reject(new Error(`Workspace ${ws.id} timed out after ${WORKSPACE_TIMEOUT_MS / 60000} min`)),
+								WORKSPACE_TIMEOUT_MS,
 							).unref(),
 						),
 					]),
@@ -1680,7 +1681,7 @@ async function loadWorkspaceQueue(workspaceRoot: string, planExecId: string): Pr
  * a recovered plan in awaiting_handoff preserves its original handoffStartedAt
  * timestamp instead of re-entering completePlan() and resetting the timeout.
  */
-async function thisWaitForHandoff(
+async function _thisWaitForHandoff(
 	executor: AutonomousExecutor,
 	completionBus: WorkspaceCompletionBus,
 	planExecId: string,
@@ -1811,7 +1812,13 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	}
 
 	// If already terminal, nothing to recover — clean up orphaned snapshot files
-	if (planState.status === "complete" || planState.status === "failed" || planState.status === "cancelled") {
+	// "stopped" is also terminal: the user explicitly stopped the plan.
+	if (
+		planState.status === "complete" ||
+		planState.status === "failed" ||
+		planState.status === "cancelled" ||
+		planState.status === "stopped"
+	) {
 		new PiLogger({ planExecId }).info(
 			`Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`,
 		);
@@ -1900,14 +1907,15 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		}
 	}
 
-	// Restore worktree config from meta (for crash recovery AC3)
+	// Restore worktree config from meta (for crash recovery AC3).
+	// Worktree is ALWAYS enabled regardless of what was persisted.
 	const recoveredWorktreeConfig = meta?.worktreeConfig;
 
 	const executor = new AutonomousExecutor(stateStore, {
 		workspaceRoot,
 		projectId,
 		maxWorkers,
-		worktree: recoveredWorktreeConfig,
+		worktree: recoveredWorktreeConfig ?? { enabled: true },
 		skipProjectManagement: false,
 		enableRealExecution: true,
 		approvedPreview: approvedPreviewForRecovery,

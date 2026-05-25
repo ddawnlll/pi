@@ -303,7 +303,17 @@ export class WorkspaceAgentExecutor {
 	 * @param workspaceId - Workspace ID for logging
 	 * @returns Execution result
 	 */
-	async execute(packet: HashedPacket, workspaceId: string): Promise<AgentExecutionResult> {
+	async execute(
+		packet: HashedPacket,
+		workspaceId: string,
+		/**
+		 * Internal flag used ONLY by executeInWorktree() when creating the inner
+		 * executor scoped to the worktree. The inner executor has worktree mode
+		 * disabled to avoid recursion — it is ALREADY inside a worktree, so the
+		 * security check is bypassed for it only.
+		 */
+		_options?: { _skipWorktreeCheck?: boolean },
+	): Promise<AgentExecutionResult> {
 		// Set up abort controller and timeout
 		this.abortController = new AbortController();
 		this.timeoutHandle = setTimeout(() => {
@@ -317,24 +327,49 @@ export class WorkspaceAgentExecutor {
 		this.timeoutHandle.unref();
 
 		try {
-			// P22.C: Worktree-only mode — always execute inside an isolated git worktree.
-			// The outer executor (from AutonomousExecutor) always has worktree mode enabled
-			// and creates a worktree, then an inner executor scoped to the worktree path.
-			// The inner executor has worktree disabled to avoid recursion and falls through
-			// to direct agent execution via executeAgentInPlace().
-			if (this.isWorktreeModeEnabled) {
-				if (!this.planExecutionId) {
-					throw new Error(
-						"Worktree-only mode requires planExecutionId for worktree-based execution. " +
-							"All workspace execution must run inside an isolated git worktree.",
-					);
-				}
-				return await this.executeInWorktree(packet, workspaceId);
+			// ====================================================================
+			// P22.C: Worktree-only mode — ALWAYS execute inside an isolated git
+			// worktree. Every workspace MUST run inside a worktree to prevent
+			// file corruption, dirty tree conflicts, and concurrent edits.
+			//
+			// The outer executor creates a worktree, then spawns an inner executor
+			// scoped to the worktree path. The inner executor has worktree mode
+			// enabled (worktree: { enabled: true }) but passes _skipWorktreeCheck
+			// to bypass the worktree-creation step — it is ALREADY inside the
+			// worktree and runs executeAgentInPlace() directly.
+			//
+			// Any caller without _skipWorktreeCheck that has worktree mode
+			// disabled is BLOCKED with a fatal error. No worktree-less execution
+			// is ever allowed.
+			// See P22.C and P25 dogfood regression #3.
+			// ====================================================================
+			const skipWorktree = _options?._skipWorktreeCheck === true;
+
+			if (skipWorktree) {
+				// Inner executor: already inside a worktree, run agent directly.
+				return await this.executeAgentInPlace(packet, workspaceId);
 			}
 
-			// Inner executor: worktree is disabled, run agent directly in the worktree path.
-			// This is the inner executor created by executeInWorktree() scoped to the worktree directory.
-			return await this.executeAgentInPlace(packet, workspaceId);
+			if (!this.isWorktreeModeEnabled) {
+				return {
+					success: false,
+					verdict: "FAILED",
+					report: "Worktree-less execution is blocked. All workspaces must run inside an isolated git worktree.",
+					error: "Worktree mode disabled — execution not allowed without worktree isolation",
+					logs: [
+						`[${new Date().toISOString()}] FATAL: Worktree-less execution attempted for workspace ${workspaceId}`,
+						`[${new Date().toISOString()}] Worktree mode must be enabled for all workspace execution`,
+					],
+				};
+			}
+
+			if (!this.planExecutionId) {
+				throw new Error(
+					"Worktree-only mode requires planExecutionId for worktree-based execution. " +
+						"All workspace execution must run inside an isolated git worktree.",
+				);
+			}
+			return await this.executeInWorktree(packet, workspaceId);
 		} finally {
 			// Always clear timeout on completion
 			if (this.timeoutHandle) {
@@ -463,7 +498,7 @@ export class WorkspaceAgentExecutor {
 			log(`Active tools: ${activeTools.join(", ")}`);
 			log(`Agent has ${session.agent.state.tools.length} tools registered`);
 
-		// Track last event timestamp for LLM idle timeout
+			// Track last event timestamp for LLM idle timeout
 			let _agentCompleted = false;
 			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
 			let agentTurnCount = 0;
@@ -823,7 +858,7 @@ export class WorkspaceAgentExecutor {
 						log("Agent appears to have completed successfully");
 					} else {
 						// Capture the last assistant message content as the failure reason
-						const snippet = content.length > 200 ? content.substring(0, 200) + "..." : content;
+						const snippet = content.length > 200 ? `${content.substring(0, 200)}...` : content;
 						log(`No verdict found in assistant message, defaulting to FAILED. Last output: ${snippet}`);
 					}
 				}
@@ -952,21 +987,63 @@ export class WorkspaceAgentExecutor {
 			log(`Branch: ${createResult.state.branchName}`);
 
 			// Execute using the worktree path as workspace root
-			// We create a fresh WorkspaceAgentExecutor scoped to the worktree
+			// We create a fresh WorkspaceAgentExecutor scoped to the worktree.
+			// Worktree mode is enabled (so the security check passes) but the
+			// inner executor's execute() will skip worktree creation because
+			// this executor does NOT have a planExecutionId — it runs directly.
+			// Actually no — inner executor MUST NOT create another worktree.
+			// We pass worktree: { enabled: true } but the execute() method's
+			// security check for isWorktreeModeEnabled passes. However, inside
+			// executeInWorktree() (which runs because isWorktreeModeEnabled is true),
+			// we would try to create ANOTHER worktree. To prevent infinite recursion,
+			// we set a flag on the executor that tells executeInWorktree to skip
+			// worktree creation and just run the agent directly.
+			// Actually the simplest fix: give the inner executor worktree: { enabled: true }
+			// but it won't call executeInWorktree because planExecutionId is set.
+			// Wait — execute() checks isWorktreeModeEnabled first, if true it goes to
+			// executeInWorktree which tries to create another worktree. That's wrong.
+			//
+			// BEST approach: give the inner executor a flag that tells execute()
+			// to skip the worktree check entirely. We name it _skipWorktreeCheck.
+			// The inner executor runs executeAgentInPlace() directly.
+			const innerModel = this.model;
+			if (!innerModel) {
+				log(`FATAL: No model available for inner executor (workspace ${workspaceId})`);
+				return {
+					success: false,
+					verdict: "FAILED",
+					report: "No model available for inner executor",
+					error: "Model is undefined — cannot execute workspace in worktree",
+					logs,
+				};
+			}
 			const worktreeExecutor = new WorkspaceAgentExecutor({
 				workspaceRoot: createResult.state.worktreePath,
-				model: this.model,
+				model: innerModel,
 				maxTurns: this.maxTurns,
 				logPath: this.logPath,
 				stateStore: this.stateStore,
 				planExecutionId: this.planExecutionId,
 				timeoutMs: this.timeoutMs,
-				// Worktree mode is disabled for the inner executor to avoid recursion
-				worktree: { enabled: false },
+				// Worktree mode enabled. The executor will enter execute(),
+				// but _skipWorktreeCheck will make it bypass the worktree check
+				// and go directly to executeAgentInPlace().
+				worktree: { enabled: true },
 			});
 
 			log(`Executing agent in worktree: ${createResult.state.worktreePath}`);
-			const result = await worktreeExecutor.execute(packet, workspaceId);
+
+			// Race the inner executor against a 10-minute timeout.
+			const INNER_TIMEOUT_MS = 10 * 60 * 1000;
+			const result = await Promise.race([
+				worktreeExecutor.execute(packet, workspaceId, { _skipWorktreeCheck: true }),
+				new Promise<AgentExecutionResult>((_, reject) =>
+					setTimeout(
+						() => reject(new Error(`Inner executor timed out after ${INNER_TIMEOUT_MS / 60000} min`)),
+						INNER_TIMEOUT_MS,
+					).unref(),
+				),
+			]);
 
 			// Do NOT remove the worktree after execution — the agent's changes are in it.
 			// The plan-runner or a separate cleanup pass handles worktree cleanup.

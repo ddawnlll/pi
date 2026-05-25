@@ -24,8 +24,8 @@
  * - 500: Internal server error
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FeedbackEntry, FeedbackQuery } from "@earendil-works/pi-coding-agent";
+import type { FastifyInstance } from "fastify";
 
 // ---------------------------------------------------------------------------
 // In-memory store singleton imported lazily to avoid eager initialization

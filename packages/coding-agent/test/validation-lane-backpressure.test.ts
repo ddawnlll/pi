@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type ValidationLaneState, ValidationLaneTracker } from "../src/core/validation-lane.js";
+import { ValidationLaneTracker } from "../src/core/validation-lane.js";
 
 describe("ValidationLaneTracker", () => {
 	// -----------------------------------------------------------------------
