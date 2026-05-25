@@ -24,60 +24,49 @@
 
 import { describe, expect, test } from "vitest";
 import {
-	// Types
-	type WorkerManifest,
-	type WorkerStatus,
-	type WorkerContract,
-	type WorkerBudget,
-	type WorkerLifecycleState,
-	type WorkerRole,
-	type WorkerDiagnostic,
-	type WorkerCooldown,
-	// Constants
-	ALL_WORKER_ROLES,
-	ALL_WORKER_LIFECYCLE_STATES,
-	ALL_WORKER_STOP_CONDITIONS,
-	WORKER_ROLE_LABELS,
-	WORKER_LIFECYCLE_STATE_LABELS,
-	OPERATIONAL_STATES,
-	NON_OPERATIONAL_STATES,
-	DEFAULT_ROLE_BUDGETS,
-	DEFAULT_WORKER_DEDUP_CONFIG,
-	// Factory functions
-	createWorkerManifest,
-	createWorkerCooldown,
-	createWorkerDiagnostic,
-	// Validation
-	validateWorkerManifest,
-	validateWorkerContract,
-	validateWorkerBudget,
-	validateWorkerStatus,
-	// Serialization
-	serializeWorkerManifest,
-	deserializeWorkerManifest,
-	serializeWorkerStatus,
-	deserializeWorkerStatus,
-} from "../../src/brain-workers/types.js";
-import {
+	ContractRegistry,
 	// Contract functions
 	generateContractForRole,
+	generateManifest,
 	matchCapabilities,
 	resolveDependencies,
 	validateContractAgainstRequirements,
-	generateManifest,
-	ContractRegistry,
-	type CapabilityMatchResult,
-	type DependencyResolutionResult,
-	type ManifestGenerationOptions,
 } from "../../src/brain-workers/contracts.js";
 import {
 	// Lifecycle
 	WorkerLifecycleEngine,
 	type WorkerTransition,
-	type DedupHistoryEntry,
-	type LifecycleConfig,
-	DEFAULT_LIFECYCLE_CONFIG,
 } from "../../src/brain-workers/lifecycle.js";
+import {
+	ALL_WORKER_LIFECYCLE_STATES,
+	// Constants
+	ALL_WORKER_ROLES,
+	ALL_WORKER_STOP_CONDITIONS,
+	createWorkerCooldown,
+	createWorkerDiagnostic,
+	// Factory functions
+	createWorkerManifest,
+	DEFAULT_ROLE_BUDGETS,
+	DEFAULT_WORKER_DEDUP_CONFIG,
+	deserializeWorkerManifest,
+	deserializeWorkerStatus,
+	NON_OPERATIONAL_STATES,
+	OPERATIONAL_STATES,
+	// Serialization
+	serializeWorkerManifest,
+	serializeWorkerStatus,
+	validateWorkerBudget,
+	validateWorkerContract,
+	// Validation
+	validateWorkerManifest,
+	validateWorkerStatus,
+	WORKER_LIFECYCLE_STATE_LABELS,
+	WORKER_ROLE_LABELS,
+	type WorkerLifecycleState,
+	// Types
+	type WorkerManifest,
+	type WorkerStatus,
+} from "../../src/brain-workers/types.js";
 
 // =============================================================================
 // Types & Constants
@@ -93,7 +82,8 @@ describe("ALL_WORKER_ROLES", () => {
 		expect(ALL_WORKER_ROLES).toContain("archivist");
 		expect(ALL_WORKER_ROLES).toContain("coordinator");
 		expect(ALL_WORKER_ROLES).toContain("auditor");
-		expect(ALL_WORKER_ROLES.length).toBe(8);
+		expect(ALL_WORKER_ROLES).toContain("ideaScout");
+		expect(ALL_WORKER_ROLES.length).toBe(9);
 	});
 
 	test("every role has a label", () => {
@@ -339,19 +329,19 @@ describe("validateWorkerContract", () => {
 
 describe("validateWorkerBudget", () => {
 	test("validates a valid budget", () => {
-		const budget = DEFAULT_ROLE_BUDGETS["observer"];
+		const budget = DEFAULT_ROLE_BUDGETS.observer;
 		const result = validateWorkerBudget(budget);
 		expect(result.valid).toBe(true);
 	});
 
 	test("rejects negative maxTokensPerCycle", () => {
-		const budget = { ...DEFAULT_ROLE_BUDGETS["observer"], maxTokensPerCycle: -1 };
+		const budget = { ...DEFAULT_ROLE_BUDGETS.observer, maxTokensPerCycle: -1 };
 		const result = validateWorkerBudget(budget);
 		expect(result.valid).toBe(false);
 	});
 
 	test("rejects maxConsecutiveFailures < 1", () => {
-		const budget = { ...DEFAULT_ROLE_BUDGETS["observer"], maxConsecutiveFailures: 0 };
+		const budget = { ...DEFAULT_ROLE_BUDGETS.observer, maxConsecutiveFailures: 0 };
 		const result = validateWorkerBudget(budget);
 		expect(result.valid).toBe(false);
 	});
@@ -556,6 +546,20 @@ describe("generateContractForRole", () => {
 		expect(contract.dependencies).toContain("brain-worker.coordinator");
 	});
 
+	test("generates an ideaScout contract", () => {
+		const contract = generateContractForRole("ideaScout");
+
+		expect(contract.id).toContain("brain-worker.ideaScout");
+		expect(contract.capabilities).toContain("signal_mining");
+		expect(contract.capabilities).toContain("idea_generation");
+		expect(contract.capabilities).toContain("trend_detection");
+		expect(contract.capabilities).toContain("opportunity_identification");
+		expect(contract.inputs.length).toBeGreaterThan(0);
+		expect(contract.outputs.length).toBeGreaterThan(0);
+		expect(contract.errors.length).toBeGreaterThan(0);
+		expect(contract.dependencies).toContain("brain-worker.analyst");
+	});
+
 	test("accepts custom version string", () => {
 		const contract = generateContractForRole("observer", "2.1.0");
 		expect(contract.version).toBe("2.1.0");
@@ -588,10 +592,7 @@ describe("matchCapabilities", () => {
 	});
 
 	test("missing capabilities returns unsatisfied", () => {
-		const result = matchCapabilities(
-			["monitor_queue"],
-			["monitor_queue", "monitor_execution", "detect_signals"],
-		);
+		const result = matchCapabilities(["monitor_queue"], ["monitor_queue", "monitor_execution", "detect_signals"]);
 
 		expect(result.satisfied).toBe(false);
 		expect(result.matched).toEqual(["monitor_queue"]);
@@ -599,11 +600,7 @@ describe("matchCapabilities", () => {
 	});
 
 	test("allowPartial returns satisfied if at least one matches", () => {
-		const result = matchCapabilities(
-			["monitor_queue"],
-			["monitor_queue", "monitor_execution"],
-			true,
-		);
+		const result = matchCapabilities(["monitor_queue"], ["monitor_queue", "monitor_execution"], true);
 
 		expect(result.satisfied).toBe(true);
 		expect(result.matched).toEqual(["monitor_queue"]);
@@ -611,10 +608,7 @@ describe("matchCapabilities", () => {
 	});
 
 	test("extra capabilities are reported", () => {
-		const result = matchCapabilities(
-			["a", "b", "c", "d"],
-			["a", "b"],
-		);
+		const result = matchCapabilities(["a", "b", "c", "d"], ["a", "b"]);
 
 		expect(result.extra).toEqual(["c", "d"]);
 	});
@@ -685,10 +679,7 @@ describe("validateContractAgainstRequirements", () => {
 
 	test("detects missing capabilities", () => {
 		const contract = generateContractForRole("observer");
-		const result = validateContractAgainstRequirements(
-			contract,
-			["non_existent_capability"],
-		);
+		const result = validateContractAgainstRequirements(contract, ["non_existent_capability"]);
 		expect(result.valid).toBe(false);
 		expect(result.errors.some((e) => e.includes("non_existent_capability"))).toBe(true);
 	});
@@ -943,8 +934,18 @@ describe("WorkerLifecycleEngine — Registration", () => {
 
 	test("getAllStatuses returns all workers", () => {
 		const engine = new WorkerLifecycleEngine({ autoActivateOnRegister: false });
-		const m1 = createWorkerManifest({ role: "observer", name: "w1", description: "d1", contract: generateContractForRole("observer") });
-		const m2 = createWorkerManifest({ role: "analyst", name: "w2", description: "d2", contract: generateContractForRole("analyst") });
+		const m1 = createWorkerManifest({
+			role: "observer",
+			name: "w1",
+			description: "d1",
+			contract: generateContractForRole("observer"),
+		});
+		const m2 = createWorkerManifest({
+			role: "analyst",
+			name: "w2",
+			description: "d2",
+			contract: generateContractForRole("analyst"),
+		});
 
 		engine.registerWorker(m1);
 		engine.registerWorker(m2);
@@ -1335,8 +1336,18 @@ describe("WorkerLifecycleEngine — Cooldown Management", () => {
 
 	test("checkAllCooldowns processes all workers", () => {
 		const engine = new WorkerLifecycleEngine();
-		const m1 = createWorkerManifest({ role: "observer", name: "w1", description: "d1", contract: generateContractForRole("observer") });
-		const m2 = createWorkerManifest({ role: "observer", name: "w2", description: "d2", contract: generateContractForRole("observer") });
+		const m1 = createWorkerManifest({
+			role: "observer",
+			name: "w1",
+			description: "d1",
+			contract: generateContractForRole("observer"),
+		});
+		const m2 = createWorkerManifest({
+			role: "observer",
+			name: "w2",
+			description: "d2",
+			contract: generateContractForRole("observer"),
+		});
 
 		engine.registerWorker(m1);
 		engine.registerWorker(m2);
@@ -1458,8 +1469,18 @@ describe("WorkerLifecycleEngine — Deduplication", () => {
 describe("WorkerLifecycleEngine — Health & Diagnostics", () => {
 	test("getHealthSummary returns correct counts", () => {
 		const engine = new WorkerLifecycleEngine({ autoActivateOnRegister: false });
-		const m1 = createWorkerManifest({ role: "observer", name: "w1", description: "d1", contract: generateContractForRole("observer") });
-		const m2 = createWorkerManifest({ role: "analyst", name: "w2", description: "d2", contract: generateContractForRole("analyst") });
+		const m1 = createWorkerManifest({
+			role: "observer",
+			name: "w1",
+			description: "d1",
+			contract: generateContractForRole("observer"),
+		});
+		const m2 = createWorkerManifest({
+			role: "analyst",
+			name: "w2",
+			description: "d2",
+			contract: generateContractForRole("analyst"),
+		});
 
 		engine.registerWorker(m1);
 		engine.registerWorker(m2);
@@ -1483,7 +1504,7 @@ describe("WorkerLifecycleEngine — Health & Diagnostics", () => {
 		engine.startCycle(manifest.id);
 
 		// Can't easily mock time, but we can verify the check runs
-		const result = engine.healthCheck(manifest.id);
+		const _result = engine.healthCheck(manifest.id);
 		// If elapsed <= 300000ms, result is undefined (not over budget yet)
 		// This is fine — the method is exercised
 		expect(typeof engine.getStatus(manifest.id)).toBe("object");
@@ -1708,7 +1729,7 @@ describe("type correctness (compile-time)", () => {
 				supportsStreaming: false,
 				supportsCancellation: true,
 			},
-			budget: DEFAULT_ROLE_BUDGETS["observer"],
+			budget: DEFAULT_ROLE_BUDGETS.observer,
 			dedupConfig: DEFAULT_WORKER_DEDUP_CONFIG,
 			tags: ["test"],
 			metadata: {},
@@ -1726,6 +1747,7 @@ describe("type correctness (compile-time)", () => {
 		expect(roles).toContain("archivist");
 		expect(roles).toContain("coordinator");
 		expect(roles).toContain("auditor");
+		expect(roles).toContain("ideaScout");
 	});
 
 	test("all WorkerLifecycleState values are assignable", () => {

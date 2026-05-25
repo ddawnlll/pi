@@ -33,6 +33,7 @@ import { randomUUID } from "node:crypto";
  * - archivist:        Manages memory lifecycle — expiry, conflict detection, compaction
  * - coordinator:      Orchestrates multi-worker workflows and dependency resolution
  * - auditor:          Audits decisions, policy compliance, and provenance chains
+ * - ideaScout:        Scouts for ideas from signals, observations, and trend data
  */
 export type WorkerRole =
 	| "observer"
@@ -42,7 +43,8 @@ export type WorkerRole =
 	| "diagnostician"
 	| "archivist"
 	| "coordinator"
-	| "auditor";
+	| "auditor"
+	| "ideaScout";
 
 /**
  * All valid WorkerRole values for runtime validation.
@@ -56,6 +58,7 @@ export const ALL_WORKER_ROLES: readonly WorkerRole[] = [
 	"archivist",
 	"coordinator",
 	"auditor",
+	"ideaScout",
 ] as const;
 
 /**
@@ -70,6 +73,7 @@ export const WORKER_ROLE_LABELS: Record<WorkerRole, string> = {
 	archivist: "Archivist",
 	coordinator: "Coordinator",
 	auditor: "Auditor",
+	ideaScout: "Idea Scout",
 };
 
 /**
@@ -122,6 +126,12 @@ export const DEFAULT_ROLE_BUDGETS: Record<WorkerRole, WorkerBudget> = {
 		maxTokensPerCycle: 100_000,
 		maxConsecutiveFailures: 2,
 		cooldownMs: 180_000,
+		maxRuntimeMs: 600_000,
+	},
+	ideaScout: {
+		maxTokensPerCycle: 120_000,
+		maxConsecutiveFailures: 3,
+		cooldownMs: 120_000,
 		maxRuntimeMs: 600_000,
 	},
 };
@@ -184,11 +194,7 @@ export const WORKER_LIFECYCLE_STATE_LABELS: Record<WorkerLifecycleState, string>
 /**
  * States where a worker is considered operational (can do work).
  */
-export const OPERATIONAL_STATES: readonly WorkerLifecycleState[] = [
-	"standby",
-	"active",
-	"busy",
-] as const;
+export const OPERATIONAL_STATES: readonly WorkerLifecycleState[] = ["standby", "active", "busy"] as const;
 
 /**
  * States where a worker is not operational and requires intervention.

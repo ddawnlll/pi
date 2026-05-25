@@ -13,14 +13,14 @@
 import { randomUUID } from "node:crypto";
 import {
 	type ContractValidationResult,
+	DEFAULT_ROLE_BUDGETS,
+	DEFAULT_WORKER_DEDUP_CONFIG,
+	validateWorkerContract,
+	WORKER_ROLE_LABELS,
 	type WorkerBudget,
 	type WorkerContract,
 	type WorkerManifest,
 	type WorkerRole,
-	DEFAULT_ROLE_BUDGETS,
-	DEFAULT_WORKER_DEDUP_CONFIG,
-	WORKER_ROLE_LABELS,
-	validateWorkerContract,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -51,17 +51,55 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["monitor_queue", "monitor_execution", "detect_signals", "record_observations"],
 				inputs: [
-					{ name: "queue_state", description: "Current queue depth and state", type: "QueueState", required: true, sources: ["workspace-scheduler"] },
-					{ name: "execution_events", description: "Execution lifecycle events", type: "ExecutionEvent[]", required: false, sources: ["autonomous-executor"] },
-					{ name: "integration_state", description: "Integration dirty state", type: "IntegrationState", required: false, sources: ["integration-queue"] },
+					{
+						name: "queue_state",
+						description: "Current queue depth and state",
+						type: "QueueState",
+						required: true,
+						sources: ["workspace-scheduler"],
+					},
+					{
+						name: "execution_events",
+						description: "Execution lifecycle events",
+						type: "ExecutionEvent[]",
+						required: false,
+						sources: ["autonomous-executor"],
+					},
+					{
+						name: "integration_state",
+						description: "Integration dirty state",
+						type: "IntegrationState",
+						required: false,
+						sources: ["integration-queue"],
+					},
 				],
 				outputs: [
-					{ name: "observations", description: "Recorded brain observations", type: "BrainObservation[]", destinations: ["brain-observation-engine"] },
-					{ name: "signals", description: "Detected signals from monitoring", type: "BrainSignal[]", destinations: ["brain-analysis"] },
+					{
+						name: "observations",
+						description: "Recorded brain observations",
+						type: "BrainObservation[]",
+						destinations: ["brain-observation-engine"],
+					},
+					{
+						name: "signals",
+						description: "Detected signals from monitoring",
+						type: "BrainSignal[]",
+						destinations: ["brain-analysis"],
+					},
 				],
 				errors: [
-					{ code: "QUEUE_UNAVAILABLE", description: "Queue state not available for reading", severity: "warning", remediation: "Check queue store availability" },
-					{ code: "OBSERVATION_STORE_FAILURE", description: "Failed to persist observation", severity: "critical", remediation: "Check observation store write path" },
+					{
+						code: "QUEUE_UNAVAILABLE",
+						description: "Queue state not available for reading",
+						severity: "warning",
+						remediation: "Check queue store availability",
+					},
+					{
+						code: "OBSERVATION_STORE_FAILURE",
+						description: "Failed to persist observation",
+						severity: "critical",
+						remediation: "Check observation store write path",
+					},
 				],
 				dependencies: [],
 				supportsStreaming: false,
@@ -76,16 +114,48 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["pattern_detection", "signal_synthesis", "trend_analysis", "anomaly_detection"],
 				inputs: [
-					{ name: "observations", description: "Recent brain observations", type: "BrainObservation[]", required: true, sources: ["observer", "observation-engine"] },
-					{ name: "historical_signals", description: "Previously detected signals for context", type: "BrainSignal[]", required: false, sources: ["brain-timeline"] },
+					{
+						name: "observations",
+						description: "Recent brain observations",
+						type: "BrainObservation[]",
+						required: true,
+						sources: ["observer", "observation-engine"],
+					},
+					{
+						name: "historical_signals",
+						description: "Previously detected signals for context",
+						type: "BrainSignal[]",
+						required: false,
+						sources: ["brain-timeline"],
+					},
 				],
 				outputs: [
-					{ name: "synthesized_signals", description: "New signals derived from observation analysis", type: "BrainSignal[]", destinations: ["brain-timeline", "proposal-generator"] },
-					{ name: "analysis_reports", description: "Detailed analysis reports for diagnostics", type: "AnalysisReport[]", destinations: ["brain-audit"] },
+					{
+						name: "synthesized_signals",
+						description: "New signals derived from observation analysis",
+						type: "BrainSignal[]",
+						destinations: ["brain-timeline", "proposal-generator"],
+					},
+					{
+						name: "analysis_reports",
+						description: "Detailed analysis reports for diagnostics",
+						type: "AnalysisReport[]",
+						destinations: ["brain-audit"],
+					},
 				],
 				errors: [
-					{ code: "INSUFFICIENT_OBSERVATIONS", description: "Not enough observations to identify patterns", severity: "info", remediation: "Wait for more observation data" },
-					{ code: "PATTERN_EXTRACTION_FAILED", description: "Failed to extract patterns from observations", severity: "warning", remediation: "Check observation quality and source integrity" },
+					{
+						code: "INSUFFICIENT_OBSERVATIONS",
+						description: "Not enough observations to identify patterns",
+						severity: "info",
+						remediation: "Wait for more observation data",
+					},
+					{
+						code: "PATTERN_EXTRACTION_FAILED",
+						description: "Failed to extract patterns from observations",
+						severity: "warning",
+						remediation: "Check observation quality and source integrity",
+					},
 				],
 				dependencies: ["brain-worker.observer"],
 				supportsStreaming: false,
@@ -100,16 +170,49 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["proposal_generation", "risk_assessment", "evidence_assembly", "priority_scoring"],
 				inputs: [
-					{ name: "signals", description: "Active signals requiring action", type: "BrainSignal[]", required: true, sources: ["analyst", "observation-engine"] },
-					{ name: "memory_records", description: "Relevant memory context", type: "MemoryRecord[]", required: false, sources: ["memory-store"] },
-					{ name: "goal_state", description: "Current goals and preferences", type: "GoalState", required: false, sources: ["goal-store"] },
+					{
+						name: "signals",
+						description: "Active signals requiring action",
+						type: "BrainSignal[]",
+						required: true,
+						sources: ["analyst", "observation-engine"],
+					},
+					{
+						name: "memory_records",
+						description: "Relevant memory context",
+						type: "MemoryRecord[]",
+						required: false,
+						sources: ["memory-store"],
+					},
+					{
+						name: "goal_state",
+						description: "Current goals and preferences",
+						type: "GoalState",
+						required: false,
+						sources: ["goal-store"],
+					},
 				],
 				outputs: [
-					{ name: "proposals", description: "Generated actionable proposals", type: "Proposal[]", destinations: ["proposal-inbox", "proposal-store"] },
+					{
+						name: "proposals",
+						description: "Generated actionable proposals",
+						type: "Proposal[]",
+						destinations: ["proposal-inbox", "proposal-store"],
+					},
 				],
 				errors: [
-					{ code: "NO_ACTIONABLE_SIGNALS", description: "No signals met the action threshold", severity: "info", remediation: "Re-evaluate signal thresholds" },
-					{ code: "PROPOSAL_VALIDATION_FAILED", description: "Generated proposal failed validation", severity: "warning", remediation: "Check proposal generation parameters" },
+					{
+						code: "NO_ACTIONABLE_SIGNALS",
+						description: "No signals met the action threshold",
+						severity: "info",
+						remediation: "Re-evaluate signal thresholds",
+					},
+					{
+						code: "PROPOSAL_VALIDATION_FAILED",
+						description: "Generated proposal failed validation",
+						severity: "warning",
+						remediation: "Check proposal generation parameters",
+					},
 				],
 				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
@@ -122,19 +225,62 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				name: `${label} Contract`,
 				description: `Runs scheduled reflection cycles over memory, outcomes, and execution history.`,
 				version,
-				capabilities: ["reflection_execution", "outcome_analysis", "memory_proposal_generation", "future_suggestion"],
+				capabilities: [
+					"reflection_execution",
+					"outcome_analysis",
+					"memory_proposal_generation",
+					"future_suggestion",
+				],
 				inputs: [
-					{ name: "memory_records", description: "Memory records for reflection", type: "MemoryRecord[]", required: true, sources: ["memory-store"] },
-					{ name: "execution_history", description: "Past execution outcomes", type: "ExecutionRecord[]", required: false, sources: ["execution-store"] },
-					{ name: "goal_state", description: "Current goals for context", type: "GoalState", required: false, sources: ["goal-store"] },
+					{
+						name: "memory_records",
+						description: "Memory records for reflection",
+						type: "MemoryRecord[]",
+						required: true,
+						sources: ["memory-store"],
+					},
+					{
+						name: "execution_history",
+						description: "Past execution outcomes",
+						type: "ExecutionRecord[]",
+						required: false,
+						sources: ["execution-store"],
+					},
+					{
+						name: "goal_state",
+						description: "Current goals for context",
+						type: "GoalState",
+						required: false,
+						sources: ["goal-store"],
+					},
 				],
 				outputs: [
-					{ name: "reflection_reports", description: "Generated reflection reports", type: "ReflectionReport[]", destinations: ["brain-timeline", "brain-audit"] },
-					{ name: "memory_proposals", description: "Proposals for memory updates", type: "MemoryProposal[]", destinations: ["proposal-generator"] },
+					{
+						name: "reflection_reports",
+						description: "Generated reflection reports",
+						type: "ReflectionReport[]",
+						destinations: ["brain-timeline", "brain-audit"],
+					},
+					{
+						name: "memory_proposals",
+						description: "Proposals for memory updates",
+						type: "MemoryProposal[]",
+						destinations: ["proposal-generator"],
+					},
 				],
 				errors: [
-					{ code: "REFLECTION_TIMEOUT", description: "Reflection cycle exceeded maxRuntimeMs", severity: "warning", remediation: "Reduce scope or increase budget" },
-					{ code: "MEMORY_UNAVAILABLE", description: "Memory store not reachable", severity: "critical", remediation: "Check memory store health" },
+					{
+						code: "REFLECTION_TIMEOUT",
+						description: "Reflection cycle exceeded maxRuntimeMs",
+						severity: "warning",
+						remediation: "Reduce scope or increase budget",
+					},
+					{
+						code: "MEMORY_UNAVAILABLE",
+						description: "Memory store not reachable",
+						severity: "critical",
+						remediation: "Check memory store health",
+					},
 				],
 				dependencies: ["brain-worker.archivist"],
 				supportsStreaming: false,
@@ -149,17 +295,55 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["failure_analysis", "root_cause_diagnosis", "health_assessment", "remediation_suggestion"],
 				inputs: [
-					{ name: "failure_signals", description: "Signals indicating failures or anomalies", type: "BrainSignal[]", required: true, sources: ["analyst", "observation-engine"] },
-					{ name: "execution_logs", description: "Execution logs for diagnostic analysis", type: "ExecutionLog[]", required: false, sources: ["execution-store"] },
-					{ name: "worker_statuses", description: "Status of related workers", type: "WorkerStatus[]", required: false, sources: ["brain-worker-registry"] },
+					{
+						name: "failure_signals",
+						description: "Signals indicating failures or anomalies",
+						type: "BrainSignal[]",
+						required: true,
+						sources: ["analyst", "observation-engine"],
+					},
+					{
+						name: "execution_logs",
+						description: "Execution logs for diagnostic analysis",
+						type: "ExecutionLog[]",
+						required: false,
+						sources: ["execution-store"],
+					},
+					{
+						name: "worker_statuses",
+						description: "Status of related workers",
+						type: "WorkerStatus[]",
+						required: false,
+						sources: ["brain-worker-registry"],
+					},
 				],
 				outputs: [
-					{ name: "diagnostic_reports", description: "Root cause diagnostic reports", type: "DiagnosticReport[]", destinations: ["brain-audit", "failure-classifier"] },
-					{ name: "remediation_suggestions", description: "Suggested remediation actions", type: "RemediationSuggestion[]", destinations: ["proposal-generator"] },
+					{
+						name: "diagnostic_reports",
+						description: "Root cause diagnostic reports",
+						type: "DiagnosticReport[]",
+						destinations: ["brain-audit", "failure-classifier"],
+					},
+					{
+						name: "remediation_suggestions",
+						description: "Suggested remediation actions",
+						type: "RemediationSuggestion[]",
+						destinations: ["proposal-generator"],
+					},
 				],
 				errors: [
-					{ code: "INSUFFICIENT_EVIDENCE", description: "Not enough evidence for conclusive diagnosis", severity: "warning", remediation: "Collect more execution context" },
-					{ code: "DIAGNOSTIC_TIMEOUT", description: "Diagnostic analysis exceeded time budget", severity: "warning", remediation: "Narrow diagnostic scope" },
+					{
+						code: "INSUFFICIENT_EVIDENCE",
+						description: "Not enough evidence for conclusive diagnosis",
+						severity: "warning",
+						remediation: "Collect more execution context",
+					},
+					{
+						code: "DIAGNOSTIC_TIMEOUT",
+						description: "Diagnostic analysis exceeded time budget",
+						severity: "warning",
+						remediation: "Narrow diagnostic scope",
+					},
 				],
 				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
@@ -174,16 +358,48 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["memory_lifecycle", "conflict_detection", "memory_compaction", "tier_management"],
 				inputs: [
-					{ name: "memory_records", description: "Memory records to manage", type: "MemoryRecord[]", required: true, sources: ["memory-store"] },
-					{ name: "conflict_signals", description: "Detected memory conflicts", type: "MemoryConflict[]", required: false, sources: ["memory-store"] },
+					{
+						name: "memory_records",
+						description: "Memory records to manage",
+						type: "MemoryRecord[]",
+						required: true,
+						sources: ["memory-store"],
+					},
+					{
+						name: "conflict_signals",
+						description: "Detected memory conflicts",
+						type: "MemoryConflict[]",
+						required: false,
+						sources: ["memory-store"],
+					},
 				],
 				outputs: [
-					{ name: "lifecycle_actions", description: "Actions taken on memory lifecycle", type: "LifecycleAction[]", destinations: ["memory-store", "brain-timeline"] },
-					{ name: "compaction_reports", description: "Compaction and archival reports", type: "CompactionReport[]", destinations: ["brain-audit"] },
+					{
+						name: "lifecycle_actions",
+						description: "Actions taken on memory lifecycle",
+						type: "LifecycleAction[]",
+						destinations: ["memory-store", "brain-timeline"],
+					},
+					{
+						name: "compaction_reports",
+						description: "Compaction and archival reports",
+						type: "CompactionReport[]",
+						destinations: ["brain-audit"],
+					},
 				],
 				errors: [
-					{ code: "COMPACTION_FAILED", description: "Memory compaction process failed", severity: "warning", remediation: "Retry compaction with reduced scope" },
-					{ code: "CONFLICT_RESOLUTION_FAILED", description: "Automatic conflict resolution failed", severity: "info", remediation: "Flag for manual review" },
+					{
+						code: "COMPACTION_FAILED",
+						description: "Memory compaction process failed",
+						severity: "warning",
+						remediation: "Retry compaction with reduced scope",
+					},
+					{
+						code: "CONFLICT_RESOLUTION_FAILED",
+						description: "Automatic conflict resolution failed",
+						severity: "info",
+						remediation: "Flag for manual review",
+					},
 				],
 				dependencies: [],
 				supportsStreaming: false,
@@ -198,17 +414,55 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				version,
 				capabilities: ["workflow_orchestration", "dependency_resolution", "worker_dispatch", "progress_tracking"],
 				inputs: [
-					{ name: "worker_statuses", description: "Status of registered workers", type: "WorkerStatus[]", required: true, sources: ["brain-worker-registry"] },
-					{ name: "pending_tasks", description: "Tasks awaiting worker dispatch", type: "WorkerTask[]", required: true, sources: ["task-queue"] },
-					{ name: "contract_registry", description: "Available worker contracts for capability matching", type: "WorkerContract[]", required: true, sources: ["contract-registry"] },
+					{
+						name: "worker_statuses",
+						description: "Status of registered workers",
+						type: "WorkerStatus[]",
+						required: true,
+						sources: ["brain-worker-registry"],
+					},
+					{
+						name: "pending_tasks",
+						description: "Tasks awaiting worker dispatch",
+						type: "WorkerTask[]",
+						required: true,
+						sources: ["task-queue"],
+					},
+					{
+						name: "contract_registry",
+						description: "Available worker contracts for capability matching",
+						type: "WorkerContract[]",
+						required: true,
+						sources: ["contract-registry"],
+					},
 				],
 				outputs: [
-					{ name: "dispatch_orders", description: "Worker dispatch instructions", type: "DispatchOrder[]", destinations: ["brain-worker-registry"] },
-					{ name: "workflow_status", description: "Status of active workflows", type: "WorkflowStatus[]", destinations: ["brain-timeline", "dashboard"] },
+					{
+						name: "dispatch_orders",
+						description: "Worker dispatch instructions",
+						type: "DispatchOrder[]",
+						destinations: ["brain-worker-registry"],
+					},
+					{
+						name: "workflow_status",
+						description: "Status of active workflows",
+						type: "WorkflowStatus[]",
+						destinations: ["brain-timeline", "dashboard"],
+					},
 				],
 				errors: [
-					{ code: "NO_CAPABLE_WORKER", description: "No worker found with required capabilities", severity: "critical", remediation: "Register a worker with the required capabilities" },
-					{ code: "DEPENDENCY_CYCLE", description: "Circular dependency detected in workflow", severity: "critical", remediation: "Redesign workflow to eliminate circular dependency" },
+					{
+						code: "NO_CAPABLE_WORKER",
+						description: "No worker found with required capabilities",
+						severity: "critical",
+						remediation: "Register a worker with the required capabilities",
+					},
+					{
+						code: "DEPENDENCY_CYCLE",
+						description: "Circular dependency detected in workflow",
+						severity: "critical",
+						remediation: "Redesign workflow to eliminate circular dependency",
+					},
 				],
 				dependencies: ["brain-worker.observer", "brain-worker.analyst", "brain-worker.proposer"],
 				supportsStreaming: true,
@@ -221,21 +475,133 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				name: `${label} Contract`,
 				description: `Audits decisions, policy compliance, provenance chains, and worker health.`,
 				version,
-				capabilities: ["policy_compliance_audit", "provenance_verification", "decision_audit", "worker_health_check"],
+				capabilities: [
+					"policy_compliance_audit",
+					"provenance_verification",
+					"decision_audit",
+					"worker_health_check",
+				],
 				inputs: [
-					{ name: "policy_events", description: "Policy compliance events to audit", type: "PolicyEvent[]", required: true, sources: ["policy-engine"] },
-					{ name: "worker_statuses", description: "Worker statuses for health audit", type: "WorkerStatus[]", required: true, sources: ["brain-worker-registry"] },
-					{ name: "audit_logs", description: "Historical audit log entries", type: "AuditLogEntry[]", required: false, sources: ["brain-audit"] },
+					{
+						name: "policy_events",
+						description: "Policy compliance events to audit",
+						type: "PolicyEvent[]",
+						required: true,
+						sources: ["policy-engine"],
+					},
+					{
+						name: "worker_statuses",
+						description: "Worker statuses for health audit",
+						type: "WorkerStatus[]",
+						required: true,
+						sources: ["brain-worker-registry"],
+					},
+					{
+						name: "audit_logs",
+						description: "Historical audit log entries",
+						type: "AuditLogEntry[]",
+						required: false,
+						sources: ["brain-audit"],
+					},
 				],
 				outputs: [
-					{ name: "audit_reports", description: "Generated audit reports", type: "AuditReport[]", destinations: ["brain-audit", "dashboard"] },
-					{ name: "compliance_alerts", description: "Policy compliance alerts", type: "ComplianceAlert[]", destinations: ["brain-timeline", "proposal-inbox"] },
+					{
+						name: "audit_reports",
+						description: "Generated audit reports",
+						type: "AuditReport[]",
+						destinations: ["brain-audit", "dashboard"],
+					},
+					{
+						name: "compliance_alerts",
+						description: "Policy compliance alerts",
+						type: "ComplianceAlert[]",
+						destinations: ["brain-timeline", "proposal-inbox"],
+					},
 				],
 				errors: [
-					{ code: "POLICY_ENGINE_UNAVAILABLE", description: "Policy engine not reachable for audit", severity: "critical", remediation: "Check policy engine health" },
-					{ code: "INSUFFICIENT_AUDIT_TRAIL", description: "Not enough data to complete audit", severity: "warning", remediation: "Increase audit log retention" },
+					{
+						code: "POLICY_ENGINE_UNAVAILABLE",
+						description: "Policy engine not reachable for audit",
+						severity: "critical",
+						remediation: "Check policy engine health",
+					},
+					{
+						code: "INSUFFICIENT_AUDIT_TRAIL",
+						description: "Not enough data to complete audit",
+						severity: "warning",
+						remediation: "Increase audit log retention",
+					},
 				],
 				dependencies: ["brain-worker.coordinator"],
+				supportsStreaming: false,
+				supportsCancellation: true,
+			};
+
+		case "ideaScout":
+			return {
+				id: `${baseId}.v${version}`,
+				name: `${label} Contract`,
+				description: `Scouts for ideas by mining signals, detecting trends, and identifying opportunities from observations and analysis.`,
+				version,
+				capabilities: ["signal_mining", "idea_generation", "trend_detection", "opportunity_identification"],
+				inputs: [
+					{
+						name: "signals",
+						description: "Synthesized signals from analyst for idea generation",
+						type: "BrainSignal[]",
+						required: true,
+						sources: ["analyst", "brain-timeline"],
+					},
+					{
+						name: "observations",
+						description: "Raw observations for signal mining",
+						type: "BrainObservation[]",
+						required: false,
+						sources: ["observer", "observation-engine"],
+					},
+					{
+						name: "memory_records",
+						description: "Historical memory for context-aware scouting",
+						type: "MemoryRecord[]",
+						required: false,
+						sources: ["memory-store"],
+					},
+				],
+				outputs: [
+					{
+						name: "ideas",
+						description: "Scouted ideas with evidence and priority scores",
+						type: "ScoutedIdea[]",
+						destinations: ["proposal-generator", "proposal-inbox"],
+					},
+					{
+						name: "mined_signals",
+						description: "Raw signals extracted from observation data",
+						type: "MinedSignal[]",
+						destinations: ["brain-timeline", "brain-analysis"],
+					},
+				],
+				errors: [
+					{
+						code: "NO_SIGNALS_AVAILABLE",
+						description: "No signals available for idea scouting",
+						severity: "info",
+						remediation: "Wait for analyst to produce signals",
+					},
+					{
+						code: "IDEA_DEDUP_FAILED",
+						description: "Idea deduplication process failed",
+						severity: "warning",
+						remediation: "Check dedup store health and retry",
+					},
+					{
+						code: "SIGNAL_MINING_FAILED",
+						description: "Failed to mine signals from observations",
+						severity: "warning",
+						remediation: "Check observation data quality and availability",
+					},
+				],
+				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
 				supportsCancellation: true,
 			};
@@ -345,9 +711,7 @@ export function resolveDependencies(
 	for (const dep of contract.dependencies) {
 		// Check for exact match or prefix match (e.g., "brain-worker.observer" matches
 		// "brain-worker.observer.v1.0.0")
-		const found = availableContracts.some(
-			(c) => c.id === dep || c.id.startsWith(dep) || c.id.startsWith(`${dep}.`),
-		);
+		const found = availableContracts.some((c) => c.id === dep || c.id.startsWith(dep) || c.id.startsWith(`${dep}.`));
 
 		if (found) {
 			satisfied.push(dep);
@@ -403,32 +767,24 @@ export function validateContractAgainstRequirements(
 	if (requiredCapabilities && requiredCapabilities.length > 0) {
 		const capabilityMatch = matchCapabilities(contract.capabilities, requiredCapabilities);
 		if (!capabilityMatch.satisfied) {
-			errors.push(
-				`Missing required capabilities: ${capabilityMatch.missing.join(", ")}`,
-			);
+			errors.push(`Missing required capabilities: ${capabilityMatch.missing.join(", ")}`);
 		}
 		if (capabilityMatch.missing.length > 0 && capabilityMatch.matched.length > 0) {
-			warnings.push(
-				`Partially satisfied: missing ${capabilityMatch.missing.join(", ")}`,
-			);
+			warnings.push(`Partially satisfied: missing ${capabilityMatch.missing.join(", ")}`);
 		}
 	}
 
 	// 3. Input requirements check
 	for (const input of contract.inputs) {
 		if (input.required && (!input.sources || input.sources.length === 0)) {
-			warnings.push(
-				`Required input '${input.name}' has no sources configured`,
-			);
+			warnings.push(`Required input '${input.name}' has no sources configured`);
 		}
 	}
 
 	// 4. Output destination check
 	for (const output of contract.outputs) {
 		if (!output.destinations || output.destinations.length === 0) {
-			warnings.push(
-				`Output '${output.name}' has no destinations configured`,
-			);
+			warnings.push(`Output '${output.name}' has no destinations configured`);
 		}
 	}
 

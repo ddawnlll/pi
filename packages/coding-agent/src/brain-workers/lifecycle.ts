@@ -17,25 +17,23 @@
  * Dependencies: ./types.ts (WorkerManifest, WorkerStatus, WorkerLifecycleState, etc.)
  */
 
+import { createHash } from "node:crypto";
 import {
+	createWorkerCooldown,
+	createWorkerDiagnostic,
+	DEFAULT_WORKER_DEDUP_CONFIG,
+	OPERATIONAL_STATES,
 	type WorkerDedupConfig,
 	type WorkerDiagnostic,
 	type WorkerLifecycleState,
 	type WorkerManifest,
 	type WorkerStatus,
 	type WorkerStopCondition,
-	DEFAULT_WORKER_DEDUP_CONFIG,
-	OPERATIONAL_STATES,
-	createWorkerCooldown,
-	createWorkerDiagnostic,
 } from "./types.js";
-import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-
 
 /** Maximum number of recent diagnostics to retain. */
 const MAX_DIAGNOSTICS = 20;
@@ -44,7 +42,7 @@ const MAX_DIAGNOSTICS = 20;
 const MAX_DEDUP_HISTORY = 100;
 
 /** Default dedup window in ms. */
-const DEFAULT_DEDUP_WINDOW_MS = 300_000;
+const _DEFAULT_DEDUP_WINDOW_MS = 300_000;
 
 // ---------------------------------------------------------------------------
 // Lifecycle Configuration
@@ -637,14 +635,10 @@ export class WorkerLifecycleEngine {
 	handleTimeout(workerId: string): WorkerStatus {
 		const status = this.getStatusOrThrow(workerId);
 
-		const diagnostic = createWorkerDiagnostic(
-			"timeout",
-			"Worker cycle exceeded maxRuntimeMs budget",
-			{
-				currentCycleRuntimeMs: status.budgetConsumption.currentCycleRuntimeMs,
-				maxRuntimeMs: this.getManifestOrThrow(workerId).budget.maxRuntimeMs,
-			},
-		);
+		const diagnostic = createWorkerDiagnostic("timeout", "Worker cycle exceeded maxRuntimeMs budget", {
+			currentCycleRuntimeMs: status.budgetConsumption.currentCycleRuntimeMs,
+			maxRuntimeMs: this.getManifestOrThrow(workerId).budget.maxRuntimeMs,
+		});
 
 		status.totalCyclesFailed++;
 		status.budgetConsumption.consecutiveFailures++;
@@ -673,14 +667,10 @@ export class WorkerLifecycleEngine {
 	handleTokenBudgetExhaustion(workerId: string): WorkerStatus {
 		const status = this.getStatusOrThrow(workerId);
 
-		const diagnostic = createWorkerDiagnostic(
-			"token_budget_exhausted",
-			"Worker exceeded maxTokensPerCycle budget",
-			{
-				currentCycleTokens: status.budgetConsumption.currentCycleTokens,
-				maxTokensPerCycle: this.getManifestOrThrow(workerId).budget.maxTokensPerCycle,
-			},
-		);
+		const diagnostic = createWorkerDiagnostic("token_budget_exhausted", "Worker exceeded maxTokensPerCycle budget", {
+			currentCycleTokens: status.budgetConsumption.currentCycleTokens,
+			maxTokensPerCycle: this.getManifestOrThrow(workerId).budget.maxTokensPerCycle,
+		});
 
 		status.totalCyclesFailed++;
 		status.budgetConsumption.consecutiveFailures++;
@@ -805,29 +795,6 @@ export class WorkerLifecycleEngine {
 	}
 
 	/**
-	 * Compute a simple similarity score between two strings (0-1).
-	 * Uses Jaccard similarity on word sets.
-	 *
-	 * @param a - First string.
-	 * @param b - Second string.
-	 * @returns Similarity score between 0 and 1.
-	 */
-	private computeSimilarity(a: string, b: string): number {
-		const wordsA = new Set(a.toLowerCase().split(/\s+/));
-		const wordsB = new Set(b.toLowerCase().split(/\s+/));
-
-		if (wordsA.size === 0 && wordsB.size === 0) return 1;
-
-		let intersection = 0;
-		for (const word of wordsA) {
-			if (wordsB.has(word)) intersection++;
-		}
-
-		const union = wordsA.size + wordsB.size - intersection;
-		return union === 0 ? 0 : intersection / union;
-	}
-
-	/**
 	 * Check if a task should be deduplicated (suppressed) based on history.
 	 *
 	 * Uses configured dedup strategy:
@@ -838,7 +805,10 @@ export class WorkerLifecycleEngine {
 	 * @param taskContent - The task content to check.
 	 * @returns A dedup result with suppression info, or null if not a duplicate.
 	 */
-	checkDedup(workerId: string, taskContent: string): {
+	checkDedup(
+		workerId: string,
+		taskContent: string,
+	): {
 		isDuplicate: boolean;
 		matchType: "exact_match" | "similarity_match" | "no_match";
 		matchingEntry?: DedupHistoryEntry;
@@ -873,7 +843,7 @@ export class WorkerLifecycleEngine {
 
 		// Check similarity match
 		if (dedupConfig.useSimilarity) {
-			const similarityMatch = history.find((entry) => {
+			const _similarityMatch = history.find((entry) => {
 				const age = now - new Date(entry.originalTimestamp).getTime();
 				if (age > windowMs) return false;
 				// We don't have the original content, so similarity is based on
@@ -1011,10 +981,7 @@ export class WorkerLifecycleEngine {
 		}
 
 		// Check consecutive failures
-		if (
-			status.budgetConsumption.consecutiveFailures >= budget.maxConsecutiveFailures &&
-			status.state !== "failed"
-		) {
+		if (status.budgetConsumption.consecutiveFailures >= budget.maxConsecutiveFailures && status.state !== "failed") {
 			const diagnostic = createWorkerDiagnostic(
 				"consecutive_failures_exceeded",
 				`Health check: worker exceeded max consecutive failures (${budget.maxConsecutiveFailures})`,
