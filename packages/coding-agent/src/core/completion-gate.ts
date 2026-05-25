@@ -389,6 +389,76 @@ export function recordCommandCompletion(
 }
 
 // ---------------------------------------------------------------------------
+// WriteSet drift detection
+// ---------------------------------------------------------------------------
+
+/**
+ * P26.L: Result of a writeSet drift check.
+ */
+export interface WriteSetDriftResult {
+	/** Whether drift was detected */
+	driftDetected: boolean;
+	/** Files that were modified outside the declared conflictScope */
+	driftedFiles: string[];
+	/** Files that were within the declared conflictScope */
+	scopedFiles: string[];
+	/** Declared conflict scope patterns */
+	declaredScope: string[];
+	/** Error message if check failed */
+	error?: string;
+}
+
+/**
+ * Check for writeSet drift after workspace completion.
+ *
+ * Compares the empirical git diff (actual files modified) against the
+ * declared conflictScope. If the workspace modified files outside its
+ * declared scope, drift is detected and the result should block completion
+ * or trigger a handoff artifact.
+ *
+ * @param empiricalDiffFiles - Files actually modified (from git diff --name-only)
+ * @param declaredScope - Declared conflict scope patterns (glob patterns)
+ * @returns Drift check result
+ */
+export function checkWriteSetDrift(empiricalDiffFiles: string[], declaredScope: string[]): WriteSetDriftResult {
+	if (declaredScope.length === 0) {
+		return {
+			driftDetected: false,
+			driftedFiles: [],
+			scopedFiles: [],
+			declaredScope: [],
+			error: "No conflict scope declared — drift detection skipped",
+		};
+	}
+
+	// Simple glob matching — convert to regex
+	const matchesPattern = (filePath: string, pattern: string): boolean => {
+		// Convert glob pattern to regex
+		const regexStr = pattern.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".");
+		return new RegExp(`^${regexStr}$`).test(filePath);
+	};
+
+	const scopedFiles: string[] = [];
+	const driftedFiles: string[] = [];
+
+	for (const file of empiricalDiffFiles) {
+		const matchesScope = declaredScope.some((pattern) => matchesPattern(file, pattern));
+		if (matchesScope) {
+			scopedFiles.push(file);
+		} else {
+			driftedFiles.push(file);
+		}
+	}
+
+	return {
+		driftDetected: driftedFiles.length > 0,
+		driftedFiles,
+		scopedFiles,
+		declaredScope,
+	};
+}
+
+// ---------------------------------------------------------------------------
 // Plan completion gate
 // ---------------------------------------------------------------------------
 

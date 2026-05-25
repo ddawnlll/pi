@@ -491,8 +491,20 @@ export interface Workspace {
 	 * read/write conflicts that could prevent safe parallel execution.
 	 *
 	 * Contract Schema v2.4.0 field.
+	 *
+	 * P26.L: `conflictScope` is an alias for `writeSet` — the set of files
+	 * this workspace intends to modify. After workspace completion, the
+	 * empirical git diff is compared against this scope to detect drift.
 	 */
 	writeSet?: string[];
+
+	/**
+	 * P26.L: Declared conflict scope (alias for writeSet).
+	 * The set of files this workspace intends to modify. After workspace
+	 * completion, the empirical git diff is compared against this scope
+	 * to detect drift.
+	 */
+	conflictScope?: string[];
 
 	/**
 	 * Set of symbols (function names, type names, variable names) that
