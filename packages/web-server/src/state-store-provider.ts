@@ -80,6 +80,9 @@ export function getSettingsManager(): SettingsManager {
  *   for migration purposes. It may be removed in a future release.
  */
 export function getJsonStateStore(): JsonStateStore {
+	if (process.env.NODE_ENV === "production" && process.env.PI_ALLOW_JSON_STATE_STORE !== "true") {
+		throw new Error("JSON runtime fallback is forbidden in production");
+	}
 	console.warn("[state-store-provider] WARNING: getJsonStateStore() is deprecated. Use PostgreSQL backend.");
 	return new JsonStateStore(getWorkspaceRoot());
 }

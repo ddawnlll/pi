@@ -16,7 +16,7 @@ export interface LegacyWriteResult {
 	/** The action taken */
 	action: "executed" | "rejected";
 	/** The legacy write signal */
-	signal: "legacy_state_write_detected" | "controller_event_routed" | "rejected";
+	signal: "legacy_state_write_detected" | "controller_event_routed" | "legacy_state_write_rejected";
 	/** If the shadow event was emitted */
 	shadowEmitted: boolean;
 }
@@ -55,7 +55,7 @@ async function emitShadowEvent(
  *
  * In `observe` mode: Execute the mutation and emit a shadow event.
  * In `route` mode: Execute the mutation, emit a shadow event, and signal routing.
- * In `enforce` mode: Reject the mutation (does not throw, returns rejection result).
+ * In `enforce` mode: Reject the mutation and emit a rejection event when possible.
  *
  * @param mode - The legacy write adapter mode
  * @param mutate - The legacy mutation function
@@ -78,10 +78,16 @@ export async function routeLegacyStateWrite(
 ): Promise<LegacyWriteResult> {
 	switch (mode) {
 		case "enforce":
+			if (journal && shadowParams) {
+				await emitShadowEvent(journal, {
+					...shadowParams,
+					eventType: "legacy_state_write_rejected",
+				});
+			}
 			return {
 				action: "rejected",
-				signal: "rejected",
-				shadowEmitted: false,
+				signal: "legacy_state_write_rejected",
+				shadowEmitted: !!journal,
 			};
 
 		default:

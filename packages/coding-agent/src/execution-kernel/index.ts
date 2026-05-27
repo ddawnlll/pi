@@ -1,5 +1,6 @@
 export * from "./actor-events.js";
 export * from "./admission-gate.js";
+export * from "./admission-guard.js";
 export * from "./attempt-event-journal.js";
 export * from "./attempt-fsm.js";
 export * from "./controller-leadership.js";
@@ -7,6 +8,7 @@ export * from "./deadline-watchdog.js";
 export * from "./handoff-queue.js";
 export * from "./legacy-write-adapter.js";
 export * from "./plan-supervisor.js";
+export * from "./preflight.js";
 export * from "./replay-comparator.js";
 export * from "./shadow-attempt-journal.js";
 export * from "./state-authority.js";

@@ -18,7 +18,8 @@ export type AttemptEventType =
 	| "deadline_exceeded"
 	| "attempt_succeeded"
 	| "attempt_failed"
-	| "legacy_state_write_detected";
+	| "legacy_state_write_detected"
+	| "legacy_state_write_rejected";
 
 export interface StateAuthorityToken {
 	readonly attemptId: string;

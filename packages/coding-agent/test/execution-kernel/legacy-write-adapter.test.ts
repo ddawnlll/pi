@@ -59,8 +59,25 @@ describe("legacy-write-adapter", () => {
 
 		expect(mutated).toBe(false);
 		expect(result.action).toBe("rejected");
-		expect(result.signal).toBe("rejected");
+		expect(result.signal).toBe("legacy_state_write_rejected");
 		expect(result.shadowEmitted).toBe(false);
+	});
+
+	it("emits legacy_state_write_rejected shadow event in enforce mode", async () => {
+		const mockJournal = {
+			append: vi.fn(async () => {}),
+		};
+		const result = await routeLegacyStateWrite("enforce", () => undefined, mockJournal as any, {
+			attemptId: "shadow:ws:ws-1",
+			planExecutionId: "plan-1",
+			workspaceExecutionId: "ws-exec-1",
+			eventType: "attempt_failed",
+			version: 2,
+		});
+
+		expect(result.shadowEmitted).toBe(true);
+		expect(result.signal).toBe("legacy_state_write_rejected");
+		expect(mockJournal.append).toHaveBeenCalledOnce();
 	});
 
 	it("handles async mutations", async () => {

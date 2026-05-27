@@ -1787,6 +1787,9 @@ export function createAutonomousExecutor(
 	retryPolicy?: RetryPolicy,
 	worktree?: WorktreeConfig,
 ): AutonomousExecutor {
+	if (process.env.NODE_ENV === "production" && process.env.PI_ALLOW_JSON_STATE_STORE !== "true") {
+		throw new Error("JSON runtime fallback is forbidden in production");
+	}
 	const stateStore = new JsonStateStore(workspaceRoot);
 	return new AutonomousExecutor(stateStore, {
 		workspaceRoot,

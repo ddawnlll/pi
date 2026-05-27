@@ -14,10 +14,10 @@ describe("detectStateStoreBackend", () => {
 		process.env = { ...originalEnv };
 	});
 
-	it('returns "json" by default', () => {
+	it('returns "postgres" by default', () => {
 		delete process.env.PI_STATE_STORE_BACKEND;
 		delete process.env.PI_PG_AUTO_DETECT;
-		expect(detectStateStoreBackend()).toBe("json");
+		expect(detectStateStoreBackend()).toBe("postgres");
 	});
 
 	it('returns "postgres" when env var is set', () => {
@@ -30,9 +30,16 @@ describe("detectStateStoreBackend", () => {
 		expect(detectStateStoreBackend()).toBe("json");
 	});
 
+	it("rejects json backend selection in production without override", () => {
+		process.env.NODE_ENV = "production";
+		process.env.PI_STATE_STORE_BACKEND = "json";
+		delete process.env.PI_ALLOW_JSON_STATE_STORE;
+		expect(() => detectStateStoreBackend()).toThrow("forbidden in production");
+	});
+
 	it("ignores invalid env var values", () => {
 		process.env.PI_STATE_STORE_BACKEND = "invalid";
-		expect(detectStateStoreBackend()).toBe("json");
+		expect(detectStateStoreBackend()).toBe("postgres");
 	});
 
 	it("auto-detects postgres when PI_PG_AUTO_DETECT=1 and PG env vars present", () => {
@@ -51,7 +58,7 @@ describe("detectStateStoreBackend", () => {
 		process.env.PGHOST = "localhost";
 		process.env.PGDATABASE = "pi_test";
 		delete process.env.PI_PG_AUTO_DETECT;
-		expect(detectStateStoreBackend()).toBe("json");
+		expect(detectStateStoreBackend()).toBe("postgres");
 	});
 
 	it("respects explicit env var over auto-detection", () => {
@@ -81,5 +88,15 @@ describe("createStateStore", () => {
 			workspaceRoot: "/tmp/test",
 		});
 		expect(store.getBackendType()).toBe("json");
+	});
+
+	it("forbids json backend in production without explicit override", () => {
+		const original = process.env.NODE_ENV;
+		process.env.NODE_ENV = "production";
+		delete process.env.PI_ALLOW_JSON_STATE_STORE;
+		expect(() => createStateStore({ backend: "json", workspaceRoot: "/tmp/test" })).toThrow(
+			"JSON authoritative fallback is forbidden in production",
+		);
+		process.env.NODE_ENV = original;
 	});
 });

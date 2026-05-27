@@ -615,8 +615,15 @@ export interface IStateStore {
  */
 export function createStateStore(config: StateStoreConfig): IStateStore {
 	const { backend, workspaceRoot, jsonConfig, dbConfig } = config;
+	const production = process.env.NODE_ENV === "production";
+	const jsonAllowed = process.env.PI_ALLOW_JSON_STATE_STORE === "true";
 
 	if (backend === "json" || !backend) {
+		if (production && !jsonAllowed) {
+			throw new Error(
+				"JSON authoritative fallback is forbidden in production. postgres_unavailable or explicit debug adapter required.",
+			);
+		}
 		if (!workspaceRoot) {
 			throw new Error("workspaceRoot is required for JSON state store backend");
 		}
@@ -651,13 +658,17 @@ export function createStateStore(config: StateStoreConfig): IStateStore {
  * @returns Backend identifier
  */
 export function detectStateStoreBackend(): StateStoreBackend {
-	// Check environment variable first (read at call time)
+	const production = process.env.NODE_ENV === "production";
 	const envBackend = process.env.PI_STATE_STORE_BACKEND;
+	const jsonAllowed = process.env.PI_ALLOW_JSON_STATE_STORE === "true";
 	if (envBackend === "json") {
+		if (production && !jsonAllowed) {
+			throw new Error(
+				"PI_STATE_STORE_BACKEND=json is forbidden in production without PI_ALLOW_JSON_STATE_STORE=true",
+			);
+		}
 		console.log(`[state-store] Backend explicitly set via PI_STATE_STORE_BACKEND: json`);
 		return envBackend;
 	}
-
-	// Default to PostgreSQL (check connection at startup, fall back to JSON)
 	return "postgres";
 }

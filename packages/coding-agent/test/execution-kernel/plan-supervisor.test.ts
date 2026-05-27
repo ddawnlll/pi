@@ -72,6 +72,12 @@ describe("plan-supervisor", () => {
 				]),
 			).toBe("HANDOFF_REQUIRED");
 		});
+
+		it("returns FAILED_FINAL when final validation fails", () => {
+			expect(
+				planCompletionPredicate([{ required: true, state: "SUCCEEDED" }], { finalValidationFailed: true }),
+			).toBe("FAILED_FINAL");
+		});
 	});
 
 	describe("success path", () => {
