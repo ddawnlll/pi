@@ -12,6 +12,7 @@
  * - Review failures route to human re-review.
  */
 
+import type { ActorEvent } from "../execution-kernel/actor-events.js";
 import { FailureCategory } from "./failure-classifier.js";
 
 /**
@@ -292,6 +293,37 @@ export function shouldBypassNormalRetry(category: FailureCategory): boolean {
  * @param attemptNumber - Current attempt number
  * @returns Formatted display string
  */
+export function createRetryRequestedEvent(input: {
+	attemptId: string;
+	workspaceId: string;
+	category: FailureCategory;
+	attemptNumber: number;
+	strategy?: RetryStrategy;
+}): ActorEvent<{
+	attemptId: string;
+	workspaceId: string;
+	category: FailureCategory;
+	attemptNumber: number;
+	strategyType: RetryStrategyType;
+	canAutoRetry: boolean;
+	requiresHumanReview: boolean;
+}> {
+	const strategy = input.strategy ?? getMergedRetryStrategy(input.category, input.attemptNumber);
+	return {
+		type: "retry_requested",
+		timestamp: Date.now(),
+		payload: {
+			attemptId: input.attemptId,
+			workspaceId: input.workspaceId,
+			category: input.category,
+			attemptNumber: input.attemptNumber,
+			strategyType: strategy.type,
+			canAutoRetry: strategy.canAutoRetry,
+			requiresHumanReview: strategy.requiresHumanReview,
+		},
+	};
+}
+
 export function formatRetryStrategy(category: FailureCategory, strategy: RetryStrategy, attemptNumber: number): string {
 	const heading = getRetryStrategyHeading(strategy);
 	const lines: string[] = [

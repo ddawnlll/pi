@@ -1,3 +1,4 @@
+export * from "./actor-events.js";
 export * from "./admission-gate.js";
 export * from "./attempt-event-journal.js";
 export * from "./attempt-fsm.js";

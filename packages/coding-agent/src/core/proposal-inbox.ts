@@ -747,6 +747,20 @@ export function formatProposal(proposal: Proposal): string {
  * @param proposals - Proposals to format
  * @returns Formatted string
  */
+export function validateProposalForControllerAction(proposal: Proposal | undefined): {
+	ok: boolean;
+	error?: string;
+} {
+	if (!proposal) return { ok: false, error: "Proposal not found" };
+	if (proposal.status !== "approved") {
+		return { ok: false, error: `Proposal ${proposal.id} is not approved` };
+	}
+	if (!proposal.evidence?.queue?.workspaces?.length) {
+		return { ok: false, error: `Proposal ${proposal.id} has no workspace evidence` };
+	}
+	return { ok: true };
+}
+
 export function formatProposalList(proposals: Proposal[]): string {
 	if (proposals.length === 0) {
 		return "No proposals found.";

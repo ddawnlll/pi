@@ -16,6 +16,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,6 +143,7 @@ export class LeaseMonitor {
 	private worktreeRoot: string;
 	private onQuarantine?: (result: QuarantineResult) => void;
 	private onReconciliation?: (event: LeaseReconciliationEvent) => void;
+	private eventSink?: ActorEventSink;
 
 	/**
 	 * @param config - Lease monitor configuration
@@ -154,11 +156,13 @@ export class LeaseMonitor {
 		workspaceRoot: string,
 		leaseDir?: string,
 		worktreeRootOverride?: string,
+		eventSink?: ActorEventSink,
 	) {
 		this.config = { ...DEFAULT_LEASE_MONITOR_CONFIG, ...config };
 		this.workspaceRoot = workspaceRoot;
 		this.leaseDir = leaseDir ?? path.join(workspaceRoot, ".pi", "scheduler", "leases");
 		this.worktreeRoot = worktreeRootOverride ?? ".pi/worktrees";
+		this.eventSink = eventSink;
 	}
 
 	/**
@@ -404,6 +408,18 @@ export class LeaseMonitor {
 				return; // PID alive, don't quarantine
 			}
 
+			await this.eventSink?.emit({
+				type: "lease_stale_detected",
+				timestamp: Date.now(),
+				payload: {
+					leaseId: heartbeat.leaseId,
+					workspaceId: heartbeat.workspaceId,
+					planExecId: heartbeat.planExecId,
+					pid: heartbeat.pid,
+					ageSeconds,
+				},
+			});
+
 			// Lease is stale AND PID is dead — quarantine
 			await this.quarantineLease(heartbeat);
 		} catch {
@@ -421,6 +437,11 @@ export class LeaseMonitor {
 	 */
 	private async quarantineLease(heartbeat: LeaseHeartbeat): Promise<void> {
 		const { leaseId, workspaceId, planExecId } = heartbeat;
+		await this.eventSink?.emit({
+			type: "lease_quarantine_requested",
+			timestamp: Date.now(),
+			payload: { leaseId, workspaceId, planExecId },
+		});
 
 		// Find the worktree directory for this workspace
 		const worktreeDir = path.join(this.workspaceRoot, this.worktreeRoot, planExecId, workspaceId);
@@ -594,6 +615,10 @@ export class LeaseMonitor {
  * @param workspaceRoot - Workspace root directory
  * @returns A new LeaseMonitor instance
  */
-export function createLeaseMonitor(config: Partial<LeaseMonitorConfig>, workspaceRoot: string): LeaseMonitor {
-	return new LeaseMonitor(config, workspaceRoot);
+export function createLeaseMonitor(
+	config: Partial<LeaseMonitorConfig>,
+	workspaceRoot: string,
+	eventSink?: ActorEventSink,
+): LeaseMonitor {
+	return new LeaseMonitor(config, workspaceRoot, undefined, undefined, eventSink);
 }

@@ -11,6 +11,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../config.js";
+import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
 import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "../worktree/worktree-types.js";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
@@ -64,6 +65,8 @@ export interface WorkspaceAgentExecutorConfig {
 	 * Defaults to 30 minutes (1800000 ms) when not set.
 	 */
 	timeoutMs?: number;
+	/** Optional actor event sink for event-only migration */
+	actorEventSink?: ActorEventSink;
 }
 
 /**
@@ -109,6 +112,7 @@ export class WorkspaceAgentExecutor {
 	private worktreeConfig: WorktreeConfig;
 	/** Execution timeout in milliseconds. */
 	private timeoutMs: number;
+	private actorEventSink?: ActorEventSink;
 	/**
 	 * P26.J: Circuit breaker state for consecutive provider failures.
 	 * After threshold consecutive failures, the circuit opens and halts
@@ -143,6 +147,7 @@ export class WorkspaceAgentExecutor {
 		this.planExecutionId = config.planExecutionId;
 		this.worktreeConfig = config.worktree;
 		this.timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // 30 minutes
+		this.actorEventSink = config.actorEventSink;
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -597,6 +602,13 @@ export class WorkspaceAgentExecutor {
 				if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {
 					this.stateStore.emitWorkerStatus(this.planExecutionId, workspaceId, status, message).catch(() => {});
 				}
+				if (status === "executing") {
+					void this.actorEventSink?.emit({
+						type: "workspace_running",
+						timestamp: Date.now(),
+						payload: { workspaceId, message: message ?? "executing" },
+					});
+				}
 			};
 
 			// LLM stream idle watchdog: reset on every agent event
@@ -607,6 +619,11 @@ export class WorkspaceAgentExecutor {
 				}
 				ctx.llmIdleHandle = setTimeout(() => {
 					const elapsed = Date.now() - ctx.lastLLMEventTime;
+					void this.actorEventSink?.emit({
+						type: "llm_timeout",
+						timestamp: Date.now(),
+						payload: { workspaceId, idleMs: elapsed, timeoutMs: this.llmStreamIdleTimeoutMs },
+					});
 					const warnMsg = `LLM stream idle for ${Math.round(elapsed / 1000)}s — aborting workspace ${workspaceId} to trigger retry`;
 					log(`WARNING: ${warnMsg}`);
 					console.error(`[workspace-agent-executor] ${warnMsg}`);
@@ -715,8 +732,18 @@ export class WorkspaceAgentExecutor {
 							toolName: event.toolName,
 							args: event.args,
 						});
+						void this.actorEventSink?.emit({
+							type: "tool_event",
+							timestamp: Date.now(),
+							payload: { workspaceId, phase: "start", toolName: event.toolName },
+						});
 						emitStatus("executing", `Tool: ${event.toolName}`);
 					} else if (event.type === "tool_execution_end") {
+						void this.actorEventSink?.emit({
+							type: "tool_event",
+							timestamp: Date.now(),
+							payload: { workspaceId, phase: "end", toolCallId: event.toolCallId, isError: event.isError },
+						});
 						const pending = pendingToolCalls.get(event.toolCallId);
 						if (pending) {
 							const resultPreview = event.isError
@@ -788,6 +815,11 @@ export class WorkspaceAgentExecutor {
 
 			// Run the agent with the prompt
 			log("Starting agent execution...");
+			await this.actorEventSink?.emit({
+				type: "workspace_started",
+				timestamp: Date.now(),
+				payload: { workspaceId },
+			});
 
 			// Emit worker_status: executing (fire-and-forget — don't block prompt on DB)
 			if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {

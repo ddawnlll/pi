@@ -15,6 +15,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
+import type { ActorEventSink } from "../execution-kernel/actor-events.js";
+import { admitExecution } from "../execution-kernel/admission-gate.js";
 import { PiLogger } from "../utils/logger.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { createGitRunner } from "./git-runner.js";
@@ -73,6 +75,8 @@ export interface CleanupReviewResult {
  * Configuration for the cleanup review executor.
  */
 export interface CleanupReviewConfig {
+	/** Optional actor event sink for event-only execution tracking */
+	eventSink?: ActorEventSink;
 	/** Workspace root directory */
 	workspaceRoot: string;
 	/** Plan execution ID */
@@ -92,7 +96,7 @@ export interface CleanupReviewConfig {
  * runs tests, and produces a comprehensive plan summary.
  */
 export async function runCleanupReview(config: CleanupReviewConfig): Promise<CleanupReviewResult> {
-	const { workspaceRoot, planExecutionId, stateStore, queue, model } = config;
+	const { workspaceRoot, planExecutionId, stateStore, queue, model, eventSink } = config;
 
 	// Logger for this cleanup session — created immediately so we can log before/after memory
 	const log = new PiLogger({ planExecId: planExecutionId });
@@ -248,6 +252,15 @@ export async function runCleanupReview(config: CleanupReviewConfig): Promise<Cle
 		});
 
 		emitStatus("complete", `Cleanup review ${result.passed ? "PASS" : "FAIL"}`);
+		await eventSink?.emit({
+			type: result.passed ? "cleanup_completed" : "cleanup_failed",
+			timestamp: Date.now(),
+			payload: {
+				planExecutionId,
+				issueCount: result.issueCount,
+				changedFiles: result.changedFiles,
+			},
+		});
 		await archiveRawLog(`[${new Date().toISOString()}] Cleanup review complete: ${result.passed ? "PASS" : "FAIL"}`);
 
 		return result;
@@ -698,4 +711,15 @@ function getFallbackModel(): Model<any> {
 	);
 }
 
-export const _CLEANUP_INTERNALS = { parseCleanupResult, buildCleanupPrompt };
+export function canRerunCleanup(input: {
+	postgresAvailable: boolean;
+	production: boolean;
+	jsonFallback: boolean;
+	repairMode: boolean;
+	autonomousMode: boolean;
+	promotionGateSatisfied: boolean;
+}): boolean {
+	return admitExecution(input) === "allow";
+}
+
+export const _CLEANUP_INTERNALS = { parseCleanupResult, buildCleanupPrompt, canRerunCleanup };

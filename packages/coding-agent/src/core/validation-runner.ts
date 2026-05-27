@@ -16,6 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
+import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -185,6 +186,8 @@ function killProcessTree(pid: number, killedPids: number[]): void {
 export class ValidationRunner {
 	private childProcesses: Map<number, ChildProcessInfo> = new Map();
 
+	constructor(private readonly eventSink?: ActorEventSink) {}
+
 	/**
 	 * Run a validation command.
 	 *
@@ -194,9 +197,19 @@ export class ValidationRunner {
 	 */
 	async run(command: string, config: ValidationRunConfig): Promise<ValidationRunResult> {
 		const startTime = Date.now();
+		await this.eventSink?.emit({
+			type: "validation_started",
+			timestamp: startTime,
+			payload: { command, cwd: config.cwd, timeoutMs: config.timeoutMs },
+		});
 
 		// Check for watch/dev-server commands
 		if (config.blockWatchCommands !== false && isWatchCommand(command)) {
+			await this.eventSink?.emit({
+				type: "validation_failed",
+				timestamp: Date.now(),
+				payload: { command, cwd: config.cwd, blocked: true, reason: "watch_command_blocked" },
+			});
 			return {
 				success: false,
 				exitCode: null,
@@ -292,6 +305,11 @@ export class ValidationRunner {
 				const durationMs = Date.now() - startTime;
 
 				if (timedOut || signal === "SIGTERM" || signal === "SIGKILL") {
+					void this.eventSink?.emit({
+						type: "validation_timed_out",
+						timestamp: Date.now(),
+						payload: { command, cwd: config.cwd, timeoutMs: config.timeoutMs, exitCode },
+					});
 					resolve({
 						success: false,
 						exitCode,
@@ -303,6 +321,11 @@ export class ValidationRunner {
 						killedChildPids: killedChildPids.length > 0 ? killedChildPids : undefined,
 					});
 				} else if (exitCode !== 0) {
+					void this.eventSink?.emit({
+						type: "validation_failed",
+						timestamp: Date.now(),
+						payload: { command, cwd: config.cwd, exitCode },
+					});
 					resolve({
 						success: false,
 						exitCode,
@@ -312,6 +335,11 @@ export class ValidationRunner {
 						error: `Command failed with exit code ${exitCode}`,
 					});
 				} else {
+					void this.eventSink?.emit({
+						type: "validation_passed",
+						timestamp: Date.now(),
+						payload: { command, cwd: config.cwd, exitCode: 0 },
+					});
 					resolve({
 						success: true,
 						exitCode: 0,
