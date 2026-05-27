@@ -6,6 +6,7 @@
  */
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
+import { applyIntentV4ToQueue, type IntentV4, normalizeLegacyPlanToIntentV4 } from "./execution-profile.js";
 import type {
 	ParallelismReview,
 	PlanExecutionConfig,
@@ -220,6 +221,10 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 		}
 	} else if (!queue && !markdownFallback) {
 		errors.push("Part 3 JSON queue not found and Markdown fallback disabled");
+	}
+
+	if (queue?.deprecatedMechanismHints?.length) {
+		warnings.push(...queue.deprecatedMechanismHints);
 	}
 
 	// Check for unresolved placeholders
@@ -637,7 +642,7 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		};
 	}
 
-	return {
+	const baseQueue: WorkspaceQueue = {
 		phase,
 		title,
 		maxParallelWorkspaces:
@@ -651,6 +656,23 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		executionAutomation,
 		repairMode,
 		promotionGates,
+	};
+
+	if (contractVersion === "4.0.0" && parsed.intent) {
+		return applyIntentV4ToQueue(baseQueue, parsed.intent as IntentV4);
+	}
+
+	const normalized = normalizeLegacyPlanToIntentV4({
+		maxParallelWorkspaces: baseQueue.maxParallelWorkspaces,
+		planExecution: { scale: baseQueue.planExecution?.scale },
+		worktreeRequired: parsed.worktreeRequired,
+		integrationQueueRequired: parsed.integrationQueueRequired,
+		validationLockRequired: parsed.validationLockRequired,
+	});
+	return {
+		...applyIntentV4ToQueue(baseQueue, normalized.intent),
+		contractVersion: baseQueue.contractVersion,
+		deprecatedMechanismHints: normalized.warnings,
 	};
 }
 

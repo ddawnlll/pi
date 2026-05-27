@@ -11,6 +11,7 @@
 
 import type { TokenRole } from "@earendil-works/pi-agent-core";
 import type { BlastRadiusConfig } from "./budget-enforcer.js";
+import type { DerivedExecutionProfile, IntentV4 } from "./execution-profile.js";
 import type { RetryPolicy } from "./retry-handler.js";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,7 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"2.5.0",
 	"2.5.1",
 	"2.6.0",
+	"4.0.0",
 ]);
 
 /**
@@ -687,6 +689,13 @@ export interface WorkspaceQueue {
 	 * P26.A field.
 	 */
 	promotionGates?: PromotionGates;
+
+	/** v4 intent contract */
+	intent?: IntentV4;
+	/** authoritative derived execution profile for v4 or normalized legacy plans */
+	derivedProfile?: DerivedExecutionProfile;
+	/** deprecated authored mechanism hints preserved for diagnostics only */
+	deprecatedMechanismHints?: string[];
 }
 
 /**
@@ -838,7 +847,8 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		contractVer === "2.4.0" ||
 		contractVer === "2.5.0" ||
 		contractVer === "2.5.1" ||
-		contractVer === "2.6.0";
+		contractVer === "2.6.0" ||
+		contractVer === "4.0.0";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({
@@ -907,6 +917,21 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 				contractVersion: contractVer,
 			},
 		});
+	}
+
+	if (contractVer === "4.0.0" && queue.intent) {
+		if (queue.intent.parallelism < 1 || queue.intent.parallelism > 8) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: `intent.parallelism must be between 1 and 8, got ${queue.intent.parallelism}`,
+			});
+		}
+		if (queue.intent.safetyLevel === "relaxed" && queue.intent.parallelism > 1) {
+			errors.push({
+				type: "invalid_parallelism_review",
+				message: "intent.safetyLevel=relaxed is only allowed with parallelism <= 1",
+			});
+		}
 	}
 
 	// v2.2.0: Validate parallelismReview if declared

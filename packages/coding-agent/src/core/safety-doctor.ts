@@ -9,7 +9,6 @@ import { computeBatchPlan } from "./dag-analyzer.js";
 import { ExecutionSimulator } from "./execution-simulator.js";
 import type { RetryPolicy } from "./retry-handler.js";
 import { checkCommand, getEffectivePermissions, type SafetyProfileName } from "./safety-profile.js";
-import { createSelfModificationFirewall } from "./self-modification-firewall.js";
 import { SkillRegistry } from "./skill-registry.js";
 import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
@@ -62,9 +61,6 @@ export enum SafetyIssueType {
 	LowEffectiveParallelism = "low_effective_parallelism",
 	/** Dry-run forbidden mutation detected */
 	DryRunForbiddenMutation = "dry_run_forbidden_mutation",
-	/** Self-modification detected (proposal targets pi's own code/config) */
-	SelfModification = "self_modification",
-
 	/** P26.A: Autonomous execution requested during repair mode */
 	AutonomousExecutionDuringRepair = "autonomous_execution_during_repair",
 
@@ -238,31 +234,9 @@ export class SafetyDoctor {
 	private scheduler: WorkspaceScheduler;
 	private workerConcurrency?: WorkerConcurrencySettings;
 
-	private firewall: ReturnType<typeof createSelfModificationFirewall>;
-
 	constructor(maxWorkers = 3, workerConcurrency?: WorkerConcurrencySettings) {
 		this.scheduler = new WorkspaceScheduler(maxWorkers);
 		this.workerConcurrency = workerConcurrency;
-		// Self-modification firewall initialized with autonomous=false by default.
-		// The caller can set the cwd via setFirewallCwd() when the root is known.
-		this.firewall = createSelfModificationFirewall(process.cwd(), false);
-	}
-
-	/**
-	 * Set the working directory for the self-modification firewall.
-	 * Should be called before validating plans if the workspace root differs
-	 * from process.cwd().
-	 */
-	setFirewallCwd(cwd: string): void {
-		this.firewall = createSelfModificationFirewall(cwd, false);
-	}
-
-	/**
-	 * Set whether the firewall is in autonomous mode.
-	 * In autonomous mode, modifications to protected systems are blocked.
-	 */
-	setFirewallAutonomous(autonomous: boolean): void {
-		this.firewall = createSelfModificationFirewall((this.firewall as any).cwd ?? process.cwd(), autonomous);
 	}
 
 	/**
@@ -323,21 +297,7 @@ export class SafetyDoctor {
 		if (this.workerConcurrency) {
 			issues.push(...this.detectExperimentalWorkerIssues(this.workerConcurrency));
 		}
-
-		// P8.F: Check for self-modification in workspaces
-		const selfModReport = this.firewall.checkWorkspaces(queue.workspaces);
-		if (selfModReport.hasSelfModification) {
-			const systemNames = selfModReport.affectedSystems.map((s) => `"${s.name}"`).join(", ");
-			issues.push({
-				type: SafetyIssueType.SelfModification,
-				severity: SafetyIssueSeverity.Critical,
-				message: `Self-modification detected: plan targets protected system(s) ${systemNames}. Enhanced approval required before execution.`,
-				context: {
-					protectedPaths: selfModReport.protectedPaths,
-					affectedSystemIds: selfModReport.affectedSystems.map((s) => s.id),
-				},
-			});
-		}
+		issues.push(...this.validateDerivedIntentProfile(queue));
 
 		// P26.A: Detect repair mode / promotion gate issues
 		issues.push(...this.detectRepairModeIssues(queue, queue.maxParallelWorkspaces));
@@ -421,21 +381,7 @@ export class SafetyDoctor {
 				});
 			}
 		}
-
-		// P8.F: Check for self-modification in workspaces
-		const selfModReport = this.firewall.checkWorkspaces(queue.workspaces);
-		if (selfModReport.hasSelfModification) {
-			const systemNames = selfModReport.affectedSystems.map((s) => `"${s.name}"`).join(", ");
-			issues.push({
-				type: SafetyIssueType.SelfModification,
-				severity: SafetyIssueSeverity.Critical,
-				message: `Self-modification detected: plan targets protected system(s) ${systemNames}. Enhanced approval required before execution.`,
-				context: {
-					protectedPaths: selfModReport.protectedPaths,
-					affectedSystemIds: selfModReport.affectedSystems.map((s) => s.id),
-				},
-			});
-		}
+		issues.push(...this.validateDerivedIntentProfile(queue));
 
 		// P26.A: Detect repair mode / promotion gate issues
 		issues.push(...this.detectRepairModeIssues(queue, queue.maxParallelWorkspaces));
@@ -1011,6 +957,32 @@ export class SafetyDoctor {
 	 * @param issues - Array of safety issues
 	 * @returns Safety report
 	 */
+	private validateDerivedIntentProfile(queue: WorkspaceQueue): SafetyIssue[] {
+		const issues: SafetyIssue[] = [];
+		for (const hint of queue.deprecatedMechanismHints ?? []) {
+			issues.push({
+				type: SafetyIssueType.InvalidConfig,
+				severity: SafetyIssueSeverity.Warning,
+				message: hint,
+			});
+		}
+		if (queue.intent?.safetyLevel === "relaxed" && queue.intent.parallelism > 1) {
+			issues.push({
+				type: SafetyIssueType.InvalidConfig,
+				severity: SafetyIssueSeverity.Critical,
+				message: "Impossible intent: relaxed safetyLevel requires parallelism <= 1",
+			});
+		}
+		if (queue.derivedProfile?.worktreeRequired && !queue.planExecution?.worktree?.enabled) {
+			issues.push({
+				type: SafetyIssueType.InvalidConfig,
+				severity: SafetyIssueSeverity.Critical,
+				message: "Derived profile requires worktree isolation but planExecution.worktree.enabled is not true",
+			});
+		}
+		return issues;
+	}
+
 	private buildReport(issues: SafetyIssue[], parallelism?: ParallelismDiagnostics): SafetyReport {
 		const critical = issues.filter((i) => i.severity === SafetyIssueSeverity.Critical);
 		const warnings = issues.filter((i) => i.severity === SafetyIssueSeverity.Warning);
