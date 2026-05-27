@@ -22,22 +22,19 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type { DebuggerHandoffResult, DebuggerWorker } from "../debugger/debugger-worker.js";
+import type { DebuggerHandoffResult, DebuggerWorker, DebugSessionStatus } from "../debugger/debugger-worker.js";
 import type { EvidenceItem } from "../debugger/evidence-summarizer.js";
-import type { FailureContext, FixEvidenceItem, FixStrategistHandoffResult, FixStrategistWorker, FixStrategyResult } from "../fix-strategist/fix-strategist-worker.js";
-import { type HandoffInbox, HandoffInbox, type HandoffEntry } from "../inbox/handoff-inbox.js";
+import type {
+	FailureContext,
+	FixEvidenceItem,
+	FixStrategistHandoffResult,
+	FixStrategistWorker,
+	FixStrategyResult,
+} from "../fix-strategist/fix-strategist-worker.js";
+import { HandoffInbox } from "../inbox/handoff-inbox.js";
 import { type RoutingRule, TriageRouter } from "../inbox/triage-router.js";
-import {
-	createWorkerDiagnostic,
-	type WorkerDiagnostic,
-	type WorkerStopCondition,
-} from "../types.js";
-import {
-	createDebugToFixPolicy,
-	DEFAULT_DEBUG_TO_FIX_POLICY,
-	type DebugToFixPolicy,
-	validateDebugToFixPolicy,
-} from "./debug-to-fix-policy.js";
+import { createWorkerDiagnostic, type WorkerDiagnostic, type WorkerStopCondition } from "../types.js";
+import { createDebugToFixPolicy, DEFAULT_DEBUG_TO_FIX_POLICY, type DebugToFixPolicy } from "./debug-to-fix-policy.js";
 
 // ---------------------------------------------------------------------------
 // Pipeline State
@@ -396,11 +393,9 @@ export class DebugToFixPipeline {
 		if (!this.policy.enabled) {
 			this.state = "failed";
 			this.completedAt = new Date().toISOString();
-			const diag = pipelineDiagnostic(
-				"policy_blocked",
-				"Debug-to-fix pipeline is disabled by policy",
-				{ pipelineId: runId },
-			);
+			const diag = pipelineDiagnostic("policy_blocked", "Debug-to-fix pipeline is disabled by policy", {
+				pipelineId: runId,
+			});
 			this.diagnostics.push(diag);
 			return this.buildResult(runId, "failed", [diag], "Pipeline disabled by policy");
 		}
@@ -409,11 +404,10 @@ export class DebugToFixPipeline {
 		if (this.policy.dedupConfig.enabled && this.dedupKey) {
 			// Dedup is tracked internally via the debugger worker's dedup
 			// mechanism. The pipeline also checks at its own level.
-			const dedupDiag = pipelineDiagnostic(
-				"completed",
-				"Pipeline dedup key computed",
-				{ dedupKey: this.dedupKey, runId },
-			);
+			const dedupDiag = pipelineDiagnostic("completed", "Pipeline dedup key computed", {
+				dedupKey: this.dedupKey,
+				runId,
+			});
 			this.diagnostics.push(dedupDiag);
 		}
 
@@ -432,7 +426,8 @@ export class DebugToFixPipeline {
 		// -------------------------------------------------------------------
 		// Stage 2: Handoff
 		// -------------------------------------------------------------------
-		const handoffResult = this.runHandoffStage(debugResult.output as DebuggerHandoffResult);
+		const debugOutput: DebuggerHandoffResult = this.debuggerOutput ?? this.buildSyntheticDebugOutput(input, runId);
+		const handoffResult = this.runHandoffStage(debugOutput);
 		this.stageResults.push(handoffResult);
 
 		if (!handoffResult.success) {
@@ -517,13 +512,53 @@ export class DebugToFixPipeline {
 	// -----------------------------------------------------------------------
 
 	/**
+	 * Build a synthetic DebuggerHandoffResult from pipeline input evidence.
+	 *
+	 * Used when the debug stage was deduped and produced no real output.
+	 * The synthetic result contains the original input evidence as key findings
+	 * so the handoff and fix stages can proceed without a real debug session.
+	 */
+	private buildSyntheticDebugOutput(input: DebugToFixPipelineInput, runId: string): DebuggerHandoffResult {
+		const diag = pipelineDiagnostic(
+			"completed",
+			"Debug stage was deduped — synthesizing handoff from pipeline input evidence",
+			{ stage: "handoff", evidenceCount: input.evidence.length },
+		);
+		this.diagnostics.push(diag);
+
+		return {
+			sessionId: `deduped-${this.dedupKey?.slice(0, 12) ?? runId.slice(0, 8)}`,
+			label: input.label,
+			status: "completed" as DebugSessionStatus,
+			traceId: null,
+			correlationId: this.correlationId,
+			rootCauseAnalysis: null,
+			evidenceSummary: null,
+			diagnostic: diag,
+			error: null,
+			workerStats: {
+				totalSessions: 1,
+				completed: 1,
+				failed: 0,
+				cancelled: 0,
+				pending: 0,
+				consecutiveFailures: 0,
+				maxConsecutiveFailures: 3,
+				totalSessionsCompleted: 1,
+				totalSessionsFailed: 0,
+				totalTokensConsumed: 0,
+				healthStatus: "healthy" as const,
+				dedupHistorySize: 1,
+			},
+			emittedAt: new Date().toISOString(),
+		};
+	}
+
+	/**
 	 * Run the debug stage: create a debug session, collect evidence, and
 	 * run root cause analysis.
 	 */
-	private runDebugStage(
-		input: DebugToFixPipelineInput,
-		debuggerWorker: DebuggerWorker,
-	): DebugToFixStageResult {
+	private runDebugStage(input: DebugToFixPipelineInput, debuggerWorker: DebuggerWorker): DebugToFixStageResult {
 		const stageStart = Date.now();
 		const startedAt = new Date(stageStart).toISOString();
 		const stageDiags: WorkerDiagnostic[] = [];
@@ -557,8 +592,8 @@ export class DebugToFixPipeline {
 				input.label,
 				input.metadata ?? {},
 				taskHash,
-				null,
-				this.correlationId,
+				undefined,
+				this.correlationId ?? undefined,
 			);
 
 			if (!session) {
@@ -593,8 +628,11 @@ export class DebugToFixPipeline {
 				debuggerWorker.addEvidence(session.id, {
 					label: ev.label,
 					content: ev.content,
-					type: ev.type as EvidenceItem["type"],
-					confidence: ev.confidence as EvidenceItem["confidence"],
+					type: (ev.type as EvidenceItem["type"]) ?? "other",
+					confidence: (ev.confidence as EvidenceItem["confidence"]) ?? "medium",
+					source: "debug-to-fix-pipeline",
+					refs: [],
+					metadata: {},
 				});
 			}
 
@@ -742,10 +780,10 @@ export class DebugToFixPipeline {
 			if (debugOutput.evidenceSummary?.keyFindings) {
 				for (const finding of debugOutput.evidenceSummary.keyFindings) {
 					fixEvidence.push({
-						label: finding.label,
-						content: finding.summary ?? finding.description ?? "",
-						type: finding.type,
-						confidence: finding.confidence,
+						label: "Key finding",
+						content: finding,
+						type: "key_finding",
+						confidence: "medium",
 					});
 				}
 			}
@@ -834,10 +872,14 @@ export class DebugToFixPipeline {
 			}
 
 			if ("error" in createResult) {
-				const diag = pipelineDiagnostic("dependency_unavailable", `Handoff creation failed: ${createResult.error}`, {
-					stage: "handoff",
-					error: createResult.error,
-				});
+				const diag = pipelineDiagnostic(
+					"dependency_unavailable",
+					`Handoff creation failed: ${createResult.error}`,
+					{
+						stage: "handoff",
+						error: createResult.error,
+					},
+				);
 				stageDiags.push(diag);
 				this.diagnostics.push(diag);
 
@@ -994,10 +1036,7 @@ export class DebugToFixPipeline {
 			this.fixResult = result;
 
 			// Track tokens consumed
-			const estimatedTokens = handoffOutput.evidence.reduce(
-				(sum, e) => sum + e.content.length + e.label.length,
-				0,
-			);
+			const estimatedTokens = handoffOutput.evidence.reduce((sum, e) => sum + e.content.length + e.label.length, 0);
 			this.totalTokens += estimatedTokens;
 
 			if (result.success) {
@@ -1029,12 +1068,8 @@ export class DebugToFixPipeline {
 			}
 
 			// Analysis didn't generate strategies — check diagnostics for the reason
-			const errorMessages = result.diagnostics
-				.filter((d) => d.stopCondition !== "completed")
-				.map((d) => d.message);
-			const errMsg = errorMessages.length > 0
-				? errorMessages.join("; ")
-				: result.summary;
+			const errorMessages = result.diagnostics.filter((d) => d.stopCondition !== "completed").map((d) => d.message);
+			const errMsg = errorMessages.length > 0 ? errorMessages.join("; ") : result.summary;
 
 			const diag = pipelineDiagnostic(
 				"unknown_error",
@@ -1112,11 +1147,15 @@ export class DebugToFixPipeline {
 			this.state = "paused";
 			this.completedAt = new Date().toISOString();
 
-			const retryDiag = pipelineDiagnostic("completed", `Pipeline paused after stage failure — ${this.policy.maxPipelineRetries - this.retryCount + 1} retries remaining`, {
-				stage: failedStage.stage,
-				retryCount: this.retryCount,
-				maxRetries: this.policy.maxPipelineRetries,
-			});
+			const retryDiag = pipelineDiagnostic(
+				"completed",
+				`Pipeline paused after stage failure — ${this.policy.maxPipelineRetries - this.retryCount + 1} retries remaining`,
+				{
+					stage: failedStage.stage,
+					retryCount: this.retryCount,
+					maxRetries: this.policy.maxPipelineRetries,
+				},
+			);
 			this.diagnostics.push(retryDiag);
 
 			return this.buildResult(runId, "paused", this.diagnostics, failedStage.error);
@@ -1142,10 +1181,7 @@ export class DebugToFixPipeline {
 		const totalRuntime = this.pipelineStartTime > 0 ? Date.now() - this.pipelineStartTime : 0;
 
 		// Collect all diagnostics from stages
-		const allDiagnostics = [
-			...diagnostics,
-			...this.stageResults.flatMap((s) => s.diagnostics),
-		];
+		const allDiagnostics = [...diagnostics, ...this.stageResults.flatMap((s) => s.diagnostics)];
 
 		return {
 			id,
