@@ -352,6 +352,12 @@ export interface Database {
 	proposal_rubrics: ProposalRubricTable;
 	proposal_scores: ProposalScoreTable;
 	observability_events: ObservabilityEventTable;
+	attempts: AttemptTable;
+	attempt_events: AttemptEventTable;
+	attempt_transitions: AttemptTransitionTable;
+	controller_inbox: ControllerInboxTable;
+	controller_leases: ControllerLeaseTable;
+	handoff_queue: HandoffQueueTable;
 	_migrations: MigrationsTable;
 }
 
@@ -465,6 +471,76 @@ export interface TranscriptEventTable {
 	sequence: number;
 	timestamp: string;
 	created_at: Generated<string>;
+}
+
+export interface AttemptTable {
+	id: Generated<string>;
+	workspace_execution_id: string;
+	plan_execution_id: string;
+	project_id: string;
+	current_state: string;
+	version: Generated<number>;
+	current_deadline_at: string | null;
+	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
+}
+
+export interface AttemptEventTable {
+	seq: Generated<number>;
+	event_id: string;
+	attempt_id: string;
+	plan_execution_id: string;
+	workspace_execution_id: string;
+	event_type: string;
+	event_version: number;
+	payload: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	created_at: Generated<string>;
+}
+
+export interface AttemptTransitionTable {
+	id: Generated<string>;
+	attempt_id: string;
+	from_state: string;
+	to_state: string;
+	expected_version: number;
+	next_version: number;
+	event_id: string;
+	metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	created_at: Generated<string>;
+}
+
+export interface ControllerInboxTable {
+	id: Generated<string>;
+	attempt_id: string;
+	plan_execution_id: string;
+	workspace_execution_id: string;
+	message_type: string;
+	payload: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+	dedupe_key: string;
+	processed_at: string | null;
+	created_at: Generated<string>;
+}
+
+export interface ControllerLeaseTable {
+	id: Generated<string>;
+	attempt_id: string;
+	controller_id: string;
+	lease_expires_at: string;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
+}
+
+export interface HandoffQueueTable {
+	id: Generated<string>;
+	attempt_id: string;
+	plan_execution_id: string;
+	workspace_execution_id: string;
+	status: string;
+	reason: string | null;
+	required: boolean;
+	created_at: Generated<string>;
+	updated_at: Generated<string>;
 }
 
 export interface MigrationsTable {
