@@ -6,6 +6,8 @@ export * from "./deadline-watchdog.js";
 export * from "./handoff-queue.js";
 export * from "./legacy-write-adapter.js";
 export * from "./plan-supervisor.js";
+export * from "./replay-comparator.js";
+export * from "./shadow-attempt-journal.js";
 export * from "./state-authority.js";
 export * from "./state-writer.js";
 export * from "./types.js";
