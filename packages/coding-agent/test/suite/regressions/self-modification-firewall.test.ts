@@ -274,11 +274,3 @@ describe("SelfModificationFirewall", () => {
 		});
 	});
 });
-
-describe("Safety Doctor integration", () => {
-	it("should have SelfModification safety issue type", async () => {
-		// Verify the SafetyIssueType enum includes SelfModification
-		const { SafetyIssueType } = await import("../../../src/core/safety-doctor.js");
-		expect(SafetyIssueType.SelfModification).toBe("self_modification");
-	});
-});

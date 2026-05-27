@@ -232,13 +232,25 @@ stop:
 				echo "  $$name (PID $$PID) already exited"; \
 			fi; \
 			rm -f "$$f"; \
-			found=1; \
 		else \
 			echo "  $$name not running (no PID file)"; \
 		fi; \
 	done; \
 	if [ $$found -eq 1 ] || [ -f $(SERVER_PID) ] || [ -f $(DASHBOARD_PID) ]; then \
 		: ; \
+	fi
+	@# Also kill any stray process listening on the configured port
+	@PORT=$$(grep -E '^PORT=' .env 2>/dev/null | sed 's/^PORT=//'); \
+	PORT=$${PORT:-3000}; \
+	PID=$$(lsof -ti :$$PORT 2>/dev/null); \
+	if [ -n "$$PID" ]; then \
+		kill $$PID 2>/dev/null; \
+		sleep 1; \
+		if kill -0 $$PID 2>/dev/null; then \
+			kill -9 $$PID 2>/dev/null && echo "  Force killed stray process on port $$PORT (PID $$PID)" || true; \
+		else \
+			echo "  Killed stray process on port $$PORT (PID $$PID)"; \
+		fi \
 	fi
 	@echo "Done."
 

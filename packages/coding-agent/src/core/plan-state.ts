@@ -776,6 +776,10 @@ export class PlanStateStore {
 	/**
 	 * Increment retry attempt counter
 	 *
+	 * Per v4 invariant, only emits retry_attempt journal event when this is an
+	 * actual retry (attempt > 1 in 1-based). Attempt 1 is the initial execution
+	 * and must not emit retry_attempt. See Finding 3 in P25 audit.
+	 *
 	 * @param workspaceId - Workspace ID
 	 */
 	async incrementRetryAttempt(workspaceId: string): Promise<void> {
@@ -784,16 +788,22 @@ export class PlanStateStore {
 			throw new Error(`Workspace not found: ${workspaceId}`);
 		}
 
+		const newAttempt = current.attempts + 1;
+
 		await this.updateWorkspaceState(workspaceId, {
-			attempts: current.attempts + 1,
+			attempts: newAttempt,
 		});
 
-		await this.appendJournal({
-			type: "retry_attempt",
-			timestamp: Date.now(),
-			workspaceId,
-			data: { attempt: current.attempts + 1 },
-		});
+		// Only emit retry_attempt for actual retries (attempt > 1).
+		// Attempt 1 is the initial execution, not a retry.
+		if (current.attempts > 0) {
+			await this.appendJournal({
+				type: "retry_attempt",
+				timestamp: Date.now(),
+				workspaceId,
+				data: { attempt: newAttempt },
+			});
+		}
 	}
 
 	/**

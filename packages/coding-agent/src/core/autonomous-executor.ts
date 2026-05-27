@@ -11,17 +11,19 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
+import type { TransitionRouter } from "../execution-kernel/transition-router.js";
+import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
-import { JsonStateStore } from "./json-state-store.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
 import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
+import { createStateStore, detectStateStoreBackend } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
@@ -167,6 +169,7 @@ export interface AutonomousExecutorConfig {
  */
 export class AutonomousExecutor {
 	private stateStore: IStateStore;
+	private transitionRouter: TransitionRouter;
 	private scheduler: WorkspaceScheduler;
 	private packetBuilder: RolePacketBuilder;
 	private retryHandler: RetryHandler;
@@ -210,6 +213,7 @@ export class AutonomousExecutor {
 
 	constructor(stateStore: IStateStore, config: AutonomousExecutorConfig) {
 		this.stateStore = stateStore;
+		this.transitionRouter = createTransitionRouter(stateStore);
 		this.workspaceRoot = config.workspaceRoot;
 
 		// Resolve effective worker count from workerConcurrency settings or maxWorkers
@@ -618,12 +622,17 @@ export class AutonomousExecutor {
 				);
 			}
 
-			// Increment attempt counter
-			await this.stateStore.incrementRetryAttempt(planExecutionId, workspace.id);
+			// Increment attempt counter only for actual retries.
+			// Attempt 1 is the initial execution and must not emit retry_attempt.
+			// Routes through TransitionRouter for FSM enforcement (Finding 2).
+			const isRetryAttempt = wsState.attempts > 0;
+			if (isRetryAttempt) {
+				await this.transitionRouter.incrementRetryAttempt(planExecutionId, workspace.id);
+			}
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
 
-			// Transition to active
-			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Active);
+			// Transition to active via TransitionRouter (Finding 2)
+			await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Active);
 
 			// Create workspace snapshot directory
 			const snapshot = await this.createWorkspaceSnapshot(workspace.id);
@@ -764,12 +773,13 @@ export class AutonomousExecutor {
 			const isLeadRole = workspace.roleBudget === "lead";
 			if (isLeadRole) {
 				// Lead agents are read-only observers; mark complete directly without completion gate
+				// Routes through TransitionRouter for FSM enforcement (Finding 2)
 				if (result.verdict === "COMPLETE") {
-					await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+					await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 						verdict: result.verdict,
 					});
 				} else {
-					await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+					await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 						verdict: result.verdict,
 						note: "Lead agent completed observation, no mutations performed",
 					});
@@ -813,7 +823,7 @@ export class AutonomousExecutor {
 			// Evaluate via registry to get the live state after mutations above
 			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
 			if (gateResult.canComplete) {
-				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
+				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
 				});
 			} else {
@@ -824,10 +834,15 @@ export class AutonomousExecutor {
 				await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
 					error: `Completion gate blocked: ${gateBlockMsg}`,
 				});
-				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, gateResult.recommendedState, {
-					verdict: "FAILED",
-					gateBlockReasons: gateResult.blockReasons,
-				});
+				await this.transitionRouter.transitionWorkspace(
+					planExecutionId,
+					workspace.id,
+					gateResult.recommendedState,
+					{
+						verdict: "FAILED",
+						gateBlockReasons: gateResult.blockReasons,
+					},
+				);
 				result.success = false;
 				result.verdict = gateResult.recommendedState === WorkspaceStage.Blocked ? "BLOCKED" : "FAILED";
 			}
@@ -883,8 +898,8 @@ export class AutonomousExecutor {
 			const retryDecision = this.retryHandler.shouldRetry(workspace, wsForRetry, failureType);
 
 			if (retryDecision.shouldRetry) {
-				// Transition back to pending for retry
-				await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Pending, {
+				// Transition back to pending for retry via TransitionRouter (Finding 2)
+				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Pending, {
 					error: errorMessage,
 					retryStage: retryDecision.stage,
 				});
@@ -906,8 +921,8 @@ export class AutonomousExecutor {
 				};
 			}
 
-			// No more retries - mark as failed
-			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Failed, {
+			// No more retries - mark as failed via TransitionRouter (Finding 2)
+			await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Failed, {
 				error: errorMessage,
 			});
 
@@ -962,8 +977,9 @@ export class AutonomousExecutor {
 		// the abort handler in executeWorkspace transitions them to
 		// Failed (or Blocked) via the completion gate. We reset them
 		// to Pending so the plan doesn't need rerun before continuing.
+		// Uses TransitionRouter for FSM-aware transitions (Finding 2).
 		for (const wsId of activeIds) {
-			await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+			await this.transitionRouter.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
 				reason: "paused-abort",
 			});
 		}
@@ -1787,10 +1803,13 @@ export function createAutonomousExecutor(
 	retryPolicy?: RetryPolicy,
 	worktree?: WorktreeConfig,
 ): AutonomousExecutor {
-	if (process.env.NODE_ENV === "production" && process.env.PI_ALLOW_JSON_STATE_STORE !== "true") {
-		throw new Error("JSON runtime fallback is forbidden in production");
-	}
-	const stateStore = new JsonStateStore(workspaceRoot);
+	// Use createStateStore for centralized backend selection (Finding 4/5)
+	const backend = detectStateStoreBackend();
+	const stateStore = createStateStore({
+		backend,
+		workspaceRoot,
+		projectId: "default",
+	});
 	return new AutonomousExecutor(stateStore, {
 		workspaceRoot,
 		maxWorkers,

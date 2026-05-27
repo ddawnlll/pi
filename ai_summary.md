@@ -1,8 +1,8 @@
 # Pi Monorepo — File Analysis Summary
 
-**Date:** 2026-05-23  
+**Date:** 2026-05-27  
 **Scope:** `packages/ai/`, `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`, `packages/db/`, reference docs, reports  
-**Purpose:** Understand what every file does across the autonomous execution system, V2 cognitive OS (P13-P20 brain module), prompt cache architecture, P6 large-project scale reliability, P11 continuous self-improvement, and chat UI.
+**Purpose:** Understand what every file does across the autonomous execution system, V2 cognitive OS (P13-P20 brain module), prompt cache architecture, P6 large-project scale reliability, P11 continuous self-improvement, P26 execution correctness recovery, and chat UI.
 
 ---
 
@@ -447,6 +447,13 @@ Butun V2 beyni, asagidaki thread safety pattern'lerini kullanir (JS single-threa
 | `docs/p10-dashboard-redesign-plan-p10r.md` | **P10 dashboard redesign plan** (1557 lines) |
 | `docs/p11.0-verification-report.md` | **P11 verification report** |
 | `docs/p11_ecosystem_continuous_self_improvement_implementation_plan.md` | **P11 implementation plan** |
+| `docs/v2/phases/phase_p21_dashboard_v2_redesign.md` | **P21 Dashboard V2 Redesign** — Sidebar hierarchy, stats grid, right sidebar sections, topbar groupings, navigation memory, empty states, accessibility parity (1110+ lines) |
+| `docs/v2/phases/phase_p22_project_hub.md` | **P22 Project Hub** — Project-centric architecture, per-project brains, worktree-only execution, file explorer, phase/plan naming, multi-DAG viewer (426+ lines) |
+| `docs/p23-stable-6-implementation-plan.md` | **P23 Stable 6** (1819+ lines) — GitRunner centralized git layer, lease watchdog, integration queue merge-priority scorer, validation lane backpressure, writeSet drift detection, stress tests |
+| `docs/p23-e2e-findings.md` | **P23 E2E findings** |
+| `reports/p24-daily-intelligence/` | **P24 Daily Intelligence** (3 files) — Morning digest system, brain signal aggregation, trust calibration, release hardening |
+| `docs/p25-local-observability-brain-worker-swarm-plan-v2-fixed.md` | **P25 Local Observability & Brain Worker Swarm** (4563+ lines) — Observability event schema, telemetry store, 21 specialist brain worker workstreams, local readiness doctor, dogfood gauntlet |
+| `docs/P26_execution_correctness_recovery_plan_v3.md` | **P26 Execution Correctness Recovery Plan v3** (3739 lines) — Repair-mode phase: executor isolation, abort wiring, git serialization, validation containment, state consistency, lease monitor, integration queue correctness, anti-stall analysis, promotion gates manual_1 → stable_6 |
 
 ### Reports Directory
 
@@ -1270,6 +1277,7 @@ Dogfood testleri (p17, p18, p20) E2E akislari test eder, her fazin butunlesik ca
 10. **On crash**: `resumeStrandedExecutions()` scans `.pi/` for queue snapshots at server startup and resumes; WorktreePool leases recovered from `.pi/scheduler/leases/`
 11. **P11 orchestrator**: `OrchestratorDaemon` runs periodic scan → `PlanIntakeAnalyzer` analyzes → proposals generated → `ProposalInbox` submits → `ProposalExecutionPipeline` executes → `GovernanceLedger` records
 12. **V2 Brain**: V2 Brain runs alongside — `ObservationEngine` monitors plan execution, `MemoryStore` records outcomes, `ReflectionEngine` analyzes results, `PolicyEngine` enforces rules, `OvernightOrchestrator` runs scheduled overnight execution
+13. **P26 repair mode**: When active, autonomous execution is blocked by hard stops. Each repair workspace is manually reviewed, applied, validated, and checkpointed one at a time (`manual_1`). Scheduler is disabled until promotion gates pass (`stable_1 → stable_3 → stable_6`).
 
 ---
 
@@ -1327,6 +1335,143 @@ Browser (Vite + React Dashboard)
 | **P18** | **Policy & Trust — Rules, Audit, Approvals** | **Complete** — PolicyEngine, RuleStore, ProvenanceTracker, AuditLedger, ApprovalGate |
 | **P19** | **Dashboard — Brain Web UI Routes** | **Complete** — All /api/brain/* routes wired |
 | **P20** | **Overnight — Orchestration, Reports, Validation** | **Complete** — OvernightOrchestrator, MorningReport, DogfoodReport, TrustAssessor |
+| **P21** | **Dashboard V2 Redesign** | **Complete** — Sidebar hierarchy, 2x4 stats grid, right sidebar 3-section split, topbar grouping, navigation memory, empty states, accessibility parity |
+| **P22** | **Project Hub** | **Complete** — Project-centric sidebar, per-project brain architecture, worktree-only execution, file explorer, phase/plan naming, multi-DAG viewer |
+| **P23** | **Stable 6** | **Planned** — GitRunner centralized git layer, lease watchdog, integration queue merge-priority scorer, validation lane backpressure, writeSet drift detection |
+| **P24** | **Daily Intelligence** | **Complete** — Morning digest system, brain signal aggregation, trust calibration, release hardening |
+| **P25** | **Local Observability & Brain Worker Swarm** | **Planned** — Observability schema, telemetry store, 6 specialist workers, loop prevention, readiness doctor |
+| **P26** | **Execution Correctness Recovery** | **Planned (repair mode manual_1)** — 14 workstreams fixing shared executor state, abort propagation, git lock safety, validation process containment, state concurrency, lease monitoring, integration queue drift gates, plan-intake anti-stall analysis, and promotion to stable_6 |
+
+---
+
+## P21 — Dashboard V2 Redesign
+
+**Status:** Authoritative Implementation | **Scale mode:** `experimental_6` | **Safe parallelism:** 4
+
+Structural UX fixes for the dashboard: sidebar hierarchy separating P11/Brain sections, responsive 2x4 stats grid, 3-section right sidebar, topbar control grouping, navigation memory (breadcrumbs + state preservation), empty states for all panels, and accessibility parity.
+
+**Workstreams:**
+- P21.A — Sidebar Hierarchy (P11/Brain separation)
+- P21.B — Stats Grid (2x4 responsive)
+- P21.C — Right Sidebar 3-Section Split
+- P21.D — Topbar Control Grouping
+- P21.E — Navigation Memory (Breadcrumb + State Preservation)
+- P21.F — Empty States
+- P21.G — Accessibility Parity
+
+---
+
+## P22 — Project Hub
+
+**Status:** Authoritative Implementation | **Scale mode:** `experimental_6` (only mode, stable_3 removed) | **Worktree:** Required
+
+Restructure the entire platform around projects as the top-level entity. Project-centric dashboard sidebar and navigation, per-project brain architecture (brain routes become project-scoped), worktree-only execution mode (stable_3 removed), file explorer for live worktree viewing, phase/plan naming and task creation, multi-DAG viewer.
+
+**Workstreams:**
+- P22.A — Project-Centric Sidebar & Navigation
+- P22.B — Per-Project Brain Architecture
+- P22.C — Worktree-Only Execution Mode
+- P22.D — File Explorer for Live Worktrees
+- P22.E — Phase/Plan Naming & Task Creation
+- P22.F — Multi-DAG Viewer
+
+---
+
+## P23 — Stable 6: Git Serialization, Lease Hardening, Execution Correctness
+
+**Status:** Planned | **Scale mode:** `experimental_6` | **Safe parallelism:** 3 | **Contract Version:** 2.6.0
+
+Harden `experimental_6` into `stable_6` by centralizing all Git operations through GitRunner, adding continuous lease watchdog, backpressure-aware validation scheduling, empirical writeSet drift detection, and dynamic integration queue merge-priority scorer.
+
+**Workstreams:**
+- W1 — GitRunner: Centralized git operation layer (operation classification, mutex enforcement, stale lock detection)
+- W2 — WorktreePool v2 + Lease Monitor: Background watchdog loop (30s interval, heartbeat age check, quarantine/replace)
+- W3 — Integration Queue Merge-Priority Scorer: Dynamic priority recomputation on dequeue
+- W4 — Validation Lane Backpressure: Scheduler defers heavy-validation workspaces when lane saturated
+- W5 — writeSet Drift Detection: Empirical git diff post-execution vs declared conflictScope
+- W6 — Dashboard Extensions: IntegrationQueuePanel, WorktreeStatusPanel updates
+- W7 — Template v2.6.0 + Schema v2.6.0: Updated master template and schema
+- W8 — Stress Test + Dogfood: 6-worker stress, forced crash, zero manual intervention
+
+---
+
+## P24 — Daily Intelligence, Trust Calibration, and Release Hardening
+
+**Status:** Complete
+
+Introduces the Daily Intelligence subsystem: automated morning digest, brain signal aggregation, trust calibration, and release hardening.
+
+**Key deliverables:**
+- Morning digest generation with daemon state, observation stats, active signals, pending proposals, goal progress, reflection counts
+- DigestPage UI with loading/error/empty/success states, skeleton placeholders, retry mechanism
+- Digest quick actions: resolve signal, dismiss observation, acknowledge proposal with loading/success/error/disabled states
+- Trust calibration: policy engine accuracy (100%), approval gate reliability, audit ledger integrity, emergency stop verification
+- Release checklist: TS build clean, all tests pass, CHANGELOGs updated, provider coverage, safety/security gates pass
+
+---
+
+## P25 — Local Production Observability & Brain Worker Swarm
+
+**Status:** Planned | **Scale mode:** `experimental_6` | **Workers:** 6 | **Safe parallelism:** 3–5
+
+Make Pi locally stable, observable, self-debugging, idea-generating, and capable of routing work to specialized brain workers without runaway loops. Turns the cognitive OS and execution engine into an inspectable, workerized operations layer.
+
+**Workstreams:**
+- 25.A — Observability event schema, trace IDs, correlation model
+- 25.B — Local telemetry store, retention, query API
+- 25.C — Brain worker contracts, roles, manifests, lifecycle states
+- 25.D — Brain Orchestrator Supervisor
+- 25.E — Diagnostic packet and evidence model
+- 25.F — Execution engine collectors
+- 25.G — Brain, overnight, and proposal collectors
+- 25.H — Local Observability Cockpit UI
+- 25.I — Debugger Worker
+- 25.J — Fix Strategist Worker
+- 25.K — Idea Scout Worker
+- 25.L — Regression Hunter Worker
+- 25.M — Memory Curator Worker
+- 25.N — Plan Synthesizer Worker
+- 25.O — Worker handoff inbox and triage router
+- 25.P — Debug to fix proposal pipeline
+- 25.Q — Idea to proposal to plan pipeline
+- 25.R — Budgets, cooldowns, backoff, loop prevention
+- 25.S — Worker crash recovery and job resumption
+- 25.T — Local Production Readiness Doctor
+- 25.U — Brain Worker Swarm Dogfood and Final Stability Report
+
+---
+
+## P26 — Execution Correctness Recovery
+
+**Phase:** P26 | **Execution Class:** `repair` | **Status:** Planned (repair mode `manual_1`)  
+**Target:** `stable_6` | **Autonomous Execution:** `disabled` | **Scheduler:** `disabled_until_promotion`  
+**Workspaces:** 14 (P26.A–P26.N) | **Contract Version:** 3.0.0
+
+P26 is a **repair-mode phase** that fixes the execution substrate's shared mutable state problem. Under parallel execution, the singleton `WorkspaceAgentExecutor` corrupts abort handling, timeouts, LLM idle watchdogs, log paths, and git worktree references. P26 converts every indefinite or shared-state condition into a bounded, workspace-local, observable state transition.
+
+| Workstream | Fix | Addresses |
+|---|---|---|
+| P26.A | Repair-mode lockdown + promotion guard | Prevent broken executor from being used to repair itself |
+| P26.B | Per-workspace executor isolation | Remove singleton WorkspaceAgentExecutor runtime state |
+| P26.C | WorkspaceExecutionContext refactor | Move abort/timer/log/worktree state per execution |
+| P26.D | Abort/pause/stop/force-kill correctness | Signal from scheduler to executor, session, process |
+| P26.E | Strict GitRunner serialization + lock hardening | Remove 5s lock bypass, repo-wide mutation scope |
+| P26.F | Attempt-scoped worktrees/branches/logs/artifacts | No stale path reuse across retries |
+| P26.G | StateStore serialization + atomic writes + journal | JSON concurrent write safety, 1000-write stress |
+| P26.H | Managed validation runner + process lifecycle | Timeout, process group kill, output cap, no-watch guard |
+| P26.I | Validation lane backpressure + scheduler feedback | Heavy lane: max 1 concurrent; targeted lane: max 3 |
+| P26.J | Bounded LLM provider runtime + idle watchdog | 120s request timeout, 300s stream idle, circuit breaker |
+| P26.K | Lease monitor, heartbeat, quarantine, requeue | Stale lease detection, quarantine artifact |
+| P26.L | Integration queue correctness + writeSet drift gate | Single-writer queue, empirical git diff comparison |
+| P26.M | Plan-intake anti-stall analysis + optimizer hardening | Flag serialized graphs, broad conflict scopes, bottlenecks |
+| P26.N | Promotion gates + dogfood matrix + stress tests | 8 promotion gates: manual_1 to stable_6 |
+
+**Manual repair order:** P26.A → P26.B → P26.C → P26.D → P26.E → P26.F → P26.G → P26.H → P26.I → P26.J → P26.K → P26.L → P26.M → P26.N
+
+**Promotion gate sequence:** `manual_1 → stable_1 → stable_3 → stable_6`  
+Gates: executor_isolation, abort_signal_chain, validation_hang_kill, git_serialization_stress, state_store_concurrency, crash_recovery, stable_3_dogfood, stable_6_stress
+
+**Safety:** Hard stops for autonomous execution during repair mode, scheduler disabled, human approval required per patch, rollback notes and targeted validation per workspace.
 
 ---
 

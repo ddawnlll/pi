@@ -1078,3 +1078,21 @@ export {
 	trackProcess,
 	untrackDetachedChildPid,
 } from "./utils/shell.js";
+
+// =============================================================================
+// v4 ExecutionKernel exports
+// =============================================================================
+
+export {
+	type AdmissionDecision,
+	admitExecution,
+} from "./execution-kernel/admission-gate.js";
+
+export {
+	type AdmissionDecisionRecord,
+	type AdmissionEntrypoint,
+	guardExecutionEntrypoint,
+} from "./execution-kernel/admission-guard.js";
+export { assertLegalTransition, assertRetryAllowed, getDeadlinePolicy } from "./execution-kernel/attempt-fsm.js";
+export { createStateAuthorityToken } from "./execution-kernel/state-authority.js";
+export type { AttemptState, StateAuthorityToken } from "./execution-kernel/types.js";

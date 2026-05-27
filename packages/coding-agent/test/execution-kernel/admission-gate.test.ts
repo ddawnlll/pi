@@ -80,6 +80,19 @@ describe("admission-gate", () => {
 		).toBe("allow");
 	});
 
+	it("allows autonomous mode without repair mode", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: true,
+				promotionGateSatisfied: true,
+			}),
+		).toBe("allow");
+	});
+
 	it("rejects missing promotion gates", () => {
 		expect(
 			admitExecution({

@@ -32,11 +32,11 @@ import {
 	formatMutationGuardResult,
 	formatSimulationForecast,
 } from "../core/execution-simulator.js";
-import { JsonStateStore } from "../core/json-state-store.js";
 import { createPlanControlManager } from "../core/plan-control.js";
 import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
+import { createStateStore, detectStateStoreBackend } from "../core/state-store.js";
 import {
 	checkPromotionGates,
 	DEFAULT_WORKERS,
@@ -1188,10 +1188,18 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 			return PlanExitCode.ParseError;
 		}
 
-		// Load existing state
-		const stateStore = new JsonStateStore(cwd);
-		const planStateStore = stateStore.getPlanStateStore();
-		const currentState = await planStateStore.loadState();
+		// Load existing state via createStateStore (Finding 4/5)
+		const stateStore = createStateStore({ backend: detectStateStoreBackend(), workspaceRoot: cwd });
+		const planExecutionIdForRerun =
+			stateStore.getBackendType() === "json"
+				? (stateStore as import("../core/json-state-store.js").JsonStateStore).getCurrentPlanExecutionId()
+				: null;
+		const currentState = planExecutionIdForRerun ? await stateStore.loadState(planExecutionIdForRerun) : null;
+		if (!currentState && stateStore.getBackendType() !== "json") {
+			// For PG backend, list executions to find latest
+			const _executions = await stateStore.listPlanExecutions("default");
+			// Fall through to "no state found" error if none found
+		}
 
 		if (!currentState) {
 			if (json) {
@@ -1257,7 +1265,7 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 
 		// Create executor and load state
 		const executor = createAutonomousExecutor(cwd, effectiveWorkers, undefined, worktreeConfig);
-		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+		const planExecutionId = planExecutionIdForRerun;
 		if (!planExecutionId) {
 			if (json) {
 				console.log(JSON.stringify({ success: false, error: "No plan execution ID found" }, null, 2));
@@ -1267,7 +1275,7 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 			return PlanExitCode.StateError;
 		}
 
-		// Load state into executor
+		// Load state into executor via adoptExistingExecution
 		await executor.loadState();
 
 		// Perform rerun: reset failed/blocked workspaces, keep completed
@@ -2214,10 +2222,21 @@ export async function planHandoffCommit(options: PlanCommandOptions = {}): Promi
 	const { cwd = process.cwd(), json = false } = options;
 
 	try {
-		const stateStore = new JsonStateStore(cwd);
-		const planStateStore = stateStore.getPlanStateStore();
-		const currentState = await planStateStore.loadState();
+		const stateStore = createStateStore({ backend: detectStateStoreBackend(), workspaceRoot: cwd });
+		const planExecutionId =
+			stateStore.getBackendType() === "json"
+				? (stateStore as import("../core/json-state-store.js").JsonStateStore).getCurrentPlanExecutionId()
+				: null;
+		if (!planExecutionId) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
 
+		const currentState = await stateStore.loadState(planExecutionId);
 		if (!currentState) {
 			if (json) {
 				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
@@ -2247,10 +2266,7 @@ export async function planHandoffCommit(options: PlanCommandOptions = {}): Promi
 		await autoCommit.commitPlan(currentState.phase, currentState.title);
 
 		// Mark plan complete in state store
-		const planExecutionId = stateStore.getCurrentPlanExecutionId();
-		if (planExecutionId) {
-			await stateStore.handoffCommit(planExecutionId);
-		}
+		await stateStore.handoffCommit(planExecutionId);
 
 		if (json) {
 			console.log(JSON.stringify({ success: true, action: "handoff-commit" }, null, 2));
@@ -2291,10 +2307,21 @@ export async function planHandoffKeep(options: PlanCommandOptions = {}): Promise
 	const { cwd = process.cwd(), json = false } = options;
 
 	try {
-		const stateStore = new JsonStateStore(cwd);
-		const planStateStore = stateStore.getPlanStateStore();
-		const currentState = await planStateStore.loadState();
+		const stateStore = createStateStore({ backend: detectStateStoreBackend(), workspaceRoot: cwd });
+		const planExecutionId =
+			stateStore.getBackendType() === "json"
+				? (stateStore as import("../core/json-state-store.js").JsonStateStore).getCurrentPlanExecutionId()
+				: null;
+		if (!planExecutionId) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
 
+		const currentState = await stateStore.loadState(planExecutionId);
 		if (!currentState) {
 			if (json) {
 				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
@@ -2319,10 +2346,7 @@ export async function planHandoffKeep(options: PlanCommandOptions = {}): Promise
 			return PlanExitCode.Success;
 		}
 
-		const planExecutionId = stateStore.getCurrentPlanExecutionId();
-		if (planExecutionId) {
-			await stateStore.handoffKeepEditing(planExecutionId);
-		}
+		await stateStore.handoffKeepEditing(planExecutionId);
 
 		if (json) {
 			console.log(JSON.stringify({ success: true, action: "handoff-keep" }, null, 2));
@@ -2363,12 +2387,21 @@ export async function planHandoffDiscard(options: PlanCommandOptions = {}): Prom
 	const { cwd = process.cwd(), json = false } = options;
 
 	try {
-		const stateStore = new JsonStateStore(cwd);
-		const planExecutionId = stateStore.getCurrentPlanExecutionId();
+		const stateStore = createStateStore({ backend: detectStateStoreBackend(), workspaceRoot: cwd });
+		const planExecutionId =
+			stateStore.getBackendType() === "json"
+				? (stateStore as import("../core/json-state-store.js").JsonStateStore).getCurrentPlanExecutionId()
+				: null;
+		if (!planExecutionId) {
+			if (json) {
+				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
+			} else {
+				console.error(chalk.red("✗ No active plan execution found"));
+			}
+			return PlanExitCode.NotFound;
+		}
 
-		const planStateStore = stateStore.getPlanStateStore();
-		const currentState = await planStateStore.loadState();
-
+		const currentState = await stateStore.loadState(planExecutionId);
 		if (!currentState) {
 			if (json) {
 				console.log(JSON.stringify({ success: false, error: "No active plan execution found" }, null, 2));
@@ -2393,9 +2426,7 @@ export async function planHandoffDiscard(options: PlanCommandOptions = {}): Prom
 			return PlanExitCode.Success;
 		}
 
-		if (planExecutionId) {
-			await stateStore.handoffDiscard(planExecutionId, cwd);
-		}
+		await stateStore.handoffDiscard(planExecutionId, cwd);
 
 		if (json) {
 			console.log(JSON.stringify({ success: true, action: "handoff-discard" }, null, 2));

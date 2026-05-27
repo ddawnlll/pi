@@ -1,17 +1,15 @@
 # P25 — Local Production Observability & Brain Worker Swarm
 
-**Version:** 1.1.0  
-**Last updated:** 2026-05-25  
-**Contract version:** 2.5.0  
-**Execution backend:** PostgreSQL  
-**Scale mode:** experimental_6  
-**Requested workers:** 6  
-**Continuous scheduling:** enabled  
+**Version:** 3.0.0  
+**Last updated:** 2026-05-27  
+**Contract version:** 4.0.0  
+**Execution class:** implementation  
 **Total workspaces:** 21  
-**Preview batches:** 6  
 **Primary goal:** Make Pi locally stable, observable, self-debugging, idea-generating, and capable of routing work to specialized brain workers without runaway loops.
 
-**v1.1 fix:** Narrowed each workspace `writeSet`, `allowedFiles`, and `canEdit` list. The previous file used the same broad file globs for every workspace, so Pi's safe scheduler could correctly treat same-batch workspaces as conflicting and start only `25.A`. Batch 1 now has non-overlapping file ownership for `25.A`, `25.C`, and `25.E`.
+**v3.0 migration:** Rewritten from v2 mechanism-heavy format (2.5.0) to v4 intent-driven contract (4.0.0). Mechanism fields (worktree, integration queue, validation lanes, parallelism review, scale modes) are removed — the ExecutionKernel derives them from `intent.parallelism`, `intent.safetyLevel`, and `intent.conflictRisk`. See [llm-implementation-agent-master-template.md](llm-implementation-agent-master-template.md) for the canonical v4 template.
+
+**v1.1 fix (preserved):** Narrowed each workspace `writeSet`, `allowedFiles`, and `canEdit` list to prevent same-batch file conflicts. Batch 1 workspaces 25.A, 25.C, and 25.E have non-overlapping file ownership.
 
 ---
 
@@ -19,14 +17,14 @@
 
 ## 0. TL;DR / Compact Mental Model
 
-**Phase:** P25  
-**Title:** Local Production Observability & Brain Worker Swarm  
-**One-line goal:** Pi can see itself, debug itself, generate better ideas, assign specialized brain workers, propose fixes, and prove the loop is stable locally.  
-**Why now:** P24 makes Pi proactive as a daily driver. P25 makes that proactive system observable, debuggable, and locally stable enough to run every day.  
-**Blast radius:** `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`, `packages/db/`, `docs/`, and `reports/`.  
-**Rollback path:** Disable the Brain Orchestrator Supervisor and worker pipelines behind local feature flags; preserve telemetry and diagnostic artifacts for review.  
-**Scale mode:** experimental_6  
-**Safe parallelism target:** 3–5 effective workers depending on validation-lock pressure.  
+**Phase:** P25
+**Title:** Local Production Observability & Brain Worker Swarm
+**One-line goal:** Pi can see itself, debug itself, generate better ideas, assign specialized brain workers, propose fixes, and prove the loop is stable locally.
+**Intent:** parallelism=6, safetyLevel=strict, conflictRisk=medium, executionEnvironment=trusted_local
+**Why now:** P24 makes Pi proactive as a daily driver. P25 makes that proactive system observable, debuggable, and locally stable enough to run every day.
+**Blast radius:** packages/coding-agent/, packages/web-server/, packages/web-ui/dashboard/, packages/db/, docs/, and reports/.
+**Rollback path:** Disable the Brain Orchestrator Supervisor and worker pipelines behind local feature flags.
+**Derived mechanisms:** worktree isolation required, integration queue required, admission gate strict mode, deadline watchdog active, handoff queue required.
 **Done when:** Pi passes the brain-worker swarm dogfood gauntlet and produces a final local stability report.
 
 ---
@@ -38,17 +36,19 @@
 | Phase | `P25` |
 | Title | `Local Production Observability & Brain Worker Swarm` |
 | Status | `Planned` |
-| Last updated | `2026-05-25` |
+| Last updated | `2026-05-27` |
 | Delivery status | `Not started` |
 | Target environment | `Local production / local daily-driver` |
 | Primary focus | `Observability, specialized brain workers, self-debugging, idea generation, loop prevention` |
 | Product-code changes | `Allowed` |
-| Selected scale mode | `experimental_6` |
-| Requested max workers | `6` |
+| Contract version | `4.0.0` |
+| Execution class | `implementation` |
+| Intent: parallelism | `6` |
+| Intent: safetyLevel | `strict` |
+| Intent: conflictRisk | `medium` |
+| Intent: executionEnvironment | `trusted_local` |
 | Expected DAG effective parallelism | `3.5 average, 6 peak` |
 | Expected safe effective parallelism | `3.33 average, 5 peak` |
-| Worktree isolation | `Required` |
-| Integration queue | `Required` |
 | Security posture | `Local safety only; no enterprise/cloud security scope` |
 
 ### 1.1 RACI
@@ -74,18 +74,24 @@ The key product shift is from passive observability to active self-debugging. Pi
 
 ## 3. What Carried Over — Must Stay Stable
 
-- P6/P6.5 worktree isolation remains available and required for 6-worker execution.
-- Integration queue remains enabled for parallel workspace output.
-- Global validation lock remains active for heavy validation.
-- Completion gate hardening remains active.
-- Merge conflicts produce handoff artifacts and do not mark the plan complete.
-- The next plan does not start while the integration queue is dirty.
+- ExecutionKernel invariants apply and cannot be overridden (see master template section 2).
+- PostgreSQL is authoritative for structured runtime state; JSON runtime fallback is forbidden in production.
+- Actors emit events only; WorkspaceAttemptController is the only attempt state writer.
+- Retry requires terminal previous attempt; retry during RUNNING is rejected.
+- Every non-terminal attempt state has a deadline enforced by DeadlineWatchdog.
+- HANDOFF_REQUIRED is terminal and creates a durable handoff_queue item.
+- PlanCompletionPredicate gates plan completion; unresolved handoffs block COMPLETED.
+- AdmissionGate covers all execution entrypoints (CLI, dashboard, API, retry, brain triggers).
 - `git push` remains forbidden.
 - Raw destructive cleanup remains forbidden.
 - Watch-mode validation remains forbidden.
-- The executor remains the source of truth for execution state transitions.
 - Brain memory, proposal, reflection, policy, audit, and overnight APIs remain backward-compatible.
 - Existing P24 daily intelligence surfaces must not regress.
+- P32 dogfood harness proves kernel invariants (stable_1 gate, stable_3 dogfood, stable_6 stress).
+
+### v3.0 change
+
+Removed mechanism-specific references (worktree isolation, integration queue, validation lock, completion gate). These are now derived from intent by the ExecutionProfileDeriver and owned by the ExecutionKernel. Plans do not configure them.
 
 ---
 
@@ -543,6 +549,11 @@ P25 is complete when all are true:
 - Brain Worker Swarm Dogfood report is generated and signed off.
 - No forbidden commands or files were used.
 - Validation gates passed.
+- ExecutionKernel invariants are preserved (P32 dogfood harness passes).
+
+### v3.0 change
+
+Removed mechanism-specific wording about worktree, integration queue, and completion gates. These are enforced by the ExecutionKernel, not the plan.
 
 ---
 

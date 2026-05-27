@@ -10,7 +10,8 @@ export function admitExecution(input: {
 }): AdmissionDecision {
 	if (!input.postgresAvailable) return "reject";
 	if (input.production && input.jsonFallback) return "reject";
-	if (input.repairMode !== input.autonomousMode) return "reject";
+	// Repair mode requires autonomous mode; non-repair plans can run either way
+	if (input.repairMode && !input.autonomousMode) return "reject";
 	if (!input.promotionGateSatisfied) return "reject";
 	return "allow";
 }

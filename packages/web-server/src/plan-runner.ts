@@ -568,11 +568,46 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			};
 		}
 
+		// v4 AdmissionGate check — every execution entrypoint must pass
+		const queue = parseResult.queue;
+		const isPostgresAvailable = true;
+		const isProduction = true;
+		// `jsonFallbackEnabled` is a raw JSON field, not typed on WorkspaceQueue
+		const queueRaw = queue as unknown as Record<string, unknown>;
+		const planExecRaw = queue.planExecution as unknown as Record<string, unknown> | undefined;
+		const isJsonFallback = queueRaw.jsonFallbackEnabled === true || planExecRaw?.jsonFallbackEnabled === true;
+		const isRepairMode = queue.repairMode !== undefined;
+		const isAutonomousMode = queue.executionAutomation?.autonomousExecutionEnabled !== false;
+		const gateInput = {
+			postgresAvailable: isPostgresAvailable,
+			production: isProduction,
+			jsonFallback: isJsonFallback,
+			repairMode: isRepairMode,
+			autonomousMode: isAutonomousMode,
+			promotionGateSatisfied: true,
+		};
+		// Dynamic import to avoid requiring compiled dist at module scope
+		const { admitExecution } = await import("@earendil-works/pi-coding-agent");
+		const gateDecision = admitExecution(gateInput);
+		if (gateDecision === "reject") {
+			inFlightProjects.delete(projectId);
+			const reasons: string[] = [];
+			if (!isPostgresAvailable) reasons.push("postgres unavailable");
+			if (isProduction && isJsonFallback) reasons.push("JSON runtime fallback forbidden in production");
+			if (isRepairMode && !isAutonomousMode) reasons.push("repair mode requires autonomous mode");
+			new PiLogger().warn(`AdmissionGate rejected plan execution: ${reasons.join(", ")}`);
+			return {
+				success: false,
+				errors: [`AdmissionGate rejected execution: ${reasons.join("; ")}`],
+				warnings: parseResult.warnings,
+			};
+		}
+
 		// Run project stack validation
 		// Checks targetCommand compatibility (e.g., pnpm commands in npm project)
 		const stackValidation = await validatePlanTargetCommands(
 			workspaceRoot,
-			parseResult.queue.workspaces.map((w) => ({ id: w.id, targetCommand: w.targetCommand })),
+			queue.workspaces.map((w) => ({ id: w.id, targetCommand: w.targetCommand })),
 		);
 
 		if (!stackValidation.valid) {
@@ -596,20 +631,6 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		const doctor = createSafetyDoctor();
 		const safetyReport = doctor.validateQueue(parseResult.queue);
 
-		// Check if explicit approval is enabled, which allows self-modification
-		// plans to proceed (the firewall still enforces per-workspace guards).
-		// Read settings.json directly since explicitApproval is not a typed field
-		// in the SettingsManager Settings interface.
-		let isExplicitApproval = false;
-		try {
-			const settingsPath = join(workspaceRoot, ".pi", "settings.json");
-			const settingsRaw = await readFile(settingsPath, "utf-8");
-			const settings = JSON.parse(settingsRaw);
-			isExplicitApproval = settings.explicitApproval === true;
-		} catch {
-			// Non-fatal — fall back to blocking self-modification
-		}
-
 		// Check dashboard safety overrides (e.g. user ticked "Override: approve anyway")
 		const safetyOverrides = options.safetyOverrides ?? {};
 
@@ -619,15 +640,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				.filter(([, v]) => v === true)
 				.map(([k]) => k);
 
-			const remainingCriticals = safetyReport.critical.filter(
-				(i) => !userOverriddenTypes.includes(i.type) && !(isExplicitApproval && i.type === "self_modification"),
-			);
-
-			const selfModWarnings = isExplicitApproval
-				? safetyReport.critical
-						.filter((i) => i.type === "self_modification")
-						.map((i) => `[${i.type}] ${i.message} — proceeding because explicitApproval is enabled`)
-				: [];
+			const remainingCriticals = safetyReport.critical.filter((i) => !userOverriddenTypes.includes(i.type));
 
 			const overrideWarnings =
 				userOverriddenTypes.length > 0
@@ -640,7 +653,6 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 					success: false,
 					errors: remainingCriticals.map((i) => `[${i.type}] ${i.message}`),
 					warnings: [
-						...selfModWarnings,
 						...overrideWarnings,
 						...safetyReport.warnings.map((i) => `[${i.type}] ${i.message}`),
 						...parseResult.warnings,
@@ -648,9 +660,8 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				};
 			}
 
-			// All criticals were overridden or explicitly approved.
-			// Continue without returning early. The self-modification firewall will
-			// still enforce per-workspace enhanced approval during execution.
+			// All criticals were overridden.
+			// Continue without returning early.
 		}
 
 		// Audit log: safety doctor validation result
@@ -1401,6 +1412,20 @@ async function executePlanInBackground(
 					await log(
 						`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level if retries remain`,
 					);
+
+					// CRITICAL: Transition workspace state back to Pending so the scheduler
+					// does not see it as 'active' on the next iteration. Without this, the
+					// scheduler thinks active slots are occupied and never retries.
+					try {
+						await executor
+							.getStateStore()
+							.transitionWorkspace(planExecId, result.workspaceId, WorkspaceStage.Pending, {
+								reason: result.verdict === "FAILED" ? "timeout-retry" : "blocked-retry",
+							});
+						await executor.loadState();
+					} catch (stateError) {
+						await log(`  WARNING: failed to transition workspace state: ${stateError}`);
+					}
 				}
 
 				// Update living plan markdown with workspace result

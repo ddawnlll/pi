@@ -358,6 +358,10 @@ export interface Database {
 	controller_inbox: ControllerInboxTable;
 	controller_leases: ControllerLeaseTable;
 	handoff_queue: HandoffQueueTable;
+	derived_execution_profiles: DerivedExecutionProfileTable;
+	admission_decisions: AdmissionDecisionTable;
+	deadline_watchdog_runs: DeadlineWatchdogRunTable;
+	state_authority_violations: StateAuthorityViolationTable;
 	_migrations: MigrationsTable;
 }
 
@@ -604,3 +608,50 @@ export type ProposalScoreUpdate = Updateable<ProposalScoreTable>;
 export type ObservabilityEvent = Selectable<ObservabilityEventTable>;
 export type NewObservabilityEvent = Insertable<ObservabilityEventTable>;
 export type ObservabilityEventUpdate = Updateable<ObservabilityEventTable>;
+
+// =============================================================================
+// v4 ExecutionKernel tables
+// =============================================================================
+
+export interface DerivedExecutionProfileTable {
+	id: Generated<string>;
+	plan_execution_id: string;
+	intent: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	derived_profile: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	deriver_version: string;
+	created_at: Generated<string>;
+}
+
+export interface AdmissionDecisionTable {
+	id: Generated<string>;
+	plan_execution_id: string | null;
+	request_type: string;
+	decision: string;
+	reasons: ColumnType<unknown[], unknown[], unknown[]>;
+	derived_profile: ColumnType<
+		Record<string, unknown> | null,
+		Record<string, unknown> | null,
+		Record<string, unknown> | null
+	>;
+	created_at: Generated<string>;
+}
+
+export interface DeadlineWatchdogRunTable {
+	id: Generated<string>;
+	started_at: string;
+	completed_at: string | null;
+	expired_attempt_count: Generated<number>;
+	emitted_event_count: Generated<number>;
+	error: string | null;
+}
+
+export interface StateAuthorityViolationTable {
+	id: Generated<string>;
+	source: string;
+	plan_execution_id: string | null;
+	workspace_execution_id: string | null;
+	attempt_id: string | null;
+	violation_type: string;
+	payload: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+	created_at: Generated<string>;
+}

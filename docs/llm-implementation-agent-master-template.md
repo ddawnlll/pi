@@ -1,8 +1,8 @@
-# LLM Implementation Agent — Repair & Execution Correctness Template v3.0
+# LLM Implementation Agent — ExecutionKernel & Intent-Driven Execution Template v4.0
 
-**Version:** 3.0.0  
-**Last Updated:** 2026-05-25  
-**Purpose:** Canonical template for creating repair-first execution correctness plans for Pi. This template is used when the autonomous execution substrate is untrusted and plans must be manually gated and promotion-gated before restoration of autonomous execution. v3.0 plans support manual repair, assisted repair, and staged promotion back to stable automation. Autonomous execution MUST NOT run when `executionAutomation.autonomousExecutionEnabled` is false.
+**Version:** 4.0.0  
+**Last Updated:** 2026-05-27  
+**Purpose:** Canonical v4 flagship template for Pi execution plans. v4 preserves the v3 repair-first contract envelope while adding ExecutionKernel authority, intent-driven execution profiles, PostgreSQL authoritative runtime state, event-sourced attempt control, watchdog-driven bounded liveness, and safe migration from legacy multi-writer runtime paths. Autonomous execution MUST NOT run when `executionAutomation.autonomousExecutionEnabled` is false or when v4 admission gates reject the request.
 
 ---
 
@@ -27,7 +27,186 @@ For repair plans, autonomous execution is disabled by default. The workflow is: 
 
 The template balances human authority in Markdown with machine-readable validation in the JSON execution contract. Part 3 JSON is the authoritative execution contract. In repair mode it is a **validation contract only** — it describes what the repair plan expects but does not authorize autonomous mutation.
 
+### v4.0 Compact Mental Model
+
+v4.0 keeps the v3 document shape so existing validators, parsers, plan intake screens, and repair workflows can continue to recognize the plan. The semantic change is that execution state is no longer owned by arbitrary executors, validators, cleanup jobs, retry routers, or brain workers. Execution state is owned by an **ExecutionKernel**:
+
+```text
+Human intent
+  -> ExecutionProfileDeriver
+  -> Derived Execution Profile
+  -> ExecutionAdmissionGate
+  -> PlanSupervisor
+  -> WorkspaceAttemptController
+  -> PostgreSQL AttemptEventJournal + StateStoreWriter
+```
+
+All long-running actors continue to do the work in parallel, but they do not directly mutate execution state. They emit events. The controller validates events against a finite-state machine, writes the event and transition transactionally, and advances the attempt only if the expected version matches.
+
+The v4 rule is:
+
+```text
+Workers do work.
+Actors emit events.
+Policies suggest.
+Brain workers propose.
+Only the ExecutionKernel mutates execution state.
+```
+
+v4.0 is intentionally **intent-driven**. Human-authored plans should describe desired parallelism, safety level, conflict risk, deadlines, and execution environment. They should not manually assemble fragile mechanism combinations such as worktree required + integration queue required + validation lane required. Those mechanisms are derived by the system and shown in explain mode.
+
+### v4.0 Compatibility Promise
+
+This template is a v3 successor, not a from-scratch replacement. It preserves:
+
+- Part 1 — Phase Plan
+- Part 2 — Agent Brief
+- Part 3 — Machine-Readable Execution Contract
+- Part 4 — Machine-Readable Summary
+- v3 repair-mode, promotion-gate, bounded-liveness, dogfood, and safety-stop concepts
+- workspace-level metadata shape
+- Markdown-as-human-authority / JSON-as-machine-contract model
+
+It changes the execution doctrine underneath that envelope:
+
+- `contractVersion` becomes `4.0.0` for v4-native plans.
+- Legacy validator compatibility is preserved by keeping all v3 required fields present.
+- New v4 fields are additive and should be ignored by legacy read-only consumers until the validator is upgraded.
+- If a legacy validator hard-rejects unknown fields, the `LegacyPlanNormalizer` may temporarily emit a v3-compatible contract plus a v4 sidecar. The v4 sidecar is not optional for execution.
+
+
 ---
+
+## What Changed in v4.0.0
+
+v4.0.0 is the **ExecutionKernel and intent-driven execution** migration. It keeps the v3 repair-first governance model, but replaces the old implicit multi-writer runtime doctrine with a single-authority, event-sourced execution kernel.
+
+### Flagship Design Goals
+
+- Preserve v3 shape and validator-friendly structure.
+- Stop silent stuck states such as indefinite `RUNNING` attempts.
+- Stop retry-before-terminal attempt races.
+- Stop dual authoritative runtime state between PostgreSQL, JSON, NDJSON, and in-memory state.
+- Stop direct state mutation by executors, validation runners, cleanup jobs, retry routers, lease monitors, diagnostics, and brain workers.
+- Move human-authored plan contracts from mechanism-heavy configuration to intent-driven execution profiles.
+- Derive execution mechanisms from a fixed matrix instead of making humans manually combine fragile flags.
+- Make PostgreSQL the authoritative runtime state backend.
+- Keep raw filesystem logs and artifacts as evidence, not truth.
+
+### Core Semantic Changes
+
+- **ExecutionKernel authority**: The ExecutionKernel is the only authority that mutates execution state. Executors, validators, Git/worktree managers, lease monitors, retry routers, cleanup workers, diagnostics, and brain workers emit events only.
+- **PlanSupervisor**: Owns plan lifecycle state, slot tokens, plan-level completion predicates, final validation state, and promotion readiness.
+- **WorkspaceAttemptController**: Owns attempt lifecycle state. It validates all attempt events against the FSM and commits transitions transactionally.
+- **StateAuthority token**: Runtime state transition APIs require an internal authority token. Actors cannot obtain this token.
+- **PostgreSQL authoritative state**: All structured runtime truth lives in PostgreSQL. JSON runtime fallback is forbidden in production.
+- **AttemptEventJournal**: Attempt events are append-only, versioned, replayable, and stored in PostgreSQL. NDJSON mirrors are debug/export artifacts only.
+- **Optimistic versioning**: Every transition requires `expectedVersion`. Concurrent transition conflicts are rejected and emitted as controller conflict events.
+- **Controller leadership**: Controller ownership is protected by PostgreSQL advisory lock / lease semantics plus expected-version transition writes.
+- **DeadlineWatchdog**: Deadlines are not passive fields. A supervised watchdog emits `deadline_exceeded` events for expired non-terminal attempts.
+- **HandoffQueue**: `HANDOFF_REQUIRED` is terminal for the attempt and creates a durable handoff queue item for human or controller-mediated follow-up.
+- **AdmissionGate**: Every execution entrypoint must pass one gate: CLI, dashboard, API, retry, cleanup rerun, brain trigger, overnight runner, and proposal executor.
+- **Intent-driven template**: Plans specify intent (`parallelism`, `safetyLevel`, `conflictRisk`, deadlines, execution environment). The system derives worktrees, integration queue, GitRunner queue, validation lanes, drift policy, and watchdog policy.
+- **LegacyPlanNormalizer**: v3 mechanism-heavy plans can be mapped into v4 intent and derived-profile form without forcing every old plan to be rewritten at once.
+
+### New v4 Top-Level Contract Areas
+
+v4-native Part 3 JSON adds additive fields while keeping v3 fields:
+
+- `templateVersion`
+- `legacyCompatibility`
+- `intent`
+- `derivedExecutionProfile`
+- `persistence`
+- `executionKernel`
+- `attemptLifecycle`
+- `planLifecycle`
+- `actorPermissions`
+- `admissionGate`
+- `resourceCoordination`
+- `deadlineWatchdog`
+- `handoffQueue`
+- `executionEnvironment`
+- `legacyMigration`
+
+### Deprecated v3 Concepts
+
+The following concepts remain readable for compatibility but are no longer the preferred human-authored interface:
+
+- manually authored `worktreeRequired`
+- manually authored `integrationQueueRequired`
+- manually authored `validationLockRequired`
+- manually authored `completionGateRequired`
+- manual scale-mode mechanism combinations
+- JSON runtime fallback as an authoritative live state backend
+- executor-owned execution state transitions
+
+### v4 Non-Negotiable Kernel Invariants
+
+```text
+I1   Only WorkspaceAttemptController mutates attempt state.
+I2   Only PlanSupervisor mutates plan lifecycle state.
+I3   Actors emit events only.
+I4   Retry can only create a new attempt after the previous attempt is terminal.
+I5   Every non-terminal attempt state has a deadline.
+I6   DeadlineWatchdog must emit events for expired non-terminal attempts.
+I7   No lock may be held across external await.
+I8   Nested resource locks are forbidden.
+I9   All execution entrypoints pass AdmissionGate.
+I10  AttemptEventJournal replay must reproduce current attempt state.
+I11  Brain workers and diagnostics are read-only/advisory for execution state.
+I12  PostgreSQL is the authoritative runtime backend.
+I13  JSON runtime fallback is forbidden in production.
+I14  Every transition requires expectedVersion.
+I15  HANDOFF_REQUIRED creates a durable handoff queue item.
+I16  Plan completion is determined by explicit PlanSupervisor predicates.
+I17  Raw logs are evidence, not runtime truth.
+```
+
+### v4 Derivation Philosophy
+
+Human authors write:
+
+```json
+"intent": {
+  "parallelism": 6,
+  "safetyLevel": "strict",
+  "conflictRisk": "high",
+  "executionEnvironment": { "mode": "local_sandbox" },
+  "deadlines": {}
+}
+```
+
+The system derives:
+
+```text
+worktree required
+integration queue required
+GitRunner queue required
+validation lanes required
+attempt-scoped artifacts required
+writeSet drift gate required
+AdmissionGate strict mode required
+DeadlineWatchdog required
+PostgreSQL event journal required
+```
+
+The human does not manually assemble those mechanisms. That prevents invalid combinations from being authored in the first place.
+
+### v4 Production Readiness Rule
+
+A v4 plan is production-ready only when all are true:
+
+- ExecutionKernel is enabled.
+- PostgreSQL authoritative backend is available.
+- JSON runtime fallback is disabled.
+- DeadlineWatchdog is supervised.
+- AdmissionGate covers all entrypoints.
+- StateAuthority violations are hard stops.
+- Retry-before-terminal is impossible at FSM level.
+- PlanSupervisor completion predicates are implemented.
+- HandoffQueue exists.
+- stable_3 dogfood and stable_6 stress gates pass before stable_6 execution.
 
 ## What Changed in v2.5.0
 
@@ -261,9 +440,32 @@ b) **Repair plans** (before promotion) — follow the repair-first workflow.
 - `git push` remains forbidden in every scale mode.
 - Raw destructive cleanup such as `rm -rf` remains forbidden in every scale mode.
 - Watch-mode validation commands remain forbidden.
-- The executor remains the only component that mutates execution state after promotion.
+- The ExecutionKernel remains the only component that mutates execution state after promotion; executors and actors emit events only.
 
 ---
+
+
+### Additional v4 Critical Requirements
+
+- **v4 plans MUST preserve the v3 envelope unless the validator has explicitly migrated to a pure v4 schema.**
+- **v4-native plans SHOULD set `contractVersion: "4.0.0"` and MUST include `templateVersion: "4.0.0"`.**
+- **During validator transition, a `legacyCompatibility` object MUST explain how v3 fields are preserved or normalized.**
+- **The ExecutionKernel, not the executor, is the only authority that mutates execution state.**
+- **Executors, validators, Git/worktree managers, lease monitors, retry routers, cleanup workers, brain workers, diagnostics, and proposal executors MUST emit events only.**
+- **PostgreSQL MUST be the authoritative runtime state backend for production execution.**
+- **JSON runtime fallback MUST be disabled in production.**
+- **Raw logs and filesystem artifacts MAY exist, but they are evidence only and MUST be indexed by PostgreSQL.**
+- **Every attempt transition MUST require `expectedVersion`.**
+- **Controller leadership MUST use PostgreSQL lease/advisory-lock semantics or an equivalent single-writer mechanism.**
+- **DeadlineWatchdog MUST be active for any plan with running attempts. Deadlines without a watchdog are invalid.**
+- **Every non-terminal attempt state MUST have a deadline.**
+- **Retry MUST NOT create a new attempt until the previous attempt is terminal.**
+- **`HANDOFF_REQUIRED` MUST create a durable handoff queue item.**
+- **Plan completion MUST be decided by explicit PlanSupervisor predicates, not by ad-hoc workspace counters.**
+- **Human-authored plans SHOULD express intent, not execution mechanisms. Mechanisms are derived by `ExecutionProfileDeriver`.**
+- **Legacy v3 mechanism fields are compatibility inputs, not final runtime authority.**
+- **All execution entrypoints MUST pass `ExecutionAdmissionGate`.**
+- **Any state mutation outside ExecutionKernel is a hard stop.**
 
 # Part 1 — Phase Plan
 
@@ -345,7 +547,7 @@ List all constraints, policies, and systems that MUST remain stable:
 * [ ] `git push` remains forbidden.
 * [ ] Raw destructive cleanup remains forbidden.
 * [ ] Watch-mode validation remains forbidden.
-* [ ] The executor remains the source of truth for state transitions.
+* [ ] The ExecutionKernel remains the source of truth for state transitions; executors and actors emit events only.
 
 ---
 
@@ -535,7 +737,7 @@ If this plan uses queue optimization, the agent must assign meaningful queue pri
 17. Do not run `git push`.
 18. Do not run raw destructive cleanup commands.
 19. Do not access secrets or forbidden files.
-20. The executor remains the only component that mutates execution state after promotion.
+20. The ExecutionKernel remains the only component that mutates execution state after promotion; executors and actors emit events only.
 21. If queue optimization is enabled, the queue must respect workspace-level `queuePriority` and the selected optimization strategy.
 22. Queue optimization must not bypass safety checks: workspace validation and integration validation remain required regardless of priority.
 23. Priority-based reordering must not cause starvation: low-priority workspaces must still be merged within a reasonable window.
@@ -723,15 +925,252 @@ Hard stop execution only for:
 
 ---
 
+
+# Part 2.5 — v4 ExecutionKernel Doctrine
+
+This section is normative for v4 plans. It exists between the human agent brief and the machine-readable execution contract so that both humans and agents understand the execution doctrine before reading the JSON.
+
+## 2.5.1 Single Authority Model
+
+v4 replaces the previous executor-owned or multi-component execution state model with an ExecutionKernel model.
+
+```text
+Before v4:
+  Scheduler, executor, validation runner, retry router, cleanup, lease monitor,
+  diagnostics, and brain workers could each influence or write partial execution truth.
+
+After v4:
+  All actors emit events.
+  WorkspaceAttemptController mutates attempt state.
+  PlanSupervisor mutates plan state.
+  PostgreSQL stores authoritative runtime truth.
+```
+
+This model does not reduce parallelism. The controller serializes decisions, not work. LLM calls, tool calls, validation commands, Git operations, and artifact collection remain actor-driven and parallel where derived policy permits.
+
+## 2.5.2 ExecutionKernel Components
+
+| Component | Responsibility | May mutate execution state? |
+|---|---|---:|
+| `ExecutionAdmissionGate` | Authorize or reject execution requests before runtime starts | No |
+| `ExecutionProfileDeriver` | Convert intent to required mechanisms | No |
+| `PlanSupervisor` | Own plan FSM, slot tokens, completion predicate, final validation | Yes, plan state only |
+| `WorkspaceAttemptController` | Own attempt FSM, retries, terminalization, handoff creation | Yes, attempt state only |
+| `StateStoreWriter` | Commit transitions with authority token | Yes, through token only |
+| `AttemptEventJournal` | Append versioned event records | No state mutation by itself |
+| `DeadlineWatchdog` | Detect expired attempts and emit events | No |
+| `HandoffQueue` | Store handoff work items | Written by controller only |
+| `ExecutorActor` | Run LLM/tools/bash for an attempt | No |
+| `ValidationActor` | Run validation with deadlines and process containment | No |
+| `GitRunner` | Serialize Git repo mutations | No attempt state mutation |
+| `LeaseActor` | Emit lease heartbeat/stale/quarantine events | No |
+| `IntegrationActor` | Single-writer integration workflow, emits integration events | No direct attempt mutation |
+| `BrainWorkers` | Diagnose and propose | No |
+| `Diagnostics` | Produce evidence and root-cause packets | No |
+
+## 2.5.3 Attempt FSM Doctrine
+
+A v4 attempt is a bounded state machine. It cannot remain in a non-terminal state forever. Non-terminal states require deadlines and watchdog coverage.
+
+```text
+QUEUED
+  -> LEASING_WORKTREE
+  -> RUNNING
+  -> VALIDATING
+  -> INTEGRATION_QUEUED
+  -> INTEGRATING
+  -> SUCCEEDED
+```
+
+Failure and intervention paths:
+
+```text
+RUNNING + deadline_exceeded       -> ABORTING / TIMED_OUT
+VALIDATING + deadline_exceeded    -> KILLING_PROCESS_TREE
+STALE + deadline_exceeded         -> QUARANTINED
+merge_conflict                    -> HANDOFF_REQUIRED
+critical_policy_violation         -> FAILED_FINAL
+retryable_tool_failure            -> FAILED_RETRYABLE
+```
+
+Terminal states:
+
+```text
+SUCCEEDED
+FAILED_RETRYABLE
+FAILED_FINAL
+ABORTED
+TIMED_OUT
+QUARANTINED
+HANDOFF_REQUIRED
+```
+
+Retry is legal only after terminal state.
+
+## 2.5.4 PlanSupervisor Completion Predicate
+
+Plan state is derived from workspace terminal states, handoff status, required/optional workspace classification, and final validation result.
+
+Default predicate:
+
+```text
+if any required workspace is HANDOFF_REQUIRED and unresolved:
+  plan -> AWAITING_HANDOFF
+else if any required workspace is FAILED_FINAL:
+  plan -> FAILED_FINAL
+else if any required workspace is non-terminal:
+  plan -> RUNNING or BLOCKED_WITH_REASON
+else if all required workspaces are SUCCEEDED and optional failures are allowed:
+  plan -> FINAL_VALIDATION or COMPLETED_WITH_WARNINGS
+else if all required workspaces are SUCCEEDED:
+  plan -> FINAL_VALIDATION
+
+FINAL_VALIDATION passed -> COMPLETED
+FINAL_VALIDATION failed -> FAILED_FINAL
+```
+
+A plan cannot be `COMPLETED` while required handoffs are unresolved or required workspaces are non-terminal.
+
+## 2.5.5 DeadlineWatchdog Doctrine
+
+Deadlines without a watcher are invalid. The DeadlineWatchdog is a supervised runtime service that periodically selects expired non-terminal attempts and emits `deadline_exceeded` events.
+
+Rules:
+
+- The watchdog does not mutate state directly.
+- The watchdog emits events into `controller_inbox` or directly into the controller event path.
+- The controller decides the transition.
+- Watchdog liveness is itself part of production readiness.
+- If the watchdog is unavailable, new execution should be blocked or downgraded.
+
+## 2.5.6 PostgreSQL Truth Doctrine
+
+Runtime truth is PostgreSQL.
+
+Allowed filesystem data:
+
+- stdout/stderr logs
+- raw tool output
+- patch artifacts
+- handoff Markdown
+- replay exports
+- debug bundles
+
+Forbidden as authoritative production runtime truth:
+
+- JSON state fallback
+- NDJSON as the only event journal
+- filesystem lease files without PostgreSQL index
+- dashboard-only state
+- in-memory-only transition state
+
+## 2.5.7 Intent-Driven Plan Doctrine
+
+v4 authors express what they want, not the low-level mechanism matrix.
+
+Human-authored intent fields:
+
+- `parallelism`
+- `safetyLevel`
+- `conflictRisk`
+- `deadlines`
+- `executionEnvironment`
+- workspace goals and acceptance criteria
+
+System-derived mechanism fields:
+
+- worktree requirement
+- integration queue requirement
+- validation lanes
+- GitRunner queue
+- writeSet drift policy
+- attempt-scoped artifacts
+- deadline watchdog requirement
+- AdmissionGate mode
+- promotion gate requirements
+
+## 2.5.8 Execution Environment Doctrine
+
+v4 distinguishes orchestration correctness from code-execution security.
+
+Modes:
+
+| Mode | Meaning | Production use |
+|---|---|---|
+| `trusted_local` | Developer-owned machine, no strong sandbox guarantee | Allowed for local trusted code with warning |
+| `local_sandbox` | Container/namespace/cgroup style local isolation | Recommended production-local baseline |
+| `cloud_sandbox` | Ephemeral VM/container with egress and credential controls | Required for multi-user or untrusted code |
+
+The template must not pretend that orchestration correctness is the same as execution sandboxing.
+
+## 2.5.9 Migration Doctrine
+
+Migration from v3/v2 runtime paths must avoid dual authority.
+
+Allowed phases:
+
+```text
+M0 shadow mode:
+  old runtime is authority, kernel observes and replays only
+
+M1 compatibility adapter:
+  old writes are routed through adapter and audited
+
+M2 actor conversion:
+  actors become event-only behind feature flags
+
+M3 enforcement:
+  StateAuthority token required for mutation
+
+M4 cleanup:
+  legacy mutation APIs removed
+```
+
+Forbidden migration state:
+
+```text
+old writer and new controller both authoritatively mutate state independently
+```
+
+## 2.5.10 Brain and Diagnostics Doctrine
+
+Brain workers and diagnostics are allowed to be smart, but not authoritative.
+
+They may:
+
+- read events and snapshots
+- build evidence packets
+- propose retry
+- propose handoff
+- propose remediation
+- propose plan changes
+
+They may not:
+
+- mutate attempt state
+- create attempts directly
+- mark a plan complete
+- mark a workspace failed
+- bypass AdmissionGate
+- bypass human approval or promotion gates
+
 # Part 3 — Machine-Readable Execution Contract
 
-**Purpose:** This JSON structure is the authoritative execution contract (or validation contract for repair plans) for Pi's PostgreSQL-backed multi-project execution system. Pi parses this section first to validate the plan. In repair mode, this JSON describes what the repair plan expects but does NOT authorize autonomous mutation.
+**Purpose:** This JSON structure is the authoritative execution contract (or validation contract for repair plans) for Pi's PostgreSQL-backed multi-project execution system. Pi parses this section first to validate the plan. v4 preserves the v3 envelope while adding ExecutionKernel, intent, persistence, derived profile, and migration semantics. In repair mode, this JSON describes what the repair plan expects but does NOT authorize autonomous mutation.
 
 **Validation:** This JSON must be valid and complete before any action proceeds. Use `pi plan doctor` to validate. For repair plans, doctor must also validate: contractVersion, executionClass, repair-mode safety, known broken subsystems, bounded liveness, manual patch protocol, and promotion gate status. Autonomous execution gates are only checked after promotion permits them.
 
 ```json
 {
-  "contractVersion": "3.0.0",
+  "contractVersion": "4.0.0",
+  "templateVersion": "4.0.0",
+  "legacyCompatibility": {
+    "v3EnvelopePreserved": true,
+    "legacyValidatorMode": "v3_compatible_extensions",
+    "fallbackContractVersionForLegacyParser": "3.0.0",
+    "legacyMechanismFieldsAreHints": true,
+    "unknownV4FieldsPolicy": "ignore_for_read_only_legacy_consumers_reject_for_execution_without_v4_validator"
+  },
   "executionClass": "repair",
   "executionBackend": "postgres",
   "project": {
@@ -740,12 +1179,200 @@ Hard stop execution only for:
     "type": "repo",
     "tags": []
   },
+  "intent": {
+    "parallelism": 1,
+    "safetyLevel": "strict",
+    "conflictRisk": "medium",
+    "executionEnvironment": {
+      "mode": "trusted_local",
+      "untrustedCodeAllowed": false,
+      "networkPolicy": "host_default",
+      "secretsPolicy": "forbidden_files_and_env_allowlist"
+    },
+    "deadlines": {
+      "llmRequestMs": 120000,
+      "llmStreamIdleMs": 300000,
+      "workspaceOverallMs": 1800000,
+      "validationDefaultMs": 600000,
+      "validationHeavyMs": 1200000,
+      "schedulerNoProgressMs": 300000
+    }
+  },
+  "derivedExecutionProfile": {
+    "generatedBy": "ExecutionProfileDeriver",
+    "deriverVersion": "4.0.0",
+    "readOnly": true,
+    "worktreeRequired": true,
+    "integrationQueueRequired": true,
+    "gitRunnerQueueRequired": true,
+    "validationLanesRequired": true,
+    "attemptScopedArtifactsRequired": true,
+    "deadlineWatchdogRequired": true,
+    "admissionGateMode": "strict",
+    "writeSetDriftPolicy": "warn_and_flag_integration",
+    "explain": [
+      "strict safety level requires admission gate and event journal",
+      "medium conflict risk requires worktree isolation and integration queue",
+      "all production execution requires PostgreSQL authoritative runtime state"
+    ]
+  },
+  "persistence": {
+    "authoritativeBackend": "postgres",
+    "jsonRuntimeFallbackAllowed": false,
+    "eventJournalBackend": "postgres",
+    "transitionBackend": "postgres",
+    "controllerInboxBackend": "postgres",
+    "handoffQueueBackend": "postgres",
+    "rawLogsBackend": "filesystem",
+    "artifactIndexBackend": "postgres",
+    "debugExportAllowed": true
+  },
   "executionAutomation": {
     "autonomousExecutionEnabled": false,
     "agentMayMutateRepo": false,
     "agentMayRunCommands": false,
     "manualPatchApplicationRequired": true,
     "humanApprovalRequiredForEveryPatch": true
+  },
+  "executionKernel": {
+    "enabled": true,
+    "stateAuthority": "workspace_attempt_controller",
+    "planAuthority": "plan_supervisor",
+    "stateAuthorityTokenRequired": true,
+    "admissionGateRequired": true,
+    "eventSourcedAttempts": true,
+    "attemptEventJournalRequired": true,
+    "directStateMutationForbidden": true,
+    "actorsEmitEventsOnly": true,
+    "policiesSuggestOnly": true,
+    "brainWorkersReadOnly": true,
+    "retryRequiresTerminalAttempt": true,
+    "everyNonTerminalStateHasDeadline": true,
+    "controllerSerializesDecisionsNotWork": true,
+    "controllerLeadership": {
+      "required": true,
+      "mode": "postgres_advisory_lock_plus_expected_version",
+      "transitionRequiresExpectedVersion": true,
+      "onVersionConflict": "reject_and_emit_controller_conflict"
+    }
+  },
+  "attemptLifecycle": {
+    "initialState": "queued",
+    "terminalStates": [
+      "succeeded",
+      "failed_retryable",
+      "failed_final",
+      "aborted",
+      "timed_out",
+      "quarantined",
+      "handoff_required"
+    ],
+    "nonTerminalStates": [
+      "queued",
+      "leasing_worktree",
+      "running",
+      "validating",
+      "waiting_for_validation_lane",
+      "integration_queued",
+      "integrating",
+      "aborting",
+      "killing_process_tree",
+      "stale"
+    ],
+    "retryableTerminalStates": [
+      "failed_retryable",
+      "timed_out",
+      "quarantined"
+    ],
+    "retryForbiddenFromNonTerminal": true,
+    "deadlineRequiredForNonTerminalStates": true,
+    "handoffRequiredCreatesQueueItem": true
+  },
+  "planLifecycle": {
+    "completionPredicateRequired": true,
+    "cannotCompleteWithRequiredNonTerminalWorkspaces": true,
+    "cannotCompleteWithUnresolvedRequiredHandoff": true,
+    "finalValidationRequiredBeforeCompleted": true,
+    "states": [
+      "created",
+      "preflight",
+      "running",
+      "blocked_with_reason",
+      "awaiting_handoff",
+      "final_validation",
+      "completed",
+      "completed_with_warnings",
+      "failed_final",
+      "stopping",
+      "stopped"
+    ]
+  },
+  "actorPermissions": {
+    "workspaceAttemptController": { "mayMutateAttemptState": true, "mayCreateRetryAttempt": true },
+    "planSupervisor": { "mayMutatePlanState": true, "mayReserveSchedulerSlots": true },
+    "executorActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "validationActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "gitRunner": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "leaseMonitor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "retryPolicy": { "mayMutateAttemptState": false, "mayCreateRetryAttempt": false, "maySuggestRetry": true },
+    "brainWorkers": { "mayMutateExecutionState": false, "mayEmitDiagnosis": true, "mayProposeAction": true },
+    "diagnostics": { "mayMutateExecutionState": false, "mayEmitEvidence": true }
+  },
+  "admissionGate": {
+    "required": true,
+    "allEntrypointsMustUseGate": true,
+    "coveredEntrypoints": [
+      "cli_plan_run",
+      "dashboard_run",
+      "api_plan_run",
+      "retry_endpoint",
+      "cleanup_rerun_endpoint",
+      "brain_worker_trigger",
+      "overnight_runner",
+      "proposal_executor"
+    ],
+    "rejectWhen": [
+      "postgres_unavailable_for_authoritative_runtime",
+      "json_runtime_fallback_detected",
+      "repair_mode_autonomous_execution_disabled",
+      "promotion_gates_missing",
+      "unsafe_parallelism_requested",
+      "execution_kernel_disabled",
+      "state_authority_not_single",
+      "brain_worker_direct_mutation_detected"
+    ]
+  },
+  "resourceCoordination": {
+    "nestedLocksForbidden": true,
+    "holdLockAcrossAwaitForbidden": true,
+    "stateLocks": { "scope": "attempt", "maxHoldMs": 1000 },
+    "planLock": { "scope": "plan", "maxHoldMs": 1000, "purpose": "slot_reservation_only" },
+    "gitRunner": { "mode": "queue", "repoMutationTimeoutMs": 60000, "lockBypassForbidden": true },
+    "validationLanes": { "heavy": { "maxConcurrent": 1 }, "targeted": { "maxConcurrent": 3 } },
+    "worktreeLeases": { "attemptScoped": true, "heartbeatRequired": true, "quarantineOnStale": true },
+    "stateStore": { "writesThroughControllerOnly": true, "transactionOrWriteQueueRequired": true }
+  },
+  "deadlineWatchdog": {
+    "required": true,
+    "intervalSeconds": 15,
+    "emitsEventsOnly": true,
+    "eventType": "deadline_exceeded",
+    "supervised": true,
+    "onWatchdogUnavailable": "block_new_execution_or_downgrade"
+  },
+  "handoffQueue": {
+    "required": true,
+    "createdByStates": ["handoff_required"],
+    "allowedActions": ["retry_requested", "close_failed", "manual_resolution", "followup_plan_requested"],
+    "controllerMediatedRetryRequired": true
+  },
+  "legacyMigration": {
+    "enabled": true,
+    "strategy": "strangler_fig",
+    "phases": ["M0_shadow", "M1_compatibility_adapter", "M2_actor_conversion", "M3_enforcement", "M4_cleanup"],
+    "dualAuthorityForbidden": true,
+    "legacyWritesEmitAuditEvents": true,
+    "legacyMechanismFieldsAreHints": true
   },
   "repairMode": {
     "selectedMode": "manual_1",
@@ -796,7 +1423,7 @@ Hard stop execution only for:
       "priorityStrategy": "manual_order"
     },
     "stateBackend": "postgres",
-    "jsonFallbackEnabled": true,
+    "jsonFallbackEnabled": false,
     "dashboardEnabled": true,
     "autoCommit": false,
     "autoPush": false,
@@ -1139,7 +1766,28 @@ Hard stop execution only for:
       "repair_workspace_missing_rollback",
       "repair_workspace_missing_targeted_validation",
       "dogfood_required_but_missing",
-      "promotion_gate_failed_or_missing"
+      "promotion_gate_failed_or_missing",
+      "direct_attempt_state_mutation_detected",
+      "executor_mutates_attempt_state",
+      "validation_actor_mutates_attempt_state",
+      "retry_created_before_previous_attempt_terminal",
+      "brain_worker_mutates_execution_state",
+      "diagnostics_mutates_execution_state",
+      "cleanup_mutates_attempt_state_directly",
+      "state_transition_outside_controller",
+      "non_terminal_state_without_deadline",
+      "deadline_watchdog_unavailable",
+      "lock_held_across_external_await",
+      "nested_resource_lock_detected",
+      "execution_entrypoint_bypasses_admission_gate",
+      "attempt_without_event_journal",
+      "attempt_without_owner_controller",
+      "postgres_unavailable_for_authoritative_runtime",
+      "json_runtime_fallback_detected",
+      "dual_authoritative_state_detected",
+      "attempt_event_written_outside_transaction",
+      "transition_without_expected_version",
+      "handoff_required_without_queue_item"
     ],
     "forbiddenCommands": [
       "git push",
@@ -1409,6 +2057,46 @@ Hard stop execution only for:
 - **`planExecution`**: Defines execution behavior, scale mode, state backend, dashboard behavior, and safety primitives.
 
 ---
+
+
+### v4 ExecutionKernel Metadata Fields
+
+- **`templateVersion`**: The template family version. For this flagship template, MUST be `"4.0.0"`.
+- **`legacyCompatibility`**: Declares how the v4 plan preserves the v3 envelope. This exists so old parsers can still recognize the plan shape while new validators enforce v4 semantics.
+- **`intent`**: Human-authored desired execution behavior. It contains `parallelism`, `safetyLevel`, `conflictRisk`, `deadlines`, and `executionEnvironment`. Authors SHOULD prefer intent over low-level mechanism flags.
+- **`derivedExecutionProfile`**: System-generated read-only explanation of required mechanisms. It MUST NOT be treated as human-authored authority unless generated by the trusted deriver.
+- **`persistence`**: Defines authoritative runtime state backend. Production v4 execution MUST use PostgreSQL and MUST NOT use JSON runtime fallback as authoritative state.
+- **`executionKernel`**: Enables and configures the v4 single-authority execution kernel. This is a runtime law area, not an optional convenience area.
+- **`attemptLifecycle`**: Defines attempt terminal and non-terminal states, retryable terminal states, and deadline requirements.
+- **`planLifecycle`**: Defines plan-level lifecycle and completion predicate requirements.
+- **`actorPermissions`**: Documents which runtime roles may mutate state. Implementations MUST enforce this through module boundaries, StateAuthority token checks, and tests.
+- **`admissionGate`**: Lists execution entrypoints that must pass admission before execution begins or retries are created.
+- **`resourceCoordination`**: Defines queue, lease, semaphore, and lock policy. It forbids nested locks and locks held across external awaits.
+- **`deadlineWatchdog`**: Defines the supervised process that emits deadline events for expired non-terminal attempts.
+- **`handoffQueue`**: Defines durable human/controller handoff workflow for `HANDOFF_REQUIRED` attempts.
+- **`legacyMigration`**: Defines safe migration from old multi-writer runtime paths to ExecutionKernel authority.
+
+### v4 Intent Fields
+
+- **`intent.parallelism`**: Desired concurrent workspace count. This is intent, not a guarantee. The deriver and admission gate may reduce it.
+- **`intent.safetyLevel`**: One of `"relaxed"`, `"normal"`, or `"strict"`. `strict` enables stronger derived mechanisms and stricter admission.
+- **`intent.conflictRisk`**: One of `"none"`, `"low"`, `"medium"`, or `"high"`. Higher risk derives stronger worktree, integration, and drift policies.
+- **`intent.executionEnvironment.mode`**: One of `"trusted_local"`, `"local_sandbox"`, or `"cloud_sandbox"`.
+- **`intent.deadlines`**: Human-readable deadline intent. Runtime may clamp deadlines according to safety policy.
+
+### v4 Persistence Fields
+
+- **`persistence.authoritativeBackend`**: MUST be `"postgres"` for production v4 execution.
+- **`persistence.jsonRuntimeFallbackAllowed`**: MUST be `false` for production v4 execution.
+- **`persistence.eventJournalBackend`**: MUST be `"postgres"` for authoritative replay.
+- **`persistence.rawLogsBackend`**: MAY be filesystem or object storage. Raw logs are evidence only.
+- **`persistence.artifactIndexBackend`**: SHOULD be PostgreSQL so raw evidence is discoverable and integrity-checkable.
+
+### v4 Migration Fields
+
+- **`legacyMigration.strategy`**: Usually `"strangler_fig"`.
+- **`legacyMigration.dualAuthorityForbidden`**: MUST be `true`. Old writers and the new controller must never independently write authoritative state at the same time.
+- **`legacyMigration.legacyMechanismFieldsAreHints`**: If `true`, v3 mechanism fields are normalized into v4 intent and derived profile; they are not final runtime authority.
 
 ### Plan Execution Parallelism Fields
 
@@ -1816,6 +2504,166 @@ For v2.x backward compatibility:
 9. Execution gate.
 
 ---
+
+
+# Part 3.5 — v4 Derivation Matrix and Compatibility Rules
+
+This part is included in the flagship template so validator authors, agents, and human maintainers do not invent different derivation semantics.
+
+## 3.5.1 Derivation Inputs
+
+The deriver consumes only stable intent and environment fields:
+
+```json
+{
+  "parallelism": 6,
+  "safetyLevel": "strict",
+  "conflictRisk": "high",
+  "executionEnvironment": { "mode": "local_sandbox" },
+  "deadlines": {}
+}
+```
+
+It may read workspace metadata such as allowed files, conflict scopes, target commands, and dependencies, but humans should not be required to manually toggle low-level mechanism booleans.
+
+## 3.5.2 Parallelism Derivation Table
+
+| Intent | Derived policy |
+|---|---|
+| `parallelism = 1` | Worktree optional unless `safetyLevel=strict` or `conflictRisk>=medium`; integration queue optional unless strict; GitRunner queue still required for repo mutations; ExecutionKernel still required. |
+| `parallelism = 2-3` | Worktree required if `conflictRisk>=medium` or strict; integration queue required if worktree required; validation lanes required; GitRunner queue required. |
+| `parallelism = 4-6` | Worktree required; integration queue required; validation lanes required; heavy validation max 1; targeted validation max 3; GitRunner queue required; event journal required; strict admission required. |
+| `parallelism = 7-8` | Requires explicit scale_8 approval, prior stable_6 stress pass, worktree, integration queue, validation lanes, GitRunner queue, event journal, and explicit human approval. |
+
+## 3.5.3 Safety Level Derivation Table
+
+| Safety level | Derived behavior |
+|---|---|
+| `relaxed` | Allowed only for trusted local, low-risk, non-repair execution with parallelism <= 1. ExecutionKernel invariants still apply. |
+| `normal` | Default deadlines, standard admission, PostgreSQL authority, event journal, validation lanes when parallelism/risk requires them. |
+| `strict` | Strict AdmissionGate, event journal required, attempt-scoped artifacts, integration queue for mutations, handoff on ambiguity, JSON fallback forbidden, watchdog required. |
+
+## 3.5.4 Conflict Risk Derivation Table
+
+| Conflict risk | Derived behavior |
+|---|---|
+| `none` | Worktree may be optional for parallelism <= 3; integration queue may be optional for parallelism = 1; GitRunner still serializes repo mutations. |
+| `low` | Worktree recommended for parallelism >= 2; integration queue required for parallelism >= 4. |
+| `medium` | Worktree required for parallelism >= 2; integration queue required; writeSet drift detection required. |
+| `high` | Worktree required; integration queue required; writeSet drift block/handoff required; same-file parallelism forbidden. |
+
+## 3.5.5 Execution Environment Derivation Table
+
+| Mode | Required behavior |
+|---|---|
+| `trusted_local` | Local developer-owned execution; sandbox warnings emitted; untrusted code not safe; host network may be used; secrets still forbidden by file/env policy. |
+| `local_sandbox` | CPU/memory/pid/disk quota required; env allowlist required; worktree scoped mount required; process group kill required; network policy required. |
+| `cloud_sandbox` | All local_sandbox requirements plus ephemeral credentials, egress firewall, per-attempt container/VM, artifact upload, and stronger audit. |
+
+## 3.5.6 Legacy v3 Normalization
+
+Legacy v3 fields are normalized as follows:
+
+| v3 field | v4 interpretation |
+|---|---|
+| `planExecution.maxParallelWorkspaces` | maps to `intent.parallelism` unless explicit v4 intent exists |
+| `scale.selectedMode` | maps to `intent.parallelism` and safety hints |
+| `worktreeRequired` | compatibility hint, not final authority |
+| `integrationQueueRequired` | compatibility hint, not final authority |
+| `validationLockRequired` | compatibility hint, replaced by validation lanes |
+| `completionGateRequired` | compatibility hint, replaced by PlanSupervisor completion predicate |
+| `jsonFallbackEnabled` | if true in production, v4 admission rejects execution |
+
+## 3.5.7 Legacy Validator Modes
+
+Three modes are allowed during transition:
+
+1. **Pure v3 read-only mode**: old parser reads v3 fields but cannot authorize v4 execution.
+2. **v3 envelope + v4 extension mode**: old fields remain; v4 validator enforces new fields.
+3. **Pure v4 mode**: future mode after all validators understand v4 natively.
+
+A legacy validator MUST NOT silently authorize production execution of a v4 plan while ignoring v4 hard stops.
+
+## 3.5.8 v4 Production Hard Stops
+
+Additional v4 hard stops:
+
+```text
+direct_attempt_state_mutation_detected
+executor_mutates_attempt_state
+validation_actor_mutates_attempt_state
+retry_created_before_previous_attempt_terminal
+brain_worker_mutates_execution_state
+diagnostics_mutates_execution_state
+cleanup_mutates_attempt_state_directly
+state_transition_outside_controller
+non_terminal_state_without_deadline
+deadline_watchdog_unavailable
+lock_held_across_external_await
+nested_resource_lock_detected
+execution_entrypoint_bypasses_admission_gate
+attempt_without_event_journal
+attempt_without_owner_controller
+postgres_unavailable_for_authoritative_runtime
+json_runtime_fallback_detected
+dual_authoritative_state_detected
+attempt_event_written_outside_transaction
+transition_without_expected_version
+handoff_required_without_queue_item
+```
+
+# Part 3.6 — v4 PostgreSQL Runtime Shape
+
+This section is informative but recommended for implementations.
+
+Minimum authoritative tables:
+
+```text
+plans
+plan_executions
+workspaces
+attempts
+attempt_events
+attempt_transitions
+controller_leases
+controller_inbox
+worktree_leases
+validation_runs
+git_operations
+integration_queue
+handoff_queue
+promotion_gates
+derived_profiles
+admission_decisions
+brain_proposals
+diagnostic_packets
+artifacts
+```
+
+Transaction rule:
+
+```text
+BEGIN
+  INSERT attempt_event
+  UPDATE attempts WHERE version = expectedVersion
+  INSERT attempt_transition
+COMMIT
+```
+
+If the update affects zero rows, the transition failed due to version conflict and must be rejected or retried by the controller with a fresh read.
+
+# Part 3.7 — v4 Agent Patch Authoring Rules
+
+For execution-capable coding agents using this template:
+
+- The agent may edit repository files only if the execution policy explicitly allows it.
+- The agent may run scoped validation only if allowed by the active execution mode.
+- The agent must not start Pi autonomous plan execution unless admission and promotion gates allow it.
+- The agent must not broaden a patch beyond the current workspace.
+- The agent must not stage or commit unrelated worktree changes.
+- The agent must report files changed, validation output, rollback notes, and invariant checklist.
+- The agent must prefer small commits over large cross-cutting rewrites.
+- If pre-commit fails, the agent must fix only files in scope or report the exact blocker.
 
 # Part 4 — Machine-Readable Summary
 

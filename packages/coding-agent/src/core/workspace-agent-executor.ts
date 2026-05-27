@@ -86,8 +86,16 @@ interface ExecutionContext {
 	timeoutHandle: ReturnType<typeof setTimeout>;
 	/** LLM idle timeout handle */
 	llmIdleHandle: ReturnType<typeof setTimeout> | null;
+	/** Time waiting for the first agent event after prompt dispatch. */
+	firstEventHandle: ReturnType<typeof setTimeout> | null;
 	/** Timestamp of last LLM event */
 	lastLLMEventTime: number;
+	/** Whether any agent event has been observed for this execution. */
+	firstAgentEventSeen: boolean;
+	/** When session.prompt() dispatch started. */
+	promptDispatchStartedAt: number | null;
+	/** When session.prompt() resolved. */
+	promptDispatchResolvedAt: number | null;
 	/** Worktree executor scoped to this execution */
 	worktreeExecutor: WorktreeWorkspaceExecutor | null;
 }
@@ -136,6 +144,11 @@ export class WorkspaceAgentExecutor {
 	 * LLM streaming idle timeout in milliseconds.
 	 */
 	private readonly llmStreamIdleTimeoutMs: number = 5 * 60 * 1000;
+
+	/**
+	 * Maximum time to wait for the first agent event after prompt dispatch.
+	 */
+	private readonly firstAgentEventTimeoutMs: number = 30 * 1000;
 
 	/** P26.C: Current execution context — null when not executing. */
 	private currentContext: ExecutionContext | null = null;
@@ -413,7 +426,11 @@ export class WorkspaceAgentExecutor {
 			abortController,
 			timeoutHandle,
 			llmIdleHandle: null,
+			firstEventHandle: null,
 			lastLLMEventTime: 0,
+			firstAgentEventSeen: false,
+			promptDispatchStartedAt: null,
+			promptDispatchResolvedAt: null,
 			worktreeExecutor: null,
 		};
 		this.currentContext = ctx;
@@ -466,6 +483,12 @@ export class WorkspaceAgentExecutor {
 			// P26.C: Clear context and timeout on completion
 			this.currentContext = null;
 			clearTimeout(ctx.timeoutHandle);
+			if (ctx.llmIdleHandle) {
+				clearTimeout(ctx.llmIdleHandle);
+			}
+			if (ctx.firstEventHandle) {
+				clearTimeout(ctx.firstEventHandle);
+			}
 		}
 	}
 
@@ -611,6 +634,59 @@ export class WorkspaceAgentExecutor {
 				}
 			};
 
+			const emitDiagnosticStatus = (status: string, message: string) => {
+				emitStatus(status, message);
+				void this.actorEventSink?.emit({
+					type: "workspace_running",
+					timestamp: Date.now(),
+					payload: { workspaceId, message: `${status}: ${message}` },
+				});
+			};
+
+			const clearFirstEventWatchdog = () => {
+				if (ctx.firstEventHandle) {
+					clearTimeout(ctx.firstEventHandle);
+					ctx.firstEventHandle = null;
+				}
+			};
+
+			const markAgentEventSeen = (eventType: AgentSessionEvent["type"]) => {
+				if (!ctx.firstAgentEventSeen) {
+					ctx.firstAgentEventSeen = true;
+					clearFirstEventWatchdog();
+					const latencyMs = ctx.promptDispatchStartedAt ? Date.now() - ctx.promptDispatchStartedAt : 0;
+					void log(`First agent event observed: ${eventType}${latencyMs > 0 ? ` after ${latencyMs}ms` : ""}`);
+					emitDiagnosticStatus(
+						"thinking",
+						`First agent event: ${eventType}${latencyMs > 0 ? ` after ${latencyMs}ms` : ""}`,
+					);
+				}
+			};
+
+			const startFirstEventWatchdog = () => {
+				clearFirstEventWatchdog();
+				ctx.firstEventHandle = setTimeout(() => {
+					const elapsed = ctx.promptDispatchStartedAt ? Date.now() - ctx.promptDispatchStartedAt : 0;
+					const warnMsg =
+						`No agent events received within ${this.firstAgentEventTimeoutMs}ms after prompt dispatch` +
+						`${elapsed > 0 ? ` (elapsed ${elapsed}ms)` : ""} for workspace ${workspaceId}`;
+					void this.actorEventSink?.emit({
+						type: "workspace_running",
+						timestamp: Date.now(),
+						payload: { workspaceId, message: `stalled_waiting_for_first_event: ${warnMsg}` },
+					});
+					emitDiagnosticStatus("executing", `stalled_waiting_for_first_event — ${warnMsg}`);
+					console.error(`[workspace-agent-executor] ${warnMsg}`);
+					if (ctx.logPath && logs.length > 0) {
+						fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8").catch(() => {});
+					}
+					if (!ctx.abortController.signal.aborted) {
+						ctx.abortController.abort();
+					}
+				}, this.firstAgentEventTimeoutMs);
+				ctx.firstEventHandle.unref();
+			};
+
 			// LLM stream idle watchdog: reset on every agent event
 			const resetIdleWatchdog = () => {
 				ctx.lastLLMEventTime = Date.now();
@@ -625,9 +701,8 @@ export class WorkspaceAgentExecutor {
 						payload: { workspaceId, idleMs: elapsed, timeoutMs: this.llmStreamIdleTimeoutMs },
 					});
 					const warnMsg = `LLM stream idle for ${Math.round(elapsed / 1000)}s — aborting workspace ${workspaceId} to trigger retry`;
-					log(`WARNING: ${warnMsg}`);
+					emitDiagnosticStatus("executing", `llm_timeout — ${warnMsg}`);
 					console.error(`[workspace-agent-executor] ${warnMsg}`);
-					// Flush logs before aborting
 					if (ctx.logPath && logs.length > 0) {
 						fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8").catch(() => {});
 					}
@@ -640,6 +715,7 @@ export class WorkspaceAgentExecutor {
 
 			const completionPromise = new Promise<void>((resolve) => {
 				const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+					markAgentEventSeen(event.type);
 					// Reset idle watchdog on every agent event (any event = stream is alive)
 					resetIdleWatchdog();
 
@@ -789,6 +865,7 @@ export class WorkspaceAgentExecutor {
 				// P4.6.3: If abort signal fires before agent completes, abort the agent session
 				if (abortSignal.aborted) {
 					_agentCompleted = true;
+					clearFirstEventWatchdog();
 					unsubscribe();
 					session.agent.abort();
 					resolve();
@@ -798,6 +875,7 @@ export class WorkspaceAgentExecutor {
 					"abort",
 					() => {
 						_agentCompleted = true;
+						clearFirstEventWatchdog();
 						unsubscribe();
 						session.agent.abort();
 						if (ctx.llmIdleHandle) {
@@ -815,6 +893,8 @@ export class WorkspaceAgentExecutor {
 
 			// Run the agent with the prompt
 			log("Starting agent execution...");
+			ctx.promptDispatchStartedAt = Date.now();
+			startFirstEventWatchdog();
 			await this.actorEventSink?.emit({
 				type: "workspace_started",
 				timestamp: Date.now(),
@@ -829,7 +909,10 @@ export class WorkspaceAgentExecutor {
 			}
 
 			await session.prompt(prompt);
-			log("Agent prompt sent, waiting for completion...");
+			ctx.promptDispatchResolvedAt = Date.now();
+			log(
+				`Agent prompt returned after ${ctx.promptDispatchStartedAt ? ctx.promptDispatchResolvedAt - ctx.promptDispatchStartedAt : 0}ms, waiting for completion...`,
+			);
 
 			// Wait for agent to fully complete (all turns, tool calls, and final response)
 			await completionPromise;
@@ -989,6 +1072,9 @@ export class WorkspaceAgentExecutor {
 			// Generate report from session
 			const report = this.generateReport(session, finalVerdict);
 			log(`Execution completed with verdict: ${finalVerdict}`);
+			log(
+				`Execution diagnostics: firstAgentEventSeen=${ctx.firstAgentEventSeen}, promptDispatchStartedAt=${ctx.promptDispatchStartedAt ?? "n/a"}, promptDispatchResolvedAt=${ctx.promptDispatchResolvedAt ?? "n/a"}, lastLLMEventTime=${ctx.lastLLMEventTime || "n/a"}`,
+			);
 
 			// Flush buffered output to disk before returning, even on abort.
 			// This ensures partial work artifacts are not lost on cancellation.
@@ -998,12 +1084,17 @@ export class WorkspaceAgentExecutor {
 
 			// P4.6.3: Check if aborted mid-execution
 			if (ctx.abortController.signal.aborted) {
-				log("Execution aborted during finalization");
+				const abortReason = !ctx.firstAgentEventSeen
+					? "Execution aborted while waiting for first agent event"
+					: ctx.promptDispatchResolvedAt === null
+						? "Execution aborted while prompt dispatch was still in progress"
+						: "Execution aborted during finalization";
+				log(abortReason);
 				return {
 					success: false,
 					verdict: "FAILED",
-					report: "Execution aborted by user",
-					error: "Execution aborted by user",
+					report: abortReason,
+					error: abortReason,
 					logs,
 				};
 			}
@@ -1027,13 +1118,21 @@ export class WorkspaceAgentExecutor {
 				(error.message === "aborted" ||
 					error.message.includes("abort") ||
 					(ctx.abortController.signal.aborted ?? false));
+			const abortPhase = !ctx.firstAgentEventSeen
+				? "before_first_agent_event"
+				: ctx.promptDispatchResolvedAt === null
+					? "during_prompt_dispatch"
+					: "after_prompt_dispatch";
 			const errorMessage = isAborted
-				? "Execution aborted by user"
+				? `Execution aborted (${abortPhase})`
 				: error instanceof Error
 					? error.message
 					: String(error);
 
 			log(`Execution ${isAborted ? "aborted" : "failed"}: ${errorMessage}`);
+			log(
+				`Failure diagnostics: firstAgentEventSeen=${ctx.firstAgentEventSeen}, promptDispatchStartedAt=${ctx.promptDispatchStartedAt ?? "n/a"}, promptDispatchResolvedAt=${ctx.promptDispatchResolvedAt ?? "n/a"}, lastLLMEventTime=${ctx.lastLLMEventTime || "n/a"}`,
+			);
 
 			// P26.J: Increment circuit breaker on execution failure (not abort)
 			if (!isAborted) {

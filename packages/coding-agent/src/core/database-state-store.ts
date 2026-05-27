@@ -426,14 +426,20 @@ export class DatabaseStateStore implements IStateStore {
 		const entry = this.getWsEntry(planExecutionId, workspaceId);
 
 		await this.workspaceExecutionRepo.incrementAttempts(entry.id);
-		entry.attempts++;
+		const newAttempt = entry.attempts + 1;
+		entry.attempts = newAttempt;
 
-		await this.appendJournal(planExecutionId, {
-			type: "retry_attempt",
-			timestamp: Date.now(),
-			workspaceId,
-			data: { attempt: entry.attempts },
-		});
+		// Only emit retry_attempt for actual retries (attempt > 1 in 1-based).
+		// Attempt 1 is the initial execution, not a retry.
+		// See Finding 3 in P25 audit.
+		if (newAttempt > 1) {
+			await this.appendJournal(planExecutionId, {
+				type: "retry_attempt",
+				timestamp: Date.now(),
+				workspaceId,
+				data: { attempt: newAttempt },
+			});
+		}
 	}
 
 	// =========================================================================

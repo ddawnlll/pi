@@ -1,3 +1,8 @@
+import {
+	type ExecutionIntent,
+	deriveExecutionProfile as kernelDerive,
+} from "../execution-kernel/execution-profile-deriver.js";
+import { normalizeLegacyPlanToIntent as kernelNormalize } from "../execution-kernel/legacy-normalizer.js";
 import type { PlanExecutionConfig, WorkspaceQueue } from "./workspace-schema.js";
 
 export type IntentSafetyLevel = "relaxed" | "normal" | "strict";
@@ -12,6 +17,17 @@ export interface IntentV4 {
 	deadlines: Record<string, unknown>;
 }
 
+/**
+ * DerivedExecutionProfile for stored plan data (WorkspaceQueue).
+ *
+ * This type is backward-compatible with stored plan files. For the canonical
+ * derivation logic and the authoritative DerivedExecutionProfile used by the
+ * ExecutionKernel, see execution-kernel/execution-profile-deriver.ts.
+ *
+ * Derivation LOGIC is unified: deriveExecutionProfile below delegates to the
+ * kernel deriver. These core types remain separate only to preserve backward
+ * compat with serialized plan data.
+ */
 export interface DerivedExecutionProfile {
 	worktreeRequired: boolean;
 	integrationQueueRequired: boolean;
@@ -33,96 +49,39 @@ export interface LegacyNormalizationResult {
 	warnings: string[];
 }
 
+/**
+ * Derive an execution profile from v4 intent.
+ *
+ * Delegates to the kernel's authoritative deriveExecutionProfile, then
+ * adapts the result to the backward-compatible core DerivedExecutionProfile
+ * type. This ensures there is exactly ONE derivation logic path.
+ */
 export function deriveExecutionProfile(intent: IntentV4): DerivedExecutionProfile {
-	const explanations: string[] = [];
-	const profile: DerivedExecutionProfile = {
-		worktreeRequired: false,
-		integrationQueueRequired: false,
-		validationLaneRequired: true,
-		gitRunnerQueueRequired: true,
-		eventJournalRequired: false,
-		writeSetDriftDetectionRequired: false,
-		writeSetDriftBlockOnConflict: false,
-		admissionGateMode: intent.safetyLevel === "strict" ? "strict" : "normal",
-		explicitApprovalRequired: false,
-		sandboxRequirements: [],
-		explanations,
+	const kernelIntent: ExecutionIntent = {
+		parallelism: intent.parallelism,
+		safetyLevel: intent.safetyLevel,
+		conflictRisk: intent.conflictRisk,
+		executionEnvironment: intent.executionEnvironment,
+		deadlines:
+			Object.keys(intent.deadlines ?? {}).length > 0 ? (intent.deadlines as Record<string, number>) : undefined,
 	};
-
-	if (intent.parallelism < 1 || intent.parallelism > 8) {
-		throw new Error(`intent.parallelism must be between 1 and 8, got ${intent.parallelism}`);
-	}
-	if (intent.safetyLevel === "relaxed" && intent.parallelism > 1) {
-		throw new Error("relaxed safetyLevel is only allowed for parallelism <= 1");
-	}
-
-	if (intent.parallelism === 1) {
-		profile.worktreeRequired = intent.safetyLevel === "strict" || ["medium", "high"].includes(intent.conflictRisk);
-		profile.integrationQueueRequired = intent.safetyLevel === "strict";
-		explanations.push("parallelism=1 enables minimal coordination defaults");
-	} else if (intent.parallelism <= 3) {
-		profile.worktreeRequired = ["medium", "high"].includes(intent.conflictRisk) || intent.safetyLevel === "strict";
-		profile.integrationQueueRequired = profile.worktreeRequired;
-		explanations.push("parallelism=2-3 derives conditional worktree/integration requirements");
-	} else if (intent.parallelism <= 6) {
-		profile.worktreeRequired = true;
-		profile.integrationQueueRequired = true;
-		profile.eventJournalRequired = true;
-		profile.heavyValidationMax = 1;
-		profile.targetedValidationMax = 3;
-		profile.admissionGateMode = "strict";
-		explanations.push("parallelism=4-6 requires strict execution controls");
-	} else {
-		profile.worktreeRequired = true;
-		profile.integrationQueueRequired = true;
-		profile.eventJournalRequired = true;
-		profile.explicitApprovalRequired = true;
-		profile.admissionGateMode = "strict";
-		explanations.push("parallelism=7-8 requires explicit approval and stress readiness");
-	}
-
-	if (intent.safetyLevel === "strict") {
-		profile.eventJournalRequired = true;
-		profile.integrationQueueRequired = true;
-		explanations.push("strict safety level forces event journal and integration queue");
-	}
-
-	if (intent.conflictRisk === "medium") {
-		profile.worktreeRequired = intent.parallelism >= 2 || profile.worktreeRequired;
-		profile.integrationQueueRequired = true;
-		profile.writeSetDriftDetectionRequired = true;
-		explanations.push("medium conflict risk enables drift detection");
-	}
-	if (intent.conflictRisk === "high") {
-		profile.worktreeRequired = true;
-		profile.integrationQueueRequired = true;
-		profile.writeSetDriftDetectionRequired = true;
-		profile.writeSetDriftBlockOnConflict = true;
-		explanations.push("high conflict risk requires blocking drift behavior");
-	}
-
-	if (intent.executionEnvironment.mode === "trusted_local") {
-		profile.sandboxRequirements.push("process_group_kill_required");
-	} else if (intent.executionEnvironment.mode === "local_sandbox") {
-		profile.sandboxRequirements.push(
-			"cpu_memory_disk_pid_quotas_required",
-			"network_policy_required",
-			"env_allowlist_required",
-			"worktree_scoped_mount_required",
-		);
-	} else {
-		profile.sandboxRequirements.push(
-			"cpu_memory_disk_pid_quotas_required",
-			"network_policy_required",
-			"env_allowlist_required",
-			"worktree_scoped_mount_required",
-			"egress_firewall_required",
-			"ephemeral_credentials_required",
-			"per_attempt_container_vm_required",
-		);
-	}
-
-	return profile;
+	const kernelProfile = kernelDerive(kernelIntent);
+	// Adapt kernel profile (canonical) to core profile (backward-compat)
+	return {
+		worktreeRequired: kernelProfile.worktreeRequired,
+		integrationQueueRequired: kernelProfile.integrationQueueRequired,
+		validationLaneRequired: kernelProfile.validationLanesRequired,
+		gitRunnerQueueRequired: kernelProfile.gitRunnerQueueRequired,
+		eventJournalRequired: kernelProfile.eventJournalRequired,
+		writeSetDriftDetectionRequired: kernelProfile.writeSetDriftDetectionRequired,
+		writeSetDriftBlockOnConflict: kernelProfile.writeSetDriftBlockOnConflict,
+		heavyValidationMax: kernelProfile.heavyValidationMax,
+		targetedValidationMax: kernelProfile.targetedValidationMax,
+		admissionGateMode: kernelProfile.admissionGateMode,
+		explicitApprovalRequired: kernelProfile.explicitApprovalRequired,
+		sandboxRequirements: kernelProfile.sandboxRequirements,
+		explanations: kernelProfile.explanations,
+	};
 }
 
 export function normalizeLegacyPlanToIntentV4(input: {
@@ -132,26 +91,23 @@ export function normalizeLegacyPlanToIntentV4(input: {
 	integrationQueueRequired?: boolean;
 	validationLockRequired?: boolean;
 }): LegacyNormalizationResult {
-	const warnings: string[] = [];
-	const parallelism =
-		input.maxParallelWorkspaces ?? (input.planExecution?.scale?.selectedMode === "experimental_6" ? 6 : 3);
-	const safetyLevel: IntentSafetyLevel =
-		input.planExecution?.scale?.selectedMode === "experimental_6" ? "strict" : "normal";
-	const conflictRisk: IntentConflictRisk = input.worktreeRequired || input.integrationQueueRequired ? "medium" : "low";
-	if (input.worktreeRequired !== undefined) warnings.push("worktreeRequired is deprecated and treated as a hint only");
-	if (input.integrationQueueRequired !== undefined)
-		warnings.push("integrationQueueRequired is deprecated and treated as a hint only");
-	if (input.validationLockRequired !== undefined)
-		warnings.push("validationLockRequired is deprecated and treated as a hint only");
+	const kernelInput = {
+		maxParallelWorkspaces: input.maxParallelWorkspaces,
+		scale: input.planExecution?.scale ? { selectedMode: input.planExecution.scale.selectedMode } : undefined,
+		worktreeRequired: input.worktreeRequired,
+		integrationQueueRequired: input.integrationQueueRequired,
+		validationLockRequired: input.validationLockRequired,
+	};
+	const kernelResult = kernelNormalize(kernelInput);
 	return {
 		intent: {
-			parallelism,
-			safetyLevel,
-			conflictRisk,
-			executionEnvironment: { mode: "trusted_local" },
-			deadlines: {},
+			parallelism: kernelResult.intent.parallelism,
+			safetyLevel: kernelResult.intent.safetyLevel,
+			conflictRisk: kernelResult.intent.conflictRisk,
+			executionEnvironment: kernelResult.intent.executionEnvironment,
+			deadlines: (kernelResult.intent.deadlines ?? {}) as Record<string, unknown>,
 		},
-		warnings,
+		warnings: kernelResult.warnings.map((w) => w.message),
 	};
 }
 

@@ -3,9 +3,19 @@ import type { AttemptEventType } from "./types.js";
 
 /**
  * Legacy write adapter mode.
- * - `observe`: Execute the legacy write and emit a shadow event (default)
+ *
+ * @deprecated Since TransitionRouter now routes all lifecycle mutations through
+ *   WorkspaceAttemptController (execution-kernel/transition-router.ts).
+ *   The AutonomousExecutor no longer performs direct state store writes —
+ *   all lifecycle transitions go through TransitionRouter.
+ *
+ *   This adapter is retained for:
+ *   - migration-path compatibility during the v3→v4 cutover
+ *   - debug/audit logging of any remaining direct state store writes
+ *
+ * - `observe`: Execute the legacy write and emit a shadow event (default, migration-only)
  * - `route`: Execute the legacy write, emit a shadow event, and route through kernel controller
- * - `enforce`: Reject the legacy write, requiring kernel controller instead (future)
+ * - `enforce`: Reject the legacy write, requiring kernel controller instead (not yet viable)
  */
 export type LegacyWriteMode = "observe" | "route" | "enforce";
 

@@ -1,0 +1,4944 @@
+# P25 — Local Production Observability & Brain Worker Swarm (v4 Flagship)
+
+**Version:** 4.0.0
+**Last updated:** 2026-05-27
+**Contract version:** 4.0.0
+**Template version:** 4.0.0
+**Execution class:** implementation
+**Total workspaces:** 21
+**Primary goal:** Make Pi locally stable, observable, self-debugging, idea-generating, and capable of routing work to specialized brain workers without runaway loops.
+
+**v4 migration:** Rewritten from v2.5.0 mechanism-heavy format to v4.0.0 intent-driven ExecutionKernel contract. Mechanism fields (worktree, integration queue, validation lanes, parallelism review, scale modes) are now derived from `intent.parallelism`, `intent.safetyLevel`, `intent.conflictRisk`, and `intent.executionEnvironment`. The ExecutionKernel is the sole authority for execution state; actors emit events only. See [llm-implementation-agent-master-template.md](llm-implementation-agent-master-template.md) for the canonical v4 template.
+
+**v1.1 carryover:** Each workspace has narrow `writeSet`, `allowedFiles`, and `canEdit` lists to prevent same-batch file conflicts. Batch 1 workspaces 25.A, 25.C, and 25.E have non-overlapping file ownership.
+
+---
+
+# Part 1 — Phase Plan
+
+## 0. TL;DR / Compact Mental Model
+
+**Phase:** P25
+**Title:** Local Production Observability & Brain Worker Swarm
+**One-line goal:** Pi can see itself, debug itself, generate better ideas, assign specialized brain workers, propose fixes, and prove the loop is stable locally.
+**Why now:** P24 makes Pi proactive as a daily driver. P25 makes that proactive system observable, debuggable, and locally stable enough to run every day.
+**Blast radius:** packages/coding-agent/, packages/web-server/, packages/web-ui/dashboard/, packages/db/, docs/, reports/.
+**Rollback path:** Disable the Brain Orchestrator Supervisor and worker pipelines behind local feature flags.
+**Execution class:** implementation
+**Execution automation:** enabled
+**Scale mode:** experimental_6
+**Safe parallelism target:** 3.5-4 average, 6 peak
+**Done when:** Pi passes the brain-worker swarm dogfood gauntlet and produces a final local stability report.
+
+---
+
+## 1. Header
+
+| Field | Value |
+|---|---|
+| Phase | `P25` |
+| Title | `Local Production Observability & Brain Worker Swarm` |
+| Status | `Planned` |
+| Last updated | `2026-05-27` |
+| Delivery status | `Not started` |
+| Target environment | `Local production / local daily-driver` |
+| Primary focus | `Observability, specialized brain workers, self-debugging, idea generation, loop prevention` |
+| Product-code changes | `Allowed` |
+| Execution class | `implementation` |
+| Execution automation | `enabled` |
+| Selected scale mode | `experimental_6` |
+| Requested max workers | `6` |
+| Expected DAG effective parallelism | `3.5` |
+| Expected safe effective parallelism | `3.67` |
+| Worktree isolation | `Required` |
+| Integration queue | `Required` |
+| ExecutionKernel authority | `Enabled` |
+| PostgreSQL authoritative state | `Required` |
+
+### 1.1 RACI
+
+| Workstream | R | A | C | I |
+|---|---|---|---|---|
+| Observability schema/store/UI | Implementing agent | Lead operator | User | Dashboard users |
+| Brain worker contracts and workers | Implementing agent | Lead operator | User | Pi brain modules |
+| Closed-loop debug/fix/idea pipelines | Implementing agent | Lead operator | User | Future phases |
+| Readiness doctor and dogfood | Implementing agent | Lead operator | User | Future operators |
+
+---
+
+## 2. Purpose
+
+P25 is the local production stability phase for Pi after P24. The target is not cloud deployment, enterprise security, or multi-user RBAC. The target is local autonomous operational intelligence: Pi should understand what is happening inside itself, diagnose failures, assign specialized brain workers, generate improvement ideas, propose fixes, synthesize executable plans, and prove that all of this can run safely without spam or infinite loops.
+
+P25 turns the existing cognitive OS and execution engine into an inspectable, workerized operations layer. The observer layer collects execution, scheduler, validation, queue, brain, overnight, proposal, reflection, and memory events. The worker layer routes those events to specialized workers. The closed-loop layer turns diagnostics and ideas into proposals and executable plans through normal approval and validation gates.
+
+The key product shift is from passive observability to active self-debugging. Pi should not merely display that a workspace failed. It should assemble a diagnostic packet, assign the Debugger Worker, produce a root-cause hypothesis, assign the Fix Strategist Worker, create a bounded fix proposal, and then route that proposal through existing plan/execution controls.
+
+All execution state is governed by the v4 ExecutionKernel. Actors emit events. The WorkspaceAttemptController mutates attempt state. The PlanSupervisor mutates plan state. Workers, diagnostics, and brain modules are read-only for execution state. This single-authority model prevents the silent stuck states and race conditions that plagued earlier multi-writer designs.
+
+---
+
+## 3. What Carried Over — Must Stay Stable
+
+The following ExecutionKernel invariants apply and cannot be overridden by this plan:
+
+- PostgreSQL is authoritative for structured runtime state; JSON runtime fallback is forbidden in production.
+- Actors emit events only; WorkspaceAttemptController is the only attempt state writer.
+- Every attempt transition requires `expectedVersion`; version conflicts are rejected and emitted as controller conflict events.
+- Retry requires a terminal previous attempt; retry during RUNNING is rejected.
+- Every non-terminal attempt state has a deadline enforced by DeadlineWatchdog.
+- HANDOFF_REQUIRED is terminal and creates a durable handoff queue item.
+- PlanSupervisor completion predicates gate plan completion; unresolved handoffs block COMPLETED.
+- AdmissionGate covers all execution entrypoints (CLI, dashboard, API, retry, brain triggers, proposal executors).
+- `git push` remains forbidden.
+- Raw destructive cleanup remains forbidden.
+- Watch-mode validation remains forbidden.
+- Brain memory, proposal, reflection, policy, audit, and overnight APIs remain backward-compatible.
+- Existing P24 daily intelligence surfaces must not regress.
+- P32 dogfood harness proves kernel invariants (stable_1 gate, stable_3 dogfood, stable_6 stress).
+- Brain workers and diagnostics are read-only/advisory for execution state — they may propose but never mutate.
+
+---
+
+## 4. Background / What Was Wrong
+
+After P24, Pi becomes proactive. It has morning digests, brain surfacing, notifications, inboxes, feedback loops, staleness detection, and daily-driver behavior. But a proactive local system needs operational self-awareness. Without P25, Pi can surface useful information but still struggle to answer deeper operational questions:
+
+- Why did this workspace fail?
+- Which subsystem owns the failure?
+- Did this happen before?
+- Which worker should investigate?
+- Is this fix safe?
+- Is this idea new or duplicate?
+- Did Pi just create a loop?
+- Can Pi recover after a local restart?
+- Can I trust the worker swarm to run overnight or daily?
+
+P25 closes that gap by creating a local observability substrate and a specialist worker swarm, all governed by the v4 ExecutionKernel's single-authority model.
+
+---
+
+## 5. Current Failure State / Known Blockers
+
+- `local_observability_event_schema` = not implemented as a single canonical layer.
+- `trace_correlation_across_brain_and_execution` = incomplete.
+- `brain_worker_contracts` = not implemented.
+- `worker_supervisor` = not implemented as a durable local job orchestrator.
+- `debugger_worker` = not implemented.
+- `fix_strategist_worker` = not implemented.
+- `idea_scout_worker` = not implemented.
+- `plan_synthesizer_worker` = not implemented as a specialist worker.
+- `worker_handoff_inbox` = not implemented.
+- `loop_prevention_for_worker_swarm` = not implemented.
+- `local_readiness_doctor_for_brain_workers` = not implemented.
+- `brain_worker_swarm_dogfood_gauntlet` = not implemented.
+
+---
+
+## 6. Risk Register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---:|---:|---|
+| Worker swarm creates repetitive proposals | medium | high | Dedupe windows, cooldowns, proposal scoring, loop-depth caps |
+| Self-fix loop modifies too much | medium | high | Approval gates, diagnostic packet requirement, bounded fix strategy, validation gates |
+| Observability volume gets noisy | medium | medium | Retention policy, severity levels, sampling, cockpit filtering |
+| Worker job stuck after crash | medium | high | Durable job leases, resume/quarantine behavior, readiness doctor check |
+| UI/API conflicts in dashboard workspaces | medium | medium | Worktree isolation, integration queue, conflict handoff |
+| Validation lock limits throughput | medium | medium | Continuous scheduling with safe refill; lock-aware validation |
+| Dogfood gauntlet becomes flaky | medium | medium | Deterministic fixtures and explicit scenario assertions |
+| Raw cleanup deletes wrong files | low | critical | Raw destructive cleanup forbidden; scoped cleanup only |
+| Forbidden files accessed by diagnostics | low | critical | Forbidden-file policies remain active |
+| Attempt state mutation by non-controller actor | low | critical | ExecutionKernel enforces StateAuthority token; hard stop on violation |
+
+---
+
+## 7. Workstreams
+
+### 25.A — Observability event schema, trace IDs, and correlation model
+
+**Type:** backend
+**Dependencies:** None
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Define the canonical local observability event envelope, trace IDs, correlation IDs, source taxonomy, severity levels, and cross-subsystem event metadata.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- All observability events are emitted through the actor event model, never mutating execution state directly.
+
+**Isolation & Parallelism Notes:**
+- Foundation workspace with no dependencies; runs in batch 1.
+- No file overlap with 25.C or 25.E; safe to run concurrently.
+- Worktree isolation required.
+
+### 25.C — Brain worker contracts, roles, manifests, and lifecycle states
+
+**Type:** backend
+**Dependencies:** None
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Define specialist brain worker roles, manifests, capabilities, job lifecycle states, input/output contracts, and worker result types.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Worker contracts specify that workers emit events and never mutate execution state directly.
+
+**Isolation & Parallelism Notes:**
+- Foundation workspace with no dependencies; runs in batch 1.
+- No file overlap with 25.A or 25.E; safe to run concurrently.
+- Worktree isolation required.
+
+### 25.E — Diagnostic packet and evidence model
+
+**Type:** backend
+**Dependencies:** None
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Create a structured diagnostic packet model for failures, traces, logs, test output, plan metadata, suspected subsystem, confidence, and evidence references.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Diagnostic packets are read-only artifacts consumed by workers; they never mutate attempt state.
+
+**Isolation & Parallelism Notes:**
+- Foundation workspace with no dependencies; runs in batch 1.
+- No file overlap with 25.A or 25.C; safe to run concurrently.
+- Worktree isolation required.
+
+### 25.B — Local telemetry store, retention, and query API
+
+**Type:** backend
+**Dependencies:** 25.A
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Persist local observability events with retention controls and expose query APIs for traces, health, subsystem activity, and recent incidents.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.A for schema and correlation model.
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.D — Brain Orchestrator Supervisor
+
+**Type:** backend
+**Dependencies:** 25.A, 25.C
+**Queue priority:** critical
+**Risk:** high
+
+**Goal:** Implement the local supervisor that routes jobs to specialist brain workers, manages leases, cooldowns, job states, health, retries, and audit events.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Supervisor operates through the handoff queue and actor event model; it never directly mutates attempt state.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.A and 25.C for observability events and worker contracts.
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.F — Execution engine collectors
+
+**Type:** backend
+**Dependencies:** 25.A, 25.E
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Collect execution engine, scheduler, validation, worktree, integration queue, worker, and cleanup events into the local observability stream.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Collectors hook into the existing event model; they never mutate execution state.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.A (schema) and 25.E (diagnostic packet model).
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.G — Brain, overnight, and proposal collectors
+
+**Type:** backend
+**Dependencies:** 25.A, 25.E
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Collect brain observations, memory changes, proposal activity, reflections, policy/audit signals, and overnight orchestrator events.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Collectors listen to existing brain event streams; they never mutate brain or execution state.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.A (schema) and 25.E (diagnostic packet model).
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.I — Debugger Worker
+
+**Type:** worker
+**Dependencies:** 25.C, 25.E
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that consumes diagnostic packets and emits root-cause hypotheses, evidence summaries, likely subsystem owner, confidence, and next actions.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Debugger Worker is read-only for execution state; it emits findings into the handoff inbox.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.C (worker contracts) and 25.E (diagnostic packet model).
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.K — Idea Scout Worker
+
+**Type:** worker
+**Dependencies:** 25.A, 25.C
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that scans reflections, repeated failures, user dismissals, stale work, and activity trends to propose new improvement ideas.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Idea Scout Worker is read-only for execution state; it emits proposals into the handoff inbox.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.A (observability schema) and 25.C (worker contracts).
+- No file overlap with other batch 2 workspaces.
+- Worktree isolation required.
+
+### 25.H — Local Observability Cockpit UI
+
+**Type:** fullstack
+**Dependencies:** 25.B, 25.F, 25.G
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Add a local dashboard cockpit for traces, system health, worker activity, recent incidents, queue state, brain activity, and observability search.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Dashboard is read-only; it never mutates execution state directly.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.B (telemetry store), 25.F (execution collectors), 25.G (brain collectors).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.J — Fix Strategist Worker
+
+**Type:** worker
+**Dependencies:** 25.I
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that turns debugger hypotheses into bounded fix proposals with affected files, risk level, test plan, rollback, and workspace split suggestions.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Fix Strategist Worker produces proposals for the handoff inbox; it never directly applies fixes.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.I (debugger worker outputs).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.L — Regression Hunter Worker
+
+**Type:** worker
+**Dependencies:** 25.F, 25.I
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that clusters repeated test failures, flaky behavior, fragile files, retry loops, and recurring breakage patterns.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Regression Hunter Worker is read-only for execution state; it emits findings into the handoff inbox.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.F (execution collectors) and 25.I (debugger worker).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.M — Memory Curator Worker
+
+**Type:** worker
+**Dependencies:** 25.G, 25.K
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that reviews stale memories, duplicate memories, contradictory memories, and promotion/demotion candidates.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Memory Curator Worker is read-only; it proposes changes through the handoff inbox.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.G (brain collectors) and 25.K (idea scout).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.N — Plan Synthesizer Worker
+
+**Type:** worker
+**Dependencies:** 25.C, 25.K
+**Queue priority:** high
+**Risk:** medium
+
+**Goal:** Implement a specialist worker that turns approved improvement ideas into executable markdown plans with JSON contracts, DAGs, queue priorities, acceptance criteria, and rollback.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Plan Synthesizer produces plan drafts for human review; it never directly executes plans.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.C (worker contracts) and 25.K (idea scout outputs).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.O — Worker handoff inbox and triage router
+
+**Type:** fullstack
+**Dependencies:** 25.B, 25.D, 25.I, 25.K
+**Queue priority:** critical
+**Risk:** high
+
+**Goal:** Create a persistent local inbox for worker findings and a triage router that assigns diagnostics, ideas, memory issues, and regression signals to the correct worker.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Handoff inbox integrates with the v4 HandoffQueue; triage decisions are events, not state mutations.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.B (telemetry store), 25.D (supervisor), 25.I (debugger), 25.K (idea scout).
+- No file overlap with other batch 3 workspaces.
+- Worktree isolation required.
+
+### 25.P — Debug to fix proposal pipeline
+
+**Type:** backend
+**Dependencies:** 25.O, 25.J, 25.L
+**Queue priority:** critical
+**Risk:** high
+
+**Goal:** Connect observability failures to Debugger Worker, Fix Strategist Worker, proposal creation, approval gates, validation plans, and execution handoff.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Pipeline orchestrates through the actor event model; it never directly mutates attempt state.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.O (handoff inbox), 25.J (fix strategist), 25.L (regression hunter).
+- No file overlap with other batch 4 workspaces.
+- Worktree isolation required.
+
+### 25.Q — Idea to proposal to plan pipeline
+
+**Type:** backend
+**Dependencies:** 25.O, 25.N, 25.M
+**Queue priority:** high
+**Risk:** high
+
+**Goal:** Connect Idea Scout and Memory Curator outputs into proposal scoring, dedupe, approval, and Plan Synthesizer execution-plan generation.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Pipeline orchestrates through the actor event model; it never directly mutates execution state.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.O (handoff inbox), 25.N (plan synthesizer), 25.M (memory curator).
+- No file overlap with other batch 4 workspaces.
+- Worktree isolation required.
+
+### 25.R — Budgets, cooldowns, backoff, and loop prevention
+
+**Type:** backend
+**Dependencies:** 25.D, 25.O
+**Queue priority:** critical
+**Risk:** high
+
+**Goal:** Prevent runaway autonomous loops with per-worker budgets, daily caps, dedupe windows, cooldowns, backoff, recursion depth limits, and stop conditions.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Loop prevention operates as a policy actor that emits suggestions; it never directly stops workspaces.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.D (supervisor) and 25.O (handoff inbox).
+- No file overlap with other batch 4 workspaces.
+- Worktree isolation required.
+
+### 25.S — Worker crash recovery and job resumption
+
+**Type:** backend
+**Dependencies:** 25.B, 25.D, 25.O
+**Queue priority:** critical
+**Risk:** high
+
+**Goal:** Persist worker job leases and recover or quarantine in-flight worker jobs after local server restart, crash, or partial failure.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Recovery logic uses the v4 DeadlineWatchdog and HandoffQueue for quarantining stranded jobs.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.B (telemetry store), 25.D (supervisor), 25.O (handoff inbox).
+- No file overlap with other batch 4 workspaces.
+- Worktree isolation required.
+
+### 25.T — Local Production Readiness Doctor
+
+**Type:** fullstack
+**Dependencies:** 25.H, 25.P, 25.Q, 25.R, 25.S
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Create a doctor command and dashboard panel that verifies local observability, worker routing, recovery, loop prevention, proposal quality, and readiness to run every day.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Doctor performs read-only checks; it never mutates state.
+
+**Isolation & Parallelism Notes:**
+- Depends on all pipeline, runtime, and UI work (25.H, 25.P, 25.Q, 25.R, 25.S).
+- No file overlap; serialized batch 5.
+- Worktree isolation required.
+
+### 25.U — Brain Worker Swarm Dogfood and Final Stability Report
+
+**Type:** qa
+**Dependencies:** 25.T
+**Queue priority:** critical
+**Risk:** medium
+
+**Goal:** Run the local brain-worker gauntlet: failed workspace, stuck queue, bad proposal, duplicate idea, stale memory, worker crash, failed validation, successful self-fix, and successful idea-to-plan generation.
+
+**Acceptance criteria:**
+- Implements the workspace capability without breaking existing P6/P6.5/P11/P13-P20 behavior.
+- Emits or consumes traceable observability events where relevant.
+- Produces evidence-backed diagnostics, worker outputs, or UI states rather than silent failures.
+- Adds targeted tests or dogfood checks.
+- Respects local safety constraints: no `git push`, no raw destructive cleanup, no watch-mode validation.
+- Dogfood gauntlet exercises the full v4 ExecutionKernel event model and actor pipeline.
+
+**Isolation & Parallelism Notes:**
+- Depends on 25.T (readiness doctor).
+- No file overlap; serialized batch 6.
+- Worktree isolation required.
+
+---
+
+## 8. Combined Implementation Order
+
+```text
+Batch 1:
+  25.A  Observability event schema, trace IDs, correlation model
+  25.C  Brain worker contracts, manifests, lifecycle states
+  25.E  Diagnostic packet and evidence model
+
+Batch 2:
+  25.B  Local telemetry store, retention, query API
+  25.D  Brain Orchestrator Supervisor
+  25.F  Execution engine collectors
+  25.G  Brain / overnight / proposal collectors
+  25.I  Debugger Worker
+  25.K  Idea Scout Worker
+
+Batch 3:
+  25.H  Local Observability Cockpit UI
+  25.J  Fix Strategist Worker
+  25.L  Regression Hunter Worker
+  25.M  Memory Curator Worker
+  25.N  Plan Synthesizer Worker
+  25.O  Worker handoff inbox and triage router
+
+Batch 4:
+  25.P  Debug -> fix proposal pipeline
+  25.Q  Idea -> proposal -> plan pipeline
+  25.R  Budgets, cooldowns, backoff, loop prevention
+  25.S  Worker crash recovery and job resumption
+
+Batch 5:
+  25.T  Local Production Readiness Doctor
+
+Batch 6:
+  25.U  Brain Worker Swarm Dogfood + Final Stability Report
+```
+
+Continuous scheduling is enabled. These batches are DAG previews and review artifacts, not runtime barriers. The scheduler fills all six worktree slots when ready work exists and refills slots as workspaces complete.
+
+---
+
+## 9. Definition of Done
+
+P25 is complete when ALL are true:
+
+- Pi emits canonical local observability events across execution, scheduler, validation, queue, brain, overnight, proposal, reflection, and memory systems.
+- Trace IDs and correlation IDs connect failures to diagnostic packets, worker jobs, proposals, and plans.
+- The Brain Orchestrator Supervisor can route jobs to specialist workers.
+- Debugger Worker produces root-cause hypotheses with evidence and confidence.
+- Fix Strategist Worker produces bounded fix proposals with risk, test plan, rollback, and affected files.
+- Idea Scout Worker produces deduped improvement ideas.
+- Regression Hunter Worker clusters repeated failures and flaky patterns.
+- Memory Curator Worker identifies stale, duplicate, and conflicting memories.
+- Plan Synthesizer Worker produces executable plan drafts with valid JSON contracts.
+- Worker handoff inbox shows pending, completed, failed, and quarantined worker outputs.
+- Debug-to-fix and idea-to-plan pipelines route through proposal/approval/validation gates.
+- Budgets, cooldowns, backoff, and loop prevention block runaway autonomous behavior.
+- Worker jobs can recover or quarantine after local restart.
+- Local Production Readiness Doctor passes.
+- Brain Worker Swarm Dogfood report is generated and signed off.
+- No forbidden commands or files were used.
+- Validation gates passed.
+- ExecutionKernel invariants are preserved:
+  - Only WorkspaceAttemptController mutates attempt state.
+  - Only PlanSupervisor mutates plan lifecycle state.
+  - All actors emit events only.
+  - Every attempt transition requires `expectedVersion`.
+  - Every non-terminal attempt state has a deadline.
+  - DeadlineWatchdog emits events for expired attempts.
+  - HANDOFF_REQUIRED creates a durable handoff queue item.
+  - PostgreSQL is the authoritative runtime backend.
+  - JSON runtime fallback is not used.
+  - All execution entrypoints pass AdmissionGate.
+  - P32 dogfood harness passes.
+
+---
+
+## 10. Rollback Playbook
+
+**Trigger conditions:**
+
+- Worker swarm generates duplicate or runaway proposals.
+- Debug/fix pipeline bypasses approval or validation.
+- Worker jobs are not recoverable after restart.
+- Observability collection causes instability or excessive volume.
+- Readiness doctor reports false-safe status.
+- Dogfood gauntlet fails on critical safety scenarios.
+- ExecutionKernel invariant violation detected.
+
+**Rollback procedure:**
+
+1. Disable Brain Orchestrator Supervisor feature flag.
+2. Disable closed-loop pipelines 25.P and 25.Q.
+3. Leave telemetry store read-only for debugging.
+4. Preserve worker job ledger and diagnostic packets.
+5. Stop worker job scheduling and quarantine in-flight jobs.
+6. Fall back to P24 daily intelligence layer only.
+7. Run cleanup/recovery doctor.
+8. Verify ExecutionKernel invariants (no lingering state mutations, event journal replayable).
+9. Revert phase commits independently if needed.
+
+---
+
+## 11. What Next Phase Inherits
+
+The next phase inherits:
+
+- Canonical local observability event model.
+- Trace/correlation ID model.
+- Local telemetry store and dashboard cockpit.
+- Specialist brain worker contracts.
+- Debugger, Fix Strategist, Idea Scout, Regression Hunter, Memory Curator, and Plan Synthesizer workers.
+- Worker handoff inbox and triage router.
+- Debug-to-fix and idea-to-plan pipelines.
+- Loop prevention and worker crash recovery.
+- Local Production Readiness Doctor.
+- Brain worker swarm dogfood report.
+
+---
+
+# Part 2 — Agent Brief
+
+## Mission
+
+Implement P25: Local Production Observability & Brain Worker Swarm.
+
+You are adding the layer that lets Pi observe itself, diagnose itself, route work to specialist brain workers, generate fix and improvement proposals, synthesize plans, prevent loops, recover jobs after restart, and prove the system is locally stable.
+
+Optimize for safe local autonomy, not cloud production. Do not implement enterprise RBAC, public API hardening, remote deployment, or external canary rollout.
+
+All execution state is governed by the v4 ExecutionKernel. Your actors (collectors, workers, pipelines) emit events. The WorkspaceAttemptController and PlanSupervisor are the only authorities that mutate execution state. Brain workers and diagnostics are read-only. The DeadlineWatchdog enforces bounded liveness. The AdmissionGate covers all entrypoints.
+
+Preserve local safety constraints and all existing execution/brain guarantees. Respect the v4 invariants: PostgreSQL authoritative state, expectedVersion on every transition, no JSON runtime fallback, no direct state mutation by actors.
+
+## Hard Requirements
+
+1. Do not exceed 6 requested workers.
+2. Do not run more than 3 workers unless worktree isolation and integration queue readiness pass.
+3. Do not merge workspace output without passed workspace validation.
+4. Do not mark the plan complete if integration validation fails.
+5. Do not treat merge conflict as ordinary worker failure.
+6. Do not start the next plan while integration queue state is dirty.
+7. Do not run watch-mode validation.
+8. Do not run `git push`.
+9. Do not run raw destructive cleanup commands.
+10. Do not access secrets or forbidden files.
+11. The ExecutionKernel remains the only authority that mutates execution state. Actors emit events only.
+12. Every worker job must have a trace ID or correlation ID.
+13. Every self-fix proposal must include an evidence-backed diagnostic packet.
+14. Every autonomous loop must have budgets, cooldowns, dedupe, and stop conditions.
+15. Worker outputs must be inspectable in the handoff inbox or persisted artifacts.
+16. Readiness Doctor must fail closed when evidence is missing.
+17. Every attempt transition requires `expectedVersion`.
+18. Every non-terminal attempt state must have a deadline.
+19. HANDOFF_REQUIRED must create a durable handoff queue item.
+20. All execution entrypoints must pass AdmissionGate.
+
+## Execution Policies
+
+```yaml
+execution_automation:
+  autonomous_execution_enabled: true
+  agent_may_mutate_repo: true
+  agent_may_run_commands: true
+  manual_patch_application_required: false
+  human_approval_required_for_every_patch: false
+
+scale:
+  selected_mode: experimental_6
+  max_parallel_workspaces: 6
+  worktree_required: true
+  integration_queue_required: true
+  validation_lock_required: true
+
+scheduling:
+  continuous: true
+  slot_count: 6
+  priority_strategy: critical_path_first
+
+local_safety:
+  git_push_allowed: false
+  raw_destructive_cleanup_allowed: false
+  watch_mode_validation_allowed: false
+  forbidden_files_enforced: true
+  approval_required_for_risky_mutations: true
+
+execution_kernel:
+  state_authority: workspace_attempt_controller
+  plan_authority: plan_supervisor
+  actors_emit_events_only: true
+  brain_workers_read_only: true
+  transition_requires_expected_version: true
+  non_terminal_state_requires_deadline: true
+  deadline_watchdog_required: true
+  handoff_queue_required: true
+  admission_gate_required: true
+  postgres_authoritative: true
+  json_runtime_fallback_forbidden: true
+
+worker_swarm:
+  worker_jobs_require_trace_id: true
+  diagnostic_packet_required_for_self_fix: true
+  budgets_required: true
+  cooldowns_required: true
+  loop_prevention_required: true
+  job_recovery_required: true
+```
+
+## Safety Stops
+
+Hard stop execution for:
+
+- Dependency cycles.
+- Invalid dependency patches.
+- Required preflight review not approved.
+- Stale approved graph hash.
+- Worktree path escaping `.pi/worktrees`.
+- Raw destructive worktree cleanup.
+- Integration merge without passed workspace validation.
+- Integration validation failure.
+- Merge conflict without handoff artifact.
+- Unsafe scale mode.
+- Queue starting next plan while integration queue is dirty.
+- Forbidden file access.
+- Secrets access.
+- `git push`.
+- Watch-mode validation command.
+- Queue optimization enabled with invalid strategy.
+- Worker job created without trace ID.
+- Self-fix proposal created without diagnostic evidence.
+- Autonomous loop without budget/cooldown/stop condition.
+- Readiness doctor passing without required evidence.
+- **Direct attempt state mutation by any actor other than WorkspaceAttemptController.**
+- **Attempt transition without `expectedVersion`.**
+- **Non-terminal attempt state without a deadline.**
+- **DeadlineWatchdog unavailable while attempts are running.**
+- **Execution entrypoint bypassing AdmissionGate.**
+- **PostgreSQL unavailable for authoritative runtime state.**
+- **JSON runtime fallback detected in production.**
+- **HANDOFF_REQUIRED without a durable handoff queue item.**
+- **Brain worker or diagnostic mutating execution state.**
+
+---
+
+# Part 2.5 — v4 ExecutionKernel Doctrine
+
+This section is normative for this v4 plan. It defines the execution doctrine for P25.
+
+## 2.5.1 Single Authority Model
+
+P25 replaces any implicit multi-writer patterns with the v4 ExecutionKernel model:
+
+```text
+All actors emit events.
+WorkspaceAttemptController mutates attempt state.
+PlanSupervisor mutates plan state.
+PostgreSQL stores authoritative runtime truth.
+```
+
+This model does not reduce parallelism. The controller serializes decisions, not work. LLM calls, tool calls, validation commands, Git operations, and artifact collection remain actor-driven and parallel where derived policy permits.
+
+For P25 specifically:
+
+- Observability collectors emit events into the telemetry store. They never write attempt state.
+- Brain workers (Debugger, Fix Strategist, Idea Scout, Regression Hunter, Memory Curator, Plan Synthesizer) produce findings into the handoff inbox. They never write attempt state.
+- The Brain Orchestrator Supervisor schedules jobs through the handoff queue. It never directly mutates attempt state.
+- Closed-loop pipelines (25.P, 25.Q) orchestrate via actor events. They never directly mutate execution state.
+- Budget/cooldown/loop-prevention policies emit suggestions. They never directly stop workspaces.
+
+## 2.5.2 ExecutionKernel Components for P25
+
+| Component | Responsibility | May mutate execution state? |
+|---|---|---:|
+| `ExecutionAdmissionGate` | Authorize all execution entrypoints | No |
+| `ExecutionProfileDeriver` | Derive mechanisms from intent | No |
+| `PlanSupervisor` | Own plan FSM, slot tokens, completion predicate | Yes, plan state only |
+| `WorkspaceAttemptController` | Own attempt FSM, retries, terminalization, handoff | Yes, attempt state only |
+| `StateStoreWriter` | Commit transitions with authority token | Yes, through token only |
+| `AttemptEventJournal` | Append versioned event records | No |
+| `DeadlineWatchdog` | Detect expired attempts, emit events | No |
+| `HandoffQueue` | Store handoff work items | Written by controller only |
+| Observability Collectors (F, G) | Emit observability events | No |
+| Brain Workers (I, J, K, L, M, N) | Diagnose, propose, synthesize | No |
+| Brain Orchestrator Supervisor (D) | Route jobs, manage leases | No |
+| Inbox / Triage Router (O) | Route findings to correct workers | No |
+| Pipeline Actors (P, Q) | Orchestrate cross-worker flows | No |
+| Budget/Loop Actors (R) | Enforce budgets via suggestions | No |
+| Recovery Actors (S) | Recover stranded jobs | No |
+| Readiness Doctor (T) | Run read-only checks | No |
+
+## 2.5.3 Attempt FSM Doctrine
+
+P25 workspaces follow the v4 attempt FSM:
+
+```text
+QUEUED -> LEASING_WORKTREE -> RUNNING -> VALIDATING -> INTEGRATION_QUEUED -> INTEGRATING -> SUCCEEDED
+```
+
+Failure paths:
+
+```text
+RUNNING + deadline_exceeded       -> ABORTING / TIMED_OUT
+VALIDATING + deadline_exceeded    -> KILLING_PROCESS_TREE
+merge_conflict                    -> HANDOFF_REQUIRED
+retryable_tool_failure            -> FAILED_RETRYABLE
+```
+
+Retry is legal only after terminal state.
+
+## 2.5.4 PostgreSQL Truth Doctrine
+
+Runtime truth is PostgreSQL. For P25:
+
+- Telemetry events are stored in PostgreSQL.
+- Worker job leases are indexed in PostgreSQL.
+- Handoff inbox items are stored in PostgreSQL.
+- Diagnostic packets are indexed in PostgreSQL.
+- Budget/cooldown state is stored in PostgreSQL.
+
+Allowed filesystem data: stdout/stderr logs, raw tool output, patch artifacts, handoff Markdown.
+
+Forbidden as authoritative runtime truth: JSON state fallback, NDJSON-only event journal, filesystem lease files without PostgreSQL index.
+
+## 2.5.5 Intent-Driven Plan Doctrine
+
+P25 expresses intent, not low-level mechanisms:
+
+```text
+Intent: parallelism=6, safetyLevel=strict, conflictRisk=medium, executionEnvironment=trusted_local
+```
+
+System-derived mechanisms: worktree isolation required, integration queue required, validation lanes required, GitRunner queue required, attempt-scoped artifacts required, writeSet drift detection required, DeadlineWatchdog required, AdmissionGate strict mode required.
+
+## 2.5.6 Brain and Diagnostics Doctrine
+
+Brain workers and diagnostics are read-only for execution state. They may:
+
+- Read events and snapshots.
+- Build evidence packets.
+- Propose retry, handoff, remediation, or plan changes.
+- Write findings to the handoff inbox.
+
+They may not:
+
+- Mutate attempt state.
+- Create attempts directly.
+- Mark a plan or workspace complete.
+- Bypass AdmissionGate.
+- Bypass human approval or validation gates.
+
+---
+
+# Part 3 — Machine-Readable Execution Contract
+
+**Purpose:** This JSON structure is the authoritative execution contract for Pi's PostgreSQL-backed ExecutionKernel execution system. Pi parses this section first to validate the plan. v4 preserves the v3 envelope while adding ExecutionKernel, intent, persistence, derived profile, and migration semantics.
+
+**Validation:** This JSON must be valid and complete before any action proceeds. Use `pi plan doctor` to validate.
+
+```json
+{
+  "contractVersion": "4.0.0",
+  "templateVersion": "4.0.0",
+  "legacyCompatibility": {
+    "v3EnvelopePreserved": true,
+    "legacyValidatorMode": "v3_compatible_extensions",
+    "fallbackContractVersionForLegacyParser": "3.0.0",
+    "legacyMechanismFieldsAreHints": true,
+    "unknownV4FieldsPolicy": "ignore_for_read_only_legacy_consumers_reject_for_execution_without_v4_validator"
+  },
+  "executionClass": "implementation",
+  "executionBackend": "postgres",
+  "project": {
+    "name": "pi",
+    "rootPath": ".",
+    "type": "repo",
+    "tags": [
+      "p25",
+      "local-production",
+      "observability",
+      "brain-worker-swarm",
+      "self-debugging"
+    ]
+  },
+  "intent": {
+    "parallelism": 6,
+    "safetyLevel": "strict",
+    "conflictRisk": "medium",
+    "executionEnvironment": {
+      "mode": "trusted_local",
+      "untrustedCodeAllowed": false,
+      "networkPolicy": "host_default",
+      "secretsPolicy": "forbidden_files_and_env_allowlist"
+    },
+    "deadlines": {
+      "llmRequestMs": 120000,
+      "llmStreamIdleMs": 300000,
+      "workspaceOverallMs": 1800000,
+      "validationDefaultMs": 600000,
+      "validationHeavyMs": 1200000,
+      "schedulerNoProgressMs": 300000
+    }
+  },
+  "derivedExecutionProfile": {
+    "generatedBy": "ExecutionProfileDeriver",
+    "deriverVersion": "4.0.0",
+    "readOnly": true,
+    "worktreeRequired": true,
+    "integrationQueueRequired": true,
+    "gitRunnerQueueRequired": true,
+    "validationLanesRequired": true,
+    "attemptScopedArtifactsRequired": true,
+    "deadlineWatchdogRequired": true,
+    "admissionGateMode": "strict",
+    "writeSetDriftPolicy": "warn_and_flag_integration",
+    "explain": [
+      "strict safety level requires admission gate and event journal",
+      "medium conflict risk requires worktree isolation and integration queue",
+      "parallelism=6 requires all experimental_6 infrastructure",
+      "all production execution requires PostgreSQL authoritative runtime state"
+    ]
+  },
+  "persistence": {
+    "authoritativeBackend": "postgres",
+    "jsonRuntimeFallbackAllowed": false,
+    "eventJournalBackend": "postgres",
+    "transitionBackend": "postgres",
+    "controllerInboxBackend": "postgres",
+    "handoffQueueBackend": "postgres",
+    "rawLogsBackend": "filesystem",
+    "artifactIndexBackend": "postgres",
+    "debugExportAllowed": true
+  },
+  "executionAutomation": {
+    "autonomousExecutionEnabled": true,
+    "agentMayMutateRepo": true,
+    "agentMayRunCommands": true,
+    "manualPatchApplicationRequired": false,
+    "humanApprovalRequiredForEveryPatch": false
+  },
+  "executionKernel": {
+    "enabled": true,
+    "stateAuthority": "workspace_attempt_controller",
+    "planAuthority": "plan_supervisor",
+    "stateAuthorityTokenRequired": true,
+    "admissionGateRequired": true,
+    "eventSourcedAttempts": true,
+    "attemptEventJournalRequired": true,
+    "directStateMutationForbidden": true,
+    "actorsEmitEventsOnly": true,
+    "policiesSuggestOnly": true,
+    "brainWorkersReadOnly": true,
+    "retryRequiresTerminalAttempt": true,
+    "everyNonTerminalStateHasDeadline": true,
+    "controllerSerializesDecisionsNotWork": true,
+    "controllerLeadership": {
+      "required": true,
+      "mode": "postgres_advisory_lock_plus_expected_version",
+      "transitionRequiresExpectedVersion": true,
+      "onVersionConflict": "reject_and_emit_controller_conflict"
+    }
+  },
+  "attemptLifecycle": {
+    "initialState": "queued",
+    "terminalStates": [
+      "succeeded",
+      "failed_retryable",
+      "failed_final",
+      "aborted",
+      "timed_out",
+      "quarantined",
+      "handoff_required"
+    ],
+    "nonTerminalStates": [
+      "queued",
+      "leasing_worktree",
+      "running",
+      "validating",
+      "waiting_for_validation_lane",
+      "integration_queued",
+      "integrating",
+      "aborting",
+      "killing_process_tree",
+      "stale"
+    ],
+    "retryableTerminalStates": [
+      "failed_retryable",
+      "timed_out",
+      "quarantined"
+    ],
+    "retryForbiddenFromNonTerminal": true,
+    "deadlineRequiredForNonTerminalStates": true,
+    "handoffRequiredCreatesQueueItem": true
+  },
+  "planLifecycle": {
+    "completionPredicateRequired": true,
+    "cannotCompleteWithRequiredNonTerminalWorkspaces": true,
+    "cannotCompleteWithUnresolvedRequiredHandoff": true,
+    "finalValidationRequiredBeforeCompleted": true,
+    "states": [
+      "created",
+      "preflight",
+      "running",
+      "blocked_with_reason",
+      "awaiting_handoff",
+      "final_validation",
+      "completed",
+      "completed_with_warnings",
+      "failed_final",
+      "stopping",
+      "stopped"
+    ]
+  },
+  "actorPermissions": {
+    "workspaceAttemptController": { "mayMutateAttemptState": true, "mayCreateRetryAttempt": true },
+    "planSupervisor": { "mayMutatePlanState": true, "mayReserveSchedulerSlots": true },
+    "executorActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "validationActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "gitRunner": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "leaseMonitor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "retryPolicy": { "mayMutateAttemptState": false, "mayCreateRetryAttempt": false, "maySuggestRetry": true },
+    "brainWorkers": { "mayMutateExecutionState": false, "mayEmitDiagnosis": true, "mayProposeAction": true },
+    "observabilityCollectors": { "mayMutateExecutionState": false, "mayEmitEvents": true },
+    "pipelineActors": { "mayMutateExecutionState": false, "mayEmitEvents": true },
+    "budgetPolicy": { "mayMutateExecutionState": false, "maySuggestAction": true },
+    "readinessDoctor": { "mayMutateExecutionState": false, "mayEmitEvidence": true }
+  },
+  "admissionGate": {
+    "required": true,
+    "allEntrypointsMustUseGate": true,
+    "coveredEntrypoints": [
+      "cli_plan_run",
+      "dashboard_run",
+      "api_plan_run",
+      "retry_endpoint",
+      "cleanup_rerun_endpoint",
+      "brain_worker_trigger",
+      "overnight_runner",
+      "proposal_executor"
+    ],
+    "rejectWhen": [
+      "postgres_unavailable_for_authoritative_runtime",
+      "json_runtime_fallback_detected",
+      "execution_kernel_disabled",
+      "state_authority_not_single",
+      "brain_worker_direct_mutation_detected",
+      "deadline_watchdog_unavailable",
+      "unsafe_parallelism_requested"
+    ]
+  },
+  "resourceCoordination": {
+    "nestedLocksForbidden": true,
+    "holdLockAcrossAwaitForbidden": true,
+    "stateLocks": { "scope": "attempt", "maxHoldMs": 1000 },
+    "planLock": { "scope": "plan", "maxHoldMs": 1000, "purpose": "slot_reservation_only" },
+    "gitRunner": { "mode": "queue", "repoMutationTimeoutMs": 60000, "lockBypassForbidden": true },
+    "validationLanes": { "heavy": { "maxConcurrent": 1 }, "targeted": { "maxConcurrent": 3 } },
+    "worktreeLeases": { "attemptScoped": true, "heartbeatRequired": true, "quarantineOnStale": true },
+    "stateStore": { "writesThroughControllerOnly": true, "transactionOrWriteQueueRequired": true }
+  },
+  "deadlineWatchdog": {
+    "required": true,
+    "intervalSeconds": 15,
+    "emitsEventsOnly": true,
+    "eventType": "deadline_exceeded",
+    "supervised": true,
+    "onWatchdogUnavailable": "block_new_execution_or_downgrade"
+  },
+  "handoffQueue": {
+    "required": true,
+    "createdByStates": ["handoff_required"],
+    "allowedActions": ["retry_requested", "close_failed", "manual_resolution", "followup_plan_requested"],
+    "controllerMediatedRetryRequired": true
+  },
+  "boundedLiveness": {
+    "required": true,
+    "noIndefiniteWaits": true,
+    "llm": {
+      "providerRequestTimeoutMs": 120000,
+      "streamIdleTimeoutMs": 300000,
+      "workspaceOverallTimeoutMs": 1800000,
+      "maxConsecutiveProviderTimeouts": 2,
+      "onCircuitOpen": "fail_workspace_not_plan"
+    },
+    "validation": {
+      "defaultTimeoutMs": 600000,
+      "heavyTimeoutMs": 1200000,
+      "killProcessTreeOnTimeout": true,
+      "watchModeForbidden": true,
+      "stdinClosed": true,
+      "ciEnvRequired": true,
+      "maxOutputBytes": 52428800
+    },
+    "git": {
+      "repoMutationLockTimeoutMs": 60000,
+      "lockBypassForbidden": true,
+      "onLockTimeout": "fail_fast_and_retry_or_handoff"
+    },
+    "scheduler": {
+      "stallDetectionEnabled": true,
+      "noProgressTimeoutMs": 300000,
+      "onNoProgress": "emit_blocked_reason"
+    },
+    "stateStore": {
+      "transactionOrWriteQueueRequired": true,
+      "atomicSnapshotRequired": true,
+      "journalLineAtomicityRequired": true
+    }
+  },
+  "planExecution": {
+    "phase": "P25",
+    "title": "Local Production Observability and Brain Worker Swarm",
+    "mode": "autonomous",
+    "maxParallelWorkspaces": 6,
+    "scheduling": {
+      "continuous": true,
+      "slotCount": 6,
+      "priorityStrategy": "critical_path_first"
+    },
+    "stateBackend": "postgres",
+    "jsonFallbackEnabled": false,
+    "dashboardEnabled": true,
+    "autoCommit": true,
+    "autoPush": false,
+    "scale": {
+      "defaultMode": "experimental_6",
+      "selectedMode": "experimental_6",
+      "modes": {
+        "stable_3": {
+          "maxParallelWorkspaces": 3,
+          "worktreeRequired": false,
+          "integrationQueueRequired": false
+        },
+        "experimental_6": {
+          "maxParallelWorkspaces": 6,
+          "worktreeRequired": true,
+          "integrationQueueRequired": true,
+          "validationLockRequired": true,
+          "archiveRequired": true,
+          "completionGateRequired": true
+        },
+        "scale_8": {
+          "maxParallelWorkspaces": 8,
+          "worktreeRequired": true,
+          "integrationQueueRequired": true,
+          "validationLockRequired": true,
+          "archiveRequired": true,
+          "completionGateRequired": true,
+          "dogfoodPassRequired": true,
+          "explicitApprovalRequired": true
+        }
+      }
+    },
+    "worktree": {
+      "enabled": true,
+      "enabledByDefault": true,
+      "root": ".pi/worktrees",
+      "prewarmCount": 6,
+      "quarantineFailedByDefault": true,
+      "rawRmRfForbidden": true,
+      "pathScopeRequired": true
+    },
+    "integrationQueue": {
+      "enabled": true,
+      "processOneMergeAtATime": true,
+      "stopOnMergeConflict": true,
+      "requireWorkspaceValidationPass": true,
+      "requireIntegrationValidationPass": true,
+      "gitPushAllowed": false,
+      "queuePriority": {
+        "enabled": true,
+        "defaultLevel": "normal",
+        "levels": ["critical", "high", "normal", "low"]
+      },
+      "queueOptimization": {
+        "enabled": true,
+        "strategy": "critical_path_first",
+        "availableStrategies": ["priority_then_fifo", "critical_path_first", "weighted_shortest_job_first"]
+      }
+    },
+    "validation": {
+      "globalValidationLockRequired": true,
+      "targetedValidationEnabled": true,
+      "finalIntegrationValidationRequired": true,
+      "watchModeForbidden": true
+    },
+    "leaseMonitor": {
+      "enabled": true,
+      "heartbeatIntervalSeconds": 15,
+      "staleThresholdSeconds": 45,
+      "monitorLoopIntervalSeconds": 30,
+      "stalePolicy": "quarantine_and_replace",
+      "reconciliationPrecedence": {
+        "wasRunning": "lease_file",
+        "whatIsOnDisk": "worktree_state",
+        "onDisagreement": "quarantine_and_requeue"
+      }
+    },
+    "validationLane": {
+      "maxConcurrentHeavyValidations": 1,
+      "maxConcurrentTargetedValidations": 3,
+      "backpressureEnabled": true,
+      "backpressureStrategy": "prefer_targeted_when_heavy_saturated",
+      "schedulerFeedbackEnabled": true
+    },
+    "mergePriorityScorer": {
+      "enabled": true,
+      "formula": "downstreamReadyCount * 50 + criticalPathPosition * 30 + waitTimeBoost * 10",
+      "recomputeOnEachDequeue": true,
+      "tiebreaker": "fifo"
+    },
+    "interactiveParallelismReview": {
+      "enabled": true,
+      "preflightRequired": true,
+      "approvalRequiredBeforeRun": true,
+      "allowDependencyEditing": true,
+      "showEffectiveParallelism": true,
+      "showSafeEffectiveParallelism": true,
+      "showBatchPreview": true,
+      "showSafeBatchPreview": true,
+      "showCriticalPath": true,
+      "showScaleModeReadiness": true,
+      "warnWhenEffectiveParallelismBelowRequested": true,
+      "warnWhenSafeParallelismBelowDagParallelism": true,
+      "warnWhenScaleModePrerequisitesMissing": true,
+      "persistApprovedGraph": true
+    },
+    "planIntake": {
+      "enabled": true,
+      "runOnUpload": true,
+      "parserPriority": [
+        "part3_json",
+        "contractVersion_and_executionClass",
+        "doctor",
+        "execution_gate"
+      ],
+      "autoNormalize": true,
+      "autoDoctor": true,
+      "autoDagAnalysis": true,
+      "autoOptimizationProposal": true,
+      "autoQueuePriorityRecommendation": true,
+      "autoWorkspaceSplitRecommendation": true,
+      "autoDryRunForecast": true,
+      "approvalRequiredBeforeApplyingOptimization": true,
+      "approvalRequiredBeforeExecution": true
+    },
+    "optimizer": {
+      "enabled": true,
+      "mode": "advisory_until_approved",
+      "objectives": [
+        "maximize_safe_effective_parallelism",
+        "minimize_critical_path",
+        "minimize_same_file_conflicts",
+        "minimize_validation_lock_contention",
+        "prioritize_critical_path_queue_merges"
+      ],
+      "allowedPatches": [
+        "dependencies",
+        "parallelGroup",
+        "queuePriority",
+        "canRunWith",
+        "cannotRunWith",
+        "conflictScope",
+        "workspaceSplitSuggestion",
+        "workspaceMergeSuggestion"
+      ],
+      "forbiddenAutoPatches": [
+        "allowedFiles",
+        "forbiddenFiles",
+        "capabilityManifest",
+        "safety.hardStops",
+        "forbiddenCommands"
+      ]
+    }
+  },
+  "controls": {
+    "allowPause": true,
+    "allowStop": true,
+    "allowCancel": true,
+    "resumePolicy": "paused_or_stopped_only"
+  },
+  "safety": {
+    "hardStops": [
+      "secrets",
+      "destructive_ops",
+      "forbidden_files",
+      "budget_violations",
+      "dependency_cycles",
+      "unapproved_parallelism_review",
+      "invalid_dependency_patch",
+      "worktree_path_escape",
+      "raw_destructive_cleanup",
+      "integration_merge_without_validation",
+      "integration_validation_failure",
+      "merge_conflict_without_handoff",
+      "unsafe_scale_mode",
+      "queue_next_plan_while_integration_dirty",
+      "scale_mode_approval_stale",
+      "worktree_required_for_requested_parallelism",
+      "watch_mode_validation",
+      "execution_without_dry_run",
+      "execution_without_approval",
+      "protected_system_mutation_without_explicit_approval",
+      "extension_permission_denied",
+      "skill_permission_denied",
+      "memory_forbidden_source_indexing",
+      "optimizer_patch_without_approval",
+      "integration_merge_with_unresolved_write_set_drift_in_block_mode",
+      "lease_reconciliation_disagreement_without_quarantine",
+      "worker_job_without_trace_id",
+      "self_fix_without_evidence_packet",
+      "autonomous_loop_without_budget",
+      "direct_attempt_state_mutation_detected",
+      "executor_mutates_attempt_state",
+      "validation_actor_mutates_attempt_state",
+      "retry_created_before_previous_attempt_terminal",
+      "brain_worker_mutates_execution_state",
+      "diagnostics_mutates_execution_state",
+      "cleanup_mutates_attempt_state_directly",
+      "state_transition_outside_controller",
+      "non_terminal_state_without_deadline",
+      "deadline_watchdog_unavailable",
+      "lock_held_across_external_await",
+      "nested_resource_lock_detected",
+      "execution_entrypoint_bypasses_admission_gate",
+      "attempt_without_event_journal",
+      "attempt_without_owner_controller",
+      "postgres_unavailable_for_authoritative_runtime",
+      "json_runtime_fallback_detected",
+      "dual_authoritative_state_detected",
+      "attempt_event_written_outside_transaction",
+      "transition_without_expected_version",
+      "handoff_required_without_queue_item"
+    ],
+    "forbiddenCommands": [
+      "git push",
+      "git push --force",
+      "rm -rf",
+      "npm publish",
+      "terraform destroy",
+      "kubectl delete",
+      "git reset --hard",
+      "git clean -fd",
+      "vitest --watch",
+      "jest --watch",
+      "npm run dev"
+    ],
+    "forbiddenFiles": [
+      ".env*",
+      "**/*.pem",
+      "**/*.key",
+      "**/*.p12",
+      "**/*.pfx",
+      "**/id_rsa",
+      "**/credentials/**",
+      "**/secrets/**"
+    ]
+  },
+  "parallelismReview": {
+    "requestedMaxParallelWorkspaces": 6,
+    "selectedScaleMode": "experimental_6",
+    "scaleModeReadiness": {
+      "ready": true,
+      "blockedReasons": [],
+      "warnings": [
+        "Execution requires worktree isolation, integration queue, validation lock, archive support, and completion gate hardening.",
+        "Scale_8 is intentionally not selected for this phase; P25 should prove local experimental_6 stability first."
+      ],
+      "prerequisites": [
+        {
+          "key": "worktree_isolation",
+          "required": true,
+          "met": true,
+          "message": "Required for experimental_6."
+        },
+        {
+          "key": "integration_queue",
+          "required": true,
+          "met": true,
+          "message": "Required for experimental_6."
+        },
+        {
+          "key": "validation_lock",
+          "required": true,
+          "met": true,
+          "message": "Required for safe parallel validation."
+        },
+        {
+          "key": "completion_gate",
+          "required": true,
+          "met": true,
+          "message": "Required before final plan completion."
+        },
+        {
+          "key": "execution_kernel",
+          "required": true,
+          "met": true,
+          "message": "v4 ExecutionKernel required for production execution."
+        },
+        {
+          "key": "deadline_watchdog",
+          "required": true,
+          "met": true,
+          "message": "Required for bounded liveness."
+        },
+        {
+          "key": "admission_gate",
+          "required": true,
+          "met": true,
+          "message": "Required for all execution entrypoints."
+        }
+      ]
+    },
+    "expectedDagEffectiveParallelismMin": 4,
+    "expectedSafeEffectiveParallelismMin": 4,
+    "dagEffectiveParallelism": 3.5,
+    "safeEffectiveParallelism": 3.67,
+    "preflightStatus": "required",
+    "approvalState": "pending",
+    "batchingStrategy": "dag_topological_batches_display_only",
+    "safeBatchingStrategy": "dag_batches_with_p6_safety_constraints_display_only",
+    "batchPreview": {
+      "batches": [
+        {
+          "batch": 1,
+          "workspaceIds": ["25.A", "25.C", "25.E"],
+          "effectiveParallelism": 3
+        },
+        {
+          "batch": 2,
+          "workspaceIds": ["25.B", "25.D", "25.F", "25.G", "25.I", "25.K"],
+          "effectiveParallelism": 6
+        },
+        {
+          "batch": 3,
+          "workspaceIds": ["25.H", "25.J", "25.L", "25.M", "25.N", "25.O"],
+          "effectiveParallelism": 6
+        },
+        {
+          "batch": 4,
+          "workspaceIds": ["25.P", "25.Q", "25.R", "25.S"],
+          "effectiveParallelism": 4
+        },
+        {
+          "batch": 5,
+          "workspaceIds": ["25.T"],
+          "effectiveParallelism": 1
+        },
+        {
+          "batch": 6,
+          "workspaceIds": ["25.U"],
+          "effectiveParallelism": 1
+        }
+      ],
+      "overallEffectiveParallelism": 3.5,
+      "criticalPath": ["25.E", "25.I", "25.J", "25.P", "25.T", "25.U"],
+      "criticalPathLength": 6,
+      "serializedTailLength": 2
+    },
+    "safeBatchPreview": {
+      "batches": [
+        {
+          "batch": 1,
+          "workspaceIds": ["25.A", "25.C", "25.E"],
+          "safeEffectiveParallelism": 3,
+          "blockedParallelismReasons": []
+        },
+        {
+          "batch": 2,
+          "workspaceIds": ["25.B", "25.D", "25.F", "25.G", "25.I", "25.K"],
+          "safeEffectiveParallelism": 5,
+          "blockedParallelismReasons": [
+            "25.D and worker-oriented workspaces may contend on orchestrator worker type exports.",
+            "Heavy validation commands must respect the global validation lock."
+          ]
+        },
+        {
+          "batch": 3,
+          "workspaceIds": ["25.H", "25.J", "25.L", "25.M", "25.N", "25.O"],
+          "safeEffectiveParallelism": 5,
+          "blockedParallelismReasons": [
+            "25.H and 25.O may both touch dashboard navigation and worker inbox API clients.",
+            "Worker implementations may share core worker contract exports."
+          ]
+        },
+        {
+          "batch": 4,
+          "workspaceIds": ["25.P", "25.Q", "25.R", "25.S"],
+          "safeEffectiveParallelism": 4,
+          "blockedParallelismReasons": [
+            "Pipeline integration must use the integration queue for safe merge ordering."
+          ]
+        },
+        {
+          "batch": 5,
+          "workspaceIds": ["25.T"],
+          "safeEffectiveParallelism": 1,
+          "blockedParallelismReasons": [
+            "Readiness doctor depends on all closed-loop automation work."
+          ]
+        },
+        {
+          "batch": 6,
+          "workspaceIds": ["25.U"],
+          "safeEffectiveParallelism": 1,
+          "blockedParallelismReasons": [
+            "Dogfood gauntlet must run after readiness doctor."
+          ]
+        }
+      ],
+      "overallSafeEffectiveParallelism": 3.67,
+      "bottlenecks": [
+        "Readiness doctor and dogfood gauntlet are intentionally serialized.",
+        "Validation lock may reduce safe parallelism during heavy test runs.",
+        "Integration queue serializes merges even when workspace execution is parallel."
+      ],
+      "blockedParallelismReasons": [
+        "Continuous scheduling is enabled, so batches are a preview only.",
+        "Integration queue serializes merges even when workspace execution is parallel.",
+        "Critical-path workspaces should merge before leaf workspaces."
+      ]
+    },
+    "optimizationReview": {
+      "originalGraphHash": null,
+      "proposedGraphHash": null,
+      "approvedGraphHash": null,
+      "originalDagEffectiveParallelism": 3.5,
+      "proposedDagEffectiveParallelism": null,
+      "originalSafeEffectiveParallelism": 3.33,
+      "proposedSafeEffectiveParallelism": null,
+      "criticalPathDelta": null,
+      "serializedTailDelta": null,
+      "suggestions": [
+        {
+          "type": "fixed",
+          "message": "Workspaces have narrow writeSet and allowedFiles so Batch 1 can start 25.A, 25.C, and 25.E together."
+        },
+        {
+          "type": "review",
+          "message": "Do not broaden writeSet/allowedFiles back to repo-wide globs; that will cause safe scheduler serialization."
+        },
+        {
+          "type": "review",
+          "message": "Do not split 25.T or 25.U; both are intended release gates."
+        }
+      ],
+      "approvalState": "pending"
+    },
+    "editableFields": [
+      "workspaces[].dependencies",
+      "workspaces[].parallelGroup",
+      "workspaces[].dependencyReason",
+      "workspaces[].parallelism.canRunWith",
+      "workspaces[].parallelism.cannotRunWith",
+      "workspaces[].parallelism.conflictScope",
+      "workspaces[].integration.queuePriority",
+      "workspaces[].integration.queueOptimizationNotes"
+    ],
+    "doctorWarnings": [
+      "effective_parallelism_below_requested",
+      "safe_parallelism_below_dag_parallelism",
+      "long_serialized_tail",
+      "validation_lock_limits_parallelism",
+      "integration_queue_serializes_merges",
+      "critical_path_workspace_has_low_priority",
+      "worker_loop_without_budget",
+      "worker_job_without_trace_id",
+      "diagnostic_packet_missing_evidence",
+      "readiness_doctor_missing_gate",
+      "lease_monitor_disabled_with_worktree_enabled",
+      "write_set_drift_detected_in_prior_run",
+      "validation_lane_saturated_blocking_scheduler",
+      "integration_queue_merge_priority_stale",
+      "lease_reconciliation_disagreement_detected",
+      "empirical_write_set_diverges_from_declared",
+      "execution_kernel_invariant_violation",
+      "deadline_watchdog_unavailable",
+      "admission_gate_broken"
+    ],
+    "persistedArtifacts": [
+      "dependency_graph",
+      "batch_preview",
+      "safe_batch_preview",
+      "critical_path",
+      "scale_mode_readiness",
+      "approved_dependency_patch",
+      "approved_graph_hash",
+      "queue_priority_snapshot",
+      "queue_optimization_strategy",
+      "queue_reorder_decision_log",
+      "plan_intake_analysis",
+      "optimizer_proposal",
+      "graph_diff",
+      "worktree_state",
+      "lease_heartbeat_snapshots",
+      "lease_reconciliation_log",
+      "merge_priority_score_log",
+      "empirical_write_set",
+      "write_set_drift_report",
+      "validation_lane_saturation_log",
+      "local_observability_events",
+      "worker_job_ledger",
+      "diagnostic_packets",
+      "readiness_doctor_report",
+      "brain_worker_swarm_dogfood_report",
+      "workspace_file_ownership_matrix",
+      "event_journal_snapshot",
+      "controller_conflict_log",
+      "deadline_exceeded_events",
+      "handoff_queue_snapshot",
+      "admission_gate_decisions"
+    ]
+  },
+  "workspaces": [
+    {
+      "id": "25.A",
+      "title": "Observability event schema, trace IDs, and correlation model",
+      "dependencies": [],
+      "hardDeps": [],
+      "softDeps": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "No dependencies; this workspace defines a foundation.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/test/**",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/test/observability/schema.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_1",
+        "canRunWith": ["25.C", "25.E"],
+        "cannotRunWith": [],
+        "conflictScope": ["observability-types", "trace-correlation", "event-schema"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces because writeSet/allowedFiles do not overlap."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.A is a foundation dependency for all observability and brain-worker workspaces."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/test/observability/schema.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.A implements Observability event schema, trace IDs, and correlation model without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Observability events are emitted through the actor event model; no direct execution state mutation.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/observability/schema.ts",
+          "packages/coding-agent/src/observability/correlation.ts",
+          "packages/coding-agent/src/observability/types.ts",
+          "packages/coding-agent/src/observability/index.ts",
+          "packages/coding-agent/test/observability/schema.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.C",
+      "title": "Brain worker contracts, roles, manifests, and lifecycle states",
+      "dependencies": [],
+      "hardDeps": [],
+      "softDeps": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "No dependencies; this workspace defines a foundation.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/test/**",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_1",
+        "canRunWith": ["25.A", "25.E"],
+        "cannotRunWith": [],
+        "conflictScope": ["brain-worker-types", "worker-lifecycle", "worker-manifest"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces because writeSet/allowedFiles do not overlap."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.C is a foundation dependency for all brain-worker workspaces."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.C implements Brain worker contracts, roles, manifests, and lifecycle states without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Worker contracts specify read-only execution access; workers emit events, never mutate state.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/contracts.ts",
+          "packages/coding-agent/src/brain-workers/lifecycle.ts",
+          "packages/coding-agent/src/brain-workers/types.ts",
+          "packages/coding-agent/test/brain-workers/contracts.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.E",
+      "title": "Diagnostic packet and evidence model",
+      "dependencies": [],
+      "hardDeps": [],
+      "softDeps": [],
+      "parallelGroup": "batch_1",
+      "dependencyReason": "No dependencies; this workspace defines a foundation.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/test/**",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+        "packages/coding-agent/src/diagnostics/evidence.ts",
+        "packages/coding-agent/src/diagnostics/root-cause.ts",
+        "packages/coding-agent/src/diagnostics/index.ts",
+        "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_1",
+        "canRunWith": ["25.A", "25.C"],
+        "cannotRunWith": [],
+        "conflictScope": ["diagnostic-packet", "evidence-model", "root-cause-types"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces because writeSet/allowedFiles do not overlap."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.E is on the critical path for debug-fix pipeline."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+        "packages/coding-agent/src/diagnostics/evidence.ts",
+        "packages/coding-agent/src/diagnostics/root-cause.ts",
+        "packages/coding-agent/src/diagnostics/index.ts",
+        "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.E implements Diagnostic packet and evidence model without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Diagnostic packets are read-only artifacts consumed by workers; they never mutate attempt state.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+          "packages/coding-agent/src/diagnostics/evidence.ts",
+          "packages/coding-agent/src/diagnostics/root-cause.ts",
+          "packages/coding-agent/src/diagnostics/index.ts",
+          "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.B",
+      "title": "Local telemetry store, retention, and query API",
+      "dependencies": ["25.A"],
+      "hardDeps": ["25.A"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.A for schema and correlation model.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/observability/schema.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/observability/store/telemetry-store.ts",
+        "packages/coding-agent/src/observability/store/retention.ts",
+        "packages/coding-agent/src/observability/store/query.ts",
+        "packages/coding-agent/test/observability/telemetry-store.test.ts",
+        "packages/web-server/src/observability-routes.ts",
+        "packages/web-server/test/observability-routes.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.D", "25.F", "25.G", "25.I", "25.K"],
+        "cannotRunWith": [],
+        "conflictScope": ["telemetry-store", "retention-policy", "telemetry-query-api"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.B is a dependency for dashboard and handoff inbox."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/observability/store/telemetry-store.ts",
+        "packages/coding-agent/src/observability/store/retention.ts",
+        "packages/coding-agent/src/observability/store/query.ts",
+        "packages/coding-agent/test/observability/telemetry-store.test.ts",
+        "packages/web-server/src/observability-routes.ts",
+        "packages/web-server/test/observability-routes.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.B implements Local telemetry store, retention, and query API without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Telemetry store is written through PostgreSQL authoritative backend; no JSON runtime fallback.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/observability/store/telemetry-store.ts",
+          "packages/coding-agent/src/observability/store/retention.ts",
+          "packages/coding-agent/src/observability/store/query.ts",
+          "packages/coding-agent/test/observability/telemetry-store.test.ts",
+          "packages/web-server/src/observability-routes.ts",
+          "packages/web-server/test/observability-routes.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.D",
+      "title": "Brain Orchestrator Supervisor",
+      "dependencies": ["25.A", "25.C"],
+      "hardDeps": ["25.A", "25.C"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.A and 25.C for observability schema and worker contracts.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts",
+        "packages/coding-agent/test/observability/schema.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+        "packages/coding-agent/test/brain-workers/supervisor.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.B", "25.F", "25.G", "25.I", "25.K"],
+        "cannotRunWith": [],
+        "conflictScope": ["brain-orchestrator", "worker-scheduler", "worker-health"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.D routes jobs to all workers."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+        "packages/coding-agent/test/brain-workers/supervisor.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.D implements Brain Orchestrator Supervisor without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Supervisor routes jobs through the handoff queue; it never directly mutates attempt state.",
+        "All supervisor-managed jobs include trace IDs and correlation IDs.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+          "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+          "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+          "packages/coding-agent/test/brain-workers/supervisor.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.F",
+      "title": "Execution engine collectors",
+      "dependencies": ["25.A", "25.E"],
+      "hardDeps": ["25.A", "25.E"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.A and 25.E for schema and diagnostic packet models.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+        "packages/coding-agent/src/diagnostics/evidence.ts",
+        "packages/coding-agent/src/diagnostics/index.ts",
+        "packages/coding-agent/src/diagnostics/root-cause.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts",
+        "packages/coding-agent/test/observability/schema.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/observability/collectors/execution/execution-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/scheduler-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/validation-collector.ts",
+        "packages/coding-agent/test/observability/execution-collectors.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.B", "25.D", "25.G", "25.I", "25.K"],
+        "cannotRunWith": [],
+        "conflictScope": ["execution-collectors", "scheduler-events", "workspace-events"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.F is a dependency for the observability cockpit."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/observability/collectors/execution/execution-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/scheduler-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/validation-collector.ts",
+        "packages/coding-agent/test/observability/execution-collectors.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.F implements Execution engine collectors without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Collectors emit events into the telemetry store; they never write attempt state.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/observability/collectors/execution/execution-collector.ts",
+          "packages/coding-agent/src/observability/collectors/execution/scheduler-collector.ts",
+          "packages/coding-agent/src/observability/collectors/execution/validation-collector.ts",
+          "packages/coding-agent/test/observability/execution-collectors.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.G",
+      "title": "Brain, overnight, and proposal collectors",
+      "dependencies": ["25.A", "25.E"],
+      "hardDeps": ["25.A", "25.E"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.A and 25.E for schema and diagnostic packet models.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+        "packages/coding-agent/src/diagnostics/evidence.ts",
+        "packages/coding-agent/src/diagnostics/index.ts",
+        "packages/coding-agent/src/diagnostics/root-cause.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts",
+        "packages/coding-agent/test/observability/schema.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/observability/collectors/brain/brain-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/overnight-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/proposal-collector.ts",
+        "packages/coding-agent/test/observability/brain-collectors.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.B", "25.D", "25.F", "25.I", "25.K"],
+        "cannotRunWith": [],
+        "conflictScope": ["brain-collectors", "overnight-events", "proposal-events"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.G is a dependency for the observability cockpit."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/observability/collectors/brain/brain-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/overnight-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/proposal-collector.ts",
+        "packages/coding-agent/test/observability/brain-collectors.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.G implements Brain, overnight, and proposal collectors without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Collectors emit events into the telemetry store; they never write attempt state.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/observability/collectors/brain/brain-collector.ts",
+          "packages/coding-agent/src/observability/collectors/brain/overnight-collector.ts",
+          "packages/coding-agent/src/observability/collectors/brain/proposal-collector.ts",
+          "packages/coding-agent/test/observability/brain-collectors.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.I",
+      "title": "Debugger Worker",
+      "dependencies": ["25.C", "25.E"],
+      "hardDeps": ["25.C", "25.E"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.C and 25.E for worker contracts and diagnostic packets.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/src/diagnostics/diagnostic-packet.ts",
+        "packages/coding-agent/src/diagnostics/evidence.ts",
+        "packages/coding-agent/src/diagnostics/index.ts",
+        "packages/coding-agent/src/diagnostics/root-cause.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts",
+        "packages/coding-agent/test/diagnostics/diagnostic-packet.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+        "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+        "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+        "packages/coding-agent/test/brain-workers/debugger-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.B", "25.D", "25.F", "25.G", "25.K"],
+        "cannotRunWith": [],
+        "conflictScope": ["debugger-worker", "diagnostic-analysis", "root-cause-hypotheses"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.I is on the critical path for fix proposals."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+        "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+        "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+        "packages/coding-agent/test/brain-workers/debugger-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.I implements Debugger Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Debugger Worker is read-only for execution state; findings are emitted into the handoff inbox.",
+        "Every debugger job has a trace ID or correlation ID.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+          "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+          "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+          "packages/coding-agent/test/brain-workers/debugger-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.K",
+      "title": "Idea Scout Worker",
+      "dependencies": ["25.A", "25.C"],
+      "hardDeps": ["25.A", "25.C"],
+      "softDeps": [],
+      "parallelGroup": "batch_2",
+      "dependencyReason": "Requires completed outputs from 25.A and 25.C for observability schema and worker contracts.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/src/observability/correlation.ts",
+        "packages/coding-agent/src/observability/index.ts",
+        "packages/coding-agent/src/observability/schema.ts",
+        "packages/coding-agent/src/observability/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts",
+        "packages/coding-agent/test/observability/schema.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+        "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_2",
+        "canRunWith": ["25.B", "25.D", "25.F", "25.G", "25.I"],
+        "cannotRunWith": [],
+        "conflictScope": ["idea-scout-worker", "idea-generation", "improvement-signals"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.K feeds the idea-to-plan pipeline."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+        "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.K implements Idea Scout Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Idea Scout Worker is read-only for execution state; findings are emitted into the handoff inbox.",
+        "Ideas are deduped before proposal; no forbidden commands or files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+          "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+          "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+          "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.H",
+      "title": "Local Observability Cockpit UI",
+      "dependencies": ["25.B", "25.F", "25.G"],
+      "hardDeps": ["25.B", "25.F", "25.G"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.B, 25.F, 25.G for telemetry store and collectors.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/observability/collectors/brain/brain-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/overnight-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/proposal-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/execution-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/scheduler-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/validation-collector.ts",
+        "packages/coding-agent/src/observability/store/query.ts",
+        "packages/coding-agent/src/observability/store/retention.ts",
+        "packages/coding-agent/src/observability/store/telemetry-store.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/observability/brain-collectors.test.ts",
+        "packages/coding-agent/test/observability/execution-collectors.test.ts",
+        "packages/coding-agent/test/observability/telemetry-store.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/observability-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/observability-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/web-ui/dashboard/src/features/observability/ObservabilityCockpit.tsx",
+        "packages/web-ui/dashboard/src/features/observability/TraceTimeline.tsx",
+        "packages/web-ui/dashboard/src/features/observability/HealthSummary.tsx",
+        "packages/web-ui/dashboard/src/hooks/useObservability.ts",
+        "packages/web-ui/dashboard/src/types-observability.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.J", "25.L", "25.M", "25.N", "25.O"],
+        "cannotRunWith": [],
+        "conflictScope": ["observability-ui", "dashboard-navigation", "telemetry-api-client"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.H feeds the readiness doctor."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/web-ui/dashboard/src/features/observability/ObservabilityCockpit.tsx",
+        "packages/web-ui/dashboard/src/features/observability/TraceTimeline.tsx",
+        "packages/web-ui/dashboard/src/features/observability/HealthSummary.tsx",
+        "packages/web-ui/dashboard/src/hooks/useObservability.ts",
+        "packages/web-ui/dashboard/src/types-observability.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.H implements Local Observability Cockpit UI without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Dashboard is read-only; it never mutates execution state directly.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/web-ui/dashboard/src/features/observability/ObservabilityCockpit.tsx",
+          "packages/web-ui/dashboard/src/features/observability/TraceTimeline.tsx",
+          "packages/web-ui/dashboard/src/features/observability/HealthSummary.tsx",
+          "packages/web-ui/dashboard/src/hooks/useObservability.ts",
+          "packages/web-ui/dashboard/src/types-observability.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.J",
+      "title": "Fix Strategist Worker",
+      "dependencies": ["25.I"],
+      "hardDeps": ["25.I"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.I for debugger hypotheses.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+        "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+        "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/debugger-worker.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/fix-strategist/fix-strategist-worker.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/patch-strategy.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/test-plan-generator.ts",
+        "packages/coding-agent/test/brain-workers/fix-strategist-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.H", "25.L", "25.M", "25.N", "25.O"],
+        "cannotRunWith": [],
+        "conflictScope": ["fix-strategist-worker", "patch-strategy", "test-plan-generation"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.J is on the critical path for fix proposals."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/fix-strategist/fix-strategist-worker.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/patch-strategy.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/test-plan-generator.ts",
+        "packages/coding-agent/test/brain-workers/fix-strategist-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.J implements Fix Strategist Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Fix Strategist Worker is read-only for execution state; proposals are emitted into the handoff inbox.",
+        "Every fix proposal includes an evidence-backed diagnostic packet.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/fix-strategist/fix-strategist-worker.ts",
+          "packages/coding-agent/src/brain-workers/fix-strategist/patch-strategy.ts",
+          "packages/coding-agent/src/brain-workers/fix-strategist/test-plan-generator.ts",
+          "packages/coding-agent/test/brain-workers/fix-strategist-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.L",
+      "title": "Regression Hunter Worker",
+      "dependencies": ["25.F", "25.I"],
+      "hardDeps": ["25.F", "25.I"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.F and 25.I for execution collectors and debugger.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+        "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+        "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+        "packages/coding-agent/src/observability/collectors/execution/execution-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/scheduler-collector.ts",
+        "packages/coding-agent/src/observability/collectors/execution/validation-collector.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/debugger-worker.test.ts",
+        "packages/coding-agent/test/observability/execution-collectors.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/regression-hunter/regression-hunter-worker.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/failure-clusterer.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/flaky-test-detector.ts",
+        "packages/coding-agent/test/brain-workers/regression-hunter-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.H", "25.J", "25.M", "25.N", "25.O"],
+        "cannotRunWith": [],
+        "conflictScope": ["regression-hunter-worker", "flaky-tests", "failure-clustering"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.L feeds the debug-to-fix pipeline."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/regression-hunter/regression-hunter-worker.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/failure-clusterer.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/flaky-test-detector.ts",
+        "packages/coding-agent/test/brain-workers/regression-hunter-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.L implements Regression Hunter Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Regression Hunter Worker is read-only for execution state; findings are emitted into the handoff inbox.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/regression-hunter/regression-hunter-worker.ts",
+          "packages/coding-agent/src/brain-workers/regression-hunter/failure-clusterer.ts",
+          "packages/coding-agent/src/brain-workers/regression-hunter/flaky-test-detector.ts",
+          "packages/coding-agent/test/brain-workers/regression-hunter-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.M",
+      "title": "Memory Curator Worker",
+      "dependencies": ["25.G", "25.K"],
+      "hardDeps": ["25.G", "25.K"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.G and 25.K for brain collectors and idea scout.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+        "packages/coding-agent/src/observability/collectors/brain/brain-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/overnight-collector.ts",
+        "packages/coding-agent/src/observability/collectors/brain/proposal-collector.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts",
+        "packages/coding-agent/test/observability/brain-collectors.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/memory-curator/memory-curator-worker.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/stale-memory-detector.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/conflict-review.ts",
+        "packages/coding-agent/test/brain-workers/memory-curator-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.H", "25.J", "25.L", "25.N", "25.O"],
+        "cannotRunWith": [],
+        "conflictScope": ["memory-curator-worker", "memory-dedupe", "memory-conflicts"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.M feeds the idea-to-plan pipeline."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/memory-curator/memory-curator-worker.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/stale-memory-detector.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/conflict-review.ts",
+        "packages/coding-agent/test/brain-workers/memory-curator-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.M implements Memory Curator Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Memory Curator Worker is read-only for execution state; proposals are emitted into the handoff inbox.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/memory-curator/memory-curator-worker.ts",
+          "packages/coding-agent/src/brain-workers/memory-curator/stale-memory-detector.ts",
+          "packages/coding-agent/src/brain-workers/memory-curator/conflict-review.ts",
+          "packages/coding-agent/test/brain-workers/memory-curator-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.N",
+      "title": "Plan Synthesizer Worker",
+      "dependencies": ["25.C", "25.K"],
+      "hardDeps": ["25.C", "25.K"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.C and 25.K for worker contracts and idea scout.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/contracts.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+        "packages/coding-agent/src/brain-workers/lifecycle.ts",
+        "packages/coding-agent/src/brain-workers/types.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/contracts.test.ts",
+        "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/plan-synthesizer-worker.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/dag-builder.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/template-renderer.ts",
+        "packages/coding-agent/test/brain-workers/plan-synthesizer-worker.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.H", "25.J", "25.L", "25.M", "25.O"],
+        "cannotRunWith": [],
+        "conflictScope": ["plan-synthesizer-worker", "plan-generation", "dag-generation"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.N feeds the idea-to-plan pipeline."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/plan-synthesizer-worker.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/dag-builder.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/template-renderer.ts",
+        "packages/coding-agent/test/brain-workers/plan-synthesizer-worker.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.N implements Plan Synthesizer Worker without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Plan Synthesizer Worker is read-only for execution state; plans are produced for human review.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/plan-synthesizer/plan-synthesizer-worker.ts",
+          "packages/coding-agent/src/brain-workers/plan-synthesizer/dag-builder.ts",
+          "packages/coding-agent/src/brain-workers/plan-synthesizer/template-renderer.ts",
+          "packages/coding-agent/test/brain-workers/plan-synthesizer-worker.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.O",
+      "title": "Worker handoff inbox and triage router",
+      "dependencies": ["25.B", "25.D", "25.I", "25.K"],
+      "hardDeps": ["25.B", "25.D", "25.I", "25.K"],
+      "softDeps": [],
+      "parallelGroup": "batch_3",
+      "dependencyReason": "Requires completed outputs from 25.B, 25.D, 25.I, 25.K for telemetry store, supervisor, debugger, and idea scout.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/debugger/debugger-worker.ts",
+        "packages/coding-agent/src/brain-workers/debugger/evidence-summarizer.ts",
+        "packages/coding-agent/src/brain-workers/debugger/root-cause-analyzer.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-deduper.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/idea-scout-worker.ts",
+        "packages/coding-agent/src/brain-workers/idea-scout/signal-miner.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+        "packages/coding-agent/src/observability/store/query.ts",
+        "packages/coding-agent/src/observability/store/retention.ts",
+        "packages/coding-agent/src/observability/store/telemetry-store.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/debugger-worker.test.ts",
+        "packages/coding-agent/test/brain-workers/idea-scout-worker.test.ts",
+        "packages/coding-agent/test/brain-workers/supervisor.test.ts",
+        "packages/coding-agent/test/observability/telemetry-store.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/observability-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/observability-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_3",
+        "canRunWith": ["25.H", "25.J", "25.L", "25.M", "25.N"],
+        "cannotRunWith": [],
+        "conflictScope": ["worker-handoff-inbox", "triage-router", "worker-routing"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.O is the routing hub for all worker findings."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.O implements Worker handoff inbox and triage router without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Handoff inbox integrates with the v4 HandoffQueue; triage decisions are events, not state mutations.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+          "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+          "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+          "packages/web-server/src/brain-worker-routes.ts",
+          "packages/web-server/test/brain-worker-routes.test.ts",
+          "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+          "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.P",
+      "title": "Debug to fix proposal pipeline",
+      "dependencies": ["25.O", "25.J", "25.L"],
+      "hardDeps": ["25.O", "25.J", "25.L"],
+      "softDeps": [],
+      "parallelGroup": "batch_4",
+      "dependencyReason": "Requires completed outputs from 25.O, 25.J, 25.L for handoff inbox, fix strategist, and regression hunter.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/fix-strategist/fix-strategist-worker.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/patch-strategy.ts",
+        "packages/coding-agent/src/brain-workers/fix-strategist/test-plan-generator.ts",
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/failure-clusterer.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/flaky-test-detector.ts",
+        "packages/coding-agent/src/brain-workers/regression-hunter/regression-hunter-worker.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/fix-strategist-worker.test.ts",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/coding-agent/test/brain-workers/regression-hunter-worker.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-policy.ts",
+        "packages/coding-agent/test/brain-workers/debug-to-fix-pipeline.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_4",
+        "canRunWith": ["25.Q", "25.R", "25.S"],
+        "cannotRunWith": [],
+        "conflictScope": ["debug-fix-pipeline", "proposal-execution", "approval-gate"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.P is on the critical path for all closed-loop behavior."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-policy.ts",
+        "packages/coding-agent/test/brain-workers/debug-to-fix-pipeline.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.P implements Debug to fix proposal pipeline without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Pipeline orchestrates through the actor event model; it never directly mutates attempt state.",
+        "Closed-loop behavior is gated by approval or safe local execution policy and cannot recurse indefinitely.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-pipeline.ts",
+          "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-policy.ts",
+          "packages/coding-agent/test/brain-workers/debug-to-fix-pipeline.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.Q",
+      "title": "Idea to proposal to plan pipeline",
+      "dependencies": ["25.O", "25.N", "25.M"],
+      "hardDeps": ["25.O", "25.N", "25.M"],
+      "softDeps": [],
+      "parallelGroup": "batch_4",
+      "dependencyReason": "Requires completed outputs from 25.O, 25.N, 25.M for handoff inbox, plan synthesizer, and memory curator.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/conflict-review.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/memory-curator-worker.ts",
+        "packages/coding-agent/src/brain-workers/memory-curator/stale-memory-detector.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/dag-builder.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/plan-synthesizer-worker.ts",
+        "packages/coding-agent/src/brain-workers/plan-synthesizer/template-renderer.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/coding-agent/test/brain-workers/memory-curator-worker.test.ts",
+        "packages/coding-agent/test/brain-workers/plan-synthesizer-worker.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-policy.ts",
+        "packages/coding-agent/test/brain-workers/idea-to-plan-pipeline.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_4",
+        "canRunWith": ["25.P", "25.R", "25.S"],
+        "cannotRunWith": [],
+        "conflictScope": ["idea-plan-pipeline", "proposal-generation", "plan-factory"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "high",
+        "queueOptimizationNotes": "High priority because 25.Q feeds the readiness doctor."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-policy.ts",
+        "packages/coding-agent/test/brain-workers/idea-to-plan-pipeline.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.Q implements Idea to proposal to plan pipeline without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Pipeline orchestrates through the actor event model; it never directly mutates execution state.",
+        "Closed-loop behavior is gated by approval or safe local execution policy and cannot recurse indefinitely.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-pipeline.ts",
+          "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-policy.ts",
+          "packages/coding-agent/test/brain-workers/idea-to-plan-pipeline.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.R",
+      "title": "Budgets, cooldowns, backoff, and loop prevention",
+      "dependencies": ["25.D", "25.O"],
+      "hardDeps": ["25.D", "25.O"],
+      "softDeps": [],
+      "parallelGroup": "batch_4",
+      "dependencyReason": "Requires completed outputs from 25.D and 25.O for supervisor and handoff inbox.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/coding-agent/test/brain-workers/supervisor.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/runtime/budget-controls.ts",
+        "packages/coding-agent/src/brain-workers/runtime/cooldowns.ts",
+        "packages/coding-agent/src/brain-workers/runtime/loop-prevention.ts",
+        "packages/coding-agent/test/brain-workers/loop-prevention.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_4",
+        "canRunWith": ["25.P", "25.Q", "25.S"],
+        "cannotRunWith": [],
+        "conflictScope": ["budget-controls", "cooldowns", "loop-prevention"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.R prevents runaway autonomous behavior."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/runtime/budget-controls.ts",
+        "packages/coding-agent/src/brain-workers/runtime/cooldowns.ts",
+        "packages/coding-agent/src/brain-workers/runtime/loop-prevention.ts",
+        "packages/coding-agent/test/brain-workers/loop-prevention.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.R implements Budgets, cooldowns, backoff, and loop prevention without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "Every autonomous loop has per-worker budgets, daily caps, dedupe windows, cooldowns, backoff, and stop conditions.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Loop prevention operates as a policy actor that emits suggestions; it never directly stops workspaces.",
+        "Closed-loop behavior cannot recurse indefinitely.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/runtime/budget-controls.ts",
+          "packages/coding-agent/src/brain-workers/runtime/cooldowns.ts",
+          "packages/coding-agent/src/brain-workers/runtime/loop-prevention.ts",
+          "packages/coding-agent/test/brain-workers/loop-prevention.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.S",
+      "title": "Worker crash recovery and job resumption",
+      "dependencies": ["25.B", "25.D", "25.O"],
+      "hardDeps": ["25.B", "25.D", "25.O"],
+      "softDeps": [],
+      "parallelGroup": "batch_4",
+      "dependencyReason": "Requires completed outputs from 25.B, 25.D, 25.O for telemetry store, supervisor, and handoff inbox.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/inbox/handoff-inbox.ts",
+        "packages/coding-agent/src/brain-workers/inbox/triage-router.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/job-lease.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/supervisor.ts",
+        "packages/coding-agent/src/brain-workers/supervisor/worker-health.ts",
+        "packages/coding-agent/src/observability/store/query.ts",
+        "packages/coding-agent/src/observability/store/retention.ts",
+        "packages/coding-agent/src/observability/store/telemetry-store.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/handoff-inbox.test.ts",
+        "packages/coding-agent/test/brain-workers/supervisor.test.ts",
+        "packages/coding-agent/test/observability/telemetry-store.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/brain-worker-routes.ts",
+        "packages/web-server/src/observability-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-server/test/brain-worker-routes.test.ts",
+        "packages/web-server/test/observability-routes.test.ts",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/brain-workers/WorkerInbox.tsx",
+        "packages/web-ui/dashboard/src/hooks/useBrainWorkerInbox.ts",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/brain-workers/runtime/job-recovery.ts",
+        "packages/coding-agent/src/brain-workers/runtime/job-state-store.ts",
+        "packages/coding-agent/test/brain-workers/job-recovery.test.ts"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_4",
+        "canRunWith": ["25.P", "25.Q", "25.R"],
+        "cannotRunWith": [],
+        "conflictScope": ["worker-recovery", "job-leases", "resume-stranded-jobs"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Narrow write ownership. Safe to run with same-batch workspaces."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.S provides crash resilience."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/brain-workers/runtime/job-recovery.ts",
+        "packages/coding-agent/src/brain-workers/runtime/job-state-store.ts",
+        "packages/coding-agent/test/brain-workers/job-recovery.test.ts"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.S implements Worker crash recovery and job resumption without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Recovery logic uses the v4 DeadlineWatchdog and HandoffQueue for quarantining stranded jobs.",
+        "Worker jobs can be recovered or quarantined after local server restart.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "high",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/brain-workers/runtime/job-recovery.ts",
+          "packages/coding-agent/src/brain-workers/runtime/job-state-store.ts",
+          "packages/coding-agent/test/brain-workers/job-recovery.test.ts"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.T",
+      "title": "Local Production Readiness Doctor",
+      "dependencies": ["25.H", "25.P", "25.Q", "25.R", "25.S"],
+      "hardDeps": ["25.H", "25.P", "25.Q", "25.R", "25.S"],
+      "softDeps": [],
+      "parallelGroup": "batch_5",
+      "dependencyReason": "Requires completed outputs from 25.H, 25.P, 25.Q, 25.R, 25.S for all dashboards, pipelines, and runtime.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/debug-to-fix-policy.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-pipeline.ts",
+        "packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-policy.ts",
+        "packages/coding-agent/src/brain-workers/runtime/budget-controls.ts",
+        "packages/coding-agent/src/brain-workers/runtime/cooldowns.ts",
+        "packages/coding-agent/src/brain-workers/runtime/job-recovery.ts",
+        "packages/coding-agent/src/brain-workers/runtime/job-state-store.ts",
+        "packages/coding-agent/src/brain-workers/runtime/loop-prevention.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/brain-workers/debug-to-fix-pipeline.test.ts",
+        "packages/coding-agent/test/brain-workers/idea-to-plan-pipeline.test.ts",
+        "packages/coding-agent/test/brain-workers/job-recovery.test.ts",
+        "packages/coding-agent/test/brain-workers/loop-prevention.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/observability/HealthSummary.tsx",
+        "packages/web-ui/dashboard/src/features/observability/ObservabilityCockpit.tsx",
+        "packages/web-ui/dashboard/src/features/observability/TraceTimeline.tsx",
+        "packages/web-ui/dashboard/src/hooks/useObservability.ts",
+        "packages/web-ui/dashboard/src/types-observability.ts",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/doctor/local-production-readiness-doctor.ts",
+        "packages/coding-agent/test/local-production-readiness-doctor.test.ts",
+        "packages/web-server/src/local-readiness-routes.ts",
+        "packages/web-ui/dashboard/src/features/observability/LocalReadinessPanel.tsx"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_5",
+        "canRunWith": [],
+        "cannotRunWith": [],
+        "conflictScope": ["readiness-doctor", "readiness-panel", "stability-checks"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Serialized after all pipeline and dashboard work."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.T gates the final dogfood gauntlet."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/src/doctor/local-production-readiness-doctor.ts",
+        "packages/coding-agent/test/local-production-readiness-doctor.test.ts",
+        "packages/web-server/src/local-readiness-routes.ts",
+        "packages/web-ui/dashboard/src/features/observability/LocalReadinessPanel.tsx"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.T implements Local Production Readiness Doctor without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Doctor performs read-only checks; it never mutates state.",
+        "Doctor fails closed when evidence is missing.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/src/doctor/local-production-readiness-doctor.ts",
+          "packages/coding-agent/test/local-production-readiness-doctor.test.ts",
+          "packages/web-server/src/local-readiness-routes.ts",
+          "packages/web-ui/dashboard/src/features/observability/LocalReadinessPanel.tsx"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    },
+    {
+      "id": "25.U",
+      "title": "Brain Worker Swarm Dogfood and Final Stability Report",
+      "dependencies": ["25.T"],
+      "hardDeps": ["25.T"],
+      "softDeps": [],
+      "parallelGroup": "batch_6",
+      "dependencyReason": "Requires completed outputs from 25.T for readiness doctor.",
+      "readSet": [
+        "docs/**",
+        "packages/coding-agent/src/**",
+        "packages/coding-agent/src/doctor/local-production-readiness-doctor.ts",
+        "packages/coding-agent/test/**",
+        "packages/coding-agent/test/local-production-readiness-doctor.test.ts",
+        "packages/db/src/**",
+        "packages/db/test/**",
+        "packages/web-server/src/**",
+        "packages/web-server/src/local-readiness-routes.ts",
+        "packages/web-server/test/**",
+        "packages/web-ui/dashboard/src/**",
+        "packages/web-ui/dashboard/src/features/observability/LocalReadinessPanel.tsx",
+        "reports/**"
+      ],
+      "writeSet": [
+        "packages/coding-agent/test/suite/regressions/p25-brain-worker-swarm-dogfood.test.ts",
+        "reports/p25-brain-worker-swarm/final-stability-report.md",
+        "reports/p25-brain-worker-swarm/dogfood-gauntlet.md",
+        "docs/p25-local-observability-brain-worker-swarm.md"
+      ],
+      "parallelism": {
+        "expectedBatch": "batch_6",
+        "canRunWith": [],
+        "cannotRunWith": [],
+        "conflictScope": ["dogfood-report", "stability-report", "local-gauntlet"],
+        "sameFileParallelismAllowed": false,
+        "safeParallelismNotes": "Serialized final gate."
+      },
+      "worktree": {
+        "required": true,
+        "isolationMode": "worktree",
+        "cleanupPolicy": "quarantine_on_failure"
+      },
+      "integration": {
+        "queueRequired": true,
+        "requiresWorkspaceValidation": true,
+        "requiresIntegrationValidation": true,
+        "conflictHandoffRequired": true,
+        "queuePriority": "critical",
+        "queueOptimizationNotes": "Critical priority because 25.U is the final acceptance gate."
+      },
+      "validation": {
+        "profile": "targeted_then_final",
+        "heavyCommandUsesGlobalLock": true,
+        "watchModeForbidden": true,
+        "requiredChecks": [
+          "npm run typecheck --if-present",
+          "npm test -- --runInBand --if-present",
+          "npm run build --if-present"
+        ]
+      },
+      "allowedFiles": [
+        "packages/coding-agent/test/suite/regressions/p25-brain-worker-swarm-dogfood.test.ts",
+        "reports/p25-brain-worker-swarm/final-stability-report.md",
+        "reports/p25-brain-worker-swarm/dogfood-gauntlet.md",
+        "docs/p25-local-observability-brain-worker-swarm.md"
+      ],
+      "forbiddenFiles": [
+        ".env*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.p12",
+        "**/*.pfx",
+        "**/id_rsa",
+        "**/credentials/**",
+        "**/secrets/**"
+      ],
+      "acceptanceCriteria": [
+        "25.U implements Brain Worker Swarm Dogfood and Final Stability Report without breaking existing P6/P6.5/P11/P13-P20 behavior.",
+        "All new APIs, types, and UI states are covered by targeted tests or documented dogfood checks.",
+        "All autonomous behavior has explicit budget, cooldown, dedupe, and stop-condition handling where applicable.",
+        "All failures surface evidence-backed diagnostics rather than silent errors.",
+        "Dogfood gauntlet exercises the full v4 ExecutionKernel event model and actor pipeline.",
+        "No forbidden commands or forbidden files are used."
+      ],
+      "targetCommand": null,
+      "roleBudget": "worker",
+      "maxRetries": 3,
+      "riskLevel": "medium",
+      "capabilityManifest": {
+        "canEdit": [
+          "packages/coding-agent/test/suite/regressions/p25-brain-worker-swarm-dogfood.test.ts",
+          "reports/p25-brain-worker-swarm/final-stability-report.md",
+          "reports/p25-brain-worker-swarm/dogfood-gauntlet.md",
+          "docs/p25-local-observability-brain-worker-swarm.md"
+        ],
+        "cannotEdit": [
+          ".env*",
+          "**/*.pem",
+          "**/*.key",
+          "**/*.p12",
+          "**/*.pfx",
+          "**/id_rsa",
+          "**/credentials/**",
+          "**/secrets/**"
+        ],
+        "canRun": [
+          "npm test",
+          "npm run test",
+          "npm run typecheck",
+          "npm run build",
+          "npm run lint",
+          "git status",
+          "git diff"
+        ],
+        "cannotRun": [
+          "git push",
+          "git push --force",
+          "rm -rf",
+          "npm publish",
+          "terraform destroy",
+          "kubectl delete",
+          "git reset --hard",
+          "git clean -fd",
+          "vitest --watch",
+          "jest --watch",
+          "npm run dev"
+        ]
+      },
+      "telemetry": {
+        "expectedEvents": [
+          "workspace_started",
+          "workspace_completed",
+          "workspace_validation_completed",
+          "integration_queue_entered",
+          "integration_validation_completed"
+        ],
+        "logLevel": "info"
+      }
+    }
+  ]
+}
+```
+
+---
+
+# Part 4 — Machine-Readable Summary
+
+```json
+{
+  "contractVersion": "4.0.0",
+  "templateVersion": "4.0.0",
+  "phase": "P25",
+  "title": "Local Production Observability and Brain Worker Swarm (v4 Flagship)",
+  "executionClass": "implementation",
+  "executionAutomation": "enabled",
+  "autonomousExecutionAllowed": true,
+  "agentMayMutateRepo": true,
+  "primaryGoal": "Make Pi locally stable, observable, self-debugging, idea-generating, and capable of routing work to specialized brain workers without runaway loops.",
+  "projectName": "pi",
+  "stateBackend": "postgres",
+  "jsonRuntimeFallback": false,
+  "executionKernelEnabled": true,
+  "selectedScaleMode": "experimental_6",
+  "maxParallelWorkspaces": 6,
+  "requiresWorktreeIsolation": true,
+  "requiresIntegrationQueue": true,
+  "queueOptimizationEnabled": true,
+  "queueOptimizationStrategy": "critical_path_first",
+  "continuousScheduling": true,
+  "continuousSlotCount": 6,
+  "parallelismIntent": 6,
+  "safetyLevel": "strict",
+  "conflictRisk": "medium",
+  "dagEffectiveParallelism": 3.5,
+  "safeEffectiveParallelism": 3.67,
+  "totalWorkspaces": 21,
+  "previewBatches": 6,
+  "peakDagWidth": 6,
+  "notInScope": [
+    "Cloud deployment",
+    "Enterprise multi-user RBAC",
+    "Public API security hardening",
+    "External canary rollout",
+    "Scale_8 execution by default"
+  ],
+  "hardStops": [
+    "secrets",
+    "destructive_ops",
+    "forbidden_files",
+    "budget_violations",
+    "dependency_cycles",
+    "unapproved_parallelism_review",
+    "invalid_dependency_patch",
+    "worktree_path_escape",
+    "raw_destructive_cleanup",
+    "integration_merge_without_validation",
+    "integration_validation_failure",
+    "merge_conflict_without_handoff",
+    "unsafe_scale_mode",
+    "queue_next_plan_while_integration_dirty",
+    "watch_mode_validation",
+    "autonomous_loop_without_budget",
+    "worker_job_without_trace_id",
+    "self_fix_without_evidence_packet",
+    "direct_attempt_state_mutation_detected",
+    "brain_worker_mutates_execution_state",
+    "non_terminal_state_without_deadline",
+    "execution_entrypoint_bypasses_admission_gate",
+    "transition_without_expected_version",
+    "handoff_required_without_queue_item",
+    "json_runtime_fallback_detected"
+  ],
+  "completionGate": "P25 is complete when Pi can observe its local runtime, diagnose failures, assign specialist workers, generate fix and idea proposals, recover worker jobs, prevent loops, and pass the brain-worker swarm dogfood gauntlet, all while upholding v4 ExecutionKernel invariants.",
+  "nextPhase": "P26 or production dogfood cycle"
+}
+```
+
+---
+
+# Annex A — Brain Worker Swarm Target Behavior
+
+P25 should prove the following local loop:
+
+```text
+observability event
+  -> diagnostic packet
+  -> Debugger Worker
+  -> root-cause hypothesis
+  -> Fix Strategist Worker
+  -> fix proposal
+  -> approval / safe execution gate
+  -> validation
+  -> reflection
+  -> memory update
+  -> better future diagnosis
+```
+
+And the improvement loop:
+
+```text
+reflection / repeated failure / stale work / dismissed proposal
+  -> Idea Scout Worker
+  -> Memory Curator Worker if memory-related
+  -> proposal scoring and dedupe
+  -> Plan Synthesizer Worker
+  -> executable markdown plan
+  -> approval
+  -> execution
+```
+
+All worker outputs flow through the HandoffQueue. Workers emit events only; they never mutate execution state.
+
+---
+
+# Annex B — Dogfood Gauntlet Scenarios (v4)
+
+25.U must run or document all of these:
+
+1. Failed workspace produces diagnostic packet.
+2. Debugger Worker produces evidence-backed root cause.
+3. Fix Strategist Worker produces bounded fix proposal.
+4. Bad proposal is deduped or rejected.
+5. Duplicate idea does not spam the inbox.
+6. Stale memory is detected by Memory Curator Worker.
+7. Worker crash leaves durable job state.
+8. Restart recovers or quarantines worker job.
+9. Failed validation prevents merge.
+10. Successful self-fix reaches reflection and memory update.
+11. Idea Scout produces a new improvement idea.
+12. Plan Synthesizer turns approved idea into valid executable markdown.
+13. Loop-prevention blocks repeated self-triggering.
+14. All worker jobs have trace IDs.
+15. Self-fix proposals include evidence-backed diagnostic packets.
+16. No brain worker or diagnostic mutates execution state.
+17. Every attempt transition uses `expectedVersion`.
+18. DeadlineWatchdog fires for expired non-terminal attempts.
+19. HANDOFF_REQUIRED produces a durable handoff queue item.
+20. AdmissionGate rejects unauthorized entrypoints.
+21. Readiness Doctor fails when evidence is missing.
+22. Readiness Doctor passes when all required evidence exists.
+
+---
+
+# Annex C — Final Stability Report Required Sections
+
+25.U must produce `reports/p25-brain-worker-swarm/final-stability-report.md` with:
+
+- Executive summary.
+- Workspace completion table.
+- DAG and safe parallelism actuals.
+- Worker swarm architecture summary.
+- Observability coverage matrix.
+- Debug-to-fix scenario result.
+- Idea-to-plan scenario result.
+- Recovery scenario result.
+- Loop-prevention scenario result.
+- ExecutionKernel invariant verification results.
+- Known limitations.
+- Rollback notes.
+- Final launch recommendation.

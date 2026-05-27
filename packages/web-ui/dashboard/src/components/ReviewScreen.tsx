@@ -25,6 +25,11 @@ import { GraphDiffView, type GraphDiffData } from "./PlanUploadDialog";
 // Types
 // ---------------------------------------------------------------------------
 
+interface SelfModIssue {
+	fileName: string;
+	message: string;
+}
+
 interface ReviewScreenProps {
 	/** All validation results keyed by filename */
 	results: Map<string, ValidateWithPreviewResponse>;
@@ -36,6 +41,10 @@ interface ReviewScreenProps {
 	preflightAcknowledged: boolean;
 	/** Called when preflight acknowledgment is toggled */
 	onPreflightAcknowledgedChange: (v: boolean) => void;
+	/** Safety override state (e.g. { "self_modification": true }) */
+	safetyOverrides?: Record<string, boolean>;
+	/** Called when a safety override is toggled */
+	onSafetyOverride?: (key: string, approved: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -275,10 +284,14 @@ function ApprovalTab({
 	results,
 	approvalChecks,
 	onApprovalCheckChange,
+	safetyOverrides,
+	onSafetyOverride,
 }: {
 	results: Map<string, ValidateWithPreviewResponse>;
 	approvalChecks: Record<string, boolean>;
 	onApprovalCheckChange: (key: string, checked: boolean) => void;
+	safetyOverrides?: Record<string, boolean>;
+	onSafetyOverride?: (key: string, approved: boolean) => void;
 }) {
 	const plansNeedingReview = useMemo(
 		() =>
@@ -288,117 +301,207 @@ function ApprovalTab({
 		[results],
 	);
 
-	if (plansNeedingReview.length === 0) {
-		return (
-			<div className="flex flex-col items-center justify-center py-12 gap-3">
-				<ShieldCheck size={28} className="text-emerald-600" strokeWidth={1.2} />
-				<p className="text-sm text-emerald-400">No plans require approval</p>
-				<p className="text-[10px] text-gray-600 max-w-sm text-center">
-					All plans can be executed without review.
-				</p>
-			</div>
-		);
-	}
+	// Compute self-modification issues directly from validation results
+	// (instead of relying on a potentially stale prop from the parent)
+	const selfModIssues: SelfModIssue[] = useMemo(() => {
+		const issues: SelfModIssue[] = [];
+		for (const [fileName, r] of results) {
+			for (const c of r.safety?.critical ?? []) {
+				if (c.type === "self_modification") {
+					issues.push({ fileName, message: c.message });
+				}
+			}
+		}
+		return issues;
+	}, [results]);
+
+	const selfModApproved = safetyOverrides?.["self_modification"] ?? false;
 
 	const allChecked =
 		approvalChecks["reviewed_preflight"] &&
 		approvalChecks["acknowledged_warnings"] &&
 		approvalChecks["confirmed_patches"];
 
+	const noPlansNeedReview = plansNeedingReview.length === 0 && selfModIssues.length === 0;
+
 	return (
 		<div className="space-y-4">
-			{/* Warning banner */}
-			<div className="flex items-start gap-2 p-3 rounded-lg border border-amber-800 bg-amber-900/30">
-				<AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-				<div>
-					<p className="text-xs font-medium text-amber-300">
-						{plansNeedingReview.length} plan
-						{plansNeedingReview.length !== 1 ? "s" : ""} require
-						{plansNeedingReview.length === 1 ? "s" : ""} review
+			{/* When no plans need review and no self-mod issues, show a pass-through message */}
+			{noPlansNeedReview && (
+				<div className="flex flex-col items-center justify-center py-12 gap-3">
+					<ShieldCheck size={28} className="text-emerald-600" strokeWidth={1.2} />
+					<p className="text-sm text-emerald-400">No plans require approval</p>
+					<p className="text-[10px] text-gray-600 max-w-sm text-center">
+						All plans can be executed without review.
 					</p>
-					<ul className="mt-1 space-y-0.5">
-						{plansNeedingReview.map(([fileName]) => (
-							<li
-								key={fileName}
-								className="text-[10px] text-amber-400 flex items-center gap-1"
-							>
-								<AlertCircle size={8} />
-								{fileName}
-							</li>
-						))}
-					</ul>
-				</div>
-			</div>
-
-			{/* Checklist */}
-			<div className="space-y-2">
-				<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
-					<input
-						type="checkbox"
-						checked={approvalChecks["reviewed_preflight"] ?? false}
-						onChange={(e) =>
-							onApprovalCheckChange("reviewed_preflight", e.target.checked)
-						}
-						className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
-					/>
-					<div>
-						<p className="text-xs font-medium text-gray-200">
-							I have reviewed the preflight summary
-						</p>
-						<p className="text-[10px] text-gray-500 mt-0.5">
-							Batch plan, parallelism settings, and workspace dependencies
-						</p>
-					</div>
-				</label>
-
-				<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
-					<input
-						type="checkbox"
-						checked={approvalChecks["acknowledged_warnings"] ?? false}
-						onChange={(e) =>
-							onApprovalCheckChange("acknowledged_warnings", e.target.checked)
-						}
-						className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
-					/>
-					<div>
-						<p className="text-xs font-medium text-gray-200">
-							I acknowledge the warnings
-						</p>
-						<p className="text-[10px] text-gray-500 mt-0.5">
-							Over-serialization, safety warnings, and other non-blocking issues
-						</p>
-					</div>
-				</label>
-
-				<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
-					<input
-						type="checkbox"
-						checked={approvalChecks["confirmed_patches"] ?? false}
-						onChange={(e) =>
-							onApprovalCheckChange("confirmed_patches", e.target.checked)
-						}
-						className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
-					/>
-					<div>
-						<p className="text-xs font-medium text-gray-200">
-							I confirm dependency patches are correct
-						</p>
-						<p className="text-[10px] text-gray-500 mt-0.5">
-							Applied dependency graph modifications and batch adjustments
-						</p>
-					</div>
-				</label>
-			</div>
-
-			{/* Status */}
-			{allChecked && (
-				<div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-800 bg-emerald-900/30">
-					<CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-					<span className="text-xs text-emerald-300">
-						All checks completed. You can proceed to execution.
-					</span>
 				</div>
 			)}
+
+			{/* Warning banner — only when there are plans needing review */}
+			{plansNeedingReview.length > 0 && (
+				<div className="flex items-start gap-2 p-3 rounded-lg border border-amber-800 bg-amber-900/30">
+					<AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+					<div>
+						<p className="text-xs font-medium text-amber-300">
+							{plansNeedingReview.length} plan
+							{plansNeedingReview.length !== 1 ? "s" : ""} require
+							{plansNeedingReview.length === 1 ? "s" : ""} review
+						</p>
+						<ul className="mt-1 space-y-0.5">
+							{plansNeedingReview.map(([fileName]) => (
+								<li
+									key={fileName}
+									className="text-[10px] text-amber-400 flex items-center gap-1"
+								>
+									<AlertCircle size={8} />
+									{fileName}
+								</li>
+							))}
+						</ul>
+					</div>
+				</div>
+			)}
+
+			{/* Checklist — only shown when there are plans that need standard review approval */}
+			{plansNeedingReview.length > 0 && (
+				<div className="space-y-2">
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+						<input
+							type="checkbox"
+							checked={approvalChecks["reviewed_preflight"] ?? false}
+							onChange={(e) =>
+								onApprovalCheckChange("reviewed_preflight", e.target.checked)
+							}
+							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+						/>
+						<div>
+							<p className="text-xs font-medium text-gray-200">
+								I have reviewed the preflight summary
+							</p>
+							<p className="text-[10px] text-gray-500 mt-0.5">
+								Batch plan, parallelism settings, and workspace dependencies
+							</p>
+						</div>
+					</label>
+
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+						<input
+							type="checkbox"
+							checked={approvalChecks["acknowledged_warnings"] ?? false}
+							onChange={(e) =>
+								onApprovalCheckChange("acknowledged_warnings", e.target.checked)
+							}
+							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+						/>
+						<div>
+							<p className="text-xs font-medium text-gray-200">
+								I acknowledge the warnings
+							</p>
+							<p className="text-[10px] text-gray-500 mt-0.5">
+								Over-serialization, safety warnings, and other non-blocking issues
+							</p>
+						</div>
+					</label>
+
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+						<input
+							type="checkbox"
+							checked={approvalChecks["confirmed_patches"] ?? false}
+							onChange={(e) =>
+								onApprovalCheckChange("confirmed_patches", e.target.checked)
+							}
+							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+						/>
+						<div>
+							<p className="text-xs font-medium text-gray-200">
+								I confirm dependency patches are correct
+							</p>
+							<p className="text-[10px] text-gray-500 mt-0.5">
+								Applied dependency graph modifications and batch adjustments
+							</p>
+						</div>
+					</label>
+				</div>
+			)}
+
+			{/* Self-modification safety override */}
+			{selfModIssues.length > 0 && (
+				<div className="space-y-2">
+					<div className="flex items-start gap-2 p-3 rounded-lg border border-purple-800 bg-purple-900/30">
+						<AlertTriangle size={14} className="text-purple-400 shrink-0 mt-0.5" />
+						<div>
+							<p className="text-xs font-medium text-purple-300">
+								Self-modification detected
+							</p>
+							<ul className="mt-1 space-y-0.5">
+								{selfModIssues.map((issue, i) => (
+									<li
+										key={i}
+										className="text-[10px] text-purple-400 flex items-start gap-1"
+									>
+										<AlertCircle size={8} className="mt-0.5 shrink-0" />
+										<span>{issue.message}</span>
+									</li>
+								))}
+							</ul>
+						</div>
+					</div>
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-purple-800/50 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+						<input
+							type="checkbox"
+							checked={selfModApproved}
+							onChange={(e) =>
+								onSafetyOverride?.("self_modification", e.target.checked)
+							}
+							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-purple-500"
+						/>
+						<div>
+							<p className="text-xs font-medium text-gray-200">
+								I approve self-modification
+							</p>
+							<p className="text-[10px] text-gray-500 mt-0.5">
+								This plan modifies files inside the project tooling itself
+								(system prompts, firewall, policies). Only approve if you
+								understand the consequences.
+							</p>
+						</div>
+					</label>
+				</div>
+			)}
+
+			{/* Status */}
+			{(() => {
+				// Determine if the standard approval checklist is satisfied.
+				// When no plans require review (only self-mod issues), the checklist is vacuously satisfied.
+				const checklistMet =
+					plansNeedingReview.length === 0 ? true : allChecked;
+
+				if (checklistMet && selfModApproved) {
+					return (
+						<div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-800 bg-emerald-900/30">
+							<CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+							<span className="text-xs text-emerald-300">
+								{selfModIssues.length > 0
+									? "All checks completed. Self-modification approved."
+									: "All checks completed. You can proceed to execution."}
+							</span>
+						</div>
+					);
+				}
+
+				if (checklistMet && !selfModApproved && selfModIssues.length > 0) {
+					return (
+						<div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-800 bg-amber-900/30">
+							<AlertTriangle size={12} className="text-amber-400 shrink-0" />
+							<span className="text-xs text-amber-300">
+								Approve self-modification above to proceed.
+							</span>
+						</div>
+					);
+				}
+
+				return null;
+			})()}
 		</div>
 	);
 }
@@ -410,7 +513,7 @@ function ApprovalTab({
 type ReviewTab = "preflight" | "depdiff" | "approval";
 
 export function ReviewScreen(props: ReviewScreenProps) {
-	const { results, approvalChecks, onApprovalCheckChange } = props;
+	const { results, approvalChecks, onApprovalCheckChange, safetyOverrides, onSafetyOverride } = props;
 	const [activeTab, setActiveTab] = useState<ReviewTab>("preflight");
 
 	const hasPlansNeedingApproval = useMemo(
@@ -473,6 +576,8 @@ export function ReviewScreen(props: ReviewScreenProps) {
 						results={results}
 						approvalChecks={approvalChecks}
 						onApprovalCheckChange={onApprovalCheckChange}
+						safetyOverrides={safetyOverrides}
+						onSafetyOverride={onSafetyOverride}
 					/>
 				)}
 			</div>

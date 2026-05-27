@@ -663,11 +663,36 @@ export function PlanUploadDialog({
 		}
 	}, [fileEntries, previewState.validationResponse, queuePlan, onEnqueued, handleClose]);
 
+	// ── Self-modification issues extracted from validation results ──
+	const selfModIssues: Array<{ fileName: string; message: string }> = useMemo(() => {
+		const issues: Array<{ fileName: string; message: string }> = [];
+		for (const [fileName, r] of effectiveResults) {
+			for (const c of r.safety?.critical ?? []) {
+				if (c.type === "self_modification") {
+					issues.push({ fileName, message: c.message });
+				}
+			}
+		}
+		// Also check single-file backward compat path
+		if (issues.length === 0 && previewState.validationResponse) {
+			for (const c of previewState.validationResponse.safety?.critical ?? []) {
+				if (c.type === "self_modification") {
+					issues.push({ fileName: "uploaded-plan.md", message: c.message });
+				}
+			}
+		}
+		return issues;
+	}, [effectiveResults, previewState.validationResponse]);
+
+	const hasSelfModIssues = selfModIssues.length > 0;
+	const selfModOverridden = safetyOverrides["self_modification"] ?? false;
+
 	// ── Can approve & run? ──
 	const canApproveAndRun =
 		allValidationsDone &&
 		!hasErrorFiles &&
 		allApprovalChecksMet &&
+		(!hasSelfModIssues || selfModOverridden) &&
 		previewState.stage !== "running" &&
 		previewState.stage !== "validating";
 
@@ -839,6 +864,13 @@ export function PlanUploadDialog({
 										setApprovalChecks((prev) => ({
 											...prev,
 											reviewed_preflight: v,
+										}))
+									}
+									safetyOverrides={safetyOverrides}
+									onSafetyOverride={(key, approved) =>
+										setSafetyOverrides((prev) => ({
+											...prev,
+											[key]: approved,
 										}))
 									}
 								/>
