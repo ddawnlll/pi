@@ -145,6 +145,9 @@ export class ContinuousExecutor {
 		this.abortController = new AbortController();
 		const signal = this.abortController.signal;
 		const started = new Set<string>();
+		const inFlightWorkspaceIds = new Set<string>();
+		const reservedEditOwners = new Map<string, string>();
+		const workspaceById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
 		const results: WorkspaceExecutionResult[] = [];
 		const mutex = new SerialMutex();
 
@@ -164,22 +167,61 @@ export class ContinuousExecutor {
 		// Track idle iterations to detect spinning and apply backoff.
 		let idleIterations = 0;
 
-		// Atomically pick the next ready workspace that has not yet been
-		// dispatched. Serialized via mutex to prevent races between
-		// concurrent fill/drain operations.
-		// Includes backoff to prevent CPU spin when getReadyWorkspaces
-		// repeatedly returns already-started workspaces.
+		const hasLocalDispatchConflict = (workspace: Workspace): boolean => {
+			if (workspace.cannotRunWith?.some((peerId) => inFlightWorkspaceIds.has(peerId))) {
+				return true;
+			}
+
+			for (const inFlightId of inFlightWorkspaceIds) {
+				const inFlightWorkspace = workspaceById.get(inFlightId);
+				if (inFlightWorkspace?.cannotRunWith?.includes(workspace.id)) {
+					return true;
+				}
+			}
+
+			for (const file of workspace.capabilities?.canEdit ?? []) {
+				const owner = reservedEditOwners.get(file);
+				if (owner && owner !== workspace.id) {
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		const reserveDispatch = (workspace: Workspace): void => {
+			started.add(workspace.id);
+			inFlightWorkspaceIds.add(workspace.id);
+			for (const file of workspace.capabilities?.canEdit ?? []) {
+				reservedEditOwners.set(file, workspace.id);
+			}
+		};
+
+		const releaseDispatch = (workspace: Workspace): void => {
+			inFlightWorkspaceIds.delete(workspace.id);
+			for (const file of workspace.capabilities?.canEdit ?? []) {
+				if (reservedEditOwners.get(file) === workspace.id) {
+					reservedEditOwners.delete(file);
+				}
+			}
+		};
+
+		// Atomically pick and reserve the next ready workspace that has not
+		// yet been dispatched. The local reservation closes the gap between
+		// scheduler selection and executeWorkspace's persisted active/lock state.
+		// Without it, the fill loop can dispatch conflicting workspaces before
+		// the first worker has emitted workspace_start or file_lock_acquired.
 		const getNext = async (): Promise<Workspace | null> => {
 			return mutex.runExclusive(async () => {
 				if (signal.aborted) return null;
 				const ready = await getReadyWorkspaces(workspaces);
-				const next = ready.find((ws) => !started.has(ws.id));
+				const next = ready.find((ws) => !started.has(ws.id) && !hasLocalDispatchConflict(ws));
 				if (next) {
-					started.add(next.id);
+					reserveDispatch(next);
 					idleIterations = 0;
 				} else if (ready.length > 0) {
-					// All ready workspaces are already started (unlikely but possible).
-					// Apply exponential backoff to prevent CPU spinning.
+					// Ready work exists, but it is already started or locally
+					// conflicts with an in-flight dispatch reservation.
 					idleIterations++;
 					if (idleIterations > 20) {
 						await new Promise((r) => setTimeout(r, Math.min(idleIterations * 10, 1000)));
@@ -196,6 +238,7 @@ export class ContinuousExecutor {
 				const result = await executeWorkspace(ws, signal);
 				results.push(result);
 			} finally {
+				releaseDispatch(ws);
 				inFlight--;
 
 				// If not aborted, immediately fill the freed slot with the

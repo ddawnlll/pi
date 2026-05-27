@@ -158,6 +158,31 @@ describe("ContinuousExecutor", () => {
 			expect(summary.completedCount).toBe(2);
 		});
 
+		it("does not dispatch same-file workspaces before persisted locks appear", async () => {
+			const workspaces = [makeWorkspace("A"), makeWorkspace("B")];
+			workspaces[0].capabilities = { canEdit: ["shared.ts"], canRun: [] };
+			workspaces[1].capabilities = { canEdit: ["shared.ts"], canRun: [] };
+
+			let active = 0;
+			let peakActive = 0;
+
+			const summary = await new ContinuousExecutor({ concurrency: 2 }).executeAll(
+				workspaces,
+				async () => workspaces,
+				async (ws, _signal) => {
+					active++;
+					peakActive = Math.max(peakActive, active);
+					await new Promise((r) => setTimeout(r, 5));
+					active--;
+					return successResult(ws.id);
+				},
+			);
+
+			expect(summary.results).toHaveLength(2);
+			expect(summary.completedCount).toBe(2);
+			expect(peakActive).toBe(1);
+		});
+
 		it("no batch barrier — workspaces complete in various orders", async () => {
 			// Workspaces A (no deps), B (no deps), C (no deps)
 			const workspaces = [makeWorkspace("A"), makeWorkspace("B"), makeWorkspace("C")];

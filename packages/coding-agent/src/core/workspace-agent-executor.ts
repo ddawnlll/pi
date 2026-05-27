@@ -24,6 +24,13 @@ import { type CreateAgentSessionResult, createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 
+function parsePositiveTimeoutEnv(name: string, fallbackMs: number): number {
+	const raw = process.env[name];
+	if (!raw) return fallbackMs;
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
 /**
  * Agent execution result
  */
@@ -67,6 +74,16 @@ export interface WorkspaceAgentExecutorConfig {
 	timeoutMs?: number;
 	/** Optional actor event sink for event-only migration */
 	actorEventSink?: ActorEventSink;
+	/**
+	 * LLM stream idle timeout in milliseconds.
+	 * Defaults to PI_LLM_STREAM_IDLE_TIMEOUT_MS or 60 seconds.
+	 */
+	llmStreamIdleTimeoutMs?: number;
+	/**
+	 * First event timeout in milliseconds.
+	 * Defaults to PI_FIRST_AGENT_EVENT_TIMEOUT_MS or 30 seconds.
+	 */
+	firstAgentEventTimeoutMs?: number;
 }
 
 /**
@@ -143,12 +160,12 @@ export class WorkspaceAgentExecutor {
 	/**
 	 * LLM streaming idle timeout in milliseconds.
 	 */
-	private readonly llmStreamIdleTimeoutMs: number = 5 * 60 * 1000;
+	private readonly llmStreamIdleTimeoutMs: number;
 
 	/**
 	 * Maximum time to wait for the first agent event after prompt dispatch.
 	 */
-	private readonly firstAgentEventTimeoutMs: number = 30 * 1000;
+	private readonly firstAgentEventTimeoutMs: number;
 
 	/** P26.C: Current execution context — null when not executing. */
 	private currentContext: ExecutionContext | null = null;
@@ -160,6 +177,10 @@ export class WorkspaceAgentExecutor {
 		this.planExecutionId = config.planExecutionId;
 		this.worktreeConfig = config.worktree;
 		this.timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // 30 minutes
+		this.llmStreamIdleTimeoutMs =
+			config.llmStreamIdleTimeoutMs ?? parsePositiveTimeoutEnv("PI_LLM_STREAM_IDLE_TIMEOUT_MS", 60 * 1000);
+		this.firstAgentEventTimeoutMs =
+			config.firstAgentEventTimeoutMs ?? parsePositiveTimeoutEnv("PI_FIRST_AGENT_EVENT_TIMEOUT_MS", 30 * 1000);
 		this.actorEventSink = config.actorEventSink;
 
 		// Use provided model or try to get from settings, then fall back to available models
@@ -908,7 +929,17 @@ export class WorkspaceAgentExecutor {
 					.catch(() => {});
 			}
 
-			await session.prompt(prompt);
+			let removePromptAbortListener = (): void => {};
+			const promptAbortPromise = new Promise<never>((_, reject) => {
+				const onAbort = () => reject(new Error("Execution aborted during provider stream"));
+				abortSignal.addEventListener("abort", onAbort, { once: true });
+				removePromptAbortListener = () => abortSignal.removeEventListener("abort", onAbort);
+			});
+			try {
+				await Promise.race([session.prompt(prompt), promptAbortPromise]);
+			} finally {
+				removePromptAbortListener();
+			}
 			ctx.promptDispatchResolvedAt = Date.now();
 			log(
 				`Agent prompt returned after ${ctx.promptDispatchStartedAt ? ctx.promptDispatchResolvedAt - ctx.promptDispatchStartedAt : 0}ms, waiting for completion...`,
@@ -1182,6 +1213,11 @@ export class WorkspaceAgentExecutor {
 			logs.push(logLine);
 			console.log(`[workspace-agent-executor] ${logLine}`);
 		};
+		const emitWorktreeStatus = (message: string): void => {
+			if (this.stateStore && this.planExecutionId && typeof this.stateStore.emitWorkerStatus === "function") {
+				this.stateStore.emitWorkerStatus(this.planExecutionId, workspaceId, "executing", message).catch(() => {});
+			}
+		};
 
 		// Listen for abort signal from the execution context and abort the worktree executor
 		const abortWorktree = () => {
@@ -1194,6 +1230,7 @@ export class WorkspaceAgentExecutor {
 
 		try {
 			log(`Worktree mode enabled for workspace ${workspaceId}`);
+			emitWorktreeStatus("Creating isolated worktree");
 
 			// P26.C: Create the worktree executor in the execution context
 			// P26.F: Pass attemptNo for attempt-scoped worktree paths and branch names
@@ -1219,6 +1256,7 @@ export class WorkspaceAgentExecutor {
 			}
 
 			log(`Worktree ready at: ${createResult.state.worktreePath}`);
+			emitWorktreeStatus(`Worktree ready: ${createResult.state.worktreePath}`);
 			log(`Base commit: ${createResult.state.baseCommit}`);
 			log(`Branch: ${createResult.state.branchName}`);
 

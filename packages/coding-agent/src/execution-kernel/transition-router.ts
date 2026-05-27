@@ -12,7 +12,7 @@
  * - Journal events are emitted with proper attempt event types
  */
 
-import type { Database } from "@earendil-works/pi-db";
+import { type Database, getKysely } from "@earendil-works/pi-db";
 import type { Kysely } from "kysely";
 import type { IStateStore } from "../core/state-store.js";
 import type { WorkspaceStage } from "../core/workspace-schema.js";
@@ -490,19 +490,10 @@ export function createTransitionRouter(stateStore: IStateStore): TransitionRoute
 	const backend = stateStore.getBackendType();
 
 	if (backend === "postgres") {
-		// Try to get the Kysely instance for the KernelTransitionRouter
-		// The DatabaseStateStore creates its own kysely connection internally.
-		// We import getKysely lazily to avoid circular deps.
-		try {
-			// Use dynamic import with node:assert to check if getKysely is available
-			// eslint-disable-next-line @typescript-eslint/no-require-imports
-			const { getKysely } = require("@earendil-works/pi-db") as typeof import("@earendil-works/pi-db");
-			const db = getKysely();
-			return new KernelTransitionRouter(stateStore, db);
-		} catch {
-			// Fall back to direct routing if Kysely is unavailable
-			return new DirectTransitionRouter(stateStore);
-		}
+		// PostgreSQL execution must use the kernel router. Falling back to
+		// DirectTransitionRouter would bypass attempt rows and controller events.
+		const db = getKysely();
+		return new KernelTransitionRouter(stateStore, db);
 	}
 
 	return new DirectTransitionRouter(stateStore);

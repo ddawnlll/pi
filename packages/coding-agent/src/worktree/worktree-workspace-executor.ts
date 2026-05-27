@@ -18,24 +18,22 @@ import type { HashedPacket } from "../core/role-packets.js";
 // Global worktree operation mutex
 // Prevents concurrent git worktree add/remove operations that could conflict.
 // ---------------------------------------------------------------------------
-const worktreeMutex: { promise: Promise<void>; release: (() => void) | null } = {
-	promise: Promise.resolve(),
-	release: null,
-};
+let worktreeMutexTail: Promise<void> = Promise.resolve();
 
-async function acquireWorktreeMutex(): Promise<void> {
-	await worktreeMutex.promise;
-	return new Promise<void>((resolve) => {
-		worktreeMutex.promise = new Promise<void>((innerResolve) => {
-			worktreeMutex.release = () => {
-				innerResolve();
-				resolve();
-			};
-		});
-		// P26.E: No auto-release bypass. If release() is never called (crash,
-		// unhandled throw), the mutex chain hangs — preventing silent unlocked
-		// execution. Recovery requires restart or manual cleanup.
+async function acquireWorktreeMutex(): Promise<() => void> {
+	let release!: () => void;
+	const previous = worktreeMutexTail;
+	const next = new Promise<void>((resolve) => {
+		release = resolve;
 	});
+
+	// Chain before awaiting so concurrent callers queue behind this caller.
+	worktreeMutexTail = previous.then(
+		() => next,
+		() => next,
+	);
+	await previous;
+	return release;
 }
 
 import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "../core/workspace-agent-executor.js";
@@ -475,7 +473,7 @@ export class WorktreeWorkspaceExecutor {
 		// Acquire global worktree mutex to prevent concurrent git worktree operations
 		// that could cause ref locking conflicts.
 		const WORKTREE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max for worktree creation
-		await acquireWorktreeMutex();
+		const releaseWorktreeMutex = await acquireWorktreeMutex();
 		try {
 			// Timeout: ensureBranch + git worktree add must complete within the limit
 			await Promise.race([
@@ -502,7 +500,7 @@ export class WorktreeWorkspaceExecutor {
 				error: `Failed to create git worktree: ${err instanceof Error ? err.message : String(err)}`,
 			};
 		} finally {
-			worktreeMutex.release?.();
+			releaseWorktreeMutex();
 		}
 
 		const state: WorktreeState = {
@@ -544,7 +542,7 @@ export class WorktreeWorkspaceExecutor {
 			return; // Don't remove, just mark as quarantined
 		}
 
-		await acquireWorktreeMutex();
+		const releaseWorktreeMutex = await acquireWorktreeMutex();
 		try {
 			// Check if the worktree directory still exists before trying to remove it
 			const wtExists = await directoryExists(worktreeDir);
@@ -564,7 +562,7 @@ export class WorktreeWorkspaceExecutor {
 				err instanceof Error ? err.message : String(err),
 			);
 		} finally {
-			worktreeMutex.release?.();
+			releaseWorktreeMutex();
 		}
 
 		// Prune stale worktree references
