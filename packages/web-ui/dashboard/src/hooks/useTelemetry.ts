@@ -7,6 +7,11 @@
  * - useTelemetryStats: statistics and aggregations
  * - useTelemetryErrors: error analysis
  * - useTelemetryTimeSeries: time-series data
+ * - useTelemetryRetentionPolicy: retention policy
+ *
+ * All hooks with polling support include request deduplication via a
+ * monotonically increasing request counter, ensuring stale responses
+ * from previous requests do not overwrite newer data.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,6 +50,19 @@ function buildQueryString(params: Record<string, string | number | undefined>): 
 	return parts.length > 0 ? `?${parts.join("&")}` : "";
 }
 
+// ── Dedupe helper ────────────────────────────────────────────────────
+
+/**
+ * Creates a ref and a dedupe guard for use in async fetch callbacks.
+ * Returns [requestSeqRef, isLatest] where isLatest(seq) returns true
+ * only if the given sequence number matches the latest requested seq.
+ */
+function useDedupe(): [React.MutableRefObject<number>, (seq: number) => boolean] {
+	const requestSeqRef = useRef(0);
+	const isLatest = useCallback((seq: number) => seq === requestSeqRef.current, []);
+	return [requestSeqRef, isLatest];
+}
+
 // ── useTelemetryDashboard ─────────────────────────────────────────────
 
 export interface TelemetryDashboardResult {
@@ -68,8 +86,10 @@ export function useTelemetryDashboard(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		try {
 			const qs = buildQueryString({
 				since: query?.since,
@@ -79,15 +99,19 @@ export function useTelemetryDashboard(
 			const data = await fetchJson<TelemetryDashboardResponse>(
 				`${API_BASE}/api/telemetry/dashboard${qs}`,
 			);
+			if (!isLatest(seq)) return; // Stale response — discard
 			setSummary(data.summary);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return; // Stale response — discard
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
-	}, [query?.since, query?.until, query?.projectId]);
+	}, [query?.since, query?.until, query?.projectId, isLatest]);
 
 	useEffect(() => {
 		setLoading(true);
@@ -130,8 +154,10 @@ export function useTelemetryEvents(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		try {
 			const qs = buildQueryString({
 				since: filters.since,
@@ -149,14 +175,18 @@ export function useTelemetryEvents(
 			const data = await fetchJson<TelemetryEventsResponse>(
 				`${API_BASE}/api/telemetry/events${qs}`,
 			);
+			if (!isLatest(seq)) return;
 			setEvents(data.events);
 			setTotal(data.total);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return;
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
 	}, [
 		filters.since,
@@ -170,6 +200,7 @@ export function useTelemetryEvents(
 		filters.projectId,
 		filters.planExecutionId,
 		filters.traceId,
+		isLatest,
 	]);
 
 	useEffect(() => {
@@ -215,8 +246,10 @@ export function useTelemetryStats(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		try {
 			const qs = buildQueryString({
 				since: filters.since,
@@ -231,15 +264,19 @@ export function useTelemetryStats(
 			const data = await fetchJson<TelemetryStatsResponse>(
 				`${API_BASE}/api/telemetry/stats${qs}`,
 			);
+			if (!isLatest(seq)) return;
 			setStats(data.stats);
 			setAggregations(data.aggregations?.aggregations ?? null);
 			setFilteredEvents(data.filteredEvents);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return;
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
 	}, [
 		filters.since,
@@ -250,6 +287,7 @@ export function useTelemetryStats(
 		filters.projectId,
 		filters.planExecutionId,
 		filters.traceId,
+		isLatest,
 	]);
 
 	useEffect(() => {
@@ -291,8 +329,10 @@ export function useTelemetryErrors(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		try {
 			const qs = buildQueryString({
 				limit: filters.limit,
@@ -304,13 +344,17 @@ export function useTelemetryErrors(
 			const data = await fetchJson<TelemetryErrorAnalysisResponse>(
 				`${API_BASE}/api/telemetry/errors${qs}`,
 			);
+			if (!isLatest(seq)) return;
 			setAnalysis(data);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return;
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
 	}, [
 		filters.limit,
@@ -318,6 +362,7 @@ export function useTelemetryErrors(
 		filters.until,
 		filters.projectId,
 		filters.source,
+		isLatest,
 	]);
 
 	useEffect(() => {
@@ -365,10 +410,12 @@ export function useTelemetryTimeSeries(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		if (!since || !until) {
-			setLoading(false);
+			if (isLatest(seq)) setLoading(false);
 			return;
 		}
 		try {
@@ -384,15 +431,19 @@ export function useTelemetryTimeSeries(
 			const data = await fetchJson<TelemetryTimeSeriesResponse>(
 				`${API_BASE}/api/telemetry/time-series${qs}`,
 			);
+			if (!isLatest(seq)) return;
 			setTimeSeries(data);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return;
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
-	}, [since, until, bucketWidthMs, filters.severity, filters.eventType, filters.source, filters.projectId]);
+	}, [since, until, bucketWidthMs, filters.severity, filters.eventType, filters.source, filters.projectId, isLatest]);
 
 	useEffect(() => {
 		setLoading(true);
@@ -445,21 +496,27 @@ export function useTelemetryRetentionPolicy(
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [requestSeqRef, isLatest] = useDedupe();
 
 	const fetchData = useCallback(async () => {
+		const seq = ++requestSeqRef.current;
 		try {
 			const data = await fetchJson<{ policy: RetentionPolicy }>(
 				`${API_BASE}/api/telemetry/retention/policy`,
 			);
+			if (!isLatest(seq)) return;
 			setPolicy(data.policy);
 			setError(null);
 		} catch (err) {
 			if (err instanceof DOMException && (err as DOMException).name === "AbortError") return;
+			if (!isLatest(seq)) return;
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
-			setLoading(false);
+			if (isLatest(seq)) {
+				setLoading(false);
+			}
 		}
-	}, []);
+	}, [isLatest]);
 
 	useEffect(() => {
 		setLoading(true);

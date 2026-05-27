@@ -72,6 +72,8 @@ describe("execution stall regressions", () => {
 			expect(source).toContain("First agent event observed");
 			expect(source).toContain("Failure diagnostics:");
 			expect(source).toContain("Execution diagnostics:");
+			expect(source).toContain("Transient provider failure: assistant stream completed with no final text");
+			expect(source).toContain("Final assistant diagnostics:");
 		} finally {
 			await fs.rm(tmpDir, { recursive: true, force: true });
 		}

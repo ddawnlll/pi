@@ -1823,7 +1823,12 @@ export async function resumeStrandedExecutions(
 /**
  * Recover a single stranded execution.
  */
-async function recoverSingleExecution(workspaceRoot: string, projectId: string, planExecId: string): Promise<boolean> {
+async function recoverSingleExecution(
+	workspaceRoot: string,
+	projectId: string,
+	planExecId: string,
+	options: { allowTerminal?: boolean } = {},
+): Promise<boolean> {
 	const piDir = join(workspaceRoot, ".pi");
 
 	// Use the shared state store singleton
@@ -1836,13 +1841,17 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		return false;
 	}
 
-	// If already terminal, nothing to recover — clean up orphaned snapshot files
-	// "stopped" is also terminal: the user explicitly stopped the plan.
+	// If already terminal, crash recovery skips it. Manual continue/rerun may
+	// restart failed, stopped, or cancelled executions in-place while preserving
+	// completed workspaces.
+	if (planState.status === "complete") {
+		new PiLogger({ planExecId }).info(`Execution ${planExecId} already complete, skipping recovery`);
+		await deleteExecutionSnapshots(planExecId);
+		return false;
+	}
 	if (
-		planState.status === "complete" ||
-		planState.status === "failed" ||
-		planState.status === "cancelled" ||
-		planState.status === "stopped"
+		(planState.status === "failed" || planState.status === "cancelled" || planState.status === "stopped") &&
+		!options.allowTerminal
 	) {
 		new PiLogger({ planExecId }).info(
 			`Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`,
@@ -1948,7 +1957,9 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 	});
 
 	// Adopt the existing execution (resets stranded active → pending)
-	const adopted = await executor.adoptExistingExecution(planExecId, queue);
+	const adopted = await executor.adoptExistingExecution(planExecId, queue, {
+		allowTerminal: options.allowTerminal,
+	});
 	if (!adopted) {
 		// Already terminal or no state — nothing to do
 		new PiLogger({ planExecId }).info(`Failed to adopt execution ${planExecId}`);
@@ -1972,6 +1983,13 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 		queue.workspaces = queue.workspaces.filter((w) => !completeWorkspaceIds.has(w.id));
 		new PiLogger({ planExecId }).info(
 			`Filtered out ${completeWorkspaceIds.size} complete workspace(s) from recovery queue (${originalCount} → ${queue.workspaces.length})`,
+		);
+	}
+
+	if (options.allowTerminal) {
+		const removed = await executor.cleanupWorktreesExcept(planExecId, completeWorkspaceIds);
+		new PiLogger({ planExecId }).info(
+			`Manual continue removed ${removed} non-complete worktree(s); preserving ${completeWorkspaceIds.size} complete worktree(s)`,
 		);
 	}
 
@@ -2027,6 +2045,21 @@ async function recoverSingleExecution(workspaceRoot: string, projectId: string, 
 
 	new PiLogger({ planExecId }).info(`Recovered stranded execution ${planExecId} (${queue.title})`);
 	return true;
+}
+
+/**
+ * Continue an existing stopped/failed execution in-place.
+ *
+ * Completed workspaces remain complete and are removed from the scheduling
+ * queue. Failed/blocked/active workspaces are reset to pending and rerun under
+ * the same plan execution ID, preserving dashboard history and artifacts.
+ */
+export async function continuePlanExecution(
+	workspaceRoot: string,
+	projectId: string,
+	planExecId: string,
+): Promise<boolean> {
+	return recoverSingleExecution(workspaceRoot, projectId, planExecId, { allowTerminal: true });
 }
 
 // ---------------------------------------------------------------------------

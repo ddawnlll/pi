@@ -625,6 +625,183 @@ describe("DebuggerWorker — Manifest Generation", () => {
 });
 
 // =============================================================================
+// DebuggerWorker — Trace & Correlation IDs
+// =============================================================================
+
+describe("DebuggerWorker — Trace & Correlation IDs", () => {
+	test("createSession stores traceId when provided", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("traced", {}, undefined, "trace-abc-123");
+		expect(session).not.toBeNull();
+		expect(session!.traceId).toBe("trace-abc-123");
+		expect(session!.correlationId).toBeNull();
+	});
+
+	test("createSession stores correlationId when provided", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("correlated", {}, undefined, undefined, "correl-xyz-789");
+		expect(session).not.toBeNull();
+		expect(session!.traceId).toBeNull();
+		expect(session!.correlationId).toBe("correl-xyz-789");
+	});
+
+	test("createSession stores both traceId and correlationId", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("both-ids", {}, "hash", "trace-001", "correl-002");
+		expect(session).not.toBeNull();
+		expect(session!.traceId).toBe("trace-001");
+		expect(session!.correlationId).toBe("correl-002");
+	});
+
+	test("traceId and correlationId are null by default", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("no-ids");
+		expect(session!.traceId).toBeNull();
+		expect(session!.correlationId).toBeNull();
+	});
+
+	test("traceId persists through session lifecycle", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("lifecycle-trace", {}, undefined, "trace-persist");
+		expect(session!.traceId).toBe("trace-persist");
+
+		worker.startCollection(session!.id);
+		const collecting = worker.getSession(session!.id);
+		expect(collecting!.traceId).toBe("trace-persist");
+
+		worker.addEvidence(session!.id, {
+			type: "error_message",
+			label: "Error",
+			content: "Error: test",
+			confidence: "high",
+			source: "test",
+			refs: [],
+			metadata: {},
+		});
+		worker.analyze(session!.id);
+		const completed = worker.getSession(session!.id);
+		expect(completed!.traceId).toBe("trace-persist");
+	});
+
+	test("correlationId persists through session lifecycle", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("lifecycle-correl", {}, undefined, undefined, "correl-persist");
+
+		worker.startCollection(session!.id);
+		worker.addEvidence(session!.id, {
+			type: "error_message",
+			label: "Error",
+			content: "Error: test",
+			confidence: "high",
+			source: "test",
+			refs: [],
+			metadata: {},
+		});
+		worker.analyze(session!.id);
+
+		const completed = worker.getSession(session!.id);
+		expect(completed!.correlationId).toBe("correl-persist");
+	});
+});
+
+// =============================================================================
+// DebuggerWorker — Handoff Emission
+// =============================================================================
+
+describe("DebuggerWorker — Handoff Emission", () => {
+	test("emitFindings returns null for unknown session", () => {
+		const worker = new DebuggerWorker();
+		expect(worker.emitFindings("nonexistent")).toBeNull();
+	});
+
+	test("emitFindings returns result bundle for existing session", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("emit-test", {}, undefined, "trace-emit", "correl-emit");
+		expect(session).not.toBeNull();
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.sessionId).toBe(session!.id);
+		expect(result!.label).toBe("emit-test");
+		expect(result!.traceId).toBe("trace-emit");
+		expect(result!.correlationId).toBe("correl-emit");
+		expect(result!.status).toBe("pending");
+		expect(result!.rootCauseAnalysis).toBeNull();
+		expect(result!.evidenceSummary).toBeNull();
+		expect(result!.diagnostic).toBeNull();
+		expect(result!.error).toBeNull();
+		expect(result!.workerStats).toBeDefined();
+		expect(result!.workerStats.totalSessions).toBe(1);
+		expect(result!.emittedAt).toBeDefined();
+	});
+
+	test("emitFindings includes analysis after completion", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("completed-emit");
+		worker.startCollection(session!.id);
+		worker.addEvidence(session!.id, {
+			type: "error_message",
+			label: "Error",
+			content: "Error: Cannot find module 'express'",
+			confidence: "high",
+			source: "test",
+			refs: [],
+			metadata: {},
+		});
+		worker.analyze(session!.id);
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.status).toBe("completed");
+		expect(result!.rootCauseAnalysis).not.toBeNull();
+		expect(result!.rootCauseAnalysis!.findings.length).toBeGreaterThanOrEqual(1);
+		expect(result!.evidenceSummary).not.toBeNull();
+		expect(result!.workerStats.completed).toBe(1);
+	});
+
+	test("emitFindings includes diagnostic after failure", () => {
+		const worker = new DebuggerWorker({
+			maxTokensPerSession: 1,
+		});
+		const session = worker.createSession("failed-emit");
+		worker.startCollection(session!.id);
+		worker.analyze(session!.id, 100, 0);
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.status).toBe("failed");
+		expect(result!.diagnostic).not.toBeNull();
+		expect(result!.rootCauseAnalysis).toBeNull();
+	});
+
+	test("emitFindings respects read-only contract (does not modify session)", () => {
+		const worker = new DebuggerWorker();
+		const session = worker.createSession("readonly-test");
+		worker.startCollection(session!.id);
+		worker.addEvidence(session!.id, {
+			type: "error_message",
+			label: "Error",
+			content: "Error: test",
+			confidence: "high",
+			source: "test",
+			refs: [],
+			metadata: {},
+		});
+		worker.analyze(session!.id);
+
+		const originalStatus = session!.status;
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+
+		// Session should be unchanged after emission
+		const after = worker.getSession(session!.id);
+		expect(after!.status).toBe(originalStatus);
+		expect(after!.evidenceSummary).toBe(session!.evidenceSummary);
+		expect(after!.rootCauseAnalysis).toBe(session!.rootCauseAnalysis);
+	});
+});
+
+// =============================================================================
 // DebuggerWorker — Edge Cases
 // =============================================================================
 

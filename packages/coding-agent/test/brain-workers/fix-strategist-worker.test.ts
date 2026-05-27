@@ -19,6 +19,7 @@ import {
 	ALL_PATCH_ACTION_TYPES,
 	ALL_RISK_LEVELS,
 	createPatchStrategyGenerator,
+	type FixRootCauseFinding,
 	type PatchAction,
 	PatchStrategyGenerator,
 } from "../../src/brain-workers/fix-strategist/patch-strategy.js";
@@ -560,8 +561,8 @@ describe("FixStrategistWorker", () => {
 		worker.analyze([]);
 		worker.analyze([]);
 
-		// After 3 failures, the stop condition should trigger
-		expect(worker.checkStopCondition(3)).toBe("consecutive_failures_exceeded");
+		// After 3 failures (matching default maxConsecutiveFailures), stop condition should trigger
+		expect(worker.checkStopCondition()).toBe("consecutive_failures_exceeded");
 	});
 
 	test("getConsecutiveFailureCount returns current count", () => {
@@ -744,6 +745,148 @@ describe("FixStrategistWorker", () => {
 		expect(worker.getDiagnostics().length).toBe(0);
 		expect(worker.resultCount).toBe(0);
 	});
+
+	// emitProposal
+	describe("emitProposal", () => {
+		test("returns null for unknown result ID", () => {
+			const worker = createFixStrategistWorker();
+			const proposal = worker.emitProposal("nonexistent-id");
+			expect(proposal).toBeNull();
+		});
+
+		test("produces a valid handoff bundle for a known result", () => {
+			const worker = createFixStrategistWorker();
+			const evidence = [{ label: "Error", content: "TypeError: x", type: "error_message", confidence: "high" }];
+
+			const result = worker.analyze(evidence);
+			const proposal = worker.emitProposal(result.id);
+
+			expect(proposal).not.toBeNull();
+			expect(proposal!.resultId).toBe(result.id);
+			expect(proposal!.sessionId).toBe(result.sessionId);
+			expect(proposal!.strategies).toEqual(result.strategies);
+			expect(proposal!.testPlans).toEqual(result.testPlans);
+			expect(proposal!.success).toBe(result.success);
+			expect(proposal!.summary).toBe(result.summary);
+			expect(proposal!.diagnostics).toEqual(result.diagnostics);
+			expect(proposal!.emittedAt).toBeTruthy();
+			expect(proposal!.workerStats).toBeDefined();
+			expect(proposal!.workerStats.totalCycles).toBeGreaterThanOrEqual(1);
+		});
+
+		test("increments totalProposalsEmitted on each call", () => {
+			const worker = createFixStrategistWorker();
+			const evidence = [{ label: "Error", content: "TypeError: x", type: "error_message", confidence: "high" }];
+
+			const r1 = worker.analyze(evidence);
+			const r2 = worker.analyze([
+				{ label: "Error", content: "TypeError: y", type: "error_message", confidence: "high" },
+			]);
+
+			worker.emitProposal(r1.id);
+			const statsAfterFirst = worker.getStats();
+			expect(statsAfterFirst.totalProposalsEmitted).toBe(1);
+
+			worker.emitProposal(r2.id);
+			const statsAfterSecond = worker.getStats();
+			expect(statsAfterSecond.totalProposalsEmitted).toBe(2);
+		});
+	});
+
+	// getStats
+	describe("getStats", () => {
+		test("returns default stats for fresh worker", () => {
+			const worker = createFixStrategistWorker();
+			const stats = worker.getStats();
+
+			expect(stats.totalCycles).toBe(0);
+			expect(stats.completed).toBe(0);
+			expect(stats.failed).toBe(0);
+			expect(stats.consecutiveFailures).toBe(0);
+			expect(stats.totalCyclesCompleted).toBe(0);
+			expect(stats.totalCyclesFailed).toBe(0);
+			expect(stats.totalProposalsEmitted).toBe(0);
+			expect(stats.totalDiagnosticsGenerated).toBe(0);
+			expect(stats.totalStrategiesGenerated).toBe(0);
+			expect(stats.totalTestPlansGenerated).toBe(0);
+			expect(stats.dedupHistorySize).toBe(0);
+			expect(stats.healthStatus).toBe("healthy");
+		});
+
+		test("tracks cycle stats after analysis", () => {
+			const worker = createFixStrategistWorker();
+			const evidence = [{ label: "Error", content: "TypeError: x", type: "error_message", confidence: "high" }];
+
+			worker.analyze(evidence);
+			const stats = worker.getStats();
+
+			expect(stats.totalCycles).toBe(1);
+			expect(stats.completed).toBe(1);
+			expect(stats.failed).toBe(0);
+			expect(stats.totalCyclesCompleted).toBe(1);
+			expect(stats.totalCyclesFailed).toBe(0);
+			expect(stats.totalDiagnosticsGenerated).toBeGreaterThanOrEqual(0);
+		});
+
+		test("tracks failed cycles", () => {
+			const worker = createFixStrategistWorker();
+
+			worker.analyze([]);
+			const stats = worker.getStats();
+
+			expect(stats.totalCycles).toBe(1);
+			expect(stats.completed).toBe(0);
+			expect(stats.failed).toBe(1);
+			expect(stats.totalCyclesCompleted).toBe(0);
+			expect(stats.totalCyclesFailed).toBe(1);
+		});
+
+		test("tracks strategies and test plans generated", () => {
+			const worker = createFixStrategistWorker();
+			const evidence = [{ label: "Error", content: "TypeError: x", type: "error_message", confidence: "high" }];
+
+			worker.analyze(evidence);
+			const stats = worker.getStats();
+
+			expect(stats.totalStrategiesGenerated).toBeGreaterThanOrEqual(1);
+			expect(stats.totalTestPlansGenerated).toBeGreaterThanOrEqual(1);
+		});
+	});
+
+	// getHealthStatus
+	describe("getHealthStatus", () => {
+		test("returns healthy for fresh worker", () => {
+			const worker = createFixStrategistWorker();
+			expect(worker.getHealthStatus()).toBe("healthy");
+		});
+
+		test("returns degraded after some failures", () => {
+			const worker = createFixStrategistWorker();
+			worker.analyze([]); // 1 failure
+			worker.analyze([]); // 2 failures
+			expect(worker.getHealthStatus()).toBe("degraded");
+		});
+
+		test("returns unhealthy after many failures", () => {
+			const worker = createFixStrategistWorker();
+			worker.analyze([]); // 1
+			worker.analyze([]); // 2
+			worker.analyze([]); // 3
+			worker.analyze([]); // 4
+			worker.analyze([]); // 5
+			expect(worker.getHealthStatus()).toBe("unhealthy");
+		});
+
+		test("recovers to healthy after successful analysis", () => {
+			const worker = createFixStrategistWorker();
+			worker.analyze([]); // 1 failure
+			worker.analyze([]); // 2 failures
+			expect(worker.getHealthStatus()).toBe("degraded");
+
+			worker.analyze([{ label: "Error", content: "TypeError: x", type: "error_message", confidence: "high" }]); // success resets failures
+			expect(worker.getHealthStatus()).toBe("healthy");
+		});
+	});
 });
 
 // =============================================================================
@@ -880,5 +1023,310 @@ describe("Integration — End-to-End Analysis Cycle", () => {
 				`Test case ${i}: "${tc.content.slice(0, 40)}" expected category ${tc.expected}, got [${categories.join(", ")}]`,
 			).toContain(tc.expected);
 		}
+	});
+});
+
+// =============================================================================
+// PatchStrategyGenerator.toActions
+// =============================================================================
+
+describe("PatchStrategyGenerator.toActions", () => {
+	test("generates actions from a null_reference root cause", () => {
+		const generator = createPatchStrategyGenerator();
+		const findings: FixRootCauseFinding[] = [
+			{
+				id: "rc-1",
+				description: "Cannot read properties of null in userService",
+				category: "null_reference",
+				evidenceRefs: ["ev-1"],
+				confidence: "high",
+				affectedFiles: ["src/services/userService.ts"],
+				suggestedApproach: "Add null/undefined guards and consider using optional chaining",
+			},
+		];
+
+		const actions = generator.toActions(findings, ["summary-1"]);
+		expect(actions.length).toBeGreaterThan(0);
+		expect(actions[0]!.filePath).toBe("src/services/userService.ts");
+		expect(actions[0]!.type).toBe("modify");
+		expect(actions[0]!.confidence).toBe("high");
+		expect(actions[0]!.complexity).toBe(2);
+		expect(actions[0]!.evidenceRefs).toContain("ev-1");
+		expect(actions[0]!.evidenceRefs).toContain("summary-1");
+	});
+
+	test("generates actions for each affected file", () => {
+		const generator = createPatchStrategyGenerator();
+		const findings: FixRootCauseFinding[] = [
+			{
+				id: "rc-1",
+				description: "TypeError in data processing",
+				category: "type_error",
+				evidenceRefs: ["ev-1"],
+				confidence: "medium",
+				affectedFiles: ["src/process.ts", "src/utils.ts"],
+				suggestedApproach: "Add proper type checking",
+			},
+		];
+
+		const actions = generator.toActions(findings);
+		expect(actions.length).toBe(2);
+		expect(actions[0]!.filePath).toBe("src/process.ts");
+		expect(actions[1]!.filePath).toBe("src/utils.ts");
+	});
+
+	test("deduplicates identical category+file pairs", () => {
+		const generator = createPatchStrategyGenerator();
+		const findings: FixRootCauseFinding[] = [
+			{
+				id: "rc-1",
+				description: "First null ref in parser",
+				category: "null_reference",
+				evidenceRefs: ["ev-1"],
+				confidence: "high",
+				affectedFiles: ["src/parser.ts"],
+				suggestedApproach: "Add null guards",
+			},
+			{
+				id: "rc-2",
+				description: "Second null ref in parser",
+				category: "null_reference",
+				evidenceRefs: ["ev-2"],
+				confidence: "medium",
+				affectedFiles: ["src/parser.ts"],
+				suggestedApproach: "Add extra null checks",
+			},
+		];
+
+		const actions = generator.toActions(findings);
+		expect(actions.length).toBe(1);
+	});
+
+	test("respects maxActions limit", () => {
+		const generator = createPatchStrategyGenerator({ maxActions: 1 });
+		const findings: FixRootCauseFinding[] = [
+			{
+				id: "rc-1",
+				description: "Logic error A",
+				category: "logic_error",
+				evidenceRefs: [],
+				confidence: "high",
+				affectedFiles: ["src/a.ts"],
+				suggestedApproach: "Review logic",
+			},
+			{
+				id: "rc-2",
+				description: "Logic error B",
+				category: "logic_error",
+				evidenceRefs: [],
+				confidence: "high",
+				affectedFiles: ["src/b.ts"],
+				suggestedApproach: "Review logic",
+			},
+		];
+
+		const actions = generator.toActions(findings, [], 1);
+		expect(actions.length).toBe(1);
+	});
+
+	test("maps each category to correct complexity", () => {
+		const generator = createPatchStrategyGenerator();
+
+		const categoryComplexities: Array<{ category: FixRootCauseFinding["category"]; expected: number }> = [
+			{ category: "logic_error", expected: 4 },
+			{ category: "type_error", expected: 2 },
+			{ category: "null_reference", expected: 2 },
+			{ category: "race_condition", expected: 8 },
+			{ category: "configuration", expected: 3 },
+			{ category: "api_misuse", expected: 5 },
+			{ category: "missing_edge_case", expected: 3 },
+			{ category: "performance", expected: 6 },
+			{ category: "security", expected: 7 },
+			{ category: "dependency", expected: 3 },
+			{ category: "other", expected: 5 },
+		];
+
+		for (const tc of categoryComplexities) {
+			const findings: FixRootCauseFinding[] = [
+				{
+					id: "rc-1",
+					description: `Test ${tc.category}`,
+					category: tc.category,
+					evidenceRefs: [],
+					confidence: "high",
+					affectedFiles: ["src/test.ts"],
+					suggestedApproach: "Fix it",
+				},
+			];
+
+			const actions = generator.toActions(findings);
+			expect(actions.length).toBeGreaterThan(0);
+			expect(actions[0]!.complexity).toBe(tc.expected);
+		}
+	});
+
+	test("returns empty array for empty findings", () => {
+		const generator = createPatchStrategyGenerator();
+		const actions = generator.toActions([]);
+		expect(actions.length).toBe(0);
+	});
+});
+
+// =============================================================================
+// FixStrategistWorker Generator Accessors
+// =============================================================================
+
+describe("FixStrategistWorker generator accessors", () => {
+	test("getStrategyGenerator returns the internal generator", () => {
+		const worker = createFixStrategistWorker();
+		const gen = worker.getStrategyGenerator();
+		expect(gen).toBeInstanceOf(PatchStrategyGenerator);
+	});
+
+	test("getTestPlanGenerator returns the internal generator", () => {
+		const worker = createFixStrategistWorker();
+		const gen = worker.getTestPlanGenerator();
+		expect(gen).toBeInstanceOf(TestPlanGenerator);
+	});
+});
+
+// =============================================================================
+// FixStrategistWorker Multiple Strategies
+// =============================================================================
+
+describe("FixStrategistWorker multiple strategies", () => {
+	test("analyze generates strategies with non-empty actions", () => {
+		const worker = createFixStrategistWorker();
+		const evidence = [
+			{
+				label: "Error #1",
+				content: "TypeError: Cannot read properties of null (reading 'foo')",
+				type: "error_message",
+				confidence: "high",
+			},
+			{
+				label: "Stack",
+				content: "at Object.parse (src/parser.js:42:10)",
+				type: "stack_trace",
+				confidence: "high",
+			},
+		];
+
+		const result = worker.analyze(evidence);
+		expect(result.success).toBe(true);
+		expect(result.strategies.length).toBeGreaterThan(0);
+
+		// Each strategy should have actions now (not empty)
+		for (const s of result.strategies) {
+			expect(s.actions.length).toBeGreaterThan(0);
+			expect(s.isComplete).toBe(true);
+		}
+	});
+
+	test("analyze generates strategies per unique category with multiple evidence types", () => {
+		const worker = createFixStrategistWorker({
+			maxStrategies: 5,
+		});
+		const evidence = [
+			{
+				label: "Null error",
+				content: "TypeError: Cannot read properties of null (reading 'name')",
+				type: "error_message",
+				confidence: "high",
+			},
+			{
+				label: "Config error",
+				content: "ConfigurationError: missing required setting 'apiKey'",
+				type: "error_message",
+				confidence: "high",
+			},
+			{
+				label: "Timeout",
+				content: "TimeoutError: request timed out after 30000ms",
+				type: "error_message",
+				confidence: "high",
+			},
+		];
+
+		const result = worker.analyze(evidence);
+		expect(result.success).toBe(true);
+		expect(result.strategies.length).toBeGreaterThanOrEqual(2);
+
+		// Each strategy should target a different category
+		const categories = new Set(result.strategies.map((s) => s.rootCauses[0]?.category));
+		expect(categories.size).toBe(result.strategies.length);
+	});
+
+	test("analyze respects maxStrategies limit", () => {
+		const worker = createFixStrategistWorker({
+			maxStrategies: 1,
+		});
+		const evidence = [
+			{
+				label: "Null error",
+				content: "TypeError: Cannot read properties of null",
+				type: "error_message",
+				confidence: "high",
+			},
+			{
+				label: "Config error",
+				content: "ConfigurationError: missing setting",
+				type: "error_message",
+				confidence: "high",
+			},
+		];
+
+		const result = worker.analyze(evidence);
+		expect(result.strategies.length).toBe(1);
+	});
+
+	test("test plans are generated for each strategy", () => {
+		const worker = createFixStrategistWorker({
+			autoGenerateTestPlans: true,
+		});
+		const evidence = [
+			{
+				label: "Error",
+				content: "TypeError: Cannot read properties of null",
+				type: "error_message",
+				confidence: "high",
+			},
+			{
+				label: "Stack",
+				content: "at main (src/index.ts:10:5)",
+				type: "stack_trace",
+				confidence: "high",
+			},
+		];
+
+		const result = worker.analyze(evidence);
+		expect(result.testPlans.length).toBe(result.strategies.length);
+		for (const plan of result.testPlans) {
+			expect(plan.isComplete).toBe(true);
+			expect(plan.testCases.length).toBeGreaterThan(0);
+		}
+	});
+
+	test("generateStrategy with auto-generated actions yields complete strategy", () => {
+		const generator = createPatchStrategyGenerator();
+		const findings: FixRootCauseFinding[] = [
+			{
+				id: "rc-1",
+				description: "TypeError: null ref",
+				category: "null_reference",
+				evidenceRefs: ["ev-1"],
+				confidence: "high",
+				affectedFiles: ["src/module.ts"],
+				suggestedApproach: "Add null guard",
+			},
+		];
+
+		const actions = generator.toActions(findings);
+		expect(actions.length).toBeGreaterThan(0);
+
+		const strategy = generator.generateStrategy("Test", "Test strategy", findings, actions, []);
+		expect(strategy.isComplete).toBe(true);
+		expect(strategy.actions.length).toBeGreaterThan(0);
+		expect(strategy.rootCauses.length).toBeGreaterThan(0);
 	});
 });

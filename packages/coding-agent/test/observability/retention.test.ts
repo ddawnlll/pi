@@ -434,6 +434,84 @@ describe("RetentionEngine — budget and cooldown", () => {
 		expect(result2).toBeNull();
 	});
 
+	it("enforces maxTimeMs budget and reports stoppedEarly", () => {
+		const engine = new RetentionEngine(
+			{
+				rules: [
+					{
+						name: "slow-rule",
+						severity: "all",
+						maxAgeMs: 100,
+						maxCount: 1,
+						priority: 10,
+					},
+					{
+						name: "never-reached",
+						severity: "all",
+						maxAgeMs: 100,
+						maxCount: 1,
+						priority: 20,
+					},
+				],
+				globalMaxCount: 0,
+				pruneIntervalMs: 60000,
+				autoPrune: false,
+			},
+			undefined,
+			{ maxPrunePerCycle: 10000, cooldownMs: 0, maxTimeMs: 0 }, // maxTimeMs=0 means stop immediately
+		);
+
+		const now = Date.now();
+		const events = [
+			createEvent({
+				name: "test-event",
+				timestamp: new Date(now - 1000).toISOString(),
+			}),
+		];
+
+		const { result } = engine.prune(events);
+
+		// Should have stopped early because maxTimeMs is 0
+		expect(result.stoppedEarly).toBe(true);
+		expect(result.errors.length).toBeGreaterThan(0);
+		expect(result.errors[0]).toContain("Time budget exceeded");
+	});
+
+	it("does not set stoppedEarly when time budget is sufficient", () => {
+		const engine = new RetentionEngine(
+			{
+				rules: [
+					{
+						name: "keep-recent",
+						severity: "all",
+						maxAgeMs: 86_400_000,
+						maxCount: 3,
+						priority: 10,
+					},
+				],
+				globalMaxCount: 0,
+				pruneIntervalMs: 60000,
+				autoPrune: false,
+			},
+			undefined,
+			{ maxPrunePerCycle: 10000, cooldownMs: 0, maxTimeMs: 5000 },
+		);
+
+		const now = Date.now();
+		const events = Array.from({ length: 5 }, (_, i) =>
+			createEvent({
+				name: `e-${i}`,
+				timestamp: new Date(now - i * 1000).toISOString(),
+			}),
+		);
+
+		const { result } = engine.prune(events);
+
+		// Plenty of time budget, should not stop early
+		expect(result.stoppedEarly).toBe(false);
+		expect(result.eventsPruned).toBe(2); // 5 - 3 = 2
+	});
+
 	it("respects maxPrunePerCycle budget", async () => {
 		const engine = new RetentionEngine(
 			{
@@ -556,6 +634,7 @@ describe("RetentionEngine — diagnostics", () => {
 		const diag = engine.getDiagnostics();
 		expect(diag.totalPruned).toBe(3);
 		expect(diag.totalPruneCycles).toBe(1);
+		expect(diag.totalPruneTimeMs).toBeGreaterThanOrEqual(0);
 		expect(diag.lastPruneTimestamp).not.toBeNull();
 	});
 });

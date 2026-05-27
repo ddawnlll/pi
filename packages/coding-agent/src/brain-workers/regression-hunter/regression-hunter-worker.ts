@@ -23,6 +23,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { WorkerContract, WorkerDedupConfig, WorkerDiagnostic, WorkerManifest } from "../types.js";
 import { createWorkerDiagnostic, createWorkerManifest } from "../types.js";
+import {
+	DEFAULT_FAILURE_CLUSTERER_CONFIG,
+	type FailureCluster,
+	FailureClusterer,
+	type FailureClustererConfig,
+} from "./failure-clusterer.js";
+import {
+	DEFAULT_FLAKY_TEST_DETECTOR_CONFIG,
+	FlakyTestDetector,
+	type FlakyTestDetectorConfig,
+	type FlakyTestFinding,
+} from "./flaky-test-detector.js";
 
 // ---------------------------------------------------------------------------
 // Regression Types
@@ -362,6 +374,18 @@ export interface RegressionHunterConfig {
 	flagNewValues: boolean;
 
 	/**
+	 * Failure clusterer configuration.
+	 * Accepts partial config; missing values use defaults.
+	 */
+	failureClustererConfig: Partial<FailureClustererConfig>;
+
+	/**
+	 * Flaky test detector configuration.
+	 * Accepts partial config; missing values use defaults.
+	 */
+	flakyTestDetectorConfig: Partial<FlakyTestDetectorConfig>;
+
+	/**
 	 * Maximum number of findings to report per session.
 	 * Default: 100.
 	 */
@@ -389,6 +413,8 @@ export const DEFAULT_REGRESSION_HUNTER_CONFIG: RegressionHunterConfig = {
 	flagNewValues: true,
 	maxFindings: 100,
 	enabledTypes: [],
+	failureClustererConfig: { ...DEFAULT_FAILURE_CLUSTERER_CONFIG },
+	flakyTestDetectorConfig: { ...DEFAULT_FLAKY_TEST_DETECTOR_CONFIG },
 };
 
 /**
@@ -515,6 +541,7 @@ export function createRegressionHunterContract(version: string = "1.0.0"): Worke
 		dependencies: ["baseline-store"],
 		supportsStreaming: false,
 		supportsCancellation: true,
+		readonlyAccess: true,
 	};
 }
 
@@ -561,6 +588,8 @@ export class RegressionHunterWorker {
 	private totalSessionsFailed: number;
 	private totalTokensConsumed: number;
 	private totalRegressionsFound: number;
+	private failureClusterer: FailureClusterer;
+	private flakyTestDetector: FlakyTestDetector;
 
 	/**
 	 * Create a new RegressionHunterWorker.
@@ -583,6 +612,14 @@ export class RegressionHunterWorker {
 			flagNewValues: config?.flagNewValues ?? DEFAULT_REGRESSION_HUNTER_CONFIG.flagNewValues,
 			maxFindings: config?.maxFindings ?? DEFAULT_REGRESSION_HUNTER_CONFIG.maxFindings,
 			enabledTypes: config?.enabledTypes ?? [...DEFAULT_REGRESSION_HUNTER_CONFIG.enabledTypes],
+			failureClustererConfig: {
+				...DEFAULT_FAILURE_CLUSTERER_CONFIG,
+				...config?.failureClustererConfig,
+			},
+			flakyTestDetectorConfig: {
+				...DEFAULT_FLAKY_TEST_DETECTOR_CONFIG,
+				...config?.flakyTestDetectorConfig,
+			},
 		};
 
 		this.sessions = new Map();
@@ -592,6 +629,8 @@ export class RegressionHunterWorker {
 		this.totalSessionsFailed = 0;
 		this.totalTokensConsumed = 0;
 		this.totalRegressionsFound = 0;
+		this.failureClusterer = new FailureClusterer(this.config.failureClustererConfig);
+		this.flakyTestDetector = new FlakyTestDetector(this.config.flakyTestDetectorConfig);
 	}
 
 	// -----------------------------------------------------------------------
@@ -616,6 +655,20 @@ export class RegressionHunterWorker {
 		if (config.flagNewValues !== undefined) this.config.flagNewValues = config.flagNewValues;
 		if (config.maxFindings !== undefined) this.config.maxFindings = config.maxFindings;
 		if (config.enabledTypes !== undefined) this.config.enabledTypes = [...config.enabledTypes];
+		if (config.failureClustererConfig !== undefined) {
+			this.config.failureClustererConfig = {
+				...this.config.failureClustererConfig,
+				...config.failureClustererConfig,
+			};
+			this.failureClusterer.setConfig(this.config.failureClustererConfig);
+		}
+		if (config.flakyTestDetectorConfig !== undefined) {
+			this.config.flakyTestDetectorConfig = {
+				...this.config.flakyTestDetectorConfig,
+				...config.flakyTestDetectorConfig,
+			};
+			this.flakyTestDetector.setConfig(this.config.flakyTestDetectorConfig);
+		}
 	}
 
 	/**
@@ -625,6 +678,8 @@ export class RegressionHunterWorker {
 		return {
 			...this.config,
 			enabledTypes: [...this.config.enabledTypes],
+			failureClustererConfig: { ...this.config.failureClustererConfig },
+			flakyTestDetectorConfig: { ...this.config.flakyTestDetectorConfig },
 		};
 	}
 
@@ -1356,6 +1411,8 @@ export class RegressionHunterWorker {
 		this.totalSessionsFailed = 0;
 		this.totalTokensConsumed = 0;
 		this.totalRegressionsFound = 0;
+		this.failureClusterer.clear();
+		this.flakyTestDetector.clear();
 	}
 
 	// -----------------------------------------------------------------------
@@ -1502,6 +1559,87 @@ export class RegressionHunterWorker {
 			}
 		}
 	}
+
+	// -----------------------------------------------------------------------
+	// Sub-component Access
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get the internal FailureClusterer instance.
+	 */
+	getFailureClusterer(): FailureClusterer {
+		return this.failureClusterer;
+	}
+
+	/**
+	 * Get the internal FlakyTestDetector instance.
+	 */
+	getFlakyTestDetector(): FlakyTestDetector {
+		return this.flakyTestDetector;
+	}
+
+	// -----------------------------------------------------------------------
+	// Handoff Emission
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Emit session findings as a structured result bundle suitable
+	 * for handoff inbox consumption.
+	 *
+	 * The regression hunter worker is read-only: it ingests baselines
+	 * and current snapshots, compares them, and emits findings without
+	 * modifying execution state. Callers (supervisor, handoff queue)
+	 * consume the returned bundle to route diagnostics to downstream
+	 * workers.
+	 *
+	 * @param sessionId - The session ID to emit findings for.
+	 * @returns A handoff result bundle, or null if the session does not exist.
+	 */
+	emitFindings(sessionId: string): RegressionHunterHandoffResult | null {
+		const session = this.sessions.get(sessionId);
+		if (!session) return null;
+
+		return {
+			sessionId: session.id,
+			label: session.label,
+			status: session.status,
+			baseline: session.baseline,
+			current: session.current,
+			analysis: session.analysis,
+			diagnostic: session.diagnostic,
+			error: session.error,
+			failureClusters: this.failureClusterer.getAllClusters(),
+			flakyTests: this.flakyTestDetector.getAllFindings(),
+			workerStats: this.getStats(),
+			emittedAt: new Date().toISOString(),
+		};
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Handoff Result
+// ---------------------------------------------------------------------------
+
+/**
+ * Result bundle emitted for handoff inbox consumption.
+ *
+ * Contains the session identity, regression analysis findings,
+ * failure clusters, flaky test results, worker statistics, and
+ * trace identifiers at the time of emission.
+ */
+export interface RegressionHunterHandoffResult {
+	sessionId: string;
+	label: string;
+	status: RegressionSessionStatus;
+	baseline: BaselineSnapshot | null;
+	current: CurrentSnapshot | null;
+	analysis: RegressionAnalysis | null;
+	diagnostic: WorkerDiagnostic | null;
+	error: string | null;
+	failureClusters: FailureCluster[];
+	flakyTests: FlakyTestFinding[];
+	workerStats: RegressionHunterWorkerStats;
+	emittedAt: string;
 }
 
 // ---------------------------------------------------------------------------

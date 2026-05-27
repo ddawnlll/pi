@@ -70,6 +70,7 @@ import { BrainReflectionsPage } from "./pages/BrainReflectionsPage";
 import { BrainTrustPage } from "./pages/BrainTrustPage";
 import { BrainOvernightPage } from "./pages/BrainOvernightPage";
 import { DigestPage } from "./pages/DigestPage";
+import { BrainInboxPage } from "./pages/BrainInboxPage";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -294,6 +295,7 @@ export function App() {
   const showBrainGoals       = activeView.type === "platform" && activeView.screen === "brain_goals";
   const showBrainProposals   = activeView.type === "platform" && activeView.screen === "brain_proposals";
   const showBrainTrust       = activeView.type === "platform" && activeView.screen === "brain_trust";
+  const showBrainInbox       = activeView.type === "platform" && activeView.screen === "brain_inbox";
   const platformActiveItem: PlatformNavItem | null =
     activeView.type === "platform" ? activeView.screen : null;
 
@@ -901,6 +903,8 @@ export function App() {
                           <GoalBoard className="flex-1 min-h-0" />
                         ) : showBrainTrust ? (
                           <TrustDashboard className="flex-1 min-h-0" />
+                        ) : showBrainInbox ? (
+                          <BrainInboxPage />
                         ) : (
                           <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
                             <Cpu size={32} strokeWidth={1.2} />

@@ -75,7 +75,9 @@ export type PlatformNavItem =
 	| "brain_overnight"
 	| "brain_goals"
 	| "brain_proposals"
-	| "brain_trust";
+	| "brain_trust"
+	// 25.O Worker Handoff Inbox
+	| "brain_inbox";
 
 export interface PlatformNavEntry {
 	id: PlatformNavItem;
@@ -205,6 +207,12 @@ export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Overnight",
 		icon: Moon,
 		description: "Queue overnight runs, schedule, history",
+	},
+	{
+		id: "brain_inbox",
+		label: "Worker Inbox",
+		icon: Inbox,
+		description: "Worker handoff inbox and triage router",
 	},
 ];
 

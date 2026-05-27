@@ -347,17 +347,18 @@ export class PatchStrategyGenerator {
 			const lines = st.content.split("\n").filter((l) => l.trim());
 			const topFrame = lines.find((l) => l.includes("at ") || l.includes("Error"));
 			const affectedFiles = this.extractFileRefs(st.content);
+			const category = this.categorizeError(st.content);
 
 			findings.push({
 				id: randomUUID(),
 				description: topFrame
 					? `Stack trace points to: ${topFrame.trim().slice(0, 200)}`
 					: `Stack trace with ${lines.length} frames`,
-				category: "null_reference",
+				category,
 				evidenceRefs: [st.label],
 				confidence: "medium",
 				affectedFiles,
-				suggestedApproach: "Examine the top stack frame and verify null/undefined checks",
+				suggestedApproach: this.suggestApproach(category, st.content),
 			});
 		}
 
@@ -493,6 +494,154 @@ export class PatchStrategyGenerator {
 			default:
 				return "Review the evidence and implement appropriate fix";
 		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Action Generation from Root Causes
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Generate PatchAction objects from root cause findings.
+	 *
+	 * Converts each root cause finding into one or more actionable patch
+	 * actions targeting the affected files. Actions are assigned a confidence
+	 * based on the root cause finding's confidence, and complexity based on
+	 * the root cause category.
+	 *
+	 * @param rootCauses - Root cause findings to convert to actions.
+	 * @param evidenceSummaryIds - Evidence summary IDs to reference in actions.
+	 * @returns An array of PatchAction objects.
+	 */
+	toActions(rootCauses: FixRootCauseFinding[], evidenceSummaryIds: string[] = [], maxActions?: number): PatchAction[] {
+		const limit = maxActions ?? this.config.maxActions;
+		const actions: PatchAction[] = [];
+		const usedDescriptions = new Set<string>();
+
+		for (const rc of rootCauses) {
+			if (actions.length >= limit) break;
+
+			// If no affected files extracted, create a fallback action
+			const files = rc.affectedFiles.length > 0 ? rc.affectedFiles : [this.fallbackFilePathForCategory(rc.category)];
+
+			for (const filePath of files) {
+				if (actions.length >= limit) break;
+
+				// Build a unique description dedup key
+				const descKey = `${rc.category}:${filePath}`;
+				if (usedDescriptions.has(descKey)) continue;
+				usedDescriptions.add(descKey);
+
+				const actionType = this.inferActionType(rc.category);
+				const complexity = this.inferComplexity(rc.category);
+				const confidence = rc.confidence;
+
+				actions.push({
+					id: randomUUID(),
+					type: actionType,
+					filePath,
+					description: `${rc.suggestedApproach} in ${filePath}`,
+					content: this.inferPatchContent(rc, filePath),
+					evidenceRefs: [...rc.evidenceRefs, ...evidenceSummaryIds],
+					confidence,
+					complexity,
+				});
+			}
+		}
+
+		return actions;
+	}
+
+	/**
+	 * Generate a fallback file path when no affected files could be
+	 * extracted for a root cause. Uses the category to infer a location.
+	 */
+	private fallbackFilePathForCategory(category: FixRootCauseFinding["category"]): string {
+		switch (category) {
+			case "null_reference":
+			case "type_error":
+			case "logic_error":
+			case "missing_edge_case":
+			case "api_misuse":
+				return "src/unknown.ts";
+			case "race_condition":
+				return "src/concurrent.ts";
+			case "configuration":
+				return "src/config.ts";
+			case "performance":
+				return "src/performance.ts";
+			case "security":
+				return "src/security.ts";
+			case "dependency":
+				return "package.json";
+			default:
+				return "src/unknown.ts";
+		}
+	}
+
+	/**
+	 * Infer the best patch action type for a root cause category.
+	 */
+	private inferActionType(category: FixRootCauseFinding["category"]): PatchActionType {
+		switch (category) {
+			case "logic_error":
+			case "type_error":
+			case "null_reference":
+			case "race_condition":
+			case "api_misuse":
+			case "missing_edge_case":
+			case "performance":
+				return "modify";
+			case "configuration":
+				return "modify";
+			case "security":
+			case "dependency":
+				return "modify";
+			default:
+				return "modify";
+		}
+	}
+
+	/**
+	 * Infer complexity (1-10) for a root cause category.
+	 */
+	private inferComplexity(category: FixRootCauseFinding["category"]): number {
+		switch (category) {
+			case "logic_error":
+				return 4;
+			case "type_error":
+				return 2;
+			case "null_reference":
+				return 2;
+			case "race_condition":
+				return 8;
+			case "configuration":
+				return 3;
+			case "api_misuse":
+				return 5;
+			case "missing_edge_case":
+				return 3;
+			case "performance":
+				return 6;
+			case "security":
+				return 7;
+			case "dependency":
+				return 3;
+			default:
+				return 5;
+		}
+	}
+
+	/**
+	 * Infer patch content for a root cause finding.
+	 */
+	private inferPatchContent(finding: FixRootCauseFinding, filePath: string): string {
+		const lines = [`// Fix: ${finding.description}`];
+		lines.push(`// Category: ${finding.category}`);
+		lines.push(`// Approach: ${finding.suggestedApproach}`);
+		lines.push(`// Evidence refs: ${finding.evidenceRefs.join(", ")}`);
+		lines.push(`// TODO: Implement fix in ${filePath}`);
+		lines.push("");
+		return lines.join("\n");
 	}
 
 	// -----------------------------------------------------------------------

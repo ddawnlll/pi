@@ -85,7 +85,7 @@ describe("ALL_WORKER_ROLES", () => {
 		expect(ALL_WORKER_ROLES).toContain("ideaScout");
 		expect(ALL_WORKER_ROLES).toContain("fixStrategist");
 		expect(ALL_WORKER_ROLES).toContain("regressionHunter");
-		expect(ALL_WORKER_ROLES.length).toBe(11);
+		expect(ALL_WORKER_ROLES.length).toBe(12);
 	});
 
 	test("every role has a label", () => {
@@ -154,7 +154,8 @@ describe("ALL_WORKER_STOP_CONDITIONS", () => {
 		expect(ALL_WORKER_STOP_CONDITIONS).toContain("dependency_unavailable");
 		expect(ALL_WORKER_STOP_CONDITIONS).toContain("system_shutdown");
 		expect(ALL_WORKER_STOP_CONDITIONS).toContain("unknown_error");
-		expect(ALL_WORKER_STOP_CONDITIONS.length).toBe(9);
+		expect(ALL_WORKER_STOP_CONDITIONS).toContain("dag_validation_failed");
+		expect(ALL_WORKER_STOP_CONDITIONS.length).toBe(10);
 	});
 });
 
@@ -1767,6 +1768,7 @@ describe("type correctness (compile-time)", () => {
 				outputs: [],
 				errors: [],
 				dependencies: [],
+				readonlyAccess: true,
 				supportsStreaming: false,
 				supportsCancellation: true,
 			},

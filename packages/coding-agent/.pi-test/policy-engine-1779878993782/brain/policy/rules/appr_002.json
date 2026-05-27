@@ -1,0 +1,14 @@
+{
+  "id": "appr_002",
+  "name": "Protected system mutation",
+  "description": "Require approval for changes to protected systems (core, config, etc.)",
+  "condition": {
+    "action": "protected_system_mutation"
+  },
+  "decision": "approval_required",
+  "priority": 90,
+  "enabled": true,
+  "metadata": {},
+  "createdAt": "2026-05-19T00:00:00.000Z",
+  "updatedAt": "2026-05-19T00:00:00.000Z"
+}

@@ -11,8 +11,10 @@ export {
 	DEFAULT_FIX_STRATEGIST_WORKER_CONFIG,
 	type FailureContext,
 	type FixEvidenceItem,
+	type FixStrategistHandoffResult,
 	FixStrategistWorker,
 	type FixStrategistWorkerConfig,
+	type FixStrategistWorkerStats,
 	type FixStrategyResult,
 } from "./fix-strategist-worker.js";
 

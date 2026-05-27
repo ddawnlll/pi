@@ -104,6 +104,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: [],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "analyst":
@@ -160,6 +161,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.observer"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "proposer":
@@ -217,6 +219,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "reflector":
@@ -285,6 +288,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.archivist"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "diagnostician":
@@ -348,6 +352,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "archivist":
@@ -404,6 +409,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: [],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "coordinator":
@@ -467,6 +473,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.observer", "brain-worker.analyst", "brain-worker.proposer"],
 				supportsStreaming: true,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "auditor":
@@ -535,6 +542,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.coordinator"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "fixStrategist":
@@ -603,6 +611,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.diagnostician", "brain-worker.debugger"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "ideaScout":
@@ -672,6 +681,7 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["brain-worker.analyst"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		case "regressionHunter":
@@ -767,6 +777,106 @@ export function generateContractForRole(role: WorkerRole, version: string = "1.0
 				dependencies: ["baseline-store"],
 				supportsStreaming: false,
 				supportsCancellation: true,
+				readonlyAccess: true,
+			};
+
+		case "planSynthesizer":
+			return {
+				id: `${baseId}.v${version}`,
+				name: `${label} Contract`,
+				description:
+					`Synthesizes executable phase plans from approved proposals, ideas, goals, and context, ` +
+					`producing DAG-structured plans with workstream definitions, dependency graphs, batch ` +
+					`layouts, and JSON execution contracts.`,
+				version,
+				capabilities: [
+					"proposal_analysis",
+					"workstream_generation",
+					"dependency_resolution",
+					"batch_layout",
+					"contract_generation",
+					"risk_scoring",
+				],
+				inputs: [
+					{
+						name: "proposals",
+						description: "Approved proposals to synthesize into plan workstreams",
+						type: "ProposalRef[]",
+						required: true,
+						sources: ["proposal-store", "proposal-inbox"],
+					},
+					{
+						name: "ideas",
+						description: "Scouted ideas to incorporate into the plan",
+						type: "SynthesizedIdeaInput[]",
+						required: false,
+						sources: ["idea-scout", "brain-timeline"],
+					},
+					{
+						name: "goals",
+						description: "Current goal context for alignment",
+						type: "GoalContext[]",
+						required: false,
+						sources: ["goal-store"],
+					},
+				],
+				outputs: [
+					{
+						name: "plan_contract",
+						description:
+							"Synthesized plan with workstream definitions, dependency graph, batch layout, and execution contract",
+						type: "SynthesisContract",
+						destinations: ["plan-executor", "plan-queue", "plan-store"],
+					},
+					{
+						name: "synthesis_diagnostics",
+						description: "Evidence-backed diagnostics on the synthesis process",
+						type: "WorkerDiagnostic[]",
+						destinations: ["brain-timeline", "brain-audit"],
+					},
+				],
+				errors: [
+					{
+						code: "NO_PROPOSALS_PROVIDED",
+						description: "No approved proposals were provided for synthesis",
+						severity: "warning",
+						remediation: "Provide at least one approved proposal before starting a synthesis session",
+					},
+					{
+						code: "WORKSTREAM_GENERATION_FAILED",
+						description: "Failed to generate workstreams from the input proposals",
+						severity: "critical",
+						remediation: "Check proposal quality and scope, ensure enough detail for workstream decomposition",
+					},
+					{
+						code: "DEPENDENCY_CYCLE_DETECTED",
+						description: "A circular dependency was detected in the workstream graph",
+						severity: "critical",
+						remediation: "Review workstream definitions and adjust dependency declarations",
+					},
+					{
+						code: "VALIDATION_FAILED",
+						description: "Synthesized plan failed validation checks",
+						severity: "warning",
+						remediation: "Check validation results and adjust synthesis parameters",
+					},
+					{
+						code: "BUDGET_EXCEEDED",
+						description: "Token or runtime budget was exceeded during synthesis",
+						severity: "warning",
+						remediation: "Consider increasing the synthesis budget or reducing the number of proposals",
+					},
+					{
+						code: "DUP_SESSION",
+						description: "A duplicate synthesis session was detected and suppressed",
+						severity: "info",
+						remediation: "Verify that the proposal signature is new or wait for the dedup window to expire",
+					},
+				],
+				dependencies: ["brain-worker.proposer", "brain-worker.ideaScout"],
+				supportsStreaming: false,
+				supportsCancellation: true,
+				readonlyAccess: true,
 			};
 
 		default: {

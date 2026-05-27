@@ -365,7 +365,11 @@ export class AutonomousExecutor {
 	 * @param planExecutionId - Existing execution ID
 	 * @param queue - The original workspace queue (used for scheduling)
 	 */
-	async adoptExistingExecution(planExecutionId: string, queue: WorkspaceQueue): Promise<boolean> {
+	async adoptExistingExecution(
+		planExecutionId: string,
+		queue: WorkspaceQueue,
+		options: { allowTerminal?: boolean } = {},
+	): Promise<boolean> {
 		this.planExecutionId = planExecutionId;
 		this.workspaceQueue = queue;
 
@@ -380,8 +384,11 @@ export class AutonomousExecutor {
 		}
 		this.currentPlanState = state;
 
-		// If the plan is already terminal, nothing to recover
-		if (state.status === "complete" || state.status === "failed" || state.status === "cancelled") {
+		// If the plan is already terminal, only manual continue/rerun may adopt it.
+		if (state.status === "complete") {
+			return false;
+		}
+		if ((state.status === "failed" || state.status === "cancelled") && !options.allowTerminal) {
 			return false;
 		}
 
@@ -389,21 +396,30 @@ export class AutonomousExecutor {
 		// stale locks from previous execution from blocking workspace scheduling.
 		this.scheduler.reset();
 
-		// Reset any stranded active or failed workspaces back to pending
-		// so they get re-scheduled. Failed workspaces from a prior crash
-		// (e.g. worktree creation race) should be retried.
+		// Reset stranded or resettable workspaces back to pending so they get
+		// re-scheduled. Completed workspaces are never reset here.
 		let recovered = 0;
+		const resetReason = options.allowTerminal ? "manual-continue" : "crash-recovery";
 		for (const [wsId, ws] of state.workspaces) {
-			if (ws.stage === WorkspaceStage.Active || ws.stage === WorkspaceStage.Failed) {
+			if (
+				ws.stage === WorkspaceStage.Active ||
+				ws.stage === WorkspaceStage.Failed ||
+				(options.allowTerminal && ws.stage === WorkspaceStage.Blocked)
+			) {
 				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
-					reason: "crash-recovery",
+					reason: resetReason,
+					previousStage: ws.stage,
 				});
 				recovered++;
 			}
 		}
 
-		// If plan was paused/resumed, reset to running so the loop picks it up
-		if (state.status === "paused" || state.status === "stopped") {
+		// Reset paused/stopped/failed/cancelled plans to running so the loop picks them up.
+		if (
+			state.status === "paused" ||
+			state.status === "stopped" ||
+			(options.allowTerminal && (state.status === "failed" || state.status === "cancelled"))
+		) {
 			await this.stateStore.resumePlan(planExecutionId);
 		}
 
@@ -622,13 +638,10 @@ export class AutonomousExecutor {
 				);
 			}
 
-			// Increment attempt counter only for actual retries.
-			// Attempt 1 is the initial execution and must not emit retry_attempt.
-			// Routes through TransitionRouter for FSM enforcement (Finding 2).
-			const isRetryAttempt = wsState.attempts > 0;
-			if (isRetryAttempt) {
-				await this.transitionRouter.incrementRetryAttempt(planExecutionId, workspace.id);
-			}
+			// Increment execution attempt counter for every agent run.
+			// Attempt 1 is the initial execution; the state store suppresses
+			// retry_attempt journal events until attempt > 1.
+			await this.transitionRouter.incrementRetryAttempt(planExecutionId, workspace.id);
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
 
 			// Transition to active via TransitionRouter (Finding 2)
@@ -724,6 +737,10 @@ export class AutonomousExecutor {
 					// Write execution logs (also written by executor on completion, but keep
 					// this as a safety net in case executor didn't write them for any reason)
 					await fs.writeFile(logPath, agentResult.logs.join("\n"), "utf-8");
+
+					if (agentResult.error?.startsWith("Transient provider failure:")) {
+						throw new Error(agentResult.error);
+					}
 
 					result = {
 						workspaceId: workspace.id,
@@ -1703,6 +1720,32 @@ export class AutonomousExecutor {
 		await manager.loadState();
 		const worktrees = manager.list();
 		return worktrees.length;
+	}
+
+	/**
+	 * Remove stale worktrees for a continued execution while preserving only
+	 * workspaces that are already complete. This makes active/failed/blocked
+	 * workspaces restart from a clean worktree on manual continue.
+	 */
+	async cleanupWorktreesExcept(planExecutionId: string, preservedWorkspaceIds: Set<string>): Promise<number> {
+		const { WorktreeManager } = await import("../worktree/worktree-manager.js");
+		const manager = new WorktreeManager(this.workspaceRoot);
+		await manager.loadState();
+
+		let removed = 0;
+		for (const worktree of manager.list(planExecutionId)) {
+			if (preservedWorkspaceIds.has(worktree.workspaceId)) {
+				continue;
+			}
+			const result = await manager.cleanupQuarantinedWorktree(planExecutionId, worktree.workspaceId);
+			if (result.success) {
+				removed++;
+			}
+		}
+
+		await manager.reconcileFromDisk();
+		await manager.persistState();
+		return removed;
 	}
 
 	/**

@@ -59,6 +59,7 @@ import Fastify from "fastify";
 import { registerActivityTimelineRoutes } from "./activity-timeline-routes.js";
 import { registerArtifactRoutes } from "./artifact-routes.js";
 import { registerAuthRoutes } from "./auth-routes.js";
+import { registerBrainWorkerInboxRoutes } from "./brain-worker-routes.js";
 import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
@@ -73,6 +74,7 @@ import {
 } from "./plan-preview.js";
 import {
 	archiveExecution,
+	continuePlanExecution,
 	getActiveExecution,
 	getActiveExecutions,
 	loadExecutionMeta,
@@ -2210,10 +2212,10 @@ fastify.post<{
 });
 
 /**
- * POST /api/projects/:projectId/plans/:planExecId/rerun - Rerun a stopped or failed plan
+ * POST /api/projects/:projectId/plans/:planExecId/rerun - Continue a stopped or failed plan
  *
- * Loads the original plan file from the meta file, then re-runs it via runPlan.
- * The existing execution must be in "stopped" or "failed" state.
+ * Restarts the existing execution in-place, preserving completed workspaces
+ * and only re-scheduling failed/blocked/active workspaces.
  */
 fastify.post<{
 	Params: { projectId: string; planExecId: string };
@@ -2248,68 +2250,18 @@ fastify.post<{
 			});
 		}
 
-		// 3. Load the meta file to get the original plan file name
-		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
-		if (!meta) {
-			return reply
-				.code(404)
-				.send({ success: false, error: "Plan meta file not found. The original plan content is unavailable." });
-		}
-
-		// 4. Read the original plan content
-		const piDir = join(workspaceRoot, ".pi");
-		const plansDir = join(piDir, "plans");
-		let planContent: string | null = null;
-
-		if (meta.planFile) {
-			try {
-				planContent = await readFile(join(plansDir, meta.planFile), "utf-8");
-			} catch {
-				// Fall through to scan
-			}
-		}
-
-		if (!planContent) {
-			// Fallback: scan .md files
-			try {
-				const files = await readdir(plansDir);
-				for (const file of files.reverse()) {
-					if (file.endsWith(".md")) {
-						planContent = await readFile(join(plansDir, file), "utf-8");
-						if (planContent) break;
-					}
-				}
-			} catch {
-				// No plan dir
-			}
-		}
-
-		if (!planContent) {
-			return reply.code(404).send({ success: false, error: "Original plan file not found." });
-		}
-
-		// 5. Re-run the plan
-		const result = await runPlan({
-			planContent,
-			projectId,
-			projectName: project.name,
-			workspaceRoot,
-			planFileName: meta.planFile || undefined,
-		});
-
-		if (!result.success) {
+		const continued = await continuePlanExecution(workspaceRoot, projectId, planExecId);
+		if (!continued) {
 			return reply.code(400).send({
 				success: false,
-				errors: result.errors,
-				warnings: result.warnings,
+				error: "Execution could not be continued. It may be complete or missing its queue snapshot/plan metadata.",
 			});
 		}
 
-		return reply.code(201).send({
+		return reply.code(202).send({
 			success: true,
-			planExecutionId: result.planExecId,
-			execution: result.execution,
-			warnings: result.warnings,
+			planExecutionId: planExecId,
+			message: "Plan execution continued in-place; completed workspaces were preserved.",
 		});
 	} catch (error) {
 		fastify.log.error({ error }, "Failed to rerun plan");
@@ -5036,6 +4988,7 @@ await fastify.register(
 		await registerBrainProposalRoutes(scoped, proposalApi);
 		await registerBrainReflectionRoutes(scoped, reflectionApi);
 		await registerBrainApprovalRoutes(scoped, approvalQueueApi);
+		await registerBrainWorkerInboxRoutes(scoped, handoffInbox, triageRouter);
 	},
 	{ prefix: "/api/projects/:projectId/brain" },
 );
@@ -5047,6 +5000,20 @@ await fastify.register(
 const { PiInboxStore } = await import("@earendil-works/pi-coding-agent");
 const piInboxStore = new PiInboxStore();
 await registerPiInboxRoutes(fastify, piInboxStore);
+
+// ---------------------------------------------------------------------------
+// Brain Worker Inbox Routes (25.O — Worker Handoff Inbox and Triage Router)
+// ---------------------------------------------------------------------------
+
+const { HandoffInbox, TriageRouter } = await import("@earendil-works/pi-coding-agent");
+const handoffInbox = new HandoffInbox();
+const triageRouter = new TriageRouter(handoffInbox);
+await fastify.register(
+	async (scoped) => {
+		await registerBrainWorkerInboxRoutes(scoped, handoffInbox, triageRouter);
+	},
+	{ prefix: "/api/brain" },
+);
 
 // ---------------------------------------------------------------------------
 // Notification Routes (24.H — Notification Channels & Delivery Preferences)

@@ -395,6 +395,9 @@ export class BrainSupervisor {
 			// Contract may already be registered — that's okay
 		}
 
+		// Initialize worker job tracking
+		this.workerJobs.set(manifest.id, new Set());
+
 		this.emitEvent("worker_registered", `Worker '${manifest.name}' registered`, {
 			workerId: manifest.id,
 			role: manifest.role,
@@ -495,6 +498,11 @@ export class BrainSupervisor {
 			priority: job.priority,
 			taskHash: job.taskHash,
 			traceId: job.traceId,
+			spanId: job.spanId,
+			correlationId: job.correlationId,
+			projectId: job.projectId,
+			planExecutionId: job.planExecutionId,
+			workspaceExecutionId: job.workspaceExecutionId,
 		});
 
 		// Try to route the job immediately
@@ -526,15 +534,26 @@ export class BrainSupervisor {
 	 * Find the best worker for a given job based on capability matching
 	 * and availability.
 	 *
+	 * Iterates over all registered workers from the lifecycle engine (not
+	 * just those with existing job history) so that newly-registered workers
+	 * can receive their first job.
+	 *
 	 * @param job - The job to find a worker for
 	 * @returns The best worker ID, or null if none available
 	 */
 	private findWorkerForJob(job: JobRecord): string | null {
 		const candidates: Array<{ workerId: string; score: number }> = [];
 
-		for (const [workerId, jobIds] of this.workerJobs) {
-			// Check worker capacity
-			if (jobIds.size >= this.config.maxJobsPerWorker) continue;
+		// Collect all registered worker IDs from the lifecycle engine
+		const allWorkerIds = new Set<string>();
+		for (const status of this.lifecycleEngine.getAllStatuses()) {
+			allWorkerIds.add(status.workerId);
+		}
+
+		for (const workerId of allWorkerIds) {
+			// Check worker capacity (existing jobs + this new job)
+			const existingJobs = this.workerJobs.get(workerId);
+			if (existingJobs && existingJobs.size >= this.config.maxJobsPerWorker) continue;
 
 			// Check worker health
 			const healthRecord = this.healthMonitor.getHealthRecord(workerId);
@@ -542,31 +561,45 @@ export class BrainSupervisor {
 
 			// Check worker lifecycle state
 			const status = this.lifecycleEngine.getStatus(workerId);
-			if (!status || status.state !== "standby") continue;
+			if (!status) continue;
 
-			// Check capability match (if routing enabled)
-			if (this.config.capabilityRouting) {
-				const manifest = this.lifecycleEngine.getManifest(workerId);
-				if (manifest) {
+			// If worker is in cooling state, check if cooldown has expired
+			if (status.state === "cooling") {
+				const transitioned = this.lifecycleEngine.checkCooldown(workerId);
+				if (transitioned) {
+					this.emitEvent("cooldown_expired", `Worker '${workerId}' cooldown expired, now standby`, {
+						workerId,
+					});
+				} else {
+					continue; // Still in cooldown, skip
+				}
+			}
+
+			// Must be in standby to accept work
+			if (status.state !== "standby") continue;
+
+			// Check role match (primary routing criteria)
+			const manifest = this.lifecycleEngine.getManifest(workerId);
+			if (manifest) {
+				// Role-based routing: check if worker's role matches the job's target role
+				if (manifest.role !== job.targetRole) continue;
+
+				// Base score for role match
+				let score = 1;
+
+				// Capability routing (secondary): bonus score for capabilities that match
+				// this is additive scoring, not a hard filter
+				if (this.config.capabilityRouting) {
 					const contract = manifest.contract;
 					const match = matchCapabilities(
 						contract.capabilities,
-						[job.targetRole],
+						[job.jobType],
 						true, // Allow partial match
 					);
-					if (!match.satisfied) continue;
-
-					// Score: more matched capabilities = better
-					candidates.push({
-						workerId,
-						score: match.matched.length,
-					});
-				} else {
-					// No manifest — basic role match
-					candidates.push({ workerId, score: 0 });
+					score += match.matched.length;
 				}
-			} else {
-				candidates.push({ workerId, score: 0 });
+
+				candidates.push({ workerId, score });
 			}
 		}
 
@@ -589,7 +622,7 @@ export class BrainSupervisor {
 	 * @returns The leased job record, or null if not leasable
 	 */
 	leaseJob(jobId: string, workerId: string): JobRecord | null {
-		const job = this.jobStore.lease(jobId, workerId);
+		const job = this.jobStore.lease(jobId, workerId, this.config.leaseConfig.defaultLeaseDurationMs);
 		if (!job) return null;
 
 		// Track worker-job mapping
@@ -656,25 +689,46 @@ export class BrainSupervisor {
 	 * @returns The updated job record, or null if not found
 	 */
 	failJob(jobId: string, error: string, diagnostic?: WorkerDiagnostic, _runtimeMs?: number): JobRecord | null {
-		const job = this.jobStore.fail(jobId, error, diagnostic);
+		// Capture workerId BEFORE call to store.fail(), which resets it to null
+		// on retry so we can still record the health failure against the worker.
+		const currentJob = this.jobStore.get(jobId);
+		const capturedWorkerId = currentJob?.workerId ?? null;
+
+		// Ensure we always have a diagnostic for evidence-backed failure reporting
+		const diag =
+			diagnostic ??
+			createWorkerDiagnostic("unknown_error", error, { jobId, jobType: currentJob?.jobType ?? "unknown" }, [
+				`job://${jobId}`,
+			]);
+
+		const job = this.jobStore.fail(jobId, error, diag);
 		if (!job) return null;
 
-		// Record health failure
-		if (job.workerId) {
-			const diag =
-				diagnostic ??
-				createWorkerDiagnostic("unknown_error", error, { jobId, jobType: job.jobType }, [`job://${jobId}`]);
-			this.healthMonitor.recordFailure(job.workerId, diag);
-			this.releaseWorkerJob(job.workerId, jobId);
+		// Record health failure against the worker that held the lease
+		if (capturedWorkerId) {
+			this.healthMonitor.recordFailure(capturedWorkerId, diag);
+			this.releaseWorkerJob(capturedWorkerId, jobId);
 		}
 
 		if (job.status === "failed") {
 			this.totalJobsFailed++;
 
-			// Transition worker to cooling
-			if (job.workerId) {
+			// Transition worker to cooling and set cooldown timer
+			if (capturedWorkerId) {
 				try {
-					this.lifecycleEngine.transition(job.workerId, "cooling", "Job failed, entering cooldown");
+					this.lifecycleEngine.transition(capturedWorkerId, "cooling", "Job failed, entering cooldown");
+					// Set cooldown timer on the worker status so checkCooldown won't immediately expire it
+					const status = this.lifecycleEngine.getStatus(capturedWorkerId);
+					if (status) {
+						const manifest = this.lifecycleEngine.getManifest(capturedWorkerId);
+						const cooldownMs = manifest?.budget.cooldownMs ?? 60_000;
+						status.cooldown = {
+							startedAt: new Date().toISOString(),
+							endsAt: new Date(Date.now() + cooldownMs).toISOString(),
+							reason: "Job failed, entering cooldown",
+							count: status.cooldown.count + 1,
+						};
+					}
 				} catch {
 					// Non-critical
 				}
@@ -682,7 +736,7 @@ export class BrainSupervisor {
 
 			this.emitEvent("job_failed", `Job '${jobId}' failed: ${error}`, {
 				jobId,
-				workerId: job.workerId,
+				workerId: capturedWorkerId,
 				error,
 				retryCount: job.retryCount,
 				maxRetries: job.maxRetries,
@@ -692,7 +746,7 @@ export class BrainSupervisor {
 			// Retrying
 			this.emitEvent("job_retrying", `Job '${jobId}' retrying (${job.retryCount}/${job.maxRetries})`, {
 				jobId,
-				workerId: job.workerId,
+				workerId: capturedWorkerId,
 				error,
 				retryCount: job.retryCount,
 				maxRetries: job.maxRetries,
@@ -846,6 +900,29 @@ export class BrainSupervisor {
 	 */
 	checkAllHealth(): HealthCheckResult[] {
 		return this.healthMonitor.checkAllHealth();
+	}
+
+	/**
+	 * Check all workers for completed cooldown periods and transition
+	 * them from cooling back to standby if their cooldown has expired.
+	 *
+	 * @returns Array of worker IDs that were transitioned from cooling to standby
+	 */
+	checkAllCooldowns(): string[] {
+		const transitioned = this.lifecycleEngine.checkAllCooldowns();
+		const workerIds = transitioned.map((s) => s.workerId);
+
+		this.emitEvent(
+			"cooldowns_checked",
+			workerIds.length > 0
+				? `Checked all cooldowns, ${workerIds.length} worker(s) transitioned to standby`
+				: "Checked all cooldowns, no workers transitioned",
+			{
+				workers: workerIds,
+			},
+		);
+
+		return workerIds;
 	}
 
 	/**

@@ -58,6 +58,42 @@ export {
 	type ProposalScoreInput,
 	type ProposalStatusChangeInput,
 } from "./collectors/brain/index.js";
+// Re-export execution collectors (25.F)
+export {
+	DEFAULT_EXECUTION_COLLECTOR_BUDGET,
+	DEFAULT_EXECUTION_COLLECTOR_DEDUPE,
+	DEFAULT_SCHEDULER_COLLECTOR_BUDGET,
+	DEFAULT_SCHEDULER_COLLECTOR_DEDUPE,
+	DEFAULT_VALIDATION_COLLECTOR_BUDGET,
+	DEFAULT_VALIDATION_COLLECTOR_DEDUPE,
+	ExecutionCollector,
+	type ExecutionCollectorBudget,
+	type ExecutionCollectorBufferEntry,
+	type ExecutionCollectorCooldown,
+	type ExecutionCollectorDedupeConfig,
+	type ExecutionCollectorDedupeEntry,
+	type ExecutionCollectorDiagnostics,
+	type ExecutionCollectorStopCondition,
+	SchedulerCollector,
+	type SchedulerCollectorBudget,
+	type SchedulerCollectorBufferEntry,
+	type SchedulerCollectorCooldown,
+	type SchedulerCollectorDedupeConfig,
+	type SchedulerCollectorDedupeEntry,
+	type SchedulerCollectorDiagnostics,
+	type SchedulerCollectorStopCondition,
+	type SchedulerEventPayload,
+	type SchedulerEventType,
+	ValidationCollector,
+	type ValidationCollectorBudget,
+	type ValidationCollectorBufferEntry,
+	type ValidationCollectorCooldown,
+	type ValidationCollectorDedupeConfig,
+	type ValidationCollectorDedupeEntry,
+	type ValidationCollectorDiagnostics,
+	type ValidationCollectorStopCondition,
+	type ValidationEventType,
+} from "./collectors/execution/index.js";
 
 // Re-export correlation helpers
 export {

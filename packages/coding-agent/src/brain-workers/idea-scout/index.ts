@@ -7,6 +7,13 @@
  */
 
 export {
+	createIdeaDeduper,
+	DEFAULT_IDEA_DEDUPER_CONFIG,
+	IdeaDeduper,
+	type IdeaDeduperConfig,
+	type IdeaDeduperStats,
+} from "./idea-deduper.js";
+export {
 	ALL_IDEA_PRIORITIES,
 	ALL_SCOUT_SESSION_STATUSES,
 	createIdeaScoutContract,
@@ -27,3 +34,11 @@ export {
 	type ScoutSession,
 	type ScoutSessionStatus,
 } from "./idea-scout-worker.js";
+export {
+	createSignalMiner,
+	DEFAULT_SIGNAL_MINER_CONFIG,
+	type MiningObservation,
+	type MiningSignal,
+	SignalMiner,
+	type SignalMinerConfig,
+} from "./signal-miner.js";

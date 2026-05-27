@@ -24,11 +24,12 @@ import { createHash, randomUUID } from "node:crypto";
 import {
 	createWorkerDiagnostic,
 	DEFAULT_WORKER_DEDUP_CONFIG,
+	type WorkerContract,
 	type WorkerDedupConfig,
 	type WorkerDiagnostic,
 	type WorkerStopCondition,
 } from "../types.js";
-import { type PatchStrategy, PatchStrategyGenerator } from "./patch-strategy.js";
+import { type FixRootCauseFinding, type PatchStrategy, PatchStrategyGenerator } from "./patch-strategy.js";
 import { type TestPlan, TestPlanGenerator } from "./test-plan-generator.js";
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,80 @@ export interface FailureContext {
 
 	/** Whether the fix should be eligible for autonomous execution */
 	allowAutonomous?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Session Management
+// ---------------------------------------------------------------------------
+
+/**
+ * Lifecycle status of a fix strategist analysis session.
+ */
+export type FixStrategistSessionStatus =
+	| "pending" // Session created, awaiting analysis
+	| "analyzing" // Analysis in progress
+	| "completed" // Analysis completed successfully
+	| "failed" // Analysis failed
+	| "cancelled"; // Analysis cancelled
+
+/**
+ * An analysis session for the fix strategist worker.
+ *
+ * Tracks runtime, token consumption, and diagnostics throughout
+ * a single analysis cycle for budget enforcement.
+ */
+export interface FixStrategistSession {
+	/** Unique session identifier */
+	id: string;
+
+	/** ISO 8601 timestamp of session creation */
+	createdAt: string;
+
+	/** ISO 8601 timestamp of last activity, or null */
+	lastActivityAt: string | null;
+
+	/** Current session status */
+	status: FixStrategistSessionStatus;
+
+	/** Tokens consumed during this session */
+	tokensConsumed: number;
+
+	/** Runtime in milliseconds */
+	runtimeMs: number;
+
+	/** Session label for display */
+	label: string;
+
+	/** Evidence items analyzed in this session */
+	evidenceCount: number;
+
+	/** Strategies generated in this session */
+	strategyCount: number;
+
+	/** Diagnostics recorded during this session */
+	diagnostics: WorkerDiagnostic[];
+
+	/** Error message if the session failed */
+	error: string | null;
+}
+
+/**
+ * Create a new FixStrategistSession with default values.
+ */
+function createSession(label: string, existingId?: string): FixStrategistSession {
+	return {
+		id: existingId ?? randomUUID(),
+		createdAt: new Date().toISOString(),
+		lastActivityAt: null,
+		status: "pending",
+		tokensConsumed: 0,
+		runtimeMs: 0,
+		label,
+		evidenceCount: 0,
+		strategyCount: 0,
+		diagnostics: [],
+		error: null,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +221,30 @@ export interface FixStrategistWorkerConfig {
 
 	/** Whether diagnostics are enabled. Default: true. */
 	diagnosticsEnabled: boolean;
+
+	/**
+	 * Maximum tokens per analysis session.
+	 * Default: 200_000.
+	 */
+	maxTokensPerSession: number;
+
+	/**
+	 * Maximum runtime per analysis session in milliseconds.
+	 * Default: 900_000 (15 minutes).
+	 */
+	maxRuntimeMsPerSession: number;
+
+	/**
+	 * Maximum consecutive failures before the worker stops.
+	 * Default: 3.
+	 */
+	maxConsecutiveFailures: number;
+
+	/**
+	 * Cooldown period in milliseconds after a failure.
+	 * Default: 180_000 (3 minutes).
+	 */
+	cooldownMs: number;
 }
 
 /**
@@ -160,7 +259,114 @@ export const DEFAULT_FIX_STRATEGIST_WORKER_CONFIG: FixStrategistWorkerConfig = {
 	minEvidenceConfidence: 0.3,
 	allowPartialEvidence: true,
 	diagnosticsEnabled: true,
+	maxTokensPerSession: 200_000,
+	maxRuntimeMsPerSession: 900_000,
+	maxConsecutiveFailures: 3,
+	cooldownMs: 180_000,
 };
+
+// ---------------------------------------------------------------------------
+// Contract
+// ---------------------------------------------------------------------------
+
+/**
+ * Standard contract for the fix strategist worker role.
+ *
+ * The fix strategist is a specialist "fixStrategist" role that
+ * consumes debug evidence and produces fix strategies with patch
+ * plans, test plans, and diagnostic reports.
+ */
+export function createFixStrategistContract(version: string = "1.0.0"): WorkerContract {
+	return {
+		id: `brain-worker.fix-strategist.v${version}`,
+		name: "Fix Strategist Worker Contract",
+		description:
+			"Analyzes debug evidence to generate fix strategies, patch plans, and test plans for resolving identified issues. Supports budget, cooldown, dedup, and stop-condition handling with evidence-backed diagnostics on all failures.",
+		version,
+		capabilities: [
+			"evidence_analysis",
+			"root_cause_identification",
+			"patch_strategy_generation",
+			"test_plan_generation",
+			"strategy_ranking",
+			"risk_assessment",
+		],
+		inputs: [
+			{
+				name: "evidence_items",
+				description: "Debug evidence items including error messages, stack traces, diagnostics, and execution logs",
+				type: "FixEvidenceItem[]",
+				required: true,
+				sources: ["debugger", "diagnostician", "execution-monitor"],
+			},
+			{
+				name: "failure_context",
+				description: "Context about the failure environment (project path, git ref, reproduction steps)",
+				type: "FailureContext",
+				required: false,
+				sources: ["debugger", "diagnostician"],
+			},
+		],
+		outputs: [
+			{
+				name: "fix_strategies",
+				description: "Ranked patch strategies with root cause analysis, actions, and risk assessment",
+				type: "PatchStrategy[]",
+				destinations: ["fix-executor", "plan-synthesizer"],
+			},
+			{
+				name: "test_plans",
+				description: "Test plans for fix verification with coverage analysis",
+				type: "TestPlan[]",
+				destinations: ["test-executor", "plan-synthesizer"],
+			},
+			{
+				name: "strategy_diagnostics",
+				description:
+					"Diagnostics about the strategy generation process including validation failures and resource constraints",
+				type: "WorkerDiagnostic[]",
+				destinations: ["brain-timeline", "brain-audit"],
+			},
+		],
+		errors: [
+			{
+				code: "NO_EVIDENCE_PROVIDED",
+				description: "No evidence items were provided for analysis",
+				severity: "critical",
+				remediation: "Provide at least one evidence item with content before starting analysis",
+			},
+			{
+				code: "EVIDENCE_VALIDATION_FAILED",
+				description: "Evidence items failed validation (empty content, insufficient confidence)",
+				severity: "warning",
+				remediation:
+					"Review evidence items and ensure they have non-empty content and meet minimum confidence threshold",
+			},
+			{
+				code: "ROOT_CAUSE_EXTRACTION_FAILED",
+				description: "Failed to extract any root cause findings from evidence",
+				severity: "warning",
+				remediation: "Provide more detailed evidence with error messages, stack traces, or diagnostics",
+			},
+			{
+				code: "STRATEGY_GENERATION_FAILED",
+				description: "Failed to generate any patch strategies from root cause findings",
+				severity: "warning",
+				remediation: "Check root cause extraction results and retry with additional evidence",
+			},
+			{
+				code: "BUDGET_EXCEEDED",
+				description: "Token or runtime budget was exceeded during analysis",
+				severity: "warning",
+				remediation: "Consider increasing the analysis budget or reducing the evidence scope",
+			},
+		],
+		dependencies: ["brain-worker.debugger", "brain-worker.diagnostician"],
+		supportsStreaming: false,
+		supportsCancellation: true,
+		readonlyAccess: true,
+	};
+}
 
 // ---------------------------------------------------------------------------
 // Fix Strategist Worker
@@ -187,10 +393,16 @@ export class FixStrategistWorker {
 	private diagnostics: WorkerDiagnostic[];
 	private results: Map<string, FixStrategyResult>;
 	private dedupHistory: Map<string, { hash: string; timestamp: string }>;
+	private sessions: Map<string, FixStrategistSession>;
 	private cycleCount: number;
 	private consecutiveFailures: number;
 	private isCoolingDown: boolean;
 	private cooldownEndsAt: string | null;
+	private totalAnalysisCycles: number;
+	private totalProposalsEmitted: number;
+	private totalDiagnosticsGenerated: number;
+	private totalCyclesCompleted: number;
+	private totalCyclesFailed: number;
 
 	/**
 	 * Create a new FixStrategistWorker.
@@ -218,6 +430,12 @@ export class FixStrategistWorker {
 			allowPartialEvidence:
 				config?.allowPartialEvidence ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.allowPartialEvidence,
 			diagnosticsEnabled: config?.diagnosticsEnabled ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.diagnosticsEnabled,
+			maxTokensPerSession: config?.maxTokensPerSession ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.maxTokensPerSession,
+			maxRuntimeMsPerSession:
+				config?.maxRuntimeMsPerSession ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.maxRuntimeMsPerSession,
+			maxConsecutiveFailures:
+				config?.maxConsecutiveFailures ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.maxConsecutiveFailures,
+			cooldownMs: config?.cooldownMs ?? DEFAULT_FIX_STRATEGIST_WORKER_CONFIG.cooldownMs,
 		};
 
 		this.strategyGenerator = new PatchStrategyGenerator({
@@ -227,10 +445,16 @@ export class FixStrategistWorker {
 		this.diagnostics = [];
 		this.results = new Map();
 		this.dedupHistory = new Map();
+		this.sessions = new Map();
 		this.cycleCount = 0;
 		this.consecutiveFailures = 0;
 		this.isCoolingDown = false;
 		this.cooldownEndsAt = null;
+		this.totalAnalysisCycles = 0;
+		this.totalProposalsEmitted = 0;
+		this.totalDiagnosticsGenerated = 0;
+		this.totalCyclesCompleted = 0;
+		this.totalCyclesFailed = 0;
 	}
 
 	// -----------------------------------------------------------------------
@@ -254,6 +478,12 @@ export class FixStrategistWorker {
 		if (config.minEvidenceConfidence !== undefined) this.config.minEvidenceConfidence = config.minEvidenceConfidence;
 		if (config.allowPartialEvidence !== undefined) this.config.allowPartialEvidence = config.allowPartialEvidence;
 		if (config.diagnosticsEnabled !== undefined) this.config.diagnosticsEnabled = config.diagnosticsEnabled;
+		if (config.maxTokensPerSession !== undefined) this.config.maxTokensPerSession = config.maxTokensPerSession;
+		if (config.maxRuntimeMsPerSession !== undefined)
+			this.config.maxRuntimeMsPerSession = config.maxRuntimeMsPerSession;
+		if (config.maxConsecutiveFailures !== undefined)
+			this.config.maxConsecutiveFailures = config.maxConsecutiveFailures;
+		if (config.cooldownMs !== undefined) this.config.cooldownMs = config.cooldownMs;
 	}
 
 	/**
@@ -333,6 +563,7 @@ export class FixStrategistWorker {
 
 		const diagnostic = createWorkerDiagnostic(stopCondition, message, context, evidenceRefs, errorDetail);
 		this.diagnostics.push(diagnostic);
+		this.totalDiagnosticsGenerated++;
 	}
 
 	/**
@@ -399,11 +630,11 @@ export class FixStrategistWorker {
 	/**
 	 * Check if the worker should stop based on budget/consecutive failures.
 	 *
-	 * @param maxConsecutiveFailures - Maximum allowed consecutive failures.
+	 * Uses the configured maxConsecutiveFailures from the worker config.
 	 * @returns A stop condition if the worker should stop, or null if it should continue.
 	 */
-	checkStopCondition(maxConsecutiveFailures: number = 3): WorkerStopCondition | null {
-		if (this.consecutiveFailures >= maxConsecutiveFailures) {
+	checkStopCondition(): WorkerStopCondition | null {
+		if (this.consecutiveFailures >= this.config.maxConsecutiveFailures) {
 			return "consecutive_failures_exceeded";
 		}
 		return null;
@@ -421,6 +652,26 @@ export class FixStrategistWorker {
 	 */
 	get totalCycles(): number {
 		return this.cycleCount;
+	}
+
+	// -----------------------------------------------------------------------
+	// Generator Accessors
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get the internal PatchStrategyGenerator instance.
+	 * Useful for testing and inspection.
+	 */
+	getStrategyGenerator(): PatchStrategyGenerator {
+		return this.strategyGenerator;
+	}
+
+	/**
+	 * Get the internal TestPlanGenerator instance.
+	 * Useful for testing and inspection.
+	 */
+	getTestPlanGenerator(): TestPlanGenerator {
+		return this.testPlanGenerator;
 	}
 
 	// -----------------------------------------------------------------------
@@ -501,7 +752,7 @@ export class FixStrategistWorker {
 	 * 1. Validates and filters input evidence
 	 * 2. Checks dedup
 	 * 3. Extracts root causes from evidence
-	 * 4. Generates patch strategies
+	 * 4. Generates patch strategies with auto-generated actions
 	 * 5. Generates test plans (if enabled)
 	 * 6. Ranks strategies
 	 * 7. Produces a FixStrategyResult with diagnostics
@@ -515,23 +766,31 @@ export class FixStrategistWorker {
 		const resultId = randomUUID();
 		const now = new Date().toISOString();
 		const sid = sessionId ?? `fix-${randomUUID().slice(0, 8)}`;
-		const cycleDiagnostics: WorkerDiagnostic[] = [];
 		const strategies: PatchStrategy[] = [];
 		const testPlans: TestPlan[] = [];
+		const startTime = Date.now();
 
 		this.cycleCount++;
+
+		// 0. Create and track session
+		const session = createSession(`Analysis cycle ${this.cycleCount}`, sid);
+		session.status = "analyzing";
+		session.lastActivityAt = new Date().toISOString();
+		this.sessions.set(sid, session);
 
 		// 1. Validate evidence
 		const validationErrors = this.validateEvidence(evidence);
 		if (validationErrors.length > 0) {
 			for (const err of validationErrors) {
 				this.recordDiagnostic("unknown_error", err, { sessionId: sid }, [], "Validation error");
-				cycleDiagnostics.push(createWorkerDiagnostic("unknown_error", err, { sessionId: sid }, []));
 			}
 
 			// If there are critical validation failures, return early
 			if (evidence.length === 0) {
 				this.consecutiveFailures++;
+				session.status = "failed";
+				session.runtimeMs = Date.now() - startTime;
+				session.error = validationErrors.join("; ");
 				const result: FixStrategyResult = {
 					id: resultId,
 					createdAt: now,
@@ -539,10 +798,12 @@ export class FixStrategistWorker {
 					strategies: [],
 					testPlans: [],
 					success: false,
-					diagnostics: cycleDiagnostics,
+					diagnostics: this.getDiagnostics(),
 					summary: `Analysis failed: ${validationErrors.join("; ")}`,
 				};
 				this.results.set(resultId, result);
+				this.totalAnalysisCycles++;
+				this.totalCyclesFailed++;
 				return result;
 			}
 		}
@@ -554,13 +815,9 @@ export class FixStrategistWorker {
 				sessionId: sid,
 				hash: inputHash,
 			});
-			cycleDiagnostics.push(
-				createWorkerDiagnostic("completed", "Duplicate input — analysis skipped", {
-					sessionId: sid,
-					hash: inputHash,
-				}),
-			);
 
+			session.status = "completed";
+			session.runtimeMs = Date.now() - startTime;
 			const result: FixStrategyResult = {
 				id: resultId,
 				createdAt: now,
@@ -568,25 +825,24 @@ export class FixStrategistWorker {
 				strategies: [],
 				testPlans: [],
 				success: true,
-				diagnostics: cycleDiagnostics,
+				diagnostics: this.getDiagnostics(),
 				summary: "Analysis skipped — duplicate input (dedup)",
 			};
 			this.results.set(resultId, result);
+			this.totalAnalysisCycles++;
+			this.totalCyclesCompleted++;
 			return result;
 		}
 
 		// 3. Filter evidence by confidence
 		const filteredEvidence = this.filterEvidenceByConfidence(evidence);
+		session.evidenceCount = filteredEvidence.length;
 		if (filteredEvidence.length === 0) {
 			const msg = "All evidence filtered out by confidence threshold";
 			this.recordDiagnostic("completed", msg, { sessionId: sid, threshold: this.config.minEvidenceConfidence });
-			cycleDiagnostics.push(
-				createWorkerDiagnostic("completed", msg, {
-					sessionId: sid,
-					threshold: this.config.minEvidenceConfidence,
-				}),
-			);
 
+			session.status = "completed";
+			session.runtimeMs = Date.now() - startTime;
 			const result: FixStrategyResult = {
 				id: resultId,
 				createdAt: now,
@@ -594,14 +850,102 @@ export class FixStrategistWorker {
 				strategies: [],
 				testPlans: [],
 				success: true,
-				diagnostics: cycleDiagnostics,
+				diagnostics: this.getDiagnostics(),
 				summary: msg,
 			};
 			this.results.set(resultId, result);
+			this.totalAnalysisCycles++;
+			this.totalCyclesCompleted++;
 			return result;
 		}
 
-		// 4. Extract root causes from evidence
+		// 4. Check token budget before proceeding
+		const estimatedTokens = filteredEvidence.reduce((sum, e) => sum + e.content.length + (e.label?.length ?? 0), 0);
+		session.tokensConsumed = estimatedTokens;
+		if (estimatedTokens > this.config.maxTokensPerSession) {
+			this.recordDiagnostic(
+				"token_budget_exhausted",
+				`Token budget exceeded: estimated ${estimatedTokens} tokens exceeds limit of ${this.config.maxTokensPerSession}`,
+				{
+					sessionId: sid,
+					estimatedTokens,
+					maxTokens: this.config.maxTokensPerSession,
+					evidenceCount: filteredEvidence.length,
+				},
+			);
+
+			this.consecutiveFailures++;
+			session.status = "failed";
+			session.runtimeMs = Date.now() - startTime;
+			session.error = `Token budget exceeded: ${estimatedTokens} > ${this.config.maxTokensPerSession}`;
+			this.totalAnalysisCycles++;
+			this.totalCyclesFailed++;
+
+			// Check stop condition after budget failure
+			const stopCondition = this.checkStopCondition();
+			if (stopCondition) {
+				this.recordDiagnostic(
+					stopCondition,
+					`Worker stopped: ${stopCondition} (${this.consecutiveFailures} consecutive failures)`,
+					{ sessionId: sid, consecutiveFailures: this.consecutiveFailures },
+				);
+			}
+
+			return {
+				id: resultId,
+				createdAt: now,
+				sessionId: sid,
+				strategies: [],
+				testPlans: [],
+				success: false,
+				diagnostics: this.getDiagnostics(),
+				summary: `Analysis failed: token budget exceeded (${estimatedTokens} > ${this.config.maxTokensPerSession})`,
+			};
+		}
+
+		// 5. Check runtime budget
+		const runtimeMs = Date.now() - startTime;
+		if (runtimeMs > this.config.maxRuntimeMsPerSession) {
+			this.recordDiagnostic(
+				"timeout",
+				`Runtime budget exceeded: ${runtimeMs}ms exceeds limit of ${this.config.maxRuntimeMsPerSession}ms`,
+				{
+					sessionId: sid,
+					runtimeMs,
+					maxRuntimeMs: this.config.maxRuntimeMsPerSession,
+				},
+			);
+
+			this.consecutiveFailures++;
+			session.status = "failed";
+			session.runtimeMs = runtimeMs;
+			session.error = `Runtime budget exceeded: ${runtimeMs}ms > ${this.config.maxRuntimeMsPerSession}ms`;
+			this.totalAnalysisCycles++;
+			this.totalCyclesFailed++;
+
+			// Check stop condition after timeout failure
+			const stopCondition = this.checkStopCondition();
+			if (stopCondition) {
+				this.recordDiagnostic(
+					stopCondition,
+					`Worker stopped: ${stopCondition} (${this.consecutiveFailures} consecutive failures)`,
+					{ sessionId: sid, consecutiveFailures: this.consecutiveFailures },
+				);
+			}
+
+			return {
+				id: resultId,
+				createdAt: now,
+				sessionId: sid,
+				strategies: [],
+				testPlans: [],
+				success: false,
+				diagnostics: this.getDiagnostics(),
+				summary: `Analysis failed: runtime budget exceeded (${runtimeMs}ms > ${this.config.maxRuntimeMsPerSession}ms)`,
+			};
+		}
+
+		// 6. Extract root causes from evidence
 		const rootCauses = this.strategyGenerator.extractRootCauses(
 			filteredEvidence.map((e) => ({
 				label: e.label,
@@ -612,20 +956,33 @@ export class FixStrategistWorker {
 			sid,
 		);
 
-		// 5. Generate patch strategies
+		// 7. Generate patch strategies (up to maxStrategies, one per unique category)
 		if (rootCauses.length > 0) {
-			const primaryStrategy = this.strategyGenerator.generateStrategy(
-				`Fix: ${rootCauses[0]!.category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`,
-				`Strategy addressing ${rootCauses.length} root cause(s) derived from ${filteredEvidence.length} evidence item(s)`,
-				rootCauses,
-				[], // Actions will be empty since we're not implementing actual LLM-based generation
-				[sid],
-				sid,
-			);
-			strategies.push(primaryStrategy);
+			// Group root causes by category for diversified strategies
+			const byCategory = new Map<FixRootCauseFinding["category"], FixRootCauseFinding[]>();
+			for (const rc of rootCauses) {
+				const existing = byCategory.get(rc.category) ?? [];
+				existing.push(rc);
+				byCategory.set(rc.category, existing);
+			}
+
+			const categoryEntries = Array.from(byCategory.entries());
+			const maxStrat = Math.min(categoryEntries.length, this.config.maxStrategies);
+
+			for (let i = 0; i < maxStrat; i++) {
+				const [category, causes] = categoryEntries[i]!;
+				const title = `Fix: ${category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`;
+				const description = `Strategy addressing ${causes.length} root cause(s) of category "${category}" derived from ${filteredEvidence.length} evidence item(s)`;
+
+				// Auto-generate actions from root causes
+				const actions = this.strategyGenerator.toActions(causes, [sid]);
+
+				const strategy = this.strategyGenerator.generateStrategy(title, description, causes, actions, [sid], sid);
+				strategies.push(strategy);
+			}
 		}
 
-		// 6. Generate test plans (if enabled)
+		// 8. Generate test plans (if enabled)
 		if (this.config.autoGenerateTestPlans) {
 			for (const strategy of strategies) {
 				const plan = this.testPlanGenerator.generatePlan(strategy);
@@ -633,31 +990,62 @@ export class FixStrategistWorker {
 			}
 		}
 
-		// 7. Handle stop condition
-		const stopCondition = this.checkStopCondition();
-		if (stopCondition) {
-			this.recordDiagnostic(
-				stopCondition,
-				`Worker stopped: ${stopCondition} (${this.consecutiveFailures} consecutive failures)`,
-				{ sessionId: sid, consecutiveFailures: this.consecutiveFailures },
-			);
-			cycleDiagnostics.push(
-				createWorkerDiagnostic(stopCondition, `Consecutive failure limit reached`, {
+		// 9. Handle stop condition (checked at start — if we reach here after
+		// successful strategy generation, reset failures instead of stopping)
+		// All budget failures are handled in steps 4-5 with early returns.
+		// If strategies were generated, the analysis succeeded regardless of
+		// prior failure history.
+		if (strategies.length > 0) {
+			// Successful generation resets the failure counter
+			this.consecutiveFailures = 0;
+		} else {
+			const stopCondition = this.checkStopCondition();
+			if (stopCondition) {
+				this.recordDiagnostic(
+					stopCondition,
+					`Worker stopped: ${stopCondition} (${this.consecutiveFailures} consecutive failures)`,
+					{ sessionId: sid, consecutiveFailures: this.consecutiveFailures },
+				);
+
+				this.consecutiveFailures++;
+				session.status = "failed";
+				session.runtimeMs = Date.now() - startTime;
+				session.error = `Worker stopped: ${stopCondition}`;
+				this.totalAnalysisCycles++;
+				this.totalCyclesFailed++;
+
+				const result: FixStrategyResult = {
+					id: resultId,
+					createdAt: now,
 					sessionId: sid,
-					consecutiveFailures: this.consecutiveFailures,
-				}),
-			);
+					strategies,
+					testPlans,
+					success: false,
+					diagnostics: this.getDiagnostics(),
+					summary: `Analysis stopped: ${stopCondition} after prior failures`,
+				};
+				this.results.set(resultId, result);
+				return result;
+			}
 		}
 
-		// 8. Record dedup and reset failures
+		// 10. Record dedup and reset failures
 		this.recordDedup(inputHash);
 		this.consecutiveFailures = 0;
 
-		// 9. Compose result
+		// 11. Compose result
 		const success = strategies.length > 0 || rootCauses.length === 0;
 		const summary = success
 			? `Generated ${strategies.length} strategy(ies) and ${testPlans.length} test plan(s) from ${filteredEvidence.length} evidence item(s) with ${rootCauses.length} root cause(s)`
 			: `Analysis completed with issues: ${rootCauses.length} root cause(s) but no strategies generated`;
+
+		session.status = success ? "completed" : "failed";
+		session.runtimeMs = Date.now() - startTime;
+		session.strategyCount = strategies.length;
+		session.diagnostics = this.getDiagnostics();
+		if (!success) {
+			session.error = `Analysis completed with issues: ${rootCauses.length} root cause(s) but no strategies generated`;
+		}
 
 		const result: FixStrategyResult = {
 			id: resultId,
@@ -666,11 +1054,17 @@ export class FixStrategistWorker {
 			strategies,
 			testPlans,
 			success,
-			diagnostics: [...this.getDiagnostics(), ...cycleDiagnostics],
+			diagnostics: this.getDiagnostics(),
 			summary,
 		};
 
 		this.results.set(resultId, result);
+		this.totalAnalysisCycles++;
+		if (success) {
+			this.totalCyclesCompleted++;
+		} else {
+			this.totalCyclesFailed++;
+		}
 		return result;
 	}
 
@@ -707,6 +1101,116 @@ export class FixStrategistWorker {
 	}
 
 	// -----------------------------------------------------------------------
+	// Handoff Emission
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Emit a proposal bundle for handoff inbox consumption.
+	 *
+	 * Produces a structured result bundle containing the fix strategy,
+	 * test plan, evidence-backed diagnostics, and worker stats snapshot.
+	 * The FixStrategistWorker is read-only — it does not modify execution
+	 * state; proposals are emitted into the handoff inbox for downstream
+	 * workers (e.g., fix-executor, plan-synthesizer) to consume.
+	 *
+	 * @param resultId - The result ID to emit.
+	 * @returns A handoff result bundle, or null if the result does not exist.
+	 */
+	emitProposal(resultId: string): FixStrategistHandoffResult | null {
+		const result = this.results.get(resultId);
+		if (!result) return null;
+
+		this.totalProposalsEmitted++;
+
+		return {
+			resultId: result.id,
+			createdAt: result.createdAt,
+			sessionId: result.sessionId,
+			strategies: result.strategies,
+			testPlans: result.testPlans,
+			success: result.success,
+			summary: result.summary,
+			diagnostics: result.diagnostics,
+			workerStats: this.getStats(),
+			emittedAt: new Date().toISOString(),
+		};
+	}
+
+	// -----------------------------------------------------------------------
+	// Session Management
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get a session by ID.
+	 */
+	getSession(id: string): FixStrategistSession | undefined {
+		return this.sessions.get(id);
+	}
+
+	/**
+	 * Get all tracked sessions.
+	 */
+	getAllSessions(): FixStrategistSession[] {
+		return Array.from(this.sessions.values());
+	}
+
+	/**
+	 * Clear all tracked sessions.
+	 */
+	clearSessions(): void {
+		this.sessions.clear();
+	}
+
+	// -----------------------------------------------------------------------
+	// Health & Stats
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Check if the worker is healthy based on consecutive failures.
+	 *
+	 * Evaluates the current consecutive failure count to determine
+	 * health status. 0 failures = healthy, 1-4 = degraded, 5+ = unhealthy.
+	 *
+	 * @returns "healthy", "degraded", or "unhealthy".
+	 */
+	getHealthStatus(): "healthy" | "degraded" | "unhealthy" {
+		if (this.consecutiveFailures === 0) {
+			return "healthy";
+		}
+		if (this.consecutiveFailures < 5) {
+			return "degraded";
+		}
+		return "unhealthy";
+	}
+
+	/**
+	 * Get runtime stats for this worker.
+	 *
+	 * Returns a snapshot of all tracked metrics including cycle counts,
+	 * proposal emission, diagnostics, strategies, and dedup history.
+	 */
+	getStats(): FixStrategistWorkerStats {
+		const allResults = this.getAllResults();
+		const completed = allResults.filter((r) => r.success);
+		const failed = allResults.filter((r) => !r.success);
+
+		return {
+			totalCycles: this.totalAnalysisCycles,
+			completed: completed.length,
+			failed: failed.length,
+			consecutiveFailures: this.consecutiveFailures,
+			totalCyclesCompleted: this.totalCyclesCompleted,
+			totalCyclesFailed: this.totalCyclesFailed,
+			totalProposalsEmitted: this.totalProposalsEmitted,
+			totalDiagnosticsGenerated: this.totalDiagnosticsGenerated,
+			totalStrategiesGenerated: this.strategyGenerator.strategyCount,
+			totalTestPlansGenerated: this.testPlanGenerator.planCount,
+			dedupHistorySize: this.dedupHistory.size,
+			healthStatus: this.getHealthStatus(),
+		};
+	}
+
+	// -----------------------------------------------------------------------
 	// Reset
 	// -----------------------------------------------------------------------
 
@@ -726,7 +1230,79 @@ export class FixStrategistWorker {
 		this.consecutiveFailures = 0;
 		this.isCoolingDown = false;
 		this.cooldownEndsAt = null;
+		this.totalAnalysisCycles = 0;
+		this.totalProposalsEmitted = 0;
+		this.totalDiagnosticsGenerated = 0;
+		this.totalCyclesCompleted = 0;
+		this.totalCyclesFailed = 0;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Fix Strategist Worker Stats & Handoff
+// ---------------------------------------------------------------------------
+
+/**
+ * Result bundle emitted for handoff inbox consumption.
+ *
+ * Contains the analysis result, generated strategies, test plans,
+ * diagnostics, and a snapshot of worker stats at the time of emission.
+ *
+ * The FixStrategistWorker is read-only for execution state; proposals
+ * are emitted into the handoff inbox via emitProposal() for downstream
+ * workers (fix-executor, plan-synthesizer, etc.) to consume.
+ */
+export interface FixStrategistHandoffResult {
+	/** Result ID this handoff is based on */
+	resultId: string;
+	/** ISO 8601 timestamp of the original analysis */
+	createdAt: string;
+	/** Session identifier */
+	sessionId: string;
+	/** Generated patch strategies */
+	strategies: PatchStrategy[];
+	/** Generated test plans */
+	testPlans: TestPlan[];
+	/** Whether the analysis was successful */
+	success: boolean;
+	/** Summary of what was produced */
+	summary: string;
+	/** Evidence-backed diagnostics from the analysis cycle */
+	diagnostics: WorkerDiagnostic[];
+	/** Snapshot of worker stats at emission time */
+	workerStats: FixStrategistWorkerStats;
+	/** ISO 8601 timestamp of emission */
+	emittedAt: string;
+}
+
+/**
+ * Runtime statistics for the FixStrategistWorker.
+ */
+export interface FixStrategistWorkerStats {
+	/** Total analysis cycles run */
+	totalCycles: number;
+	/** Number of completed (successful) cycles */
+	completed: number;
+	/** Number of failed cycles */
+	failed: number;
+	/** Current consecutive failure count */
+	consecutiveFailures: number;
+	/** Total successful cycles */
+	totalCyclesCompleted: number;
+	/** Total failed cycles */
+	totalCyclesFailed: number;
+	/** Total proposals emitted via emitProposal() */
+	totalProposalsEmitted: number;
+	/** Total diagnostics generated */
+	totalDiagnosticsGenerated: number;
+	/** Total strategies generated across all cycles */
+	totalStrategiesGenerated: number;
+	/** Total test plans generated across all cycles */
+	totalTestPlansGenerated: number;
+	/** Number of entries in dedup history */
+	dedupHistorySize: number;
+	/** Health status based on consecutive failures */
+	healthStatus: "healthy" | "degraded" | "unhealthy";
 }
 
 // ---------------------------------------------------------------------------

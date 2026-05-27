@@ -36,6 +36,7 @@ import { randomUUID } from "node:crypto";
  * - ideaScout:        Scouts for ideas from signals, observations, and trend data
  * - fixStrategist:    Analyzes evidence from debug diagnostics and generates fix strategies and test plans
  * - regressionHunter: Detects regressions by comparing current behavior against baselines
+ * - planSynthesizer:  Synthesizes execution plans from goals, proposals, and context, producing DAG-structured plans with budget/cooldown/dedup/stop-condition handling
  */
 export type WorkerRole =
 	| "observer"
@@ -48,7 +49,8 @@ export type WorkerRole =
 	| "auditor"
 	| "ideaScout"
 	| "fixStrategist"
-	| "regressionHunter";
+	| "regressionHunter"
+	| "planSynthesizer";
 
 /**
  * All valid WorkerRole values for runtime validation.
@@ -65,6 +67,7 @@ export const ALL_WORKER_ROLES: readonly WorkerRole[] = [
 	"ideaScout",
 	"fixStrategist",
 	"regressionHunter",
+	"planSynthesizer",
 ] as const;
 
 /**
@@ -82,6 +85,7 @@ export const WORKER_ROLE_LABELS: Record<WorkerRole, string> = {
 	ideaScout: "Idea Scout",
 	fixStrategist: "Fix Strategist",
 	regressionHunter: "Regression Hunter",
+	planSynthesizer: "Plan Synthesizer",
 };
 
 /**
@@ -153,6 +157,12 @@ export const DEFAULT_ROLE_BUDGETS: Record<WorkerRole, WorkerBudget> = {
 		maxConsecutiveFailures: 3,
 		cooldownMs: 120_000,
 		maxRuntimeMs: 600_000,
+	},
+	planSynthesizer: {
+		maxTokensPerCycle: 200_000,
+		maxConsecutiveFailures: 3,
+		cooldownMs: 180_000,
+		maxRuntimeMs: 900_000,
 	},
 };
 
@@ -301,6 +311,7 @@ export type WorkerStopCondition =
 	| "timeout" // Exceeded maxRuntimeMs
 	| "token_budget_exhausted" // Exceeded maxTokensPerCycle
 	| "consecutive_failures_exceeded" // Exceeded maxConsecutiveFailures
+	| "dag_validation_failed" // DAG validation failed (cycle, missing deps, etc.)
 	| "user_interrupt" // User requested stop
 	| "policy_blocked" // Policy engine blocked the operation
 	| "dependency_unavailable" // Required dependency not available
@@ -315,6 +326,7 @@ export const ALL_WORKER_STOP_CONDITIONS: readonly WorkerStopCondition[] = [
 	"timeout",
 	"token_budget_exhausted",
 	"consecutive_failures_exceeded",
+	"dag_validation_failed",
 	"user_interrupt",
 	"policy_blocked",
 	"dependency_unavailable",
@@ -485,6 +497,12 @@ export interface ContractError {
  * Contracts define the input/output boundaries, capabilities, and
  * error modes of a brain worker. They are the basis for dependency
  * resolution, capability matching, and validation.
+ *
+ * All workers operate under read-only execution access: they observe
+ * and analyze data via their inputs, emit results as events through
+ * their outputs, and never directly mutate system state. Mutations
+ * are performed by the orchestrator or downstream consumers in
+ * response to emitted events.
  */
 export interface WorkerContract {
 	/** Contract identifier (e.g., "brain-worker.observer.v1") */
@@ -509,6 +527,19 @@ export interface WorkerContract {
 	supportsStreaming: boolean;
 	/** Whether this contract supports cancellation mid-cycle */
 	supportsCancellation: boolean;
+
+	/**
+	 * Whether this worker has read-only execution access.
+	 *
+	 * When true (the default for all standard workers), the worker may
+	 * read from its inputs and emit output events, but it must never
+	 * directly mutate system state. State mutations are the responsibility
+	 * of the orchestrator or event subscribers.
+	 *
+	 * Set to false only for special-purpose workers that require direct
+	 * mutation access (rare, requires explicit policy approval).
+	 */
+	readonlyAccess: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -730,6 +761,9 @@ export function validateWorkerContract(value: unknown): ValidationResult {
 	}
 	if (!Array.isArray(c.dependencies)) {
 		errors.push("dependencies must be an array");
+	}
+	if (typeof c.readonlyAccess !== "boolean") {
+		errors.push("readonlyAccess must be a boolean");
 	}
 
 	return { valid: errors.length === 0, errors };

@@ -18,7 +18,7 @@ import type { IStateStore } from "../core/state-store.js";
 import type { WorkspaceStage } from "../core/workspace-schema.js";
 import { WorkspaceStage as WS } from "../core/workspace-schema.js";
 import { PiLogger } from "../utils/logger.js";
-import { assertLegalTransition, assertRetryAllowed } from "./attempt-fsm.js";
+import { assertLegalTransition } from "./attempt-fsm.js";
 import type { AttemptState } from "./types.js";
 import { WorkspaceAttemptController } from "./workspace-attempt-controller.js";
 
@@ -65,10 +65,10 @@ export interface TransitionRouter {
 	): Promise<void>;
 
 	/**
-	 * Increment the retry attempt counter with FSM enforcement.
+	 * Increment the workspace execution attempt counter.
 	 *
-	 * For PG backend, this validates retry is allowed (assertRetryAllowed)
-	 * before incrementing. For JSON backend, delegates to IStateStore.
+	 * Attempt FSM retry events are routed by Failed/Blocked → Pending
+	 * transitions. This method only updates the denormalized execution count.
 	 */
 	incrementRetryAttempt(planExecutionId: string, workspaceId: string): Promise<void>;
 }
@@ -169,34 +169,10 @@ export class KernelTransitionRouter implements TransitionRouter {
 			throw new Error(`Workspace not found: ${workspaceId}`);
 		}
 
-		// FSM validation: retry is only allowed after a terminal attempt
-		const cacheEntry = this.attemptCache.get(workspaceId);
-		if (cacheEntry) {
-			assertRetryAllowed(cacheEntry.currentState);
-		}
-
-		// Route retry through attempt controller
-		const attemptId = cacheEntry?.attemptId;
-		if (attemptId) {
-			try {
-				await this.controller.handleEvent(attemptId, "retry", {
-					reason: "retry_after_failure",
-					previousStage: wsState.stage,
-				});
-				// Update cache state after successful retry
-				cacheEntry!.currentState = "READY";
-				cacheEntry!.version++;
-			} catch (error) {
-				this.log.warn(
-					`[workspace ${workspaceId}] Attempt controller retry rejected: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				// Fall through to state store increment even if controller rejects
-				// (non-fatal warning — the controller is authoritative for FSM,
-				// but the attempt counter is still meaningful for the state store)
-			}
-		}
-
-		// Persist retry count through IStateStore
+		// Persist execution attempt count through IStateStore. Do not emit an
+		// attempt-controller retry event here: retry is a lifecycle transition
+		// (Failed/Blocked → Pending), while this counter increments once per
+		// actual agent execution, including the initial attempt.
 		await this.stateStore.incrementRetryAttempt(planExecutionId, workspaceId);
 	}
 

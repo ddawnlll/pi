@@ -30,7 +30,7 @@ import {
 	REGRESSION_TYPE_LABELS,
 	RegressionHunterWorker,
 } from "../../src/brain-workers/regression-hunter/regression-hunter-worker.js";
-import { validateWorkerManifest } from "../../src/brain-workers/types.js";
+import { createWorkerDiagnostic, validateWorkerManifest } from "../../src/brain-workers/types.js";
 
 // =============================================================================
 // Helper: create a baseline snapshot
@@ -1220,5 +1220,201 @@ describe("RegressionHunterWorker — Edge Cases", () => {
 		const worker = new RegressionHunterWorker();
 		const completed = worker.getSessionsByStatus("completed");
 		expect(completed).toEqual([]);
+	});
+});
+
+// =============================================================================
+// RegressionHunterWorker — Expanded Config (failureClustererConfig, flakyTestDetectorConfig)
+// =============================================================================
+
+describe("RegressionHunterWorker — Expanded Config", () => {
+	test("config includes failureClustererConfig defaults", () => {
+		const worker = new RegressionHunterWorker();
+		const config = worker.getConfig();
+
+		expect(config.failureClustererConfig).toBeDefined();
+		expect(config.failureClustererConfig.messageSimilarityThreshold).toBe(0.6);
+		expect(config.failureClustererConfig.maxClusters).toBe(50);
+	});
+
+	test("config includes flakyTestDetectorConfig defaults", () => {
+		const worker = new RegressionHunterWorker();
+		const config = worker.getConfig();
+
+		expect(config.flakyTestDetectorConfig).toBeDefined();
+		expect(config.flakyTestDetectorConfig.minRunsForClassification).toBe(3);
+		expect(config.flakyTestDetectorConfig.flakinessThreshold).toBe(0.9);
+	});
+
+	test("config propagates overrides to sub-component configs", () => {
+		const worker = new RegressionHunterWorker({
+			failureClustererConfig: { maxClusters: 10 },
+			flakyTestDetectorConfig: { minRunsForClassification: 5 },
+		});
+
+		const config = worker.getConfig();
+		expect(config.failureClustererConfig.maxClusters).toBe(10);
+		expect(config.flakyTestDetectorConfig.minRunsForClassification).toBe(5);
+
+		// Verify sub-components received the config
+		expect(worker.getFailureClusterer().getConfig().maxClusters).toBe(10);
+		expect(worker.getFlakyTestDetector().getConfig().minRunsForClassification).toBe(5);
+	});
+
+	test("setConfig propagates to failureClusterer", () => {
+		const worker = new RegressionHunterWorker();
+		worker.setConfig({ failureClustererConfig: { maxClusters: 5 } });
+
+		expect(worker.getConfig().failureClustererConfig.maxClusters).toBe(5);
+		expect(worker.getFailureClusterer().getConfig().maxClusters).toBe(5);
+	});
+
+	test("setConfig propagates to flakyTestDetector", () => {
+		const worker = new RegressionHunterWorker();
+		worker.setConfig({ flakyTestDetectorConfig: { flakinessThreshold: 0.5 } });
+
+		expect(worker.getConfig().flakyTestDetectorConfig.flakinessThreshold).toBe(0.5);
+		expect(worker.getFlakyTestDetector().getConfig().flakinessThreshold).toBe(0.5);
+	});
+});
+
+// =============================================================================
+// RegressionHunterWorker — Sub-component Access
+// =============================================================================
+
+describe("RegressionHunterWorker — Sub-component Access", () => {
+	test("getFailureClusterer returns the internal instance", () => {
+		const worker = new RegressionHunterWorker();
+		const clusterer = worker.getFailureClusterer();
+		expect(clusterer).toBeDefined();
+		expect(clusterer.clusterCount).toBe(0);
+	});
+
+	test("getFlakyTestDetector returns the internal instance", () => {
+		const worker = new RegressionHunterWorker();
+		const detector = worker.getFlakyTestDetector();
+		expect(detector).toBeDefined();
+		expect(detector.trackedTestCount).toBe(0);
+	});
+
+	test("sub-components are configured on creation", () => {
+		const worker = new RegressionHunterWorker({
+			failureClustererConfig: { matchOnErrorCode: false },
+			flakyTestDetectorConfig: { minRunsForClassification: 5 },
+		});
+
+		expect(worker.getFailureClusterer().getConfig().matchOnErrorCode).toBe(false);
+		expect(worker.getFlakyTestDetector().getConfig().minRunsForClassification).toBe(5);
+	});
+
+	test("clear resets sub-components", () => {
+		const worker = new RegressionHunterWorker();
+
+		// Add data to sub-components
+		const clusterer = worker.getFailureClusterer();
+		clusterer.ingest([createWorkerDiagnostic("timeout", "Test diagnostic", {}, ["regression-hunter://test"])]);
+		expect(clusterer.clusterCount).toBe(1);
+
+		const detector = worker.getFlakyTestDetector();
+		detector.recordExecution({
+			id: "test-run-1",
+			filePath: "test.test.ts",
+			testName: "test",
+			outcome: "pass",
+			durationMs: 100,
+			timestamp: new Date().toISOString(),
+			metadata: {},
+		});
+		detector.recordExecution({
+			id: "test-run-2",
+			filePath: "test.test.ts",
+			testName: "test",
+			outcome: "fail",
+			durationMs: 100,
+			timestamp: new Date().toISOString(),
+			metadata: {},
+		});
+		detector.recordExecution({
+			id: "test-run-3",
+			filePath: "test.test.ts",
+			testName: "test",
+			outcome: "pass",
+			durationMs: 100,
+			timestamp: new Date().toISOString(),
+			metadata: {},
+		});
+		expect(detector.trackedTestCount).toBe(1);
+
+		// Clear all
+		worker.clear();
+
+		expect(clusterer.clusterCount).toBe(0);
+		expect(detector.trackedTestCount).toBe(0);
+	});
+});
+
+// =============================================================================
+// RegressionHunterWorker — emitFindings
+// =============================================================================
+
+describe("RegressionHunterWorker — emitFindings", () => {
+	test("emitFindings returns null for unknown session", () => {
+		const worker = new RegressionHunterWorker();
+		expect(worker.emitFindings("nonexistent")).toBeNull();
+	});
+
+	test("emitFindings returns result for existing session", () => {
+		const worker = new RegressionHunterWorker();
+		const session = worker.createSession("test-session", { source: "test" });
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.sessionId).toBe(session!.id);
+		expect(result!.label).toBe("test-session");
+		expect(result!.status).toBe("pending");
+		expect(result!.baseline).toBeNull();
+		expect(result!.current).toBeNull();
+		expect(result!.analysis).toBeNull();
+		expect(result!.failureClusters).toEqual([]);
+		expect(result!.flakyTests).toEqual([]); // getAllFindings returns []
+		expect(result!.workerStats).toBeDefined();
+		expect(result!.emittedAt).toBeDefined();
+	});
+
+	test("emitFindings includes analysis results when session is completed", () => {
+		const worker = new RegressionHunterWorker();
+		const session = worker.createSession("completed-test");
+
+		// Create baselines and run analysis
+		const baseline = makeBaseline();
+		const current = makeCurrent();
+		worker.startComparison(session!.id, baseline, current);
+		worker.analyze(session!.id, 10, 5);
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.status).toBe("completed");
+		expect(result!.baseline).not.toBeNull();
+		expect(result!.current).not.toBeNull();
+		expect(result!.analysis).not.toBeNull();
+		expect(result!.workerStats.totalSessions).toBe(1);
+	});
+
+	test("emitFindings includes diagnostic for failed session", () => {
+		const worker = new RegressionHunterWorker({
+			maxTokensPerSession: 50,
+		});
+		const session = worker.createSession("failed-test");
+
+		const baseline = makeBaseline();
+		const current = makeCurrent();
+		worker.startComparison(session!.id, baseline, current);
+		worker.analyze(session!.id, 100, 0);
+
+		const result = worker.emitFindings(session!.id);
+		expect(result).not.toBeNull();
+		expect(result!.status).toBe("failed");
+		expect(result!.diagnostic).not.toBeNull();
+		expect(result!.error).toContain("Token budget exceeded");
 	});
 });

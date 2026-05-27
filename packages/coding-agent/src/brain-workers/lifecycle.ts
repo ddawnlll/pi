@@ -41,9 +41,6 @@ const MAX_DIAGNOSTICS = 20;
 /** Maximum number of dedup history entries to retain. */
 const MAX_DEDUP_HISTORY = 100;
 
-/** Default dedup window in ms. */
-const _DEFAULT_DEDUP_WINDOW_MS = 300_000;
-
 // ---------------------------------------------------------------------------
 // Lifecycle Configuration
 // ---------------------------------------------------------------------------

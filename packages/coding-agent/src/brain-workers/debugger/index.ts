@@ -13,6 +13,7 @@ export {
 	DEFAULT_DEBUGGER_BUDGET,
 	DEFAULT_DEBUGGER_DEDUP_CONFIG,
 	DEFAULT_DEBUGGER_WORKER_CONFIG,
+	type DebuggerHandoffResult,
 	DebuggerWorker,
 	type DebuggerWorkerConfig,
 	type DebuggerWorkerStats,

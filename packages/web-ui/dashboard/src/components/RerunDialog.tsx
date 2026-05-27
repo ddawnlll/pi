@@ -1,9 +1,9 @@
 /**
- * RerunDialog — Confirmation dialog for restarting a stopped or failed plan.
+ * RerunDialog — Confirmation dialog for continuing a stopped or failed plan.
  *
  * Shows a DAG summary of all workspaces and their statuses, then lets the
- * user confirm the restart. On confirm, calls the rerun API which creates
- * a brand new execution with the original plan file.
+ * user confirm the continue operation. Completed workspaces are preserved;
+ * active, failed, blocked, and pending workspaces restart from clean worktrees.
  */
 
 import { X, RefreshCw, AlertTriangle, CheckCircle, Clock, OctagonX } from "lucide-react";
@@ -44,6 +44,8 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 	const totalCount = executionDetail?.workspaces?.length ?? 0;
 	const pendingCount = executionDetail?.workspaces?.filter((w) => w.stage === "pending").length ?? 0;
 	const blockedCount = executionDetail?.workspaces?.filter((w) => w.stage === "blocked").length ?? 0;
+	const activeCount = executionDetail?.workspaces?.filter((w) => w.stage === "active").length ?? 0;
+	const restartCount = totalCount - completeCount;
 
 	return (
 		<AnimatePresence>
@@ -65,7 +67,7 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 					>
 						{/* header */}
 						<div className="flex items-center justify-between mb-4 shrink-0">
-							<h2 className={`text-lg font-semibold ${TXT}`}>Restart Plan</h2>
+							<h2 className={`text-lg font-semibold ${TXT}`}>Continue Plan</h2>
 							<button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300`}>
 								<X size={16} />
 							</button>
@@ -127,15 +129,13 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 							</div>
 						</div>
 
-						{/* warning for in-flight */}
-						{(blockedCount > 0 || pendingCount > 0) && (
-							<div className={`flex items-start gap-2 mb-4 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15`}>
-								<AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-								<p className="text-xs text-amber-700 dark:text-amber-300">
-									{pendingCount} workspace(s) that never started and {blockedCount} blocked workspace(s) will be reset and retried.
-								</p>
-							</div>
-						)}
+						{/* restart semantics */}
+						<div className={`flex items-start gap-2 mb-4 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15`}>
+							<AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+							<p className="text-xs text-amber-700 dark:text-amber-300">
+								{completeCount} complete workspace(s) and their worktrees will be preserved. {restartCount} non-complete workspace(s) will restart from clean worktrees ({activeCount} active, {failedCount} failed, {blockedCount} blocked, {pendingCount} pending).
+							</p>
+						</div>
 
 						{/* actions */}
 						<div className="flex items-center gap-2 justify-end shrink-0">
@@ -151,7 +151,7 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 								className={`px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-600 bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
 							>
 								<RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-								{loading ? "Restarting..." : "Restart"}
+								{loading ? "Continuing..." : "Continue"}
 							</button>
 						</div>
 					</motion.div>

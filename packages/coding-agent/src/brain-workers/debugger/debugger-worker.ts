@@ -92,6 +92,12 @@ export interface DebugSession {
 	/** Root cause analysis (set after analysis phase) */
 	rootCauseAnalysis: RootCauseAnalysis | null;
 
+	/** Observability trace identifier for distributed tracing */
+	traceId: string | null;
+
+	/** Observability correlation identifier for grouping related jobs */
+	correlationId: string | null;
+
 	/** Diagnostic on failure, if any */
 	diagnostic: WorkerDiagnostic | null;
 
@@ -447,9 +453,17 @@ export class DebuggerWorker {
 	 * @param label - Human-readable label for this session.
 	 * @param metadata - Optional session metadata.
 	 * @param taskHash - Optional content hash for deduplication.
+	 * @param traceId - Optional trace ID for observability linkage.
+	 * @param correlationId - Optional correlation ID for grouping.
 	 * @returns The created DebugSession, or null if deduped.
 	 */
-	createSession(label: string, metadata?: Record<string, unknown>, taskHash?: string): DebugSession | null {
+	createSession(
+		label: string,
+		metadata?: Record<string, unknown>,
+		taskHash?: string,
+		traceId?: string,
+		correlationId?: string,
+	): DebugSession | null {
 		// Dedup check
 		if (this.config.dedupEnabled && taskHash) {
 			const existingTimestamp = this.dedupHistory.get(taskHash);
@@ -476,6 +490,8 @@ export class DebuggerWorker {
 			rootCauseAnalysis: null,
 			diagnostic: null,
 			error: null,
+			traceId: traceId ?? null,
+			correlationId: correlationId ?? null,
 			metadata: metadata ?? {},
 		};
 
@@ -710,6 +726,41 @@ export class DebuggerWorker {
 	}
 
 	// -----------------------------------------------------------------------
+	// Handoff Emission
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Emit session findings as a structured result bundle suitable
+	 * for handoff inbox consumption.
+	 *
+	 * The debugger worker is read-only: it collects evidence, analyzes
+	 * root causes, and emits findings without modifying execution state.
+	 * Callers (supervisor, handoff queue) consume the returned bundle
+	 * to route diagnostics to downstream workers.
+	 *
+	 * @param sessionId - The session ID to emit findings for.
+	 * @returns A handoff result bundle, or null if the session does not exist.
+	 */
+	emitFindings(sessionId: string): DebuggerHandoffResult | null {
+		const session = this.sessions.get(sessionId);
+		if (!session) return null;
+
+		return {
+			sessionId: session.id,
+			label: session.label,
+			status: session.status,
+			traceId: session.traceId,
+			correlationId: session.correlationId,
+			rootCauseAnalysis: session.rootCauseAnalysis,
+			evidenceSummary: session.evidenceSummary,
+			diagnostic: session.diagnostic,
+			error: session.error,
+			workerStats: this.getStats(),
+			emittedAt: new Date().toISOString(),
+		};
+	}
+
+	// -----------------------------------------------------------------------
 	// Failure Handling
 	// -----------------------------------------------------------------------
 
@@ -875,6 +926,27 @@ export class DebuggerWorker {
 // ---------------------------------------------------------------------------
 // Debugger Worker Stats
 // ---------------------------------------------------------------------------
+
+/**
+ * Result bundle emitted for handoff inbox consumption.
+ *
+ * Contains the session identity, root cause analysis findings,
+ * evidence summary, trace identifiers, and a snapshot of worker
+ * stats at the time of emission.
+ */
+export interface DebuggerHandoffResult {
+	sessionId: string;
+	label: string;
+	status: DebugSessionStatus;
+	traceId: string | null;
+	correlationId: string | null;
+	rootCauseAnalysis: RootCauseAnalysis | null;
+	evidenceSummary: EvidenceSummary | null;
+	diagnostic: WorkerDiagnostic | null;
+	error: string | null;
+	workerStats: DebuggerWorkerStats;
+	emittedAt: string;
+}
 
 /**
  * Runtime statistics for the DebuggerWorker.

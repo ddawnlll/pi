@@ -46,6 +46,8 @@ import {
 	useTelemetryStats,
 	useTelemetryTimeSeries,
 } from "../../hooks/useTelemetry";
+import { HealthSummary } from "./HealthSummary";
+import { TraceTimeline } from "./TraceTimeline";
 import type { ObservabilityEvent, ObservabilitySeverity } from "../../types-observability";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
@@ -278,7 +280,7 @@ function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type TabId = "overview" | "events" | "errors";
+type TabId = "overview" | "events" | "errors" | "traces";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -472,6 +474,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 						{ id: "overview" as TabId, label: "Overview", icon: BarChart3 },
 						{ id: "events" as TabId, label: "Events", icon: Search },
 						{ id: "errors" as TabId, label: "Errors", icon: AlertTriangle },
+						{ id: "traces" as TabId, label: "Traces", icon: Activity },
 					]).map((tab) => {
 						const Icon = tab.icon;
 						const isActive = activeTab === tab.id;
@@ -947,6 +950,17 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 									</div>
 								</>
 							)}
+						</div>
+					)}
+
+					{activeTab === "traces" && (
+						<div className="p-3">
+							<TraceTimeline
+								className="w-full"
+								since={since}
+								until={until}
+								limit={50}
+							/>
 						</div>
 					)}
 				</div>

@@ -330,6 +330,9 @@ export class JobStore {
 	complete(jobId: string, output: Record<string, unknown>): JobRecord | null {
 		const job = this.jobs.get(jobId);
 		if (!job) return null;
+		if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+			return null; // Already terminal
+		}
 
 		job.status = "completed";
 		job.output = output;
@@ -353,6 +356,9 @@ export class JobStore {
 	fail(jobId: string, error: string, diagnostic?: WorkerDiagnostic): JobRecord | null {
 		const job = this.jobs.get(jobId);
 		if (!job) return null;
+		if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+			return null; // Already terminal
+		}
 
 		job.retryCount++;
 		job.updatedAt = new Date().toISOString();

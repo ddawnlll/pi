@@ -935,14 +935,27 @@ export class WorkspaceAgentExecutor {
 				abortSignal.addEventListener("abort", onAbort, { once: true });
 				removePromptAbortListener = () => abortSignal.removeEventListener("abort", onAbort);
 			});
+			let promptError: unknown;
+			const promptPromise = session.prompt(prompt).catch((error: unknown) => {
+				promptError = error;
+				if (!_agentCompleted) {
+					throw error;
+				}
+				log(
+					`Agent prompt settled after agent_end with error: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			});
 			try {
-				await Promise.race([session.prompt(prompt), promptAbortPromise]);
+				await Promise.race([promptPromise, promptAbortPromise, completionPromise]);
+				if (promptError && !_agentCompleted) {
+					throw promptError;
+				}
 			} finally {
 				removePromptAbortListener();
 			}
 			ctx.promptDispatchResolvedAt = Date.now();
 			log(
-				`Agent prompt returned after ${ctx.promptDispatchStartedAt ? ctx.promptDispatchResolvedAt - ctx.promptDispatchStartedAt : 0}ms, waiting for completion...`,
+				`Agent prompt unblocked after ${ctx.promptDispatchStartedAt ? ctx.promptDispatchResolvedAt - ctx.promptDispatchStartedAt : 0}ms, waiting for completion...`,
 			);
 
 			// Wait for agent to fully complete (all turns, tool calls, and final response)
@@ -985,8 +998,7 @@ export class WorkspaceAgentExecutor {
 			const messageSummary = messages
 				.map((m, i) => {
 					if (m.role === "assistant") {
-						// Tool calls are in the content array with type "tool_call"
-						const toolCalls = m.content.filter((c: any) => c.type === "tool_call");
+						const toolCalls = m.content.filter((c) => c.type === "toolCall");
 						return `${i}: assistant (${toolCalls.length} tool calls)`;
 					}
 					return `${i}: ${m.role}`;
@@ -1002,8 +1014,16 @@ export class WorkspaceAgentExecutor {
 			let finalVerdict: "COMPLETE" | "BLOCKED" | "FAILED" = "FAILED";
 
 			if (lastMessage?.role === "assistant") {
+				const assistantMessage = lastMessage as AssistantMessage;
 				const content = this.getMessageContent(lastMessage);
 				log(`Final assistant message (${content.length} chars): ${content.substring(0, 500)}...`);
+				log(`Final assistant diagnostics: ${this.getAssistantDiagnostics(assistantMessage)}`);
+
+				if (this.isEmptyProviderResponse(lastMessage)) {
+					throw new Error(
+						`Transient provider failure: assistant stream completed with no final text and no tool call (${this.getAssistantDiagnostics(assistantMessage)})`,
+					);
+				}
 
 				// Check for verdict in the response
 				if (content.includes("VERDICT: COMPLETE")) {
@@ -1355,12 +1375,33 @@ export class WorkspaceAgentExecutor {
 			}
 			if (Array.isArray(content)) {
 				return content
-					.map((c: any) => (c.type === "text" ? c.text : ""))
+					.map((c) => (c.type === "text" ? c.text : ""))
 					.filter(Boolean)
 					.join("\n");
 			}
 		}
 		return "";
+	}
+
+	private getAssistantDiagnostics(message: AssistantMessage): string {
+		const blockTypes = message.content.map((c) => c.type).join(",") || "none";
+		const toolCalls = message.content.filter((c) => c.type === "toolCall").length;
+		const thinkingChars = message.content.reduce(
+			(total, c) => total + (c.type === "thinking" ? c.thinking.length : 0),
+			0,
+		);
+		return `stopReason=${message.stopReason}, contentBlocks=${message.content.length}, blockTypes=${blockTypes}, toolCalls=${toolCalls}, thinkingChars=${thinkingChars}`;
+	}
+
+	private isEmptyProviderResponse(lastMessage: AgentMessage | undefined): boolean {
+		if (!lastMessage || lastMessage.role !== "assistant") {
+			return false;
+		}
+
+		const content = this.getMessageContent(lastMessage).trim();
+		const assistantMessage = lastMessage as AssistantMessage;
+		const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall").length;
+		return content.length === 0 && toolCalls === 0;
 	}
 
 	/**

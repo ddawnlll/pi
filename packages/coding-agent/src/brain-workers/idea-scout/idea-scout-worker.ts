@@ -401,6 +401,7 @@ export function createIdeaScoutContract(version: string = "1.0.0"): WorkerContra
 		dependencies: ["brain-worker.analyst"],
 		supportsStreaming: false,
 		supportsCancellation: true,
+		readonlyAccess: true,
 	};
 }
 
