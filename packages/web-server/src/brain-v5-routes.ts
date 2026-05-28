@@ -121,6 +121,40 @@ interface V5RouteOptions {
 			offset?: number;
 		}) => Promise<{ changes: unknown[]; total: number }>;
 	}>;
+
+	/** Optional provider for the Evidence Index API (V5.02). */
+	getEvidenceApi?: () => Promise<{
+		registerEvidence: (
+			type: string,
+			id: string,
+			label: string,
+			description: string,
+			confidence: number,
+			content?: string,
+		) => Promise<{
+			type: string;
+			id: string;
+			label: string;
+			description: string;
+			timestamp: string;
+			confidence: number;
+		}>;
+		registerBatch: (sources: unknown[]) => Promise<unknown[]>;
+		query: (query: {
+			types?: string[];
+			search?: string;
+			minConfidence?: number;
+			createdAfter?: string;
+			createdBefore?: string;
+			limit?: number;
+			offset?: number;
+			sortBy?: string;
+			sortOrder?: string;
+		}) => Promise<{ items: unknown[]; total: number }>;
+		resolve: (refs: unknown[]) => Promise<unknown[]>;
+		assess: (refs: unknown[]) => Promise<unknown>;
+		stats: () => Promise<unknown>;
+	}>;
 }
 
 /**
@@ -502,6 +536,180 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to regenerate rollup",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Evidence Index Routes (V5.02)
+	// =========================================================================
+
+	// POST /brain-v5/evidence/register — Register evidence sources
+	fastify.post("/brain-v5/evidence/register", async (request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const body = request.body as {
+				type: string;
+				id?: string;
+				label: string;
+				description: string;
+				confidence?: number;
+				content?: string;
+			};
+
+			if (!body.type || !body.label || !body.description) {
+				return reply.code(400).send({ error: "type, label, and description are required" });
+			}
+
+			const ref = await api.registerEvidence(
+				body.type,
+				body.id ?? body.label.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase(),
+				body.label,
+				body.description,
+				body.confidence ?? 0.5,
+				body.content,
+			);
+
+			return reply.code(201).send({ success: true, ref });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to register evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/evidence/register-batch — Register multiple evidence sources
+	fastify.post("/brain-v5/evidence/register-batch", async (request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const body = request.body as { sources: unknown[] };
+
+			if (!body.sources || !Array.isArray(body.sources) || body.sources.length === 0) {
+				return reply.code(400).send({ error: "sources array is required and must be non-empty" });
+			}
+
+			const refs = await api.registerBatch(body.sources);
+			return reply.code(201).send({ success: true, count: refs.length, refs });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to register evidence batch",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/evidence/query — Query evidence
+	fastify.get("/brain-v5/evidence/query", async (request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const query = request.query as {
+				types?: string;
+				search?: string;
+				minConfidence?: string;
+				createdAfter?: string;
+				createdBefore?: string;
+				limit?: string;
+				offset?: string;
+				sortBy?: string;
+				sortOrder?: string;
+			};
+
+			const result = await api.query({
+				types: query.types?.split(",") as string[] | undefined,
+				search: query.search,
+				minConfidence: query.minConfidence ? parseFloat(query.minConfidence) : undefined,
+				createdAfter: query.createdAfter,
+				createdBefore: query.createdBefore,
+				limit: query.limit ? parseInt(query.limit, 10) : 50,
+				offset: query.offset ? parseInt(query.offset, 10) : 0,
+				sortBy: query.sortBy as "timestamp" | "confidence" | "label" | undefined,
+				sortOrder: query.sortOrder as "asc" | "desc" | undefined,
+			});
+
+			return result;
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to query evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/evidence/resolve — Resolve evidence refs to content
+	fastify.post("/brain-v5/evidence/resolve", async (request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const body = request.body as { refs: unknown[] };
+
+			if (!body.refs || !Array.isArray(body.refs) || body.refs.length === 0) {
+				return reply.code(400).send({ error: "refs array is required and must be non-empty" });
+			}
+
+			const resolutions = await api.resolve(body.refs);
+			return { resolutions };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to resolve evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/evidence/assess — Assess confidence for evidence refs
+	fastify.post("/brain-v5/evidence/assess", async (request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const body = request.body as { refs: unknown[] };
+
+			if (!body.refs || !Array.isArray(body.refs) || body.refs.length === 0) {
+				return reply.code(400).send({ error: "refs array is required and must be non-empty" });
+			}
+
+			const assessment = await api.assess(body.refs);
+			return { assessment };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to assess evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/evidence/stats — Evidence index statistics
+	fastify.get("/brain-v5/evidence/stats", async (_request, reply) => {
+		try {
+			if (!options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Evidence API not available" });
+			}
+
+			const api = await options.getEvidenceApi();
+			const stats = await api.stats();
+			return { stats };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get evidence stats",
 				message: error instanceof Error ? error.message : String(error),
 			});
 		}

@@ -260,3 +260,134 @@ export interface RegenerateRollupResponse {
 	matchesOriginal: boolean;
 	verificationPassed: boolean;
 }
+
+// =========================================================================
+// Evidence Index (V5.02)
+// =========================================================================
+
+/** Types of evidence that the index can reference. */
+export type EvidenceRefType =
+	| "git_file"
+	| "validation"
+	| "execution_journal"
+	| "memory"
+	| "proposal"
+	| "reflection"
+	| "approval"
+	| "observation"
+	| "signal"
+	| "temporal_event";
+
+/** A single evidence reference. */
+export interface EvidenceRef {
+	type: EvidenceRefType;
+	id: string;
+	label: string;
+	description: string;
+	timestamp: string;
+	sourcePath?: string;
+	confidence: number;
+	metadata?: Record<string, unknown>;
+}
+
+/** Input for registering evidence. */
+export interface RegisterEvidenceRequest {
+	type: string;
+	id?: string;
+	label: string;
+	description: string;
+	confidence?: number;
+	content?: string;
+}
+
+/** Response from POST /brain-v5/evidence/register */
+export interface RegisterEvidenceResponse {
+	success: boolean;
+	ref: EvidenceRef;
+}
+
+/** Response from POST /brain-v5/evidence/register-batch */
+export interface RegisterEvidenceBatchResponse {
+	success: boolean;
+	count: number;
+	refs: EvidenceRef[];
+}
+
+/** Query parameters for GET /brain-v5/evidence/query */
+export interface EvidenceQueryParams {
+	types?: string;
+	search?: string;
+	minConfidence?: string;
+	createdAfter?: string;
+	createdBefore?: string;
+	limit?: string;
+	offset?: string;
+	sortBy?: string;
+	sortOrder?: string;
+}
+
+/** Response from GET /brain-v5/evidence/query */
+export interface EvidenceQueryResponse {
+	items: EvidenceRef[];
+	total: number;
+}
+
+/** Evidence resolution outcome. */
+export interface EvidenceResolution {
+	ref: EvidenceRef;
+	resolved: boolean;
+	content?: string;
+	error?: string;
+	resolvedAt: string;
+}
+
+/** Evidence confidence level. */
+export type EvidenceConfidenceLevel = "HIGH" | "MEDIUM" | "LOW" | "BLOCKED";
+
+/** Evidence assessment result. */
+export interface EvidenceAssessment {
+	level: EvidenceConfidenceLevel;
+	confidence: number;
+	resolvedCount: number;
+	missingCount: number;
+	lowConfidenceCount: number;
+	resolutions: EvidenceResolution[];
+	summary: string;
+	recommendations: string[];
+}
+
+/** Request body for POST /brain-v5/evidence/resolve */
+export interface ResolveEvidenceRequest {
+	refs: Array<{ type: string; id: string }>;
+}
+
+/** Response from POST /brain-v5/evidence/resolve */
+export interface ResolveEvidenceResponse {
+	resolutions: EvidenceResolution[];
+}
+
+/** Request body for POST /brain-v5/evidence/assess */
+export interface AssessEvidenceRequest {
+	refs: Array<{ type: string; id: string }>;
+}
+
+/** Response from POST /brain-v5/evidence/assess */
+export interface AssessEvidenceResponse {
+	assessment: EvidenceAssessment;
+}
+
+/** Evidence index statistics. */
+export interface EvidenceStats {
+	totalRefs: number;
+	byType: Record<string, number>;
+	averageConfidence: number;
+	highConfidenceCount: number;
+	lowConfidenceCount: number;
+	earliestTimestamp: string | null;
+	latestTimestamp: string | null;
+}
+
+/** Response from GET /brain-v5/evidence/stats */
+export interface EvidenceStatsResponse {
+	stats: EvidenceStats;
+}
