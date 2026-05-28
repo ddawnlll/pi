@@ -1,0 +1,27 @@
+{"timestamp":1779911027401,"testId":"R1","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer"}}
+{"timestamp":1779911027401,"testId":"R1","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1779911027401,"testId":"R1","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1779911027401,"testId":"R1","type":"executor_start","workspaceId":"V5.00","data":{"worktree":false}}
+{"timestamp":1779911027401,"testId":"R1","type":"executor_prompt_built","workspaceId":"V5.00","data":{"packetGoal":"V5 Contract, Flags & Safety Doctrine","acceptanceCriteriaCount":4}}
+{"timestamp":1779911027401,"testId":"R1","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1779911027401,"testId":"R1","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1779911027431,"testId":"R1","type":"mock_agent_result","workspaceId":"V5.00","data":{"verdict":"COMPLETE"}}
+{"timestamp":1779911027431,"testId":"R1","type":"workspace_complete","workspaceId":"V5.00"}
+{"timestamp":1779911027431,"testId":"R1","type":"plan_complete"}
+{"timestamp":1779911027431,"testId":"R1","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1779911027449,"testId":"R2","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-OrmeU3"}}
+{"timestamp":1779911027449,"testId":"R2","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1779911027449,"testId":"R2","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1779911027449,"testId":"R2","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1779911027449,"testId":"R2","type":"worktree_create_start","workspaceId":"V5.00","data":{"repo":"/tmp/pi-exact-v5-OrmeU3"}}
+{"timestamp":1779911027449,"testId":"R2","type":"worktree_mutex_wait_start","workspaceId":"V5.00"}
+{"timestamp":1779911032469,"testId":"R2","type":"hard_wall_timeout","data":{"name":"production createWorktree","timeoutMs":5000}}
+{"timestamp":1779911032469,"testId":"R2","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1779911032485,"testId":"R3","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-6thU6j"}}
+{"timestamp":1779911032485,"testId":"R3","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1779911032485,"testId":"R3","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1779911032485,"testId":"R3","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1779911032485,"testId":"R3","type":"worktree_create_start","workspaceId":"V5.00","data":{"repo":"/tmp/pi-exact-v5-6thU6j"}}
+{"timestamp":1779911032485,"testId":"R3","type":"worktree_mutex_wait_start","workspaceId":"V5.00"}
+{"timestamp":1779911037494,"testId":"R3","type":"hard_wall_timeout","data":{"name":"production createWorktree","timeoutMs":5000}}
+{"timestamp":1779911037494,"testId":"R3","type":"file_lock_released","workspaceId":"V5.00"}

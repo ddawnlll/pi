@@ -1,0 +1,126 @@
+{"type":"plan_start","timestamp":1779910208618,"data":{"workspaceCount":1}}
+{"type":"workspace_start","timestamp":1779910208618,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910208618,"workspaceId":"diag.1","data":{"files":["docs/diagnostic.txt"]}}
+{"type":"workspace_complete","timestamp":1779910208699,"workspaceId":"diag.1"}
+{"type":"file_lock_released","timestamp":1779910208699,"workspaceId":"diag.1"}
+{"type":"plan_complete","timestamp":1779910208699}
+{"type":"plan_start","timestamp":1779910208699,"data":{"workspaceCount":1}}
+{"type":"workspace_start","timestamp":1779910208699,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910208699,"workspaceId":"diag.1","data":{"files":["docs/diagnostic.txt"]}}
+{"type":"workspace_failed","timestamp":1779910208950,"workspaceId":"diag.1","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910208950,"workspaceId":"diag.1"}
+{"type":"plan_failed","timestamp":1779910208950}
+{"type":"plan_start","timestamp":1779910208950,"data":{"workspaceCount":1}}
+{"type":"workspace_start","timestamp":1779910208950,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910208950,"workspaceId":"diag.1","data":{"files":["docs/diagnostic.txt"]}}
+{"type":"workspace_complete","timestamp":1779910209031,"workspaceId":"diag.1"}
+{"type":"file_lock_released","timestamp":1779910209031,"workspaceId":"diag.1"}
+{"type":"plan_complete","timestamp":1779910209031}
+{"type":"plan_start","timestamp":1779910209031,"data":{"workspaceCount":1}}
+{"type":"workspace_start","timestamp":1779910209031,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910209031,"workspaceId":"diag.1","data":{"files":["docs/diagnostic.txt"]}}
+{"type":"workspace_complete","timestamp":1779910209112,"workspaceId":"diag.1"}
+{"type":"file_lock_released","timestamp":1779910209112,"workspaceId":"diag.1"}
+{"type":"plan_complete","timestamp":1779910209112}
+{"type":"plan_start","timestamp":1779910209112,"data":{"workspaceCount":2}}
+{"type":"workspace_start","timestamp":1779910209112,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910209112,"workspaceId":"diag.1","data":{"files":["docs/a.txt"]}}
+{"type":"workspace_complete","timestamp":1779910209193,"workspaceId":"diag.1"}
+{"type":"file_lock_released","timestamp":1779910209193,"workspaceId":"diag.1"}
+{"type":"workspace_start","timestamp":1779910209193,"workspaceId":"diag.2"}
+{"type":"file_lock_acquired","timestamp":1779910209193,"workspaceId":"diag.2","data":{"files":["docs/a.txt"]}}
+{"type":"workspace_complete","timestamp":1779910209272,"workspaceId":"diag.2"}
+{"type":"file_lock_released","timestamp":1779910209272,"workspaceId":"diag.2"}
+{"type":"plan_complete","timestamp":1779910209272}
+{"type":"plan_start","timestamp":1779910209273,"data":{"workspaceCount":2}}
+{"type":"workspace_start","timestamp":1779910209273,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910209273,"workspaceId":"diag.1","data":{"files":["docs/a.txt"]}}
+{"type":"workspace_start","timestamp":1779910209273,"workspaceId":"diag.2"}
+{"type":"file_lock_acquired","timestamp":1779910209273,"workspaceId":"diag.2","data":{"files":["docs/b.txt"]}}
+{"type":"workspace_complete","timestamp":1779910209352,"workspaceId":"diag.1"}
+{"type":"file_lock_released","timestamp":1779910209352,"workspaceId":"diag.1"}
+{"type":"workspace_complete","timestamp":1779910209352,"workspaceId":"diag.2"}
+{"type":"file_lock_released","timestamp":1779910209352,"workspaceId":"diag.2"}
+{"type":"plan_complete","timestamp":1779910209352}
+{"type":"plan_start","timestamp":1779910233374,"data":{"workspaceCount":20}}
+{"type":"workspace_start","timestamp":1779910233374,"workspaceId":"diag.1"}
+{"type":"file_lock_acquired","timestamp":1779910233374,"workspaceId":"diag.1","data":{"files":["docs/1.txt"]}}
+{"type":"workspace_start","timestamp":1779910233374,"workspaceId":"diag.2"}
+{"type":"file_lock_acquired","timestamp":1779910233374,"workspaceId":"diag.2","data":{"files":["docs/2.txt"]}}
+{"type":"workspace_start","timestamp":1779910233374,"workspaceId":"diag.3"}
+{"type":"file_lock_acquired","timestamp":1779910233374,"workspaceId":"diag.3","data":{"files":["docs/3.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233474,"workspaceId":"diag.1","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233474,"workspaceId":"diag.1"}
+{"type":"workspace_start","timestamp":1779910233474,"workspaceId":"diag.4"}
+{"type":"file_lock_acquired","timestamp":1779910233474,"workspaceId":"diag.4","data":{"files":["docs/4.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233474,"workspaceId":"diag.2","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233474,"workspaceId":"diag.2"}
+{"type":"workspace_start","timestamp":1779910233474,"workspaceId":"diag.5"}
+{"type":"file_lock_acquired","timestamp":1779910233474,"workspaceId":"diag.5","data":{"files":["docs/5.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233474,"workspaceId":"diag.3","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233474,"workspaceId":"diag.3"}
+{"type":"workspace_start","timestamp":1779910233474,"workspaceId":"diag.6"}
+{"type":"file_lock_acquired","timestamp":1779910233474,"workspaceId":"diag.6","data":{"files":["docs/6.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233574,"workspaceId":"diag.4","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233574,"workspaceId":"diag.4"}
+{"type":"workspace_start","timestamp":1779910233574,"workspaceId":"diag.7"}
+{"type":"file_lock_acquired","timestamp":1779910233574,"workspaceId":"diag.7","data":{"files":["docs/7.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233574,"workspaceId":"diag.5","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233574,"workspaceId":"diag.5"}
+{"type":"workspace_start","timestamp":1779910233574,"workspaceId":"diag.8"}
+{"type":"file_lock_acquired","timestamp":1779910233574,"workspaceId":"diag.8","data":{"files":["docs/8.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233574,"workspaceId":"diag.6","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233574,"workspaceId":"diag.6"}
+{"type":"workspace_start","timestamp":1779910233574,"workspaceId":"diag.9"}
+{"type":"file_lock_acquired","timestamp":1779910233574,"workspaceId":"diag.9","data":{"files":["docs/9.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233674,"workspaceId":"diag.7","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233674,"workspaceId":"diag.7"}
+{"type":"workspace_start","timestamp":1779910233674,"workspaceId":"diag.10"}
+{"type":"file_lock_acquired","timestamp":1779910233674,"workspaceId":"diag.10","data":{"files":["docs/10.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233674,"workspaceId":"diag.8","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233674,"workspaceId":"diag.8"}
+{"type":"workspace_start","timestamp":1779910233674,"workspaceId":"diag.11"}
+{"type":"file_lock_acquired","timestamp":1779910233674,"workspaceId":"diag.11","data":{"files":["docs/11.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233674,"workspaceId":"diag.9","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233674,"workspaceId":"diag.9"}
+{"type":"workspace_start","timestamp":1779910233674,"workspaceId":"diag.12"}
+{"type":"file_lock_acquired","timestamp":1779910233674,"workspaceId":"diag.12","data":{"files":["docs/12.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233774,"workspaceId":"diag.10","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233774,"workspaceId":"diag.10"}
+{"type":"workspace_start","timestamp":1779910233774,"workspaceId":"diag.13"}
+{"type":"file_lock_acquired","timestamp":1779910233774,"workspaceId":"diag.13","data":{"files":["docs/13.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233774,"workspaceId":"diag.11","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233774,"workspaceId":"diag.11"}
+{"type":"workspace_start","timestamp":1779910233774,"workspaceId":"diag.14"}
+{"type":"file_lock_acquired","timestamp":1779910233774,"workspaceId":"diag.14","data":{"files":["docs/14.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233774,"workspaceId":"diag.12","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233774,"workspaceId":"diag.12"}
+{"type":"workspace_start","timestamp":1779910233774,"workspaceId":"diag.15"}
+{"type":"file_lock_acquired","timestamp":1779910233774,"workspaceId":"diag.15","data":{"files":["docs/15.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233874,"workspaceId":"diag.13","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233874,"workspaceId":"diag.13"}
+{"type":"workspace_start","timestamp":1779910233874,"workspaceId":"diag.16"}
+{"type":"file_lock_acquired","timestamp":1779910233874,"workspaceId":"diag.16","data":{"files":["docs/16.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233874,"workspaceId":"diag.14","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233874,"workspaceId":"diag.14"}
+{"type":"workspace_start","timestamp":1779910233874,"workspaceId":"diag.17"}
+{"type":"file_lock_acquired","timestamp":1779910233874,"workspaceId":"diag.17","data":{"files":["docs/17.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233874,"workspaceId":"diag.15","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233874,"workspaceId":"diag.15"}
+{"type":"workspace_start","timestamp":1779910233874,"workspaceId":"diag.18"}
+{"type":"file_lock_acquired","timestamp":1779910233874,"workspaceId":"diag.18","data":{"files":["docs/18.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233974,"workspaceId":"diag.16","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233974,"workspaceId":"diag.16"}
+{"type":"workspace_start","timestamp":1779910233974,"workspaceId":"diag.19"}
+{"type":"file_lock_acquired","timestamp":1779910233974,"workspaceId":"diag.19","data":{"files":["docs/19.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233974,"workspaceId":"diag.17","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233974,"workspaceId":"diag.17"}
+{"type":"workspace_start","timestamp":1779910233974,"workspaceId":"diag.20"}
+{"type":"file_lock_acquired","timestamp":1779910233974,"workspaceId":"diag.20","data":{"files":["docs/20.txt"]}}
+{"type":"workspace_failed","timestamp":1779910233974,"workspaceId":"diag.18","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910233974,"workspaceId":"diag.18"}
+{"type":"workspace_failed","timestamp":1779910234074,"workspaceId":"diag.19","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910234074,"workspaceId":"diag.19"}
+{"type":"workspace_failed","timestamp":1779910234074,"workspaceId":"diag.20","data":{"error":"mock agent timed out"}}
+{"type":"file_lock_released","timestamp":1779910234074,"workspaceId":"diag.20"}
+{"type":"plan_failed","timestamp":1779910234074}

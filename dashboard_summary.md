@@ -76,7 +76,8 @@
 **Responsible files:**
 | Component | File | Responsibility |
 |---|---|---|
-| Topbar (header) | `App.tsx` (inline) | Plan status badge, Resume/Pause/Stop/Restart buttons, Settings gear, sidebar collapse toggles |
+| Topbar | `components/topbar/Topbar.tsx` | Extracted topbar: plan status badge, Resume/Pause/Stop/Restart buttons, Settings gear, sidebar collapse toggles, contextual toolbar |
+| ContextualToolbar | `components/topbar/Topbar.tsx` | Upload, Git, Commands, Chat, Artifacts, Exec log buttons |
 
 ---
 
@@ -132,11 +133,27 @@
 └─────────────────────────────────┘
 ```
 
-### LeftNav Entry Detail
+### LeftNav / PlatformNavItem Type
+
+The `PlatformNavItem` union type now includes two named export arrays from `LeftNav.tsx`:
+
+```typescript
+export type PlatformNavItem =
+  // P11 Platform
+  | "autonomy" | "goals" | "observability" | "proposal_inbox" | "pi_inbox"
+  | "plan_intake" | "extensions_skills" | "memory" | "policy_audit"
+  | "trust_dashboard" | "registry_settings"
+  // P19 Brain
+  | "brain_digest" | "brain_state" | "brain_memory" | "brain_reflections"
+  | "brain_overnight" | "brain_goals" | "brain_proposals" | "brain_trust";
+```
+
+#### P11 Platform Entries (`PLATFORM_NAV_ENTRIES[]`)
 
 | id | Label | Icon | Description | Origin |
 |---|---|---|---|---|
 | `autonomy` | Autonomy | `Cpu` | Orchestrator health, proposals, self-improvement triggers | P11.S |
+| `observability` | Observability | `Activity` | Telemetry events, stats, errors, time-series | P25 |
 | `proposal_inbox` | Proposal Inbox | `Inbox` | Top-ranked proposals with recommendations | P11.S |
 | `goals` | Goals | `Target` | Goal board, milestones, drift alerts | P11.S |
 | `plan_intake` | Plan Intake | `ScrollText` | Plan analysis, DAG diff, optimization approval | P11.S |
@@ -144,18 +161,29 @@
 | `memory` | Memory | `Database` | Memory health, provenance, compaction | P11.S |
 | `policy_audit` | Policy & Audit | `ShieldAlert` | Permissions, approvals, audit timeline | P11.S |
 | `trust_dashboard` | Trust Dashboard | `Shield` | Trust metrics, safety, approvals, audit health | P11.S |
+| `pi_inbox` | Pi Inbox | `Bell` | Message center, system notifications, alerts | P24 |
 | `registry_settings` | Registry Settings | `Sliders` | Local/remote registries, channels, update policy | P11.S |
+
+#### P19 Brain Entries (`BRAIN_NAV_ENTRIES[]`)
+
+| id | Label | Icon | Description | Origin |
+|---|---|---|---|---|
+| `brain_digest` | Morning Digest | `Sunrise` | Morning overview, top signals, pending proposals, goal progress | P24 |
 | `brain_state` | Brain State | `Cpu` | Daemon status, observations, signals, timeline | P19 |
-| `brain_inbox` | Proposal Inbox | `Inbox` | Top-ranked proposals with recommendations | P19 |
 | `brain_memory` | Memory Explorer | `Database` | Full memory CRUD, search, filters | P19 |
 | `brain_reflections` | Reflections | `RotateCw` | Post-plan reflections, worked/failed, suggestions | P19 |
+| `brain_proposals` | Proposals | `Inbox` | Top-ranked proposals with recommendations | P19 |
+| `brain_goals` | Goals | `Target` | Goal board, milestones, drift alerts | P19 |
+| `brain_trust` | Trust Dashboard | `Shield` | Trust metrics, safety, approvals, audit health | P19 |
 | `brain_overnight` | Overnight | `Moon` | Queue overnight runs, schedule, history | P19 |
 
 **Responsible files:**
 | File | Purpose |
 |---|---|
-| `components/LeftNav.tsx` | Defines `PlatformNavItem` type, `PLATFORM_NAV_ENTRIES[]` array, `LeftNav` component (renders entry list), `PlatformSectionHeader` |
-| `App.tsx` (lines ~540-560) | Wires LeftNav into the Platform tab, renders PlatformSectionHeader, manages `activeView` state, handles `navigateToPlatform` callback |
+| `components/LeftNav.tsx` | Defines `PlatformNavItem` type, `PLATFORM_NAV_ENTRIES[]`, `BRAIN_NAV_ENTRIES[]`, `LeftNav` component (renders platform + brain sections), `PlatformSectionHeader` |
+| `App.tsx` | Wires LeftNav into sidebar, renders Platform + Brain sections, manages `activeView` state |
+
+
 
 ---
 
@@ -229,6 +257,7 @@ The new P22.A sidebar (`components/sidebar/Sidebar.tsx`) replaces the 4-tab syst
 |---|---|
 | `components/sidebar/Sidebar.tsx` | Full sidebar implementation |
 | `components/sidebar/index.ts` | Barrel export |
+| `components/sidebar/BrainNudgeCard.tsx` | Brain nudge with observation/proposal/approval counts (P24.F) |
 | `App.tsx` | Sidebar integration, wiring |
 
 
@@ -290,23 +319,27 @@ activeView.type ──┬── "run"      → Plan execution dashboard
 
 When `activeView.screen` matches a platform nav item, the corresponding feature page is rendered:
 
-```typescript
-showRegistrySettings ? <RegistrySettings />
-showPlanIntake       ? <PlanIntakePanel />
-showMemory           ? <MemoryCockpit />
-showPolicyAudit      ? <PolicyAuditCenter />
-showTrustDashboard   ? <TrustDashboard />
-showExtensions       ? <ExtensionsManager />
-showSkills           ? <SkillsManager />
-showGoals            ? <GoalBoard />
-showAutonomy         ? <AutonomyCenter />
-showProposalInbox    ? <ProposalInbox />
-showBrainState       ? <BrainStatePage />
-showBrainInbox       ? <ProposalInbox />        // reuses P11 component
-showBrainMemory      ? <BrainMemoryPage />
-showBrainReflections ? <BrainReflectionsPage />
-showBrainOvernight   ? <BrainOvernightPage />
-```
+| Screen ID | Component | Origin | File |
+|---|---|---|---|
+| `autonomy` | `<AutonomyCenter />` | P11.S | `features/autonomy/AutonomyCenter.tsx` |
+| `observability` | `<ObservabilityCockpit />` | P25.H | `features/observability/ObservabilityCockpit.tsx` |
+| `proposal_inbox` | `<ProposalInbox />` | P11.S | `features/proposal-inbox/ProposalInbox.tsx` |
+| `goals` | `<GoalBoard />` | P15 | `components/brain/goals/GoalBoard.tsx` |
+| `plan_intake` | `<PlanIntakePanel />` | P11.S | `features/plan-intake/PlanIntakePanel.tsx` |
+| `extensions_skills` | `<ExtensionsManager />` / `<SkillsManager />` | P11.S | `components/ExtensionsManager.tsx` / `SkillsManager.tsx` |
+| `memory` | `<MemoryCockpit />` | P11.S | `features/memory/MemoryCockpit.tsx` |
+| `policy_audit` | `<PolicyAuditCenter />` | P11.S | `features/policy-audit/PolicyAuditCenter.tsx` |
+| `trust_dashboard` | `<TrustDashboard />` | P11.S | `features/trust/TrustDashboard.tsx` |
+| `pi_inbox` | `<PiInbox />` | P24.M | `components/inbox/PiInbox.tsx` |
+| `registry_settings` | `<RegistrySettings />` | P11.S | `features/settings/RegistrySettings.tsx` |
+| `brain_digest` | `<DigestPage />` | P24.A | `pages/DigestPage.tsx` |
+| `brain_state` | `<BrainStatePage />` | P19 | `pages/BrainStatePage.tsx` |
+| `brain_memory` | `<BrainMemoryPage />` | P19 | `pages/BrainMemoryPage.tsx` |
+| `brain_reflections` | `<BrainReflectionsPage />` | P19 | `pages/BrainReflectionsPage.tsx` |
+| `brain_overnight` | `<BrainOvernightPage />` | P19 | `pages/BrainOvernightPage.tsx` |
+| `brain_goals` | `<BrainGoalsPage />` | P19 | `pages/BrainGoalsPage.tsx` |
+| `brain_proposals` | `<ProposalInbox />` (brain variant) | P19 | `features/proposal-inbox/ProposalInbox.tsx` |
+| `brain_trust` | `<BrainTrustPage />` | P19 | `pages/BrainTrustPage.tsx` |
 
 ### 5c. Navigation State Persistence (P22 local storage)
 
@@ -515,12 +548,21 @@ View and edit the brain prompt config via `GET/PUT /api/orchestrator/brain-promp
 │  │ New or existing proj   │  │ Upload plan file      │  │ Budget, model,     │ │
 │  │ (createProject fn)     │  │ (validate, confirm)   │  │ provider settings  │ │
 │  └────────────────────────┘  └───────────────────────┘  └───────────────────┘ │
-│  ┌─ ExecutionLogViewer ──┐  ┌─ RerunDialog ─────────┐                        │
-│  │ Full plan execution    │  │ Confirm rerun of       │                        │
-│  │ log viewer             │  │ selected execution     │                        │
-│  └────────────────────────┘  └───────────────────────┘                        │
+│  ┌─ ExecutionLogViewer ──┐  ┌─ RerunDialog ─────────┐  ┌─ ForceKillDialog ─┐ │
+│  │ Full plan execution    │  │ Confirm rerun of       │  │ Force-kill all     │ │
+│  │ log viewer             │  │ selected execution     │  │ active workers     │ │
+│  └────────────────────────┘  └───────────────────────┘  └───────────────────┘ │
+│  ┌─ TaskCreateDialog ───┐  ┌─ WorktreeCleanupDialog ──┐                       │
+│  │ Create new task with  │  │ Scoped worktree cleanup  │                       │
+│  │ name, description,    │  │ with branch selection    │                       │
+│  │ execution mode        │  │                          │                       │
+│  └───────────────────────┘  └──────────────────────────┘                       │
 │                                                                               │
-│  Overlays (slide-in from right):                                              │
+│  Overlays (slide-in from right / center):                                     │
+│  ┌─ BrainContextPanel ──────────────────────────────────────────────────────┐ │
+│  │ Slide-in panel showing project brain context: memories, reflections,     │ │
+│  │ signals for the currently selected project (P24.D)                       │ │
+│  └──────────────────────────────────────────────────────────────────────────┘ │
 │  ┌─ ChatPanel ────────────────────────────────────────────────────────────┐  │
 │  │ Centered dialog (max-w-4xl) with thread sidebar, markdown rendering,   │  │
 │  │ tool badges, thinking animation, provider/model selector, context      │  │
@@ -592,6 +634,32 @@ View and edit the brain prompt config via `GET/PUT /api/orchestrator/brain-promp
 | `/api/chat/compact` | POST | (`ChatPanel`) | Compact context |
 | `/api/extensions/*` | GET/POST | `useExtensions` | Extension lifecycle |
 | `/api/skills/*` | GET/POST | `useSkills` | Skill lifecycle |
+| `/api/digest` | GET | `useDigest` | Morning digest data (P24.A) |
+| `/api/digest/feedback` | POST | `useDigestFeedback` | Submit feedback on digest items (P24.J) |
+| `/api/digest/quick-actions` | GET | `useDigestActions` | Quick action suggestions (P24.K) |
+| `/api/activity/timeline` | GET | `useActivityTimeline` | Unified activity feed (P24.L) |
+| `/api/pi/inbox` | GET | `usePiInbox` | System messages & alerts (P24.M) |
+| `/api/pi/inbox/read` | POST | `useMarkRead` | Mark message as read |
+| `/api/pi/inbox/read-all` | POST | `useMarkAllRead` | Mark all messages as read (P24.M) |
+| `/api/pi/inbox/delete` | DELETE | `useDeleteMessage` | Delete a single message |
+| `/api/pi/inbox/purge-read` | DELETE | `usePurgeRead` | Purge all read messages |
+| `/api/pi/inbox/clear` | DELETE | `useClearInbox` | Clear entire inbox |
+| `/api/notifications/preferences` | GET/PUT | `useNotificationPreferences` | Notification channel prefs (P24.H) |
+| `/api/brain/projects/:pid/context` | GET | `useProjectBrainContext` | Per-project brain context (P24.D) |
+| `/api/telemetry/dashboard` | GET | `useTelemetryDashboard` | Observability dashboard summary (P25.H) |
+| `/api/telemetry/events` | GET | `useTelemetryEvents` | Telemetry event list with filters (P25.H) |
+| `/api/telemetry/stats` | GET | `useTelemetryStats` | Event statistics (P25.H) |
+| `/api/telemetry/timeseries` | GET | `useTelemetryTimeSeries` | Time-series event data (P25.H) |
+| `/api/telemetry/errors` | GET | `useTelemetryErrors` | Error analysis (P25.H) |
+| `/api/telemetry/retention` | GET | `useTelemetryRetentionPolicy` | Retention policy info (P25.H) |
+| `/api/tasks` | GET/POST | `usePlanExecutions` | Task CRUD (P22.E) |
+| `/api/tasks/:tid/phases` | GET | `usePlanExecutions` | Phase plans for a task |
+| `/api/executions/:eid/log` | GET | `ExecutionLogViewer` | Full execution log content |
+| `/api/projects/:pid/worktrees` | GET | `useWorktreeFiles` | Worktree file listing (P22.D) |
+| `/api/projects/:pid/worktrees/:wid/files` | GET | `useWorktreeFiles` | Worktree file content/diff (P22.D) |
+| `/api/scale/worktrees` | GET | `useScaleStatus` | Worktree status list (P6.5) |
+| `/api/scale/integration-queue` | GET | `useIntegrationQueueStatus` | Integration queue status |
+| `/api/scale/integration-queue/optimization` | GET | `useScaleStatus` | Queue optimization suggestions |
 
 ---
 
@@ -638,7 +706,99 @@ Stored as JSON at `.pi/orchestrator/brain-prompt.json`:
 
 The brain state API (`/api/brain/state`) now reads orchestrator health data from `.pi/orchestrator/health.json` to get real daemon status (running/stopped/error) and uptime, instead of hardcoding `running` + `0s`.
 
-### 10d. Brain State API Response Wrapper Fixes
+### 10d. P24 Daily Intelligence Layer — Morning Digest, Inbox, Notifications
+
+The P24 Daily Intelligence Layer adds a suite of features for daily awareness:
+
+#### Morning Digest (`/api/digest`)
+
+Consolidates daemon state, top signals, pending proposals, recent activity, goal progress, and project memory into a single morning overview:
+
+```typescript
+interface MorningDigest {
+  daemonState: DaemonStatus;
+  topSignals: BrainSignal[];
+  pendingProposals: Proposal[];
+  recentActivity: ActivityEvent[];
+  goalProgress: { completed: number; total: number };
+  projectMemory: MemoryRecord[];
+  quickActions: DigestQuickAction[];
+}
+```
+
+#### Pi Inbox (`/api/pi/inbox`)
+
+System notification center with:
+- Priority-based color coding (critical/warning/info)
+- Type-based icons (system, daemon, proposal, goal, memory, security)
+- Read/unread state with bulk actions
+- Collapsible detail view per message
+
+#### Notification Preferences (`/api/notifications/preferences`)
+
+Per-channel delivery configuration:
+- Global enable/disable
+- Channel toggles (email, inbox, system)
+- Per-type routing rules
+
+#### Brain Context Panel (`/api/brain/projects/:pid/context`)
+
+Slide-in right panel showing per-project brain context:
+- Recent memories from project-specific memory store
+- Recent reflections mentioning the project
+- Active signal counts for the project
+
+### 10e. P25 Local Observability Cockpit
+
+The Observability Cockpit (`features/observability/ObservabilityCockpit.tsx`) provides a unified telemetry dashboard:
+
+```
+┌─ Observability Cockpit ──────────────────────────────────────────────────┐
+│ [All] [Info] [Warning] [Error] [Critical]  [1h ▼] [↻ Auto-refresh]    │
+├── Summary Cards ─────────────────────────────────────────────────────────┤
+│ [Total: 1,234] [Errors: 23] [Avg Dur: 1.2s] [Error Rate: 1.8%]         │
+├── Time-series Chart ─────────────────────────────────────────────────────┤
+│ (Event count over time, color-coded by severity)                        │
+├── Error Analysis Panel ──────────────────────────────────────────────────┤
+│ Top error sources, correlation IDs, trace IDs                           │
+├── Recent Events Table ───────────────────────────────────────────────────┤
+│ [12:34:05] [ERR] [file-watcher] Timeout reading src/main.ts            │
+│ [12:34:02] [WARN] [memory] Pressure detected: 85% heap used            │
+│ [12:33:58] [INFO] [git] Commit detected: abc1234                       │
+│ ... [click to expand full event detail side panel]                      │
+├── Retention Policy Info ─────────────────────────────────────────────────┤
+│ Events retained: 30 days | Auto-purge: enabled | Current size: 45MB     │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Observability Event Schema** (`types-observability.ts`):
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique event ID |
+| `timestamp` | string | RFC 3339 timestamp |
+| `eventType` | string | Event type classifier |
+| `source` | string | Source component name |
+| `severity` | `debug \| info \| warning \| error \| critical` | Severity level |
+| `status` | `ok \| error \| running \| unknown` | Status |
+| `name` | string | Short event name |
+| `traceId` | string | Distributed trace ID (P25.A) |
+| `spanId` | string | Span within trace |
+| `parentSpanId` | string \| null | Parent span for correlation |
+| `correlationId` | string \| null | Cross-service correlation |
+| `durationMs` | number \| null | Event duration |
+| `error` | string \| null | Error message if applicable |
+
+**Hooks (all from `hooks/useTelemetry.ts`):**
+| Hook | Purpose |
+|---|---|
+| `useTelemetryDashboard()` | Summary stats: total events, error rate, avg duration |
+| `useTelemetryEvents(filters)` | Paginated event list with severity/source/type/time filters |
+| `useTelemetryStats(filters)` | Event statistics by severity, source, type |
+| `useTelemetryTimeSeries(filters)` | Time-series aggregation for charting |
+| `useTelemetryErrors(filters)` | Error analysis: top sources, trace bundling |
+| `useTelemetryRetentionPolicy()` | Retention config: max age, max size, auto-purge |
+
+### 10f. Brain State API Response Wrapper Fixes
 
 Several brain API routes wrap responses in `{ success: true, ... }` which broke the frontend `apiFetch` calls that expected the raw type. Fixed in `api/brain.ts`:
 
@@ -671,11 +831,24 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 
 | File | Lines | Purpose |
 |---|---|---|
-| `components/LeftNav.tsx` | ~120 | `PlatformNavItem` type, `PLATFORM_NAV_ENTRIES[]`, `LeftNav` component, `PlatformSectionHeader` |
+| `components/LeftNav.tsx` | ~160 | `PlatformNavItem` type, `PLATFORM_NAV_ENTRIES[]`, `BRAIN_NAV_ENTRIES[]`, `LeftNav` component (renders platform + brain sections), `PlatformSectionHeader` |
 | `components/sidebar/Sidebar.tsx` | ~400 | P22.A project-centric sidebar: project selector, brain/tasks/runs/platform sections |
 | `components/ProjectItem.tsx` | ~30 | Single project row in Projects tab |
 | `components/HistoryItem.tsx` | ~40 | Single execution row in Runs tab (status badge, title, date) |
 | `components/TaskList.tsx` | ~80 | Task list and tree view in Tasks tab |
+| `components/TaskCard.tsx` | ~40 | Single task card with status badge |
+| `components/TaskAggregatesBar.tsx` | ~40 | Aggregate task stats (total, running, complete, failed) |
+| `components/TaskCreateDialog.tsx` | ~190 | Task creation dialog (P22.E): name, description, execution mode |
+| `components/TaskDetailView.tsx` | ~250 | Task detail with phase plans, timeline, logs |
+| `components/sidebar/BrainNudgeCard.tsx` | ~150 | Sidebar brain nudge with observation/proposal/approval counts (P24.F) |
+
+### Center Column — Extracted Layout Components
+
+| File | Lines | Purpose |
+|---|---|---|
+| `components/topbar/Topbar.tsx` | ~200 | Extracted topbar: plan status badge, control buttons, sidebar collapse toggles (P22) |
+| `components/right-sidebar/RightSidebar.tsx` | ~150 | Extracted right sidebar: events, alerts, plan summary (P22) |
+| `components/right-sidebar/types.ts` | ~30 | Right sidebar type definitions (AlertEntry) |
 
 ### Center Column — Plan Execution
 
@@ -688,6 +861,14 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 | `components/WorkerDetail.tsx` | ~300 | Worker detail with tabs: overview, tools, logs, transcript, diffs |
 | `components/LiveLogTerminal.tsx` | ~200 | Real-time streaming log display |
 | `components/PlanSummaryPanel.tsx` | ~100 | Cleanup review results with rerun button (in right sidebar) |
+| `components/WorkerList.tsx` | ~100 | Scrollable worker list with status badges |
+| `components/WorkerP6LifecycleTab.tsx` | ~80 | Worker P6 lifecycle state transitions tab |
+| `components/BlockedReasonPanel.tsx` | ~60 | Shows block reason for blocked workers with resolution hints |
+| `components/LogViewer.tsx` | ~120 | Static log viewer for completed workers |
+| `components/ExecuteScreen.tsx` | ~200 | Execution initiation screen with mode selection |
+| `components/ReviewScreen.tsx` | ~150 | Pre-commit review screen showing changes |
+| `components/ValidationScreen.tsx` | ~150 | Plan validation screen with error/warning list |
+| `components/FileSelectScreen.tsx` | ~100 | File/folder selection screen for targeted execution |
 
 ### Center Column — Platform / Brain Pages
 
@@ -706,6 +887,9 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 | `components/brain/goals/GoalDetail.tsx` | ~100 | Goal detail modal |
 | `components/brain/goals/MilestoneTracker.tsx` | ~50 | Milestone progress display |
 | `features/settings/RegistrySettings.tsx` | ~150 | Registry settings: local/remote registries, update policy |
+| `features/observability/ObservabilityCockpit.tsx` | ~900 | P25.H Observability cockpit: summary cards, time-series, error analysis, event table |
+| `components/inbox/PiInbox.tsx` | ~800 | P24.M Pi inbox: priority-coded messages, read/unread, bulk actions |
+| `pages/DigestPage.tsx` | ~100 | P24.A Morning digest: daemon state, signals, proposals, activity |
 
 ### Brain Pages
 
@@ -717,6 +901,7 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 | `pages/BrainOvernightPage.tsx` | ~150 | P19 Overnight: queue runs, schedule, history |
 | `pages/BrainTrustPage.tsx` | ~100 | P19 Trust: policy rules, audit entries |
 | `pages/BrainGoalsPage.tsx` | ~100 | P19 Goals: goal board integration |
+| `pages/BrainTrustPage.tsx` | ~100 | P19 Trust: policy rules, audit entries (separate from P11 TrustDashboard) |
 
 ### Brain Sub-components
 
@@ -742,6 +927,53 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 | `components/brain/trust/PolicyRuleTable.tsx` | ~50 | Policy rules display table |
 | `components/brain/common/SeverityBadge.tsx` | ~20 | Shared severity badge |
 | `components/brain/common/index.ts` | ~30 | Barrel re-exports for LoadingSkeleton, ErrorState, etc. |
+| `components/brain/common/LoadingSkeleton.tsx` | ~30 | Reusable loading skeleton placeholder |
+| `components/brain/common/ErrorState.tsx` | ~30 | Reusable error state with retry button |
+| `components/brain/common/EmptyState.tsx` | ~20 | Reusable empty state illustration |
+| `components/brain/common/Pagination.tsx` | ~50 | Reusable pagination component |
+| `components/brain/common/SearchInput.tsx` | ~30 | Reusable search input |
+| `components/brain/common/StatusBadge.tsx` | ~20 | Shared status badge component |
+
+### P24 Daily Intelligence Layer — Digest & Inbox Sub-components
+
+| File | Lines | Purpose |
+|---|---|---|
+| `components/digest/MorningCard.tsx` | ~120 | Morning overview card: daemon state, stats, quick actions (P24.A) |
+| `components/digest/SignalFeed.tsx` | ~80 | Top signals feed with severity badges (P24.A) |
+| `components/digest/ProposalNudge.tsx` | ~60 | Pending proposal nudges with accept/reject (P24.A) |
+| `components/digest/ActivityTimeline.tsx` | ~150 | Unified activity feed: plan events, daemon events (P24.L) |
+| `components/digest/FeedbackControls.tsx` | ~300 | Thumbs up/down rating with comment (P24.J) |
+| `components/digest/DigestQuickActions.tsx` | ~100 | Quick action buttons: run overnight, view proposals, etc. (P24.K) |
+| `components/digest/ProjectMemorySnippet.tsx` | ~50 | Project memory snippet for brain context panel (P24.D) |
+| `components/digest/ReflectionSnippet.tsx` | ~40 | Recent reflection mentioning the project (P24.D) |
+
+### P25 Observability Sub-components
+
+| File | Lines | Purpose |
+|---|---|---|
+| `features/observability/ObservabilityCockpit.tsx` | ~900 | Full observability cockpit (see section 10e) (P25.H) |
+
+### Scale & Batch Components
+
+| File | Lines | Purpose |
+|---|---|---|
+| `components/ScaleCockpitPanel.tsx` | ~100 | Scale cockpit: groups worktree, queue, conflict panels (P6.5) |
+| `components/ScaleOverviewStrip.tsx` | ~80 | Top-level scale mode overview strip |
+| `components/ScaleModeSettings.tsx` | ~120 | Scale mode configuration (parallelism, experimental) |
+| `components/WorktreeStatusPanel.tsx` | ~280 | Git worktree status: branch, dirty, path, cleanup (P6.J) |
+| `components/IntegrationQueuePanel.tsx` | ~100 | Integration queue status: pending, running, done |
+| `components/QueueOptimizationPanel.tsx` | ~80 | Queue optimization suggestions from planner |
+| `components/BatchOSDashboard.tsx` | ~600 | Batch OS dashboard: DAG parallelism, safe parallelism, queue metrics (P7.C) |
+| `components/BatchExplorer.tsx` | ~200 | Batch plan tree explorer with status visualization |
+| `components/SafeBatchPreview.tsx` | ~80 | Safe effective parallelism preview with planner suggestions |
+
+### P22 File Explorer & Multi-DAG Viewer
+
+| File | Lines | Purpose |
+|---|---|---|
+| `components/FileExplorer.tsx` | ~730 | Tree view of worktree files with directory navigation, diff, content preview (P22.D) |
+| `components/MultiDagViewer.tsx` | ~840 | SVG-based interactive multi-DAG viewer: zoom, pan, mini-map, color-coded phases (P22.F) |
+
 
 ### Chat
 
@@ -769,6 +1001,20 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 | `hooks/usePlanRunner.ts` | Plan upload/validate/run | `validatePlan()`, `runPlan()` |
 | `hooks/useProjects.ts` | Project CRUD | `fetchProjects()`, `createProject()` |
 | `hooks/useSettings.ts` | User settings | `fetchSettings()`, `updateSettings()` |
+| `hooks/useDigest.ts` | P24.A Morning digest | `fetchDigest()`, auto-refresh |
+| `hooks/useDigestActions.ts` | P24.K Quick actions | `fetchQuickActions()`, `executeQuickAction()` |
+| `hooks/useDigestFeedback.ts` | P24.J Feedback submission | `submitFeedback()`, states: neutral/submitting/success/error/update |
+| `hooks/useActivityTimeline.ts` | P24.L Activity timeline | `fetchActivityTimeline()`, event type filtering |
+| `hooks/usePiInbox.ts` | P24.M Pi inbox | `fetchMessages()`, `markRead()`, `markAllRead()`, `deleteMessage()`, `purgeRead()`, `clearInbox()` |
+| `hooks/useNotificationPreferences.ts` | P24.H Notification prefs | `fetchPreferences()`, `updatePreferences()`, `resetDefaults()` |
+| `hooks/useProjectBrainContext.ts` | P24.D Per-project brain context | `fetchContext()`, returns memories, reflections, signals |
+| `hooks/useTelemetry.ts` | P25.H Observability | 6 hooks: `useTelemetryDashboard()`, `useTelemetryEvents()`, `useTelemetryStats()`, `useTelemetryTimeSeries()`, `useTelemetryErrors()`, `useTelemetryRetentionPolicy()` |
+| `hooks/useWorktreeFiles.ts` | P22.D Worktree files | `listFiles()`, `getFileContent()`, `getDiff()`, auto-refresh polling |
+| `hooks/useScaleStatus.ts` | P6.5 Scale status | `useWorktreeStatus()`, `useIntegrationQueueStatus()`, `useScaleModeReadiness()`, `useWorktreeCleanup()`, `useQueueMetrics()` |
+| `hooks/useBatchPlan.ts` | P7.C Batch OS | `useBatchPlanExplorer()`, `useBatchPlanDetails()` |
+| `hooks/usePlanTranscript.ts` | Plan transcript streaming | SSE-based plan transcript stream |
+| `hooks/usePlanWorkspaces.ts` | Workspace tracking | Workspace CRUD and status tracking |
+| `hooks/usePlanQueue.ts` | Plan queue | Executor queue status and control |
 | `hooks/useScaleStatus.ts` | Scale mode + integration queue | — |
 | `hooks/useExtensions.ts` | Extension lifecycle | `listExtensions()`, `installExtension()`, etc. |
 | `hooks/useSkills.ts` | Skill lifecycle | `listSkills()`, `invokeSkill()`, etc. |
@@ -794,26 +1040,29 @@ Several brain API routes wrap responses in `{ success: true, ... }` which broke 
 
 | File | Purpose |
 |---|---|
-| `types.ts` | Core types: WorkerInfo, WorkspaceSummary, GitFilePatch, PlanExecution, PlanStats, PerformanceMetric, chat types |
-| `types-brain.ts` | Brain-specific types: BrainStateData, BrainObservation, BrainSignal, TimelineEvent, MemoryRecord, GoalRecord, Proposal, ReflectionReport, OvernightSession, PolicyRule, AuditEntry, ApprovalRequest, DaemonStatus |
+| `types.ts` | Core types: WorkerInfo, WorkspaceSummary, GitFilePatch, PlanExecution, PlanStats, PerformanceMetric, chat types, MultiPhaseTask, PhasePlan |
+| `types-brain.ts` | Brain-specific types: BrainStateData, BrainObservation, BrainSignal, TimelineEvent, MemoryRecord, GoalRecord, Proposal, ReflectionReport, OvernightSession, PolicyRule, AuditEntry, ApprovalRequest, DaemonStatus, MorningDigest, FeedbackEntry |
+| `types-observability.ts` | Observability types: ObservabilityEvent, EventStatistics, TelemetryDashboardSummary, ObservabilitySeverity, ObservabilityStatus (P25.H) |
+| `types-artifacts.ts` | Artifact types for ArtifactBrowser |
 
 ### Styles
 
 | File | Purpose |
 |---|---|
 | `app.css` | Animations for ThinkingAnimation, fade-in/slide-up, colored tool badges, log line animations |
+| `index.css` / `tailwind.css` | Tailwind base styles and theme variables |
 
 ---
 
 ## 12. Current Issues & Improvement Ideas
 
-### Issue 1: Brain Section Missing from LeftNav
+### Issue 1: ~~Brain Section Missing from LeftNav~~ (RESOLVED)
 
-**Problem:** P19 brain entries are currently mixed into the same flat list as P11 platform entries under a single "Platform" section header. Users can't visually distinguish between platform features and brain features.
+**Resolved by:** `LeftNav.tsx` now renders `PLATFORM_NAV_ENTRIES[]` under a "Platform" header and `BRAIN_NAV_ENTRIES[]` under a "Brain (P19)" header. No longer mixed.
 
 ### Issue 2: Duplicate Entries
 
-**Problem:** "Proposal Inbox" and "Memory/Memory Explorer" appear twice (once in P11, once in P19). This is confusing.
+**Problem:** "Proposal Inbox" appears in both P11 and P19, and "Memory" / "Memory Explorer" appear in both. This is intentional but creates a confusing UX.
 
 ### Issue 3: Brain Page Consistency
 
@@ -823,53 +1072,173 @@ Some brain pages are full-page components (BrainStatePage, BrainMemoryPage, etc.
 
 When navigating between platform and brain views, there's no breadcrumb or back button. User has to click sidebar items to switch views.
 
+### Issue 5: Observability Cockpit File Size
+
+`ObservabilityCockpit.tsx` is ~900 lines — should be split into smaller sub-components (summary cards, chart, event table, error analysis panel).
+
+### Issue 6: Digest/Inbox Duplication Potential
+
+The Pi Inbox (`PiInbox.tsx`) and event feed in the right sidebar (`EventLine`) both show system events. Need to define clear separation: inbox for persistent notifications, right sidebar for real-time execution events.
+
 ---
 
 ## 13. File Dependency Graph
 
 ```
-App.tsx
-  ├── components/LeftNav.tsx (PlatformNavItem, PLATFORM_NAV_ENTRIES, LeftNav, PlatformSectionHeader)
-  ├── components/sidebar/Sidebar.tsx
-  ├── components/StatCard.tsx
-  ├── components/StatusBadge.tsx
-  ├── components/WarningBanner.tsx
-  ├── components/SchedulerStatusPanel.tsx
-  ├── components/WorkerDetail.tsx
-  ├── components/LiveLogTerminal.tsx
-  ├── components/PlanSummary.tsx (legacy)
-  ├── components/QueuePanel.tsx (legacy)
-  ├── components/EventLine.tsx
-  ├── components/PlanSummaryPanel.tsx
-  ├── features/
-  │   ├── autonomy/AutonomyCenter.tsx
-  │   ├── memory/MemoryCockpit.tsx
-  │   ├── plan-intake/PlanIntakePanel.tsx
-  │   ├── policy-audit/PolicyAuditCenter.tsx
-  │   ├── trust/TrustDashboard.tsx
-  │   ├── proposal-inbox/ProposalInbox.tsx
-  │   └── settings/RegistrySettings.tsx
-  ├── components/ExtensionsManager.tsx
-  ├── components/SkillsManager.tsx
-  ├── components/brain/goals/GoalBoard.tsx
-  ├── pages/
-  │   ├── BrainStatePage.tsx
-  │   ├── BrainMemoryPage.tsx
-  │   ├── BrainReflectionsPage.tsx
-  │   ├── BrainOvernightPage.tsx
-  │   └── BrainTrustPage.tsx
-  ├── components/ChatPanel.tsx
-  ├── components/ArtifactBrowser.tsx
-  ├── components/brain/overview/
-  │   ├── DaemonStatusCard.tsx
-  │   ├── LiveDaemonActivity.tsx
-  │   ├── BrainPromptEditor.tsx
-  │   ├── SignalSummaryCards.tsx
-  │   ├── TimelineList.tsx
-  │   └── index.ts
-  ├── hooks/ (30+ hooks)
-  ├── api/brain.ts
-  └── types.ts / types-brain.ts
+App.tsx (1229 lines)
+  │
+  ├── Layout Components (extracted P22)
+  │   ├── components/topbar/Topbar.tsx
+  │   ├── components/right-sidebar/RightSidebar.tsx
+  │   │   └── components/EventLine.tsx
+  │   │       components/PlanSummaryPanel.tsx
+  │   └── components/sidebar/Sidebar.tsx
+  │       ├── components/sidebar/BrainNudgeCard.tsx (P24.F)
+  │       └── components/LeftNav.tsx (PLATFORM_NAV_ENTRIES[], BRAIN_NAV_ENTRIES[])
+  │
+  ├── Plan Execution View
+  │   ├── components/StatCard.tsx
+  │   ├── components/StatusBadge.tsx
+  │   ├── components/WarningBanner.tsx
+  │   ├── components/SchedulerStatusPanel.tsx
+  │   ├── components/WorkerDetail.tsx
+  │   ├── components/LiveLogTerminal.tsx
+  │   ├── components/WorkerList.tsx
+  │   ├── components/BlockedReasonPanel.tsx
+  │   ├── components/LogViewer.tsx
+  │   ├── components/PlanSummary.tsx (legacy)
+  │   ├── components/QueuePanel.tsx (legacy)
+  │   └── components/ScaleCockpitPanel.tsx (P6.5)
+  │       ├── components/WorktreeStatusPanel.tsx
+  │       ├── components/IntegrationQueuePanel.tsx
+  │       ├── components/QueueOptimizationPanel.tsx
+  │       └── components/ScaleModeSettings.tsx
+  │
+  ├── Platform Feature Pages
+  │   ├── features/autonomy/AutonomyCenter.tsx
+  │   ├── features/observability/ObservabilityCockpit.tsx (P25.H)
+  │   ├── features/memory/MemoryCockpit.tsx
+  │   ├── features/plan-intake/PlanIntakePanel.tsx
+  │   ├── features/policy-audit/PolicyAuditCenter.tsx
+  │   ├── features/trust/TrustDashboard.tsx
+  │   ├── features/proposal-inbox/ProposalInbox.tsx
+  │   ├── features/settings/RegistrySettings.tsx
+  │   ├── components/ExtensionsManager.tsx
+  │   ├── components/SkillsManager.tsx
+  │   ├── components/brain/goals/GoalBoard.tsx
+  │   ├── components/inbox/PiInbox.tsx (P24.M)
+  │   └── components/BrainContextPanel.tsx (P24.D)
+  │
+  ├── Brain Pages (P19)
+  │   ├── pages/BrainStatePage.tsx
+  │   ├── pages/BrainMemoryPage.tsx
+  │   ├── pages/BrainReflectionsPage.tsx
+  │   ├── pages/BrainOvernightPage.tsx
+  │   ├── pages/BrainTrustPage.tsx
+  │   ├── pages/BrainGoalsPage.tsx
+  │   └── pages/DigestPage.tsx (P24.A)
+  │
+  ├── Dialogs & Overlays
+  │   ├── components/OpenProjectDialog.tsx
+  │   ├── components/PlanUploadDialog.tsx
+  │   ├── components/SettingsDialog.tsx
+  │   ├── components/RerunDialog.tsx
+  │   ├── components/ExecutionLogViewer.tsx
+  │   ├── components/ForceKillDialog.tsx (P25.A)
+  │   ├── components/TaskCreateDialog.tsx (P22.E)
+  │   ├── components/WorktreeCleanupDialog.tsx (P6.J)
+  │   ├── components/ChatPanel.tsx
+  │   ├── components/ArtifactBrowser.tsx
+  │   ├── components/GitDialog.tsx
+  │   ├── components/CommandsPanel.tsx
+  │   └── components/MergeConflictPanel.tsx
+  │
+  ├── Brain Sub-components
+  │   ├── components/brain/overview/
+  │   │   ├── DaemonStatusCard.tsx
+  │   │   ├── LiveDaemonActivity.tsx
+  │   │   ├── BrainPromptEditor.tsx
+  │   │   ├── SignalSummaryCards.tsx
+  │   │   ├── TimelineList.tsx
+  │   │   ├── ObservationStats.tsx
+  │   │   └── index.ts
+  │   ├── components/brain/memory/ (MemoryList, MemoryCard, etc.)
+  │   ├── components/brain/reflections/ (ReflectionCard, etc.)
+  │   ├── components/brain/proposals/ (ProposalCard, CorrectForm, etc.)
+  │   ├── components/brain/overnight/ (RunHistoryTable, SchedulePicker, etc.)
+  │   ├── components/brain/trust/ (PolicyRuleTable, ApprovalSummaryCard, etc.)
+  │   ├── components/brain/goals/ (GoalCard, GoalDetail, MilestoneTracker, etc.)
+  │   └── components/brain/common/ (LoadingSkeleton, ErrorState, EmptyState, etc.)
+  │
+  ├── P24 Digest Sub-components
+  │   ├── components/digest/MorningCard.tsx
+  │   ├── components/digest/SignalFeed.tsx
+  │   ├── components/digest/ProposalNudge.tsx
+  │   ├── components/digest/ActivityTimeline.tsx (P24.L)
+  │   ├── components/digest/FeedbackControls.tsx (P24.J)
+  │   ├── components/digest/DigestQuickActions.tsx (P24.K)
+  │   ├── components/digest/ProjectMemorySnippet.tsx (P24.D)
+  │   └── components/digest/ReflectionSnippet.tsx (P24.D)
+  │
+  ├── Execution Screens
+  │   ├── components/ExecuteScreen.tsx
+  │   ├── components/ValidationScreen.tsx
+  │   ├── components/ReviewScreen.tsx
+  │   └── components/FileSelectScreen.tsx
+  │
+  ├── P22 Specialized Viewers
+  │   ├── components/FileExplorer.tsx (P22.D)
+  │   ├── components/MultiDagViewer.tsx (P22.F)
+  │   ├── components/DagDiffViewer.tsx
+  │   ├── components/DiffViewer.tsx
+  │   └── components/SafeBatchPreview.tsx
+  │
+  ├── Proposal & Optimizer
+  │   ├── components/ProposalDetailPanel.tsx
+  │   ├── components/ProposalCard.tsx
+  │   ├── components/OriginCard.tsx
+  │   ├── components/OptimizerApprovalPanel.tsx
+  │   ├── components/ParallelismEditor.tsx
+  │   └── components/PerformancePanel.tsx
+  │
+  ├── P16+ Proposal Inbox Sub-components
+  │   ├── components/brain/proposals/ProposalCard.tsx
+  │   ├── components/brain/proposals/CorrectForm.tsx
+  │   ├── components/brain/proposals/EvidenceDrawer.tsx
+  │   ├── components/brain/proposals/RejectModal.tsx
+  │   └── components/brain/proposals/index.ts
+  │
+  ├── Hooks (50+ hooks)
+  │   ├── hooks/useBrainStatus.ts (P19 state, observations, signals)
+  │   ├── hooks/useMemoryRecords.ts (P19 memory CRUD)
+  │   ├── hooks/useReflections.ts (P19 reflections)
+  │   ├── hooks/useOvernight.ts (P19 overnight sessions)
+  │   ├── hooks/useGoals.ts / useGoalBoard.ts (P15 goals)
+  │   ├── hooks/useBrainProposals.ts (P19 proposals)
+  │   ├── hooks/useTrust.ts (P18 trust/policy)
+  │   ├── hooks/useDigest.ts / useDigestActions.ts / useDigestFeedback.ts (P24)
+  │   ├── hooks/useActivityTimeline.ts (P24.L)
+  │   ├── hooks/usePiInbox.ts (P24.M)
+  │   ├── hooks/useNotificationPreferences.ts (P24.H)
+  │   ├── hooks/useProjectBrainContext.ts (P24.D)
+  │   ├── hooks/useTelemetry.ts (P25.H, 6 export hooks)
+  │   ├── hooks/useWorktreeFiles.ts (P22.D)
+  │   ├── hooks/useScaleStatus.ts (P6.5 scale)
+  │   ├── hooks/usePlanExecutions.ts / usePlanEvents.ts / usePlanRunner.ts
+  │   ├── hooks/useProjects.ts / useSettings.ts / useAuth.ts
+  │   ├── hooks/useExtensions.ts / useSkills.ts
+  │   ├── hooks/useToolCallEvents.ts / useJournalStream.ts / usePlanQueue.ts
+  │   └── hooks/useTheme.ts / useUnreadCount.ts
+  │
+  ├── API Layer
+  │   ├── api/brain.ts (BrainClient, 30+ typed methods)
+  │   └── App.tsx (inline fetch for control commands, projects, etc.)
+  │
+  └── Types
+      ├── types.ts (core types)
+      ├── types-brain.ts (brain-specific types, MorningDigest, FeedbackEntry)
+      ├── types-observability.ts (P25.H event schema)
+      └── types-artifacts.ts (artifact browser types)
 ```
 
 ---

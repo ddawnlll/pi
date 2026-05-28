@@ -1,0 +1,218 @@
+{
+  "timestamp": "2026-05-27T19-30-08-614Z",
+  "reportDir": "reports/execution-diagnostics/2026-05-27T19-30-08-614Z",
+  "parsedQueuePresent": true,
+  "tests": [
+    {
+      "id": "T0",
+      "name": "Parser / normalizer baseline",
+      "status": "pass",
+      "durationMs": 2,
+      "evidence": [
+        "parsed workspaces=1",
+        "effective prompt length=20",
+        "editable scope=docs/diagnostic.txt",
+        "raw executorPrompt preserved in normalized workspace metadata=false",
+        "validator accepted workspace with only title/capabilities as executable=true"
+      ],
+      "missingEvents": [
+        "plan_start",
+        "workspace_queued",
+        "workspace_start",
+        "file_lock_acquired",
+        "executor_start",
+        "executor_prompt_built",
+        "executor_prompt_dispatched",
+        "mock_agent_start",
+        "llm_request_start",
+        "llm_first_event",
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "workspace_complete",
+        "file_lock_released",
+        "plan_complete",
+        "plan_failed"
+      ]
+    },
+    {
+      "id": "T1",
+      "name": "One workspace, no worktree, mock agent succeeds",
+      "status": "pass",
+      "durationMs": 81,
+      "evidence": [
+        "terminal status=complete",
+        "leaked workspace locks=0"
+      ],
+      "missingEvents": [
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "plan_failed"
+      ]
+    },
+    {
+      "id": "T2",
+      "name": "One workspace, no worktree, mock agent hangs forever",
+      "status": "pass",
+      "durationMs": 251,
+      "evidence": [
+        "terminal status=failed",
+        "active after timeout=0"
+      ],
+      "missingEvents": [
+        "llm_request_start",
+        "llm_first_event",
+        "workspace_complete",
+        "plan_complete"
+      ]
+    },
+    {
+      "id": "T3",
+      "name": "actorEventSink wiring",
+      "status": "pass",
+      "durationMs": 162,
+      "evidence": [
+        "missing sink warnings=1",
+        "wired actor events=1"
+      ],
+      "missingEvents": [
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "plan_failed"
+      ]
+    },
+    {
+      "id": "T4",
+      "name": "File lock conflict",
+      "status": "pass",
+      "durationMs": 160,
+      "evidence": [
+        "max simultaneous locks=1",
+        "final status=complete"
+      ],
+      "missingEvents": [
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "plan_failed"
+      ]
+    },
+    {
+      "id": "T5",
+      "name": "File lock non-conflict",
+      "status": "pass",
+      "durationMs": 81,
+      "evidence": [
+        "overlap=true",
+        "max active=2"
+      ],
+      "missingEvents": [
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "plan_failed"
+      ]
+    },
+    {
+      "id": "T6",
+      "name": "Worktree creation with mock success",
+      "status": "fail",
+      "durationMs": 12019,
+      "evidence": [],
+      "missingEvents": [
+        "plan_start",
+        "workspace_queued",
+        "workspace_start",
+        "file_lock_acquired",
+        "executor_start",
+        "executor_prompt_built",
+        "executor_prompt_dispatched",
+        "mock_agent_start",
+        "llm_request_start",
+        "llm_first_event",
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "workspace_complete",
+        "file_lock_released",
+        "plan_complete",
+        "plan_failed"
+      ],
+      "error": "T6 Worktree creation with mock success exceeded 12000ms wall timeout"
+    },
+    {
+      "id": "T7",
+      "name": "Worktree + hanging mock agent",
+      "status": "fail",
+      "durationMs": 12002,
+      "evidence": [],
+      "missingEvents": [
+        "plan_start",
+        "workspace_queued",
+        "workspace_start",
+        "file_lock_acquired",
+        "executor_start",
+        "executor_prompt_built",
+        "executor_prompt_dispatched",
+        "mock_agent_start",
+        "llm_request_start",
+        "llm_first_event",
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "workspace_complete",
+        "file_lock_released",
+        "plan_complete",
+        "plan_failed"
+      ],
+      "error": "T7 Worktree + hanging mock agent exceeded 12000ms wall timeout"
+    },
+    {
+      "id": "T8",
+      "name": "20 workspace pressure test with hanging mock agent",
+      "status": "pass",
+      "durationMs": 700,
+      "evidence": [
+        "max observed active=3",
+        "active after terminalization=0",
+        "scheduler bug vs UI mapping bug: scheduler active count stayed within concurrency"
+      ],
+      "missingEvents": [
+        "llm_request_start",
+        "llm_first_event",
+        "workspace_complete",
+        "plan_complete"
+      ]
+    },
+    {
+      "id": "T9",
+      "name": "Real LLM smoke test",
+      "status": "skip",
+      "durationMs": 0,
+      "evidence": [
+        "Skipped because T0-T8 did not all pass"
+      ],
+      "missingEvents": [
+        "plan_start",
+        "workspace_queued",
+        "workspace_start",
+        "file_lock_acquired",
+        "executor_start",
+        "executor_prompt_built",
+        "executor_prompt_dispatched",
+        "mock_agent_start",
+        "llm_request_start",
+        "llm_first_event",
+        "executor_timeout",
+        "workspace_failed",
+        "workspace_timed_out",
+        "workspace_complete",
+        "file_lock_released",
+        "plan_complete",
+        "plan_failed"
+      ]
+    }
+  ]
+}

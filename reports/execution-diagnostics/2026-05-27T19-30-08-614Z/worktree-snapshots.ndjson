@@ -1,0 +1,2 @@
+{"timestamp":1779910209371,"testId":"T6","type":"worktree_create_start","workspaceId":"diag.1","data":{"repo":"/tmp/pi-exec-diag-SONuFt"}}
+{"timestamp":1779910221387,"testId":"T7","type":"worktree_create_start","workspaceId":"diag.1","data":{"repo":"/tmp/pi-exec-diag-mV9c78"}}

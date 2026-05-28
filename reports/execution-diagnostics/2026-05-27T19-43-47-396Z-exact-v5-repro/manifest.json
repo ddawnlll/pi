@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-05-27T19-43-47-396Z-exact-v5-repro",
+  "planPath": "P-V5_Brain_Reality_Layer_v4_Plan_EXECUTOR_SCHEMA_FIXED.md",
+  "workspaceId": "V5.00",
+  "results": [
+    {
+      "id": "R1",
+      "name": "Exact V5.00, worktree disabled, mock success",
+      "status": "pass",
+      "durationMs": 30,
+      "evidence": [
+        "mock agent ran",
+        "workspace completed",
+        "locks acquired=5"
+      ],
+      "classification": "worktree disabled path does not reproduce stall"
+    },
+    {
+      "id": "R2",
+      "name": "Exact V5.00, worktree enabled, mock success",
+      "status": "fail",
+      "durationMs": 5038,
+      "evidence": [
+        "reached worktree_add_start=false",
+        "reached worktree_add_complete=false",
+        "reached inner_executor_start=false",
+        "mock agent ran=false",
+        "file lock released=true"
+      ],
+      "classification": "worktree creation path",
+      "error": "production createWorktree exceeded 5000ms wall timeout"
+    },
+    {
+      "id": "R3",
+      "name": "Exact V5.00, worktree enabled, hanging mock",
+      "status": "fail",
+      "durationMs": 5025,
+      "evidence": [
+        "reached worktree_add_start=false",
+        "reached worktree_add_complete=false",
+        "reached inner_executor_start=false",
+        "mock agent ran=false",
+        "file lock released=true"
+      ],
+      "classification": "worktree creation path",
+      "error": "production createWorktree exceeded 5000ms wall timeout"
+    },
+    {
+      "id": "R4",
+      "name": "Exact V5.00, worktree enabled, real LLM smoke",
+      "status": "skip",
+      "durationMs": 0,
+      "evidence": [
+        "Skipped because R1-R3 did not all pass"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{"timestamp":1779911027401,"testId":"R1","locks":{"packages/coding-agent/src/brain/v5/**":"V5.00","packages/coding-agent/src/brain/types.ts":"V5.00","packages/web-server/src/brain-v5-routes.ts":"V5.00","packages/web-ui/dashboard/src/types-brain-v5.ts":"V5.00","docs/pi/v5/**":"V5.00"}}
+{"timestamp":1779911027431,"testId":"R1","locks":{}}
+{"timestamp":1779911027449,"testId":"R2","locks":{"packages/coding-agent/src/brain/v5/**":"V5.00","packages/coding-agent/src/brain/types.ts":"V5.00","packages/web-server/src/brain-v5-routes.ts":"V5.00","packages/web-ui/dashboard/src/types-brain-v5.ts":"V5.00","docs/pi/v5/**":"V5.00"}}
+{"timestamp":1779911032469,"testId":"R2","locks":{}}
+{"timestamp":1779911032485,"testId":"R3","locks":{"packages/coding-agent/src/brain/v5/**":"V5.00","packages/coding-agent/src/brain/types.ts":"V5.00","packages/web-server/src/brain-v5-routes.ts":"V5.00","packages/web-ui/dashboard/src/types-brain-v5.ts":"V5.00","docs/pi/v5/**":"V5.00"}}
+{"timestamp":1779911037494,"testId":"R3","locks":{}}

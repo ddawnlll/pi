@@ -1,0 +1,18 @@
+[
+  {
+    "id": "diag.1",
+    "title": "Diagnostic workspace",
+    "dependencies": [],
+    "roleBudget": "worker",
+    "maxRetries": 3,
+    "capabilities": {
+      "canEdit": [
+        "docs/diagnostic.txt"
+      ],
+      "cannotEdit": [],
+      "canRun": [],
+      "cannotRun": []
+    },
+    "targetCommand": null
+  }
+]

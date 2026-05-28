@@ -1,0 +1,4 @@
+{"timestamp":1779911027449,"testId":"R2","type":"worktree_create_start","workspaceId":"V5.00","data":{"repo":"/tmp/pi-exact-v5-OrmeU3"}}
+{"timestamp":1779911027449,"testId":"R2","type":"worktree_mutex_wait_start","workspaceId":"V5.00"}
+{"timestamp":1779911032485,"testId":"R3","type":"worktree_create_start","workspaceId":"V5.00","data":{"repo":"/tmp/pi-exact-v5-6thU6j"}}
+{"timestamp":1779911032485,"testId":"R3","type":"worktree_mutex_wait_start","workspaceId":"V5.00"}
