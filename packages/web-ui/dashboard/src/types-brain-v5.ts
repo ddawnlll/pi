@@ -1,7 +1,8 @@
 /**
  * Brain V5 TypeScript interfaces for the V2 second-brain dashboard.
  *
- * Mirrors the backend API responses from Brain V5 routes.
+ * Mirrors the backend API responses from Brain V5 routes,
+ * including Temporal Journal v2 (V5.01) types.
  *
  * @packageDocumentation
  */
@@ -103,4 +104,159 @@ export interface BrainV5ApiError {
 	canEmit: false;
 	canPush: false;
 	canRunOvernight: false;
+}
+
+// =========================================================================
+// Temporal Journal v2 (V5.01)
+// =========================================================================
+
+/** Rollup period granularity. */
+export type TemporalRollupPeriod = "daily" | "weekly" | "monthly";
+
+/** Entity types tracked in temporal journals. */
+export type TemporalEntityType = "workspace" | "plan" | "goal" | "memory" | "proposal" | "system";
+
+/** Evidence reference for a temporal event. */
+export interface TemporalEvidenceRef {
+	type: "file" | "journal" | "timeline_event" | "memory" | "observation" | "signal" | "log";
+	ref: string;
+	description: string;
+}
+
+/** A temporal event recorded by the brain. */
+export interface TemporalEvent {
+	id: string;
+	timestamp: string;
+	entityId?: string;
+	entityType?: TemporalEntityType;
+	eventType: string;
+	summary: string;
+	evidence: TemporalEvidenceRef[];
+	metadata: Record<string, unknown>;
+}
+
+/** A single item in a "what happened" timeline. */
+export interface TimelineItem {
+	eventId: string;
+	timestamp: string;
+	eventType: string;
+	entityId?: string;
+	summary: string;
+	evidence: TemporalEvidenceRef[];
+}
+
+/** A repeated pattern detected across multiple events. */
+export interface RepeatedPattern {
+	pattern: string;
+	count: number;
+	eventType: string;
+	entityId?: string;
+	firstOccurrence: string;
+	lastOccurrence: string;
+	evidence: TemporalEvidenceRef[];
+}
+
+/** A detected change across a period. */
+export interface ChangeItem {
+	description: string;
+	fromState?: string;
+	toState?: string;
+	entityId?: string;
+	eventIds: string[];
+	evidence: TemporalEvidenceRef[];
+}
+
+/** An item representing something that got stuck. */
+export interface StuckItem {
+	entityId?: string;
+	entityType?: TemporalEntityType;
+	description: string;
+	stuckSince: string;
+	lastObserved: string;
+	attemptsCount: number;
+	evidence: TemporalEvidenceRef[];
+	relatedEventIds: string[];
+}
+
+/** What happened section of a rollup. */
+export interface WhatHappenedSection {
+	items: TimelineItem[];
+	summary: string;
+}
+
+/** What repeated section of a rollup. */
+export interface WhatRepeatedSection {
+	patterns: RepeatedPattern[];
+	summary: string;
+}
+
+/** What changed section of a rollup. */
+export interface WhatChangedSection {
+	changes: ChangeItem[];
+	summary: string;
+}
+
+/** A deterministic temporal rollup. */
+export interface TemporalRollup {
+	id: string;
+	period: TemporalRollupPeriod;
+	periodStart: string;
+	periodEnd: string;
+	entityId?: string;
+	generatedAt: string;
+	whatHappened: WhatHappenedSection;
+	whatRepeated: WhatRepeatedSection;
+	whatChanged: WhatChangedSection;
+	whatGotStuck: StuckItem[];
+	sourceEventIds: string[];
+	deterministicHash: string;
+}
+
+/** Request body for POST /brain-v5/temporal/events */
+export interface RecordTemporalEventRequest {
+	timestamp?: string;
+	entityId?: string;
+	entityType?: TemporalEntityType;
+	eventType: string;
+	summary: string;
+	evidence?: TemporalEvidenceRef[];
+	metadata?: Record<string, unknown>;
+}
+
+/** Response from GET /brain-v5/temporal/events */
+export interface TemporalEventsResponse {
+	events: TemporalEvent[];
+	total: number;
+}
+
+/** Response from GET /brain-v5/temporal/rollups */
+export interface TemporalRollupsResponse {
+	rollups: TemporalRollup[];
+}
+
+/** Request body for POST /brain-v5/temporal/rollups/generate */
+export interface GenerateRollupRequest {
+	period: TemporalRollupPeriod;
+	periodStart: string;
+	periodEnd: string;
+	entityId?: string;
+}
+
+/** Response from POST /brain-v5/temporal/rollups/generate */
+export interface GenerateRollupResponse {
+	rollup: TemporalRollup;
+}
+
+/** Response from GET /brain-v5/temporal/stuck */
+export interface StuckItemsResponse {
+	items: StuckItem[];
+	total: number;
+	period: { since: string; until: string };
+}
+
+/** Response from POST /brain-v5/temporal/rollups/:id/regenerate */
+export interface RegenerateRollupResponse {
+	rollup: TemporalRollup;
+	matchesOriginal: boolean;
+	verificationPassed: boolean;
 }
