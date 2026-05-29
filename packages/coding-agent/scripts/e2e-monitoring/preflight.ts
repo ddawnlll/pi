@@ -150,10 +150,16 @@ async function checkDiskSpace(root: string, requiredGb: number): Promise<Preflig
 	const start = Date.now();
 	try {
 		// Use df on the workspace root to get available space
-		const df = execSync(`df -BG "${root}" | tail -1`, { encoding: "utf-8", timeout: 5000 });
+		// Use -k (1K blocks) for macOS/Linux compatibility, then convert to GB
+		let df: string;
+		try {
+			df = execSync(`df -k "${root}" | tail -1`, { encoding: "utf-8", timeout: 5000 });
+		} catch {
+			return { name: "disk-space", category: "disk", status: "warn", message: "Disk check not available", durationMs: Date.now() - start };
+		}
 		const parts = df.trim().split(/\s+/);
-		const availStr = parts[3] ?? "0G";
-		const availGb = parseInt(availStr.replace("G", ""), 10);
+		const availKb = parseInt(parts[3] ?? "0", 10);
+		const availGb = Math.floor(availKb / (1024 * 1024));
 
 		if (Number.isNaN(availGb)) {
 			return { name: "disk-space", category: "disk", status: "warn", message: `Could not parse disk space: ${df.trim()}`, durationMs: Date.now() - start };
