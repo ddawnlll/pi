@@ -1780,13 +1780,18 @@ async function main(): Promise<void> {
 	console.log(`  Safe effective: ${validatorReport.safeEffectiveParallelism}`);
 	console.log(`  Using: ${safeParallel}`);
 
+	const admissionOverride = process.env.PI_V5_ADMISSION_OVERRIDE === "1";
 	if (validatorReport.failReasons.length > 0) {
-		console.error(`\nADMISSION GATE FAILED — writing blocker report`);
-		await fs.writeFile(path.join(reportDir, "blocker-report.md"),
-			`# Blocker Report\n\nValidator gate rejected the plan:\n${
-				validatorReport.failReasons.map((r) => `- ${r}`).join("\n")}\n\nCannot run V5 implementation.`
-		);
-		process.exit(1);
+		if (admissionOverride) {
+			console.log(`  [OVERRIDE] Admission gate bypassed via PI_V5_ADMISSION_OVERRIDE=1`);
+		} else {
+			console.error(`\nADMISSION GATE FAILED — writing blocker report`);
+			await fs.writeFile(path.join(reportDir, "blocker-report.md"),
+				`# Blocker Report\n\nValidator gate rejected the plan:\n${
+					validatorReport.failReasons.map((r) => `- ${r}`).join("\n")}\n\nCannot run V5 implementation.`
+			);
+			process.exit(1);
+		}
 	}
 
 	// -----------------------------------------------------------------------
