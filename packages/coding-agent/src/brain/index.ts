@@ -28,6 +28,33 @@ export {
 } from "./attention/feedback-store.js";
 // Audit Ledger (P18.E)
 export { AuditLedger, createAuditLedger } from "./audit/ledger.js";
+export type { EvidenceEventSink } from "./evidence/api.js";
+export { createEvidenceApi, EvidenceApi } from "./evidence/api.js";
+// Evidence Index (V5.02)
+export { createEvidenceIndex, EvidenceIndex } from "./evidence/index.js";
+export type {
+	EvidenceAssessment,
+	EvidenceConfidenceLevel,
+	EvidenceQuery,
+	EvidenceQueryResult,
+	EvidenceRef,
+	EvidenceRefType,
+	EvidenceResolution,
+	EvidenceSource,
+	EvidenceStats,
+	IEvidenceIndex,
+} from "./evidence/types.js";
+export {
+	ALL_EVIDENCE_REF_TYPES,
+	assessEvidenceConfidence,
+	createEvidenceRef,
+	createEvidenceSource,
+	evidenceRefToSource,
+	HIGH_CONFIDENCE_THRESHOLD,
+	LOW_CONFIDENCE_THRESHOLD,
+	validateEvidenceRef,
+	validateEvidenceSource,
+} from "./evidence/types.js";
 export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";
 // Decision Classifier (P15.D)
 export { DecisionClassifier } from "./goals/decisions.js";
@@ -339,6 +366,38 @@ export type {
 	WorkspaceOutcome,
 } from "./reflection/types.js";
 export {
+	computePeriodBoundaries,
+	computeRollupDeterministicHash,
+	DEFAULT_TEMPORAL_ENGINE_CONFIG,
+	detectChanges,
+	detectRepeatedPatterns,
+	detectStuckItems,
+	generateRollup,
+	InMemoryTemporalJournalStore,
+	TemporalEngine,
+} from "./temporal/index.js";
+// Temporal Journal v2 (V5.01)
+export type {
+	ChangeItem,
+	RepeatedPattern,
+	RollupPeriod,
+	StuckItem,
+	StuckItemsResult,
+	TemporalEngineConfig,
+	TemporalEntityJournal,
+	TemporalEntityType,
+	TemporalEvent,
+	TemporalEventQuery,
+	TemporalEvidenceRef,
+	TemporalJournalStore,
+	TemporalRollup,
+	TemporalRollupQuery,
+	TimelineItem,
+	WhatChangedSection,
+	WhatHappenedSection,
+	WhatRepeatedSection,
+} from "./temporal/types.js";
+export {
 	type AppendEventResult,
 	type BrainTimelineStore,
 	type BrainTimelineStoreConfig,
@@ -381,3 +440,36 @@ export {
 	validateBrainSignal,
 	validateBrainTimelineEvent,
 } from "./types.js";
+export {
+	canV5EmitEvents,
+	canV5Push,
+	canV5RunOvernight,
+	deriveBrainV5Mode,
+	isV5Enabled,
+	resolveBrainV5Config,
+} from "./v5/config.js";
+export { V5MutationGuard } from "./v5/mutation-guard.js";
+export {
+	buildV5DoctorReport,
+	checkV5OperatorGates,
+	formatV5DoctorSummary,
+} from "./v5/plan-doctor.js";
+
+// Brain V5 — V5 Contract, Flags & Safety Doctrine
+export type {
+	BrainV5Config,
+	BrainV5Mode,
+	V5AllowedEvent,
+	V5EmitResult,
+	V5EventSink,
+	V5OperatorGateStatus,
+	V5PlanDoctorReport,
+	V5RejectCode,
+} from "./v5/types.js";
+export {
+	BRAIN_V5_MODE_RANK,
+	BRAIN_V5_MODES,
+	brainV5ModeAtLeast,
+	V5_ALLOWED_ACTOR_EVENT_TYPES,
+	V5_FORBIDDEN_ACTOR_EVENT_TYPES,
+} from "./v5/types.js";
