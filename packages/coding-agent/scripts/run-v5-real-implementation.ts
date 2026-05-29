@@ -510,7 +510,7 @@ function simulateFileLockSerialization(
 		// Parse batch index from batch name (e.g., "B1" -> 1, "B12" -> 12)
 		const batchIndexMatch = batchName.match(/\d+/);
 		const batchIndex = batchIndexMatch ? parseInt(batchIndexMatch[0], 10) : 0;
-		
+
 		serializedBatches.push({
 			batchIndex,
 			dagWidth: wsIds.length,
@@ -1031,7 +1031,7 @@ async function runV5Plan(
 		// 0. Check for graceful shutdown
 		if (shutdownRequested) {
 			artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: "Graceful shutdown — aborting all workspace execution" });
-			
+
 			// Abort all in-flight workspaces via their abort controllers
 			for (const [wsId, controller] of abortControllers) {
 				try {
@@ -1042,7 +1042,7 @@ async function runV5Plan(
 				}
 			}
 			abortControllers.clear();
-			
+
 			// Also call executor's stop method for additional cleanup
 			try {
 				await executor.stopAllActiveWorkspaces();
@@ -1243,7 +1243,7 @@ async function runV5Plan(
 			// Create abort controller for this workspace
 			const abortController = new AbortController();
 			abortControllers.set(ws.id, abortController);
-			
+
 			const promise = executor
 				.executeWorkspace(ws, false, abortController.signal)
 				.then((result) => {
@@ -1896,8 +1896,9 @@ async function main(): Promise<void> {
 
 	const postExecResult = await runPostExecutionVerification({
 		workspaceRoot: process.cwd(),
-		planExecId: artifacts.events.find((e) => e.type === "plan_initialized")?.data
-			? (artifacts.events.find((e) => e.type === "plan_initialized")!.data! as Record<string, unknown>).planExecutionId as string ?? "",
+		planExecId: (artifacts.events.find((e) => e.type === "plan_initialized")?.data
+			? ((artifacts.events.find((e) => e.type === "plan_initialized")!.data! as Record<string, unknown>).planExecutionId as string)
+			: ""),
 		queue,
 		completedWorkspaceIds: new Set([...artifacts.workspaceResults.entries()]
 			.filter(([, r]) => r.status === "complete" || r.status === "complete_simulated")
