@@ -886,6 +886,35 @@ class MonitoredExecutor {
 			error: result.error,
 		});
 
+		// Auto-commit workspace changes to git worktree
+		try {
+			const planExecId = this.getPlanExecutionId();
+			if (result.verdict === "COMPLETE" && planExecId) {
+				const { execSync } = await import("node:child_process");
+				const { existsSync } = await import("node:fs");
+				const worktreeDir = path.join(process.cwd(), ".pi", "worktrees", planExecId, `${wsId}-a1`);
+				if (existsSync(worktreeDir)) {
+					execSync("git add -A", { cwd: worktreeDir, timeout: 10_000, stdio: "pipe" });
+					execSync(`git commit -m "${wsId}: ${(wsAny.title as string) ?? wsId}"`, {
+						cwd: worktreeDir,
+						timeout: 10_000,
+						stdio: "pipe",
+					});
+					this.artifacts.journal.push({
+						timestamp: Date.now(),
+						source: "auto-commit",
+						message: `Committed ${wsId} in worktree ${worktreeDir}`,
+					});
+				}
+			}
+		} catch (commitErr) {
+			this.artifacts.journal.push({
+				timestamp: Date.now(),
+				source: "auto-commit",
+				message: `Commit failed for ${wsId}: ${commitErr instanceof Error ? commitErr.message : String(commitErr)}`,
+			});
+		}
+
 		// Take lock snapshot after workspace completes
 		this.artifacts.lockSnapshots.push({
 			timestamp: Date.now(),
