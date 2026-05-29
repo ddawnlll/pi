@@ -675,6 +675,14 @@ export class WorkspaceAgentExecutor {
 			const { session } = sessionResult;
 			log("Agent session created successfully");
 
+			// Wire workspace canEdit paths into the self-modification firewall
+			// so V5 brain workspaces can modify source code they have explicit
+			// permission for.
+			if (packet.packet.allowedFiles && packet.packet.allowedFiles.length > 0) {
+				session.setFirewallAllowedPaths(packet.packet.allowedFiles);
+				log(`Firewall: ${packet.packet.allowedFiles.length} allowed path(s) registered`);
+			}
+
 			// Log active tools for debugging
 			const activeTools = session.getActiveToolNames();
 			log(`Active tools: ${activeTools.join(", ")}`);

@@ -130,6 +130,8 @@ export class SelfModificationFirewall {
 	private readonly cwd: string;
 	private readonly isAutonomous: boolean;
 	private readonly protectedSystems: ProtectedSystem[];
+	/** Workspace-allowed paths that bypass protection checks */
+	private allowedPaths: string[] = [];
 
 	constructor(config: SelfModificationFirewallConfig) {
 		this.cwd = config.cwd;
@@ -142,6 +144,14 @@ export class SelfModificationFirewall {
 	 */
 	getProtectedSystems(): readonly ProtectedSystem[] {
 		return this.protectedSystems;
+	}
+
+	/**
+	 * Set workspace-allowed paths that bypass the firewall.
+	 * These are typically the workspace's canEdit paths from the plan.
+	 */
+	setAllowedPaths(paths: string[]): void {
+		this.allowedPaths = paths;
 	}
 
 	/**
@@ -159,6 +169,26 @@ export class SelfModificationFirewall {
 
 		// Normalize to forward slashes for pattern matching
 		const normalized = relativePath.split(path.sep).join("/");
+
+		// Check workspace-allowed paths first — these bypass all protection
+		if (this.allowedPaths.length > 0) {
+			const isAllowed = this.allowedPaths.some((allowed) => {
+				const normalizedAllowed = allowed.split(path.sep).join("/");
+				return (
+					normalized === normalizedAllowed ||
+					normalized.startsWith(normalizedAllowed + "/") ||
+					this.matchesPattern(normalized, normalizedAllowed)
+				);
+			});
+			if (isAllowed) {
+				return {
+					isProtected: false,
+					reason: "",
+					blocked: false,
+					requiresEnhancedApproval: false,
+				};
+			}
+		}
 
 		for (const system of this.protectedSystems) {
 			for (const pattern of system.patterns) {

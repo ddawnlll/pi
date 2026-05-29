@@ -388,6 +388,14 @@ export class AgentSession {
 	}
 
 	/**
+	 * Set workspace-allowed paths on the self-modification firewall.
+	 * Paths in the workspace's canEdit list bypass firewall protection.
+	 */
+	setFirewallAllowedPaths(paths: string[]): void {
+		this._selfModFirewall.setAllowedPaths(paths);
+	}
+
+	/**
 	 * Install tool hooks once on the Agent instance.
 	 *
 	 * The callbacks read `this._extensionRunner` at execution time, so extension reload swaps in the
