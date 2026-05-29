@@ -398,6 +398,38 @@ export class SafetyDoctor {
 				parallelismDelta: batchPlanResult.parallelismDelta,
 			};
 
+			// Simulate file-lock serialization per batch.
+			// Workspaces in the same topological batch that share canEdit files
+			// cannot truly run in parallel; the scheduler will serialize them.
+			// Compute the lock-constrained effective parallelism and warn if
+			// it's lower than the DAG's theoretical batch width.
+			const lockConstrained = simulateBatchFileLocks(queue.workspaces, batchPlanResult.batches);
+			if (lockConstrained.serializedBatches.length > 0) {
+				// Collect all serialized workspace pairs for the message
+				const serializedDetails = lockConstrained.serializedBatches.map(
+					(b) =>
+						`Batch ${b.batchIndex} (width ${b.dagWidth}): workspaces ${b.workspaceIds.join(", ")} share ${b.sharedFiles.slice(0, 3).join(", ")}${b.sharedFiles.length > 3 ? "..." : ""} — will run with effective width ${b.effectiveWidth}`,
+				);
+				issues.push({
+					type: SafetyIssueType.FileConflict,
+					severity: SafetyIssueSeverity.Warning,
+					message:
+						`File-lock analysis: ${lockConstrained.serializedBatches.length} batch(es) will be serialized due to shared canEdit files. ` +
+						`Lock-constrained effective parallelism: ${lockConstrained.lockConstrainedParallelism} (DAG says ${batchPlanResult.effectiveParallelism}). ` +
+						serializedDetails.join("; "),
+					context: {
+						serializedBatches: lockConstrained.serializedBatches,
+						lockConstrainedParallelism: lockConstrained.lockConstrainedParallelism,
+					},
+				});
+
+				// Update effective parallelism to reflect lock constraints
+				parallelism = {
+					...parallelism,
+					effectiveParallelism: lockConstrained.lockConstrainedParallelism,
+				};
+			}
+
 			// Warn when effective parallelism is below requested parallelism
 			if (
 				batchPlanResult.effectiveParallelism < batchPlanResult.requestedParallelism &&
@@ -1169,4 +1201,154 @@ export class SafetyDoctor {
  */
 export function createSafetyDoctor(maxWorkers = 3, workerConcurrency?: WorkerConcurrencySettings): SafetyDoctor {
 	return new SafetyDoctor(maxWorkers, workerConcurrency);
+}
+
+// ---------------------------------------------------------------------------
+// File-lock serialization simulation for validator warnings
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of simulating file-lock constraints on topological batches.
+ */
+interface LockSerializationResult {
+	lockConstrainedParallelism: number;
+	serializedBatches: Array<{
+		batchIndex: number;
+		dagWidth: number;
+		effectiveWidth: number;
+		workspaceIds: string[];
+		sharedFiles: string[];
+	}>;
+}
+
+/**
+ * Simulate file-lock serialization within each topological batch.
+ *
+ * Workspaces in the same batch that share canEdit files cannot
+ * truly run in parallel — the scheduler will serialize them.
+ * This simulation computes the lock-constrained effective parallelism
+ * and lists which batches will be serialized and why.
+ *
+ * @param workspaces - All workspace definitions
+ * @param batches - Topological batches from DAG analysis
+ * @returns Lock-constrained parallelism and serialization details
+ */
+function simulateBatchFileLocks(
+	workspaces: Workspace[],
+	batches: { batchIndex: number; workspaceIds: string[]; width: number }[],
+): LockSerializationResult {
+	const wsMap = new Map(workspaces.map((w) => [w.id, w]));
+	const serializedBatches: LockSerializationResult["serializedBatches"] = [];
+
+	// Max effective width across all batches
+	let maxEffectiveBatchWidth = 0;
+
+	for (const batch of batches) {
+		const batchWorkspaces = batch.workspaceIds.map((id) => wsMap.get(id)).filter(Boolean) as Workspace[];
+		if (batchWorkspaces.length <= 1) {
+			// Single-workspace batch, no contention possible
+			maxEffectiveBatchWidth = Math.max(maxEffectiveBatchWidth, batchWorkspaces.length);
+			continue;
+		}
+
+		// Build file → workspace ID mapping for canEdit files
+		const fileToWorkspaces = new Map<string, string[]>();
+		for (const ws of batchWorkspaces) {
+			const canEdit = ws.capabilities?.canEdit ?? [];
+			for (const file of canEdit) {
+				const owners = fileToWorkspaces.get(file) ?? [];
+				owners.push(ws.id);
+				fileToWorkspaces.set(file, owners);
+			}
+		}
+
+		// Shared files: files claimed by more than one workspace in this batch
+		const sharedFiles = Array.from(fileToWorkspaces.entries())
+			.filter(([, ids]) => ids.length > 1)
+			.map(([file]) => file);
+
+		if (sharedFiles.length === 0) {
+			// No shared locks — all workspaces can run in parallel
+			maxEffectiveBatchWidth = Math.max(maxEffectiveBatchWidth, batchWorkspaces.length);
+			continue;
+		}
+
+		// Build a lock-conflict graph: two workspaces are connected if they
+		// share at least one canEdit file. The scheduler will serialize all
+		// connected workspaces, so the effective parallelism is the number
+		// of connected components.
+		const components = stronglyConnectedLockComponents(batchWorkspaces, fileToWorkspaces);
+		const effectiveWidth = components.length;
+
+		if (effectiveWidth < batchWorkspaces.length) {
+			serializedBatches.push({
+				batchIndex: batch.batchIndex,
+				dagWidth: batch.width,
+				effectiveWidth,
+				workspaceIds: batch.workspaceIds,
+				sharedFiles,
+			});
+		}
+
+		maxEffectiveBatchWidth = Math.max(maxEffectiveBatchWidth, effectiveWidth);
+	}
+
+	return {
+		lockConstrainedParallelism: maxEffectiveBatchWidth,
+		serializedBatches,
+	};
+}
+
+/**
+ * Partition workspaces into strongly connected components based on
+ * shared file locks. Two workspaces are in the same component if
+ * they can reach each other through a chain of shared files.
+ */
+function stronglyConnectedLockComponents(
+	workspaceList: Workspace[],
+	fileToWorkspaces: Map<string, string[]>,
+): Workspace[][] {
+	// Build adjacency: two workspaces connected if they share any file
+	const adjacency = new Map<string, Set<string>>();
+	for (const ws of workspaceList) {
+		adjacency.set(ws.id, new Set());
+	}
+
+	for (const [, owners] of fileToWorkspaces) {
+		for (let i = 0; i < owners.length; i++) {
+			for (let j = i + 1; j < owners.length; j++) {
+				adjacency.get(owners[i])?.add(owners[j]);
+				adjacency.get(owners[j])?.add(owners[i]);
+			}
+		}
+	}
+
+	// Flood-fill connected components
+	const visited = new Set<string>();
+	const components: Workspace[][] = [];
+	const wsMap = new Map(workspaceList.map((w) => [w.id, w]));
+
+	for (const ws of workspaceList) {
+		if (visited.has(ws.id)) continue;
+		const component: Workspace[] = [];
+		const queue = [ws.id];
+		visited.add(ws.id);
+
+		while (queue.length > 0) {
+			const current = queue.shift()!;
+			const currentWs = wsMap.get(current);
+			if (currentWs) component.push(currentWs);
+
+			for (const neighbor of adjacency.get(current) ?? []) {
+				if (!visited.has(neighbor)) {
+					visited.add(neighbor);
+					queue.push(neighbor);
+				}
+			}
+		}
+
+		components.push(component);
+	}
+
+	return components;
 }

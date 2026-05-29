@@ -287,8 +287,8 @@ describe("Brain V5 — Mutation Guard (AC 3: No Direct State Mutation)", () => {
 				type: "proposal_submitted",
 				timestamp: new Date().toISOString(),
 				data: { proposal: "test-proposal" },
-				source: "brain-v5",
-			},
+				source: "brain-v5" as const,
+			} as any,
 		};
 
 		const result = await guard.emit(actorEvent);
@@ -313,8 +313,8 @@ describe("Brain V5 — Mutation Guard (AC 3: No Direct State Mutation)", () => {
 				type: "proposal_submitted",
 				timestamp: new Date().toISOString(),
 				data: { proposal: "test-proposal" },
-				source: "brain-v5",
-			},
+				source: "brain-v5" as const,
+			} as any,
 		};
 
 		const result = await guard.emit(actorEvent);
@@ -338,8 +338,8 @@ describe("Brain V5 — Mutation Guard (AC 3: No Direct State Mutation)", () => {
 				type: "validation_passed",
 				timestamp: new Date().toISOString(),
 				data: {},
-				source: "brain-v5",
-			},
+				source: "brain-v5" as const,
+			} as any,
 		};
 
 		const result = await guard.emit(forbiddenEvent);

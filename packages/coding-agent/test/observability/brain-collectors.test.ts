@@ -95,6 +95,13 @@ function createTestProposal(overrides: Partial<Proposal> = {}): Proposal {
 		relatedGoalIds: [],
 		tags: ["test"],
 		metadata: {},
+		whyNow: "Timely consideration is recommended based on available evidence.",
+		expectedImpact: "Enacting this proposal improves system operations.",
+		isDuplicate: false,
+		duplicateOf: null,
+		draftAvailable: false,
+		approvalRequired: true,
+		evidenceCount: 3,
 		...overrides,
 	};
 }

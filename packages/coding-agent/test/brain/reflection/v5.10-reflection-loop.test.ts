@@ -625,8 +625,8 @@ describe("V5.10 AC4 — No execution state mutation", () => {
 		const input = createDefaultInput();
 
 		// Verify the input types don't include state mutation fields
-		expect((input as Record<string, unknown>).markComplete).toBeUndefined();
-		expect((input as Record<string, unknown>).setPlanStatus).toBeUndefined();
+		expect((input as unknown as Record<string, unknown>).markComplete).toBeUndefined();
+		expect((input as unknown as Record<string, unknown>).setPlanStatus).toBeUndefined();
 
 		// The engine should only read from the input, not modify it
 		const engine = new ReflectionEngine();

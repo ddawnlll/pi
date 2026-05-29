@@ -42,6 +42,32 @@ interface V5RouteOptions {
 		};
 		getBrainV5Mode: () => string;
 	}>;
+	/** Optional provider for the Signal & Anomaly Engine (V5.06). */
+	getSignalEngine?: () => Promise<{
+		getState: () => Promise<{
+			activeCount: number;
+			totalEmitted: number;
+			suppressedByCooldown: number;
+			activeCooldowns: Array<{ key: string; expiresAt: string }>;
+			enabled: boolean;
+		}>;
+		recordValidation: (
+			signature: string,
+			label: string,
+			metadata?: Record<string, unknown>,
+		) => Promise<unknown | null>;
+		recordMemoryConflictDecisionImpact: (context: {
+			conflictingMemoryIds: [string, string];
+			conflictType: "contradiction" | "duplicate" | "staleness";
+			memoryTitles: [string, string];
+			affectedProposalId?: string;
+			affectedProposalTitle?: string;
+			impactSummary: string;
+		}) => Promise<unknown | null>;
+		resolveSignal: (signalId: string) => Promise<boolean>;
+		feedSignal: (signal: unknown, customTargets?: string[]) => Promise<void>;
+		feedAllActiveSignals: () => Promise<void>;
+	}>;
 	getTemporalEngine?: () => Promise<{
 		recordEvent: (event: {
 			id?: string;
@@ -160,6 +186,64 @@ interface V5RouteOptions {
 		resolve: (refs: unknown[]) => Promise<unknown[]>;
 		assess: (refs: unknown[]) => Promise<unknown>;
 		stats: () => Promise<unknown>;
+	}>;
+
+	/** Optional provider for the Memory Retrieval V2 (V5.03). */
+	getMemoryRetrieval?: () => Promise<{
+		queryByRetryHotspot: (query: {
+			workspaceId?: string;
+			errorText?: string;
+			planExecId?: string;
+			limit?: number;
+			offset?: number;
+		}) => Promise<{
+			success: boolean;
+			report?: {
+				query: Record<string, unknown>;
+				total: number;
+				entries: unknown[];
+				filteredByLifecycle: number;
+				filteredByLifecycleBreakdown: Record<string, number>;
+				summary: string;
+				generatedAt: string;
+			};
+			error?: string;
+		}>;
+		listFailureMemories: (
+			limit?: number,
+			offset?: number,
+		) => Promise<{
+			success: boolean;
+			report?: {
+				query: Record<string, unknown>;
+				total: number;
+				entries: unknown[];
+				filteredByLifecycle: number;
+				filteredByLifecycleBreakdown: Record<string, number>;
+				summary: string;
+				generatedAt: string;
+			};
+			error?: string;
+		}>;
+		queryMemories: (query: {
+			types?: string[];
+			searchText?: string;
+			tags?: string[];
+			limit?: number;
+			offset?: number;
+		}) => Promise<{
+			success: boolean;
+			report?: {
+				query: Record<string, unknown>;
+				total: number;
+				entries: unknown[];
+				filteredByLifecycle: number;
+				filteredByLifecycleBreakdown: Record<string, number>;
+				summary: string;
+				generatedAt: string;
+			};
+			error?: string;
+		}>;
 	}>;
 
 	/** Optional provider for the Reflection API v2 (V5.10). */
@@ -821,6 +905,27 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 	// Proposal Engine v2 Routes (V5.08)
 	// =========================================================================
 
+	/**
+	 * Helper: convert a raw Proposal to a ProposalCard using dynamic import.
+	 * Returns the raw object if conversion fails (graceful fallback).
+	 */
+	// Cast helper to avoid type issues with dynamic import
+	async function toCard(proposal: unknown): Promise<unknown> {
+		try {
+			const { proposalToCard } = await import("@earendil-works/pi-coding-agent");
+			if (proposal && typeof proposal === "object" && "id" in (proposal as Record<string, unknown>)) {
+				return proposalToCard(proposal as Parameters<typeof proposalToCard>[0]);
+			}
+		} catch {
+			// fall through to return raw
+		}
+		return proposal;
+	}
+
+	async function toCardList(proposals: unknown[]): Promise<unknown[]> {
+		return Promise.all(proposals.map(toCard));
+	}
+
 	// GET /brain-v5/proposals — List proposals with optional filters
 	fastify.get("/brain-v5/proposals", async (request, reply) => {
 		try {
@@ -841,7 +946,7 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				sortOrder?: string;
 			};
 
-			const proposals = await api.listProposals({
+			const rawProposals = await api.listProposals({
 				status: query.status?.split(",") as string[] | undefined,
 				type: query.type?.split(",") as string[] | undefined,
 				minScore: query.minScore ? parseFloat(query.minScore) : undefined,
@@ -851,6 +956,7 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				offset: query.offset ? parseInt(query.offset, 10) : 0,
 			} as Record<string, unknown>);
 
+			const proposals = await toCardList(rawProposals);
 			return { proposals };
 		} catch (error) {
 			return reply.code(500).send({
@@ -869,12 +975,13 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 
 			const api = await options.getProposalApi();
 			const params = request.params as { id: string };
-			const proposal = await api.getProposal(params.id);
+			const rawProposal = await api.getProposal(params.id);
 
-			if (!proposal) {
+			if (!rawProposal) {
 				return reply.code(404).send({ error: "Proposal not found" });
 			}
 
+			const proposal = await toCard(rawProposal);
 			return { proposal };
 		} catch (error) {
 			return reply.code(500).send({
@@ -910,7 +1017,8 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				});
 			}
 
-			return reply.code(201).send({ success: true, proposal: result.proposal });
+			const proposal = await toCard(result.proposal);
+			return reply.code(201).send({ success: true, proposal });
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to create proposal",
@@ -930,12 +1038,13 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 			const params = request.params as { id: string };
 			const body = request.body as Record<string, unknown>;
 
-			const proposal = await api.updateProposal(params.id, body);
+			const rawProposal = await api.updateProposal(params.id, body);
 
-			if (!proposal) {
+			if (!rawProposal) {
 				return reply.code(404).send({ error: "Proposal not found" });
 			}
 
+			const proposal = await toCard(rawProposal);
 			return { proposal };
 		} catch (error) {
 			return reply.code(500).send({
@@ -988,7 +1097,8 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				});
 			}
 
-			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
+			const proposal = await toCard((result as ProposalActionResult).proposal);
+			return { success: true, proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to accept proposal",
@@ -1016,7 +1126,8 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				});
 			}
 
-			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
+			const proposal = await toCard((result as ProposalActionResult).proposal);
+			return { success: true, proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to reject proposal",
@@ -1044,7 +1155,8 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 				});
 			}
 
-			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
+			const proposal = await toCard((result as ProposalActionResult).proposal);
+			return { success: true, proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to mark proposal execution-ready",
@@ -1061,7 +1173,25 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 			}
 
 			const api = await options.getProposalApi();
-			const inbox = await api.getInbox();
+			const rawInbox = (await api.getInbox()) as {
+				entries?: Array<{ proposal: unknown }>;
+				totalPending?: number;
+				lastUpdated?: string;
+			};
+
+			const entries = rawInbox.entries
+				? await Promise.all(
+						rawInbox.entries.map(async (entry) => ({
+							...entry,
+							proposal: await toCard(entry.proposal),
+						})),
+					)
+				: [];
+
+			const inbox = {
+				...rawInbox,
+				entries,
+			};
 
 			return { inbox };
 		} catch (error) {
@@ -1115,7 +1245,6 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		}
 	});
 
-	// =========================================================================
 	// Reflection V2 Routes (V5.10 — Reflection Loop v2)
 	// =========================================================================
 
@@ -1395,6 +1524,185 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to register claims as evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Repo Scanner v2 Routes (V5.05)
+	// =========================================================================
+
+	// POST /brain-v5/scanner/scan — Run a project scan
+	fastify.post("/brain-v5/scanner/scan", async (request, reply) => {
+		try {
+			const { RepoScanner } = await import("@earendil-works/pi-coding-agent");
+			const body = request.body as {
+				target?: string;
+				workspaceId?: string;
+				planExecId?: string;
+				projectRoot?: string;
+				piDir?: string;
+			};
+
+			const projectRoot = body.projectRoot || process.cwd();
+			const piDir = body.piDir || ".pi";
+
+			const scanner = new RepoScanner({
+				projectRoot,
+				piDir,
+			});
+
+			const result = await scanner.scan({
+				target: (body.target as "project" | "workspace" | "plan" | "all") ?? "project",
+				workspaceId: body.workspaceId,
+				planExecId: body.planExecId,
+				context: {
+					projectRoot,
+					piDir,
+				},
+			});
+
+			return result;
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to run scanner",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/scanner/health — Scanner health check
+	fastify.get("/brain-v5/scanner/health", async (_request, reply) => {
+		try {
+			const { RepoScanner } = await import("@earendil-works/pi-coding-agent");
+			const scanner = new RepoScanner({
+				projectRoot: process.cwd(),
+			});
+			const healthy = await scanner.healthCheck();
+			return { healthy };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Scanner health check failed",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+	// =========================================================================
+	// Signal & Anomaly Engine Routes (V5.06)
+	// =========================================================================
+
+	// GET /brain-v5/signals/engine-state — Get signal engine state
+	fastify.get("/brain-v5/signals/engine-state", async (_request, reply) => {
+		try {
+			if (!options?.getSignalEngine) {
+				return reply.code(503).send({ error: "Signal engine not available" });
+			}
+			const engine = await options.getSignalEngine();
+			const state = await engine.getState();
+			return { state };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get signal engine state",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/signals/validation — Record a validation occurrence (AC1)
+	fastify.post("/brain-v5/signals/validation", async (request, reply) => {
+		try {
+			if (!options?.getSignalEngine) {
+				return reply.code(503).send({ error: "Signal engine not available" });
+			}
+			const engine = await options.getSignalEngine();
+			const body = request.body as {
+				signature: string;
+				label: string;
+				metadata?: Record<string, unknown>;
+			};
+			if (!body.signature || !body.label) {
+				return reply.code(400).send({ error: "signature and label are required" });
+			}
+			const signal = await engine.recordValidation(body.signature, body.label, body.metadata);
+			if (!signal) {
+				return { emitted: false, reason: "below threshold or in cooldown" };
+			}
+			return reply.code(201).send({ emitted: true, signal });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to record validation",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/signals/decision-impact — Record a memory conflict decision impact (AC2)
+	fastify.post("/brain-v5/signals/decision-impact", async (request, reply) => {
+		try {
+			if (!options?.getSignalEngine) {
+				return reply.code(503).send({ error: "Signal engine not available" });
+			}
+			const engine = await options.getSignalEngine();
+			const body = request.body as {
+				conflictingMemoryIds: [string, string];
+				conflictType: "contradiction" | "duplicate" | "staleness";
+				memoryTitles: [string, string];
+				affectedProposalId?: string;
+				affectedProposalTitle?: string;
+				impactSummary: string;
+			};
+			if (!body.conflictingMemoryIds || !body.conflictType || !body.memoryTitles || !body.impactSummary) {
+				return reply.code(400).send({
+					error: "conflictingMemoryIds, conflictType, memoryTitles, and impactSummary are required",
+				});
+			}
+			const signal = await engine.recordMemoryConflictDecisionImpact(body);
+			if (!signal) {
+				return { emitted: false, reason: "in cooldown or engine disabled" };
+			}
+			return reply.code(201).send({ emitted: true, signal });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to record decision impact",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/signals/:id/resolve — Resolve a signal
+	fastify.post("/brain-v5/signals/:id/resolve", async (request, reply) => {
+		try {
+			if (!options?.getSignalEngine) {
+				return reply.code(503).send({ error: "Signal engine not available" });
+			}
+			const engine = await options.getSignalEngine();
+			const params = request.params as { id: string };
+			const ok = await engine.resolveSignal(params.id);
+			if (!ok) {
+				return reply.code(404).send({ error: "Signal not found" });
+			}
+			return { success: true };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to resolve signal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/signals/feed-all — Re-feed all active signals (AC4 routing)
+	fastify.post("/brain-v5/signals/feed-all", async (_request, reply) => {
+		try {
+			if (!options?.getSignalEngine) {
+				return reply.code(503).send({ error: "Signal engine not available" });
+			}
+			const engine = await options.getSignalEngine();
+			await engine.feedAllActiveSignals();
+			return { success: true };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to feed active signals",
 				message: error instanceof Error ? error.message : String(error),
 			});
 		}

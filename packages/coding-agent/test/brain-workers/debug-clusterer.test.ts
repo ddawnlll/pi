@@ -1,8 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-	createFailureClusterer,
-	FailureClusterer,
-} from "../../src/brain-workers/regression-hunter/failure-clusterer.js";
+import { FailureClusterer } from "../../src/brain-workers/regression-hunter/failure-clusterer.js";
 
 let seq = 0;
 function md(overrides?: any) {

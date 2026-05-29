@@ -566,7 +566,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 		sources: SourceRef[],
 	): EvidenceClaim[] {
 		const claims: EvidenceClaim[] = [];
-		const now = new Date().toISOString();
+		const _now = new Date().toISOString();
 
 		// Claim 1: Overall execution outcome (observation)
 		{

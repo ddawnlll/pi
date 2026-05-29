@@ -23,7 +23,9 @@ export type SignalType =
 	| "queue_blocked"
 	| "integration_dirty"
 	| "validation_failure"
+	| "validation_repeat"
 	| "memory_conflict"
+	| "decision_impact"
 	| "goal_drift"
 	| "proposal_generated";
 
@@ -182,7 +184,9 @@ export const ALL_SIGNAL_TYPES: SignalType[] = [
 	"queue_blocked",
 	"integration_dirty",
 	"validation_failure",
+	"validation_repeat",
 	"memory_conflict",
+	"decision_impact",
 	"goal_drift",
 	"proposal_generated",
 ];

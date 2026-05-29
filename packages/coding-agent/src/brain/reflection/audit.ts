@@ -20,7 +20,6 @@
 
 import { randomUUID } from "node:crypto";
 import type {
-	EvidenceClaim,
 	ReflectionAuditEntry,
 	ReflectionCorrection,
 	ReflectionRejection,

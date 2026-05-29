@@ -269,10 +269,15 @@ export {
 	BrainProposalApi,
 	type EvidenceDetail,
 	type ProposalAcceptResult,
+	type ProposalCard,
+	type ProposalCardEvidence,
+	type ProposalCardRisk,
 	type ProposalCorrectResult,
 	type ProposalCreateResult,
+	type ProposalExecutionReadyResult,
 	type ProposalExpireResult,
 	type ProposalRejectResult,
+	proposalToCard,
 } from "./proposals/api.js";
 // Proposal Deduplication (P16.D)
 export {
@@ -378,6 +383,49 @@ export type {
 	ValidationResult as ReflectionValidationResult,
 	WorkspaceOutcome,
 } from "./reflection/types.js";
+export { createFailureCorrelator, FailureCorrelator } from "./scanner/failure-correlator.js";
+export { createGitDiffScanner, GitDiffScanner } from "./scanner/git-diff-scanner.js";
+export { createHotspotDetector, HotspotDetector } from "./scanner/hotspot-detector.js";
+export {
+	createProposalCandidateGenerator,
+	ProposalCandidateGenerator,
+} from "./scanner/proposal-candidate-generator.js";
+// Repo Scanner v2 (V5.05)
+export { createRepoScanner, RepoScanner } from "./scanner/scanner.js";
+export { createStaleAreaDetector, StaleAreaDetector } from "./scanner/stale-area-detector.js";
+export type {
+	FailureCorrelation,
+	Hotspot,
+	ProposalCandidate,
+	RiskyDiff,
+	ScannerOptions,
+	ScanRequest,
+	ScanResult,
+	ScanTarget,
+	StalePlanArea,
+} from "./scanner/types.js";
+export { DEFAULT_SCANNER_OPTIONS } from "./scanner/types.js";
+// Signal & Anomaly Engine (V5.06)
+export { createSignalEngine, SignalEngine } from "./signals/index.js";
+export type {
+	CooldownConfig,
+	DecisionImpactContext,
+	FeedRoutingConfig,
+	SignalDedupKey,
+	SignalEngineConfig,
+	SignalEngineState,
+	SignalFeedTarget,
+	ValidationRepeatConfig,
+	ValidationSignature,
+} from "./signals/types.js";
+export {
+	DEFAULT_COOLDOWN_CONFIG,
+	DEFAULT_FEED_ROUTING,
+	DEFAULT_SIGNAL_ENGINE_CONFIG,
+	DEFAULT_VALIDATION_REPEAT_CONFIG,
+	formatDedupKey,
+	parseDedupKey,
+} from "./signals/types.js";
 export {
 	computePeriodBoundaries,
 	computeRollupDeterministicHash,
@@ -467,7 +515,6 @@ export {
 	checkV5OperatorGates,
 	formatV5DoctorSummary,
 } from "./v5/plan-doctor.js";
-
 // Brain V5 — V5 Contract, Flags & Safety Doctrine
 export type {
 	BrainV5Config,

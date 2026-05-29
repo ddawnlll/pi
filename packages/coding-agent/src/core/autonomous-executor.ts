@@ -1285,7 +1285,12 @@ export class AutonomousExecutor {
 	/**
 	 * Check if execution is complete
 	 *
-	 * @returns True if all workspaces are complete or failed
+	 * Returns true only when all workspaces have reached a terminal state
+	 * through actual execution (Complete or Failed), not just being blocked.
+	 * Workspaces in Blocked state without any execution attempts are treated
+	 * as incomplete and will cause the execution loop to report the deadlock.
+	 *
+	 * @returns True if all workspaces are in a legitimate terminal state
 	 */
 	isExecutionComplete(): boolean {
 		const state = this.currentPlanState;
@@ -1300,6 +1305,56 @@ export class AutonomousExecutor {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Verify that at least 80% of workspaces reached a terminal state
+	 * through actual execution (Complete or Failed with attempt count > 0).
+	 * Workspaces in Blocked state without any attempts are considered
+	 * never-executed and count against the completion ratio.
+	 *
+	 * @returns { completed: number, total: number, ratio: number, neverExecuted: string[] }
+	 */
+	hasVerifiableCompletion(): {
+		completed: number;
+		total: number;
+		ratio: number;
+		neverExecuted: string[];
+		passed: boolean;
+	} {
+		const state = this.currentPlanState;
+		if (!state) {
+			return { completed: 0, total: 0, ratio: 0, neverExecuted: [], passed: false };
+		}
+
+		let completedOrFailed = 0;
+		const neverExecuted: string[] = [];
+
+		for (const [wsId, ws] of state.workspaces) {
+			if (ws.stage === WorkspaceStage.Complete) {
+				completedOrFailed++;
+			} else if (ws.stage === WorkspaceStage.Failed && ws.attempts > 0) {
+				// Failed after attempting execution — counted as "executed"
+				completedOrFailed++;
+			} else if (ws.stage === WorkspaceStage.Failed && ws.attempts === 0) {
+				// Failed without ever executing — never ran
+				neverExecuted.push(wsId);
+			} else if (ws.stage === WorkspaceStage.Blocked) {
+				// Blocked without execution — never ran
+				neverExecuted.push(wsId);
+			}
+		}
+
+		const total = state.workspaces.size;
+		const ratio = total > 0 ? completedOrFailed / total : 0;
+
+		return {
+			completed: completedOrFailed,
+			total,
+			ratio,
+			neverExecuted,
+			passed: neverExecuted.length === 0 || ratio >= 0.8,
+		};
 	}
 
 	/**

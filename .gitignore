@@ -41,4 +41,5 @@ plans/
 collect.sh
 
 .pi/
+.pi-test/
 .logs/

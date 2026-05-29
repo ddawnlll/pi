@@ -30,10 +30,9 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type { WorkerBudget, WorkerDedupConfig, WorkerDiagnostic, WorkerStopCondition } from "../types.js";
+import type { WorkerDedupConfig, WorkerDiagnostic, WorkerStopCondition } from "../types.js";
 import { createWorkerDiagnostic } from "../types.js";
 import {
-	ALL_PIPELINE_STAGES,
 	DEFAULT_IDEA_TO_PLAN_POLICY,
 	type IdeaToPlanPolicy,
 	type PipelineStage,
@@ -841,7 +840,12 @@ export class IdeaToPlanPipeline {
 			// Stage 1: Ingest and validate ideas
 			const ingestResult = this.ingestIdeas(session);
 			if (!ingestResult.ok) {
-				return this.failSession(session, ingestResult.stopCondition ?? "unknown_error", ingestResult.error ?? "", ingestResult.context ?? {});
+				return this.failSession(
+					session,
+					ingestResult.stopCondition ?? "unknown_error",
+					ingestResult.error ?? "",
+					ingestResult.context ?? {},
+				);
 			}
 
 			// Stage 2: Promote ideas to proposals
@@ -849,7 +853,12 @@ export class IdeaToPlanPipeline {
 			session.updatedAt = new Date().toISOString();
 			const promoteResult = this.promoteToProposals(session);
 			if (!promoteResult.ok) {
-				return this.failSession(session, promoteResult.stopCondition ?? "unknown_error", promoteResult.error ?? "", promoteResult.context ?? {});
+				return this.failSession(
+					session,
+					promoteResult.stopCondition ?? "unknown_error",
+					promoteResult.error ?? "",
+					promoteResult.context ?? {},
+				);
 			}
 
 			// Check budget after promotion

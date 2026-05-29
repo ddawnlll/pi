@@ -18,7 +18,6 @@
 import { describe, expect, test } from "vitest";
 import {
 	applyCooldown,
-	type BackoffConfig,
 	type CooldownResult,
 	computeCooldownDuration,
 	createCooldownResult,

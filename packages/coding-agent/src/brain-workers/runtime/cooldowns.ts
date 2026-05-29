@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import { createWorkerCooldown, type WorkerCooldown } from "../types.js";
+import type { WorkerCooldown } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Backoff Configuration

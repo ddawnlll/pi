@@ -398,6 +398,7 @@ describe("SourceBackedSummarizer", () => {
 				createdAt: "2026-05-22T00:00:00.000Z",
 				confidence: 0.95,
 				sources: [],
+				claims: [],
 			};
 
 			const result = summarizer.formatForMarkdown(report);
@@ -450,6 +451,7 @@ describe("SourceBackedSummarizer", () => {
 				createdAt: "2026-05-22T00:00:00.000Z",
 				confidence: 0.5,
 				sources: [],
+				claims: [],
 			};
 
 			const result = summarizer.formatForMarkdown(report);
@@ -492,6 +494,7 @@ describe("SourceBackedSummarizer", () => {
 				createdAt: "2026-05-22T00:00:00.000Z",
 				confidence: 0.8,
 				sources: [],
+				claims: [],
 			};
 
 			const result = summarizer.formatForDashboard(report);
@@ -534,6 +537,7 @@ describe("SourceBackedSummarizer", () => {
 				createdAt: "2026-05-22T00:00:00.000Z",
 				confidence: 0.5,
 				sources: [],
+				claims: [],
 			};
 
 			const result = summarizer.formatForDashboard(report);

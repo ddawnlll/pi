@@ -19,10 +19,7 @@ import { describe, expect, test } from "vitest";
 import {
 	type CycleSignature,
 	DEFAULT_LOOP_PREVENTION_CONFIG,
-	type LoopDetectionResult,
-	type LoopPreventionConfig,
 	LoopPreventionEngine,
-	type RecursionFrame,
 } from "../../src/brain-workers/runtime/loop-prevention.js";
 
 // =============================================================================

@@ -1,0 +1,85 @@
+{
+  "timestamp": 1780030407282,
+  "totalChecks": 6,
+  "passed": 4,
+  "failed": 1,
+  "warned": 1,
+  "skipped": 0,
+  "checks": [
+    {
+      "name": "git-clean",
+      "category": "git",
+      "status": "fail",
+      "message": "23 uncommitted files outside safe dirs — commit or stash before running",
+      "durationMs": 11,
+      "detail": {
+        "uncommitted": 24,
+        "unsafeCount": 23,
+        "sample": [
+          "M packages/ai/src/image-models.generated.ts",
+          " M packages/coding-agent/scripts/run-v5-real-implementation.ts",
+          " M packages/coding-agent/src/brain-workers/pipelines/idea-to-plan-pipeline.ts",
+          " M packages/coding-agent/src/brain/index.ts",
+          " M packages/coding-agent/src/brain/memory/index.ts"
+        ]
+      }
+    },
+    {
+      "name": "plan-structure",
+      "category": "process",
+      "status": "pass",
+      "message": "Plan file OK (250KB, 6308 lines)",
+      "durationMs": 1,
+      "detail": {
+        "sizeKb": 250,
+        "lines": 6308
+      }
+    },
+    {
+      "name": "disk-space",
+      "category": "disk",
+      "status": "pass",
+      "message": "28G available (>=2G required)",
+      "durationMs": 4,
+      "detail": {
+        "availGb": 28,
+        "requiredGb": 2
+      }
+    },
+    {
+      "name": "memory-available",
+      "category": "memory",
+      "status": "pass",
+      "message": "6995MB free (>=512MB required)",
+      "durationMs": 1,
+      "detail": {
+        "freeMb": 6995,
+        "requiredMb": 512
+      }
+    },
+    {
+      "name": "stale-artifacts",
+      "category": "process",
+      "status": "pass",
+      "message": "1 stale artifacts (acceptable)",
+      "durationMs": 0,
+      "detail": {
+        "stalePlans": 1,
+        "staleExecutions": 0,
+        "staleWorktrees": 0
+      }
+    },
+    {
+      "name": "process-hygiene",
+      "category": "process",
+      "status": "warn",
+      "message": "6 leftover test processes from prior runs — consider killing them",
+      "durationMs": 18,
+      "detail": {
+        "processCount": 6
+      }
+    }
+  ],
+  "blockExecution": false,
+  "blockReasons": []
+}

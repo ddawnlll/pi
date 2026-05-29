@@ -574,6 +574,7 @@ describe("AC4: Source-Backed Summarizer", () => {
 				{ type: "workspace", id: "workspace-A", description: "Engine workspace" },
 				{ type: "workspace", id: "workspace-C", description: "Reflection workspace" },
 			],
+			claims: [],
 		};
 
 		const md = summarizer.formatForMarkdown(report);

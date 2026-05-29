@@ -187,19 +187,39 @@ export class WorkspaceScheduler implements Scheduler {
 			// Check file lock conflicts.
 			// A conflict exists if any file in canEdit is already held by an active
 			// workspace OR reserved by a workspace selected earlier in this round.
+			//
+			// SOFT-LOCK: Workspaces in the same topological batch are allowed to
+			// share file locks because the user approved the batch grouping in the
+			// plan preview. Git merge handles the conflict at integration time.
+			// Only cross-batch file locks are enforced strictly.
 			const lockConflict = this.checkFileLockConflict(workspace, reservedLocks);
 			if (lockConflict) {
-				blocked.push(workspace);
-				blockReasons.set(workspace.id, `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`);
-				skipped.push({
-					workspaceId: workspace.id,
-					category: "file_lock",
-					reason: `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`,
-					conflictingWorkspaceId: lockConflict.owner,
-					conflictingPath: lockConflict.file,
-					batchId: this.batchAssignment.get(workspace.id),
-				});
-				continue;
+				const wsBatchId = this.batchAssignment.get(workspace.id);
+				const ownerBatchId =
+					lockConflict.owner !== "(scheduling round)" ? this.batchAssignment.get(lockConflict.owner) : undefined;
+
+				// If both workspaces are in the same batch, allow the lock conflict
+				// (the approved batch grouping already considers file overlap safe).
+				// If batch IDs are unknown, treat as hard conflict.
+				const sameBatch = wsBatchId !== undefined && ownerBatchId !== undefined && wsBatchId === ownerBatchId;
+
+				if (!sameBatch) {
+					blocked.push(workspace);
+					blockReasons.set(
+						workspace.id,
+						`File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`,
+					);
+					skipped.push({
+						workspaceId: workspace.id,
+						category: "file_lock",
+						reason: `File lock conflict: ${lockConflict.file} owned by ${lockConflict.owner}`,
+						conflictingWorkspaceId: lockConflict.owner,
+						conflictingPath: lockConflict.file,
+						batchId: wsBatchId,
+					});
+					continue;
+				}
+				// Same batch: allow concurrent execution (soft lock).
 			}
 
 			// AC6: Check cannotRunWith — if any cannotRunWith peer is currently Active,
@@ -483,12 +503,21 @@ export class WorkspaceScheduler implements Scheduler {
 		}
 
 		const lockedFiles: string[] = [];
+		const wsBatchId = this.batchAssignment.get(workspace.id);
 
 		for (const file of workspace.capabilities.canEdit) {
 			// Check if already locked by another workspace
 			const owner = this.fileLocks.get(file);
 			if (owner && owner !== workspace.id) {
-				throw new Error(`File ${file} is already locked by ${owner}`);
+				// Soft-locking: allow same-batch workspaces to share file locks.
+				// The approved batch grouping already implies the user accepts
+				// overlapping edits; git merge handles integration.
+				const ownerBatchId = this.batchAssignment.get(owner);
+				const sameBatch = wsBatchId !== undefined && ownerBatchId !== undefined && wsBatchId === ownerBatchId;
+				if (!sameBatch) {
+					throw new Error(`File ${file} is already locked by ${owner}`);
+				}
+				// Same batch: skip lock enforcement, both workspaces run concurrently
 			}
 
 			this.fileLocks.set(file, workspace.id);

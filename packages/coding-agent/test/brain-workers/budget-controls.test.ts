@@ -18,7 +18,6 @@
 import { describe, expect, test } from "vitest";
 import {
 	accumulateTokens,
-	type BudgetCheckResult,
 	type BudgetConsumption,
 	checkAllBudgets,
 	checkConsecutiveFailures,

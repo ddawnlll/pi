@@ -3840,6 +3840,19 @@ fastify.post<{
 				try {
 					// Kill all tracked child processes (vitest, npm, etc.)
 					killTrackedDetachedChildren();
+
+					// Send SIGKILL to all processes in the current process group
+					// except ourselves. This ensures stuck LLM calls, hung git ops,
+					// and zombie validation runners are terminated immediately.
+					const { execSync } = await import("node:child_process");
+					try {
+						// Kill all node child processes spawned by this server process
+						const ourPid = process.pid;
+						execSync(`pkill -KILL -P ${ourPid} 2>/dev/null || true`, { timeout: 5000 });
+					} catch {
+						// pkill may not exist on all platforms; non-fatal
+					}
+
 					// Forcefully remove worktrees for this execution
 					const workspaceRoot = getWorkspaceRoot();
 					const worktreeDir = join(workspaceRoot, ".pi", "worktrees", planExecId);
@@ -3848,7 +3861,6 @@ fastify.post<{
 					if (existsSync(worktreeDir)) {
 						// Use git worktree remove --force for each subdirectory first
 						const { readdir } = await import("node:fs/promises");
-						const { execSync } = await import("node:child_process");
 						try {
 							const wsDirs = await readdir(worktreeDir);
 							for (const wsId of wsDirs) {

@@ -15,7 +15,6 @@ import { describe, expect, test } from "vitest";
 import {
 	ALL_TEST_OUTCOMES,
 	createFlakyTestDetector,
-	DEFAULT_FLAKY_TEST_DETECTOR_CONFIG,
 	FlakyTestDetector,
 	TEST_OUTCOME_LABELS,
 } from "../../src/brain-workers/regression-hunter/flaky-test-detector.js";

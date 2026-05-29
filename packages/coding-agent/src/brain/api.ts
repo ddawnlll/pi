@@ -11,6 +11,7 @@ import { createAuditLedger } from "./audit/ledger.js";
 import type { GoalStore } from "./goals/store.js";
 import { GoalStore as GoalStoreClass } from "./goals/store.js";
 import type { MemoryRecord } from "./memory/types.js";
+import type { SignalEngine } from "./signals/engine.js";
 import { InMemoryBrainTimelineStore } from "./timeline-store.js";
 import type { BrainObservation, BrainSignal, BrainTimelineEvent } from "./types.js";
 
@@ -21,6 +22,7 @@ import type { BrainObservation, BrainSignal, BrainTimelineEvent } from "./types.
 let _brainStore: InMemoryBrainTimelineStore | null = null;
 let _goalStore: GoalStore | null = null;
 let _auditLedger: ReturnType<typeof createAuditLedger> | null = null;
+let _signalEngine: SignalEngine | null = null;
 
 // Per-project brain stores keyed by projectId
 const _projectBrainStores = new Map<string, InMemoryBrainTimelineStore>();
@@ -53,6 +55,14 @@ export function getGoalStore(): GoalStore {
 }
 export function setGoalStore(s: GoalStore): void {
 	_goalStore = s;
+}
+
+export function setSignalEngine(engine: SignalEngine | null): void {
+	_signalEngine = engine;
+}
+
+export function getSignalEngine(): SignalEngine | null {
+	return _signalEngine;
 }
 
 function getAuditLedger() {
@@ -368,6 +378,55 @@ export async function getSignals(options?: BrainQueryOptions, projectId?: string
  * @param options - Query options
  * @param projectId - Optional project ID for per-project timeline
  */
+/**
+ * Get signal engine state.
+ * Requires a module-level signal engine to be injected via setSignalEngine().
+ */
+export async function getSignalEngineState(_projectId?: string | null): Promise<{
+	activeCount: number;
+	totalEmitted: number;
+	suppressedByCooldown: number;
+	activeCooldowns: Array<{ key: string; expiresAt: string }>;
+	enabled: boolean;
+} | null> {
+	if (!_signalEngine) return null;
+	return _signalEngine.getState();
+}
+
+/**
+ * Record a validation occurrence via the signal engine.
+ * Returns the emitted signal or null if suppressed/deduplicated.
+ */
+export async function recordValidationSignal(
+	signature: string,
+	label: string,
+	metadata?: Record<string, unknown>,
+	_projectId?: string | null,
+): Promise<BrainSignal | null> {
+	if (!_signalEngine) return null;
+	return _signalEngine.recordValidation(signature, label, metadata);
+}
+
+/**
+ * Record a memory conflict decision impact via the signal engine.
+ */
+export async function recordDecisionImpactSignal(
+	context: import("./signals/types.js").DecisionImpactContext,
+	_projectId?: string | null,
+): Promise<BrainSignal | null> {
+	if (!_signalEngine) return null;
+	return _signalEngine.recordMemoryConflictDecisionImpact(context);
+}
+
+/**
+ * Resolve a signal by ID.
+ */
+export async function resolveSignal(signalId: string, _projectId?: string | null): Promise<{ success: boolean }> {
+	if (!_signalEngine) return { success: false };
+	const ok = await _signalEngine.resolveSignal(signalId);
+	return { success: ok };
+}
+
 export async function getTimeline(
 	options?: BrainQueryOptions,
 	projectId?: string | null,

@@ -538,7 +538,7 @@ export class LocalProductionReadinessDoctor {
 		// Check for outdated packages (quick check on a few key ones)
 		try {
 			const outdated = execSync("npm outdated --json 2>/dev/null || true", { cwd, encoding: "utf-8" });
-			if (outdated && outdated.trim() && outdated.trim() !== "{}") {
+			if (outdated?.trim() && outdated.trim() !== "{}") {
 				try {
 					const outdatedData = JSON.parse(outdated);
 					const count = Object.keys(outdatedData).length;

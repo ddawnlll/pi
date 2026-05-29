@@ -1,0 +1,2 @@
+{"timestamp":1780030384732,"rssMb":279,"heapUsedMb":131,"heapTotalMb":187,"externalMb":23,"cpuUser":978,"cpuSystem":150,"eventLoopLagMs":3,"openFds":24,"activeHandles":4,"activeRequests":1,"diskFreeGb":28,"loadAvg1m":0.79}
+{"timestamp":1780030385166,"rssMb":287,"heapUsedMb":140,"heapTotalMb":195,"externalMb":24,"cpuUser":1030,"cpuSystem":188,"eventLoopLagMs":2,"openFds":25,"activeHandles":4,"activeRequests":2,"diskFreeGb":28,"loadAvg1m":0.79}

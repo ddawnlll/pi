@@ -69,7 +69,7 @@ function makeMultipleIdeas(count: number, baseConfidence = 0.7): PipelineIdea[] 
 function runPipelineToCompletion(pipeline: IdeaToPlanPipeline, ideas: PipelineIdea[]): PipelineSession {
 	const pipelineWithApproval = pipeline;
 	pipelineWithApproval.setConfig({
-		policy: { requireApproval: false },
+		policy: { requireApproval: false } as any,
 	});
 	const session = pipelineWithApproval.createSession("test-run", ideas);
 	return pipelineWithApproval.run(session.id);
@@ -105,7 +105,7 @@ describe("IdeaToPlanPipeline — Constructor & Configuration", () => {
 			policy: {
 				maxIdeasPerRun: 10,
 				minIdeaConfidenceForProposal: 0.6,
-			},
+			} as any,
 		});
 
 		const config = pipeline.getConfig();
@@ -120,7 +120,7 @@ describe("IdeaToPlanPipeline — Constructor & Configuration", () => {
 
 	test("setConfig updates configuration", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ maxTokensPerSession: 99_999, policy: { maxIdeasPerRun: 5 } });
+		pipeline.setConfig({ maxTokensPerSession: 99_999, policy: { maxIdeasPerRun: 5 } as any });
 
 		const config = pipeline.getConfig();
 		expect(config.maxTokensPerSession).toBe(99_999);
@@ -147,7 +147,7 @@ describe("IdeaToPlanPipeline — Constructor & Configuration", () => {
 
 	test("resetStats resets all statistics", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("test", makeMultipleIdeas(3));
 		pipeline.run(session.id);
 
@@ -546,7 +546,7 @@ describe("IdeaToPlanPipeline — Full Pipeline Run (approval disabled)", () => {
 
 	test("stats are updated after successful run", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("test", makeMultipleIdeas(2));
 		pipeline.run(session.id);
 
@@ -563,7 +563,7 @@ describe("IdeaToPlanPipeline — Full Pipeline Run (approval disabled)", () => {
 
 	test("multiple runs update stats correctly", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 
 		const s1 = pipeline.createSession("run-1", makeMultipleIdeas(2));
 		pipeline.run(s1.id);
@@ -686,7 +686,7 @@ describe("IdeaToPlanPipeline — Approval Gating", () => {
 describe("IdeaToPlanPipeline — Cancellation", () => {
 	test("cancelSession cancels a running session", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("cancel-test", makeMultipleIdeas(1));
 
 		// We can cancel before running
@@ -707,7 +707,7 @@ describe("IdeaToPlanPipeline — Cancellation", () => {
 
 	test("cancelSession returns false for already completed session", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("already-done", makeMultipleIdeas(1));
 		pipeline.run(session.id);
 
@@ -722,7 +722,7 @@ describe("IdeaToPlanPipeline — Cancellation", () => {
 describe("IdeaToPlanPipeline — Edge Cases", () => {
 	test("fails with diagnostic when no ideas provided", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("empty", []);
 		pipeline.run(session.id);
 
@@ -734,7 +734,7 @@ describe("IdeaToPlanPipeline — Edge Cases", () => {
 
 	test("fails when confidence is below threshold for all ideas", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.8 } });
+		pipeline.setConfig({ policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.8 } as any });
 		const ideas = [makeIdea({ confidence: 0.3 }), makeIdea({ confidence: 0.4 })];
 		const session = pipeline.createSession("low-conf", ideas);
 		pipeline.run(session.id);
@@ -747,7 +747,7 @@ describe("IdeaToPlanPipeline — Edge Cases", () => {
 	test("fails when all proposals are below synthesis threshold", () => {
 		const pipeline = new IdeaToPlanPipeline();
 		pipeline.setConfig({
-			policy: { requireApproval: false, minProposalConfidenceForSynthesis: 0.9 },
+			policy: { requireApproval: false, minProposalConfidenceForSynthesis: 0.9 } as any,
 		});
 		const ideas = [makeIdea({ confidence: 0.7 })]; // 0.7 < 0.9
 		const session = pipeline.createSession("low-synth", ideas);
@@ -759,7 +759,7 @@ describe("IdeaToPlanPipeline — Edge Cases", () => {
 
 	test("applies deduplication and skips duplicate ideas", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 
 		// First run with unique idea
 		const s1 = pipeline.createSession("first", [makeIdea({ id: "unique", title: "Unique", description: "Desc" })]);
@@ -776,7 +776,7 @@ describe("IdeaToPlanPipeline — Edge Cases", () => {
 
 	test("handles too many ideas exceeding maxIdeasPerRun", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false, maxIdeasPerRun: 2 } });
+		pipeline.setConfig({ policy: { requireApproval: false, maxIdeasPerRun: 2 } as any });
 		const ideas = makeMultipleIdeas(5);
 		const session = pipeline.createSession("too-many", ideas);
 		pipeline.run(session.id);
@@ -789,7 +789,7 @@ describe("IdeaToPlanPipeline — Edge Cases", () => {
 	test("limits proposals to maxProposalsPerRun", () => {
 		const pipeline = new IdeaToPlanPipeline();
 		pipeline.setConfig({
-			policy: { requireApproval: false, maxProposalsPerRun: 2 },
+			policy: { requireApproval: false, maxProposalsPerRun: 2 } as any,
 		});
 		const ideas = makeMultipleIdeas(5); // 5 ideas but only 2 proposals allowed
 		const session = pipeline.createSession("limit-props", ideas);
@@ -818,7 +818,7 @@ describe("IdeaToPlanPipeline — Recursion Depth", () => {
 	test("fails when recursion depth exceeds maxRecursionDepth", () => {
 		const pipeline = new IdeaToPlanPipeline();
 		pipeline.setConfig({
-			policy: { requireApproval: false, maxRecursionDepth: 0 },
+			policy: { requireApproval: false, maxRecursionDepth: 0 } as any,
 		});
 		const ideas = makeMultipleIdeas(1);
 		const session = pipeline.createSession("no-recursion", ideas);
@@ -837,7 +837,7 @@ describe("IdeaToPlanPipeline — Recursion Depth", () => {
 describe("IdeaToPlanPipeline — Diagnostics", () => {
 	test("failed session has evidence-backed diagnostic", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 		const session = pipeline.createSession("fail-diag", []);
 		pipeline.run(session.id);
 
@@ -850,7 +850,7 @@ describe("IdeaToPlanPipeline — Diagnostics", () => {
 
 	test("consecutive failures are tracked", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 
 		// Run with empty ideas twice
 		const s1 = pipeline.createSession("fail-1", []);
@@ -868,7 +868,7 @@ describe("IdeaToPlanPipeline — Diagnostics", () => {
 
 	test("successful run resets consecutive failures", () => {
 		const pipeline = new IdeaToPlanPipeline();
-		pipeline.setConfig({ policy: { requireApproval: false } });
+		pipeline.setConfig({ policy: { requireApproval: false } as any });
 
 		// Fail first
 		const s1 = pipeline.createSession("fail", []);
@@ -980,7 +980,7 @@ describe("IdeaToPlanPipeline — Confidence Thresholds", () => {
 	test("ideas with confidence equal to threshold are promoted", () => {
 		const pipeline = new IdeaToPlanPipeline();
 		pipeline.setConfig({
-			policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.5 },
+			policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.5 } as any,
 		});
 		const ideas = [makeIdea({ confidence: 0.5 })];
 		const session = pipeline.createSession("at-threshold", ideas);
@@ -993,7 +993,7 @@ describe("IdeaToPlanPipeline — Confidence Thresholds", () => {
 	test("ideas with confidence just below threshold are skipped", () => {
 		const pipeline = new IdeaToPlanPipeline();
 		pipeline.setConfig({
-			policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.5 },
+			policy: { requireApproval: false, minIdeaConfidenceForProposal: 0.5 } as any,
 		});
 		const ideas = [makeIdea({ confidence: 0.49 })];
 		const session = pipeline.createSession("below-threshold", ideas);

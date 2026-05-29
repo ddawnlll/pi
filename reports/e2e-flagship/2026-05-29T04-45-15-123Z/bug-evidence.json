@@ -1,0 +1,142 @@
+[
+  {
+    "id": "885fc262526a",
+    "severity": "high",
+    "category": "scheduler",
+    "title": "Scheduler violation: orphan — V5.00 was started at 1780029915212 but never completed",
+    "description": "The scheduler made an incorrect decision during plan execution. This may cause data corruption, deadlocks, or incorrect results.",
+    "observed": "V5.00 was started at 1780029915212 but never completed",
+    "expected": "Every launched workspace completes or fails",
+    "workspaceIds": [
+      "V5.00"
+    ],
+    "relatedFiles": [
+      "packages/coding-agent/src/core/workspace-scheduler.ts",
+      "packages/coding-agent/src/core/autonomous-executor.ts"
+    ],
+    "evidence": [
+      {
+        "type": "violation",
+        "label": "Violation type",
+        "value": "orphan",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      },
+      {
+        "type": "violation",
+        "label": "Message",
+        "value": "V5.00 was started at 1780029915212 but never completed",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      }
+    ],
+    "reproduction": "Run the plan with the same configuration. The scheduler will make the same decision. Check artifacts at /home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-decisions.ndjson.",
+    "detectedAt": 1780029929324,
+    "runId": "2026-05-29T04-45-15-123Z"
+  },
+  {
+    "id": "885fc262526a",
+    "severity": "high",
+    "category": "scheduler",
+    "title": "Scheduler violation: orphan — V5.00 was started at 1780029915263 but never completed",
+    "description": "The scheduler made an incorrect decision during plan execution. This may cause data corruption, deadlocks, or incorrect results.",
+    "observed": "V5.00 was started at 1780029915263 but never completed",
+    "expected": "Every launched workspace completes or fails",
+    "workspaceIds": [
+      "V5.00"
+    ],
+    "relatedFiles": [
+      "packages/coding-agent/src/core/workspace-scheduler.ts",
+      "packages/coding-agent/src/core/autonomous-executor.ts"
+    ],
+    "evidence": [
+      {
+        "type": "violation",
+        "label": "Violation type",
+        "value": "orphan",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      },
+      {
+        "type": "violation",
+        "label": "Message",
+        "value": "V5.00 was started at 1780029915263 but never completed",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      }
+    ],
+    "reproduction": "Run the plan with the same configuration. The scheduler will make the same decision. Check artifacts at /home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-decisions.ndjson.",
+    "detectedAt": 1780029929324,
+    "runId": "2026-05-29T04-45-15-123Z"
+  },
+  {
+    "id": "885fc262526a",
+    "severity": "high",
+    "category": "scheduler",
+    "title": "Scheduler violation: orphan — V5.00 was started at 1780029915313 but never completed",
+    "description": "The scheduler made an incorrect decision during plan execution. This may cause data corruption, deadlocks, or incorrect results.",
+    "observed": "V5.00 was started at 1780029915313 but never completed",
+    "expected": "Every launched workspace completes or fails",
+    "workspaceIds": [
+      "V5.00"
+    ],
+    "relatedFiles": [
+      "packages/coding-agent/src/core/workspace-scheduler.ts",
+      "packages/coding-agent/src/core/autonomous-executor.ts"
+    ],
+    "evidence": [
+      {
+        "type": "violation",
+        "label": "Violation type",
+        "value": "orphan",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      },
+      {
+        "type": "violation",
+        "label": "Message",
+        "value": "V5.00 was started at 1780029915313 but never completed",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      }
+    ],
+    "reproduction": "Run the plan with the same configuration. The scheduler will make the same decision. Check artifacts at /home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-decisions.ndjson.",
+    "detectedAt": 1780029929324,
+    "runId": "2026-05-29T04-45-15-123Z"
+  },
+  {
+    "id": "420d0b35e1f2",
+    "severity": "high",
+    "category": "scheduler",
+    "title": "Scheduler violation: duplicate_launch — V5.00 was launched 3 times",
+    "description": "The scheduler made an incorrect decision during plan execution. This may cause data corruption, deadlocks, or incorrect results.",
+    "observed": "V5.00 was launched 3 times",
+    "expected": "Each workspace is launched exactly once per attempt",
+    "workspaceIds": [
+      "V5.00"
+    ],
+    "relatedFiles": [
+      "packages/coding-agent/src/core/workspace-scheduler.ts",
+      "packages/coding-agent/src/core/autonomous-executor.ts"
+    ],
+    "evidence": [
+      {
+        "type": "violation",
+        "label": "Violation type",
+        "value": "duplicate_launch",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      },
+      {
+        "type": "violation",
+        "label": "Message",
+        "value": "V5.00 was launched 3 times",
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      },
+      {
+        "type": "state_diff",
+        "label": "Detail",
+        "value": {
+          "launchCount": 3
+        },
+        "source": "/home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-correctness.json"
+      }
+    ],
+    "reproduction": "Run the plan with the same configuration. The scheduler will make the same decision. Check artifacts at /home/erfolg/src/pi/reports/e2e-flagship/2026-05-29T04-45-15-123Z/scheduler-decisions.ndjson.",
+    "detectedAt": 1780029929324,
+    "runId": "2026-05-29T04-45-15-123Z"
+  }
+]

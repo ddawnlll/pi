@@ -8,6 +8,14 @@
 export type { LifecycleConfig, LifecycleTransition } from "./lifecycle.js";
 // Memory Lifecycle Engine (P14.C)
 export { MemoryLifecycleEngine } from "./lifecycle.js";
+export type {
+	MemoryRetrievalEntry,
+	MemoryRetrievalReport,
+	MemoryRetrievalResult,
+	RetryHotspotQuery,
+} from "./retrieval.js";
+// Memory Retrieval V2 (V5.03)
+export { createMemoryRetrievalV2, MemoryRetrievalV2 } from "./retrieval.js";
 export type { MemoryIndex, MemoryIndexEntry, MemoryStoreConfig } from "./store.js";
 // Memory Store (P14.B)
 export { MemoryStore } from "./store.js";

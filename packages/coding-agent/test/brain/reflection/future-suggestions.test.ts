@@ -47,6 +47,7 @@ function sampleReflection(overrides?: Partial<ReflectionReport>): ReflectionRepo
 		createdAt: new Date().toISOString(),
 		confidence: 0.85,
 		sources: [],
+		claims: [],
 		...overrides,
 	};
 }

@@ -911,6 +911,11 @@ export class LogBuffer {
 		}, 5000);
 	}
 
+	/** Flushed state: when true, all log lines have been persisted successfully. */
+	private flushed = false;
+	/** Error message if the last flush attempt failed. */
+	private lastFlushError: string | null = null;
+
 	private async doFlush(): Promise<void> {
 		if (this.lines.length === 0) return;
 		const batch = this.lines.join("");
@@ -919,9 +924,27 @@ export class LogBuffer {
 
 		try {
 			await this.stateStore.saveExecutionLog(this.planExecId, batch);
-		} catch {
-			// Ignore write errors
+			this.flushed = true;
+			this.lastFlushError = null;
+		} catch (err) {
+			// Buffer the failed lines back so they aren't lost on transient write errors
+			this.lines = [batch, ...this.lines];
+			this.count += batch.split("\n").length;
+			this.lastFlushError = err instanceof Error ? err.message : String(err);
+			this.flushed = false;
+			// Retry after a short delay
+			this.scheduleFlush();
 		}
+	}
+
+	/** Returns true if all buffered lines have been flushed successfully. */
+	isFlushed(): boolean {
+		return this.flushed && this.lines.length === 0;
+	}
+
+	/** Returns the last flush error, or null if none. */
+	getLastFlushError(): string | null {
+		return this.lastFlushError;
 	}
 }
 
@@ -1311,10 +1334,10 @@ async function executePlanInBackground(
 
 			// Wrap each workspace execution with an individual timeout so a hung
 			// workspace (e.g. stuck during worktree creation or LLM stream) does
-			// not block the rest of the batch. Using 10 minutes per workspace
-			// (the LLM idle watchdog is 5 min, the worktree creation timeout is
-			// also 5 min — 10 min covers both plus normal execution time).
-			const WORKSPACE_TIMEOUT_MS = 10 * 60 * 1000;
+			// not block the rest of the batch. Using 3 minutes per workspace —
+			// the LLM idle watchdog is 60s and worktree creation is also bounded.
+			// Reduced from 10 min so force-kill doesn't wait forever.
+			const WORKSPACE_TIMEOUT_MS = 3 * 60 * 1000;
 			const settled = await Promise.allSettled(
 				nextWorkspaces.map((ws) =>
 					Promise.race([
@@ -1447,6 +1470,63 @@ async function executePlanInBackground(
 					);
 				}
 			}
+		}
+
+		// ── Completion verification ───────────────────────────────────────
+		// Before declaring complete, verify that at least 80% of workspaces
+		// actually reached a terminal state through real execution, not just
+		// being marked "blocked" or "failed" without ever running.
+		// This prevents the loop from exiting prematurely when workspaces
+		// are stuck in unresolved dependency/block states.
+		const verificationState = executor.getState();
+		if (verificationState) {
+			let terminalCount = 0;
+			let completedOrYes = 0;
+			let stillPending = 0;
+			for (const [, ws] of verificationState.workspaces) {
+				if (ws.stage === WorkspaceStage.Complete || ws.stage === WorkspaceStage.Failed) {
+					terminalCount++;
+					completedOrYes++;
+				} else if (ws.stage === WorkspaceStage.Blocked) {
+					terminalCount++;
+				} else if (ws.stage === WorkspaceStage.Pending || ws.stage === WorkspaceStage.Active) {
+					stillPending++;
+				}
+			}
+
+			const total = verificationState.workspaces.size;
+			const completionRatio = total > 0 ? completedOrYes / total : 0;
+
+			if (stillPending > 0) {
+				// Some workspaces are still pending — the loop should not have exited.
+				// This indicates a scheduling bug. Fail the plan to prevent false completion.
+				await log(
+					`CRITICAL: ${stillPending} workspace(s) still pending at loop exit. ` +
+						`Loop exited with ${terminalCount}/${total} terminal, ${completedOrYes} completed-or-failed. ` +
+						`Failing plan to prevent false completion.`,
+				);
+				await executor.failPlan(`${stillPending} workspace(s) never executed`);
+				updateExecutionStatus(planExecId, "failed", `${stillPending} workspace(s) never executed`);
+				return;
+			}
+
+			if (completionRatio < 0.8 && total > 1) {
+				// Fewer than 80% of workspaces completed successfully or failed through execution.
+				// Too many workspaces are in "blocked" state without having run — treat as failure.
+				await log(
+					`CRITICAL: Only ${completedOrYes}/${total} workspaces completed-or-failed (${Math.round(completionRatio * 100)}%). ` +
+						`${terminalCount - completedOrYes} workspaces blocked without execution. Failing plan.`,
+				);
+				await executor.failPlan(
+					`Only ${completedOrYes}/${total} workspaces executed (${Math.round(completionRatio * 100)}%)`,
+				);
+				updateExecutionStatus(planExecId, "failed", `Incomplete execution: ${completedOrYes}/${total} workspaces`);
+				return;
+			}
+
+			await log(
+				`Completion verification passed: ${completedOrYes}/${total} workspaces completed-or-failed (${Math.round(completionRatio * 100)}%)`,
+			);
 		}
 
 		// Generate execution summary

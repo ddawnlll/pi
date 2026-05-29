@@ -66,6 +66,7 @@ function createDefaultReport(overrides?: Partial<ReflectionReport>): ReflectionR
 				description: "Workspace C failed",
 			},
 		],
+		claims: [],
 		...overrides,
 	};
 }

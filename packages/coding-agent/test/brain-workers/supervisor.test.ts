@@ -16,22 +16,14 @@
 
 import { describe, expect, test } from "vitest";
 import { generateManifest } from "../../src/brain-workers/contracts.js";
-import {
-	type JobInput,
-	type JobPriority,
-	type JobQuery,
-	type JobRecord,
-	JobStore,
-	type LeaseConfig,
-} from "../../src/brain-workers/supervisor/job-lease.js";
+import { type JobInput, JobStore } from "../../src/brain-workers/supervisor/job-lease.js";
 import {
 	BrainSupervisor,
 	type BrainSupervisorConfig,
-	type SupervisorDiagnostics,
 	type SupervisorEvent,
-	type SupervisorState,
 } from "../../src/brain-workers/supervisor/supervisor.js";
 import type { WorkerManifest } from "../../src/brain-workers/types.js";
+import { createWorkerDiagnostic } from "../../src/brain-workers/types.js";
 
 // =============================================================================
 // Helpers
@@ -1137,7 +1129,7 @@ describe("Budget / Cooldown / Stop Conditions", () => {
 		supervisor.pause();
 
 		const diag = createWorkerDiagnostic(
-			"budget_exceeded",
+			"budget_exceeded" as any,
 			"Token budget exceeded",
 			{ tokensUsed: 60000, maxTokens: 50000 },
 			["budget://observer/tokens", "metric://token-usage"],
@@ -1267,12 +1259,12 @@ describe("Budget / Cooldown / Stop Conditions", () => {
 		supervisor.registerWorker(manifest);
 
 		// Test various stop conditions
-		const conditions: Array<{ condition: string; label: string }> = [
-			{ condition: "timeout", label: "Timeout" },
-			{ condition: "budget_exceeded", label: "Budget exceeded" },
-			{ condition: "consecutive_failures_exceeded", label: "Consecutive failures" },
-			{ condition: "cancelled", label: "Cancelled" },
-			{ condition: "unknown_error", label: "Unknown error" },
+		const conditions = [
+			{ condition: "timeout" as const, label: "Timeout" },
+			{ condition: "budget_exceeded" as const, label: "Budget exceeded" },
+			{ condition: "consecutive_failures_exceeded" as const, label: "Consecutive failures" },
+			{ condition: "cancelled" as const, label: "Cancelled" },
+			{ condition: "unknown_error" as const, label: "Unknown error" },
 		];
 
 		for (const { condition, label } of conditions) {
@@ -1286,7 +1278,7 @@ describe("Budget / Cooldown / Stop Conditions", () => {
 			const job = s.submitJob(input, { maxRetries: 0 });
 			s.leaseJob(job!.id, m.id);
 
-			const diag = createWorkerDiagnostic(condition, label, { test: true });
+			const diag = createWorkerDiagnostic(condition as any, label, { test: true });
 			s.failJob(job!.id, label, diag);
 
 			const retrieved = s.getJob(job!.id);

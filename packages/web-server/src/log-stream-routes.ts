@@ -686,74 +686,67 @@ export function registerLogStreamRoutes(
 			return;
 		}
 
-		// Check if the log file exists
-		const fileExists = existsSync(filePath);
+		// Unified polling loop: checks archive file, legacy files, AND in-memory
+		// buffer on each tick. This ensures live workspace logs stream correctly
+		// even when the archive file hasn't been created yet or is stale.
+		const abortController = new AbortController();
+		request.raw.on("close", () => abortController.abort());
 
-		if (fileExists) {
-			// Use polling instead of fs.watch for reliability
-			// Polling works reliably with inject() since we can control timing
-			const abortController = new AbortController();
-			request.raw.on("close", () => abortController.abort());
+		let lastLineCount = currentCursor;
+		let _lastMemLineCount = currentCursor;
 
-			let lastLineCount = currentCursor;
-
-			const pollInterval = setInterval(() => {
-				if (abortController.signal.aborted) {
-					clearInterval(pollInterval);
-					return;
-				}
-				try {
-					const result = readLogLines(
-						workspaceRoot,
-						planExecId,
-						workspaceId,
-						stream,
-						lastLineCount,
-						MAX_RECENT_LIMIT,
-					);
-					if (result.lines.length > 0) {
-						for (const line of result.lines) {
-							sseData(line);
-						}
-						lastLineCount = result.totalLineCount;
-						currentCursor = lastLineCount;
-					}
-				} catch {
-					// Ignore read errors
-				}
-			}, LIVE_POLL_INTERVAL_MS);
-
-			request.raw.on("close", () => {
+		const pollInterval = setInterval(() => {
+			if (abortController.signal.aborted) {
 				clearInterval(pollInterval);
-				abortController.abort();
-			});
-		} else if (stateStore && typeof stateStore === "object" && "getRecentWorkspaceLogs" in stateStore) {
-			// Fall back to polling the in-memory buffer
-			const fn = (stateStore as any).getRecentWorkspaceLogs;
-			if (typeof fn === "function") {
-				const pollInterval = setInterval(() => {
-					try {
-						const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
-						if (bufferLogs.length > currentCursor) {
-							const newLogs = bufferLogs.slice(currentCursor);
-							for (const line of newLogs) {
-								sseData(line);
-							}
-							currentCursor = bufferLogs.length;
-						}
-					} catch {
-						// Ignore
-					}
-				}, LIVE_POLL_INTERVAL_MS);
-
-				request.raw.on("close", () => {
-					clearInterval(pollInterval);
-				});
+				return;
 			}
-		} else {
-			// No file and no buffer -- send end signal
-			sseEvent("end", { reason: "no_logs" });
-			reply.raw.end();
-		}
+			try {
+				// Poll archive v2 file (primary source for completed workspaces)
+				const result = readLogLines(
+					workspaceRoot,
+					planExecId,
+					workspaceId,
+					stream,
+					lastLineCount,
+					MAX_RECENT_LIMIT,
+				);
+				if (result.lines.length > 0) {
+					for (const line of result.lines) {
+						sseData(line);
+					}
+					lastLineCount = result.totalLineCount;
+					currentCursor = lastLineCount;
+					_lastMemLineCount = currentCursor;
+					return; // Archive had data, skip memory buffer
+				}
+
+				// Fallback: poll in-memory buffer (primary source for live execution)
+				if (stateStore && typeof stateStore === "object" && "getRecentWorkspaceLogs" in stateStore) {
+					const fn = (stateStore as any).getRecentWorkspaceLogs;
+					if (typeof fn === "function") {
+						try {
+							const bufferLogs = fn.call(stateStore, planExecId, workspaceId, 5000) as string[];
+							if (bufferLogs.length > _lastMemLineCount) {
+								const newLogs = bufferLogs.slice(_lastMemLineCount);
+								for (const line of newLogs) {
+									sseData(line);
+								}
+								_lastMemLineCount = bufferLogs.length;
+								currentCursor = _lastMemLineCount;
+							}
+						} catch {
+							// Ignore
+						}
+					}
+				}
+			} catch {
+				// Ignore read errors
+			}
+		}, LIVE_POLL_INTERVAL_MS);
+
+		request.raw.on("close", () => {
+			clearInterval(pollInterval);
+			abortController.abort();
+		});
 	});
 }

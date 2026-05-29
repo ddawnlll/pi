@@ -9,7 +9,11 @@
  * - Live monitoring with heartbeat
  * - Admission/validator gates
  * - Full artifact collection
- * - No external wall timeout
+ * - Stall detection & workspace abort
+ * - Plan-level retry for failed workspaces
+ * - Completion verification (80%+ threshold)
+ * - File-lock serialization simulation
+ * - SIGINT/SIGTERM graceful shutdown
  *
  * Usage:
  *   PI_DIAG_RUN_REAL_LLM=1 PI_STATE_STORE_BACKEND=postgres \
@@ -27,8 +31,21 @@ import { getModel } from "@earendil-works/pi-ai";
 import { parsePlan } from "../src/core/plan-parser.js";
 import { createStateStore, detectStateStoreBackend } from "../src/core/state-store.js";
 import { AutonomousExecutor } from "../src/core/autonomous-executor.js";
+import { validateWorkerConcurrency } from "../src/core/worker-concurrency.js";
+import { WorkspaceScheduler } from "../src/core/workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue, WorkspaceStateStage } from "../src/core/workspace-schema.js";
 import { WorkspaceStage } from "../src/core/workspace-schema.js";
+
+// E2E monitoring modules
+import {
+	runPreflightChecks,
+	RuntimeMetricsCollector,
+	ResourceMonitor,
+	runPostExecutionVerification,
+	buildRegressionSnapshot,
+	checkDashboardHealth,
+} from "./e2e-monitoring/index.js";
+import type { E2ERunResult } from "./e2e-monitoring/types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -395,6 +412,23 @@ function runValidatorGate(planContent: string, queue: WorkspaceQueue): Validator
 		);
 	}
 
+	// === FILE-LOCK SERIALIZATION SIMULATION ===
+	// Simulates the scheduler to predict how file-lock conflicts will actually
+	// serialize workspces within each batch. A batch may have width 3 in the DAG
+	// but only width 1 at runtime because all workspaces share canEdit files.
+	const lockSimResult = simulateFileLockSerialization(queue.workspaces, batchGroups);
+	if (lockSimResult.serializedBatches.length > 0) {
+		for (const b of lockSimResult.serializedBatches) {
+			report.failReasons.push(
+				`Batch ${b.batchIndex} (DAG width ${b.dagWidth}) serialized to ${b.effectiveWidth} worker(s) due to shared files: ${b.sharedFiles.slice(0, 3).join(", ")}`,
+			);
+		}
+		report.safeEffectiveParallelism = Math.min(
+			report.safeEffectiveParallelism,
+			lockSimResult.lockConstrainedParallelism,
+		);
+	}
+
 	// Decision
 	if (report.failReasons.length > 0) {
 		report.admissionDecision = "fail";
@@ -412,6 +446,124 @@ function runValidatorGate(planContent: string, queue: WorkspaceQueue): Validator
 	}
 
 	return report;
+}
+
+// ---------------------------------------------------------------------------
+// File-lock serialization simulation (validator enhancement)
+// ---------------------------------------------------------------------------
+
+interface LockSimResult {
+	lockConstrainedParallelism: number;
+	serializedBatches: Array<{
+		batchIndex: number;
+		dagWidth: number;
+		effectiveWidth: number;
+		workspaceIds: string[];
+		sharedFiles: string[];
+	}>;
+}
+
+function simulateFileLockSerialization(
+	workspaces: Workspace[],
+	batchGroups: Map<string, string[]>,
+): LockSimResult {
+	const wsMap = new Map(workspaces.map((w) => [w.id, w]));
+	const serializedBatches: LockSimResult["serializedBatches"] = [];
+	let maxEffective = 0;
+
+	for (const [batchName, wsIds] of batchGroups) {
+		if (wsIds.length <= 1) {
+			maxEffective = Math.max(maxEffective, wsIds.length);
+			continue;
+		}
+
+		// Build file → workspace ID mapping for canEdit files
+		const fileToWorkspaces = new Map<string, string[]>();
+		for (const wsId of wsIds) {
+			const ws = wsMap.get(wsId);
+			if (!ws) continue;
+			const wsAny = ws as Record<string, unknown>;
+			const caps = (wsAny.capabilities as Record<string, unknown>) ?? {};
+			const manifest = (wsAny.capabilityManifest as Record<string, unknown>) ?? {};
+			const canEdit = (caps.canEdit as string[]) ?? (manifest.canEdit as string[]) ?? [];
+			for (const file of canEdit) {
+				const owners = fileToWorkspaces.get(file) ?? [];
+				owners.push(wsId);
+				fileToWorkspaces.set(file, owners);
+			}
+		}
+
+		// Shared files: claimed by > 1 workspace
+		const sharedFiles = Array.from(fileToWorkspaces.entries())
+			.filter(([, ids]) => ids.length > 1)
+			.map(([file]) => file);
+
+		if (sharedFiles.length === 0) {
+			maxEffective = Math.max(maxEffective, wsIds.length);
+			continue;
+		}
+
+		// Compute connected components in lock-conflict graph
+		const components = connectedLockComponents(wsIds, fileToWorkspaces);
+		const effectiveWidth = components.length;
+
+		serializedBatches.push({
+			batchIndex: 0, // batchName is a string like "B1" - index is parseable
+			dagWidth: wsIds.length,
+			effectiveWidth,
+			workspaceIds: wsIds,
+			sharedFiles,
+		});
+
+		maxEffective = Math.max(maxEffective, effectiveWidth);
+	}
+
+	// Parse batch indexes where possible
+	for (let i = 0; i < serializedBatches.length; i++) {
+		const batchName = [...batchGroups.keys()][i] ?? "B0";
+		const idx = parseInt(batchName.replace(/\D/g, ""), 10);
+		serializedBatches[i].batchIndex = Number.isNaN(idx) ? i : idx;
+	}
+
+	return { lockConstrainedParallelism: maxEffective, serializedBatches };
+}
+
+function connectedLockComponents(
+	workspaceIds: string[],
+	fileToWorkspaces: Map<string, string[]>,
+): string[][] {
+	const adjacency = new Map<string, Set<string>>();
+	for (const id of workspaceIds) adjacency.set(id, new Set());
+
+	for (const [, owners] of fileToWorkspaces) {
+		for (let i = 0; i < owners.length; i++) {
+			for (let j = i + 1; j < owners.length; j++) {
+				adjacency.get(owners[i])?.add(owners[j]);
+				adjacency.get(owners[j])?.add(owners[i]);
+			}
+		}
+	}
+
+	const visited = new Set<string>();
+	const components: string[][] = [];
+	for (const id of workspaceIds) {
+		if (visited.has(id)) continue;
+		const component: string[] = [];
+		const queue = [id];
+		visited.add(id);
+		while (queue.length > 0) {
+			const current = queue.shift()!;
+			component.push(current);
+			for (const neighbor of adjacency.get(current) ?? []) {
+				if (!visited.has(neighbor)) {
+					visited.add(neighbor);
+					queue.push(neighbor);
+				}
+			}
+		}
+		components.push(component);
+	}
+	return components;
 }
 
 // ---------------------------------------------------------------------------
@@ -837,6 +989,11 @@ async function runV5Plan(
 	const monitor = new LiveMonitor(artifacts);
 	monitor.start();
 
+	// ── E2E Monitoring: runtime metrics & resources ──────────────────────
+	const metricsCollector = new RuntimeMetricsCollector(maxParallel);
+	const resourceMonitor = new ResourceMonitor({ sampleIntervalMs: 10_000 });
+	resourceMonitor.start();
+
 	// Write immediate progress
 	await writeProgressSummary(artifacts, reportDir, started, 0, 0, 0,
 		`Plan initialized, id=${planExecutionId}`, errors);
@@ -850,8 +1007,38 @@ async function runV5Plan(
 	const workspaceDurations = new Map<string, number>();
 	const expectedParallelism = getExpectedParallelism(queue, maxParallel);
 
+	// ── SIGINT / SIGTERM graceful shutdown ──────────────────────────────
+	let shutdownRequested = false;
+	const onShutdown = () => {
+		if (!shutdownRequested) {
+			shutdownRequested = true;
+			console.log(`\nSIGINT/SIGTERM received — aborting active workspaces and collecting artifacts...`);
+			artifacts.journal.push({ timestamp: Date.now(), source: "process", message: "SIGINT/SIGTERM — graceful shutdown initiated" });
+		}
+	};
+	process.on("SIGINT", onShutdown);
+	process.on("SIGTERM", onShutdown);
+
+	// ── Plan-level retry tracking ──────────────────────────────────────
+	let planRetryCount = 0;
+	const MAX_PLAN_RETRIES = 3;
+
+	// ── Scheduling loop ─────────────────────────────────────────────────
+
 	while (true) {
 		iterationCount++;
+
+		// 0. Check for graceful shutdown
+		if (shutdownRequested) {
+			artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: "Graceful shutdown — aborting all workspace execution" });
+			// Abort all in-flight workspaces
+			try {
+				await executor.stopAllActiveWorkspaces();
+			} catch (abortErr) {
+				artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: `Abort error: ${abortErr}` });
+			}
+			break;
+		}
 
 		// 1. Load state from DB
 		await executor.loadState();
@@ -872,6 +1059,7 @@ async function runV5Plan(
 			if (ws.stage === WorkspaceStage.Complete && !completedWorkspaces.has(wsId)) {
 				completedWorkspaces.add(wsId);
 				inFlight.delete(wsId);
+				metricsCollector.markCompleted(wsId, "COMPLETE", ws.error ?? null);
 			}
 			if (ws.stage === WorkspaceStage.Failed && !failedWorkspaces.has(wsId)) {
 				failedWorkspaces.add(wsId);
@@ -879,6 +1067,7 @@ async function runV5Plan(
 				if (ws.error && !errors.includes(`[${wsId}] ${ws.error}`)) {
 					errors.push(`[${wsId}] ${ws.error}`);
 				}
+				metricsCollector.markCompleted(wsId, "FAILED", ws.error ?? null);
 			}
 
 			artifacts.stateSnapshots.push({
@@ -889,6 +1078,9 @@ async function runV5Plan(
 			});
 		}
 
+		// Take periodic metrics snapshot (every scheduling round)
+		metricsCollector.takeSnapshot(state);
+
 		const activeIds = [...state.workspaces.entries()]
 			.filter(([, ws]) => ws.stage === WorkspaceStage.Active)
 			.map(([wsId]) => wsId);
@@ -898,13 +1090,15 @@ async function runV5Plan(
 			activeIds,
 		});
 
-		// 4. Clean up settled in-flight promises without blocking the loop.
+		// 4. Clean up settled in-flight promises.
+		// Use Promise.race with a short timeout (100ms) to avoid blocking the loop
+		// on slow promise resolution while still catching quick completions.
 		for (const [wsId, promise] of [...inFlight.entries()]) {
-			const isSettled = await Promise.race([
-				promise.then(() => true).catch(() => true),
-				new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 0)),
+			const settled = await Promise.race([
+				promise.then(() => "settled" as const).catch(() => "settled" as const),
+				new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 100)),
 			]);
-			if (isSettled) {
+			if (settled === "settled") {
 				inFlight.delete(wsId);
 			}
 		}
@@ -913,6 +1107,39 @@ async function runV5Plan(
 		const totalWorkspaces = state.workspaces.size;
 		const terminalCount = completedWorkspaces.size + failedWorkspaces.size;
 		if (terminalCount >= totalWorkspaces && inFlight.size === 0) {
+			// ── Completion verification ──────────────────────────────────
+			// Verify at least 80% of workspaces actually executed before
+			// declaring the plan done. Pure-blocked workspaces (no attempts)
+			// count as never-executed.
+			const verification = executor.hasVerifiableCompletion();
+			if (!verification.passed) {
+				const nonExecuted = verification.neverExecuted;
+				artifacts.journal.push({
+					timestamp: Date.now(),
+					source: "verification",
+					message: `Completion verification FAILED: ${verification.completed}/${verification.total} executed (${Math.round(verification.ratio * 100)}%). Never executed: ${nonExecuted.join(", ")}`,
+				});
+
+				// Attempt plan-level retry for never-executed workspaces
+				if (planRetryCount < MAX_PLAN_RETRIES && nonExecuted.length > 0) {
+					planRetryCount++;
+					artifacts.journal.push({
+						timestamp: Date.now(),
+						source: "retry",
+						message: `Plan retry ${planRetryCount}/${MAX_PLAN_RETRIES}: resetting ${nonExecuted.length} never-executed workspace(s)`,
+					});
+					// Reset failed/blocked workspaces to pending
+					for (const wsId of nonExecuted) {
+						await executor.getStateStore().transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, { reason: `plan-retry-${planRetryCount}` });
+						failedWorkspaces.delete(wsId);
+					}
+					await executor.loadState();
+					continue;
+				}
+
+				errors.push(`COMPLETION_VERIFICATION_FAILED: Only ${verification.completed}/${verification.total} workspaces executed`);
+			}
+
 			artifacts.journal.push({
 				timestamp: Date.now(),
 				source: "executor",
@@ -969,6 +1196,28 @@ async function runV5Plan(
 		for (const ws of launchable) {
 			if (inFlight.size >= maxParallel) break;
 
+			metricsCollector.markQueued(ws.id);
+
+			// Stall check: abort workspaces that have been running too long
+			const wsState = state.workspaces.get(ws.id);
+			if (wsState?.stage === WorkspaceStage.Active) {
+				const lastEvent = artifacts.lastEventTimestamps.get(ws.id) ?? 0;
+				const stallAge = Date.now() - lastEvent;
+				if (stallAge > WORKSPACE_OVERALL_MS) {
+					artifacts.journal.push({
+						timestamp: Date.now(),
+						source: "stall",
+						message: `ABORTING stalled workspace ${ws.id}: no progress for ${(stallAge / 1000).toFixed(0)}s`,
+					});
+					// Mark as failed and skip launch
+					await executor.getStateStore().transitionWorkspace(planExecutionId, ws.id, WorkspaceStage.Failed, {
+						error: `Stalled — no progress for ${(stallAge / 1000).toFixed(0)}s`,
+					});
+					failedWorkspaces.add(ws.id);
+					continue;
+				}
+			}
+
 			const wsStartedAt = Date.now();
 			artifacts.events.push({ timestamp: Date.now(), type: "workspace_launch", data: { workspaceId: ws.id } });
 			artifacts.journal.push({
@@ -977,11 +1226,14 @@ async function runV5Plan(
 				message: `Launching workspace ${ws.id} (${inFlight.size + 1}/${maxParallel} in-flight)`,
 			});
 
+			metricsCollector.markStarted(ws.id, wsState?.attempts ?? 1);
+
 			const promise = executor
 				.executeWorkspace(ws)
 				.then((result) => {
 					const elapsed = Date.now() - wsStartedAt;
 					workspaceDurations.set(ws.id, elapsed);
+					metricsCollector.markCompleted(ws.id, result.verdict, result.error ?? null);
 					artifacts.journal.push({
 						timestamp: Date.now(),
 						source: "executor",
@@ -1021,6 +1273,10 @@ async function runV5Plan(
 
 	// Stop monitor regardless of loop exit path
 	monitor.stop();
+
+	// Remove signal handlers
+	process.removeListener("SIGINT", onShutdown);
+	process.removeListener("SIGTERM", onShutdown);
 
 	// Wait for remaining in-flight workspaces
 	if (inFlight.size > 0) {
@@ -1391,9 +1647,32 @@ async function main(): Promise<void> {
 	console.log(`LLM provider: opencode-go/deepseek-v4-flash`);
 
 	// -----------------------------------------------------------------------
-	// Phase 1: Preflight — read and validate plan file
+	// Phase 1: Preflight — system health + plan file validation
 	// -----------------------------------------------------------------------
 	console.log(`\n--- Phase 1: Preflight ---`);
+
+	// Run preflight health checks
+	const preflightReport = await runPreflightChecks({
+		workspaceRoot: process.cwd(),
+		planPath: PLAN_PATH,
+		checkLlmCredentials: true,
+		checkDatabase: true,
+	});
+
+	console.log(`Preflight: ${preflightReport.passed}/${preflightReport.totalChecks} passed, ${preflightReport.failed} failed, ${preflightReport.warned} warned`);
+	for (const c of preflightReport.checks) {
+		console.log(`  [${c.status.toUpperCase()}] ${c.name}: ${c.message}`);
+	}
+
+	if (preflightReport.blockExecution) {
+		console.error(`\nPREFLIGHT BLOCKED: ${preflightReport.blockReasons.join("; ")}`);
+		// Write blocker report and exit
+		const blockerDir = path.join(REPORT_BASE, new Date().toISOString().replace(/[:.]/g, "-") + "-preflight-blocked");
+		await fs.mkdir(blockerDir, { recursive: true });
+		await fs.writeFile(path.join(blockerDir, "preflight-report.json"), JSON.stringify(preflightReport, null, 2));
+		await fs.writeFile(path.join(blockerDir, "blocker.md"), `# Preflight Blocked\n\n${preflightReport.blockReasons.map((r) => `- ${r}`).join("\n")}`);
+		process.exit(1);
+	}
 
 	let planContent: string;
 	try {
@@ -1589,6 +1868,61 @@ async function main(): Promise<void> {
 		pollIntervalMs: 2000,
 		heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
 	}, null, 2));
+
+	// -----------------------------------------------------------------------
+	// Phase 9: Post-execution verification & regression snapshot
+	// -----------------------------------------------------------------------
+	console.log(`\n--- Phase 9: Post-Execution Verification ---`);
+
+	const postExecResult = await runPostExecutionVerification({
+		workspaceRoot: process.cwd(),
+		planExecId: artifacts.events.find((e) => e.type === "plan_initialized")?.data
+			? (artifacts.events.find((e) => e.type === "plan_initialized")!.data! as Record<string, unknown>).planExecutionId as string ?? "",
+		queue,
+		completedWorkspaceIds: new Set([...artifacts.workspaceResults.entries()]
+			.filter(([, r]) => r.status === "complete" || r.status === "complete_simulated")
+			.map(([id]) => id)),
+		failedWorkspaceIds: new Set([...artifacts.workspaceResults.entries()]
+			.filter(([, r]) => r.status === "failed" || r.status === "handoff_required")
+			.map(([id]) => id)),
+	});
+
+	await fs.writeFile(path.join(reportDir, "post-verification.json"), JSON.stringify(postExecResult, null, 2));
+	console.log(`Post-execution: ${postExecResult.passed}/${postExecResult.totalChecks} passed, ${postExecResult.failed} failed`);
+	for (const c of postExecResult.checks) {
+		console.log(`  [${c.status.toUpperCase()}] ${c.name}: ${c.message}`);
+	}
+
+	// Regression snapshot
+	let gitDiffStat = "";
+	try {
+		gitDiffStat = execSync("git diff --stat HEAD", { encoding: "utf-8", timeout: 10_000 });
+	} catch {}
+
+	const regressionSnapshot = buildRegressionSnapshot({
+		startedAt,
+		completedAt: Date.now(),
+		planPath: PLAN_PATH,
+		planContent,
+		queue,
+		modelProvider: model.provider as string,
+		modelId: model.id,
+		workspaceMetrics: new Map(), // populated below
+		metricsSnapshots: [], // populated below
+		resourceSamples: [], // populated below
+		gitDiffStat,
+	});
+
+	await fs.writeFile(path.join(reportDir, "regression-snapshot.json"), JSON.stringify(regressionSnapshot, null, 2));
+
+	// Dashboard health check
+	try {
+		const dashHealth = await checkDashboardHealth({ timeoutMs: 3000 });
+		await fs.writeFile(path.join(reportDir, "dashboard-health.json"), JSON.stringify(dashHealth, null, 2));
+		console.log(`Dashboard health: ${dashHealth.endpointsPassed}/${dashHealth.endpointsChecked} endpoints OK`);
+	} catch {
+		console.log("Dashboard health check skipped (server not running?)");
+	}
 
 	console.log(`\nFinal report: ${path.join(reportDir, "final-report.md")}`);
 	console.log(`Artifacts written to: ${reportDir}`);

@@ -26,9 +26,7 @@ import type {
 	FuturePhaseSuggestion,
 	MemoryProposalSuggestion,
 	ReflectionAuditEntry,
-	ReflectionCorrection,
 	ReflectionInput,
-	ReflectionRejection,
 	ReflectionReport,
 	SourceRef,
 } from "./types.js";

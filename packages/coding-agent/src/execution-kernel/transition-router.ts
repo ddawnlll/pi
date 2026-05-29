@@ -304,7 +304,11 @@ export class KernelTransitionRouter implements TransitionRouter {
 					id: attemptId,
 					workspace_execution_id: wsExec.id,
 					plan_execution_id: planExecutionId,
-					project_id: wsExec.project_id ?? (() => { throw new Error(`No project_id for workspace ${workspaceId} (exec ${wsExec.id})`); })(),
+					project_id:
+						wsExec.project_id ??
+						(() => {
+							throw new Error(`No project_id for workspace ${workspaceId} (exec ${wsExec.id})`);
+						})(),
 					current_state: "PENDING",
 					version: 0,
 					created_at: now,

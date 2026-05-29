@@ -20,7 +20,6 @@
  *   - Brain-worker budget controls, cooldowns, and loop prevention (25.R)
  */
 
-import { join } from "node:path";
 import type { SettingsManager, Workspace, WorkspaceQueue } from "@earendil-works/pi-coding-agent";
 import { ProductionReadinessDoctor as LocalProductionReadinessDoctor } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
@@ -83,12 +82,7 @@ export async function registerLocalReadinessRoutes(
 				maxParallelWorkspaces: 1,
 				workspaces: [],
 			};
-			const report = await doctor.run(
-				dummyQueue,
-				workspaceRoot,
-				piDir,
-				{ skipGitCheck: false },
-			);
+			const report = await doctor.run(dummyQueue, workspaceRoot, piDir, { skipGitCheck: false });
 
 			return report;
 		} catch (error) {
@@ -115,12 +109,7 @@ export async function registerLocalReadinessRoutes(
 				maxParallelWorkspaces: 1,
 				workspaces: [] as Workspace[],
 			} satisfies WorkspaceQueue;
-			const report = await doctor.run(
-				dummyQueue,
-				workspaceRoot,
-				"",
-				{ skipGitCheck: false },
-			);
+			const report = await doctor.run(dummyQueue, workspaceRoot, "", { skipGitCheck: false });
 
 			const status: LocalReadinessStatus = {
 				verdict: report.verdict,

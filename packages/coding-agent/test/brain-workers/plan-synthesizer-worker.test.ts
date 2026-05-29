@@ -20,7 +20,6 @@ import {
 	ALL_PLAN_TASK_STATUSES,
 	DagBuilder,
 	type PlanTask,
-	type PlanTaskPriority,
 } from "../../src/brain-workers/plan-synthesizer/dag-builder.js";
 import {
 	ALL_SYNTHESIS_SESSION_STATUSES,
@@ -32,22 +31,15 @@ import {
 	DEFAULT_PLAN_SYNTHESIZER_WORKER_CONFIG,
 	type ExecutionContext,
 	type GoalInput,
-	type IdeaInput,
-	type NewProposalInput,
 	type PlanPlanOutput,
 	PlanSynthesizerWorker,
-	type PlanSynthesizerWorkerStats,
 	PlanValidator,
 	type ProposalInput,
-	type SynthesisSession,
-	type SynthesizedPlan,
 } from "../../src/brain-workers/plan-synthesizer/plan-synthesizer-worker.js";
 import {
 	BUILT_IN_TEMPLATES,
 	type PlanTemplate,
-	type TemplateError,
 	TemplateRenderer,
-	type TemplateRenderResult,
 } from "../../src/brain-workers/plan-synthesizer/template-renderer.js";
 import { validateWorkerManifest } from "../../src/brain-workers/types.js";
 

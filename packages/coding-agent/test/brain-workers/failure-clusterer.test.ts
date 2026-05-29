@@ -12,11 +12,9 @@
 import { describe, expect, test } from "vitest";
 import {
 	createFailureClusterer,
-	DEFAULT_FAILURE_CLUSTERER_CONFIG,
 	FailureClusterer,
 } from "../../src/brain-workers/regression-hunter/failure-clusterer.js";
 import type { WorkerDiagnostic } from "../../src/brain-workers/types.js";
-import { createWorkerDiagnostic } from "../../src/brain-workers/types.js";
 
 // =============================================================================
 // Helper: create a diagnostic
@@ -175,8 +173,8 @@ describe("FailureClusterer — Matching Strategies", () => {
 			messageSimilarityThreshold: 0.4,
 		});
 
-		const d1 = makeDiagnostic({ stopCondition: "error_1", message: "Failed to connect to database server" });
-		const d2 = makeDiagnostic({ stopCondition: "error_2", message: "Failed to connect to database cluster" });
+		const d1 = makeDiagnostic({ stopCondition: "error_1" as any, message: "Failed to connect to database server" });
+		const d2 = makeDiagnostic({ stopCondition: "error_2" as any, message: "Failed to connect to database cluster" });
 
 		const clusters = clusterer.ingest([d1, d2]);
 		expect(clusters).toHaveLength(1);
@@ -190,8 +188,8 @@ describe("FailureClusterer — Matching Strategies", () => {
 			messageSimilarityThreshold: 0.8, // High threshold
 		});
 
-		const d1 = makeDiagnostic({ stopCondition: "error_1", message: "Failed to connect to database" });
-		const d2 = makeDiagnostic({ stopCondition: "error_2", message: "Out of memory in renderer" });
+		const d1 = makeDiagnostic({ stopCondition: "error_1" as any, message: "Failed to connect to database" });
+		const d2 = makeDiagnostic({ stopCondition: "error_2" as any, message: "Out of memory in renderer" });
 
 		const clusters = clusterer.ingest([d1, d2]);
 		expect(clusters).toHaveLength(2);
@@ -205,11 +203,11 @@ describe("FailureClusterer — Matching Strategies", () => {
 		});
 
 		const d1 = makeDiagnostic({
-			stopCondition: "error_1",
+			stopCondition: "error_1" as any,
 			context: { module: "auth", operation: "login", region: "us-east" },
 		});
 		const d2 = makeDiagnostic({
-			stopCondition: "error_2",
+			stopCondition: "error_2" as any,
 			context: { module: "auth", operation: "login", region: "eu-west" },
 		});
 
@@ -226,11 +224,11 @@ describe("FailureClusterer — Matching Strategies", () => {
 		});
 
 		const d1 = makeDiagnostic({
-			stopCondition: "error_1",
+			stopCondition: "error_1" as any,
 			context: { module: "auth", region: "us-east" },
 		});
 		const d2 = makeDiagnostic({
-			stopCondition: "error_2",
+			stopCondition: "error_2" as any,
 			context: { module: "billing", environment: "prod" },
 		});
 

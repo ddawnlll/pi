@@ -130,8 +130,147 @@ export interface EvidenceDetail {
 }
 
 // ---------------------------------------------------------------------------
+// Proposal Card Format (V5.08 AC1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Card-format evidence for the proposal card view.
+ */
+export interface ProposalCardEvidence {
+	memoryCount: number;
+	observationCount: number;
+	evidenceCount: number;
+	confidence: number;
+	evidenceSummary: string;
+	relatedMemoryIds: string[];
+}
+
+/**
+ * Card-format risk assessment.
+ */
+export interface ProposalCardRisk {
+	level: string;
+	factors: string[];
+	mitigation: string[];
+	impactDescription: string;
+}
+
+/**
+ * V5.08 Proposal card — the primary user-facing unit.
+ *
+ * AC1: Contains all fields needed for card rendering:
+ * problem (title + description), whyNow, evidence count,
+ * related memories, risk, expected impact, draft availability,
+ * approval requirement.
+ */
+export interface ProposalCard {
+	id: string;
+	type: string;
+	title: string;
+	description: string;
+	whyNow: string;
+	expectedImpact: string;
+	evidence: ProposalCardEvidence;
+	risk: ProposalCardRisk;
+	status: string;
+	draftAvailable: boolean;
+	approvalRequired: boolean;
+	isDuplicate: boolean;
+	duplicateOf: string | null;
+	score: number;
+	createdAt: string;
+	updatedAt: string;
+	relatedGoalIds: string[];
+	tags: string[];
+}
+
+/**
+ * Convert a raw Proposal to a ProposalCard (V5.08 AC1).
+ *
+ * Transforms the internal ProposalEvidence structure into the
+ * flattened card format with computed counts and related memory IDs.
+ *
+ * @param proposal - The raw Proposal from the store
+ * @returns A ProposalCard ready for API serialization
+ */
+export function proposalToCard(proposal: Proposal): ProposalCard {
+	return {
+		id: proposal.id,
+		type: proposal.type,
+		title: proposal.title,
+		description: proposal.description,
+		whyNow: proposal.whyNow,
+		expectedImpact: proposal.expectedImpact,
+		evidence: {
+			memoryCount: proposal.evidence.memoryIds.length,
+			observationCount: proposal.evidence.observationIds.length,
+			evidenceCount: proposal.evidenceCount,
+			confidence: proposal.evidence.confidence,
+			evidenceSummary: proposal.evidence.evidenceSummary,
+			relatedMemoryIds: [...proposal.evidence.memoryIds],
+		},
+		risk: {
+			level: proposal.risk.level,
+			factors: [...proposal.risk.factors],
+			mitigation: [...proposal.risk.mitigation],
+			impactDescription: proposal.risk.impactDescription,
+		},
+		status: proposal.status,
+		draftAvailable: proposal.draftAvailable,
+		approvalRequired: proposal.approvalRequired,
+		isDuplicate: proposal.isDuplicate,
+		duplicateOf: proposal.duplicateOf,
+		score: proposal.score.total,
+		createdAt: proposal.createdAt,
+		updatedAt: proposal.updatedAt,
+		relatedGoalIds: [...proposal.relatedGoalIds],
+		tags: [...proposal.tags],
+	};
+}
+
+// ---------------------------------------------------------------------------
 // BrainProposalApi
 // ---------------------------------------------------------------------------
+
+/**
+ * Find a matching proposal ID for a duplicate proposal.
+ *
+ * Uses the dedup engine's hash function to find the first proposal
+ * with a matching content hash. Returns null if none found.
+ */
+function findMatchingProposalId(input: ProposalCreateInput, existing: Proposal[]): string | null {
+	const dedup = new ProposalDeduplication();
+	let contentHash: string;
+	try {
+		contentHash = dedup.hashProposal(input);
+	} catch {
+		return null;
+	}
+	for (const p of existing) {
+		const existingInput: ProposalCreateInput = {
+			type: p.type,
+			title: p.title,
+			description: p.description,
+			whyNow: p.whyNow,
+			expectedImpact: p.expectedImpact,
+			evidence: p.evidence,
+			risk: p.risk,
+			relatedGoalIds: p.relatedGoalIds,
+			tags: p.tags,
+			metadata: p.metadata,
+			draftAvailable: p.draftAvailable,
+			approvalRequired: p.approvalRequired,
+			isDuplicate: p.isDuplicate,
+			duplicateOf: p.duplicateOf,
+		};
+		try {
+			if (dedup.hashProposal(existingInput) === contentHash) {
+				return p.id;
+			}
+		} catch {}
+	}
+	return null;
+}
 
 /**
  * High-level service for proposal API operations.
@@ -209,8 +348,13 @@ export class BrainProposalApi {
 	 * 1. Check deduplication (content hash match)
 	 * 2. Check cooldown (same type within cooldown period)
 	 * 3. Score the proposal (if not pre-scored)
-	 * 4. Store the proposal as "pending_approval" (or "draft" if flagged)
+	 * 4. Store the proposal as "pending_approval"
 	 * 5. Record in dedup history
+	 *
+	 * V5.08 AC3:
+	 * - When suppressDuplicates=true: duplicate proposals are suppressed entirely
+	 * - When suppressDuplicates=false: duplicate proposals are created with
+	 *   isDuplicate=true and duplicateOf set to the original proposal ID
 	 *
 	 * @param input - The proposal creation input
 	 * @returns Result with the created proposal or error
@@ -225,30 +369,7 @@ export class BrainProposalApi {
 			const cdCheck = this.dedup.checkCooldown(input, existingProposals);
 			const dupResult = this.dedup.shouldSuppress(input, existingProposals);
 			if (dupResult.suppress) {
-				// Instead of full suppression, create a marked duplicate (V5.08 AC3)
-				// Only suppress if the markDuplicate mode is disabled
-				if (!this.dedup.getConfig().suppressDuplicates) {
-					// Create the proposal with duplicate markers
-					const scoredInput = input.score
-						? { ...input }
-						: { ...input, score: await this.scoringEngine.score(input, existingProposals) };
-					const markedInput: ProposalCreateInput = {
-						...scoredInput,
-						isDuplicate: true,
-						duplicateOf: dupCheck.similarProposalId ?? null,
-					};
-					const proposal = await this.store.create(markedInput);
-					const pending = await this.store.update(proposal.id, {
-						status: "pending_approval",
-					});
-					this.dedup.recordHistory(input);
-					return {
-						success: true,
-						proposal: pending,
-						isDuplicate: true,
-						duplicateReason: dupResult.reason,
-					};
-				}
+				// When suppressDuplicates is true, suppress the proposal entirely
 				return {
 					success: false,
 					error: dupResult.reason ?? "Proposal suppressed",
@@ -262,8 +383,24 @@ export class BrainProposalApi {
 				? { ...input }
 				: { ...input, score: await this.scoringEngine.score(input, existingProposals) };
 
-			// 3. V5.08 AC4: No auto-queue to execution. All proposals go to pending_approval.
-			const proposal = await this.store.create(scoredInput);
+			// 3. V5.08 AC3: If duplicate but not suppressed (suppressDuplicates=false),
+			//    mark the proposal as duplicate instead of suppressing it.
+			//    Find matching proposal ID if not already provided by dedup.
+			// V5.08 AC4: No auto-queue to execution. All proposals go to pending_approval.
+			const similarId =
+				dupCheck.isDuplicate && !dupCheck.similarProposalId
+					? findMatchingProposalId(scoredInput, existingProposals)
+					: (dupCheck.similarProposalId ?? null);
+
+			const createInput: ProposalCreateInput = dupCheck.isDuplicate
+				? {
+						...scoredInput,
+						isDuplicate: true,
+						duplicateOf: similarId,
+					}
+				: scoredInput;
+
+			const proposal = await this.store.create(createInput);
 
 			// 4. Transition from draft to pending_approval (advisory only)
 			const pending = await this.store.update(proposal.id, {
@@ -276,6 +413,8 @@ export class BrainProposalApi {
 			return {
 				success: true,
 				proposal: pending,
+				isDuplicate: dupCheck.isDuplicate,
+				duplicateReason: dupCheck.isDuplicate ? (dupCheck.matchReason ?? "Duplicate proposal") : undefined,
 			};
 		} catch (error) {
 			return {
@@ -507,22 +646,10 @@ export class BrainProposalApi {
 			};
 		}
 
-		// Since the store update only supports certain fields in ProposalUpdateInput,
-		// we delegate tags to the store update and reconstruct other fields.
-
-		// Since ProposalUpdateInput doesn't support title/description changes directly,
-		// we need to use store-level update or a correction-specific path.
-		// For now, we delegate back to the store update with a note.
-		// The in-memory store supports arbitrary fields through direct manipulation.
-		// For simplicity, we re-set the proposal in the store.
 		await this.store.update(id, {
 			tags: corrections.tags ?? existing.tags,
 		});
 
-		// For title/description changes, we do a store-level workaround:
-		// update the internal map directly via update + return the modified object.
-		// The InMemoryProposalStore.update only supports specific fields,
-		// so we retrieve and reconstruct.
 		const refreshed = await this.store.getById(id);
 		if (!refreshed) {
 			return {
@@ -532,7 +659,6 @@ export class BrainProposalApi {
 			};
 		}
 
-		// Since our store update only supports certain fields, we return the best-effort result
 		const resultProposal = {
 			...refreshed,
 			...(corrections.title !== undefined ? { title: corrections.title } : {}),
