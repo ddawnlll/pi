@@ -41,6 +41,38 @@ import type { V5EventSink } from "../src/brain/v5/types.js";
 // =========================================================================
 
 /**
+ * Helper to create a mock createMemory function for the injection engine.
+ * Returns the object as-is to avoid TypeScript strict checking issues with MemoryRecord.
+ */
+function mockCreateMemory(): (input: {
+	type: string;
+	title: string;
+	content: string;
+	summary?: string;
+	confidence: number;
+	provenance: { sourceRefs: Array<{ type: string; path: string; id: string }>; validatedBy: string };
+	tags?: string[];
+	category?: string;
+	metadata?: Record<string, unknown>;
+}) => Promise<any> {
+	return async (input) => ({
+		id: `injected-${randomUUID()}`,
+		type: input.type as any,
+		title: input.title,
+		content: input.content,
+		summary: input.summary ?? "",
+		lifecycle: "active" as const,
+		confidence: input.confidence,
+		provenance: input.provenance,
+		tags: input.tags ?? [],
+		category: input.category,
+		metadata: input.metadata ?? {},
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	});
+}
+
+/**
  * Create a mock memory retrieval result for testing.
  */
 function createMockMemoryResult(
@@ -272,21 +304,7 @@ describe("ContextBuilder", () => {
 describe("MemoryInjectionEngine", () => {
 	it("should inject memories and produce a complete report with all required fields", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () =>
 				createMockMemoryResult([{ id: "existing-1", title: "Existing", type: "failure_memory" }]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
@@ -337,21 +355,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should reject injections that violate policy rules (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 			policyRules: {
@@ -383,21 +387,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should reject injections with insufficient evidence (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 			policyRules: {
@@ -425,21 +415,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should reject injections with confidence below threshold (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 		});
@@ -465,21 +441,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should detect duplicate content (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () =>
 				createMockMemoryResult([
 					{
@@ -512,21 +474,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should detect potential conflicts with existing memories but not block injection (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () =>
 				createMockMemoryResult([
 					{
@@ -560,21 +508,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should include ignoredMemoryIds with reasons (AC1)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 			policyRules: {
@@ -623,21 +557,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should run lifecycle checks (AC2)", async () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () =>
 				createMockMemoryResult([
 					{
@@ -680,21 +600,7 @@ describe("MemoryInjectionEngine", () => {
 		};
 
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 			eventSink,
@@ -718,21 +624,7 @@ describe("MemoryInjectionEngine", () => {
 
 	it("should update policy rules dynamically", () => {
 		const engine = createMemoryInjectionEngine({
-			createMemory: async (input): Promise<any> => ({
-				id: `injected-${randomUUID()}`,
-				type: input.type as MemoryType,
-				title: input.title,
-				content: input.content,
-				summary: input.summary ?? "",
-				lifecycle: "active",
-				confidence: input.confidence,
-				provenance: input.provenance,
-				tags: input.tags ?? [],
-				category: input.category,
-				metadata: input.metadata ?? {},
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}),
+			createMemory: mockCreateMemory(),
 			retrieveMemories: async () => createMockMemoryResult([]),
 			resolveEvidence: async (refs) => refs.map((r) => createMockResolution(r)),
 		});
