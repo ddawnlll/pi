@@ -96,6 +96,13 @@ export class InMemoryProposalStore implements ProposalStore {
 			...(input.rejectionReason !== undefined ? { rejectionReason: input.rejectionReason } : {}),
 			...(input.executedAsPlanId !== undefined ? { executedAsPlanId: input.executedAsPlanId } : {}),
 			...(input.tags !== undefined ? { tags: input.tags } : {}),
+			// ---- V5.08 Fields ----
+			...(input.whyNow !== undefined ? { whyNow: input.whyNow } : {}),
+			...(input.expectedImpact !== undefined ? { expectedImpact: input.expectedImpact } : {}),
+			...(input.draftAvailable !== undefined ? { draftAvailable: input.draftAvailable } : {}),
+			...(input.approvalRequired !== undefined ? { approvalRequired: input.approvalRequired } : {}),
+			...(input.isDuplicate !== undefined ? { isDuplicate: input.isDuplicate } : {}),
+			...(input.duplicateOf !== undefined ? { duplicateOf: input.duplicateOf } : {}),
 			updatedAt: new Date().toISOString(),
 		};
 

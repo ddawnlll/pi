@@ -8,7 +8,12 @@
  * Scoring formulas (from Vision §6.3):
  *   Total Score = (novelty × 0.2) + (confidence × 0.3) + (urgency × 0.2) + (feasibility × 0.3)
  *
- * Auto-queue thresholds:
+ * V5.08: Auto-queue is removed from the API (AC2, AC4). The scoring
+ * engine still computes scores, but the API no longer auto-transitions
+ * proposals to approved. All proposals require user approval before
+ * reaching execution_ready status.
+ *
+ * Auto-queue thresholds (retained for informational purposes):
  *   - Total score >= 0.7 AND confidence >= 0.6
  *
  * File scope: This is the single scoring implementation for all

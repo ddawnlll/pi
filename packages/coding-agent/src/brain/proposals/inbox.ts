@@ -368,6 +368,16 @@ export class ProposalInbox {
 
 		parts.push(`(${scoreInfo.join(", ")})`);
 
+		// V5.08 AC1: Add evidence count, risk, expected impact to reason
+		parts.push(`| evidence=${proposal.evidenceCount}`);
+		parts.push(`risk=${proposal.risk.level}`);
+		if (proposal.isDuplicate) {
+			parts.push("DUPLICATE");
+		}
+		if (proposal.approvalRequired) {
+			parts.push("approval-needed");
+		}
+
 		return parts.join(" ");
 	}
 

@@ -43,6 +43,15 @@ export interface ProposalAcceptResult {
 }
 
 /**
+ * Result of marking a proposal execution-ready.
+ */
+export interface ProposalExecutionReadyResult {
+	success: boolean;
+	proposal: Proposal;
+	message: string;
+}
+
+/**
  * Result of a proposal reject operation.
  */
 export interface ProposalRejectResult {
@@ -101,6 +110,7 @@ export interface EvidenceDetail {
 		}>;
 		confidence: number;
 		evidenceSummary: string;
+		evidenceCount: number;
 	};
 	risk: {
 		level: string;
@@ -109,6 +119,14 @@ export interface EvidenceDetail {
 		affectedSystems: string[];
 		impactDescription: string;
 	};
+	// ---- V5.08 Fields ----
+	whyNow: string;
+	expectedImpact: string;
+	isDuplicate: boolean;
+	duplicateOf: string | null;
+	draftAvailable: boolean;
+	reviewsApprovalRequired: boolean;
+	relatedMemoryIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -182,12 +200,17 @@ export class BrainProposalApi {
 	/**
 	 * Create a new proposal with scoring and dedup checks.
 	 *
+	 * V5.08 (AC2, AC4): Proposal generation is advisory only.
+	 * - No auto-queue to approved/execution_ready
+	 * - All proposals start at "draft", then move to "pending_approval"
+	 * - Only explicit user action can reach "approved" or "execution_ready"
+	 *
 	 * Steps:
 	 * 1. Check deduplication (content hash match)
 	 * 2. Check cooldown (same type within cooldown period)
 	 * 3. Score the proposal (if not pre-scored)
-	 * 4. Check auto-queue threshold (high-scoring proposals auto-approve)
-	 * 5. Store the proposal
+	 * 4. Store the proposal as "pending_approval" (or "draft" if flagged)
+	 * 5. Record in dedup history
 	 *
 	 * @param input - The proposal creation input
 	 * @returns Result with the created proposal or error
@@ -197,11 +220,35 @@ export class BrainProposalApi {
 			// 1. Check recent proposals for dedup and cooldown
 			const existingProposals = await this.store.list();
 
-			// Check dedup
+			// Check dedup — support marking as duplicate instead of suppressing (V5.08 AC3)
 			const dupCheck = this.dedup.checkDuplicate(input, existingProposals);
 			const cdCheck = this.dedup.checkCooldown(input, existingProposals);
 			const dupResult = this.dedup.shouldSuppress(input, existingProposals);
 			if (dupResult.suppress) {
+				// Instead of full suppression, create a marked duplicate (V5.08 AC3)
+				// Only suppress if the markDuplicate mode is disabled
+				if (!this.dedup.getConfig().suppressDuplicates) {
+					// Create the proposal with duplicate markers
+					const scoredInput = input.score
+						? { ...input }
+						: { ...input, score: await this.scoringEngine.score(input, existingProposals) };
+					const markedInput: ProposalCreateInput = {
+						...scoredInput,
+						isDuplicate: true,
+						duplicateOf: dupCheck.similarProposalId ?? null,
+					};
+					const proposal = await this.store.create(markedInput);
+					const pending = await this.store.update(proposal.id, {
+						status: "pending_approval",
+					});
+					this.dedup.recordHistory(input);
+					return {
+						success: true,
+						proposal: pending,
+						isDuplicate: true,
+						duplicateReason: dupResult.reason,
+					};
+				}
 				return {
 					success: false,
 					error: dupResult.reason ?? "Proposal suppressed",
@@ -211,42 +258,19 @@ export class BrainProposalApi {
 			}
 
 			// 2. Score the proposal (if not pre-scored)
-			let scoredInput = { ...input };
-			if (!input.score) {
-				const score = await this.scoringEngine.score(input, existingProposals);
-				scoredInput = { ...input, score };
-			}
+			const scoredInput = input.score
+				? { ...input }
+				: { ...input, score: await this.scoringEngine.score(input, existingProposals) };
 
-			// 3. Check auto-queue: high-scoring proposals auto-transition to approved
-			const isAutoQueued =
-				this.scoringEngine.shouldAutoQueue(scoredInput.score!) && scoredInput.evidence.confidence >= 0.3;
+			// 3. V5.08 AC4: No auto-queue to execution. All proposals go to pending_approval.
+			const proposal = await this.store.create(scoredInput);
 
-			const proposalInput = {
-				...scoredInput,
-			};
-
-			// 4. Create the proposal
-			const proposal = await this.store.create(proposalInput);
-
-			// 5. If auto-queued, transition to approved
-			if (isAutoQueued) {
-				const updated = await this.store.update(proposal.id, {
-					status: "approved",
-				});
-				// Record in dedup history
-				this.dedup.recordHistory(input);
-				return {
-					success: true,
-					proposal: updated,
-				};
-			}
-
-			// Transition from draft to pending_approval
+			// 4. Transition from draft to pending_approval (advisory only)
 			const pending = await this.store.update(proposal.id, {
 				status: "pending_approval",
 			});
 
-			// Record in dedup history
+			// 5. Record in dedup history
 			this.dedup.recordHistory(input);
 
 			return {
@@ -290,14 +314,16 @@ export class BrainProposalApi {
 	}
 
 	// -----------------------------------------------------------------------
-	// Accept / Reject / Correct / Expire
+	// Accept / Reject / Mark Execution Ready / Correct / Expire
 	// -----------------------------------------------------------------------
 
 	/**
-	 * Accept a proposal.
+	 * Accept a proposal (user approval).
 	 *
-	 * Transitions the proposal to "approved" status and records
-	 * who approved it. Also updates the inbox and dedup history.
+	 * V5.08 AC2: Transitions the proposal to "approved" status.
+	 * This is the ONLY way a proposal can move toward execution.
+	 * The proposal cannot skip directly from draft/pending_approval
+	 * to execution_ready without explicit user approval.
 	 *
 	 * @param id - Proposal ID
 	 * @param approvedBy - Who approved the proposal
@@ -321,7 +347,15 @@ export class BrainProposalApi {
 			};
 		}
 
-		if (existing.status === "rejected" || existing.status === "expired") {
+		if (existing.status === "execution_ready") {
+			return {
+				success: true,
+				proposal: existing,
+				message: "Proposal is already execution-ready",
+			};
+		}
+
+		if (existing.status === "rejected" || existing.status === "expired" || existing.status === "executed") {
 			return {
 				success: false,
 				proposal: null as unknown as Proposal,
@@ -338,6 +372,57 @@ export class BrainProposalApi {
 			success: true,
 			proposal: updated,
 			message: "Proposal accepted",
+		};
+	}
+
+	/**
+	 * Mark a proposal as execution-ready.
+	 *
+	 * V5.08 AC2: A proposal can only be marked execution-ready if
+	 * it has been approved by the user first. This enforces the
+	 * gate that no proposal reaches execution without user approval.
+	 *
+	 * Transition: approved -> execution_ready
+	 *
+	 * @param id - Proposal ID
+	 * @returns Result with the execution-ready proposal
+	 */
+	async markExecutionReady(id: string, approvedBy: string = "user"): Promise<ProposalExecutionReadyResult> {
+		const existing = await this.store.getById(id);
+		if (!existing) {
+			return {
+				success: false,
+				proposal: null as unknown as Proposal,
+				message: `Proposal "${id}" not found`,
+			};
+		}
+
+		if (existing.status === "execution_ready") {
+			return {
+				success: true,
+				proposal: existing,
+				message: "Proposal is already execution-ready",
+			};
+		}
+
+		// V5.08 AC2 gate: Only approved proposals can become execution-ready
+		if (existing.status !== "approved") {
+			return {
+				success: false,
+				proposal: null as unknown as Proposal,
+				message: `Cannot mark a proposal with status "${existing.status}" as execution-ready. Only approved proposals can be marked execution-ready.`,
+			};
+		}
+
+		const updated = await this.store.update(id, {
+			status: "execution_ready",
+			approvedBy,
+		});
+
+		return {
+			success: true,
+			proposal: updated,
+			message: "Proposal marked as execution-ready",
 		};
 	}
 
@@ -370,7 +455,7 @@ export class BrainProposalApi {
 			};
 		}
 
-		if (existing.status === "approved" || existing.status === "executed") {
+		if (existing.status === "executed") {
 			return {
 				success: false,
 				proposal: null as unknown as Proposal,
@@ -582,6 +667,7 @@ export class BrainProposalApi {
 				})),
 				confidence: proposal.evidence.confidence,
 				evidenceSummary: proposal.evidence.evidenceSummary,
+				evidenceCount: proposal.evidenceCount,
 			},
 			risk: {
 				level: proposal.risk.level,
@@ -590,6 +676,14 @@ export class BrainProposalApi {
 				affectedSystems: [...proposal.risk.affectedSystems],
 				impactDescription: proposal.risk.impactDescription,
 			},
+			// ---- V5.08 Fields ----
+			whyNow: proposal.whyNow,
+			expectedImpact: proposal.expectedImpact,
+			isDuplicate: proposal.isDuplicate,
+			duplicateOf: proposal.duplicateOf,
+			draftAvailable: proposal.draftAvailable,
+			reviewsApprovalRequired: proposal.approvalRequired,
+			relatedMemoryIds: [...proposal.evidence.memoryIds],
 		};
 	}
 

@@ -56,6 +56,7 @@ export type ProposalStatus =
 	| "rejected"
 	| "superseded"
 	| "expired"
+	| "execution_ready"
 	| "executed";
 
 // ---------------------------------------------------------------------------
@@ -115,7 +116,8 @@ export interface ProposalRiskAssessment {
  * The total score is a weighted combination of novelty, confidence,
  * urgency, and feasibility. Each dimension is 0-1.
  *
- * Auto-queue threshold: total >= 0.7 AND confidence >= 0.6
+ * V5.08: Auto-queue is removed. All proposals require user approval
+ * before reaching execution_ready status.
  */
 export interface ProposalScore {
 	/** Weighted total score (0-1) */
@@ -135,6 +137,14 @@ export interface ProposalScore {
  *
  * Every proposal carries evidence references, risk assessment, scoring,
  * and full lifecycle tracking with provenance.
+ *
+ * V5.08 additions:
+ * - whyNow: explicit rationale for acting now
+ * - expectedImpact: description of intended outcome
+ * - isDuplicate / duplicateOf: duplicate marking (V5.08 AC3)
+ * - draftAvailable: whether a draft/plan exists
+ * - approvalRequired: gate — no execution without user approval (V5.08 AC2)
+ * - evidenceCount: computed number of evidence references
  */
 export interface Proposal {
 	/** Unique proposal identifier (ULID-style, currently UUID v4) */
@@ -145,6 +155,10 @@ export interface Proposal {
 	title: string;
 	/** Detailed description of what is proposed */
 	description: string;
+	/** Explanation of why this proposal should be acted on now (V5.08) */
+	whyNow: string;
+	/** Description of the expected impact if enacted (V5.08) */
+	expectedImpact: string;
 	/** Evidence backing this proposal */
 	evidence: ProposalEvidence;
 	/** Risk assessment */
@@ -177,6 +191,17 @@ export interface Proposal {
 	tags: string[];
 	/** Arbitrary metadata for extensibility */
 	metadata: Record<string, unknown>;
+	// ---- V5.08 Fields ----
+	/** Whether this proposal is a duplicate of another (V5.08 AC3) */
+	isDuplicate: boolean;
+	/** ID of the proposal this is a duplicate of, if any */
+	duplicateOf: string | null;
+	/** Whether a draft/plan exists for this proposal (V5.08 AC1) */
+	draftAvailable: boolean;
+	/** Whether user approval is required before execution (V5.08 AC2) */
+	approvalRequired: boolean;
+	/** Number of evidence references backing this proposal (computed, V5.08 AC1) */
+	evidenceCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +214,8 @@ export interface Proposal {
  * Score is optional at creation time — the scoring engine computes
  * it before the proposal is persisted. All other fields are required
  * to ensure complete proposals.
+ *
+ * V5.08 additions: whyNow, expectedImpact, draftAvailable, approvalRequired.
  */
 export interface ProposalCreateInput {
 	/** Type of proposal */
@@ -197,6 +224,10 @@ export interface ProposalCreateInput {
 	title: string;
 	/** Detailed description */
 	description: string;
+	/** Explanation of why this proposal should be acted on now (V5.08) */
+	whyNow: string;
+	/** Description of the expected impact if enacted (V5.08) */
+	expectedImpact: string;
 	/** Evidence backing this proposal */
 	evidence: ProposalEvidence;
 	/** Risk assessment */
@@ -209,6 +240,15 @@ export interface ProposalCreateInput {
 	tags?: string[];
 	/** Arbitrary metadata */
 	metadata?: Record<string, unknown>;
+	// ---- V5.08 Fields ----
+	/** Whether a draft/plan already exists for this proposal */
+	draftAvailable?: boolean;
+	/** Whether user approval is required before execution (default true) */
+	approvalRequired?: boolean;
+	/** Whether this proposal is a duplicate */
+	isDuplicate?: boolean;
+	/** ID of the proposal this is a duplicate of */
+	duplicateOf?: string | null;
 }
 
 /**
@@ -230,6 +270,19 @@ export interface ProposalUpdateInput {
 	executedAsPlanId?: string;
 	/** Updated tags */
 	tags?: string[];
+	// ---- V5.08 Fields ----
+	/** Updated whyNow explanation */
+	whyNow?: string;
+	/** Updated expected impact description */
+	expectedImpact?: string;
+	/** Updated draft availability */
+	draftAvailable?: boolean;
+	/** Update approval requirement */
+	approvalRequired?: boolean;
+	/** Updated duplicate status */
+	isDuplicate?: boolean;
+	/** Updated duplicate-of reference */
+	duplicateOf?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +428,7 @@ export const ALL_PROPOSAL_STATUSES: ProposalStatus[] = [
 	"rejected",
 	"superseded",
 	"expired",
+	"execution_ready",
 	"executed",
 ];
 
@@ -407,19 +461,35 @@ export function createProposalCreateInput(
 		description: string;
 		evidence: ProposalEvidence;
 		risk: ProposalRiskAssessment;
+	} & {
+		whyNow?: string;
+		expectedImpact?: string;
 	},
 ): ProposalCreateInput {
 	return {
 		type: input.type,
 		title: input.title,
 		description: input.description,
+		whyNow: input.whyNow ?? `Timely consideration is recommended based on available evidence.`,
+		expectedImpact: input.expectedImpact ?? `Enacting this proposal improves system operations.`,
 		evidence: input.evidence,
 		risk: input.risk,
 		score: input.score,
 		relatedGoalIds: input.relatedGoalIds ?? [],
 		tags: input.tags ?? [],
 		metadata: input.metadata ?? {},
+		draftAvailable: input.draftAvailable ?? false,
+		approvalRequired: input.approvalRequired ?? true,
+		isDuplicate: input.isDuplicate ?? false,
+		duplicateOf: input.duplicateOf ?? null,
 	};
+}
+
+/**
+ * Count evidence references for a proposal.
+ */
+export function countEvidenceRefs(evidence: ProposalEvidence): number {
+	return evidence.memoryIds.length + evidence.observationIds.length + evidence.sourceRefs.length;
 }
 
 /**
@@ -433,11 +503,15 @@ export function createProposal(input: ProposalCreateInput, overrides?: Partial<P
 	const now = new Date().toISOString();
 	const expiresAt = new Date(Date.now() + DEFAULT_PROPOSAL_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
+	const evidenceCount = countEvidenceRefs(input.evidence);
+
 	return {
 		id: overrides?.id ?? randomUUID(),
 		type: input.type,
 		title: input.title,
 		description: input.description,
+		whyNow: overrides?.whyNow ?? input.whyNow,
+		expectedImpact: overrides?.expectedImpact ?? input.expectedImpact,
 		evidence: {
 			memoryIds: [...input.evidence.memoryIds],
 			observationIds: [...input.evidence.observationIds],
@@ -473,6 +547,12 @@ export function createProposal(input: ProposalCreateInput, overrides?: Partial<P
 		relatedGoalIds: input.relatedGoalIds ?? [],
 		tags: input.tags ?? [],
 		metadata: { ...input.metadata },
+		// ---- V5.08 Fields ----
+		isDuplicate: overrides?.isDuplicate ?? input.isDuplicate ?? false,
+		duplicateOf: overrides?.duplicateOf ?? input.duplicateOf ?? null,
+		draftAvailable: overrides?.draftAvailable ?? input.draftAvailable ?? false,
+		approvalRequired: overrides?.approvalRequired ?? input.approvalRequired ?? true,
+		evidenceCount,
 	};
 }
 
@@ -549,6 +629,14 @@ export function validateProposalCreateInput(input: ProposalCreateInput): string[
 		errors.push("description is required");
 	}
 
+	if (!input.whyNow || input.whyNow.trim().length === 0) {
+		errors.push("whyNow explanation is required");
+	}
+
+	if (!input.expectedImpact || input.expectedImpact.trim().length === 0) {
+		errors.push("expectedImpact is required");
+	}
+
 	errors.push(...validateProposalEvidence(input.evidence));
 	errors.push(...validateProposalRisk(input.risk));
 
@@ -588,9 +676,9 @@ export function computeProposalStats(proposals: Proposal[]): ProposalStats {
 		totalScore += proposal.score.total;
 		scoredCount++;
 
-		if (proposal.status === "approved" || proposal.status === "rejected") {
+		if (proposal.status === "approved" || proposal.status === "rejected" || proposal.status === "execution_ready") {
 			reviewedCount++;
-			if (proposal.status === "approved") {
+			if (proposal.status === "approved" || proposal.status === "execution_ready") {
 				approvedCount++;
 			}
 		}

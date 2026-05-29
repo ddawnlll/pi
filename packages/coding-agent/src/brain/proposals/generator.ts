@@ -975,10 +975,16 @@ export class ProposalGenerator {
 		risk: ProposalRiskAssessment,
 		goals?: GoalRecord[],
 	): ProposalCreateInput {
+		// V5.08: Generate whyNow and expectedImpact from context
+		const whyNow = this.generateWhyNow(type, evidence, risk);
+		const expectedImpact = this.generateExpectedImpact(type, description, risk);
+
 		return {
 			type,
 			title,
 			description,
+			whyNow,
+			expectedImpact,
 			evidence: {
 				memoryIds: [...evidence.memoryIds],
 				observationIds: [...evidence.observationIds],
@@ -996,7 +1002,68 @@ export class ProposalGenerator {
 			relatedGoalIds: goals?.map((g) => g.id) ?? [],
 			tags: [type],
 			metadata: {},
+			// V5.08: All generated proposals are advisory — no draft exists yet
+			draftAvailable: false,
+			approvalRequired: true,
 		};
+	}
+
+	/**
+	 * Generate a "why now" explanation for a proposal.
+	 *
+	 * V5.08 AC1: Explains the urgency and timeliness of acting on this proposal.
+	 */
+	private generateWhyNow(type: ProposalType, evidence: ProposalEvidence, risk: ProposalRiskAssessment): string {
+		const evidenceRefs = evidence.memoryIds.length + evidence.observationIds.length + evidence.sourceRefs.length;
+		const parts: string[] = [];
+
+		if (evidence.observationIds.length > 0) {
+			parts.push(`${evidence.observationIds.length} recent observation(s) signal immediate attention.`);
+		}
+		if (evidence.memoryIds.length > 0) {
+			parts.push(`Backed by ${evidence.memoryIds.length} relevant memory record(s).`);
+		}
+		if (risk.level === "high" || risk.level === "critical") {
+			parts.push(`${risk.level} risk level indicates timely action is warranted.`);
+		}
+		if (type === "safety_proposal") {
+			parts.push("Safety concerns should be addressed promptly to prevent escalation.");
+		}
+
+		if (parts.length === 0) {
+			parts.push("Timely consideration is recommended based on available observations and evidence.");
+		}
+
+		parts.push(
+			`This proposal is backed by ${evidenceRefs} evidence reference(s)` +
+				` with ${(evidence.confidence * 100).toFixed(0)}% confidence.`,
+		);
+
+		return parts.join(" ");
+	}
+
+	/**
+	 * Generate an expected impact description for a proposal.
+	 *
+	 * V5.08 AC1: Describes what positive outcome or change is expected.
+	 */
+	private generateExpectedImpact(type: ProposalType, description: string, risk: ProposalRiskAssessment): string {
+		switch (type) {
+			case "plan_proposal":
+				return `Implementing this plan proposal addresses the described issue: ${description.slice(0, 80)}... Expected to improve stability and reduce recurrence.`;
+			case "memory_proposal":
+				return "Resolving memory conflicts improves the accuracy of future observations and decision-making.";
+			case "goal_revision_proposal":
+				return "Updating goal alignment keeps priorities current with observed project state.";
+			case "autonomy_adjustment_proposal":
+				return "Adjusting autonomy level calibrates the system's ability to act independently.";
+			case "reflection_proposal":
+				return "Capturing lessons learned improves future planning and execution quality.";
+			case "safety_proposal":
+				return `Addressing this safety signal ${risk.factors.length > 0 ? `(${risk.factors[0]}) ` : ""}prevents potential system degradation or failure.`;
+			default:
+				return "Enacting this proposal improves system operations based on observed evidence.";
+		}
 	}
 
 	/**

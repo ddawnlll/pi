@@ -391,3 +391,233 @@ export interface EvidenceStats {
 export interface EvidenceStatsResponse {
 	stats: EvidenceStats;
 }
+
+// =========================================================================
+// Proposal Engine v2 (V5.08)
+// =========================================================================
+
+/**
+ * V5.08 Proposal card view — what the dashboard shows.
+ *
+ * AC1: Proposal cards explain:
+ * - problem (title + description)
+ * - why now (whyNow explanation)
+ * - evidence count
+ * - related memories
+ * - risk
+ * - expected impact
+ * - draft availability
+ * - approval requirement
+ */
+
+/** V5.08 Proposal types */
+export type V5ProposalType =
+	| "memory_proposal"
+	| "plan_proposal"
+	| "goal_revision_proposal"
+	| "autonomy_adjustment_proposal"
+	| "reflection_proposal"
+	| "safety_proposal";
+
+/** V5.08 Proposal lifecycle status */
+export type V5ProposalStatus =
+	| "draft"
+	| "pending_approval"
+	| "approved"
+	| "rejected"
+	| "superseded"
+	| "expired"
+	| "execution_ready"
+	| "executed";
+
+/** V5.08 Risk level */
+export type V5RiskLevel = "low" | "medium" | "high" | "critical";
+
+/** V5.08 Evidence backing for a proposal card */
+export interface V5ProposalCardEvidence {
+	/** Number of memory references */
+	memoryCount: number;
+	/** Number of observation references */
+	observationCount: number;
+	/** Total evidence reference count */
+	evidenceCount: number;
+	/** Overall confidence (0-1) */
+	confidence: number;
+	/** Human-readable summary */
+	evidenceSummary: string;
+	/** IDs of referenced memory records */
+	relatedMemoryIds: string[];
+}
+
+/** V5.08 Risk assessment for a proposal card */
+export interface V5ProposalCardRisk {
+	/** Risk level */
+	level: V5RiskLevel;
+	/** Contributing factors */
+	factors: string[];
+	/** Mitigation strategies */
+	mitigation: string[];
+	/** Description of potential impact */
+	impactDescription: string;
+}
+
+/** V5.08 Proposal card — the primary user-facing unit */
+export interface V5ProposalCard {
+	/** Unique proposal ID */
+	id: string;
+	/** Proposal type */
+	type: V5ProposalType;
+	/** Problem: short title */
+	title: string;
+	/** Problem: detailed description */
+	description: string;
+	/** AC1: Why act now? */
+	whyNow: string;
+	/** AC1: Expected impact if enacted */
+	expectedImpact: string;
+	/** AC1: Evidence backing */
+	evidence: V5ProposalCardEvidence;
+	/** AC1: Risk assessment */
+	risk: V5ProposalCardRisk;
+	/** Current status */
+	status: V5ProposalStatus;
+	/** AC1: Whether a draft/plan is already available */
+	draftAvailable: boolean;
+	/** AC1: Whether user approval is required before execution */
+	approvalRequired: boolean;
+	/** AC3: Whether this is a duplicate proposal */
+	isDuplicate: boolean;
+	/** AC3: ID of the proposal this duplicates (if any) */
+	duplicateOf: string | null;
+	/** Score (for ranking, 0-1) */
+	score: number;
+	/** ISO 8601 creation timestamp */
+	createdAt: string;
+	/** ISO 8601 last update timestamp */
+	updatedAt: string;
+	/** Related goal IDs */
+	relatedGoalIds: string[];
+	/** Tags */
+	tags: string[];
+}
+
+/** V5.08 Inbox entry for a proposal card */
+export interface V5InboxEntry {
+	/** The proposal card */
+	proposal: V5ProposalCard;
+	/** Rank position */
+	rank: number;
+	/** Why this proposal is in the inbox */
+	reason: string;
+	/** Recommendation hint */
+	recommendation: "auto_approve" | "review" | "reject";
+	/** Related memory summaries */
+	relatedMemorySummaries: string[];
+	/** Related observation summaries */
+	relatedObservationSummaries: string[];
+}
+
+/** V5.08 Inbox view */
+export interface V5InboxView {
+	entries: V5InboxEntry[];
+	totalPending: number;
+	lastUpdated: string;
+}
+
+/** Response from GET /brain-v5/proposals */
+export interface V5ProposalsResponse {
+	proposals: V5ProposalCard[];
+}
+
+/** Response from GET /brain-v5/proposals/:id */
+export interface V5ProposalResponse {
+	proposal: V5ProposalCard;
+}
+
+/** Response from POST /brain-v5/proposals */
+export interface V5CreateProposalResponse {
+	success: boolean;
+	proposal?: V5ProposalCard;
+	error?: string;
+	isDuplicate?: boolean;
+	duplicateReason?: string;
+	isInCooldown?: boolean;
+	cooldownRemainingHours?: number;
+}
+
+/** Response from POST /brain-v5/proposals/:id/accept */
+export interface V5AcceptProposalResponse {
+	success: boolean;
+	proposal?: V5ProposalCard;
+	message: string;
+}
+
+/** Response from POST /brain-v5/proposals/:id/reject */
+export interface V5RejectProposalResponse {
+	success: boolean;
+	proposal?: V5ProposalCard;
+	message: string;
+}
+
+/** Response from POST /brain-v5/proposals/:id/execution-ready */
+export interface V5ExecutionReadyResponse {
+	success: boolean;
+	proposal?: V5ProposalCard;
+	message: string;
+}
+
+/** Response from GET /brain-v5/proposals/inbox */
+export interface V5InboxResponse {
+	inbox: V5InboxView;
+}
+
+/** Response from GET /brain-v5/proposals/evidence/:id */
+export interface V5EvidenceDetail {
+	proposalId: string;
+	proposalTitle: string;
+	evidence: {
+		memoryIds: string[];
+		observationIds: string[];
+		sourceRefs: Array<{
+			type: string;
+			path: string;
+			id: string;
+			lineStart?: number;
+			lineEnd?: number;
+			timestamp?: string;
+		}>;
+		confidence: number;
+		evidenceSummary: string;
+		evidenceCount: number;
+	};
+	risk: {
+		level: string;
+		factors: string[];
+		mitigation: string[];
+		affectedSystems: string[];
+		impactDescription: string;
+	};
+	whyNow: string;
+	expectedImpact: string;
+	isDuplicate: boolean;
+	duplicateOf: string | null;
+	draftAvailable: boolean;
+	reviewsApprovalRequired: boolean;
+	relatedMemoryIds: string[];
+}
+
+/** Response from GET /brain-v5/proposals/stats */
+export interface V5ProposalStats {
+	totalProposals: number;
+	byStatus: Record<string, number>;
+	byType: Record<string, number>;
+	averageScore: number;
+	acceptanceRate: number;
+	pendingApprovalCount: number;
+	expiredCount: number;
+}
+
+/** Response from GET /brain-v5/proposals/stats */
+export interface V5ProposalStatsResponse {
+	stats: V5ProposalStats;
+}

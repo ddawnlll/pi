@@ -155,6 +155,42 @@ interface V5RouteOptions {
 		assess: (refs: unknown[]) => Promise<unknown>;
 		stats: () => Promise<unknown>;
 	}>;
+
+	/** Optional provider for the Proposal Engine v2 API (V5.08). */
+	getProposalApi?: () => Promise<{
+		listProposals: (query?: {
+			status?: string[];
+			type?: string[];
+			minScore?: number;
+			maxScore?: number;
+			tag?: string;
+			limit?: number;
+			offset?: number;
+			sortBy?: string;
+			sortOrder?: string;
+		}) => Promise<unknown[]>;
+		getProposal: (id: string) => Promise<unknown | null>;
+		createProposal: (input: unknown) => Promise<{
+			success: boolean;
+			proposal?: unknown;
+			error?: string;
+			isDuplicate?: boolean;
+			duplicateReason?: string;
+			isInCooldown?: boolean;
+			cooldownRemainingHours?: number;
+		}>;
+		updateProposal: (id: string, input: unknown) => Promise<unknown | null>;
+		deleteProposal: (id: string) => Promise<boolean>;
+		acceptProposal: (id: string, approvedBy?: string) => Promise<unknown>;
+		rejectProposal: (id: string, rejectedBy?: string, reason?: string) => Promise<unknown>;
+		markExecutionReady: (id: string, approvedBy?: string) => Promise<unknown>;
+		correctProposal: (id: string, corrections: unknown) => Promise<unknown>;
+		expireProposal: (id: string) => Promise<unknown>;
+		getInbox: () => Promise<unknown>;
+		getInboxStats: () => Promise<unknown>;
+		getEvidence: (id: string) => Promise<unknown | null>;
+		getStats: () => Promise<unknown>;
+	}>;
 }
 
 /**
@@ -710,6 +746,304 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to get evidence stats",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Proposal Engine v2 Routes (V5.08)
+	// =========================================================================
+
+	// GET /brain-v5/proposals — List proposals with optional filters
+	fastify.get("/brain-v5/proposals", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const query = request.query as {
+				status?: string;
+				type?: string;
+				minScore?: string;
+				maxScore?: string;
+				tag?: string;
+				limit?: string;
+				offset?: string;
+				sortBy?: string;
+				sortOrder?: string;
+			};
+
+			const proposals = await api.listProposals({
+				status: query.status?.split(",") as string[] | undefined,
+				type: query.type?.split(",") as string[] | undefined,
+				minScore: query.minScore ? parseFloat(query.minScore) : undefined,
+				maxScore: query.maxScore ? parseFloat(query.maxScore) : undefined,
+				tag: query.tag,
+				limit: query.limit ? parseInt(query.limit, 10) : 50,
+				offset: query.offset ? parseInt(query.offset, 10) : 0,
+			} as Record<string, unknown>);
+
+			return { proposals };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to list proposals",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/proposals/:id — Get a single proposal
+	fastify.get("/brain-v5/proposals/:id", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const proposal = await api.getProposal(params.id);
+
+			if (!proposal) {
+				return reply.code(404).send({ error: "Proposal not found" });
+			}
+
+			return { proposal };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/proposals — Create a new proposal (advisory only, V5.08 AC4)
+	fastify.post("/brain-v5/proposals", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const body = request.body as Record<string, unknown>;
+
+			if (!body.type || !body.title || !body.description) {
+				return reply.code(400).send({ error: "type, title, and description are required" });
+			}
+
+			const result = await api.createProposal(body);
+
+			if (!result.success) {
+				return reply.code(400).send({
+					error: result.error ?? "Failed to create proposal",
+					isDuplicate: result.isDuplicate,
+					duplicateReason: result.duplicateReason,
+					isInCooldown: result.isInCooldown,
+					cooldownRemainingHours: result.cooldownRemainingHours,
+				});
+			}
+
+			return reply.code(201).send({ success: true, proposal: result.proposal });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to create proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// PATCH /brain-v5/proposals/:id — Update a proposal
+	fastify.patch("/brain-v5/proposals/:id", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const body = request.body as Record<string, unknown>;
+
+			const proposal = await api.updateProposal(params.id, body);
+
+			if (!proposal) {
+				return reply.code(404).send({ error: "Proposal not found" });
+			}
+
+			return { proposal };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to update proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// DELETE /brain-v5/proposals/:id — Delete a proposal
+	fastify.delete("/brain-v5/proposals/:id", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const deleted = await api.deleteProposal(params.id);
+
+			if (!deleted) {
+				return reply.code(404).send({ error: "Proposal not found" });
+			}
+
+			return { success: true };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to delete proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/proposals/:id/accept — Accept/approve a proposal (V5.08 AC2 gate)
+	fastify.post("/brain-v5/proposals/:id/accept", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const body = request.body as { approvedBy?: string };
+
+			const result = await api.acceptProposal(params.id, body.approvedBy ?? "user");
+
+			if (!result.success) {
+				return reply.code(400).send({
+					error: result.message,
+				});
+			}
+
+			return { success: true, proposal: result.proposal, message: result.message };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to accept proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/proposals/:id/reject — Reject a proposal
+	fastify.post("/brain-v5/proposals/:id/reject", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const body = request.body as { rejectedBy?: string; reason?: string };
+
+			const result = await api.rejectProposal(params.id, body.rejectedBy ?? "user", body.reason);
+
+			if (!result.success) {
+				return reply.code(400).send({
+					error: result.message,
+				});
+			}
+
+			return { success: true, proposal: result.proposal, message: result.message };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to reject proposal",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/proposals/:id/execution-ready — Mark a proposal execution-ready (V5.08 AC2 gate)
+	fastify.post("/brain-v5/proposals/:id/execution-ready", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const body = request.body as { approvedBy?: string };
+
+			const result = await api.markExecutionReady(params.id, body.approvedBy ?? "user");
+
+			if (!result.success) {
+				return reply.code(400).send({
+					error: result.message,
+				});
+			}
+
+			return { success: true, proposal: result.proposal, message: result.message };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to mark proposal execution-ready",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/proposals/inbox — Get proposal inbox (V5.08 AC1 cards)
+	fastify.get("/brain-v5/proposals/inbox", async (_request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const inbox = await api.getInbox();
+
+			return { inbox };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get proposal inbox",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/proposals/evidence/:id — Get evidence for a proposal (V5.08 AC1)
+	fastify.get("/brain-v5/proposals/evidence/:id", async (request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const params = request.params as { id: string };
+			const evidence = await api.getEvidence(params.id);
+
+			if (!evidence) {
+				return reply.code(404).send({ error: "Proposal not found" });
+			}
+
+			return { evidence };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get proposal evidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/proposals/stats — Get proposal statistics
+	fastify.get("/brain-v5/proposals/stats", async (_request, reply) => {
+		try {
+			if (!options?.getProposalApi) {
+				return reply.code(503).send({ error: "Proposal API not available" });
+			}
+
+			const api = await options.getProposalApi();
+			const stats = await api.getStats();
+
+			return { stats };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get proposal stats",
 				message: error instanceof Error ? error.message : String(error),
 			});
 		}

@@ -63,6 +63,8 @@ export interface DedupConfig {
 	enabled: boolean;
 	/** Hash algorithm: 'sha256' for exact matching, 'similarity' for fuzzy */
 	hashAlgorithm: "sha256" | "similarity";
+	/** V5.08 AC3: If true, duplicates are suppressed entirely. If false, they are marked (default: true) */
+	suppressDuplicates: boolean;
 }
 
 /**
@@ -80,6 +82,8 @@ export interface DedupConfigInput {
 	enabled?: boolean;
 	/** Hash algorithm: 'sha256' for exact matching, 'similarity' for fuzzy */
 	hashAlgorithm?: "sha256" | "similarity";
+	/** V5.08 AC3: If true, duplicates are suppressed. If false, marked as duplicate (default: true) */
+	suppressDuplicates?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +122,7 @@ export const DEFAULT_DEDUP_CONFIG: DedupConfig = {
 	similarityThreshold: 0.8,
 	enabled: true,
 	hashAlgorithm: "sha256",
+	suppressDuplicates: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -195,6 +200,7 @@ export class ProposalDeduplication {
 			similarityThreshold: config?.similarityThreshold ?? DEFAULT_DEDUP_CONFIG.similarityThreshold,
 			enabled: config?.enabled ?? DEFAULT_DEDUP_CONFIG.enabled,
 			hashAlgorithm: config?.hashAlgorithm ?? DEFAULT_DEDUP_CONFIG.hashAlgorithm,
+			suppressDuplicates: config?.suppressDuplicates ?? DEFAULT_DEDUP_CONFIG.suppressDuplicates,
 		};
 	}
 
@@ -432,6 +438,10 @@ export class ProposalDeduplication {
 	/**
 	 * Combined suppression check (duplicate OR cooldown).
 	 *
+	 * V5.08 AC3: If `suppressDuplicates` is true, duplicates are suppressed.
+	 * If false, they are not suppressed — the caller is expected to mark
+	 * the proposal as a duplicate instead.
+	 *
 	 * Returns `suppress: true` with a reason if the proposal should
 	 * not be generated. Logs suppressed proposals to the suppression
 	 * log automatically.
@@ -448,8 +458,13 @@ export class ProposalDeduplication {
 		// Check duplicate first
 		const dup = this.checkDuplicate(proposal, recentProposals);
 		if (dup.isDuplicate) {
-			this.logSuppression(proposal, dup.matchReason ?? "Duplicate detected", dup.similarProposalId);
-			return { suppress: true, reason: dup.matchReason ?? "Duplicate detected" };
+			// V5.08 AC3: only suppress if configured to do so
+			if (this.config.suppressDuplicates) {
+				this.logSuppression(proposal, dup.matchReason ?? "Duplicate detected", dup.similarProposalId);
+				return { suppress: true, reason: dup.matchReason ?? "Duplicate detected" };
+			}
+			// Return false but still indicate it's a duplicate — caller can mark it
+			return { suppress: false };
 		}
 
 		// Check cooldown
@@ -616,11 +631,17 @@ export class ProposalDeduplication {
 			type: proposal.type,
 			title: proposal.title,
 			description: proposal.description,
+			whyNow: proposal.whyNow,
+			expectedImpact: proposal.expectedImpact,
 			evidence: proposal.evidence,
 			risk: proposal.risk,
 			relatedGoalIds: proposal.relatedGoalIds,
 			tags: proposal.tags,
 			metadata: proposal.metadata,
+			draftAvailable: proposal.draftAvailable,
+			approvalRequired: proposal.approvalRequired,
+			isDuplicate: proposal.isDuplicate,
+			duplicateOf: proposal.duplicateOf,
 		};
 	}
 
