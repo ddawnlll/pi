@@ -1114,11 +1114,20 @@ export class JsonStateStore implements IStateStore {
 				}
 				const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
 				const tempPath = `${filePath}.tmp`;
-				await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
-				await fs.rename(tempPath, filePath);
+				
+				// Guard against race condition where directory is deleted during cleanup
+				try {
+					await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
+					await fs.rename(tempPath, filePath);
 
-				// Create a .bak copy for crash recovery
-				await fs.copyFile(filePath, `${filePath}.bak`).catch(() => {});
+					// Create a .bak copy for crash recovery
+					await fs.copyFile(filePath, `${filePath}.bak`).catch(() => {});
+				} catch (err) {
+					// Ignore ENOENT errors during cleanup (directory was deleted)
+					if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+						throw err;
+					}
+				}
 			}
 		} finally {
 			release();
