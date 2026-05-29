@@ -1,4 +1,4 @@
-import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen, Brain, AlertTriangle } from "lucide-react";
+import { type LucideIcon, Play, Pause, Square, Settings, PanelLeftClose, LayoutGrid, RefreshCw, Upload, GitBranch, Terminal, ScrollText, Bot, Archive, PanelRightClose, PanelRightOpen, Brain, AlertTriangle, Eye, Zap, Edit3, Rocket } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -90,11 +90,16 @@ function LabeledActionBtn({
 
 // ─── Main Topbar component ─────────────────────────────────────────────────
 
+/** Brain V5 operating mode for the topbar indicator. */
+export type TopbarBrainMode = "OFF" | "READ_ONLY" | "ADVISORY" | "DRAFTING" | "OPERATOR_READY";
+
 export interface TopbarProps {
   /** Plan execution title to display (truncated). */
   planTitle?: string | null;
   /** Plan execution status badge node. */
   statusBadge?: React.ReactNode;
+  /** Brain V5 mode indicator — shown next to title when set. */
+  brainMode?: TopbarBrainMode | null;
 
   // Navigation
   onToggleMobileNav: () => void;
@@ -138,9 +143,37 @@ export interface TopbarProps {
   showBrainContext: boolean;
 }
 
+function BrainModeBadge({ mode }: { mode: TopbarBrainMode }) {
+  const colors: Record<TopbarBrainMode, string> = {
+    OFF:            "bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400",
+    READ_ONLY:      "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+    ADVISORY:       "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+    DRAFTING:       "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+    OPERATOR_READY: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+  };
+  const icons: Record<TopbarBrainMode, LucideIcon> = {
+    OFF:            Eye,
+    READ_ONLY:      Eye,
+    ADVISORY:       Zap,
+    DRAFTING:       Edit3,
+    OPERATOR_READY: Rocket,
+  };
+  const Icon = icons[mode];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap ${colors[mode]}`}
+      title={`Brain V5 mode: ${mode.replace(/_/g, " ")}`}
+    >
+      <Icon size={10} strokeWidth={2} />
+      {mode === "OPERATOR_READY" ? "OPS" : mode === "READ_ONLY" ? "R/O" : mode.slice(0, 3)}
+    </span>
+  );
+}
+
 export function Topbar({
   planTitle,
   statusBadge,
+  brainMode,
   onToggleMobileNav,
   onToggleLeftSidebar,
   leftSidebarOpen,
@@ -198,6 +231,7 @@ export function Topbar({
         <span className="text-[13px] font-semibold text-stone-800 dark:text-stone-200 tracking-tight whitespace-nowrap">
           Planner
         </span>
+        {brainMode && <BrainModeBadge mode={brainMode} />}
         {statusBadge}
         {planTitle && (
           <span className="hidden sm:inline text-xs text-stone-400 dark:text-stone-500 truncate max-w-[200px]">

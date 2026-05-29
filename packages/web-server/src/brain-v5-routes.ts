@@ -188,6 +188,30 @@ interface V5RouteOptions {
 		stats: () => Promise<unknown>;
 	}>;
 
+	/** Optional provider for the Context Builder (V5.04). */
+	getContextBuilder?: () => Promise<{
+		build: (options: {
+			scope: string;
+			memoryLimit?: number;
+			includeTemporalContext?: boolean;
+			temporalSince?: string;
+			temporalUntil?: string;
+			skipEvidencePack?: boolean;
+		}) => Promise<unknown>;
+	}>;
+
+	/** Optional provider for the Memory Injection Engine (V5.04). */
+	getMemoryInjectionEngine?: () => Promise<{
+		inject: (options: {
+			scope: string;
+			injections: unknown[];
+			skipCompliance?: boolean;
+			minConfidence?: number;
+		}) => Promise<unknown>;
+		attachRetrievalReport: (report: unknown, retrievalResult: unknown) => unknown;
+		updatePolicyRules: (rules: unknown) => void;
+	}>;
+
 	/** Optional provider for the Memory Retrieval V2 (V5.03). */
 	getMemoryRetrieval?: () => Promise<{
 		queryByRetryHotspot: (query: {
@@ -1809,6 +1833,144 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to query memories",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Context Builder Routes (V5.04)
+	// =========================================================================
+
+	// POST /brain-v5/context/build — Build a context pack
+	fastify.post("/brain-v5/context/build", async (request, reply) => {
+		try {
+			if (!options?.getContextBuilder) {
+				return reply.code(503).send({ error: "Context builder not available" });
+			}
+
+			const builder = await options.getContextBuilder();
+			const body = request.body as {
+				scope: string;
+				memoryLimit?: number;
+				includeTemporalContext?: boolean;
+				temporalSince?: string;
+				temporalUntil?: string;
+				skipEvidencePack?: boolean;
+			};
+
+			if (!body.scope) {
+				return reply.code(400).send({ error: "scope is required" });
+			}
+
+			const pack = await builder.build({
+				scope: body.scope,
+				memoryLimit: body.memoryLimit,
+				includeTemporalContext: body.includeTemporalContext,
+				temporalSince: body.temporalSince,
+				temporalUntil: body.temporalUntil,
+				skipEvidencePack: body.skipEvidencePack,
+			});
+
+			return reply.code(201).send({ success: true, pack });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to build context pack",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Memory Injection Routes (V5.04)
+	// =========================================================================
+
+	/** In-memory store for injection reports (ephemeral, per-server-instance). */
+	const injectionReports = new Map<string, unknown>();
+
+	// POST /brain-v5/context/inject — Inject memories with compliance checking
+	fastify.post("/brain-v5/context/inject", async (request, reply) => {
+		try {
+			if (!options?.getMemoryInjectionEngine) {
+				return reply.code(503).send({ error: "Memory injection engine not available" });
+			}
+
+			const engine = await options.getMemoryInjectionEngine();
+			const body = request.body as {
+				scope: string;
+				injections: unknown[];
+				skipCompliance?: boolean;
+				minConfidence?: number;
+				policyRules?: unknown;
+				memoryRetrievalResult?: unknown;
+			};
+
+			if (!body.scope) {
+				return reply.code(400).send({ error: "scope is required" });
+			}
+
+			if (!body.injections || !Array.isArray(body.injections) || body.injections.length === 0) {
+				return reply.code(400).send({ error: "injections array is required and must be non-empty" });
+			}
+
+			// Apply policy rules if provided
+			if (body.policyRules) {
+				engine.updatePolicyRules(body.policyRules);
+			}
+
+			// Run injection
+			let report = await engine.inject({
+				scope: body.scope,
+				injections: body.injections,
+				skipCompliance: body.skipCompliance,
+				minConfidence: body.minConfidence,
+			});
+
+			// Attach memory retrieval report if provided
+			if (body.memoryRetrievalResult) {
+				report = engine.attachRetrievalReport(report, body.memoryRetrievalResult);
+			}
+
+			// Store for later retrieval
+			const reportId = (report as { id: string }).id;
+			injectionReports.set(reportId, report);
+
+			return reply.code(201).send({ success: true, report });
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to inject memories",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/context/report/:id — Get injection report by ID
+	fastify.get("/brain-v5/context/report/:id", async (request, reply) => {
+		try {
+			const params = request.params as { id: string };
+			const report = injectionReports.get(params.id);
+
+			if (!report) {
+				return reply.code(404).send({ error: "Injection report not found" });
+			}
+
+			return { report };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get injection report",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/context/reports — List injection reports
+	fastify.get("/brain-v5/context/reports", async (_request, reply) => {
+		try {
+			const reports = Array.from(injectionReports.values());
+			return { reports, total: reports.length };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to list injection reports",
 				message: error instanceof Error ? error.message : String(error),
 			});
 		}

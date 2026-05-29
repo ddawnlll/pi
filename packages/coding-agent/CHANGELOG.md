@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Evidence Index (V5.02)**: New unified evidence index for git, validation, execution journal, memory, proposal, reflection, and approval artifacts. Includes `EvidenceIndex` class with in-memory storage and JSON persistence, `EvidenceApi` for V5 component integration, and `evidenceRefs` support across all V5 output types (answers, proposals, memory injection reports, drafts). Evidence refs carry confidence scores and type discrimination. Confidence assessment automatically downgrades or blocks claims when evidence is missing or insufficient. The index is read-only with respect to execution state, following V4 ExecutionKernel doctrine. See `packages/coding-agent/src/brain/evidence/`.
+
 - **Policy Engine V0 (P18.A)**: New `PolicyEngine` class that evaluates any action against policy rules with priority-ordered evaluation, glob-pattern-based action matching, context-aware filtering (autonomy level, risk level, affected system), time-restricted rule support, and recent-decision caching with configurable TTL. Defaults to `deny` when no rule matches (fail-safe). Integrates with `AuditLedger` for immutable decision logging. See `packages/coding-agent/src/brain/policy/engine.ts`.
 
 - **Future Phase Suggestion Engine (P17.F)**: New `FutureSuggestionEngine` class that generates prioritized next-phase suggestions from reflection analysis. Analyzes failure patterns to produce fix suggestions, bottlenecks to produce optimization suggestions, and goals to produce advancement suggestions. Suggestions are ranked by configurable weights for goal alignment, bottleneck severity, and failure frequency. Maximum suggestions configurable (default 3). See `packages/coding-agent/src/brain/reflection/future-suggestions.ts`.

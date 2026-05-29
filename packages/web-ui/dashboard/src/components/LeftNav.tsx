@@ -29,6 +29,7 @@ import {
 	Bell,
 	Cpu,
 	Database,
+	Eye,
 	Inbox,
 	Moon,
 	Package,
@@ -59,24 +60,27 @@ export type PlatformNavItem =
 	| "autonomy"
 	| "goals"
 	| "observability"
-	| "proposal_inbox"
 	| "pi_inbox"
 	| "plan_intake"
 	| "extensions_skills"
-	| "memory"
 	| "policy_audit"
 	| "trust_dashboard"
 	| "registry_settings"
-	// P19 brain pages
-	| "brain_digest"
+	// P19 brain pages (V5.13 unified Brain section)
+	| "brain_overview"
 	| "brain_state"
+	| "brain_ask"
+	| "brain_temporal"
 	| "brain_memory"
+	| "brain_repo_scanner"
+	| "brain_signals"
+	| "brain_proposals"
+	| "brain_drafts"
 	| "brain_reflections"
 	| "brain_overnight"
 	| "brain_goals"
-	| "brain_proposals"
 	| "brain_trust"
-	// 25.O Worker Handoff Inbox
+	| "brain_digest"
 	| "brain_inbox";
 
 export interface PlatformNavEntry {
@@ -102,12 +106,6 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		description: "Telemetry events, stats, errors, time-series",
 	},
 	{
-		id: "proposal_inbox",
-		label: "Proposal Inbox",
-		icon: Inbox,
-		description: "Top-ranked proposals with recommendations",
-	},
-	{
 		id: "goals",
 		label: "Goals",
 		icon: Target,
@@ -124,12 +122,6 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		label: "Extensions & Skills",
 		icon: Package,
 		description: "Manage extensions, skills, and their lifecycle",
-	},
-	{
-		id: "memory",
-		label: "Memory",
-		icon: Database,
-		description: "Memory health, provenance, compaction",
 	},
 	{
 		id: "policy_audit",
@@ -161,28 +153,40 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 
 export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 	{
-		id: "brain_digest",
-		label: "Morning Digest",
-		icon: Sunrise,
-		description: "Morning overview, top signals, pending proposals, goal progress",
+		id: "brain_overview",
+		label: "Overview",
+		icon: Eye,
+		description: "Brain daemon status, observations, signals, timeline",
 	},
 	{
-		id: "brain_state",
-		label: "Brain State",
+		id: "brain_ask",
+		label: "Ask Pi",
 		icon: Cpu,
-		description: "Daemon status, observations, signals, timeline",
+		description: "Interact with Pi, ask questions, give instructions",
+	},
+	{
+		id: "brain_temporal",
+		label: "Temporal Journal",
+		icon: RotateCw,
+		description: "Deterministic event timeline, rollups, stuck item tracking",
 	},
 	{
 		id: "brain_memory",
-		label: "Memory Explorer",
+		label: "Memory",
 		icon: Database,
 		description: "Full memory CRUD, search, filters",
 	},
 	{
-		id: "brain_reflections",
-		label: "Reflections",
-		icon: RotateCw,
-		description: "Post-plan reflections, worked/failed, suggestions",
+		id: "brain_repo_scanner",
+		label: "Repo Scanner",
+		icon: ScrollText,
+		description: "Repository observations, file changes, evidence",
+	},
+	{
+		id: "brain_signals",
+		label: "Signals",
+		icon: Activity,
+		description: "Active signals, signal feed, pattern detection",
 	},
 	{
 		id: "brain_proposals",
@@ -191,22 +195,34 @@ export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 		description: "Top-ranked proposals with recommendations",
 	},
 	{
-		id: "brain_goals",
-		label: "Goals",
-		icon: Target,
-		description: "Goal board, milestones, drift alerts",
+		id: "brain_drafts",
+		label: "Drafts",
+		icon: ScrollText,
+		description: "Draft proposals awaiting completion or review",
 	},
 	{
-		id: "brain_trust",
-		label: "Trust Dashboard",
-		icon: Shield,
-		description: "Trust metrics, safety, approvals, audit health",
+		id: "brain_reflections",
+		label: "Reflections",
+		icon: RotateCw,
+		description: "Post-plan reflections, worked/failed, suggestions",
 	},
 	{
 		id: "brain_overnight",
 		label: "Overnight",
 		icon: Moon,
 		description: "Queue overnight runs, schedule, history",
+	},
+	{
+		id: "brain_trust",
+		label: "Trust",
+		icon: Shield,
+		description: "Trust metrics, safety, approvals, audit health",
+	},
+	{
+		id: "brain_digest",
+		label: "Morning Digest",
+		icon: Sunrise,
+		description: "Morning overview, top signals, pending proposals, goal progress",
 	},
 	{
 		id: "brain_inbox",

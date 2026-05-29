@@ -145,6 +145,9 @@ export interface ProposalScore {
  * - draftAvailable: whether a draft/plan exists
  * - approvalRequired: gate — no execution without user approval (V5.08 AC2)
  * - evidenceCount: computed number of evidence references
+ *
+ * V5.02 additions:
+ * - evidenceRefs: unified evidence references from the evidence index
  */
 export interface Proposal {
 	/** Unique proposal identifier (ULID-style, currently UUID v4) */
@@ -202,6 +205,8 @@ export interface Proposal {
 	approvalRequired: boolean;
 	/** Number of evidence references backing this proposal (computed, V5.08 AC1) */
 	evidenceCount: number;
+	/** Evidence references from the unified evidence index (V5.02). */
+	evidenceRefs?: EvidenceRef[];
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +254,8 @@ export interface ProposalCreateInput {
 	isDuplicate?: boolean;
 	/** ID of the proposal this is a duplicate of */
 	duplicateOf?: string | null;
+	/** Evidence references from the unified evidence index (V5.02). */
+	evidenceRefs?: EvidenceRef[];
 }
 
 /**
@@ -482,6 +489,7 @@ export function createProposalCreateInput(
 		approvalRequired: input.approvalRequired ?? true,
 		isDuplicate: input.isDuplicate ?? false,
 		duplicateOf: input.duplicateOf ?? null,
+		evidenceRefs: input.evidenceRefs,
 	};
 }
 
@@ -553,6 +561,8 @@ export function createProposal(input: ProposalCreateInput, overrides?: Partial<P
 		draftAvailable: overrides?.draftAvailable ?? input.draftAvailable ?? false,
 		approvalRequired: overrides?.approvalRequired ?? input.approvalRequired ?? true,
 		evidenceCount,
+		// ---- V5.02 Fields ----
+		evidenceRefs: overrides?.evidenceRefs ?? input.evidenceRefs,
 	};
 }
 
@@ -695,6 +705,7 @@ export function computeProposalStats(proposals: Proposal[]): ProposalStats {
 	};
 }
 
+import type { EvidenceRef } from "../evidence/types.js";
 // Re-export MemorySourceRef for convenience
 // (full import from brain/memory/types is available, but we need the type here)
 import type { MemorySourceRef } from "../memory/types.js";

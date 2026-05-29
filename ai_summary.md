@@ -1,233 +1,134 @@
 # Pi Monorepo — File Analysis Summary
 
-**Date:** 2026-05-27  
+**Date:** 2026-05-29  
 **Scope:** `packages/ai/`, `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`, `packages/db/`, reference docs, reports  
-**Purpose:** Understand what every file does across the autonomous execution system, V2 cognitive OS (P13-P20 brain module), prompt cache architecture, P6 large-project scale reliability, P11 continuous self-improvement, P26 execution correctness recovery, and chat UI.
+**Purpose:** Understand what every file does across the autonomous execution system, V2 cognitive OS (P13-P20 brain module), prompt cache architecture, P6 large-project scale reliability, P11 continuous self-improvement, P26 execution correctness recovery, P6.5 mini E2E gauntlet, P-V5 Brain Reality Layer real implementation, and chat UI.
 
 ---
 
 ## Recent Commits (last 31, oldest to newest)
 
-### 1. `fix(coding-agent): fix all P13-P20 code review findings and pre-existing type errors` (16e3ec2e)
+### 1. `feat(coding-agent): complete execution kernel foundation with FSM, event journal, controller, and tests` (830d4d46d)
 
-Fixes 7 findings from docs/findings_v20.md and resolves 98 pre-existing type errors blocking the pre-commit hook.
+ExecutionKernel foundation: FSM (29 legal, 38 illegal transitions), attempt-event-journal, controller-leadership, deadline-watchdog, handoff-queue, state-writer, admission-gate, plan-supervisor tests. 128 tests passing across 11 files.
 
-- **Findings fixed:** Missing brain API exports (getBrainState, getObservations, getSignals, getTimeline); promise-chain mutex for OvernightOrchestrator and InMemoryBrainTimelineStore; double-check locking in MemoryStore.get(); LRU eviction in PolicyEngine cache; fsync in MemoryStore.atomicWrite; SessionStore JSDoc
-- **New file:** `brain/api.ts` with 24 web-server API functions (audit, autonomy, memory, overnight, policy)
-- **Type fixes:** Test file types across 15 files, added missing methods to SessionStore
+### 2. `feat(coding-agent): complete P28 runtime audit and shadow mode` (10d0a8d95)
 
-- **Files:** 17 files across `packages/coding-agent/`, `packages/ai/`
+Mutation inventory (32 paths), ShadowAttemptJournal, legacy-write-adapter (observe/route/enforce), ReplayComparator. 149 tests across 13 files.
 
-### 2. `feat(pP9): complete workspace P9.G7 — Governance ledger integration & audit trail wiring` (8976fde07)
+### 3. `feat(coding-agent): complete P29 actor migration to event-only` (fc3b6518f)
 
-Dogfood/safety reports for P9.G4 (dry-run validation) and P9.G7 (governance ledger integration). Adds 5 report files totaling 501 lines.
+Actor-side event-only: retry_requested, validation lifecycle, stale lease, cleanup events. Focused tests pass.
 
-- **Files:** `reports/p9g4-dryrun-validation/*`, `reports/p9g7-governance-ledger/*`
+### 4. `feat(coding-agent): complete P30 enforcement cutover` (85deaa970)
 
-### 3. `feat(pP9): complete workspace P9.I — P9 dogfood and safety report` (77aa6e155)
+Admission guard records, stable_1 preflight, forbid JSON fallback in production, legacy write rejection enforcement.
 
-P9 dogfood and safety report — 4 report files covering dogfood results, safety verification, and Definition-of-Done checklist totaling 611 lines.
+### 5. `feat(coding-agent): complete P31 intent template v4 and legacy normalizer` (71a89098a)
 
-- **Files:** `reports/p9i-dogfood-safety/*`
+V4 intent schema, deterministic execution profile derivation, legacy plan normalization.
 
-### 4. `chore: fix lint infos in remediation-runtime-p9-g4.test.ts and proposal-routes.ts` (4583d0e29)
+### 6. `feat(coding-agent): implement execution kernel V4 with dogfood harness and transition router` (e80634712)
 
-Large cross-cutting P11 commit introducing the full continuous self-improvement ecosystem:
-- **Budget enforcer:** `budget-enforcer.ts` + tests (475+482 lines)
-- **Remediation pipeline:** `remediation-policy-engine.ts`, `remediation-runtime.ts`, `proposal-execution-pipeline.ts` with full test suites
-- **Governance ledger:** `governance-ledger.ts` (703 lines)
-- **Planner:** `planner.ts` updated with proposal generation + tests
-- **Workspace schema:** extended with proposal/revision fields
-- **Database package (`packages/db/`):** **restored** — proposal repository, plan-revision repository, migration `006_add_proposal_source_and_revisions`, updated types, test suite
-- **Web server:** proposal routes expanded, server index updated with new endpoints
-- **Dashboard:** `LeadAgentDashboard`, `ProposalCard`, `App.tsx` updated for proposal UI
-- **Extension runtime:** `runtime-host.ts`, extension registry types
+Full V4 kernel: actor-permissions, completion-predicate, dogfood-harness, event-schema, execution-profile-deriver, transition-router, legacy normalizer, DB migration 013.
 
-- **Files:** 41 files across `packages/ai/`, `packages/coding-agent/`, `packages/db/`, `packages/web-server/`, `packages/web-ui/dashboard/`
+### 7. `fix(coding-agent): recover stalled provider streams` (9a3987abb)
 
-### 5. `feat(pP10R): complete workspace 10.0 — Spec cleanup and executable DAG normalization` (bf5ac607f)
+Abort stalled provider streams via prompt-level abort race. Default LLM stream idle timeout lowered to 60s.
 
-Documentation-only commit: `docs/p10-dashboard-redesign-plan-p10r.md` (1557 lines) — redesigned version of the P10 dashboard plan.
+### 8. `feat(pP25): complete plan — Local Production Observability and Brain Worker Swarm` (a9b96be21)
 
-- **Files:** `docs/p10-dashboard-redesign-plan-p10r.md`
+### 9. `feat(pP25): complete workspace 25.Q — Idea to proposal to plan pipeline` (bbf82f2ef)
 
-### 6. `fix(web-ui): rename 'ref' prop to 'ctx' in ContextRefPill to avoid React 19 reserved prop error` (3761f6ccb)
+### 10. `feat(pP25): complete workspace 25.P — Debug to fix proposal pipeline` (a89fb6574)
 
-React 19 treats `ref` as a reserved prop. Renamed to `ctx` in the component and all 3 call sites in `ChatPanel.tsx`.
+### 11. `feat(pP25): complete workspace 25.T — Local Production Readiness Doctor` (b60e68a21)
 
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+### 12. `chore: commit WIP changes including P-V5 plans, diagnostics, and pre-commit fix` (aeae8f20a)
 
-### 7. `fix(p6.5): wire worktree config through autonomous executor and bump schema to v2.3.2` (0a0732f34)
+Pre-commit hook fix, P-V5 brain reality layer plan documents, Cerebras Qwen 3 235B model, diagnostic scripts.
 
-Wired worktree config through `AutonomousExecutor` so P6 worktree isolation actually activates. Bumped `CONTRACT_SCHEMA_VERSION` to 2.3.2, added to `ACCEPTED_SCHEMA_VERSIONS`. Updated master template default to `experimental_6` with worktree. Fixed `scale-routes.ts` readiness endpoint to reflect actual config.
+### 13. `feat(pP-V5): complete workspace V5.00 — V5 Contract, Flags & Safety Doctrine` (59da817cb)
 
-- **Files:** 8 files across `packages/coding-agent/`, `packages/web-server/`, `docs/`
+### 14. `feat(pP-V5): complete workspace V5.01 — Temporal Journal v2` (19c3dd367)
 
-### 8. `feat(web-ui): convert chat panel to centered dialog with markdown rendering` (b5faddfd5)
+### 15. `feat(pP-V5): complete workspace V5.02 — Evidence Index` (24701c2d8)
 
-Converted `ChatPanel` from cramped sidebar/tabs into a centered dialog (max-w-3xl, max-h-[80vh]) using framer-motion `AnimatePresence`. Added `react-markdown` with `remark-gfm` and `rehype-highlight` for markdown rendering and syntax highlighting. Removed left sidebar and right overlay Chat usages.
+### 16. `feat(pP-V5): complete workspace V5.19 — E2E Dogfood, Telemetry, Docs & Regression` (89ccc3b75)
 
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`, `App.tsx`, `package.json`, `package-lock.json`
+### 17. `feat(pP-V5): complete workspace V5.02 — Evidence Index` (05256c285)
 
-### 9. `feat(web-ui): add colored tool badges, thinking animation, and smooth message fade-in to chat` (7f63c055a)
+### 18. `feat(pP-V5): complete workspace V5.08 — Proposal Engine v2` (e1196852b)
 
-Added per-tool colored badges (blue=read, amber=write, violet=edit, emerald=bash, cyan=search) with pulse animations. `ThinkingDots` animation while waiting for first tokens. Smooth fade-in/slide-up via framer-motion for messages and stream chunks.
+### 19. `feat(pP-V5): complete plan — Brain Reality Layer` (ed5b419c1)
 
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+### 20. `chore: misc` (7236a8ee5)
 
-### 10. `feat(web-ui): add chat status bar with provider/model selector, context meter, and compact button` (d4c8a2be2)
+### 21. `feat(pP2): complete plan — Test Phase` (3cd45e4d1)
 
-`ChatStatusBar` with provider/model dropdown (fetches from `/api/ai-models`, persists to settings). Context usage bar with token count (estimated ~0.3 tokens/char), color-coded thresholds. Compact button calling `POST /api/chat/compact`.
+### 22. `feat(pP2): complete plan — Test Phase` (8bea280cf)
 
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+### 23. `feat(p6.5): real-agent mini multi-plan execution gate with postgres support` (37e37429f)
 
-### 11. `feat(web-ui): add search bar to model selection dropdown` (8384c7eb5)
+Deterministic + real-LLM mini gate script, CI workflow split (PR/nightly/manual), Postgres env resolution (PI_E2E_DATABASE_URL, PGHOST, etc.), sanitized diagnostics, project UUID auto-insertion, parallel execution for Postgres. Fixes: `skipProjectManagement` override, `syncPlanStatus` await.
 
-Search input at top of model selector dropdown filters providers/models in real-time. Escape closes, clicking outside resets. Fixed-height scrollable list.
+### 24. `fix: v5 real implementation script syntax and add models` (ca6a8f178)
 
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+Fixed `as string ?? ""` syntax error in `run-v5-real-implementation.ts`.
 
-### 12. `feat(web-ui): add persistent chat threads with session switching` (864ee27c6)
+### 25. `chore: update server PIDs` (fe719e36a)
 
-Backend: `GET /chat/history` returns all sessions with metadata; `POST /api/chat` now saves user messages before processing. Frontend: thread sidebar toggleable from header, lists sessions with active highlight, 'New' button for fresh threads. Dialog widened to max-w-4xl.
+### 26. `fix: make disk check work on macOS (df -k instead of df -BG)` (d9d1de7f5)
 
-- **Files:** `packages/web-server/src/index.ts`, `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+### 27. `fix: safe dirs check handles repo-relative paths` (86dca7059)
 
-### 13. `feat(web-ui): add 17 improvements to chat dialog` (e50ee226f)
+`checkGitState` now uses `file.includes("/" + d)` for paths like `packages/coding-agent/reports/`.
 
-Message editing (ArrowUp on empty, pencil button), regeneration (RefreshCw button), copy code block button with language label, table scroll hint, fullscreen toggle, timestamps (relative), copy message button, scroll-to-bottom floating button.
+### 28. `chore: add reports/execution-diagnostics/ to gitignore` (c0646fad3)
 
-- **Files:** `packages/web-server/src/index.ts`, `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
+### 29. `chore: update generated models and script` (d263208ba)
 
-### 14. `chore(web-ui): remove unused Clock import in ChatPanel` (56e928c3d)
+### 30. `fix: safe dirs match git porcelain format (dots stripped)` (6105b6a57)
 
-One-line cleanup.
+Preflight safe dirs use `logs/` and `pi/` without leading dot.
 
-### 15. `fix(web-server): add plan-handoff markdown type and fix pre-existing TS error` (bd32be4bb)
+### 31. `feat(pP2): complete plan — Test Phase` (d69ec96)
 
-Added `'plan-handoff'` to `PlanMarkdownEvent` union, implemented handler in `updatePlanMarkdown` setting status to `'awaiting_handoff'`. Extended `replaceHeader()`/`formatHeader()` type unions. Fixed pre-existing TS2454 unassigned-variable error.
+---
 
-- **Files:** 8 files across `packages/coding-agent/` and `packages/web-server/`
+## Thread Summary — Real-Agent Mini Multi-Plan Gate & V5 Execution (2026-05-29)
 
-### 16. `fix(coding-agent): fix TOCTOU memory guard, stale completion bus signal, execSync in scale-routes and readiness doctor` (dc5bd8f73)
+### Goal
+Implement a cheap, deterministic + real-LLM mini execution correctness E2E gauntlet for Pi's autonomous plan executor, and run the full V5 Brain Reality Layer implementation.
 
-- `cleanup-review.ts`: moved memory check inside cleanup lock to avoid TOCTOU race
-- `plan-runner.ts`: `WorktreeCompletionBus.reset()` clears stale `lastSignal` on bus reuse
-- `scale-routes.ts`: replaced all `execSync` git calls with `execAsync`
-- `production-readiness-doctor.ts`: converted to fully async, removed `execSync`
+### Key Deliverables
+- `scripts/run-real-agent-mini-multiplan-gate.ts` — 3-plan deterministic + real-LLM gate
+- Central bug ledger: `reports/execution-diagnostics/bug-ledger.json`, `.ndjson`, `mini-e2e-bug-hunt-report.md`
+- Regression tests: `packages/coding-agent/test/suite/regressions/*.test.ts` (31 tests)
+- CI workflow: `.github/workflows/mini-execution-correctness.yml`
 
-- **Files:** 5 files across `packages/coding-agent/` and `packages/web-server/`
-
-### 17. `fix(coding-agent): add validation lock to bash tool, orphan process killing, and global spawn interceptor` (bed08f546)
-
-Serializes validation commands across all parallel workers to prevent vitest process stack exhaustion. Kills orphan child processes left by agent sessions. Global `child_process.spawn` interceptor kills previous validation process before starting new one. Massive journal NDJSON artifact included (17.5K lines).
-
-- **Files:** `packages/coding-agent/src/core/tools/bash.ts`, `autonomous-executor.ts`, `cleanup-review.ts`, `utils/shell.ts`
-
-### 18. `feat(web): add rerun cleanup button to dashboard and API endpoint` (771181973)
-
-`POST /api/projects/:projectId/plans/:planExecId/rerun-cleanup` triggers cleanup review re-execution. Dashboard `PlanSummaryPanel.tsx` rerun button with spinner and auto-refresh.
-
-- **Files:** `packages/web-server/src/index.ts`, `packages/web-ui/dashboard/src/components/PlanSummaryPanel.tsx`
-
-### 19. `fix(p6.5): fix 12 security and reliability bugs across ai, coding-agent, and web-server` (02cf69cbb)
-
-- Critical: replaced shell command injection in file search with pure Node.js walk; separated OAuth state from PKCE verifier; stopped caching env secrets in `/proc/self/environ`
-- High: properly handle `start()` rejected promise; eliminated race condition in `runPlan()` double-execution guard; OS-assigned port for OAuth callback
-- Medium: byte-cap in-memory log buffer; Fastify 10MB body limit; CORS restricted to explicit local origins; documented JsonStateStore fallback divergence
-
-- **Files:** 5 files across `packages/ai/` and `packages/web-server/`
-
-### 20. `fix(coding-agent): resolve TS build errors in runtime-host and index` (94d30736a)
-
-Fixed non-null assertion in `runtime-host.ts` (discriminated union narrowing). Removed stale P11.A platform type re-exports from `index.ts` referencing renamed/removed identifiers.
-
-- **Files:** `packages/coding-agent/src/core/extensions/runtime-host.ts`, `packages/coding-agent/src/index.ts`
-
-### 21. `feat(web-ui): add @-triggered telescope file search to chat panel` (42c509f1c)
-
-Type `@` in chat textarea to open file browser popup. Empty shows directory tree (browsable). Typing does debounced `find -iname` search with relevance scoring. Backend: `GET /api/projects/:projectId/files/browse` and `GET /api/projects/:projectId/files/search`.
-
-- **Files:** `packages/web-ui/dashboard/src/components/ChatPanel.tsx`
-
-### 22. `fix(web-ui): prevent infinite re-render in LeadAgentDashboard` (09387c4da)
-
-Derived `selectedProposal` from proposals list via `useMemo` instead of render-time `setState`. Removed dead `setSelectedProposal` state and unused `ProposalResponse` import.
-
-- **Files:** `packages/web-ui/dashboard/src/components/LeadAgentDashboard.tsx`
-
-### 23. `fix(web-ui): improve extensions error message when backend routes are missing` (33c0721d3)
-
-Detects 404 responses in `useExtensions` hook and shows a clear "backend not configured" message.
-
-- **Files:** `packages/web-ui/dashboard/src/hooks/useExtensions.ts`
-
-### 24. `feat(web-server): implement extensions API routes` (5cbcb0f96)
-
-REST API for extension lifecycle management (P11.P): list, health check, install (npm:/git:/local), update, rollback, enable/disable. Wraps `ExtensionRegistry` with audit logging.
-
-- **Files:** `packages/web-server/src/extensions-routes.ts`, `packages/web-server/src/index.ts`, `packages/coding-agent/package.json`
-
-### 25. `feat(p11): complete remaining P11 workspaces — plan intake, graph diff, audit ledger, skill API, dashboard UIs, and integration` (d73c25755)
-
-Major P11 completion (workspaces C, I, K, M, O, Q, R, S, T):
-- `plan-intake-analyzer.ts` — auto-analyze plans, detect bottlenecks, compute critical path
-- `graph-diff-engine.ts` — original-vs-optimized graph diffs, safety checks, approval lifecycle
-- `skills-routes.ts` — Fastify skill backend API (install, update, remove, enable/disable, test, invoke, recommend)
-- `platform-audit-ledger.ts` — platform-level audit events for orchestrator/plans/extensions/skills/memory/policy
-- Dashboard: `PlanIntakePanel.tsx`, `MemoryCockpit.tsx`, `PolicyAuditCenter.tsx` — full feature UIs
-- Integration test: `p11-ecosystem-integration.test.ts` (7 tests covering full self-improvement lifecycle)
-
-- **Files:** 12 files across `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`
-
-### 26. `fix(p11): integrate worktree orphan files and start orchestrator daemon` (bea4b16f6)
-
-- `orchestrator-daemon.ts` (P11.B) — periodic scan loop for continuous observation
-- `organic-forbidden-patterns.ts`, `organic-memory-schema.ts` (P11.F) — memory schema files
-- `memory-routes.ts`, `policy-audit-routes.ts` (P11.L/P11.R) — web server routes
-- Tests: `capability-policy-engine.test.ts`, `plan-graph-diff.test.ts`
-- Dashboard: `AutonomyCenter.tsx`
-
-- **Files:** 12 files across `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`
-
-### 27. `fix(orchestrator): wire ProposalInbox into daemon and fix type errors` (ca340a906)
-
-Wired `ProposalInbox` into `OrchestratorDaemon` — submits generated proposals after each scan cycle. Fixed `PlannerOutput`, `BatchPlanResult`, `CriticalPathInfo`, `PredictedParallelism` types.
-
-- **Files:** `packages/coding-agent/src/main.ts`, `packages/coding-agent/src/orchestrator/orchestrator-daemon.ts`
-
-### 28. `chore(cleanup): commit pre-redesign state` (7f80f27b4)
-
-Checkpoint commit before scheduler redesign. Includes untracked P11 files: `patch-approval-engine.ts`, `plan-graph-diff.ts`, `DagDiffViewer.tsx`, `OptimizerApprovalPanel.tsx`, `PlanIntakePanel.tsx` (original), `PolicyAuditCenter.tsx` (original), `SafeBatchPreview.tsx`, `MemoryCockpitPanel.tsx`, hooks (`useMemoryMetrics.ts`, `useOptimizerApproval.ts`). Also deleted `platform/index.ts`.
-
-- **Files:** 13 files across `packages/coding-agent/` and `packages/web-ui/dashboard/`
-
-### 29. `fix(validation): include v2.3.2 and v2.4.0 in isV230Plus check` (01f9339af)
-
-Without this, plans with `contractVersion "2.3.2"` or `"2.4.0"` with `maxParallelWorkspaces > 3` failed validation even with `experimental_6` mode. Added missing versions.
-
-- **Files:** `packages/coding-agent/src/core/workspace-schema.ts`
-
-### 30. `feat(p6.5): batchless ready queue, scheduler interface, DynamicParallelScheduler wiring` (ced1ade9a)
-
-- `Scheduler` interface in `workspace-scheduler.ts` — `DynamicParallelScheduler` implements it
-- `GlobalReadyQueue` — batch-barrier-free ready queue with priority sort
-- `WorktreePool` — prewarm, acquire/release lease lifecycle, crash recovery via `.pi/scheduler/leases/`
-- Workspace schema: added `hardDeps`, `softDeps`, `readSet`, `writeSet` fields
-- Priority scorer: `criticalPathRemaining * 100 + downstreamBlocking * 20 + ageBoost - conflictRiskPenalty`
-- Master template: `worktree.enabled` defaults to `true`
-
-- **Files:** 6 files across `packages/coding-agent/` and `docs/`
-
-### 31. `feat(p6.5): add Scheduler interface, v2.5 schema, continuous scheduling defaults` (06416c555)
-
-- Created `scheduler.ts` with shared `Scheduler` interface + all scheduling types (`SkipReason`, `SchedulingDecision`, `SchedulerDiagnostics`, etc.)
-- `WorkspaceScheduler` (v1) and `DynamicParallelScheduler` (v2) both implement the interface; v2 is default
-- Schema v2.5.0: continuous scheduling is now the default execution mode
-- Master template defaults: `worktree.enabled: true`, `scheduling.continuous: true`, `slotCount: 6`, `priorityStrategy: critical_path_first`
-- Added validation rules 52-54 for continuous scheduling
-
-- **Files:** 7 files across `packages/coding-agent/` and `docs/`
+### Bugs Found & Fixed
+1. **JsonStateStore.transitionWorkspace()** — missing `await this.syncPlanStatus()` caused ENOENT race
+2. **executePlanFn try-catch** — `createRuntime` errors escaped try-catch, leaving plan results missing
+3. **skipProjectManagement: true** — overrode explicit `projectId` to `"default"`, causing Postgres UUID violation in `plan_executions.project_id`
+4. **Preflight disk check** — used GNU `df -BG` which fails on macOS; fixed to `df -k`
+5. **Preflight git-clean** — safe dirs didn't match git porcelain format (dots stripped from `.logs/`, `.pi/`)
+6. **Preflight git-clean** — didn't handle repo-relative paths (`packages/coding-agent/reports/`)
+
+### Test Results
+```
+real-agent-mini-multiplan-gate.test.ts: 17 passed
+mini-execution-correctness-e2e.test.ts: 2 passed
+mini-execution-correctness.test.ts: 12 passed
+Total: 31 passed
+npm run check: PASS
+Real-LLM smoke: PASS (~2 min)
+```
+
+### V5 Real Implementation Status
+- Postgres backend, `opencode-go/deepseek-v4-flash` LLM
+- 20 workspaces, 9 batches, safe parallelism 3
+- B0 complete, B1 active with 3 parallel workers
 
 ---
 

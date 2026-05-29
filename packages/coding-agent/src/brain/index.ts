@@ -28,10 +28,44 @@ export {
 } from "./attention/feedback-store.js";
 // Audit Ledger (P18.E)
 export { AuditLedger, createAuditLedger } from "./audit/ledger.js";
+export type {
+	ContextBuildOptions,
+	ContextPack,
+	ContextSource,
+	ContextSourceType,
+	IgnoredMemoryEntry,
+	IgnoredReasonCode,
+	InjectionComplianceCheck,
+	InjectionComplianceResult,
+	InjectionPolicyRules,
+	MemoryInjectionInput,
+	MemoryInjectionOptions,
+	MemoryInjectionRecord,
+	MemoryInjectionReport,
+	TemporalContext,
+} from "./context/index.js";
+// Context Builder & Memory Injection (V5.04)
+export {
+	ALL_CONTEXT_SOURCE_TYPES,
+	ALL_IGNORED_REASON_CODES,
+	ContextBuilder,
+	createContextBuilder,
+	createMemoryInjectionEngine,
+	DEFAULT_INJECTION_POLICY_RULES,
+	MemoryInjectionEngine,
+} from "./context/index.js";
 export type { EvidenceEventSink } from "./evidence/api.js";
 export { createEvidenceApi, EvidenceApi } from "./evidence/api.js";
 // Evidence Index (V5.02)
 export { createEvidenceIndex, EvidenceIndex } from "./evidence/index.js";
+// Brain V5 — V5 Contract, Flags & Safety Doctrine
+export type { EvidencePack, EvidencePackGroup, EvidencePackOptions, EvidencePackSummary } from "./evidence/pack.js";
+export {
+	buildEvidencePack,
+	buildEvidencePackSummary,
+	createEmptyEvidencePack,
+	validateContentHasEvidenceRefs,
+} from "./evidence/pack.js";
 export type {
 	EvidenceAssessment,
 	EvidenceConfidenceLevel,
@@ -55,6 +89,20 @@ export {
 	validateEvidenceRef,
 	validateEvidenceSource,
 } from "./evidence/types.js";
+export type {
+	V5Answer,
+	V5Draft,
+	V5MemoryInjection,
+	V5MemoryInjectionReport,
+	V5OutputBuildOptions,
+} from "./evidence/v5-outputs.js";
+export {
+	buildConfidenceExplanation,
+	buildV5Answer,
+	buildV5Draft,
+	buildV5MemoryInjectionReport,
+	evidenceMeetsThreshold,
+} from "./evidence/v5-outputs.js";
 export type { ClassificationContext, DecisionAuditEntry } from "./goals/decisions.js";
 // Decision Classifier (P15.D)
 export { DecisionClassifier } from "./goals/decisions.js";
@@ -171,6 +219,14 @@ export { MemoryCorrectionApi } from "./memory/api.js";
 export type { LifecycleConfig, LifecycleTransition } from "./memory/lifecycle.js";
 // Memory Lifecycle Engine (P14.C)
 export { MemoryLifecycleEngine } from "./memory/lifecycle.js";
+export type {
+	MemoryRetrievalEntry,
+	MemoryRetrievalReport,
+	MemoryRetrievalResult,
+	RetryHotspotQuery,
+} from "./memory/retrieval.js";
+// Memory Retrieval V2 (V5.03)
+export { createMemoryRetrievalV2, MemoryRetrievalV2 } from "./memory/retrieval.js";
 // Memory Scoring Engine (P14.D)
 export {
 	DEFAULT_SCORING_CONFIG,
@@ -515,7 +571,7 @@ export {
 	checkV5OperatorGates,
 	formatV5DoctorSummary,
 } from "./v5/plan-doctor.js";
-// Brain V5 — V5 Contract, Flags & Safety Doctrine
+
 export type {
 	BrainV5Config,
 	BrainV5Mode,

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
 import type { PlatformNavItem } from "./components/LeftNav";
+import type { TopbarBrainMode } from "./components/topbar/Topbar";
 import { usePlanState } from "./hooks/usePlanState";
 import { useJournalStream } from "./hooks/useJournalStream";
 import { useProjects } from "./hooks/useProjects";
@@ -286,14 +287,25 @@ export function App() {
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
   const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
   const showPiInbox            = activeView.type === "platform" && activeView.screen === "pi_inbox";
-  // P19 brain pages
+  // ── Brain V5 mode (derived from brainEnabled for now) ──────────────
+  // In the future this will come from a V5 status endpoint; for now
+  // we map the boolean toggle to OFF / READ_ONLY.
+  const brainMode: TopbarBrainMode = brainEnabled ? "READ_ONLY" : "OFF";
+
+  // P19 brain pages (V5.13 unified Brain section)
+  const showBrainOverview    = activeView.type === "platform" && activeView.screen === "brain_overview";
+  const showBrainAsk         = activeView.type === "platform" && activeView.screen === "brain_ask";
   const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
+  const showBrainTemporal    = activeView.type === "platform" && activeView.screen === "brain_temporal";
   const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
+  const showBrainRepoScanner = activeView.type === "platform" && activeView.screen === "brain_repo_scanner";
+  const showBrainSignals     = activeView.type === "platform" && activeView.screen === "brain_signals";
   const showBrainReflections = activeView.type === "platform" && activeView.screen === "brain_reflections";
   const showBrainDigest      = activeView.type === "platform" && activeView.screen === "brain_digest";
   const showBrainOvernight   = activeView.type === "platform" && activeView.screen === "brain_overnight";
   const showBrainGoals       = activeView.type === "platform" && activeView.screen === "brain_goals";
   const showBrainProposals   = activeView.type === "platform" && activeView.screen === "brain_proposals";
+  const showBrainDrafts      = activeView.type === "platform" && activeView.screen === "brain_drafts";
   const showBrainTrust       = activeView.type === "platform" && activeView.screen === "brain_trust";
   const showBrainInbox       = activeView.type === "platform" && activeView.screen === "brain_inbox";
   const platformActiveItem: PlatformNavItem | null =
@@ -609,6 +621,7 @@ export function App() {
       <Topbar
         planTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
         statusBadge={activePlanStatus !== "unknown" ? <StatusBadge status={activePlanStatus} /> : undefined}
+        brainMode={brainMode}
         onToggleMobileNav={() => setMobileNav(mobileNav === "left" ? null : "left")}
         onToggleLeftSidebar={() => setLeftOpen(o => !o)}
         leftSidebarOpen={leftOpen}
@@ -887,14 +900,22 @@ export function App() {
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showPiInbox ? (
                           <PiInbox className="flex-1 min-h-0" />
-                        ) : showBrainState ? (
+                        ) : showBrainOverview || showBrainState ? (
                           <BrainStatePage />
-                        ) : showBrainProposals ? (
+                        ) : showBrainTemporal ? (
+                          <BrainStatePage />
+                        ) : showBrainRepoScanner ? (
+                          <BrainStatePage />
+                        ) : showBrainProposals || showBrainDrafts ? (
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showBrainMemory ? (
                           <BrainMemoryPage />
                         ) : showBrainReflections ? (
                           <BrainReflectionsPage />
+                        ) : showBrainSignals ? (
+                          <DigestPage />
+                        ) : showBrainAsk ? (
+                          <BrainInboxPage />
                         ) : showBrainDigest ? (
                           <DigestPage />
                         ) : showBrainOvernight ? (

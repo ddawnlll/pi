@@ -216,6 +216,53 @@ describe("AC1: What got stuck last week?", () => {
 	});
 });
 
+test("queryStuckFromRollup returns live data when no rollup exists, rollup data when one exists", async () => {
+	const store = new InMemoryTemporalJournalStore();
+	const engine = new TemporalEngine(store);
+
+	// Use current time so the event falls within today's daily period for live fallback
+	const now = new Date();
+	const eventTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
+
+	// Record events but no rollups yet — should return live data
+	await engine.recordEvent(
+		makeEvent({
+			timestamp: eventTime.toISOString(),
+			eventType: "attempt_failed",
+			summary: "Workspace ws-1 failed",
+			entityId: "ws-1",
+			evidence: SAMPLE_EVIDENCE,
+		}),
+	);
+
+	// No rollup exists yet — falls back to live query
+	const liveResult = await engine.queryStuckFromRollup("daily");
+	expect(liveResult.source).toBe("live");
+	expect(liveResult.items).toHaveLength(1);
+	expect(liveResult.items[0]!.entityId).toBe("ws-1");
+
+	// Generate a daily rollup for the current day
+	const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+	const periodEnd = new Date(periodStart);
+	periodEnd.setUTCDate(periodEnd.getUTCDate() + 1);
+
+	await engine.generateAndStoreRollup("daily", periodStart.toISOString(), periodEnd.toISOString());
+
+	// Now should return from rollup
+	const rollupResult = await engine.queryStuckFromRollup("daily");
+	expect(rollupResult.source).toBe("rollup");
+	expect(rollupResult.rollupId).toBeDefined();
+	expect(rollupResult.items).toHaveLength(1);
+	expect(rollupResult.items[0]!.entityId).toBe("ws-1");
+
+	// Verify rollup data is from the stored rollup (not live query)
+	// by checking the same result is returned on a subsequent call
+	const repeatResult = await engine.queryStuckFromRollup("daily");
+	expect(repeatResult.source).toBe("rollup");
+	expect(repeatResult.items).toHaveLength(1);
+	expect(repeatResult.items[0]!.entityId).toBe("ws-1");
+});
+
 // =========================================================================
 // Acceptance Criterion 2: Evidence references and stable entity IDs
 // =========================================================================

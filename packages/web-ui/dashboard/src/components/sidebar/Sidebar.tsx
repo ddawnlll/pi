@@ -16,6 +16,7 @@ import {
 	Activity,
 	Archive,
 	Bell,
+	Brain,
 	ChevronDown,
 	ChevronRight,
 	Cpu,
@@ -31,6 +32,7 @@ import {
 	Pencil,
 	Plus,
 	Puzzle,
+	Search,
 	Settings,
 	Shield,
 	Sunrise,
@@ -81,13 +83,17 @@ const SURF = "bg-white dark:bg-[#1E1E1E]";
 // ---------------------------------------------------------------------------
 
 export const BRAIN_ITEMS: SidebarItem[] = [
-	{ id: "brain_digest", label: "Morning Digest", icon: Sunrise },
-	{ id: "brain_state", label: "State / Overview", icon: Activity },
-	{ id: "brain_memory", label: "Memory Explorer", icon: Database },
+	{ id: "brain_overview", label: "Overview", icon: Eye },
+	{ id: "brain_ask", label: "Ask Pi", icon: Brain },
+	{ id: "brain_temporal", label: "Temporal Journal", icon: History },
+	{ id: "brain_memory", label: "Memory", icon: Database },
+	{ id: "brain_repo_scanner", label: "Repo Scanner", icon: Search },
+	{ id: "brain_signals", label: "Signals", icon: Activity },
+	{ id: "brain_proposals", label: "Proposals", icon: FileText },
+	{ id: "brain_drafts", label: "Drafts", icon: Pencil },
 	{ id: "brain_reflections", label: "Reflections", icon: Lightbulb },
 	{ id: "brain_overnight", label: "Overnight", icon: Moon },
-	{ id: "brain_goals", label: "Goals", icon: Target },
-	{ id: "brain_trust", label: "Trust", icon: Eye },
+	{ id: "brain_trust", label: "Trust", icon: Shield },
 ];
 
 // ---------------------------------------------------------------------------
@@ -98,7 +104,6 @@ export const PLATFORM_ITEMS: SidebarItem[] = [
 	{ id: "autonomy", label: "Autonomy", icon: Cpu },
 	{ id: "plan_intake", label: "Plan Intake", icon: Upload },
 	{ id: "extensions_skills", label: "Extensions & Skills", icon: Puzzle },
-	{ id: "proposal_inbox", label: "Proposals", icon: FileText },
 	{ id: "pi_inbox", label: "Pi Inbox", icon: Bell },
 	{ id: "registry_settings", label: "Registry Settings", icon: Shield },
 ];
@@ -637,12 +642,12 @@ export function Sidebar({
 							{/* Static sections: brain & platform */}
 							{section.id !== "tasks" && section.id !== "runs" &&
 								section.items.map((item) => {
-									// Inject badge counts from unreadCounts onto platform items
+									// Inject badge counts from unreadCounts onto items
 									let badgeOverride: number | undefined = item.badge;
 									if (
-										section.id === "platform" &&
+										section.id === "brain" &&
 										unreadCounts &&
-										item.id === "proposal_inbox"
+										item.id === "brain_proposals"
 									) {
 										badgeOverride = unreadCounts.proposals;
 									}
