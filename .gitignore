@@ -43,3 +43,5 @@ collect.sh
 .pi/
 .pi-test/
 .logs/
+# Execution diagnostics artifacts
+reports/execution-diagnostics/
