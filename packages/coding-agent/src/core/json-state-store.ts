@@ -311,7 +311,7 @@ export class JsonStateStore implements IStateStore {
 	): Promise<void> {
 		await this.store.transitionWorkspace(workspaceId, newStage, data);
 		// Update execution status if all workspaces are complete/failed
-		this.syncPlanStatus();
+		await this.syncPlanStatus();
 	}
 
 	async incrementRetryAttempt(_planExecutionId: string, workspaceId: string): Promise<void> {
@@ -1114,7 +1114,7 @@ export class JsonStateStore implements IStateStore {
 				}
 				const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
 				const tempPath = `${filePath}.tmp`;
-				
+
 				// Guard against race condition where directory is deleted during cleanup
 				try {
 					await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
@@ -1124,7 +1124,7 @@ export class JsonStateStore implements IStateStore {
 					await fs.copyFile(filePath, `${filePath}.bak`).catch(() => {});
 				} catch (err) {
 					// Ignore ENOENT errors during cleanup (directory was deleted)
-					if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+					if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
 						throw err;
 					}
 				}

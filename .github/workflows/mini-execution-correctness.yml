@@ -1,0 +1,272 @@
+name: Mini Execution Correctness
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Nightly full real-agent mini fault suite.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      gate:
+        description: "Gate to run"
+        required: true
+        default: "pr"
+        type: choice
+        options:
+          - pr
+          - nightly
+          - real-llm
+          - full-v5
+
+concurrency:
+  group: mini-execution-correctness-${{ github.ref }}-${{ github.event_name }}-${{ inputs.gate || 'auto' }}
+  cancel-in-progress: true
+
+jobs:
+  real-agent-pr-subset:
+    name: Real-agent PR subset (${{ matrix.fault }})
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.gate == 'pr')
+    strategy:
+      fail-fast: false
+      matrix:
+        fault:
+          - none
+          - file_lock_contention
+          - pause_resume_midflight
+          - restart_after_plan_a
+          - worker_hang
+          - failed_dependency
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run real-agent mini gate fault ${{ matrix.fault }}
+        env:
+          PI_REAL_AGENT_GATE_MODE: commit
+          PI_REAL_AGENT_GATE_FAULT: ${{ matrix.fault }}
+        run: npx tsx scripts/run-real-agent-mini-multiplan-gate.ts
+
+      - name: Upload execution diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-agent-mini-gate-pr-${{ matrix.fault }}
+          path: |
+            reports/execution-diagnostics/**
+            packages/coding-agent/reports/execution-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  deterministic-regressions:
+    name: Deterministic and real-agent regression tests
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.gate == 'pr')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run mini execution correctness regression tests
+        working-directory: packages/coding-agent
+        run: |
+          npx tsx ../../node_modules/vitest/dist/cli.js --run \
+            test/suite/regressions/real-agent-mini-multiplan-gate.test.ts \
+            test/suite/regressions/mini-execution-correctness-e2e.test.ts \
+            test/suite/regressions/mini-execution-correctness.test.ts
+
+      - name: Upload execution diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mini-execution-correctness-pr-regressions
+          path: |
+            reports/execution-diagnostics/**
+            packages/coding-agent/reports/execution-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  real-agent-nightly-full-suite:
+    name: Real-agent nightly full suite (${{ matrix.fault }})
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.gate == 'nightly')
+    strategy:
+      fail-fast: false
+      matrix:
+        fault:
+          - none
+          - file_lock_contention
+          - pause_resume_midflight
+          - restart_after_plan_a
+          - worker_hang
+          - failed_dependency
+          - validation_hang
+          - abort_midflight
+          - double_start
+          - lease_leak_simulation
+          - stale_completion_signal
+          - state_write_race
+          - monte_carlo_random_locks
+          - monte_carlo_random_pause_restart
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run real-agent nightly fault ${{ matrix.fault }}
+        env:
+          PI_REAL_AGENT_GATE_MODE: nightly
+          PI_REAL_AGENT_GATE_MONTE_CARLO: "1"
+          PI_REAL_AGENT_GATE_SEEDS: "25"
+          PI_REAL_AGENT_GATE_FAULT: ${{ matrix.fault }}
+        run: npx tsx scripts/run-real-agent-mini-multiplan-gate.ts
+
+      - name: Upload execution diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-agent-mini-gate-nightly-${{ matrix.fault }}
+          path: |
+            reports/execution-diagnostics/**
+            packages/coding-agent/reports/execution-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  manual-real-llm-smoke:
+    name: Manual real-LLM mini multi-plan smoke
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.gate == 'real-llm'
+    env:
+      PI_REAL_AGENT_GATE_MODE: real-llm
+      PI_DIAG_RUN_REAL_LLM: "1"
+      PI_STATE_STORE_BACKEND: postgres
+      DATABASE_URL: ${{ secrets.PI_E2E_DATABASE_URL }}
+      PI_E2E_DATABASE_URL: ${{ secrets.PI_E2E_DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run manual real-LLM mini multi-plan smoke
+        run: npx tsx scripts/run-real-agent-mini-multiplan-gate.ts
+
+      - name: Upload execution diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-agent-mini-gate-real-llm
+          path: |
+            reports/execution-diagnostics/**
+            packages/coding-agent/reports/execution-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  manual-full-v5-real-run:
+    name: Manual full V5 real implementation run
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.gate == 'full-v5'
+    env:
+      PI_DIAG_RUN_REAL_LLM: "1"
+      PI_STATE_STORE_BACKEND: postgres
+      DATABASE_URL: ${{ secrets.PI_E2E_DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run manual full V5 real implementation suite
+        working-directory: packages/coding-agent
+        run: npx tsx scripts/run-v5-real-implementation.ts
+
+      - name: Upload execution diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-v5-real-implementation-diagnostics
+          path: |
+            reports/execution-diagnostics/**
+            packages/coding-agent/reports/execution-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 30

@@ -19,7 +19,7 @@ describe("AutonomousExecutor", () => {
 		// Force JSON backend for tests to avoid PostgreSQL connection attempts
 		originalEnv = process.env.PI_STATE_STORE_BACKEND;
 		process.env.PI_STATE_STORE_BACKEND = "json";
-		
+
 		await fs.mkdir(TEST_DIR, { recursive: true });
 		// Create executor with postPlanHandoff disabled for simpler testing
 		executor = createAutonomousExecutor(TEST_DIR, 3, undefined, undefined, { postPlanHandoff: false });
@@ -32,7 +32,7 @@ describe("AutonomousExecutor", () => {
 		} else {
 			process.env.PI_STATE_STORE_BACKEND = originalEnv;
 		}
-		
+
 		await fs.rm(TEST_DIR, { recursive: true, force: true });
 	});
 

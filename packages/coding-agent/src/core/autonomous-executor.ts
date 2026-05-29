@@ -236,8 +236,8 @@ export class AutonomousExecutor {
 			this.setApprovedPreviewMetadata(config.approvedPreview);
 		}
 
-		// If skipProjectManagement, use a fixed projectId
-		if (config.skipProjectManagement) {
+		// If skipProjectManagement and no explicit projectId was provided, use a fixed projectId
+		if (config.skipProjectManagement && !config.projectId) {
 			this.projectId = "default";
 		}
 
@@ -1955,7 +1955,9 @@ export function createAutonomousExecutor(
 	maxWorkers = DEFAULT_WORKERS,
 	retryPolicy?: RetryPolicy,
 	worktree?: WorktreeConfig,
-	configOverrides?: Partial<Omit<AutonomousExecutorConfig, 'workspaceRoot' | 'maxWorkers' | 'retryPolicy' | 'worktree'>>,
+	configOverrides?: Partial<
+		Omit<AutonomousExecutorConfig, "workspaceRoot" | "maxWorkers" | "retryPolicy" | "worktree">
+	>,
 ): AutonomousExecutor {
 	// Use createStateStore for centralized backend selection (Finding 4/5)
 	const backend = detectStateStoreBackend();
