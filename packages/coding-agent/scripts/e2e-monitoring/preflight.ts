@@ -109,7 +109,11 @@ async function checkGitState(root: string): Promise<PreflightCheck> {
 		}
 
 		// Check if the uncommitted files are in safe locations
-		const safeDirs = [".pi/", "reports/", ".logs/", "node_modules/"];
+		// Note: git status --porcelain strips the leading dot from hidden files
+		// because the status prefix (2 chars + space) eats position 0-2.
+		// E.g., ".logs/foo" becomes "logs/foo" after l.substring(3).
+		// So safe dirs use "logs/" and "pi/" without leading dot.
+		const safeDirs = ["pi/", "reports/", "logs/", "node_modules/"];
 		const unsafe = lines.filter((l) => {
 			const file = l.substring(3);
 			return !safeDirs.some((d) => file.startsWith(d) || file.includes("/" + d));
