@@ -533,6 +533,22 @@ export class EvidenceIndex implements IEvidenceIndex {
  */
 import { ALL_EVIDENCE_REF_TYPES as ALL_EVIDENCE_REF_TYPES_FOR_STATS } from "./types.js";
 
+// V5 output types with evidence refs integration
+export type {
+	V5Answer,
+	V5Draft,
+	V5MemoryInjection,
+	V5MemoryInjectionReport,
+	V5OutputBuildOptions,
+} from "./v5-outputs.js";
+export {
+	buildConfidenceExplanation,
+	buildV5Answer,
+	buildV5Draft,
+	buildV5MemoryInjectionReport,
+	evidenceMeetsThreshold,
+} from "./v5-outputs.js";
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------

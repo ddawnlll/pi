@@ -1707,4 +1707,110 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 			});
 		}
 	});
+
+	// =========================================================================
+	// Memory Retrieval V2 Routes (V5.03)
+	// =========================================================================
+
+	// GET /brain-v5/memory/retrieval/retry-hotspot — Retry-hotspot query
+	fastify.get("/brain-v5/memory/retrieval/retry-hotspot", async (request, reply) => {
+		try {
+			if (!options?.getMemoryRetrieval) {
+				return reply.code(503).send({ error: "Memory retrieval not available" });
+			}
+
+			const retrieval = await options.getMemoryRetrieval();
+			const query = request.query as {
+				workspaceId?: string;
+				errorText?: string;
+				planExecId?: string;
+				limit?: string;
+				offset?: string;
+			};
+
+			const result = await retrieval.queryByRetryHotspot({
+				workspaceId: query.workspaceId,
+				errorText: query.errorText,
+				planExecId: query.planExecId,
+				limit: query.limit ? parseInt(query.limit, 10) : undefined,
+				offset: query.offset ? parseInt(query.offset, 10) : undefined,
+			});
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return result.report;
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to query retry-hotspot memories",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/memory/retrieval/failure-memories — List failure memories
+	fastify.get("/brain-v5/memory/retrieval/failure-memories", async (request, reply) => {
+		try {
+			if (!options?.getMemoryRetrieval) {
+				return reply.code(503).send({ error: "Memory retrieval not available" });
+			}
+
+			const retrieval = await options.getMemoryRetrieval();
+			const query = request.query as { limit?: string; offset?: string };
+
+			const limit = query.limit ? parseInt(query.limit, 10) : undefined;
+			const offset = query.offset ? parseInt(query.offset, 10) : undefined;
+
+			const result = await retrieval.listFailureMemories(limit, offset);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return result.report;
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to list failure memories",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/memory/retrieval/query — Generic memory query
+	fastify.post("/brain-v5/memory/retrieval/query", async (request, reply) => {
+		try {
+			if (!options?.getMemoryRetrieval) {
+				return reply.code(503).send({ error: "Memory retrieval not available" });
+			}
+
+			const retrieval = await options.getMemoryRetrieval();
+			const body = request.body as {
+				types?: string[];
+				searchText?: string;
+				tags?: string[];
+				limit?: number;
+				offset?: number;
+			};
+
+			const result = await retrieval.queryMemories({
+				types: body.types,
+				searchText: body.searchText,
+				tags: body.tags,
+				limit: body.limit,
+				offset: body.offset,
+			});
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return result.report;
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to query memories",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
 }
