@@ -112,7 +112,7 @@ async function checkGitState(root: string): Promise<PreflightCheck> {
 		const safeDirs = [".pi/", "reports/", ".logs/", "node_modules/"];
 		const unsafe = lines.filter((l) => {
 			const file = l.substring(3);
-			return !safeDirs.some((d) => file.startsWith(d));
+			return !safeDirs.some((d) => file.startsWith(d) || file.includes("/" + d));
 		});
 
 		if (unsafe.length === 0) {
