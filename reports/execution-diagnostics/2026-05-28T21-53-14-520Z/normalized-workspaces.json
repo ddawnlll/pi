@@ -1,0 +1,22 @@
+[
+  {
+    "id": "diag.1",
+    "title": "Diagnostic workspace",
+    "dependencies": [],
+    "roleBudget": "worker",
+    "maxRetries": 3,
+    "capabilities": {
+      "canEdit": [
+        "docs/diagnostic.txt"
+      ],
+      "cannotEdit": [],
+      "canRun": [],
+      "cannotRun": []
+    },
+    "targetCommand": null,
+    "executorPrompt": "Create docs/diagnostic.txt with the text OK.",
+    "instructions": "Create a file in the temp repo",
+    "goal": "Write one diagnostic artifact",
+    "effectivePrompt": "Create docs/diagnostic.txt with the text OK."
+  }
+]

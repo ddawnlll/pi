@@ -26,6 +26,12 @@ import type { FastifyInstance } from "fastify";
 // Types
 // ---------------------------------------------------------------------------
 
+interface ProposalActionResult {
+	success: boolean;
+	proposal: unknown;
+	message: string;
+}
+
 interface V5RouteOptions {
 	getSettingsManager?: () => Promise<{
 		getBrainV5Settings: () => {
@@ -154,6 +160,66 @@ interface V5RouteOptions {
 		resolve: (refs: unknown[]) => Promise<unknown[]>;
 		assess: (refs: unknown[]) => Promise<unknown>;
 		stats: () => Promise<unknown>;
+	}>;
+
+	/** Optional provider for the Reflection API v2 (V5.10). */
+	getReflectionApi?: () => Promise<{
+		getReflection: (planExecId: string) => Promise<unknown | null>;
+		getClaims: (planExecId: string) => Promise<{ claims: unknown[] } | null>;
+		correctClaim: (
+			planExecId: string,
+			claimId: string,
+			correctedValue: string,
+			reason: string,
+			correctedBy?: string,
+			sourceRefs?: unknown[],
+		) => Promise<{ success: boolean; report?: unknown; entry?: unknown; error?: string }>;
+		correctSummary: (
+			planExecId: string,
+			correctedSummary: string,
+			reason: string,
+			correctedBy?: string,
+		) => Promise<{ success: boolean; report?: unknown; entry?: unknown; error?: string }>;
+		correctConfidence: (
+			planExecId: string,
+			correctedConfidence: number,
+			reason: string,
+			correctedBy?: string,
+		) => Promise<{ success: boolean; report?: unknown; entry?: unknown; error?: string }>;
+		rejectClaim: (
+			planExecId: string,
+			claimId: string,
+			reason: string,
+			rejectedBy?: string,
+		) => Promise<{ success: boolean; entry?: unknown; error?: string }>;
+		rejectReport: (
+			planExecId: string,
+			reason: string,
+			rejectedBy?: string,
+		) => Promise<{ success: boolean; entry?: unknown; error?: string }>;
+		getAuditTrail: (planExecId: string) => Promise<{ entries: unknown[]; total: number }>;
+		listAuditEntries: (limit?: number, offset?: number) => Promise<{ entries: unknown[]; total: number }>;
+		registerClaimsAsEvidence: (
+			planExecId: string,
+			evidenceApi: {
+				registerEvidence: (
+					type: string,
+					id: string,
+					label: string,
+					description: string,
+					confidence: number,
+					content?: string,
+				) => Promise<unknown>;
+				registerBatch: (sources: unknown[]) => Promise<unknown[]>;
+				query: (query: {
+					types?: string[];
+					search?: string;
+					minConfidence?: number;
+					createdAfter?: string;
+					createdBefore?: string;
+				}) => Promise<{ items: unknown[]; total: number }>;
+			},
+		) => Promise<unknown[] | null>;
 	}>;
 
 	/** Optional provider for the Proposal Engine v2 API (V5.08). */
@@ -916,13 +982,13 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 
 			const result = await api.acceptProposal(params.id, body.approvedBy ?? "user");
 
-			if (!result.success) {
+			if (!(result as ProposalActionResult).success) {
 				return reply.code(400).send({
-					error: result.message,
+					error: (result as ProposalActionResult).message,
 				});
 			}
 
-			return { success: true, proposal: result.proposal, message: result.message };
+			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to accept proposal",
@@ -944,13 +1010,13 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 
 			const result = await api.rejectProposal(params.id, body.rejectedBy ?? "user", body.reason);
 
-			if (!result.success) {
+			if (!(result as ProposalActionResult).success) {
 				return reply.code(400).send({
-					error: result.message,
+					error: (result as ProposalActionResult).message,
 				});
 			}
 
-			return { success: true, proposal: result.proposal, message: result.message };
+			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to reject proposal",
@@ -972,13 +1038,13 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 
 			const result = await api.markExecutionReady(params.id, body.approvedBy ?? "user");
 
-			if (!result.success) {
+			if (!(result as ProposalActionResult).success) {
 				return reply.code(400).send({
-					error: result.message,
+					error: (result as ProposalActionResult).message,
 				});
 			}
 
-			return { success: true, proposal: result.proposal, message: result.message };
+			return { success: true, proposal: (result as ProposalActionResult).proposal, message: (result as ProposalActionResult).message };
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to mark proposal execution-ready",
@@ -1044,6 +1110,291 @@ export async function registerBrainV5Routes(fastify: FastifyInstance, options?: 
 		} catch (error) {
 			return reply.code(500).send({
 				error: "Failed to get proposal stats",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// =========================================================================
+	// Reflection V2 Routes (V5.10 — Reflection Loop v2)
+	// =========================================================================
+
+	// GET /brain-v5/reflection/:planExecId/claims — Get evidence-backed claims (AC1/AC2)
+	fastify.get("/brain-v5/reflection/:planExecId/claims", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+
+			const result = await api.getClaims(params.planExecId);
+			if (!result) {
+				return reply.code(404).send({ error: "Reflection not found" });
+			}
+
+			return { claims: result.claims };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get reflection claims",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/correct-claim — Correct a claim (AC3)
+	fastify.post("/brain-v5/reflection/:planExecId/correct-claim", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+			const body = request.body as {
+				claimId: string;
+				correctedValue: string;
+				reason: string;
+				correctedBy?: string;
+				sourceRefs?: unknown[];
+			};
+
+			if (!body.claimId || !body.correctedValue || !body.reason) {
+				return reply.code(400).send({ error: "claimId, correctedValue, and reason are required" });
+			}
+
+			const result = await api.correctClaim(
+				params.planExecId,
+				body.claimId,
+				body.correctedValue,
+				body.reason,
+				body.correctedBy,
+				body.sourceRefs,
+			);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return { success: true, entry: result.entry };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to correct claim",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/correct-summary — Correct the summary (AC3)
+	fastify.post("/brain-v5/reflection/:planExecId/correct-summary", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+			const body = request.body as {
+				correctedSummary: string;
+				reason: string;
+				correctedBy?: string;
+			};
+
+			if (!body.correctedSummary || !body.reason) {
+				return reply.code(400).send({ error: "correctedSummary and reason are required" });
+			}
+
+			const result = await api.correctSummary(
+				params.planExecId,
+				body.correctedSummary,
+				body.reason,
+				body.correctedBy,
+			);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return { success: true, entry: result.entry };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to correct summary",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/correct-confidence — Correct the confidence (AC3)
+	fastify.post("/brain-v5/reflection/:planExecId/correct-confidence", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+			const body = request.body as {
+				correctedConfidence: number;
+				reason: string;
+				correctedBy?: string;
+			};
+
+			if (body.correctedConfidence === undefined || !body.reason) {
+				return reply.code(400).send({ error: "correctedConfidence and reason are required" });
+			}
+
+			const result = await api.correctConfidence(
+				params.planExecId,
+				body.correctedConfidence,
+				body.reason,
+				body.correctedBy,
+			);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return { success: true, entry: result.entry };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to correct confidence",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/reject-claim — Reject a claim (AC3)
+	fastify.post("/brain-v5/reflection/:planExecId/reject-claim", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+			const body = request.body as {
+				claimId: string;
+				reason: string;
+				rejectedBy?: string;
+			};
+
+			if (!body.claimId || !body.reason) {
+				return reply.code(400).send({ error: "claimId and reason are required" });
+			}
+
+			const result = await api.rejectClaim(params.planExecId, body.claimId, body.reason, body.rejectedBy);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return { success: true, entry: result.entry };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to reject claim",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/reject — Reject the entire report (AC3)
+	fastify.post("/brain-v5/reflection/:planExecId/reject", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+			const body = request.body as {
+				reason: string;
+				rejectedBy?: string;
+			};
+
+			if (!body.reason) {
+				return reply.code(400).send({ error: "reason is required" });
+			}
+
+			const result = await api.rejectReport(params.planExecId, body.reason, body.rejectedBy);
+
+			if (!result.success) {
+				return reply.code(400).send({ error: result.error });
+			}
+
+			return { success: true, entry: result.entry };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to reject report",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/reflection/:planExecId/audit — Get audit trail (AC3)
+	fastify.get("/brain-v5/reflection/:planExecId/audit", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const params = request.params as { planExecId: string };
+
+			const result = await api.getAuditTrail(params.planExecId);
+			return { entries: result.entries, total: result.total };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to get audit trail",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// GET /brain-v5/reflection/audit — List all audit entries
+	fastify.get("/brain-v5/reflection/audit", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi) {
+				return reply.code(503).send({ error: "Reflection API not available" });
+			}
+
+			const api = await options.getReflectionApi();
+			const query = request.query as { limit?: string; offset?: string };
+
+			const limit = query.limit ? parseInt(query.limit, 10) : 100;
+			const offset = query.offset ? parseInt(query.offset, 10) : 0;
+
+			const result = await api.listAuditEntries(limit, offset);
+			return { entries: result.entries, total: result.total };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to list audit entries",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
+
+	// POST /brain-v5/reflection/:planExecId/register-evidence — Register claims as evidence (AC2)
+	fastify.post("/brain-v5/reflection/:planExecId/register-evidence", async (request, reply) => {
+		try {
+			if (!options?.getReflectionApi || !options?.getEvidenceApi) {
+				return reply.code(503).send({ error: "Reflection API or Evidence API not available" });
+			}
+
+			const reflectionApi = await options.getReflectionApi();
+			const evidenceApi = await options.getEvidenceApi();
+			const params = request.params as { planExecId: string };
+
+			const refs = await reflectionApi.registerClaimsAsEvidence(params.planExecId, evidenceApi);
+
+			if (!refs) {
+				return reply.code(404).send({ error: "Reflection not found" });
+			}
+
+			return { success: true, refs };
+		} catch (error) {
+			return reply.code(500).send({
+				error: "Failed to register claims as evidence",
 				message: error instanceof Error ? error.message : String(error),
 			});
 		}

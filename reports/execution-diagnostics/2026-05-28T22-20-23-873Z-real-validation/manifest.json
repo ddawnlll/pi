@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-05-28T22-20-23-873Z-real-validation",
+  "workspaceId": "V5.00",
+  "results": [
+    {
+      "id": "R4",
+      "name": "V5.00 real LLM + worktree",
+      "status": "fail",
+      "durationMs": 22,
+      "evidence": [
+        "error=Parse failed: Failed to parse JSON queue: Cannot read properties of undefined (reading 'mode'); Part 3 JSON queue not found and Markdown fallback disabled"
+      ],
+      "error": "Parse failed: Failed to parse JSON queue: Cannot read properties of undefined (reading 'mode'); Part 3 JSON queue not found and Markdown fallback disabled"
+    }
+  ],
+  "timers": []
+}

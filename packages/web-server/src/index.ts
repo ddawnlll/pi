@@ -4980,6 +4980,14 @@ await fastify.register(
 );
 
 // ---------------------------------------------------------------------------
+// Brain Worker Inbox — instantiate before project-scoped routes that use it
+// ---------------------------------------------------------------------------
+
+const { HandoffInbox, TriageRouter } = await import("@earendil-works/pi-coding-agent");
+const handoffInbox = new HandoffInbox();
+const triageRouter = new TriageRouter(handoffInbox);
+
+// ---------------------------------------------------------------------------
 // Project-Scoped Brain Routes (continued) — proposals, reflections, approvals
 // ---------------------------------------------------------------------------
 
@@ -5002,12 +5010,8 @@ const piInboxStore = new PiInboxStore();
 await registerPiInboxRoutes(fastify, piInboxStore);
 
 // ---------------------------------------------------------------------------
-// Brain Worker Inbox Routes (25.O — Worker Handoff Inbox and Triage Router)
+// Brain Worker Inbox Routes (25.O — additional brain-scoped routes)
 // ---------------------------------------------------------------------------
-
-const { HandoffInbox, TriageRouter } = await import("@earendil-works/pi-coding-agent");
-const handoffInbox = new HandoffInbox();
-const triageRouter = new TriageRouter(handoffInbox);
 await fastify.register(
 	async (scoped) => {
 		await registerBrainWorkerInboxRoutes(scoped, handoffInbox, triageRouter);

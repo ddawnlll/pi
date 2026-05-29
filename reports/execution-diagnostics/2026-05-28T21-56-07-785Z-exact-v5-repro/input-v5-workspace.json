@@ -1,0 +1,191 @@
+{
+  "id": "V5.00",
+  "title": "V5 Contract, Flags & Safety Doctrine",
+  "required": true,
+  "batch": "B0",
+  "parallelGroup": "foundation",
+  "dependencies": [],
+  "hardDeps": [],
+  "softDeps": [],
+  "canRunWith": [],
+  "cannotRunWith": [],
+  "queuePriority": "critical",
+  "queueOptimizationNotes": "Critical path workspaces are high/critical priority. UI-only and non-blocking pages are high/normal unless they unblock dogfood.",
+  "area": "backend/core",
+  "goal": "Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later workspace agrees that Brain V5 is advisory by default and never mutates execution state directly.",
+  "allowedFiles": [
+    "packages/coding-agent/src/brain/v5/**",
+    "packages/coding-agent/src/brain/types.ts",
+    "packages/web-server/src/brain-v5-routes.ts",
+    "packages/web-ui/dashboard/src/types-brain-v5.ts",
+    "docs/pi/v5/**"
+  ],
+  "forbiddenFiles": [
+    ".env",
+    ".env.*",
+    "**/secrets/**"
+  ],
+  "readSet": [],
+  "writeSet": [
+    "packages/coding-agent/src/brain/v5/**",
+    "packages/coding-agent/src/brain/types.ts",
+    "packages/web-server/src/brain-v5-routes.ts",
+    "packages/web-ui/dashboard/src/types-brain-v5.ts",
+    "docs/pi/v5/**"
+  ],
+  "conflictScope": {
+    "declaredWriteSet": [
+      "packages/coding-agent/src/brain/v5/**",
+      "packages/coding-agent/src/brain/types.ts",
+      "packages/web-server/src/brain-v5-routes.ts",
+      "packages/web-ui/dashboard/src/types-brain-v5.ts",
+      "docs/pi/v5/**"
+    ],
+    "driftDetection": {
+      "enabled": true,
+      "driftThresholdFiles": 5,
+      "onDriftDetected": "warn_and_flag_integration"
+    },
+    "knownOverlap": []
+  },
+  "validation": {
+    "commands": [
+      "npm run typecheck",
+      "npm test -- brain-v5-safety"
+    ],
+    "targeted": true,
+    "canRunTargetedOnly": true,
+    "estimatedHeavyValidationSeconds": 0,
+    "watchModeForbidden": true,
+    "timeoutMs": 600000,
+    "killProcessTreeOnTimeout": true,
+    "maxOutputBytes": 52428800,
+    "profile": "targeted_then_final",
+    "heavyCommandUsesGlobalLock": true,
+    "managedRunnerRequired": true,
+    "processGroupRequired": true,
+    "killTreeOnTimeout": true
+  },
+  "rollback": {
+    "strategy": "Disable BRAIN_V5_ENABLED and remove the V5 route registration while keeping old brain pages untouched.",
+    "requiresHumanApproval": true
+  },
+  "humanApproval": {
+    "requiredBeforeMerge": true,
+    "requiredBeforeExecution": false,
+    "approvalNotes": "Workspace output may be merged only after targeted validation and review. Generated plans/drafts remain approval-gated."
+  },
+  "acceptanceCriteria": [
+    "BRAIN_V5_ENABLED, BRAIN_V5_READ_ONLY_MODE, BRAIN_V5_PUSH_ENABLED, BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED=false are represented in settings/config.",
+    "Brain V5 code paths can determine OFF, READ_ONLY, ADVISORY, DRAFTING, and OPERATOR_READY states.",
+    "Any direct execution-state mutation from brain modules is rejected or impossible by type/API boundary.",
+    "The plan doctor can report that V5 is advisory unless operator gates pass."
+  ],
+  "description": "Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later workspace agrees that Brain V5 is advisory by default and never mutates execution state directly.",
+  "dependencyReason": "Foundation workspace with no dependencies.",
+  "manualApplicationRequired": false,
+  "humanApprovalRequired": false,
+  "autonomousExecutionAllowed": true,
+  "rollbackRequired": true,
+  "targetedValidationRequired": true,
+  "patchReview": {
+    "required": false,
+    "reviewer": "implementation_owner"
+  },
+  "parallelism": {
+    "expectedBatch": "batch_1",
+    "canRunWith": [],
+    "cannotRunWith": [],
+    "conflictScope": [
+      "packages/coding-agent/src/brain/v5/**",
+      "packages/coding-agent/src/brain/types.ts",
+      "packages/web-server/src/brain-v5-routes.ts",
+      "packages/web-ui/dashboard/src/types-brain-v5.ts",
+      "docs/pi/v5/**"
+    ],
+    "sameFileParallelismAllowed": false,
+    "safeParallelismNotes": "May run with other workspaces in B0 only when capabilityManifest.canEdit scopes do not overlap and validation lane pressure is acceptable."
+  },
+  "worktree": {
+    "required": true,
+    "isolationMode": "worktree",
+    "cleanupPolicy": "quarantine_on_failure"
+  },
+  "integration": {
+    "queueRequired": true,
+    "requiresWorkspaceValidation": true,
+    "requiresIntegrationValidation": true,
+    "conflictHandoffRequired": true,
+    "queuePriority": "critical",
+    "queueOptimizationNotes": "Critical path workspaces are high/critical priority. UI-only and non-blocking pages are high/normal unless they unblock dogfood."
+  },
+  "targetCommand": null,
+  "roleBudget": "worker",
+  "maxRetries": 2,
+  "riskLevel": "high",
+  "capabilityManifest": {
+    "canEdit": [
+      "packages/coding-agent/src/brain/v5/**",
+      "packages/coding-agent/src/brain/types.ts",
+      "packages/web-server/src/brain-v5-routes.ts",
+      "packages/web-ui/dashboard/src/types-brain-v5.ts",
+      "docs/pi/v5/**"
+    ],
+    "cannotEdit": [
+      ".env",
+      ".env.*",
+      "**/secrets/**"
+    ],
+    "canRun": [
+      "npm run typecheck",
+      "npm test -- brain-v5-safety",
+      "npm test"
+    ],
+    "cannotRun": [
+      "git push",
+      "rm -rf",
+      "npm publish",
+      "vitest --watch",
+      "jest --watch",
+      "npm run dev",
+      "vite --host"
+    ]
+  },
+  "capabilities": {
+    "canEdit": [
+      "packages/coding-agent/src/brain/v5/**",
+      "packages/coding-agent/src/brain/types.ts",
+      "packages/web-server/src/brain-v5-routes.ts",
+      "packages/web-ui/dashboard/src/types-brain-v5.ts",
+      "docs/pi/v5/**"
+    ],
+    "cannotEdit": [
+      ".env",
+      ".env.*",
+      "**/secrets/**"
+    ],
+    "canRun": [
+      "npm run typecheck",
+      "npm test -- brain-v5-safety",
+      "npm test"
+    ],
+    "cannotRun": [
+      "git push",
+      "rm -rf",
+      "npm publish",
+      "vitest --watch",
+      "jest --watch",
+      "npm run dev",
+      "vite --host"
+    ]
+  },
+  "telemetry": {
+    "expectedEvents": [
+      "workspace_start",
+      "file_lock_acquired",
+      "workspace_completed"
+    ],
+    "logLevel": "info"
+  },
+  "executorPrompt": "Implement workspace V5.00 — V5 Contract, Flags & Safety Doctrine.\nGoal: Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later workspace agrees that Brain V5 is advisory by default and never mutates execution state directly.\nAllowed files: packages/coding-agent/src/brain/v5/**, packages/coding-agent/src/brain/types.ts, packages/web-server/src/brain-v5-routes.ts, packages/web-ui/dashboard/src/types-brain-v5.ts, docs/pi/v5/**\nDo not edit forbidden files: .env, .env.*, **/secrets/**\nAcceptance criteria: BRAIN_V5_ENABLED, BRAIN_V5_READ_ONLY_MODE, BRAIN_V5_PUSH_ENABLED, BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED=false are represented in settings/config.; Brain V5 code paths can determine OFF, READ_ONLY, ADVISORY, DRAFTING, and OPERATOR_READY states.; Any direct execution-state mutation from brain modules is rejected or impossible by type/API boundary.; The plan doctor can report that V5 is advisory unless operator gates pass.\nRespect V4 ExecutionKernel doctrine: brain code must not mutate execution state directly; actors emit events only."
+}

@@ -50,7 +50,7 @@ export class ShadowAttemptJournal {
 		payload?: Record<string, unknown> | null,
 	): Promise<void> {
 		await this.journal.append({
-			eventId: `shadow:${attemptId}:${version}:${eventType}`,
+			eventId: crypto.randomUUID(),
 			attemptId,
 			planExecutionId,
 			workspaceExecutionId,

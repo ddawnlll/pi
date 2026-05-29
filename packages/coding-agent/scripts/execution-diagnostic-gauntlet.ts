@@ -410,17 +410,22 @@ async function main(): Promise<void> {
 		if (!parsed.success || !parsed.queue) throw new Error(`parse failed: ${parsed.errors.join("; ")}`);
 		const workspace = parsed.queue.workspaces[0];
 		if (!workspace) throw new Error("no parsed workspace");
-		const effectivePrompt = [workspace.title, workspace.acceptanceCriteria?.join("\n"), workspace.metadata?.executorPrompt]
-			.filter((value) => typeof value === "string" && value.length > 0)
-			.join("\n");
+		const effectivePrompt = workspace.effectivePrompt ?? "";
 		const editable = workspace.capabilities?.canEdit ?? [];
-		const rawPromptPreserved = Boolean(workspace.metadata?.executorPrompt);
+		const executorPromptPreserved = Boolean(workspace.executorPrompt);
+		const instructionsPreserved = Boolean(workspace.instructions);
+		const goalPreserved = Boolean(workspace.goal);
+		const hasEffectivePrompt = Boolean(workspace.effectivePrompt);
 		return [
 			`parsed workspaces=${parsed.queue.workspaces.length}`,
 			`effective prompt length=${effectivePrompt.length}`,
+			`effective prompt text=${effectivePrompt.substring(0, 80)}`,
 			`editable scope=${editable.join(",")}`,
-			`raw executorPrompt preserved in normalized workspace metadata=${rawPromptPreserved}`,
-			`validator accepted workspace with only title/capabilities as executable=${parsed.success}`,
+			`executorPrompt preserved=${executorPromptPreserved}`,
+			`instructions preserved=${instructionsPreserved}`,
+			`goal preserved=${goalPreserved}`,
+			`effectivePrompt computed=${hasEffectivePrompt}`,
+			`validator accepted=${parsed.success}`,
 		];
 	});
 
@@ -470,11 +475,19 @@ async function main(): Promise<void> {
 
 	await runTest(recorder, "T6", "Worktree creation with mock success", async () => {
 		const repo = await createTempGitRepo();
-		const executor = new WorktreeWorkspaceExecutor({ workspaceRoot: repo, planExecutionId: "diag-plan", workspaceId: "diag.1", worktree: { enabled: true } });
+		// Executor emits lifecycle events through onWorktreeEvent callback
+		const executor = new WorktreeWorkspaceExecutor({
+			workspaceRoot: repo,
+			planExecutionId: "diag-plan",
+			workspaceId: "diag.1",
+			worktree: { enabled: true },
+			onWorktreeEvent: (event) => {
+				recorder.worktree("T6", event.type, "diag.1", event.data);
+			},
+		});
 		recorder.worktree("T6", "worktree_create_start", "diag.1", { repo });
 		const created = await executor.createWorktree();
 		if (created.error) throw new Error(created.error);
-		recorder.worktree("T6", "worktree_add_complete", "diag.1", { path: created.state.worktreePath });
 		await runMockPlan(recorder, "T6", oneQueue, () => "success", { concurrency: 1, executorTimeoutMs: 500, worktree: true });
 		await executor.removeWorktree(true);
 		recorder.worktree("T6", "worktree_quarantined", "diag.1", { path: created.state.worktreePath });
@@ -483,11 +496,19 @@ async function main(): Promise<void> {
 
 	await runTest(recorder, "T7", "Worktree + hanging mock agent", async () => {
 		const repo = await createTempGitRepo();
-		const executor = new WorktreeWorkspaceExecutor({ workspaceRoot: repo, planExecutionId: "diag-plan", workspaceId: "diag.1", worktree: { enabled: true } });
+		// Executor emits lifecycle events through onWorktreeEvent callback
+		const executor = new WorktreeWorkspaceExecutor({
+			workspaceRoot: repo,
+			planExecutionId: "diag-plan",
+			workspaceId: "diag.1",
+			worktree: { enabled: true },
+			onWorktreeEvent: (event) => {
+				recorder.worktree("T7", event.type, "diag.1", event.data);
+			},
+		});
 		recorder.worktree("T7", "worktree_create_start", "diag.1", { repo });
 		const created = await executor.createWorktree();
 		if (created.error) throw new Error(created.error);
-		recorder.worktree("T7", "worktree_add_complete", "diag.1", { path: created.state.worktreePath });
 		const result = await runMockPlan(recorder, "T7", oneQueue, () => "hang", { concurrency: 1, executorTimeoutMs: 250, worktree: true });
 		await executor.removeWorktree(true);
 		recorder.worktree("T7", "worktree_quarantined", "diag.1", { path: created.state.worktreePath });
@@ -589,8 +610,13 @@ function buildFinalReport(recorder: Recorder): string {
 	lines.push(t8?.evidence.join("; ") ?? "T8 result unavailable", "");
 	lines.push("## V4 Workspace Normalization Analysis", "");
 	lines.push(t0?.evidence.join("; ") ?? "T0 result unavailable", "");
-	lines.push("## Validator Gaps Found", "");
-	lines.push("The parser accepts V4 workspaces after normalization even when goal/instructions/executorPrompt are not first-class Workspace fields. The diagnostic records whether executorPrompt survived in metadata.", "");
+	lines.push("## Validator / V4 Prompt Normalization", "");
+	lines.push("executorPrompt, instructions, and goal are now preserved as first-class Workspace fields during normalization. effectivePrompt is computed as executorPrompt ?? instructions ?? goal ?? description ?? task ?? title.", "");
+	const t0Result = recorder.results.find((r) => r.id === "T0");
+	if (t0Result) {
+		lines.push(`T0 evidence: ${t0Result.evidence.join("; ")}`, "");
+	}
+	lines.push("Validator now checks: missing effective prompt (error), missing editable scope (error), targetCommand=null + no prompt (error).", "");
 	lines.push("## Root Cause Ranking", "");
 	lines.push("1. confirmed: none against production executor in this safe mock gauntlet.");
 	lines.push("2. likely: V4 prompt normalization gap if T0 shows executorPrompt was not preserved.");

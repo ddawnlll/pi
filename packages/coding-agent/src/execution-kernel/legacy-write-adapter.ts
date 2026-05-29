@@ -46,7 +46,7 @@ async function emitShadowEvent(
 	},
 ): Promise<void> {
 	await journal.append({
-		eventId: `shadow:${shadowParams.attemptId}:${shadowParams.version}:${shadowParams.eventType}`,
+		eventId: crypto.randomUUID(),
 		attemptId: shadowParams.attemptId,
 		planExecutionId: shadowParams.planExecutionId,
 		workspaceExecutionId: shadowParams.workspaceExecutionId,

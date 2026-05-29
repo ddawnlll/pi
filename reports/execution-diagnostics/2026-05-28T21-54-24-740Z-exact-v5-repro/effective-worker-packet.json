@@ -1,0 +1,48 @@
+{
+  "packet": {
+    "phaseId": "P2",
+    "workspaceId": "V5.00",
+    "role": "worker",
+    "goal": "Implement workspace V5.00 — V5 Contract, Flags & Safety Doctrine.\nGoal: Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later workspace agrees that Brain V5 is advisory by default and never mutates execution state directly.\nAllowed files: packages/coding-agent/src/brain/v5/**, packages/coding-agent/src/brain/types.ts, packages/web-server/src/brain-v5-routes.ts, packages/web-ui/dashboard/src/types-brain-v5.ts, docs/pi/v5/**\nDo not edit forbidden files: .env, .env.*, **/secrets/**\nAcceptance criteria: BRAIN_V5_ENABLED, BRAIN_V5_READ_ONLY_MODE, BRAIN_V5_PUSH_ENABLED, BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED=false are represented in settings/config.; Brain V5 code paths can determine OFF, READ_ONLY, ADVISORY, DRAFTING, and OPERATOR_READY states.; Any direct execution-state mutation from brain modules is rejected or impossible by type/API boundary.; The plan doctor can report that V5 is advisory unless operator gates pass.\nRespect V4 ExecutionKernel doctrine: brain code must not mutate execution state directly; actors emit events only.",
+    "allowedFiles": [
+      "packages/coding-agent/src/brain/v5/**",
+      "packages/coding-agent/src/brain/types.ts",
+      "packages/web-server/src/brain-v5-routes.ts",
+      "packages/web-ui/dashboard/src/types-brain-v5.ts",
+      "docs/pi/v5/**"
+    ],
+    "forbiddenFiles": [
+      ".env",
+      ".env.*",
+      "**/secrets/**"
+    ],
+    "acceptanceCriteria": [
+      {
+        "description": "BRAIN_V5_ENABLED, BRAIN_V5_READ_ONLY_MODE, BRAIN_V5_PUSH_ENABLED, BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED=false are represented in settings/config.",
+        "verified": false
+      },
+      {
+        "description": "Brain V5 code paths can determine OFF, READ_ONLY, ADVISORY, DRAFTING, and OPERATOR_READY states.",
+        "verified": false
+      },
+      {
+        "description": "Any direct execution-state mutation from brain modules is rejected or impossible by type/API boundary.",
+        "verified": false
+      },
+      {
+        "description": "The plan doctor can report that V5 is advisory unless operator gates pass.",
+        "verified": false
+      }
+    ],
+    "targetCommand": null,
+    "stateSummary": "",
+    "relevantSnippets": [],
+    "outputContract": "VERDICT: COMPLETE | BLOCKED | FAILED",
+    "budget": {
+      "maxInputTokens": 12000,
+      "estimatedInputTokens": 540
+    }
+  },
+  "hash": "e95e44d82c8109570cadc6756f8748ae74c2631f600f11d71bcdfbbb7ad2b9e1",
+  "createdAt": 1780005264750
+}

@@ -64,6 +64,26 @@ export interface WarningSettings {
 	anthropicExtraUsage?: boolean; // default: true
 }
 
+/**
+ * Brain V5 settings.
+ *
+ * These flags control the V5 capability boundary:
+ * - BRAIN_V5_ENABLED: master switch for all V5 brain code paths
+ * - BRAIN_V5_READ_ONLY_MODE: when true, V5 cannot emit any mutation events
+ * - BRAIN_V5_PUSH_ENABLED: allows V5 to push approved changes to execution
+ * - BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED: allows V5 overnight operator mode
+ */
+export interface BrainV5Settings {
+	/** Master switch: enable all V5 brain code paths (default: false) */
+	enabled?: boolean;
+	/** Read-only mode: V5 cannot emit mutation events (default: true) */
+	readOnlyMode?: boolean;
+	/** Push enabled: V5 can push approved changes to execution (default: false) */
+	pushEnabled?: boolean;
+	/** Overnight operator: V5 can run overnight operator sessions (default: false) */
+	overnightOperatorEnabled?: boolean;
+}
+
 export type TransportSetting = Transport;
 
 /**
@@ -123,6 +143,7 @@ export interface Settings {
 	safetyProfile?: SafetyProfileName; // Safety profile: "strict" | "balanced" | "full_auto" (default: "strict")
 	workerConcurrency?: WorkerConcurrencySettings; // Worker concurrency settings (1-3 stable, 4-6 experimental)
 	memoryGuard?: MemoryGuardSettings; // P6.5: Memory guard settings (limit GB, wait timeout)
+	brainV5?: BrainV5Settings; // V5: Brain V5 capability flags
 }
 
 export interface MemoryGuardSettings {
@@ -647,6 +668,46 @@ export class SettingsManager {
 		this.globalSettings.memoryGuard = settings;
 		this.markModified("memoryGuard");
 		this.save();
+	}
+
+	// -----------------------------------------------------------------------
+	// V5: Brain V5 capability settings
+	// -----------------------------------------------------------------------
+
+	/** Get Brain V5 settings */
+	getBrainV5Settings(): BrainV5Settings {
+		return {
+			enabled: this.settings.brainV5?.enabled ?? false,
+			readOnlyMode: this.settings.brainV5?.readOnlyMode ?? true,
+			pushEnabled: this.settings.brainV5?.pushEnabled ?? false,
+			overnightOperatorEnabled: this.settings.brainV5?.overnightOperatorEnabled ?? false,
+		};
+	}
+
+	/** Set Brain V5 settings */
+	setBrainV5Settings(settings: BrainV5Settings): void {
+		this.globalSettings.brainV5 = { ...settings };
+		this.markModified("brainV5");
+		this.save();
+	}
+
+	/**
+	 * Get the effective Brain V5 mode derived from the merged settings.
+	 *
+	 * Modes (increasing capability):
+	 *   OFF             - V5 disabled entirely
+	 *   READ_ONLY       - V5 enabled, but reads only (no events emitted)
+	 *   ADVISORY        - V5 can emit observation/signal events but not push
+	 *   DRAFTING        - V5 can emit and push approved changes
+	 *   OPERATOR_READY  - V5 can run overnight operator sessions
+	 */
+	getBrainV5Mode(): "OFF" | "READ_ONLY" | "ADVISORY" | "DRAFTING" | "OPERATOR_READY" {
+		const v5 = this.getBrainV5Settings();
+		if (!v5.enabled) return "OFF";
+		if (v5.readOnlyMode) return "READ_ONLY";
+		if (!v5.pushEnabled) return "ADVISORY";
+		if (!v5.overnightOperatorEnabled) return "DRAFTING";
+		return "OPERATOR_READY";
 	}
 
 	/** Get the effective max worker count (respects experimental mode gating) */

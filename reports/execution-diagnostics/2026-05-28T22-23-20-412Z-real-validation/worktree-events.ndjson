@@ -1,0 +1,8 @@
+{"type":"worktree_create_start","timestamp":1780007000446,"workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-r4-1780007000412/.pi/worktrees/r4-validation/V5.00","branchName":"worktree/r4-validation/V5.00","planExecutionId":"r4-validation"}}
+{"type":"worktree_mutex_wait_start","timestamp":1780007000451,"workspaceId":"V5.00","data":{"timeoutMs":30000}}
+{"type":"worktree_mutex_acquired","timestamp":1780007000451,"workspaceId":"V5.00","data":{"waitMs":0}}
+{"type":"worktree_branch_prepare_start","timestamp":1780007000451,"workspaceId":"V5.00","data":{"branchName":"worktree/r4-validation/V5.00","baseCommit":"b1fd7dd69f795656ba6dc69ee65f177a2a2ab136"}}
+{"type":"worktree_branch_ready","timestamp":1780007000463,"workspaceId":"V5.00","data":{"branchName":"worktree/r4-validation/V5.00"}}
+{"type":"worktree_add_start","timestamp":1780007000463,"workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-r4-1780007000412/.pi/worktrees/r4-validation/V5.00","branchName":"worktree/r4-validation/V5.00"}}
+{"type":"worktree_add_complete","timestamp":1780007000469,"workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-r4-1780007000412/.pi/worktrees/r4-validation/V5.00","branchName":"worktree/r4-validation/V5.00"}}
+{"type":"worktree_mutex_released","timestamp":1780007000469,"workspaceId":"V5.00","data":{}}

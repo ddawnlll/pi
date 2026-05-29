@@ -23,9 +23,9 @@ export class WorkspaceAttemptController {
 		const nextState = this.reduceEvent(currentState, eventType);
 		assertLegalTransition(currentState, nextState);
 		const token = createStateAuthorityToken(attemptId, this.controllerId);
-		const result = await this.transition(token, nextState, attempt.version, attempt.id, payload);
+		const result = await this.transition(token, nextState, currentState, attempt.version, attempt.id, payload);
 		await this.journal.append({
-			eventId: `${attemptId}:${result.version}:${eventType}`,
+			eventId: crypto.randomUUID(),
 			attemptId,
 			planExecutionId: String(attempt.plan_execution_id),
 			workspaceExecutionId: String(attempt.workspace_execution_id),
@@ -54,6 +54,7 @@ export class WorkspaceAttemptController {
 	async transition(
 		_token: ReturnType<typeof createStateAuthorityToken>,
 		nextState: AttemptState,
+		currentState: AttemptState,
 		expectedVersion: number,
 		attemptId: string,
 		payload: Record<string, unknown>,
@@ -74,11 +75,11 @@ export class WorkspaceAttemptController {
 			.insertInto("attempt_transitions")
 			.values({
 				attempt_id: attemptId,
-				from_state: "RUNNING",
+				from_state: currentState,
 				to_state: nextState,
 				expected_version: expectedVersion,
 				next_version: expectedVersion + 1,
-				event_id: `${attemptId}:${expectedVersion + 1}`,
+				event_id: crypto.randomUUID(),
 				metadata: payload,
 				created_at: new Date().toISOString(),
 			})
@@ -91,6 +92,10 @@ export class WorkspaceAttemptController {
 		if (eventType === "deadline_exceeded") return "FAILED_RETRYABLE";
 		if (eventType === "succeeded") return "SUCCEEDED";
 		if (eventType === "failed_final") return "FAILED_FINAL";
+		if (eventType === "attempt_started") return "RUNNING";
+		if (eventType === "attempt_failed") return "FAILED_RETRYABLE";
+		if (eventType === "attempt_succeeded") return "SUCCEEDED";
+		if (eventType === "attempt_blocked") return "BLOCKED";
 		return state;
 	}
 }

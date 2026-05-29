@@ -108,11 +108,15 @@ export class RolePacketBuilder {
 	buildWorkerPacket(workspace: Workspace, _state: WorkspaceState, priorStateSummary = ""): HashedPacket {
 		const config = ROLE_CONFIGS.worker;
 
+		// Use effectivePrompt as the primary goal if available,
+		// falling back to title for legacy plans (P-HOTFIX-WT).
+		const goal = workspace.effectivePrompt ?? workspace.title;
+
 		const packet = this.packetBuilder.build({
 			phaseId: "P2", // Will be parameterized in full implementation
 			workspaceId: workspace.id,
 			role: config.role,
-			goal: workspace.title,
+			goal,
 			allowedFiles: workspace.capabilities?.canEdit || [],
 			forbiddenFiles: workspace.capabilities?.cannotEdit || [],
 			acceptanceCriteria: workspace.acceptanceCriteria || [],

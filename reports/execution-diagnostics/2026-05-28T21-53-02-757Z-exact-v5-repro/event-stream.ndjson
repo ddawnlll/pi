@@ -1,0 +1,56 @@
+{"timestamp":1780005182767,"testId":"R1","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer"}}
+{"timestamp":1780005182767,"testId":"R1","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005182767,"testId":"R1","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005182767,"testId":"R1","type":"executor_start","workspaceId":"V5.00","data":{"worktree":false}}
+{"timestamp":1780005182767,"testId":"R1","type":"executor_prompt_built","workspaceId":"V5.00","data":{"packetGoal":"V5 Contract, Flags & Safety Doctrine","acceptanceCriteriaCount":4}}
+{"timestamp":1780005182767,"testId":"R1","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005182767,"testId":"R1","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005182797,"testId":"R1","type":"mock_agent_result","workspaceId":"V5.00","data":{"verdict":"COMPLETE"}}
+{"timestamp":1780005182797,"testId":"R1","type":"workspace_complete","workspaceId":"V5.00"}
+{"timestamp":1780005182797,"testId":"R1","type":"plan_complete"}
+{"timestamp":1780005182797,"testId":"R1","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005182817,"testId":"R2","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-pKuWn4"}}
+{"timestamp":1780005182817,"testId":"R2","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005182817,"testId":"R2","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005182817,"testId":"R2","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1780005182818,"testId":"R2","type":"worktree_create_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-pKuWn4/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00","planExecutionId":"exact-v5-repro"}}
+{"timestamp":1780005182820,"testId":"R2","type":"worktree_mutex_wait_start","workspaceId":"V5.00","data":{"timeoutMs":30000}}
+{"timestamp":1780005182820,"testId":"R2","type":"worktree_mutex_acquired","workspaceId":"V5.00","data":{"waitMs":0}}
+{"timestamp":1780005182820,"testId":"R2","type":"worktree_branch_prepare_start","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00","baseCommit":"14d67292019d324f2dcb7d04b608d098a821eb1f"}}
+{"timestamp":1780005182828,"testId":"R2","type":"worktree_branch_ready","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182828,"testId":"R2","type":"worktree_add_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-pKuWn4/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182833,"testId":"R2","type":"worktree_add_complete","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-pKuWn4/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182833,"testId":"R2","type":"worktree_mutex_released","workspaceId":"V5.00","data":{}}
+{"timestamp":1780005182833,"testId":"R2","type":"worktree_base_commit_resolved","workspaceId":"V5.00","data":{"baseCommit":"14d67292019d324f2dcb7d04b608d098a821eb1f"}}
+{"timestamp":1780005182833,"testId":"R2","type":"executor_prompt_built","workspaceId":"V5.00"}
+{"timestamp":1780005182833,"testId":"R2","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005182833,"testId":"R2","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005182863,"testId":"R2","type":"mock_agent_result","workspaceId":"V5.00","data":{"verdict":"COMPLETE"}}
+{"timestamp":1780005182863,"testId":"R2","type":"workspace_complete","workspaceId":"V5.00"}
+{"timestamp":1780005182863,"testId":"R2","type":"plan_complete"}
+{"timestamp":1780005182863,"testId":"R2","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-pKuWn4/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182863,"testId":"R2","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005182863,"testId":"R2","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-pKuWn4/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182878,"testId":"R3","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-BLCFSc"}}
+{"timestamp":1780005182878,"testId":"R3","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005182878,"testId":"R3","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005182878,"testId":"R3","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1780005182878,"testId":"R3","type":"worktree_create_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-BLCFSc/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00","planExecutionId":"exact-v5-repro"}}
+{"timestamp":1780005182881,"testId":"R3","type":"worktree_mutex_wait_start","workspaceId":"V5.00","data":{"timeoutMs":30000}}
+{"timestamp":1780005182881,"testId":"R3","type":"worktree_mutex_acquired","workspaceId":"V5.00","data":{"waitMs":0}}
+{"timestamp":1780005182881,"testId":"R3","type":"worktree_branch_prepare_start","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00","baseCommit":"14d67292019d324f2dcb7d04b608d098a821eb1f"}}
+{"timestamp":1780005182888,"testId":"R3","type":"worktree_branch_ready","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182888,"testId":"R3","type":"worktree_add_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-BLCFSc/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182892,"testId":"R3","type":"worktree_add_complete","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-BLCFSc/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005182892,"testId":"R3","type":"worktree_mutex_released","workspaceId":"V5.00","data":{}}
+{"timestamp":1780005182892,"testId":"R3","type":"worktree_base_commit_resolved","workspaceId":"V5.00","data":{"baseCommit":"14d67292019d324f2dcb7d04b608d098a821eb1f"}}
+{"timestamp":1780005182892,"testId":"R3","type":"executor_prompt_built","workspaceId":"V5.00"}
+{"timestamp":1780005182892,"testId":"R3","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005182892,"testId":"R3","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005183192,"testId":"R3","type":"executor_timeout","workspaceId":"V5.00","data":{"timeoutMs":300}}
+{"timestamp":1780005183192,"testId":"R3","type":"workspace_timed_out","workspaceId":"V5.00"}
+{"timestamp":1780005183192,"testId":"R3","type":"workspace_failed","workspaceId":"V5.00","data":{"error":"mock agent timed out"}}
+{"timestamp":1780005183192,"testId":"R3","type":"plan_failed"}
+{"timestamp":1780005183192,"testId":"R3","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-BLCFSc/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005183192,"testId":"R3","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005183192,"testId":"R3","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-BLCFSc/.pi/worktrees/exact-v5-repro/V5.00"}}

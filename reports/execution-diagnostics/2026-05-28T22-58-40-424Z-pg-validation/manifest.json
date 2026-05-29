@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-05-28T22-58-40-424Z-pg-validation",
+  "workspaceId": "V5.00",
+  "planPath": "/home/erfolg/src/pi/P-V5_Brain_Reality_Layer_v4_Plan_EXECUTOR_SCHEMA_FIXED.md",
+  "results": [
+    {
+      "id": "R4",
+      "name": "V5.00 real LLM + worktree (direct WorkspaceAgentExecutor)",
+      "status": "pass",
+      "durationMs": 120038,
+      "evidence": [
+        "verdict=FAILED",
+        "success=false",
+        "duration=120038ms",
+        "worktree_events=worktree_create_start, worktree_mutex_wait_start, worktree_mutex_acquired, worktree_branch_prepare_start, worktree_branch_ready, worktree_add_start, worktree_add_complete, worktree_mutex_released",
+        "worktree_create_start=true",
+        "worktree_mutex_acquired=true",
+        "worktree_add_complete=true",
+        "terminal_state_reached=true",
+        "cleanup_observed=false"
+      ]
+    },
+    {
+      "id": "V5-S1",
+      "name": "V5.00 AutonomousExecutor + Postgres (single workspace)",
+      "status": "fail",
+      "durationMs": 14,
+      "evidence": [
+        "error=invalid input syntax for type uuid: \"default\""
+      ],
+      "error": "invalid input syntax for type uuid: \"default\""
+    },
+    {
+      "id": "V5-S2",
+      "name": "Full V5 plan maxParallel=1",
+      "status": "fail",
+      "durationMs": 1,
+      "evidence": [
+        "error=invalid input syntax for type uuid: \"default\""
+      ],
+      "error": "invalid input syntax for type uuid: \"default\""
+    },
+    {
+      "id": "V5-S3",
+      "name": "Full V5 plan maxParallel=3",
+      "status": "fail",
+      "durationMs": 1,
+      "evidence": [
+        "error=invalid input syntax for type uuid: \"default\""
+      ],
+      "error": "invalid input syntax for type uuid: \"default\""
+    },
+    {
+      "id": "V5-S4",
+      "name": "Full V5 plan maxParallel=6",
+      "status": "fail",
+      "durationMs": 1,
+      "evidence": [
+        "error=invalid input syntax for type uuid: \"default\""
+      ],
+      "error": "invalid input syntax for type uuid: \"default\""
+    }
+  ],
+  "timers": [],
+  "pgAvailable": true,
+  "runRealLlm": true
+}

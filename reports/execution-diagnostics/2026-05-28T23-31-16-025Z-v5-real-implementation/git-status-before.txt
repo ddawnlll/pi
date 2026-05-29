@@ -1,0 +1,26 @@
+M  packages/ai/scripts/generate-models.ts
+ M packages/coding-agent/scripts/exact-v5-repro.ts
+ M packages/coding-agent/scripts/execution-diagnostic-gauntlet.ts
+ M packages/coding-agent/src/core/plan-parser.ts
+ M packages/coding-agent/src/core/role-packets.ts
+ M packages/coding-agent/src/core/workspace-agent-executor.ts
+ M packages/coding-agent/src/core/workspace-schema.ts
+ M packages/coding-agent/src/worktree/worktree-workspace-executor.ts
+?? packages/coding-agent/scripts/post-hotfix-real-validation.ts
+?? packages/coding-agent/scripts/run-v5-real-implementation.ts
+?? reports/P-HOTFIX-WT-report.md
+?? reports/execution-diagnostics/2026-05-28T21-53-02-757Z-exact-v5-repro/
+?? reports/execution-diagnostics/2026-05-28T21-53-14-520Z/
+?? reports/execution-diagnostics/2026-05-28T21-54-24-740Z-exact-v5-repro/
+?? reports/execution-diagnostics/2026-05-28T21-54-26-811Z/
+?? reports/execution-diagnostics/2026-05-28T21-56-07-785Z-exact-v5-repro/
+?? reports/execution-diagnostics/2026-05-28T21-56-09-855Z/
+?? reports/execution-diagnostics/2026-05-28T22-20-23-873Z-real-validation/
+?? reports/execution-diagnostics/2026-05-28T22-23-20-412Z-real-validation/
+?? reports/execution-diagnostics/2026-05-28T22-23-47-579Z-real-validation/
+?? reports/execution-diagnostics/2026-05-28T22-58-40-424Z-pg-validation/
+?? reports/execution-diagnostics/2026-05-28T23-02-48-845Z-pg-validation/
+?? reports/execution-diagnostics/2026-05-28T23-14-38-698Z-pg-validation/
+?? reports/execution-diagnostics/2026-05-28T23-28-26-061Z-exact-v5-repro/
+?? reports/execution-diagnostics/2026-05-28T23-30-15-160Z-v5-real-implementation/
+?? reports/execution-diagnostics/2026-05-28T23-31-16-025Z-v5-real-implementation/

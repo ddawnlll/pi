@@ -1,0 +1,18 @@
+{"type":"plan_start","timestamp":1780005367793,"data":{"phase":"P-V5","title":"Brain Reality Layer"}}
+{"type":"workspace_start","timestamp":1780005367793,"workspaceId":"V5.00"}
+{"type":"file_lock_acquired","timestamp":1780005367794,"workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"type":"workspace_complete","timestamp":1780005367824,"workspaceId":"V5.00"}
+{"type":"plan_complete","timestamp":1780005367824}
+{"type":"file_lock_released","timestamp":1780005367824,"workspaceId":"V5.00"}
+{"type":"plan_start","timestamp":1780005367842,"data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-vzi6pz"}}
+{"type":"workspace_start","timestamp":1780005367842,"workspaceId":"V5.00"}
+{"type":"file_lock_acquired","timestamp":1780005367842,"workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"type":"workspace_complete","timestamp":1780005367888,"workspaceId":"V5.00"}
+{"type":"plan_complete","timestamp":1780005367888}
+{"type":"file_lock_released","timestamp":1780005367888,"workspaceId":"V5.00"}
+{"type":"plan_start","timestamp":1780005367902,"data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-nrBN9L"}}
+{"type":"workspace_start","timestamp":1780005367902,"workspaceId":"V5.00"}
+{"type":"file_lock_acquired","timestamp":1780005367902,"workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"type":"workspace_failed","timestamp":1780005368216,"workspaceId":"V5.00","data":{"error":"mock agent timed out"}}
+{"type":"plan_failed","timestamp":1780005368216}
+{"type":"file_lock_released","timestamp":1780005368216,"workspaceId":"V5.00"}

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-05-28T23-31-16-025Z-v5-real-implementation",
+  "planPath": "/home/erfolg/src/pi/P-V5_Brain_Reality_Layer_v4_Plan_EXECUTOR_SCHEMA_FIXED.md",
+  "model": {
+    "provider": "opencode-go",
+    "id": "deepseek-v4-flash"
+  },
+  "projectId": "8299235e-1bf2-4e08-9904-9248b946dab2",
+  "admission": "reduced",
+  "safeParallelism": 3,
+  "timeouts": {
+    "llmRequestMs": 120000,
+    "workspaceOverallMs": 600000
+  },
+  "startedAt": "2026-05-28T23:31:16.025Z"
+}

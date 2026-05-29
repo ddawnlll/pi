@@ -1,0 +1,84 @@
+{
+  "success": true,
+  "queue": {
+    "phase": "P-DIAG",
+    "title": "Execution Diagnostic Gauntlet",
+    "maxParallelWorkspaces": 2,
+    "workspaces": [
+      {
+        "id": "diag.1",
+        "title": "Diagnostic workspace",
+        "dependencies": [],
+        "roleBudget": "worker",
+        "maxRetries": 3,
+        "capabilities": {
+          "canEdit": [
+            "docs/diagnostic.txt"
+          ],
+          "cannotEdit": [],
+          "canRun": [],
+          "cannotRun": []
+        },
+        "targetCommand": null,
+        "executorPrompt": "Create docs/diagnostic.txt with the text OK.",
+        "instructions": "Create a file in the temp repo",
+        "goal": "Write one diagnostic artifact",
+        "effectivePrompt": "Create docs/diagnostic.txt with the text OK."
+      }
+    ],
+    "contractVersion": "4.0.0",
+    "planExecution": {
+      "scale": {
+        "selectedMode": "experimental_6"
+      },
+      "worktree": {
+        "enabled": true
+      },
+      "integrationQueue": {
+        "enabled": true
+      },
+      "validation": {
+        "globalValidationLockRequired": true
+      }
+    },
+    "intent": {
+      "parallelism": 2,
+      "safetyLevel": "strict",
+      "conflictRisk": "low",
+      "executionEnvironment": {
+        "mode": "trusted_local"
+      },
+      "deadlines": {}
+    },
+    "derivedProfile": {
+      "worktreeRequired": true,
+      "integrationQueueRequired": true,
+      "validationLaneRequired": true,
+      "gitRunnerQueueRequired": true,
+      "eventJournalRequired": true,
+      "writeSetDriftDetectionRequired": false,
+      "writeSetDriftBlockOnConflict": false,
+      "heavyValidationMax": 1,
+      "targetedValidationMax": 3,
+      "admissionGateMode": "strict",
+      "explicitApprovalRequired": false,
+      "sandboxRequirements": [
+        "warn: trusted_local not safe for untrusted code"
+      ],
+      "explanations": [
+        "parallelism=2: conditional worktree/integration requirements",
+        "strict safety: event journal, integration queue, scoped artifacts, JSON fallback forbidden",
+        "execution environment trusted_local: warn: trusted_local not safe for untrusted code"
+      ]
+    },
+    "deprecatedMechanismHints": []
+  },
+  "errors": [],
+  "warnings": [
+    "Worktree mode is enabled but worktree mutex diagnostics environment variable PI_WORKTREE_DIAGNOSTICS is not set. Set PI_WORKTREE_DIAGNOSTICS=1 to enable diagnostic event emission for worktree operations."
+  ],
+  "unresolvedPlaceholders": [],
+  "parsedSource": "part3_json",
+  "markdownWorkstreamCount": 1,
+  "missingWorkspaceLabels": []
+}

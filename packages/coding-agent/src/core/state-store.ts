@@ -613,6 +613,40 @@ export interface IStateStore {
  * @param config - State store configuration
  * @returns Configured state store instance
  */
+
+// =========================================================================
+// UUID validation helpers
+// =========================================================================
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Assert that a value is a valid UUID v4 string.
+ * Throws if the value is not a valid UUID.
+ */
+export function assertUuid(value: unknown, fieldName: string): string {
+	if (typeof value !== "string") {
+		throw new Error(`${fieldName}: expected a string, got ${typeof value}`);
+	}
+	if (!value) {
+		throw new Error(`${fieldName}: UUID must not be empty`);
+	}
+	if (!UUID_RE.test(value)) {
+		throw new Error(`${fieldName}: invalid UUID format: "${value}"`);
+	}
+	return value;
+}
+
+/**
+ * Assert that a value is a valid UUID v4 string or null/undefined.
+ */
+export function assertNullableUuid(value: unknown, fieldName: string): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	return assertUuid(value, fieldName);
+}
+
 export function createStateStore(config: StateStoreConfig): IStateStore {
 	const { backend, workspaceRoot, jsonConfig, dbConfig } = config;
 	const production = process.env.NODE_ENV === "production";

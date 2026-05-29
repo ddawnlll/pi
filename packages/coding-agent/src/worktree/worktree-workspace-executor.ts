@@ -18,22 +18,158 @@ import type { HashedPacket } from "../core/role-packets.js";
 // Global worktree operation mutex
 // Prevents concurrent git worktree add/remove operations that could conflict.
 // ---------------------------------------------------------------------------
+
+/**
+ * Maximum time (ms) to wait for the worktree mutex lock before timing out.
+ * This bounds the wait for the previous worktree operation to complete.
+ */
+const WORKTREE_MUTEX_WAIT_TIMEOUT_MS = 30_000; // 30 seconds
+
+/**
+ * Maximum time (ms) for worktree creation (ensureBranch + git worktree add).
+ */
+const WORKTREE_CREATE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Event types emitted by the worktree mutex.
+ */
+export type WorktreeMutexEventType =
+	| "worktree_mutex_wait_start"
+	| "worktree_mutex_acquired"
+	| "worktree_mutex_timeout"
+	| "worktree_mutex_released";
+
+/**
+ * Event emitted by the worktree mutex.
+ */
+export interface WorktreeMutexEvent {
+	type: WorktreeMutexEventType;
+	timestamp: number;
+	waitMs?: number;
+	timeoutMs?: number;
+	error?: string;
+}
+
+/**
+ * Event types for broader worktree lifecycle.
+ */
+export type WorktreeLifecycleEventType =
+	| WorktreeMutexEventType
+	| "worktree_create_start"
+	| "worktree_create_failed"
+	| "worktree_branch_prepare_start"
+	| "worktree_branch_ready"
+	| "worktree_add_start"
+	| "worktree_add_complete"
+	| "inner_executor_start";
+
+/**
+ * Options for acquireWorktreeMutex.
+ */
+interface AcquireMutexOptions {
+	timeoutMs?: number;
+	signal?: AbortSignal;
+	onEvent?: (event: WorktreeMutexEvent) => void;
+}
+
 let worktreeMutexTail: Promise<void> = Promise.resolve();
 
-async function acquireWorktreeMutex(): Promise<() => void> {
-	let release!: () => void;
-	const previous = worktreeMutexTail;
-	const next = new Promise<void>((resolve) => {
-		release = resolve;
+/**
+ * Wait for the previous mutex owner to release, with bounded timeout
+ * and abort signal support.
+ */
+async function waitForPreviousMutexOwner(
+	previous: Promise<void>,
+	options: { timeoutMs: number; signal?: AbortSignal },
+): Promise<void> {
+	if (options.signal?.aborted) {
+		throw new Error("Worktree mutex wait aborted before acquisition");
+	}
+
+	await Promise.race([
+		previous,
+		new Promise<void>((_, reject) => {
+			const timeout = setTimeout(() => {
+				reject(new Error(`Worktree mutex wait timed out after ${options.timeoutMs}ms`));
+			}, options.timeoutMs);
+			if (typeof timeout?.unref === "function") {
+				timeout.unref();
+			}
+		}),
+		new Promise<void>((_, reject) => {
+			if (!options.signal) return;
+			const onAbort = () => {
+				reject(new Error("Worktree mutex wait aborted"));
+			};
+			options.signal.addEventListener("abort", onAbort, { once: true });
+		}),
+	]);
+}
+
+/**
+ * Acquire the global worktree mutex.
+ *
+ * Returns a release function that must be called in a finally block.
+ * The previous caller's release unblocks the next waiter.
+ * Idempotent release: calling release() more than once is a no-op.
+ *
+ * @param options - Optional timeout, abort signal, and event callback
+ * @returns A release function
+ */
+async function acquireWorktreeMutex(options?: AcquireMutexOptions): Promise<() => void> {
+	const startedAt = Date.now();
+	const timeoutMs = options?.timeoutMs ?? WORKTREE_MUTEX_WAIT_TIMEOUT_MS;
+
+	options?.onEvent?.({
+		type: "worktree_mutex_wait_start",
+		timestamp: startedAt,
+		timeoutMs,
 	});
 
-	// Chain before awaiting so concurrent callers queue behind this caller.
-	worktreeMutexTail = previous.then(
-		() => next,
-		() => next,
-	);
-	await previous;
-	return release;
+	let releaseNext!: () => void;
+	const previous = worktreeMutexTail;
+	worktreeMutexTail = new Promise<void>((resolve) => {
+		releaseNext = resolve;
+	});
+
+	try {
+		await waitForPreviousMutexOwner(previous, {
+			timeoutMs,
+			signal: options?.signal,
+		});
+	} catch (error) {
+		// Release the next waiter so the chain does not stay broken
+		releaseNext();
+
+		options?.onEvent?.({
+			type: "worktree_mutex_timeout",
+			timestamp: Date.now(),
+			waitMs: Date.now() - startedAt,
+			timeoutMs,
+			error: error instanceof Error ? error.message : String(error),
+		});
+
+		throw error;
+	}
+
+	options?.onEvent?.({
+		type: "worktree_mutex_acquired",
+		timestamp: Date.now(),
+		waitMs: Date.now() - startedAt,
+	});
+
+	let released = false;
+
+	return () => {
+		if (released) return;
+		released = true;
+		releaseNext();
+
+		options?.onEvent?.({
+			type: "worktree_mutex_released",
+			timestamp: Date.now(),
+		});
+	};
 }
 
 import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "../core/workspace-agent-executor.js";
@@ -160,6 +296,13 @@ export class WorktreeWorkspaceExecutor {
 	private worktreeState: WorktreeState | null = null;
 	private lastExecutor: WorkspaceAgentExecutor | null = null;
 	private abortController: AbortController | null = null;
+	/** Optional callback for worktree lifecycle events */
+	private onWorktreeEvent?: (event: {
+		type: WorktreeLifecycleEventType;
+		timestamp: number;
+		workspaceId: string;
+		data?: Record<string, unknown>;
+	}) => void;
 
 	constructor(config: {
 		workspaceRoot: string;
@@ -168,6 +311,12 @@ export class WorktreeWorkspaceExecutor {
 		attemptNo?: number;
 		worktree?: WorktreeConfig;
 		branchName?: string;
+		onWorktreeEvent?: (event: {
+			type: WorktreeLifecycleEventType;
+			timestamp: number;
+			workspaceId: string;
+			data?: Record<string, unknown>;
+		}) => void;
 	}) {
 		this.workspaceRoot = config.workspaceRoot;
 		this.planExecutionId = config.planExecutionId;
@@ -175,6 +324,7 @@ export class WorktreeWorkspaceExecutor {
 		this.attemptNo = config.attemptNo ?? 0;
 		this.worktreeConfig = config.worktree ?? DEFAULT_WORKTREE_CONFIG;
 		this.branchName = this.buildBranchName(config.branchName);
+		this.onWorktreeEvent = config.onWorktreeEvent;
 	}
 
 	/**
@@ -245,12 +395,25 @@ export class WorktreeWorkspaceExecutor {
 	 * Abort the current execution, if one is active.
 	 */
 	abort(): void {
+		// Abort the worktree mutex wait if currently waiting
 		if (this.abortController && !this.abortController.signal.aborted) {
 			this.abortController.abort();
 		}
 		if (this.lastExecutor) {
 			this.lastExecutor.abort();
 		}
+	}
+
+	/**
+	 * Emit a worktree lifecycle event through the onWorktreeEvent callback.
+	 */
+	private emitWorktreeEvent(type: WorktreeLifecycleEventType, data?: Record<string, unknown>): void {
+		this.onWorktreeEvent?.({
+			type,
+			timestamp: Date.now(),
+			workspaceId: this.workspaceId,
+			data,
+		});
 	}
 
 	/**
@@ -409,6 +572,13 @@ export class WorktreeWorkspaceExecutor {
 
 		const worktreeDir = this.getWorktreeRootDir();
 
+		// Emit create start event
+		this.emitWorktreeEvent("worktree_create_start", {
+			worktreeDir,
+			branchName: this.branchName,
+			planExecutionId: this.planExecutionId,
+		});
+
 		// Check if a worktree already exists at this path (reuse if so)
 		const alreadyExists = await directoryExists(worktreeDir);
 		if (alreadyExists) {
@@ -463,6 +633,9 @@ export class WorktreeWorkspaceExecutor {
 		try {
 			baseCommit = await this.getBaseCommit(this.workspaceRoot);
 		} catch (err) {
+			this.emitWorktreeEvent("worktree_create_failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
 			return {
 				state: null as unknown as WorktreeState,
 				created: false,
@@ -470,30 +643,63 @@ export class WorktreeWorkspaceExecutor {
 			};
 		}
 
-		// Acquire global worktree mutex to prevent concurrent git worktree operations
-		// that could cause ref locking conflicts.
-		const WORKTREE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max for worktree creation
-		const releaseWorktreeMutex = await acquireWorktreeMutex();
+		// Acquire global worktree mutex with bounded timeout and abort support.
+		// The mutex wait has its own timeout (30s) separate from the creation timeout (5min).
+		const releaseWorktreeMutex = await acquireWorktreeMutex({
+			timeoutMs: WORKTREE_MUTEX_WAIT_TIMEOUT_MS,
+			signal: this.abortController?.signal,
+			onEvent: (event) => {
+				this.emitWorktreeEvent(event.type as WorktreeLifecycleEventType, {
+					waitMs: event.waitMs,
+					timeoutMs: event.timeoutMs,
+					error: event.error,
+				});
+			},
+		});
 		try {
+			// Emit branch prepare event before starting ensureBranch
+			this.emitWorktreeEvent("worktree_branch_prepare_start", {
+				branchName: this.branchName,
+				baseCommit,
+			});
+
 			// Timeout: ensureBranch + git worktree add must complete within the limit
 			await Promise.race([
 				(async () => {
 					await this.ensureBranch(this.workspaceRoot, baseCommit);
+					this.emitWorktreeEvent("worktree_branch_ready", {
+						branchName: this.branchName,
+					});
+
+					this.emitWorktreeEvent("worktree_add_start", {
+						worktreeDir,
+						branchName: this.branchName,
+					});
+
 					await git(
 						["worktree", "add", "--checkout", worktreeDir, this.branchName],
 						this.workspaceRoot,
 						60_000,
 						true,
 					);
+
+					this.emitWorktreeEvent("worktree_add_complete", {
+						worktreeDir,
+						branchName: this.branchName,
+					});
 				})(),
 				new Promise<void>((_, reject) =>
 					setTimeout(
-						() => reject(new Error(`Worktree creation timed out after ${WORKTREE_TIMEOUT_MS / 60000} min`)),
-						WORKTREE_TIMEOUT_MS,
+						() =>
+							reject(new Error(`Worktree creation timed out after ${WORKTREE_CREATE_TIMEOUT_MS / 60000} min`)),
+						WORKTREE_CREATE_TIMEOUT_MS,
 					).unref(),
 				),
 			]);
 		} catch (err) {
+			this.emitWorktreeEvent("worktree_create_failed", {
+				error: err instanceof Error ? err.message : String(err),
+			});
 			return {
 				state: null as unknown as WorktreeState,
 				created: false,
@@ -542,7 +748,17 @@ export class WorktreeWorkspaceExecutor {
 			return; // Don't remove, just mark as quarantined
 		}
 
-		const releaseWorktreeMutex = await acquireWorktreeMutex();
+		const releaseWorktreeMutex = await acquireWorktreeMutex({
+			timeoutMs: WORKTREE_MUTEX_WAIT_TIMEOUT_MS,
+			signal: this.abortController?.signal,
+			onEvent: (event) => {
+				this.emitWorktreeEvent(event.type as WorktreeLifecycleEventType, {
+					waitMs: event.waitMs,
+					timeoutMs: event.timeoutMs,
+					error: event.error,
+				});
+			},
+		});
 		try {
 			// Check if the worktree directory still exists before trying to remove it
 			const wtExists = await directoryExists(worktreeDir);
@@ -625,6 +841,11 @@ export class WorktreeWorkspaceExecutor {
 
 				this.lastExecutor = new WorkspaceAgentExecutor(executorConfig);
 				log(`Agent executor created with workspace root: ${effectiveRoot}`);
+
+				this.emitWorktreeEvent("inner_executor_start", {
+					root: effectiveRoot,
+					model: executorConfig.model?.id ?? "default",
+				});
 
 				// Execute the agent
 				const agentResult = await this.lastExecutor.execute(packet, this.workspaceId);

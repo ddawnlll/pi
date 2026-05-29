@@ -1,0 +1,56 @@
+{"timestamp":1780005367793,"testId":"R1","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer"}}
+{"timestamp":1780005367793,"testId":"R1","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005367794,"testId":"R1","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005367794,"testId":"R1","type":"executor_start","workspaceId":"V5.00","data":{"worktree":false}}
+{"timestamp":1780005367794,"testId":"R1","type":"executor_prompt_built","workspaceId":"V5.00","data":{"packetGoal":"Implement workspace V5.00 — V5 Contract, Flags & Safety Doctrine.\nGoal: Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later workspace agrees that Brain V5 is advisory by default and never mutates execution state directly.\nAllowed files: packages/coding-agent/src/brain/v5/**, packages/coding-agent/src/brain/types.ts, packages/web-server/src/brain-v5-routes.ts, packages/web-ui/dashboard/src/types-brain-v5.ts, docs/pi/v5/**\nDo not edit forbidden files: .env, .env.*, **/secrets/**\nAcceptance criteria: BRAIN_V5_ENABLED, BRAIN_V5_READ_ONLY_MODE, BRAIN_V5_PUSH_ENABLED, BRAIN_V5_OVERNIGHT_OPERATOR_ENABLED=false are represented in settings/config.; Brain V5 code paths can determine OFF, READ_ONLY, ADVISORY, DRAFTING, and OPERATOR_READY states.; Any direct execution-state mutation from brain modules is rejected or impossible by type/API boundary.; The plan doctor can report that V5 is advisory unless operator gates pass.\nRespect V4 ExecutionKernel doctrine: brain code must not mutate execution state directly; actors emit events only.","acceptanceCriteriaCount":4}}
+{"timestamp":1780005367794,"testId":"R1","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005367794,"testId":"R1","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005367824,"testId":"R1","type":"mock_agent_result","workspaceId":"V5.00","data":{"verdict":"COMPLETE"}}
+{"timestamp":1780005367824,"testId":"R1","type":"workspace_complete","workspaceId":"V5.00"}
+{"timestamp":1780005367824,"testId":"R1","type":"plan_complete"}
+{"timestamp":1780005367824,"testId":"R1","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005367842,"testId":"R2","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-vzi6pz"}}
+{"timestamp":1780005367842,"testId":"R2","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005367842,"testId":"R2","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005367842,"testId":"R2","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1780005367842,"testId":"R2","type":"worktree_create_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-vzi6pz/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00","planExecutionId":"exact-v5-repro"}}
+{"timestamp":1780005367845,"testId":"R2","type":"worktree_mutex_wait_start","workspaceId":"V5.00","data":{"timeoutMs":30000}}
+{"timestamp":1780005367845,"testId":"R2","type":"worktree_mutex_acquired","workspaceId":"V5.00","data":{"waitMs":0}}
+{"timestamp":1780005367845,"testId":"R2","type":"worktree_branch_prepare_start","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00","baseCommit":"513d1e401dcb3c6a7457ef8573e600aa4558713b"}}
+{"timestamp":1780005367853,"testId":"R2","type":"worktree_branch_ready","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367853,"testId":"R2","type":"worktree_add_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-vzi6pz/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367857,"testId":"R2","type":"worktree_add_complete","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-vzi6pz/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367857,"testId":"R2","type":"worktree_mutex_released","workspaceId":"V5.00","data":{}}
+{"timestamp":1780005367857,"testId":"R2","type":"worktree_base_commit_resolved","workspaceId":"V5.00","data":{"baseCommit":"513d1e401dcb3c6a7457ef8573e600aa4558713b"}}
+{"timestamp":1780005367857,"testId":"R2","type":"executor_prompt_built","workspaceId":"V5.00"}
+{"timestamp":1780005367857,"testId":"R2","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005367857,"testId":"R2","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005367888,"testId":"R2","type":"mock_agent_result","workspaceId":"V5.00","data":{"verdict":"COMPLETE"}}
+{"timestamp":1780005367888,"testId":"R2","type":"workspace_complete","workspaceId":"V5.00"}
+{"timestamp":1780005367888,"testId":"R2","type":"plan_complete"}
+{"timestamp":1780005367888,"testId":"R2","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-vzi6pz/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367888,"testId":"R2","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005367888,"testId":"R2","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-vzi6pz/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367902,"testId":"R3","type":"plan_start","data":{"phase":"P-V5","title":"Brain Reality Layer","repo":"/tmp/pi-exact-v5-nrBN9L"}}
+{"timestamp":1780005367902,"testId":"R3","type":"workspace_start","workspaceId":"V5.00"}
+{"timestamp":1780005367902,"testId":"R3","type":"file_lock_acquired","workspaceId":"V5.00","data":{"files":["packages/coding-agent/src/brain/v5/**","packages/coding-agent/src/brain/types.ts","packages/web-server/src/brain-v5-routes.ts","packages/web-ui/dashboard/src/types-brain-v5.ts","docs/pi/v5/**"]}}
+{"timestamp":1780005367902,"testId":"R3","type":"executor_start","workspaceId":"V5.00","data":{"worktree":true}}
+{"timestamp":1780005367902,"testId":"R3","type":"worktree_create_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-nrBN9L/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00","planExecutionId":"exact-v5-repro"}}
+{"timestamp":1780005367904,"testId":"R3","type":"worktree_mutex_wait_start","workspaceId":"V5.00","data":{"timeoutMs":30000}}
+{"timestamp":1780005367904,"testId":"R3","type":"worktree_mutex_acquired","workspaceId":"V5.00","data":{"waitMs":0}}
+{"timestamp":1780005367904,"testId":"R3","type":"worktree_branch_prepare_start","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00","baseCommit":"513d1e401dcb3c6a7457ef8573e600aa4558713b"}}
+{"timestamp":1780005367911,"testId":"R3","type":"worktree_branch_ready","workspaceId":"V5.00","data":{"branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367911,"testId":"R3","type":"worktree_add_start","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-nrBN9L/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367916,"testId":"R3","type":"worktree_add_complete","workspaceId":"V5.00","data":{"worktreeDir":"/tmp/pi-exact-v5-nrBN9L/.pi/worktrees/exact-v5-repro/V5.00","branchName":"worktree/exact-v5-repro/V5.00"}}
+{"timestamp":1780005367916,"testId":"R3","type":"worktree_mutex_released","workspaceId":"V5.00","data":{}}
+{"timestamp":1780005367916,"testId":"R3","type":"worktree_base_commit_resolved","workspaceId":"V5.00","data":{"baseCommit":"513d1e401dcb3c6a7457ef8573e600aa4558713b"}}
+{"timestamp":1780005367916,"testId":"R3","type":"executor_prompt_built","workspaceId":"V5.00"}
+{"timestamp":1780005367916,"testId":"R3","type":"executor_prompt_dispatched","workspaceId":"V5.00"}
+{"timestamp":1780005367916,"testId":"R3","type":"mock_agent_start","workspaceId":"V5.00"}
+{"timestamp":1780005368216,"testId":"R3","type":"executor_timeout","workspaceId":"V5.00","data":{"timeoutMs":300}}
+{"timestamp":1780005368216,"testId":"R3","type":"workspace_timed_out","workspaceId":"V5.00"}
+{"timestamp":1780005368216,"testId":"R3","type":"workspace_failed","workspaceId":"V5.00","data":{"error":"mock agent timed out"}}
+{"timestamp":1780005368216,"testId":"R3","type":"plan_failed"}
+{"timestamp":1780005368216,"testId":"R3","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-nrBN9L/.pi/worktrees/exact-v5-repro/V5.00"}}
+{"timestamp":1780005368216,"testId":"R3","type":"file_lock_released","workspaceId":"V5.00"}
+{"timestamp":1780005368216,"testId":"R3","type":"worktree_cleanup_or_quarantine","workspaceId":"V5.00","data":{"path":"/tmp/pi-exact-v5-nrBN9L/.pi/worktrees/exact-v5-repro/V5.00"}}

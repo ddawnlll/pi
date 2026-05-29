@@ -1004,6 +1004,8 @@ export class ProposalCollector {
 				return "proposal_executed";
 			case "superseded":
 				return "proposal_superseded";
+			default:
+				return "proposal_status_changed";
 		}
 	}
 
@@ -1022,6 +1024,8 @@ export class ProposalCollector {
 			case "superseded":
 			case "expired":
 				return "warning";
+			default:
+				return "info";
 		}
 	}
 
@@ -1040,6 +1044,8 @@ export class ProposalCollector {
 			case "superseded":
 			case "expired":
 				return "ok";
+			default:
+				return "running";
 		}
 	}
 
@@ -1060,6 +1066,8 @@ export class ProposalCollector {
 				return `Proposal "${proposal.title}" superseded by a newer proposal`;
 			case "draft":
 			case "pending_approval":
+				return `Proposal "${proposal.title}" status changed: ${previousStatus} → ${proposal.status}`;
+			default:
 				return `Proposal "${proposal.title}" status changed: ${previousStatus} → ${proposal.status}`;
 		}
 	}

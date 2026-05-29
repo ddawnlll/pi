@@ -84,6 +84,11 @@ export interface WorkspaceAgentExecutorConfig {
 	 * Defaults to PI_FIRST_AGENT_EVENT_TIMEOUT_MS or 30 seconds.
 	 */
 	firstAgentEventTimeoutMs?: number;
+	/**
+	 * Optional callback for worktree lifecycle events (instrumentation/diagnostics).
+	 * Passed through to WorktreeWorkspaceExecutor when executing in worktree mode.
+	 */
+	onWorktreeEvent?: (event: { type: string; data?: Record<string, unknown> }) => void;
 }
 
 /**
@@ -145,6 +150,9 @@ export class WorkspaceAgentExecutor {
 	 */
 	private consecutiveProviderFailures = 0;
 	private readonly MAX_CONSECUTIVE_PROVIDER_FAILURES = 3;
+	private onWorktreeEvent?: (event: { type: string; data?: Record<string, unknown> }) => void;
+	/** Last effective workspace root used by a completed execution. */
+	private lastEffectiveWorkspaceRoot: string | null = null;
 
 	/**
 	 * P26.C: worktree executor is created per-execution inside ExecutionContext.
@@ -182,6 +190,7 @@ export class WorkspaceAgentExecutor {
 		this.firstAgentEventTimeoutMs =
 			config.firstAgentEventTimeoutMs ?? parsePositiveTimeoutEnv("PI_FIRST_AGENT_EVENT_TIMEOUT_MS", 30 * 1000);
 		this.actorEventSink = config.actorEventSink;
+		this.onWorktreeEvent = config.onWorktreeEvent;
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -279,7 +288,11 @@ export class WorkspaceAgentExecutor {
 	 * P26.C: Reads from currentContext.worktreeExecutor.
 	 */
 	getEffectiveWorkspaceRoot(): string {
-		return this.currentContext?.worktreeExecutor?.getEffectiveWorkspaceRoot() ?? this.workspaceRoot;
+		return (
+			this.currentContext?.worktreeExecutor?.getEffectiveWorkspaceRoot() ??
+			this.lastEffectiveWorkspaceRoot ??
+			this.workspaceRoot
+		);
 	}
 
 	/**
@@ -1260,6 +1273,7 @@ export class WorkspaceAgentExecutor {
 				workspaceId,
 				attemptNo: ctx.attemptNo,
 				worktree: this.worktreeConfig,
+				onWorktreeEvent: this.onWorktreeEvent,
 			});
 
 			// Create the worktree
@@ -1275,6 +1289,7 @@ export class WorkspaceAgentExecutor {
 				};
 			}
 
+			this.lastEffectiveWorkspaceRoot = createResult.state.worktreePath;
 			log(`Worktree ready at: ${createResult.state.worktreePath}`);
 			emitWorktreeStatus(`Worktree ready: ${createResult.state.worktreePath}`);
 			log(`Base commit: ${createResult.state.baseCommit}`);

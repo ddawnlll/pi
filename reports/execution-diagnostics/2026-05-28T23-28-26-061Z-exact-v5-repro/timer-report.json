@@ -1,0 +1,32 @@
+[
+  {
+    "testId": "R1",
+    "name": "Exact V5.00, worktree disabled, mock success",
+    "timeoutMs": 12000,
+    "fired": false
+  },
+  {
+    "testId": "R2",
+    "name": "production createWorktree",
+    "timeoutMs": 5000,
+    "fired": false
+  },
+  {
+    "testId": "R2",
+    "name": "Exact V5.00, worktree enabled, mock success",
+    "timeoutMs": 12000,
+    "fired": false
+  },
+  {
+    "testId": "R3",
+    "name": "production createWorktree",
+    "timeoutMs": 5000,
+    "fired": false
+  },
+  {
+    "testId": "R3",
+    "name": "Exact V5.00, worktree enabled, hanging mock",
+    "timeoutMs": 12000,
+    "fired": false
+  }
+]

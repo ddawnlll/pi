@@ -1,0 +1,24 @@
+{"timestamp":1780009120429,"source":"R4","message":"Creating temp git repo at /tmp/pi-r4-1780009120429"}
+{"timestamp":1780009120447,"source":"R4","message":"Parsing V5.00 workspace from plan"}
+{"timestamp":1780009120448,"source":"R4","message":"Plan built, length=8520"}
+{"timestamp":1780009120450,"source":"R4","message":"Parse result: success=true, errors=0, hasQueue=true"}
+{"timestamp":1780009120450,"source":"R4","message":"Packet built: goal length=1086"}
+{"timestamp":1780009120450,"source":"R4","message":"Using model: deepseek-v4-flash (opencode-go)"}
+{"timestamp":1780009120450,"source":"R4","message":"Starting execution with worktree + real LLM"}
+{"timestamp":1780009120451,"source":"worktree","message":"worktree_create_start {\"worktreeDir\":\"/tmp/pi-r4-1780009120429/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\","}
+{"timestamp":1780009120454,"source":"worktree","message":"worktree_mutex_wait_start {\"timeoutMs\":30000}"}
+{"timestamp":1780009120454,"source":"worktree","message":"worktree_mutex_acquired {\"waitMs\":0}"}
+{"timestamp":1780009120454,"source":"worktree","message":"worktree_branch_prepare_start {\"branchName\":\"worktree/r4-validation/V5.00\",\"baseCommit\":\"6229eccbfcb184b1682b3a3d885a1de11a24a539\"}"}
+{"timestamp":1780009120461,"source":"worktree","message":"worktree_branch_ready {\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780009120461,"source":"worktree","message":"worktree_add_start {\"worktreeDir\":\"/tmp/pi-r4-1780009120429/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780009120465,"source":"worktree","message":"worktree_add_complete {\"worktreeDir\":\"/tmp/pi-r4-1780009120429/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780009120465,"source":"worktree","message":"worktree_mutex_released {}"}
+{"timestamp":1780009240467,"source":"R4","message":"Execution completed: verdict=FAILED, success=false, duration=120038ms"}
+{"timestamp":1780009240470,"source":"V5-S1","message":"Queue ready: 1 workspace(s)"}
+{"timestamp":1780009240470,"source":"V5-S1","message":"Postgres state store created: postgres"}
+{"timestamp":1780009240484,"source":"V5-S2","message":"Queue ready: 20 workspace(s), maxParallel=1"}
+{"timestamp":1780009240484,"source":"V5-S2","message":"Postgres state store created: postgres"}
+{"timestamp":1780009240485,"source":"V5-S3","message":"Queue ready: 20 workspace(s), maxParallel=3"}
+{"timestamp":1780009240485,"source":"V5-S3","message":"Postgres state store created: postgres"}
+{"timestamp":1780009240486,"source":"V5-S4","message":"Queue ready: 20 workspace(s), maxParallel=6"}
+{"timestamp":1780009240486,"source":"V5-S4","message":"Postgres state store created: postgres"}

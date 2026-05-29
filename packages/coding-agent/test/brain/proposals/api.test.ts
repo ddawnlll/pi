@@ -152,11 +152,12 @@ describe("BrainProposalApi", () => {
 		expect(result.success).toBe(false);
 	});
 
-	it("cannot reject an already approved proposal", async () => {
+	it("can reject an already approved proposal (V5.08 AC2: user may change mind)", async () => {
 		const created = await api.createProposal(makeInput());
 		await api.acceptProposal(created.proposal!.id);
 		const result = await api.rejectProposal(created.proposal!.id);
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
+		expect(result.proposal.status).toBe("rejected");
 	});
 
 	// -----------------------------------------------------------------------

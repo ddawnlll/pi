@@ -386,6 +386,48 @@ export interface Workspace {
 	acceptanceCriteria?: string[];
 	/** Target command to run after completion (optional) */
 	targetCommand?: string;
+
+	// ---------------------------------------------------------------------------
+	// V4/V5 Workspace Prompt Fields (P-HOTFIX-WT)
+	//
+	// These fields are preserved from raw V4/V5 plan JSON during normalization.
+	// The effective prompt for agent execution is computed as:
+	//   effectivePrompt =
+	//     executorPrompt ?? instructions ?? goal ?? description ?? task ?? title
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Full executor prompt from V4/V5 workspace JSON.
+	 * This is the primary instruction for the agent.
+	 */
+	executorPrompt?: string;
+
+	/**
+	 * V4-style instructions field, used when executorPrompt is not set.
+	 */
+	instructions?: string;
+
+	/**
+	 * V4/V5 goal field, used when executorPrompt and instructions are not set.
+	 */
+	goal?: string;
+
+	/**
+	 * V4 description field, used as fallback.
+	 */
+	description?: string;
+
+	/**
+	 * V4 task field, used as fallback.
+	 */
+	task?: string;
+
+	/**
+	 * Computed effective prompt from the above fields.
+	 * Set during normalization in plan-parser.ts.
+	 */
+	effectivePrompt?: string;
+
 	/** Additional metadata */
 	metadata?: Record<string, unknown>;
 	/**
@@ -1034,6 +1076,66 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 					context: { approvalExpiry: br.approvalExpiry },
 				});
 			}
+		}
+	}
+
+	// P-HOTFIX-WT: Executable workspace validation
+	for (const workspace of queue.workspaces) {
+		const hasEffectivePrompt =
+			Boolean(workspace.effectivePrompt) ||
+			Boolean(workspace.executorPrompt) ||
+			Boolean(workspace.instructions) ||
+			Boolean(workspace.goal) ||
+			Boolean(workspace.description) ||
+			Boolean(workspace.task);
+
+		// Check for editable scope via capabilities.canEdit, capabilityManifest.canEdit,
+		// allowedFiles, writeSet, or conflictScope.files
+		const hasEditableScope =
+			(workspace.capabilities?.canEdit ?? []).length > 0 ||
+			(workspace.writeSet ?? []).length > 0 ||
+			(workspace.conflictScope ?? []).length > 0;
+
+		if (!hasEffectivePrompt) {
+			errors.push({
+				type: "missing_field",
+				message: `Workspace ${workspace.id} has no effective prompt. Set executorPrompt, instructions, goal, description, or task.`,
+				workspaceId: workspace.id,
+				context: { field: "executorPrompt/instructions/goal/description/task" },
+			});
+		}
+
+		if (hasEffectivePrompt && !hasEditableScope) {
+			errors.push({
+				type: "missing_field",
+				message: `Workspace ${workspace.id} has no editable scope. Set capabilities.canEdit, writeSet, or conflictScope.`,
+				workspaceId: workspace.id,
+				context: { field: "capabilities.canEdit/writeSet/conflictScope" },
+			});
+		}
+
+		// If targetCommand is null and there's no effective prompt, the workspace
+		// cannot execute anything meaningful
+		if (workspace.targetCommand === null && !hasEffectivePrompt) {
+			errors.push({
+				type: "missing_field",
+				message: `Workspace ${workspace.id} has targetCommand=null and no effective prompt. Agent/mock/LLM execution path must have a prompt.`,
+				workspaceId: workspace.id,
+				context: { targetCommand: null, effectivePrompt: "missing" },
+			});
+		}
+	}
+
+	// Worktree diagnostics availability warning
+	if (queue.planExecution?.worktree?.enabled) {
+		const hasWorktreeDiagnostics = Boolean(process.env.PI_WORKTREE_DIAGNOSTICS);
+		if (!hasWorktreeDiagnostics) {
+			warnings.push({
+				type: "missing_field",
+				message:
+					"Worktree mode is enabled but worktree mutex diagnostics environment variable PI_WORKTREE_DIAGNOSTICS is not set. " +
+					"Set PI_WORKTREE_DIAGNOSTICS=1 to enable diagnostic event emission for worktree operations.",
+			});
 		}
 	}
 

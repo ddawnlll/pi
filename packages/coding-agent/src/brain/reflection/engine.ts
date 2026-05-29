@@ -21,6 +21,7 @@ import { FutureSuggestionEngine } from "./future-suggestions.js";
 import { MemoryProposalGenerator } from "./memory-proposals.js";
 import { SourceBackedSummarizer } from "./summarizer.js";
 import type {
+	EvidenceClaim,
 	ExecutionJournalEntry,
 	FuturePhaseSuggestion,
 	MemoryProposalSuggestion,
@@ -45,6 +46,8 @@ const DEFAULT_CONFIG: ReflectionConfig = {
 	enableFutureSuggestions: true,
 	maxFutureSuggestions: 3,
 	sourceBackedRequired: true,
+	enableEvidenceIntegration: false,
+	registerClaimsInEvidenceIndex: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -160,7 +163,17 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 		const summary = this.generateSummary(whatWorkedSummary, whatFailedSummary, metricSummary, validationFailures);
 		const whatPeopleNeedToKnow = this.generateOneLiner(metrics.successRate, metrics.failureCount, validationFailures);
 
-		// 5. Build report (without generated fields)
+		// 5. Generate evidence-backed claims (V5.10 AC1/AC2)
+		const claims = this.generateClaims(
+			whatWorkedSummary,
+			whatFailedSummary,
+			whatSlowedDown,
+			metrics,
+			validationFailures,
+			sources,
+		);
+
+		// 6. Build report (without generated fields)
 		const reportBase = {
 			id: randomUUID(),
 			planExecId: input.planExecId,
@@ -183,6 +196,8 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			totalDuration: metrics.totalDuration,
 			validationFailures,
 
+			claims,
+
 			memoriesToCreate: [] as MemoryProposalSuggestion[],
 			proposalsToGenerate: [] as ProposalSuggestion[],
 			futurePhaseSuggestions: [] as FuturePhaseSuggestion[],
@@ -196,7 +211,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			sources,
 		};
 
-		// 6. Generate memory proposals (if enabled)
+		// 7. Generate memory proposals (if enabled)
 		if (this.config.enableMemoryGeneration) {
 			const memoryProposals = this.memoryProposalGen.fromReflection(reportBase);
 			reportBase.memoriesToCreate = memoryProposals.map((mp) => ({
@@ -223,13 +238,13 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			}));
 		}
 
-		// 7. Generate future suggestions (if enabled)
+		// 8. Generate future suggestions (if enabled)
 		if (this.config.enableFutureSuggestions) {
 			const futureSugs = this.futureSuggestionEngine.fromReflection(reportBase);
 			reportBase.futurePhaseSuggestions = futureSugs;
 		}
 
-		// 8. Validate source-backing (if required)
+		// 9. Validate source-backing (if required)
 		if (this.config.sourceBackedRequired) {
 			const valid = this.validateSources(reportBase);
 			if (!valid) {
@@ -240,7 +255,7 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 			}
 		}
 
-		// 9. Store and return
+		// 10. Store and return
 		this.reflections.set(input.planExecId, reportBase);
 		return reportBase;
 	}
@@ -510,6 +525,149 @@ export class ReflectionEngine implements MorningReportReflectionEngine {
 		}
 
 		return Math.max(0.1, Math.min(0.95, confidence));
+	}
+
+	// -----------------------------------------------------------------------
+	// Evidence-backed claims generation (V5.10 AC1/AC2)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Generate evidence-backed claims with confidence from the reflection analysis.
+	 *
+	 * Each claim is a factual statement backed by one or more source references
+	 * and includes a confidence score derived from the evidence quality.
+	 *
+	 * V5.10 AC1: Post-run reflection can generate memory candidates and future
+	 * proposals with source refs.
+	 * V5.10 AC2: Reflection claims are evidence-backed and include confidence.
+	 *
+	 * @param whatWorkedSummary - Summary of what worked
+	 * @param whatFailedSummary - Summary of what failed
+	 * @param whatSlowedDown - List of bottlenecks
+	 * @param metrics - Computed execution metrics
+	 * @param validationFailures - Number of validation failures
+	 * @param sources - Source references from execution
+	 * @returns Array of evidence-backed claims
+	 */
+	private generateClaims(
+		whatWorkedSummary: string,
+		whatFailedSummary: string,
+		whatSlowedDown: string[],
+		metrics: {
+			workspaceCount: number;
+			successCount: number;
+			failureCount: number;
+			retryCount: number;
+			successRate: number;
+			avgRetryCount: number;
+			totalDuration: number;
+		},
+		validationFailures: number,
+		sources: SourceRef[],
+	): EvidenceClaim[] {
+		const claims: EvidenceClaim[] = [];
+		const now = new Date().toISOString();
+
+		// Claim 1: Overall execution outcome (observation)
+		{
+			const sourceIds = sources.map((s) => s.id);
+			const confidence = this.computeConfidence(metrics, validationFailures, sources);
+			claims.push({
+				id: randomUUID(),
+				category: "observation",
+				statement: `Execution completed with ${metrics.successCount}/${metrics.workspaceCount} successful workspaces (${(metrics.successRate * 100).toFixed(1)}% success rate), ${metrics.failureCount} failures, ${validationFailures} validation failures.`,
+				evidenceIds: sourceIds,
+				confidence,
+				audited: false,
+			});
+		}
+
+		// Claim 2: What worked analysis (analysis)
+		if (whatWorkedSummary && !whatWorkedSummary.includes("No workspaces completed successfully")) {
+			claims.push({
+				id: randomUUID(),
+				category: "analysis",
+				statement: whatWorkedSummary.replace(/\[source:[^\]]+\]/g, "").trim(),
+				evidenceIds: sources.filter((s) => s.type === "workspace").map((s) => s.id),
+				confidence: Math.min(0.5 + metrics.successRate * 0.4, 0.9),
+				audited: false,
+			});
+		}
+
+		// Claim 3: What failed analysis (analysis)
+		if (whatFailedSummary && !whatFailedSummary.includes("No failures detected")) {
+			claims.push({
+				id: randomUUID(),
+				category: "analysis",
+				statement: whatFailedSummary.replace(/\[source:[^\]]+\]/g, "").trim(),
+				evidenceIds: [...sources.filter((s) => s.type === "workspace" || s.type === "validation").map((s) => s.id)],
+				confidence: Math.max(0.3, 0.7 - metrics.failureCount * 0.1),
+				audited: false,
+			});
+		}
+
+		// Claim 4: Retry pattern observation (observation)
+		if (metrics.retryCount > 0) {
+			claims.push({
+				id: randomUUID(),
+				category: "observation",
+				statement: `${metrics.retryCount} total retries occurred across ${metrics.workspaceCount} workspaces (avg ${metrics.avgRetryCount.toFixed(2)} retries per workspace).`,
+				evidenceIds: sources.filter((s) => s.type === "workspace").map((s) => s.id),
+				confidence: Math.max(0.3, Math.min(0.8, 1.0 - metrics.avgRetryCount * 0.15)),
+				audited: false,
+			});
+		}
+
+		// Claim 5: Bottleneck analysis (analysis)
+		if (whatSlowedDown.length > 0) {
+			claims.push({
+				id: randomUUID(),
+				category: "analysis",
+				statement: `${whatSlowedDown.length} bottleneck(s) identified: ${whatSlowedDown
+					.join("; ")
+					.replace(/\[source:[^\]]+\]/g, "")
+					.trim()}`,
+				evidenceIds: sources.filter((s) => s.type === "workspace").map((s) => s.id),
+				confidence: Math.min(0.5 + whatSlowedDown.length * 0.1, 0.85),
+				audited: false,
+			});
+		}
+
+		// Claim 6: Memory generation recommendation (recommendation)
+		if (this.config.enableMemoryGeneration) {
+			const memoryTypes: string[] = [];
+			if (metrics.failureCount > 0) memoryTypes.push("failure_memory");
+			if (metrics.successCount > 0) memoryTypes.push("execution_memory");
+			if (metrics.workspaceCount > 0) memoryTypes.push("architecture_memory");
+
+			if (memoryTypes.length > 0) {
+				claims.push({
+					id: randomUUID(),
+					category: "recommendation",
+					statement: `Generate memory records for reflection findings: ${memoryTypes.join(", ")}. Source-backed by ${sources.length} evidence references.`,
+					evidenceIds: sources.map((s) => s.id),
+					confidence: this.computeConfidence(metrics, validationFailures, sources),
+					audited: false,
+				});
+			}
+		}
+
+		// Claim 7: Future proposals recommendation (recommendation)
+		if (this.config.enableFutureSuggestions && (metrics.failureCount > 0 || whatSlowedDown.length > 0)) {
+			claims.push({
+				id: randomUUID(),
+				category: "recommendation",
+				statement:
+					metrics.failureCount > 0
+						? `Generate ${metrics.failureCount} proposal(s) to address execution failures and bottlenecks.`
+						: `Generate proposal(s) to address ${whatSlowedDown.length} identified bottleneck(s).`,
+				evidenceIds: [...sources.filter((s) => s.type === "workspace" || s.type === "validation").map((s) => s.id)],
+				confidence: 0.6,
+				audited: false,
+			});
+		}
+
+		return claims;
 	}
 
 	// -----------------------------------------------------------------------

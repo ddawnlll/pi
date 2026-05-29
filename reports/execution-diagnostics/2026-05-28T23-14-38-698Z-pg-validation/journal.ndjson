@@ -1,0 +1,159 @@
+{"timestamp":1780010078702,"source":"R4","message":"Creating temp git repo at /tmp/pi-r4-1780010078702"}
+{"timestamp":1780010078719,"source":"R4","message":"Parsing V5.00 workspace from plan"}
+{"timestamp":1780010078720,"source":"R4","message":"Plan built, length=8520"}
+{"timestamp":1780010078722,"source":"R4","message":"Parse result: success=true, errors=0, hasQueue=true"}
+{"timestamp":1780010078722,"source":"R4","message":"Packet built: goal length=1086"}
+{"timestamp":1780010078722,"source":"R4","message":"Using model: deepseek-v4-flash (opencode-go)"}
+{"timestamp":1780010078722,"source":"R4","message":"Starting execution with worktree + real LLM"}
+{"timestamp":1780010078723,"source":"worktree","message":"worktree_create_start {\"worktreeDir\":\"/tmp/pi-r4-1780010078702/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\","}
+{"timestamp":1780010078726,"source":"worktree","message":"worktree_mutex_wait_start {\"timeoutMs\":30000}"}
+{"timestamp":1780010078726,"source":"worktree","message":"worktree_mutex_acquired {\"waitMs\":0}"}
+{"timestamp":1780010078726,"source":"worktree","message":"worktree_branch_prepare_start {\"branchName\":\"worktree/r4-validation/V5.00\",\"baseCommit\":\"77b8f65214a9b436307bd1d15a5cced8600211e8\"}"}
+{"timestamp":1780010078733,"source":"worktree","message":"worktree_branch_ready {\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780010078733,"source":"worktree","message":"worktree_add_start {\"worktreeDir\":\"/tmp/pi-r4-1780010078702/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780010078738,"source":"worktree","message":"worktree_add_complete {\"worktreeDir\":\"/tmp/pi-r4-1780010078702/.pi/worktrees/r4-validation/V5.00\",\"branchName\":\"worktree/r4-validation/V5.00\"}"}
+{"timestamp":1780010078738,"source":"worktree","message":"worktree_mutex_released {}"}
+{"timestamp":1780010198743,"source":"R4","message":"Execution completed: verdict=FAILED, success=false, duration=120041ms"}
+{"timestamp":1780010198754,"source":"V5-S1","message":"Queue ready: 1 workspace(s)"}
+{"timestamp":1780010198754,"source":"V5-S1","message":"Postgres state store created: postgres"}
+{"timestamp":1780010198761,"source":"V5-S1","message":"Plan initialized: id=5ff70d4d-4663-49fc-9bbd-bfaf238a4433"}
+{"timestamp":1780010198761,"source":"V5-S1","message":"Starting AutonomousExecutor loop with 1 workspaces"}
+{"timestamp":1780010198764,"source":"V5-S1","message":"Launched workspace V5.00 (1/1 in flight)"}
+{"timestamp":1780010318951,"source":"V5-S1","message":"Workspace V5.00 finished: verdict=FAILED success=false duration=120188ms"}
+{"timestamp":1780010319892,"source":"V5-S1","message":"All workspaces terminal: 0 complete, 1 failed"}
+{"timestamp":1780010319892,"source":"V5-S1","message":"Plan execution complete: success=false completed=0 failed=1"}
+{"timestamp":1780010319904,"source":"V5-S2","message":"Queue ready: 20 workspace(s), maxParallel=1"}
+{"timestamp":1780010319904,"source":"V5-S2","message":"Postgres state store created: postgres"}
+{"timestamp":1780010319910,"source":"V5-S2","message":"Plan initialized: id=e8e67eba-e18f-4587-b4b9-0b81de11d7e1"}
+{"timestamp":1780010319910,"source":"V5-S2","message":"Starting AutonomousExecutor loop with 20 workspaces"}
+{"timestamp":1780010319912,"source":"V5-S2","message":"Launched workspace V5.00 (1/1 in flight)"}
+{"timestamp":1780010319933,"source":"V5-S2","message":"Workspace V5.00 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010320917,"source":"V5-S2","message":"Launched workspace V5.01 (1/1 in flight)"}
+{"timestamp":1780010320938,"source":"V5-S2","message":"Workspace V5.01 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010321923,"source":"V5-S2","message":"Launched workspace V5.02 (1/1 in flight)"}
+{"timestamp":1780010321944,"source":"V5-S2","message":"Workspace V5.02 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010322929,"source":"V5-S2","message":"Launched workspace V5.03 (1/1 in flight)"}
+{"timestamp":1780010322950,"source":"V5-S2","message":"Workspace V5.03 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010323935,"source":"V5-S2","message":"Launched workspace V5.04 (1/1 in flight)"}
+{"timestamp":1780010323956,"source":"V5-S2","message":"Workspace V5.04 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010324937,"source":"V5-S2","message":"Launched workspace V5.05 (1/1 in flight)"}
+{"timestamp":1780010324958,"source":"V5-S2","message":"Workspace V5.05 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010325943,"source":"V5-S2","message":"Launched workspace V5.06 (1/1 in flight)"}
+{"timestamp":1780010325963,"source":"V5-S2","message":"Workspace V5.06 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010326949,"source":"V5-S2","message":"Launched workspace V5.07 (1/1 in flight)"}
+{"timestamp":1780010326970,"source":"V5-S2","message":"Workspace V5.07 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010327955,"source":"V5-S2","message":"Launched workspace V5.08 (1/1 in flight)"}
+{"timestamp":1780010327976,"source":"V5-S2","message":"Workspace V5.08 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010328960,"source":"V5-S2","message":"Launched workspace V5.09 (1/1 in flight)"}
+{"timestamp":1780010328981,"source":"V5-S2","message":"Workspace V5.09 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010329961,"source":"V5-S2","message":"Launched workspace V5.10 (1/1 in flight)"}
+{"timestamp":1780010329982,"source":"V5-S2","message":"Workspace V5.10 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010330967,"source":"V5-S2","message":"Launched workspace V5.11 (1/1 in flight)"}
+{"timestamp":1780010330987,"source":"V5-S2","message":"Workspace V5.11 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010331973,"source":"V5-S2","message":"Launched workspace V5.12 (1/1 in flight)"}
+{"timestamp":1780010331994,"source":"V5-S2","message":"Workspace V5.12 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010332979,"source":"V5-S2","message":"Launched workspace V5.13 (1/1 in flight)"}
+{"timestamp":1780010332999,"source":"V5-S2","message":"Workspace V5.13 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010333984,"source":"V5-S2","message":"Launched workspace V5.14 (1/1 in flight)"}
+{"timestamp":1780010334005,"source":"V5-S2","message":"Workspace V5.14 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010334985,"source":"V5-S2","message":"Launched workspace V5.15 (1/1 in flight)"}
+{"timestamp":1780010335006,"source":"V5-S2","message":"Workspace V5.15 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010335988,"source":"V5-S2","message":"Launched workspace V5.16 (1/1 in flight)"}
+{"timestamp":1780010336009,"source":"V5-S2","message":"Workspace V5.16 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010336994,"source":"V5-S2","message":"Launched workspace V5.17 (1/1 in flight)"}
+{"timestamp":1780010337015,"source":"V5-S2","message":"Workspace V5.17 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010337999,"source":"V5-S2","message":"Launched workspace V5.18 (1/1 in flight)"}
+{"timestamp":1780010338021,"source":"V5-S2","message":"Workspace V5.18 finished: verdict=COMPLETE success=true duration=22ms"}
+{"timestamp":1780010339001,"source":"V5-S2","message":"Launched workspace V5.19 (1/1 in flight)"}
+{"timestamp":1780010339021,"source":"V5-S2","message":"Workspace V5.19 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010340002,"source":"V5-S2","message":"All workspaces terminal: 20 complete, 0 failed"}
+{"timestamp":1780010340010,"source":"V5-S3","message":"Queue ready: 20 workspace(s), maxParallel=3"}
+{"timestamp":1780010340010,"source":"V5-S3","message":"Postgres state store created: postgres"}
+{"timestamp":1780010340014,"source":"V5-S3","message":"Plan initialized: id=2c825dcb-0e28-4cfb-843b-39313d68f81f"}
+{"timestamp":1780010340014,"source":"V5-S3","message":"Starting AutonomousExecutor loop with 20 workspaces"}
+{"timestamp":1780010340015,"source":"V5-S3","message":"Launched workspace V5.00 (1/3 in flight)"}
+{"timestamp":1780010340035,"source":"V5-S3","message":"Workspace V5.00 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010341017,"source":"V5-S3","message":"Launched workspace V5.01 (1/3 in flight)"}
+{"timestamp":1780010341038,"source":"V5-S3","message":"Workspace V5.01 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010342021,"source":"V5-S3","message":"Launched workspace V5.02 (1/3 in flight)"}
+{"timestamp":1780010342041,"source":"V5-S3","message":"Workspace V5.02 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010343027,"source":"V5-S3","message":"Launched workspace V5.03 (1/3 in flight)"}
+{"timestamp":1780010343027,"source":"V5-S3","message":"Launched workspace V5.13 (2/3 in flight)"}
+{"timestamp":1780010343050,"source":"V5-S3","message":"Workspace V5.03 finished: verdict=COMPLETE success=true duration=23ms"}
+{"timestamp":1780010343052,"source":"V5-S3","message":"Workspace V5.13 finished: verdict=COMPLETE success=true duration=25ms"}
+{"timestamp":1780010344033,"source":"V5-S3","message":"Launched workspace V5.04 (1/3 in flight)"}
+{"timestamp":1780010344052,"source":"V5-S3","message":"Workspace V5.04 finished: verdict=COMPLETE success=true duration=19ms"}
+{"timestamp":1780010345034,"source":"V5-S3","message":"Launched workspace V5.05 (1/3 in flight)"}
+{"timestamp":1780010345054,"source":"V5-S3","message":"Workspace V5.05 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010346040,"source":"V5-S3","message":"Launched workspace V5.06 (1/3 in flight)"}
+{"timestamp":1780010346040,"source":"V5-S3","message":"Launched workspace V5.16 (2/3 in flight)"}
+{"timestamp":1780010346062,"source":"V5-S3","message":"Workspace V5.06 finished: verdict=COMPLETE success=true duration=22ms"}
+{"timestamp":1780010346066,"source":"V5-S3","message":"Workspace V5.16 finished: verdict=COMPLETE success=true duration=26ms"}
+{"timestamp":1780010347046,"source":"V5-S3","message":"Launched workspace V5.07 (1/3 in flight)"}
+{"timestamp":1780010347086,"source":"V5-S3","message":"Workspace V5.07 finished: verdict=COMPLETE success=true duration=40ms"}
+{"timestamp":1780010348051,"source":"V5-S3","message":"Launched workspace V5.08 (1/3 in flight)"}
+{"timestamp":1780010348071,"source":"V5-S3","message":"Workspace V5.08 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010349053,"source":"V5-S3","message":"Launched workspace V5.09 (1/3 in flight)"}
+{"timestamp":1780010349073,"source":"V5-S3","message":"Workspace V5.09 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010350054,"source":"V5-S3","message":"Launched workspace V5.10 (1/3 in flight)"}
+{"timestamp":1780010350054,"source":"V5-S3","message":"Launched workspace V5.15 (2/3 in flight)"}
+{"timestamp":1780010350077,"source":"V5-S3","message":"Workspace V5.10 finished: verdict=COMPLETE success=true duration=23ms"}
+{"timestamp":1780010350079,"source":"V5-S3","message":"Workspace V5.15 finished: verdict=COMPLETE success=true duration=25ms"}
+{"timestamp":1780010351060,"source":"V5-S3","message":"Launched workspace V5.11 (1/3 in flight)"}
+{"timestamp":1780010351079,"source":"V5-S3","message":"Workspace V5.11 finished: verdict=COMPLETE success=true duration=19ms"}
+{"timestamp":1780010352066,"source":"V5-S3","message":"Launched workspace V5.12 (1/3 in flight)"}
+{"timestamp":1780010352086,"source":"V5-S3","message":"Workspace V5.12 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010353072,"source":"V5-S3","message":"Launched workspace V5.14 (1/3 in flight)"}
+{"timestamp":1780010353093,"source":"V5-S3","message":"Workspace V5.14 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010354078,"source":"V5-S3","message":"Launched workspace V5.17 (1/3 in flight)"}
+{"timestamp":1780010354098,"source":"V5-S3","message":"Workspace V5.17 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010355079,"source":"V5-S3","message":"Launched workspace V5.18 (1/3 in flight)"}
+{"timestamp":1780010355100,"source":"V5-S3","message":"Workspace V5.18 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010356085,"source":"V5-S3","message":"Launched workspace V5.19 (1/3 in flight)"}
+{"timestamp":1780010356105,"source":"V5-S3","message":"Workspace V5.19 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010357091,"source":"V5-S3","message":"All workspaces terminal: 20 complete, 0 failed"}
+{"timestamp":1780010357099,"source":"V5-S4","message":"Queue ready: 20 workspace(s), maxParallel=6"}
+{"timestamp":1780010357099,"source":"V5-S4","message":"Postgres state store created: postgres"}
+{"timestamp":1780010357103,"source":"V5-S4","message":"Plan initialized: id=3aba8c78-0d7b-4a14-bfaf-37c6202a4b83"}
+{"timestamp":1780010357103,"source":"V5-S4","message":"Starting AutonomousExecutor loop with 20 workspaces"}
+{"timestamp":1780010357104,"source":"V5-S4","message":"Launched workspace V5.00 (1/6 in flight)"}
+{"timestamp":1780010357123,"source":"V5-S4","message":"Workspace V5.00 finished: verdict=COMPLETE success=true duration=19ms"}
+{"timestamp":1780010358107,"source":"V5-S4","message":"Launched workspace V5.01 (1/6 in flight)"}
+{"timestamp":1780010358128,"source":"V5-S4","message":"Workspace V5.01 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010359113,"source":"V5-S4","message":"Launched workspace V5.02 (1/6 in flight)"}
+{"timestamp":1780010359133,"source":"V5-S4","message":"Workspace V5.02 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010360115,"source":"V5-S4","message":"Launched workspace V5.03 (1/6 in flight)"}
+{"timestamp":1780010360115,"source":"V5-S4","message":"Launched workspace V5.13 (2/6 in flight)"}
+{"timestamp":1780010360137,"source":"V5-S4","message":"Workspace V5.03 finished: verdict=COMPLETE success=true duration=22ms"}
+{"timestamp":1780010360139,"source":"V5-S4","message":"Workspace V5.13 finished: verdict=COMPLETE success=true duration=24ms"}
+{"timestamp":1780010361120,"source":"V5-S4","message":"Launched workspace V5.04 (1/6 in flight)"}
+{"timestamp":1780010361142,"source":"V5-S4","message":"Workspace V5.04 finished: verdict=COMPLETE success=true duration=22ms"}
+{"timestamp":1780010362122,"source":"V5-S4","message":"Launched workspace V5.05 (1/6 in flight)"}
+{"timestamp":1780010362142,"source":"V5-S4","message":"Workspace V5.05 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010363129,"source":"V5-S4","message":"Launched workspace V5.06 (1/6 in flight)"}
+{"timestamp":1780010363129,"source":"V5-S4","message":"Launched workspace V5.16 (2/6 in flight)"}
+{"timestamp":1780010363152,"source":"V5-S4","message":"Workspace V5.06 finished: verdict=COMPLETE success=true duration=23ms"}
+{"timestamp":1780010363155,"source":"V5-S4","message":"Workspace V5.16 finished: verdict=COMPLETE success=true duration=26ms"}
+{"timestamp":1780010364135,"source":"V5-S4","message":"Launched workspace V5.07 (1/6 in flight)"}
+{"timestamp":1780010364156,"source":"V5-S4","message":"Workspace V5.07 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010365136,"source":"V5-S4","message":"Launched workspace V5.08 (1/6 in flight)"}
+{"timestamp":1780010365157,"source":"V5-S4","message":"Workspace V5.08 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010366142,"source":"V5-S4","message":"Launched workspace V5.09 (1/6 in flight)"}
+{"timestamp":1780010366163,"source":"V5-S4","message":"Workspace V5.09 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010367148,"source":"V5-S4","message":"Launched workspace V5.10 (1/6 in flight)"}
+{"timestamp":1780010367148,"source":"V5-S4","message":"Launched workspace V5.15 (2/6 in flight)"}
+{"timestamp":1780010367171,"source":"V5-S4","message":"Workspace V5.10 finished: verdict=COMPLETE success=true duration=23ms"}
+{"timestamp":1780010367174,"source":"V5-S4","message":"Workspace V5.15 finished: verdict=COMPLETE success=true duration=26ms"}
+{"timestamp":1780010368153,"source":"V5-S4","message":"Launched workspace V5.11 (1/6 in flight)"}
+{"timestamp":1780010368173,"source":"V5-S4","message":"Workspace V5.11 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010369156,"source":"V5-S4","message":"Launched workspace V5.12 (1/6 in flight)"}
+{"timestamp":1780010369176,"source":"V5-S4","message":"Workspace V5.12 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010370157,"source":"V5-S4","message":"Launched workspace V5.14 (1/6 in flight)"}
+{"timestamp":1780010370177,"source":"V5-S4","message":"Workspace V5.14 finished: verdict=COMPLETE success=true duration=20ms"}
+{"timestamp":1780010371163,"source":"V5-S4","message":"Launched workspace V5.17 (1/6 in flight)"}
+{"timestamp":1780010371185,"source":"V5-S4","message":"Workspace V5.17 finished: verdict=COMPLETE success=true duration=22ms"}
+{"timestamp":1780010372166,"source":"V5-S4","message":"Launched workspace V5.18 (1/6 in flight)"}
+{"timestamp":1780010372187,"source":"V5-S4","message":"Workspace V5.18 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010373173,"source":"V5-S4","message":"Launched workspace V5.19 (1/6 in flight)"}
+{"timestamp":1780010373194,"source":"V5-S4","message":"Workspace V5.19 finished: verdict=COMPLETE success=true duration=21ms"}
+{"timestamp":1780010374179,"source":"V5-S4","message":"All workspaces terminal: 20 complete, 0 failed"}

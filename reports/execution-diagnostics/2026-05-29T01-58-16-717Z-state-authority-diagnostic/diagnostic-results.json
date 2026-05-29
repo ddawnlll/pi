@@ -1,0 +1,122 @@
+{
+  "timestamp": "2026-05-29T01:58:16.739Z",
+  "backend": "postgres",
+  "passed": 21,
+  "total": 22,
+  "failed": 1,
+  "failedTests": [
+    "BLOCKED state persistence"
+  ],
+  "results": [
+    {
+      "name": "assertUuid valid UUID",
+      "passed": true,
+      "detail": "Accepted valid UUID format"
+    },
+    {
+      "name": "assertUuid composite 'uuid:1'",
+      "passed": true,
+      "detail": "Rejected composite format as expected: Error: testUuid: invalid UUID format: \"418ec3a0-4342-4be3-b1cc-f2d6364c4290:1\""
+    },
+    {
+      "name": "assertUuid empty string",
+      "passed": true,
+      "detail": "Rejected empty string as expected: Error: testUuid: UUID must not be empty"
+    },
+    {
+      "name": "assertUuid 'undefined' string",
+      "passed": true,
+      "detail": "Rejected 'undefined' string as expected: Error: testUuid: invalid UUID format: \"undefined\""
+    },
+    {
+      "name": "assertUuid 'null' string",
+      "passed": true,
+      "detail": "Rejected 'null' string as expected: Error: testUuid: invalid UUID format: \"null\""
+    },
+    {
+      "name": "assertUuid non-UUID",
+      "passed": true,
+      "detail": "Rejected non-UUID as expected: Error: testUuid: invalid UUID format: \"not-a-uuid\""
+    },
+    {
+      "name": "assertNullableUuid null",
+      "passed": true,
+      "detail": "Accepted null as valid nullable UUID"
+    },
+    {
+      "name": "assertNullableUuid undefined",
+      "passed": true,
+      "detail": "Accepted undefined as valid nullable UUID"
+    },
+    {
+      "name": "controller eventId",
+      "passed": true,
+      "detail": "eventId uses crypto.randomUUID()"
+    },
+    {
+      "name": "controller transition event_id",
+      "passed": true,
+      "detail": "transition event_id uses crypto.randomUUID()"
+    },
+    {
+      "name": "no composite attemptId patterns",
+      "passed": true,
+      "detail": "No ${attemptId}:${...} patterns found in controller"
+    },
+    {
+      "name": "legacy adapter eventId",
+      "passed": true,
+      "detail": "legacy adapter uses crypto.randomUUID()"
+    },
+    {
+      "name": "shadow journal eventId",
+      "passed": true,
+      "detail": "shadow journal uses crypto.randomUUID()"
+    },
+    {
+      "name": "attempt_events.event_id is UUID column",
+      "passed": true,
+      "detail": "Migration defines event_id as UUID"
+    },
+    {
+      "name": "rejection detection",
+      "passed": true,
+      "detail": "Catch block detects rejection errors and bypasses retry"
+    },
+    {
+      "name": "terminal state bypass",
+      "passed": true,
+      "detail": "Catch block uses stateStore directly for terminal state"
+    },
+    {
+      "name": "BLOCKED state persistence",
+      "passed": false,
+      "detail": "Test threw: Plan execution not found: 491e4555-d44f-4bbc-be10-0fe832249702"
+    },
+    {
+      "name": "repeated schedule detection",
+      "passed": true,
+      "detail": "Runner has NO_PROGRESS/PLAN_STUCK detection"
+    },
+    {
+      "name": "hang analysis writer",
+      "passed": true,
+      "detail": "Runner writes hang-analysis.md on stuck"
+    },
+    {
+      "name": "no-progress detection",
+      "passed": true,
+      "detail": "Runner detects ready-only with no active workspaces"
+    },
+    {
+      "name": "stall detection",
+      "passed": true,
+      "detail": "Monitor detects workspace stalls"
+    },
+    {
+      "name": "from_state uses currentState",
+      "passed": true,
+      "detail": "Transition rows record correct from_state"
+    }
+  ]
+}

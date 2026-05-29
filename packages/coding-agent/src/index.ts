@@ -334,6 +334,8 @@ export {
 // Core session management
 
 // Goal & Preference Domain Model (P15.A)
+// Brain — V2 cognitive OS (Goal & Preference Domain, P15) + Reflection (P17)
+// V5 — Contract, Flags & Safety Doctrine
 export type {
 	AuditEntriesResult,
 	AuditStatsResult,
@@ -346,6 +348,8 @@ export type {
 	BrainSignalsResult,
 	BrainState,
 	BrainTimelineResult,
+	BrainV5Config,
+	BrainV5Mode,
 	ClassificationContext,
 	DecisionAuditEntry,
 	DecisionClassification,
@@ -384,8 +388,13 @@ export type {
 	PreferenceCreateInput,
 	PreferenceRecord,
 	PreferenceSource,
+	V5AllowedEvent,
+	V5EmitResult,
+	V5EventSink,
+	V5OperatorGateStatus,
+	V5PlanDoctorReport,
+	V5RejectCode,
 } from "./brain/index.js";
-// Brain — V2 cognitive OS (Goal & Preference Domain, P15) + Reflection (P17)
 export {
 	ALL_FEEDBACK_ITEM_TYPES,
 	ALL_PI_INBOX_MESSAGE_TYPES,
@@ -399,9 +408,17 @@ export {
 	type AutonomyEngineConfig,
 	type AutonomyEngineEvent,
 	activateMemory,
+	BRAIN_V5_MODE_RANK,
+	BRAIN_V5_MODES,
 	BrainProposalApi,
 	BrainReflectionApi,
+	brainV5ModeAtLeast,
+	buildV5DoctorReport,
 	cancelOvernight,
+	canV5EmitEvents,
+	canV5Push,
+	canV5RunOvernight,
+	checkV5OperatorGates,
 	createApprovalGate,
 	createApprovalQueueApi,
 	createAuditLedger,
@@ -415,6 +432,7 @@ export {
 	type DecisionRule,
 	DogfoodReportGenerator,
 	deleteMemory,
+	deriveBrainV5Mode,
 	type EvidenceDetail,
 	emergencyStop,
 	evaluateAction,
@@ -422,6 +440,7 @@ export {
 	// Feedback Store (24.J)
 	FeedbackStore,
 	FullLoopValidator,
+	formatV5DoctorSummary,
 	GoalDriftDetector,
 	type GoalIndex,
 	type GoalIndexEntry,
@@ -442,6 +461,7 @@ export {
 	getSignals,
 	getTimeline,
 	InMemoryProposalStore,
+	isV5Enabled,
 	MemoryProposalGenerator,
 	type MemoryProposalOutput,
 	MorningReportGenerator,
@@ -470,6 +490,7 @@ export {
 	type RunStatus,
 	rejectMemory,
 	releaseStop,
+	resolveBrainV5Config,
 	SessionStore,
 	setBrainStore,
 	TrustAssessor,
@@ -477,6 +498,9 @@ export {
 	UserProtocol,
 	updateAutonomyProfile,
 	updateMemory,
+	V5_ALLOWED_ACTOR_EVENT_TYPES,
+	V5_FORBIDDEN_ACTOR_EVENT_TYPES,
+	V5MutationGuard,
 	validateFeedbackEntry,
 	validatePiInboxMessage,
 	type WhatCompletedEntry,

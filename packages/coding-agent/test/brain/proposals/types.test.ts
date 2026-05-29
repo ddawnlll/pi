@@ -91,7 +91,8 @@ describe("Proposal constants", () => {
 		expect(ALL_PROPOSAL_STATUSES).toContain("superseded");
 		expect(ALL_PROPOSAL_STATUSES).toContain("expired");
 		expect(ALL_PROPOSAL_STATUSES).toContain("executed");
-		expect(ALL_PROPOSAL_STATUSES.length).toBe(7);
+		expect(ALL_PROPOSAL_STATUSES.length).toBe(8);
+		expect(ALL_PROPOSAL_STATUSES).toContain("execution_ready");
 	});
 
 	test("ALL_RISK_LEVELS contains all valid levels", () => {

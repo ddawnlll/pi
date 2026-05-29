@@ -239,8 +239,11 @@ export class KernelTransitionRouter implements TransitionRouter {
 			this.log.warn(
 				`[workspace ${workspaceId}] Attempt controller rejected transition ${currentStage} -> ${newStage}: ${error instanceof Error ? error.message : String(error)}`,
 			);
-			// Non-fatal: controller rejection is a warning, not a blocker
-			// The state store persistence still happens in the caller
+			// Fatal: controller/FSM rejection means the transition is not authorized.
+			// The execution must stop here. Do NOT persist the transition via stateStore.
+			// The caller (AutonomousExecutor.executeWorkspace()) relies on this throw
+			// to abort workspace execution before starting the agent.
+			throw error;
 		}
 	}
 
@@ -261,7 +264,7 @@ export class KernelTransitionRouter implements TransitionRouter {
 		// Look up workspace execution ID from the DB
 		const wsExecs = await this.db
 			.selectFrom("workspace_executions")
-			.select(["id"])
+			.select(["id", "project_id"])
 			.where("plan_execution_id", "=", planExecutionId)
 			.where("workspace_id", "=", workspaceId)
 			.execute();
@@ -301,7 +304,7 @@ export class KernelTransitionRouter implements TransitionRouter {
 					id: attemptId,
 					workspace_execution_id: wsExec.id,
 					plan_execution_id: planExecutionId,
-					project_id: "", // Filled by controller
+					project_id: wsExec.project_id ?? (() => { throw new Error(`No project_id for workspace ${workspaceId} (exec ${wsExec.id})`); })(),
 					current_state: "PENDING",
 					version: 0,
 					created_at: now,
@@ -319,9 +322,10 @@ export class KernelTransitionRouter implements TransitionRouter {
 				workspaceId,
 			});
 		} catch (error) {
-			this.log.warn(
+			this.log.error(
 				`[workspace ${workspaceId}] Controller handleEvent(attempt_started) failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
+			throw error;
 		}
 
 		// Cache the attempt
@@ -351,7 +355,10 @@ export class KernelTransitionRouter implements TransitionRouter {
 			cacheEntry.currentState = "SUCCEEDED";
 			cacheEntry.version++;
 		} catch (error) {
-			this.log.warn(
+			// Post-execution: workspace is already complete, controller failure
+			// is logged but does not undo execution. The state store transition
+			// still happens in the caller.
+			this.log.error(
 				`[workspace ${workspaceId}] Controller handleEvent(attempt_succeeded) failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
@@ -377,7 +384,9 @@ export class KernelTransitionRouter implements TransitionRouter {
 			cacheEntry.currentState = data?.isFinal ? "FAILED_FINAL" : "FAILED_RETRYABLE";
 			cacheEntry.version++;
 		} catch (error) {
-			this.log.warn(
+			// Post-execution: workspace already failed, controller failure
+			// is logged but does not undo the failure state.
+			this.log.error(
 				`[workspace ${workspaceId}] Controller handleEvent(attempt_failed) failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
@@ -407,9 +416,12 @@ export class KernelTransitionRouter implements TransitionRouter {
 			cacheEntry.currentState = "READY";
 			cacheEntry.version++;
 		} catch (error) {
-			this.log.warn(
+			// Pre-execution: retry rejection is fatal — the workspace must not retry.
+			// The caller handles the error and marks the workspace as failed.
+			this.log.error(
 				`[workspace ${workspaceId}] Controller handleEvent(retry) rejected: ${error instanceof Error ? error.message : String(error)}`,
 			);
+			throw error;
 		}
 	}
 
@@ -431,9 +443,12 @@ export class KernelTransitionRouter implements TransitionRouter {
 			cacheEntry.currentState = "BLOCKED";
 			cacheEntry.version++;
 		} catch (error) {
-			this.log.warn(
+			// Blocking happens during execution routing; controller failure
+			// means the attempt is not properly tracked, which should be visible.
+			this.log.error(
 				`[workspace ${workspaceId}] Controller handleEvent(attempt_blocked) failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
+			throw error;
 		}
 	}
 

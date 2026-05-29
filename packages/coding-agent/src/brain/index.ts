@@ -339,13 +339,22 @@ export {
 	validateProposalEvidence,
 	validateProposalRisk,
 } from "./proposals/types.js";
-// Reflection API (P17.G)
+// Reflection API (P17.G) — V5.10: added correction/rejection/audit methods
 export {
+	type AuditTrailResult,
 	BrainReflectionApi,
+	type ReflectionCorrectionResult,
 	type ReflectionGenerateResult,
 	type ReflectionListQuery,
+	type ReflectionRejectionResult,
 	type ReflectionStats,
 } from "./reflection/api.js";
+// Reflection Audit (V5.10 AC3)
+export {
+	InMemoryReflectionAuditStore,
+	ReflectionAuditService,
+	type ReflectionAuditStore,
+} from "./reflection/audit.js";
 // Reflection Engine (P17.C)
 export { ReflectionEngine } from "./reflection/engine.js";
 // Future Phase Suggestion Engine (P17.F)
@@ -355,12 +364,16 @@ export { MemoryProposalGenerator, type MemoryProposalOutput } from "./reflection
 // Source-Backed Summarizer (P17.D)
 export { SourceBackedSummarizer } from "./reflection/summarizer.js";
 export type {
+	EvidenceClaim,
 	ExecutionJournalEntry,
 	FuturePhaseSuggestion,
 	MemoryProposalSuggestion,
 	ProposalSuggestion,
+	ReflectionAuditEntry,
 	ReflectionConfig,
+	ReflectionCorrection,
 	ReflectionInput,
+	ReflectionRejection,
 	ReflectionReport as P17ReflectionReport,
 	ValidationResult as ReflectionValidationResult,
 	WorkspaceOutcome,

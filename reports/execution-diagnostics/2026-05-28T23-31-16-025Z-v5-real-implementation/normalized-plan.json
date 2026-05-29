@@ -1,0 +1,7 @@
+{
+  "contractVersion": "4.0.0",
+  "phase": "P-V5",
+  "title": "Brain Reality Layer",
+  "maxParallelWorkspaces": 6,
+  "workspaceCount": 20
+}

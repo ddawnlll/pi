@@ -455,6 +455,14 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 				: undefined,
 		acceptanceCriteria: Array.isArray(w.acceptanceCriteria) ? w.acceptanceCriteria : undefined,
 		targetCommand: w.targetCommand,
+		// V4/V5 prompt fields (P-HOTFIX-WT)
+		executorPrompt: typeof w.executorPrompt === "string" ? w.executorPrompt : undefined,
+		instructions: typeof w.instructions === "string" ? w.instructions : undefined,
+		goal: typeof w.goal === "string" ? w.goal : undefined,
+		description: typeof w.description === "string" ? w.description : undefined,
+		task: typeof w.task === "string" ? w.task : undefined,
+		// Compute effective prompt from the above fields
+		effectivePrompt: w.executorPrompt ?? w.instructions ?? w.goal ?? w.description ?? w.task ?? w.title ?? undefined,
 		metadata: w.metadata,
 		// v2.2.0: parallelGroup
 		parallelGroup: typeof w.parallelGroup === "string" ? w.parallelGroup : undefined,

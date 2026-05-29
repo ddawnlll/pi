@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-05-28T21-53-02-757Z-exact-v5-repro",
+  "planPath": "P-V5_Brain_Reality_Layer_v4_Plan_EXECUTOR_SCHEMA_FIXED.md",
+  "workspaceId": "V5.00",
+  "results": [
+    {
+      "id": "R1",
+      "name": "Exact V5.00, worktree disabled, mock success",
+      "status": "pass",
+      "durationMs": 31,
+      "evidence": [
+        "mock agent ran",
+        "workspace completed",
+        "locks acquired=5"
+      ],
+      "classification": "worktree disabled path does not reproduce stall"
+    },
+    {
+      "id": "R2",
+      "name": "Exact V5.00, worktree enabled, mock success",
+      "status": "pass",
+      "durationMs": 66,
+      "evidence": [
+        "reached worktree_add_start=true",
+        "reached worktree_add_complete=true",
+        "reached inner_executor_start=false",
+        "mock agent ran=true",
+        "file lock released=false"
+      ],
+      "classification": "mock agent / post-dispatch path"
+    },
+    {
+      "id": "R3",
+      "name": "Exact V5.00, worktree enabled, hanging mock",
+      "status": "pass",
+      "durationMs": 329,
+      "evidence": [
+        "reached worktree_add_start=true",
+        "reached worktree_add_complete=true",
+        "reached inner_executor_start=false",
+        "mock agent ran=true",
+        "file lock released=false"
+      ],
+      "classification": "mock agent / post-dispatch path"
+    },
+    {
+      "id": "R4",
+      "name": "Exact V5.00, worktree enabled, real LLM smoke",
+      "status": "skip",
+      "durationMs": 0,
+      "evidence": [
+        "Skipped because PI_DIAG_RUN_REAL_LLM=1 and provider credentials were not both present"
+      ]
+    }
+  ]
+}

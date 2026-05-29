@@ -841,7 +841,7 @@ export class IdeaToPlanPipeline {
 			// Stage 1: Ingest and validate ideas
 			const ingestResult = this.ingestIdeas(session);
 			if (!ingestResult.ok) {
-				return this.failSession(session, ingestResult.stopCondition, ingestResult.error, ingestResult.context);
+				return this.failSession(session, ingestResult.stopCondition ?? "unknown_error", ingestResult.error ?? "", ingestResult.context ?? {});
 			}
 
 			// Stage 2: Promote ideas to proposals
@@ -849,7 +849,7 @@ export class IdeaToPlanPipeline {
 			session.updatedAt = new Date().toISOString();
 			const promoteResult = this.promoteToProposals(session);
 			if (!promoteResult.ok) {
-				return this.failSession(session, promoteResult.stopCondition, promoteResult.error, promoteResult.context);
+				return this.failSession(session, promoteResult.stopCondition ?? "unknown_error", promoteResult.error ?? "", promoteResult.context ?? {});
 			}
 
 			// Check budget after promotion
@@ -883,9 +883,9 @@ export class IdeaToPlanPipeline {
 			if (!synthesizeResult.ok) {
 				return this.failSession(
 					session,
-					synthesizeResult.stopCondition,
-					synthesizeResult.error,
-					synthesizeResult.context,
+					synthesizeResult.stopCondition ?? "unknown_error",
+					synthesizeResult.error ?? "",
+					synthesizeResult.context ?? {},
 				);
 			}
 
@@ -907,9 +907,9 @@ export class IdeaToPlanPipeline {
 			if (!validateResult.ok) {
 				return this.failSession(
 					session,
-					validateResult.stopCondition,
-					validateResult.error,
-					validateResult.context,
+					validateResult.stopCondition ?? "unknown_error",
+					validateResult.error ?? "",
+					validateResult.context ?? {},
 				);
 			}
 
@@ -955,9 +955,9 @@ export class IdeaToPlanPipeline {
 			if (!synthesizeResult.ok) {
 				return this.failSession(
 					session,
-					synthesizeResult.stopCondition,
-					synthesizeResult.error,
-					synthesizeResult.context,
+					synthesizeResult.stopCondition ?? "unknown_error",
+					synthesizeResult.error ?? "",
+					synthesizeResult.context ?? {},
 				);
 			}
 
@@ -978,9 +978,9 @@ export class IdeaToPlanPipeline {
 			if (!validateResult.ok) {
 				return this.failSession(
 					session,
-					validateResult.stopCondition,
-					validateResult.error,
-					validateResult.context,
+					validateResult.stopCondition ?? "unknown_error",
+					validateResult.error ?? "",
+					validateResult.context ?? {},
 				);
 			}
 

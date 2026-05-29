@@ -27,7 +27,7 @@ import {
 	V5_FORBIDDEN_ACTOR_EVENT_TYPES,
 	V5MutationGuard,
 } from "../../src/brain/v5/index.js";
-import type { BrainV5Config, BrainV5Mode, V5AllowedEvent, V5EmitResult } from "../../src/brain/v5/types.js";
+import type { BrainV5Config, BrainV5Mode, V5AllowedEvent } from "../../src/brain/v5/types.js";
 
 // =========================================================================
 // Mock implementations

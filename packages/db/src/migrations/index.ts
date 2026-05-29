@@ -36,6 +36,7 @@ import * as m010 from "./010_add_proposal_scoring.js";
 import * as m011 from "./011_observability_events.js";
 import * as m012 from "./012_execution_kernel.js";
 import * as m013 from "./013_execution_kernel_v4.js";
+import * as m014 from "./014_fix_notify_payload.js";
 
 /**
  * All registered migrations in version order.
@@ -54,6 +55,7 @@ const migrations: Migration[] = [
 	{ version: 11, name: "add_observability_events", up: m011.up, down: m011.down },
 	{ version: 12, name: "execution_kernel", up: m012.up, down: m012.down },
 	{ version: 13, name: "execution_kernel_v4", up: m013.up, down: m013.down },
+	{ version: 14, name: "fix_notify_payload", up: m014.up, down: m014.down },
 ];
 
 /**

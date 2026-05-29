@@ -1,0 +1,192 @@
+[
+  {
+    "id": "V5.00",
+    "dependencies": [],
+    "parallelGroup": "foundation",
+    "goal": "Define the V5 capability boundary, feature flags, shared types, and safety doctrine so every later w"
+  },
+  {
+    "id": "V5.01",
+    "dependencies": [
+      "V5.00"
+    ],
+    "parallelGroup": "data_foundation",
+    "goal": "Create daily, weekly, monthly, and entity-scoped temporal journals that answer what happened, what r"
+  },
+  {
+    "id": "V5.02",
+    "dependencies": [
+      "V5.00"
+    ],
+    "parallelGroup": "data_foundation",
+    "goal": "Create a unified evidence index for git, execution, validation, memory, proposal, reflection, and us"
+  },
+  {
+    "id": "V5.03",
+    "dependencies": [
+      "V5.02"
+    ],
+    "parallelGroup": "memory_scanner",
+    "goal": "Make memory useful during planning, proposals, query answers, and drafting through lifecycle-aware r"
+  },
+  {
+    "id": "V5.04",
+    "dependencies": [
+      "V5.03"
+    ],
+    "parallelGroup": "context_signal",
+    "goal": "Build the context pack used by query, proposal, draft, and plan generation, including memory injecti"
+  },
+  {
+    "id": "V5.05",
+    "dependencies": [
+      "V5.02"
+    ],
+    "parallelGroup": "memory_scanner",
+    "goal": "Convert repository history, diff, changed files, and failure correlations into actionable signals ra"
+  },
+  {
+    "id": "V5.06",
+    "dependencies": [
+      "V5.01",
+      "V5.02",
+      "V5.05"
+    ],
+    "parallelGroup": "context_signal",
+    "goal": "Turn temporal, evidence, scanner, validation, memory, and execution facts into deduplicated active s"
+  },
+  {
+    "id": "V5.07",
+    "dependencies": [
+      "V5.01",
+      "V5.02",
+      "V5.03",
+      "V5.06"
+    ],
+    "parallelGroup": "brain_engines",
+    "goal": "Provide the tool-backed Ask Pi backend for temporal, memory, repo, execution, proposal, why, and nex"
+  },
+  {
+    "id": "V5.08",
+    "dependencies": [
+      "V5.04",
+      "V5.05",
+      "V5.06"
+    ],
+    "parallelGroup": "brain_engines",
+    "goal": "Upgrade proposals into evidence-backed action items with risk, expected impact, dedupe, cooldown, re"
+  },
+  {
+    "id": "V5.09",
+    "dependencies": [
+      "V5.04",
+      "V5.08"
+    ],
+    "parallelGroup": "action_backends",
+    "goal": "Generate explanation, bugfix, phase-plan, validation, and rollback drafts from proposals using V4-co"
+  },
+  {
+    "id": "V5.10",
+    "dependencies": [
+      "V5.01",
+      "V5.02",
+      "V5.03",
+      "V5.08"
+    ],
+    "parallelGroup": "brain_engines",
+    "goal": "Convert completed runs into source-backed reflections, candidate memories, and future proposals."
+  },
+  {
+    "id": "V5.11",
+    "dependencies": [
+      "V5.06",
+      "V5.08"
+    ],
+    "parallelGroup": "action_backends",
+    "goal": "Route important signals and proposals to notifications, Pi Inbox, and digests without spam."
+  },
+  {
+    "id": "V5.12",
+    "dependencies": [
+      "V5.08",
+      "V5.09",
+      "V5.11"
+    ],
+    "parallelGroup": "action_backends",
+    "goal": "Implement safe overnight readiness, blocker analysis, approved queue preview, and morning report pre"
+  },
+  {
+    "id": "V5.13",
+    "dependencies": [
+      "V5.00"
+    ],
+    "parallelGroup": "data_foundation",
+    "goal": "Make Brain V5 first-class in the dashboard navigation while removing duplicate/confusing Proposal an"
+  },
+  {
+    "id": "V5.14",
+    "dependencies": [
+      "V5.07",
+      "V5.08",
+      "V5.11",
+      "V5.13"
+    ],
+    "parallelGroup": "primary_ui",
+    "goal": "Create the default Brain V5 command center that summarizes today, this week, active signals, proposa"
+  },
+  {
+    "id": "V5.15",
+    "dependencies": [
+      "V5.07",
+      "V5.13"
+    ],
+    "parallelGroup": "primary_ui",
+    "goal": "Create the conversational brain interface with answer cards, confidence, evidence refs, related memo"
+  },
+  {
+    "id": "V5.16",
+    "dependencies": [
+      "V5.01",
+      "V5.03",
+      "V5.04",
+      "V5.05",
+      "V5.13"
+    ],
+    "parallelGroup": "primary_ui",
+    "goal": "Expose Temporal Journal, Memory V2, and Repo Scanner pages with actionable views and injection/retri"
+  },
+  {
+    "id": "V5.17",
+    "dependencies": [
+      "V5.08",
+      "V5.09",
+      "V5.13"
+    ],
+    "parallelGroup": "action_ui",
+    "goal": "Upgrade Proposal Inbox and add Draft Studio for reviewing evidence-backed proposals and generated dr"
+  },
+  {
+    "id": "V5.18",
+    "dependencies": [
+      "V5.06",
+      "V5.10",
+      "V5.11",
+      "V5.12",
+      "V5.13"
+    ],
+    "parallelGroup": "action_ui",
+    "goal": "Connect Brain V5 to the live execution dashboard through context strips, safe brain stream, right-si"
+  },
+  {
+    "id": "V5.19",
+    "dependencies": [
+      "V5.14",
+      "V5.15",
+      "V5.16",
+      "V5.17",
+      "V5.18"
+    ],
+    "parallelGroup": "dogfood",
+    "goal": "Prove the complete Brain Reality Layer through end-to-end dogfood, regression tests, telemetry corre"
+  }
+]

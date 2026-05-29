@@ -288,30 +288,30 @@ async function runWithWorktree(
 	let worktreePath: string | undefined;
 	try {
 		recorder.record(testId, "executor_start", workspace.id, { worktree: true });
-		recorder.worktree(testId, "worktree_create_start", workspace.id, { repo });
-		recorder.worktree(testId, "worktree_mutex_wait_start", workspace.id);
+
+		// The WorktreeWorkspaceExecutor now emits lifecycle events through
+		// onWorktreeEvent callback, including:
+		//   worktree_create_start, worktree_mutex_wait_start, worktree_mutex_acquired,
+		//   worktree_mutex_timeout, worktree_mutex_released, worktree_branch_prepare_start,
+		//   worktree_branch_ready, worktree_add_start, worktree_add_complete,
+		//   worktree_create_failed, inner_executor_start
 		const executor = new WorktreeWorkspaceExecutor({
 			workspaceRoot: repo,
 			planExecutionId: "exact-v5-repro",
 			workspaceId: workspace.id,
 			worktree: { enabled: true },
+			onWorktreeEvent: (event) => {
+				recorder.worktree(testId, event.type, workspace.id, event.data);
+			},
 		});
 		const createResult = await withTimeout(recorder, testId, "production createWorktree", 5_000, async () =>
 			executor.createWorktree(),
 		);
 		if (createResult.error) throw new Error(createResult.error);
 		worktreePath = createResult.state.worktreePath;
-		recorder.worktree(testId, "worktree_mutex_acquired", workspace.id);
 		recorder.worktree(testId, "worktree_base_commit_resolved", workspace.id, {
 			baseCommit: createResult.state.baseCommit,
 		});
-		recorder.worktree(testId, "worktree_branch_prepare_start", workspace.id, {
-			branchName: createResult.state.branchName,
-		});
-		recorder.worktree(testId, "worktree_branch_ready", workspace.id, { branchName: createResult.state.branchName });
-		recorder.worktree(testId, "worktree_add_start", workspace.id, { path: createResult.state.worktreePath });
-		recorder.worktree(testId, "worktree_add_complete", workspace.id, { path: createResult.state.worktreePath });
-		recorder.worktree(testId, "inner_executor_start", workspace.id, { path: createResult.state.worktreePath });
 		recorder.record(testId, "executor_prompt_built", workspace.id);
 		recorder.record(testId, "executor_prompt_dispatched", workspace.id);
 		const agentResult = await Promise.race([

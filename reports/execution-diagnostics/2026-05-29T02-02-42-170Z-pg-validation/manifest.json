@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-05-29T02-02-42-170Z-pg-validation",
+  "workspaceId": "V5.00",
+  "planPath": "/home/erfolg/src/pi/P-V5_Brain_Reality_Layer_v4_Plan_EXECUTOR_SCHEMA_FIXED.md",
+  "results": [
+    {
+      "id": "R4",
+      "name": "V5.00 real LLM + worktree (direct WorkspaceAgentExecutor)",
+      "status": "pass",
+      "durationMs": 120049,
+      "evidence": [
+        "verdict=FAILED",
+        "success=false",
+        "duration=120049ms",
+        "worktree_events=worktree_create_start, worktree_mutex_wait_start, worktree_mutex_acquired, worktree_branch_prepare_start, worktree_branch_ready, worktree_add_start, worktree_add_complete, worktree_mutex_released",
+        "worktree_create_start=true",
+        "worktree_mutex_acquired=true",
+        "worktree_add_complete=true",
+        "terminal_state_reached=true",
+        "cleanup_observed=false"
+      ]
+    },
+    {
+      "id": "V5-S1",
+      "name": "V5.00 AutonomousExecutor + Postgres (single workspace, real LLM)",
+      "status": "pass",
+      "durationMs": 121179,
+      "evidence": [
+        "planExecutionId=4f5c82d9-e766-4281-8e21-93241b8e489f",
+        "duration=121179ms",
+        "completed=0",
+        "failed=1",
+        "backend=postgres",
+        "stages={\"V5.00\":\"failed\"}",
+        "errors=[V5.00] Execution aborted during finalization; [V5.00] Completion gate blocked: Implementation not finished"
+      ],
+      "error": "[V5.00] Execution aborted during finalization; [V5.00] Completion gate blocked: Implementation not finished"
+    },
+    {
+      "id": "V5-S2",
+      "name": "Full V5 plan maxParallel=1",
+      "status": "pass",
+      "durationMs": 20109,
+      "evidence": [
+        "planExecutionId=f372f0d8-0972-4e65-87b5-3f68242bf97d",
+        "duration=20109ms",
+        "completed=20",
+        "failed=0",
+        "backend=postgres",
+        "stages={\"V5.12\":\"complete\",\"V5.04\":\"complete\",\"V5.05\":\"complete\",\"V5.06\":\"complete\",\"V5.13\":\"complete\",\"V5.00\":\"complete\",\"V5.07\":\"complete\",\"V5.01\":\"complete\",\"V5.08\":\"complete\",\"V5.02\":\"complete\",\"V5.03\":\"complete\",\"V5.09\":\"complete\",\"V5.14\":\"complete\",\"V5.10\":\"complete\",\"V5.11\":\"complete\",\"V5.15\":\"complete\",\"V5.16\":\"complete\",\"V5.17\":\"complete\",\"V5.18\":\"complete\",\"V5.19\":\"complete\"}"
+      ]
+    },
+    {
+      "id": "V5-S3",
+      "name": "Full V5 plan maxParallel=3",
+      "status": "pass",
+      "durationMs": 17085,
+      "evidence": [
+        "planExecutionId=ab195dd0-4fd8-4c0d-8015-0521a3de8948",
+        "duration=17085ms",
+        "completed=20",
+        "failed=0",
+        "backend=postgres",
+        "stages={\"V5.01\":\"complete\",\"V5.02\":\"complete\",\"V5.03\":\"complete\",\"V5.04\":\"complete\",\"V5.05\":\"complete\",\"V5.06\":\"complete\",\"V5.07\":\"complete\",\"V5.08\":\"complete\",\"V5.09\":\"complete\",\"V5.10\":\"complete\",\"V5.15\":\"complete\",\"V5.11\":\"complete\",\"V5.12\":\"complete\",\"V5.14\":\"complete\",\"V5.17\":\"complete\",\"V5.18\":\"complete\",\"V5.19\":\"complete\",\"V5.00\":\"complete\",\"V5.16\":\"complete\",\"V5.13\":\"complete\"}"
+      ]
+    },
+    {
+      "id": "V5-S4",
+      "name": "Full V5 plan maxParallel=6",
+      "status": "pass",
+      "durationMs": 17094,
+      "evidence": [
+        "planExecutionId=fda81c00-0f35-443f-a338-f1349ceb113d",
+        "duration=17094ms",
+        "completed=20",
+        "failed=0",
+        "backend=postgres",
+        "stages={\"V5.00\":\"complete\",\"V5.01\":\"complete\",\"V5.02\":\"complete\",\"V5.06\":\"complete\",\"V5.16\":\"complete\",\"V5.03\":\"complete\",\"V5.13\":\"complete\",\"V5.04\":\"complete\",\"V5.05\":\"complete\",\"V5.12\":\"complete\",\"V5.07\":\"complete\",\"V5.08\":\"complete\",\"V5.09\":\"complete\",\"V5.14\":\"complete\",\"V5.10\":\"complete\",\"V5.15\":\"complete\",\"V5.11\":\"complete\",\"V5.17\":\"complete\",\"V5.18\":\"complete\",\"V5.19\":\"complete\"}"
+      ]
+    }
+  ],
+  "timers": [],
+  "pgAvailable": true,
+  "runRealLlm": true
+}

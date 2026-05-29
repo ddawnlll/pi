@@ -1,0 +1,70 @@
+[
+  {
+    "testId": "T0",
+    "name": "T0 Parser / normalizer baseline",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T1",
+    "name": "T1 One workspace, no worktree, mock agent succeeds",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T2",
+    "name": "T2 One workspace, no worktree, mock agent hangs forever",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T3",
+    "name": "T3 actorEventSink wiring",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T4",
+    "name": "T4 File lock conflict",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T5",
+    "name": "T5 File lock non-conflict",
+    "timeoutMs": 8000,
+    "fired": false
+  },
+  {
+    "testId": "T6",
+    "name": "T6 Worktree creation with mock success",
+    "timeoutMs": 12000,
+    "fired": false
+  },
+  {
+    "testId": "T7",
+    "name": "T7 Worktree + hanging mock agent",
+    "timeoutMs": 12000,
+    "fired": false
+  },
+  {
+    "testId": "T8",
+    "name": "T8 20 workspace pressure test with hanging mock agent",
+    "timeoutMs": 15000,
+    "fired": false
+  },
+  {
+    "testId": "static",
+    "name": "packages/coding-agent/src/core/workspace-agent-executor.ts",
+    "timeoutMs": 0,
+    "fired": false,
+    "unrefObserved": true
+  },
+  {
+    "testId": "static",
+    "name": "packages/coding-agent/src/worktree/worktree-workspace-executor.ts",
+    "timeoutMs": 0,
+    "fired": false,
+    "unrefObserved": true
+  }
+]

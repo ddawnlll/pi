@@ -18,9 +18,10 @@ import { killTrackedDetachedChildren } from "../utils/shell.js";
 import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
+import { createGitRunner } from "./git-runner.js";
 import type { PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
-import { RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
+import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
@@ -769,10 +770,8 @@ export class AutonomousExecutor {
 			this.trackExecution(workspace.id, executionPromise);
 			const result = await executionPromise;
 
-			// P26.B: Remove workspace-scoped executor now that execution is complete.
-			// This ensures the executor is cleaned up even on success so concurrent
-			// workspaces cannot reference a stale executor instance identity.
-			this.activeAgentExecutors.delete(workspace.id);
+			// P26.B: Keep the workspace-scoped executor registered until after
+			// auto-commit so commitWorkspace() can read its effective worktree root.
 
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
@@ -816,6 +815,7 @@ export class AutonomousExecutor {
 				});
 
 				// Skip auto-commit for lead agents (no changes to commit)
+				this.activeAgentExecutors.delete(workspace.id);
 				return result;
 			}
 
@@ -883,6 +883,10 @@ export class AutonomousExecutor {
 				}
 			}
 
+			// P26.B: Remove workspace-scoped executor after auto-commit has had a
+			// chance to inspect the worktree root.
+			this.activeAgentExecutors.delete(workspace.id);
+
 			// NOTE: The plan-runner (executePlanInBackground) handles plan completion
 			// when all workspaces are terminal. Do NOT auto-complete here to avoid
 			// a race with the plan-runner's while loop. The setTimout-based auto-complete
@@ -912,10 +916,30 @@ export class AutonomousExecutor {
 
 			// Classify failure and determine if retry is possible
 			const failureType = this.retryHandler.classifyFailure(errorMessage);
-			const retryDecision = this.retryHandler.shouldRetry(workspace, wsForRetry, failureType);
+
+			// H-P-STATE-2: Controller rejection (transition routing failed) is NOT retryable.
+			// The workspace must terminalize immediately instead of staying Pending and
+			// causing an infinite schedule loop.
+			const isRejectionError =
+				errorMessage.includes("rejected transition") ||
+				errorMessage.includes("Attempt controller rejected") ||
+				errorMessage.includes("invalid input syntax for type uuid") ||
+				errorMessage.includes("version_conflict") ||
+				errorMessage.includes("Attempt not found");
+
+			let retryDecision: RetryDecision;
+			if (isRejectionError) {
+				retryDecision = {
+					shouldRetry: false,
+					stage: RetryStage.Worker,
+					reason: "Transition rejection — not retryable",
+				};
+			} else {
+				retryDecision = this.retryHandler.shouldRetry(workspace, wsForRetry, failureType);
+			}
 
 			if (retryDecision.shouldRetry) {
-				// Transition back to pending for retry via TransitionRouter (Finding 2)
+				// Transition back to pending for retry via TransitionRouter
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Pending, {
 					error: errorMessage,
 					retryStage: retryDecision.stage,
@@ -938,8 +962,12 @@ export class AutonomousExecutor {
 				};
 			}
 
-			// No more retries - mark as failed via TransitionRouter (Finding 2)
-			await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Failed, {
+			// No more retries - mark as failed via state store directly
+			// bypassing TransitionRouter to avoid attempt-controller rejection cascade.
+			// The router's attempt FSM may reject Failed->Pending because the workspace
+			// never transitioned to Active (controller rejected the Active transition).
+			// Writing directly to state store ensures terminal state is persisted.
+			await this.stateStore.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Failed, {
 				error: errorMessage,
 			});
 
@@ -1415,8 +1443,12 @@ export class AutonomousExecutor {
 		}
 
 		try {
-			const autoCommit = new AutoCommit(this.workspaceRoot);
+			const agentExecutor = this.activeAgentExecutors.get(workspace.id);
+			const worktreeRoot = agentExecutor?.getEffectiveWorkspaceRoot() ?? null;
+			const commitRoot = worktreeRoot ?? this.workspaceRoot;
 			const phase = this.workspaceQueue?.phase ?? "2";
+
+			const autoCommit = new AutoCommit(commitRoot);
 			const result = await autoCommit.commit(workspace, wsState, phase);
 
 			if (!result.success) {
@@ -1426,8 +1458,32 @@ export class AutonomousExecutor {
 				} else if (result.reason) {
 					console.warn(`[auto-commit] Warning: ${workspace.id}: ${result.reason}`);
 				}
-			} else if (result.commitHash) {
-				console.log(`[auto-commit] Committed workspace ${workspace.id} (${result.commitHash})`);
+				return;
+			}
+
+			console.log(`[auto-commit] Committed workspace ${workspace.id} in ${commitRoot} (${result.commitHash})`);
+
+			if (worktreeRoot && worktreeRoot !== this.workspaceRoot && result.commitHash) {
+				try {
+					const runner = createGitRunner({
+						planExecId: this.planExecutionId ?? "",
+						workspaceId: workspace.id,
+						leaseId: "",
+						cwd: this.workspaceRoot,
+					});
+					await runner.writeRepo(["cherry-pick", "--no-commit", result.commitHash], { timeout: 60_000 });
+					await runner.writeRepo(["add", "-A"], { timeout: 30_000 });
+					const commitMsg = `feat(p${phase}): complete workspace ${workspace.id} — ${workspace.title.slice(0, 50)}`;
+					await runner.writeRepo(["commit", "--no-verify", "-m", commitMsg], { timeout: 30_000 });
+					console.log(`[auto-commit] Cherry-picked ${workspace.id} into main repo`);
+				} catch (cherryErr) {
+					const errMsg = cherryErr instanceof Error ? cherryErr.message : String(cherryErr);
+					if (errMsg.includes("nothing to commit") || errMsg.includes("empty commit")) {
+						console.log(`[auto-commit] Cherry-pick was empty (changes already in main): ${workspace.id}`);
+					} else {
+						console.warn(`[auto-commit] Cherry-pick failed for ${workspace.id}: ${errMsg}`);
+					}
+				}
 			}
 		} catch (error) {
 			// Log warning, don't fail

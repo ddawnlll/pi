@@ -15,8 +15,6 @@ import { describe, expect, test } from "vitest";
 import {
 	computePeriodBoundaries,
 	computeRollupDeterministicHash,
-	detectChanges,
-	detectRepeatedPatterns,
 	detectStuckItems,
 	generateRollup,
 	InMemoryTemporalJournalStore,

@@ -21,8 +21,8 @@
  */
 
 import { join } from "node:path";
-import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { LocalProductionReadinessDoctor } from "@earendil-works/pi-coding-agent";
+import type { SettingsManager, Workspace, WorkspaceQueue } from "@earendil-works/pi-coding-agent";
+import { ProductionReadinessDoctor as LocalProductionReadinessDoctor } from "@earendil-works/pi-coding-agent";
 import type { FastifyInstance } from "fastify";
 
 // ---------------------------------------------------------------------------
@@ -77,11 +77,18 @@ export async function registerLocalReadinessRoutes(
 			const piDir = getPiDir();
 
 			const doctor = new LocalProductionReadinessDoctor();
-			const report = await doctor.run(workspaceRoot, {
-				skipGitCheck: false,
-				skipDependencyCheck: false,
-				configPaths: [join(piDir, "settings.json"), join(workspaceRoot, "package.json")],
-			});
+			const dummyQueue: WorkspaceQueue = {
+				phase: "local",
+				title: "Local Readiness Check",
+				maxParallelWorkspaces: 1,
+				workspaces: [],
+			};
+			const report = await doctor.run(
+				dummyQueue,
+				workspaceRoot,
+				piDir,
+				{ skipGitCheck: false },
+			);
 
 			return report;
 		} catch (error) {
@@ -102,10 +109,18 @@ export async function registerLocalReadinessRoutes(
 			const workspaceRoot = getWorkspaceRoot();
 
 			const doctor = new LocalProductionReadinessDoctor();
-			const report = await doctor.run(workspaceRoot, {
-				skipGitCheck: false,
-				skipDependencyCheck: false,
-			});
+			const dummyQueue = {
+				phase: "local",
+				title: "Local Readiness Check",
+				maxParallelWorkspaces: 1,
+				workspaces: [] as Workspace[],
+			} satisfies WorkspaceQueue;
+			const report = await doctor.run(
+				dummyQueue,
+				workspaceRoot,
+				"",
+				{ skipGitCheck: false },
+			);
 
 			const status: LocalReadinessStatus = {
 				verdict: report.verdict,
@@ -114,7 +129,9 @@ export async function registerLocalReadinessRoutes(
 				failCount: report.failCount,
 				autoRunReady: report.autoRunReady,
 				timestamp: report.timestamp,
-				diagnostics: report.diagnostics,
+				diagnostics: report.checks
+					.filter((c) => c.status === "FAIL" || c.status === "WARN")
+					.map((c) => `[${c.status}] ${c.message}`),
 			};
 
 			return status;

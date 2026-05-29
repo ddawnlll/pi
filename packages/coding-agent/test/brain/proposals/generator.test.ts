@@ -39,11 +39,15 @@ class MockProposalStore implements ProposalStore {
 	async create(input: ProposalCreateInput): Promise<Proposal> {
 		const id = `prop-test-${this.nextId++}`;
 		const now = new Date().toISOString();
+		const evidenceCount =
+			input.evidence.memoryIds.length + input.evidence.observationIds.length + input.evidence.sourceRefs.length;
 		const proposal: Proposal = {
 			id,
 			type: input.type,
 			title: input.title,
 			description: input.description,
+			whyNow: input.whyNow ?? `Timely consideration is recommended based on available evidence.`,
+			expectedImpact: input.expectedImpact ?? `Enacting this proposal improves system operations.`,
 			evidence: {
 				memoryIds: [...input.evidence.memoryIds],
 				observationIds: [...input.evidence.observationIds],
@@ -64,10 +68,20 @@ class MockProposalStore implements ProposalStore {
 			updatedAt: now,
 			expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
 			submittedBy: "pi",
+			approvedBy: undefined,
+			rejectedBy: undefined,
+			rejectionReason: undefined,
+			executedAsPlanId: undefined,
 			relatedProposalIds: [],
 			relatedGoalIds: input.relatedGoalIds ?? [],
 			tags: input.tags ?? [],
 			metadata: { ...(input.metadata ?? {}) },
+			// ---- V5.08 Fields ----
+			isDuplicate: false,
+			duplicateOf: null,
+			draftAvailable: false,
+			approvalRequired: true,
+			evidenceCount,
 		};
 		this.proposals.set(id, proposal);
 		return proposal;

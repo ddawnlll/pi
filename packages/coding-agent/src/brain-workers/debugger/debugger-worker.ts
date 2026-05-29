@@ -234,6 +234,7 @@ export function createDebuggerContract(version: string = "1.0.0"): WorkerContrac
 		description:
 			"Collects failure evidence, performs root cause analysis, and produces actionable diagnostic reports with evidence chains and remediation suggestions.",
 		version,
+		readonlyAccess: true,
 		capabilities: [
 			"collect_evidence",
 			"analyze_root_cause",
