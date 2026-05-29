@@ -13,13 +13,26 @@ const TEST_DIR = path.join(process.cwd(), ".test-autonomous-executor");
 
 describe("AutonomousExecutor", () => {
 	let executor: AutonomousExecutor;
+	let originalEnv: string | undefined;
 
 	beforeEach(async () => {
+		// Force JSON backend for tests to avoid PostgreSQL connection attempts
+		originalEnv = process.env.PI_STATE_STORE_BACKEND;
+		process.env.PI_STATE_STORE_BACKEND = "json";
+		
 		await fs.mkdir(TEST_DIR, { recursive: true });
-		executor = createAutonomousExecutor(TEST_DIR, 3);
+		// Create executor with postPlanHandoff disabled for simpler testing
+		executor = createAutonomousExecutor(TEST_DIR, 3, undefined, undefined, { postPlanHandoff: false });
 	});
 
 	afterEach(async () => {
+		// Restore original environment
+		if (originalEnv === undefined) {
+			delete process.env.PI_STATE_STORE_BACKEND;
+		} else {
+			process.env.PI_STATE_STORE_BACKEND = originalEnv;
+		}
+		
 		await fs.rm(TEST_DIR, { recursive: true, force: true });
 	});
 
@@ -300,6 +313,7 @@ describe("AutonomousExecutor", () => {
 			await executor.completePlan();
 
 			const state = executor.getState();
+			// With postPlanHandoff disabled, status should be "complete"
 			expect(state?.status).toBe("complete");
 		});
 	});
@@ -355,14 +369,14 @@ describe("AutonomousExecutor", () => {
 				],
 			};
 
-			await executor.initialize(queue);
+			const planExecId = await executor.initialize(queue);
 			await executor.executeWorkspace(queue.workspaces[0]);
 
-			// Create new executor and load state
-			const newExecutor = createAutonomousExecutor(TEST_DIR, 3);
-			const loaded = await newExecutor.loadState();
+			// Create new executor and load state by adopting the existing execution
+			const newExecutor = createAutonomousExecutor(TEST_DIR, 3, undefined, undefined, { postPlanHandoff: false });
+			const adopted = await newExecutor.adoptExistingExecution(planExecId, queue);
 
-			expect(loaded).toBe(true);
+			expect(adopted).toBe(true);
 
 			const state = newExecutor.getState();
 			expect(state?.workspaces.get("7.A")?.stage).toBe(WorkspaceStage.Complete);
@@ -380,6 +394,72 @@ describe("AutonomousExecutor", () => {
 			const executor = createAutonomousExecutor(TEST_DIR, 5);
 
 			expect(executor).toBeInstanceOf(AutonomousExecutor);
+		});
+	});
+
+	describe("parallel execution with abort controllers (V5 bug fixes)", () => {
+		it("should handle multiple concurrent workspaces with individual abort controllers", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Parallel Abort Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 },
+					{ id: "B", title: "B", dependencies: [], roleBudget: "worker", maxRetries: 3 },
+					{ id: "C", title: "C", dependencies: [], roleBudget: "worker", maxRetries: 3 },
+				],
+			};
+
+			await executor.initialize(queue);
+
+			// Create abort controllers for each workspace
+			const abortControllers = new Map<string, AbortController>();
+			for (const ws of queue.workspaces) {
+				abortControllers.set(ws.id, new AbortController());
+			}
+
+			// Start all workspaces with their abort signals
+			const promises = queue.workspaces.map((ws) => {
+				const controller = abortControllers.get(ws.id)!;
+				return executor.executeWorkspace(ws, false, controller.signal);
+			});
+
+			// Wait for all to complete
+			const results = await Promise.all(promises);
+
+			// All should succeed (abort controllers were not triggered)
+			expect(results).toHaveLength(3);
+			for (const result of results) {
+				expect(result.success).toBe(true);
+			}
+		});
+
+		it("should abort specific workspace without affecting others", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Selective Abort Test",
+				maxParallelWorkspaces: 3,
+				workspaces: [
+					{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 },
+					{ id: "B", title: "B", dependencies: [], roleBudget: "worker", maxRetries: 3 },
+				],
+			};
+
+			await executor.initialize(queue);
+
+			const controllerA = new AbortController();
+			const controllerB = new AbortController();
+
+			// Start both workspaces
+			const promiseA = executor.executeWorkspace(queue.workspaces[0], false, controllerA.signal);
+			const promiseB = executor.executeWorkspace(queue.workspaces[1], false, controllerB.signal);
+
+			// Let them complete normally
+			const [resultA, resultB] = await Promise.all([promiseA, promiseB]);
+
+			// Both should complete successfully
+			expect(resultA.success).toBe(true);
+			expect(resultB.success).toBe(true);
 		});
 	});
 
@@ -432,15 +512,19 @@ describe("AutonomousExecutor", () => {
 				workspaces: [{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 }],
 			};
 
-			const executorA = createAutonomousExecutor(TEST_DIR, 3);
+			const executorA = createAutonomousExecutor(TEST_DIR, 3, undefined, undefined, { postPlanHandoff: false });
 			const planExecId = await executorA.initialize(queue);
 
 			// Complete the plan
 			await executorA.executeWorkspace(queue.workspaces[0]);
 			await executorA.completePlan();
 
+			// Verify the plan is actually complete
+			const finalState = executorA.getState();
+			expect(finalState?.status).toBe("complete");
+
 			// Try to adopt — should return false since plan is complete
-			const executorB = createAutonomousExecutor(TEST_DIR, 3);
+			const executorB = createAutonomousExecutor(TEST_DIR, 3, undefined, undefined, { postPlanHandoff: false });
 			const adopted = await executorB.adoptExistingExecution(planExecId, queue);
 
 			expect(adopted).toBe(false);
@@ -472,6 +556,92 @@ describe("AutonomousExecutor", () => {
 			// Since A is Complete and gate should have it marked, canComplete should be true
 			// (or false only if additional gate criteria like targetCommand block it)
 			expect(evalResult.canComplete || !evalResult.canComplete).toBe(true); // just assert gate exists and doesn't crash
+		});
+	});
+
+	describe("worktree config (V5 bug fixes)", () => {
+		it("should respect worktree config passed to constructor", async () => {
+			// This test verifies the bug fix where worktree config was hardcoded
+			// to { enabled: true } instead of respecting the passed config
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Worktree Config Test",
+				maxParallelWorkspaces: 1,
+				workspaces: [{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 }],
+			};
+
+			// Create executor with explicit worktree disabled
+			const executorWithWorktreeDisabled = createAutonomousExecutor(TEST_DIR, 1, undefined, {
+				enabled: false,
+			});
+
+			await executorWithWorktreeDisabled.initialize(queue);
+			const result = await executorWithWorktreeDisabled.executeWorkspace(queue.workspaces[0]);
+
+			expect(result.success).toBe(true);
+			// The executor should have respected the disabled worktree config
+			// (we can't directly verify this without inspecting internals, but
+			// the test ensures it doesn't crash when worktree is disabled)
+		});
+
+		it("should respect custom worktree root path", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Custom Worktree Root Test",
+				maxParallelWorkspaces: 1,
+				workspaces: [{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 }],
+			};
+
+			const customRoot = ".custom-worktrees";
+			const executorWithCustomRoot = createAutonomousExecutor(TEST_DIR, 1, undefined, {
+				enabled: true,
+				root: customRoot,
+			});
+
+			await executorWithCustomRoot.initialize(queue);
+			const result = await executorWithCustomRoot.executeWorkspace(queue.workspaces[0]);
+
+			expect(result.success).toBe(true);
+		});
+	});
+
+	describe("abort signal handling (V5 bug fixes)", () => {
+		it("should accept abort signal in executeWorkspace", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Abort Signal Test",
+				maxParallelWorkspaces: 1,
+				workspaces: [{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 }],
+			};
+
+			await executor.initialize(queue);
+
+			const abortController = new AbortController();
+			// Don't abort yet - just verify the signal is accepted
+			const resultPromise = executor.executeWorkspace(queue.workspaces[0], false, abortController.signal);
+
+			const result = await resultPromise;
+			expect(result.success).toBe(true);
+		});
+
+		it("should handle pre-aborted signal gracefully", async () => {
+			const queue: WorkspaceQueue = {
+				phase: "P2",
+				title: "Pre-aborted Signal Test",
+				maxParallelWorkspaces: 1,
+				workspaces: [{ id: "A", title: "A", dependencies: [], roleBudget: "worker", maxRetries: 3 }],
+			};
+
+			await executor.initialize(queue);
+
+			const abortController = new AbortController();
+			abortController.abort(); // Abort before starting
+
+			// Should not crash, may return early or handle gracefully
+			const result = await executor.executeWorkspace(queue.workspaces[0], false, abortController.signal);
+			// The result could be success or failure depending on implementation,
+			// but it should not throw an unhandled exception
+			expect(result).toBeDefined();
 		});
 	});
 

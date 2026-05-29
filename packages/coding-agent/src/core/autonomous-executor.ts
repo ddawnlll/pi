@@ -251,10 +251,9 @@ export class AutonomousExecutor {
 				maxTurns: 50,
 				stateStore: this.stateStore,
 				timeoutMs: config.workspaceTimeoutMs,
-				// P22.C: Worktree mode is FORCED enabled regardless of config.
-				// Any plan attempting to disable worktree isolation will be blocked
-				// at the WorkspaceAgentExecutor.execute() level.
-				worktree: { enabled: true },
+				// Respect the worktree config passed in from the caller.
+				// P22.C worktree enforcement is handled at the WorkspaceAgentExecutor level.
+				worktree: config.worktree ?? { enabled: true },
 			};
 		}
 	}
@@ -1956,6 +1955,7 @@ export function createAutonomousExecutor(
 	maxWorkers = DEFAULT_WORKERS,
 	retryPolicy?: RetryPolicy,
 	worktree?: WorktreeConfig,
+	configOverrides?: Partial<Omit<AutonomousExecutorConfig, 'workspaceRoot' | 'maxWorkers' | 'retryPolicy' | 'worktree'>>,
 ): AutonomousExecutor {
 	// Use createStateStore for centralized backend selection (Finding 4/5)
 	const backend = detectStateStoreBackend();
@@ -1971,5 +1971,6 @@ export function createAutonomousExecutor(
 		projectId: "default",
 		skipProjectManagement: true,
 		worktree,
+		...configOverrides,
 	});
 }

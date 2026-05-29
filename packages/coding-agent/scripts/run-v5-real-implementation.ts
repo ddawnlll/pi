@@ -507,8 +507,12 @@ function simulateFileLockSerialization(
 		const components = connectedLockComponents(wsIds, fileToWorkspaces);
 		const effectiveWidth = components.length;
 
+		// Parse batch index from batch name (e.g., "B1" -> 1, "B12" -> 12)
+		const batchIndexMatch = batchName.match(/\d+/);
+		const batchIndex = batchIndexMatch ? parseInt(batchIndexMatch[0], 10) : 0;
+		
 		serializedBatches.push({
-			batchIndex: 0, // batchName is a string like "B1" - index is parseable
+			batchIndex,
 			dagWidth: wsIds.length,
 			effectiveWidth,
 			workspaceIds: wsIds,
@@ -518,12 +522,7 @@ function simulateFileLockSerialization(
 		maxEffective = Math.max(maxEffective, effectiveWidth);
 	}
 
-	// Parse batch indexes where possible
-	for (let i = 0; i < serializedBatches.length; i++) {
-		const batchName = [...batchGroups.keys()][i] ?? "B0";
-		const idx = parseInt(batchName.replace(/\D/g, ""), 10);
-		serializedBatches[i].batchIndex = Number.isNaN(idx) ? i : idx;
-	}
+	// Batch indexes are now parsed inline during batch iteration above
 
 	return { lockConstrainedParallelism: maxEffective, serializedBatches };
 }
@@ -624,7 +623,7 @@ class LiveMonitor {
 		return warnings;
 	}
 
-	async heartbeat(): Promise<void> {
+	async heartbeat(): Promise<string[]> {
 		const elapsedMs = Date.now() - this.started;
 		const formatted = formatElapsed(this.started);
 
@@ -1004,6 +1003,7 @@ async function runV5Plan(
 	const completedWorkspaces = new Set<string>();
 	const failedWorkspaces = new Set<string>();
 	const inFlight = new Map<string, Promise<unknown>>();
+	const abortControllers = new Map<string, AbortController>(); // Track abort controllers per workspace
 	const workspaceDurations = new Map<string, number>();
 	const expectedParallelism = getExpectedParallelism(queue, maxParallel);
 
@@ -1031,11 +1031,23 @@ async function runV5Plan(
 		// 0. Check for graceful shutdown
 		if (shutdownRequested) {
 			artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: "Graceful shutdown — aborting all workspace execution" });
-			// Abort all in-flight workspaces
+			
+			// Abort all in-flight workspaces via their abort controllers
+			for (const [wsId, controller] of abortControllers) {
+				try {
+					controller.abort();
+					artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: `Aborted workspace ${wsId}` });
+				} catch (abortErr) {
+					artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: `Abort error for ${wsId}: ${abortErr}` });
+				}
+			}
+			abortControllers.clear();
+			
+			// Also call executor's stop method for additional cleanup
 			try {
 				await executor.stopAllActiveWorkspaces();
 			} catch (abortErr) {
-				artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: `Abort error: ${abortErr}` });
+				artifacts.journal.push({ timestamp: Date.now(), source: "scheduler", message: `Executor stop error: ${abortErr}` });
 			}
 			break;
 		}
@@ -1228,8 +1240,12 @@ async function runV5Plan(
 
 			metricsCollector.markStarted(ws.id, wsState?.attempts ?? 1);
 
+			// Create abort controller for this workspace
+			const abortController = new AbortController();
+			abortControllers.set(ws.id, abortController);
+			
 			const promise = executor
-				.executeWorkspace(ws)
+				.executeWorkspace(ws, false, abortController.signal)
 				.then((result) => {
 					const elapsed = Date.now() - wsStartedAt;
 					workspaceDurations.set(ws.id, elapsed);
@@ -1253,6 +1269,10 @@ async function runV5Plan(
 						message: `Workspace ${ws.id} threw: ${msg} duration=${elapsed}ms`,
 					});
 					errors.push(`[${ws.id}] ${msg}`);
+				})
+				.finally(() => {
+					// Clean up abort controller when workspace completes
+					abortControllers.delete(ws.id);
 				});
 			inFlight.set(ws.id, promise);
 		}
