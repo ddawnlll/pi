@@ -88,6 +88,7 @@ export class WorkspaceAttemptController {
 	}
 
 	private reduceEvent(state: AttemptState, eventType: string): AttemptState {
+		if (eventType === "retry") return "READY";
 		if (eventType === "handoff_required") return "HANDOFF_REQUIRED";
 		if (eventType === "deadline_exceeded") return "FAILED_RETRYABLE";
 		if (eventType === "succeeded") return "SUCCEEDED";

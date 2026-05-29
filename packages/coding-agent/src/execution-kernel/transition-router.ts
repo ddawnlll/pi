@@ -427,6 +427,13 @@ export class KernelTransitionRouter implements TransitionRouter {
 			);
 			throw error;
 		}
+
+		// Clear the cache entry so the next Pending->Active transition
+		// creates a fresh attempt row for the retry. Without this, the
+		// cache hit in createAndStartAttempt would skip attempt_started,
+		// leaving the DB state stuck at FAILED_RETRYABLE and causing an
+		// illegal FAILED_RETRYABLE -> SUCCEEDED FSM rejection on completion.
+		this.attemptCache.delete(workspaceId);
 	}
 
 	/**
