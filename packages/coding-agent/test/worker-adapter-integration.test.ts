@@ -21,8 +21,8 @@ describe("WorkerAdapter integration — AutonomousExecutor path", () => {
 		);
 		// Verify the config interface includes workerAdapter
 		expect(content).toContain("workerAdapter?: WorkerAdapter");
-		// Verify the class stores it
-		expect(content).toContain("this.workerAdapter = config.workerAdapter ?? null");
+		// Verify the class stores it (with if/else handling)
+		expect(content).toContain("this.workerAdapter = config.workerAdapter");
 	});
 
 	it("MockWorkerAdapter can be injected and returns results", async () => {

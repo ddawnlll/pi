@@ -27,7 +27,9 @@ import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
-import type { WorkerAdapter } from "../worker-adapter/types.js";
+import type { WorkerAdapter, WorkerRunRequest } from "../worker-adapter/types.js";
+import { LocalPiWorkerAdapter } from "../worker-adapter/local-pi-worker-adapter.js";
+import { handleExecutionCommand } from "../execution-service/command-handler.js";
 import {
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,
@@ -528,8 +530,21 @@ export class AutonomousExecutor {
 		// P38.LEAD: Wire Lead Agent for failure supervision
 		this.leadAgent = config.leadAgent ?? null;
 
-		// P40: Wire WorkerAdapter for platform/agent separation
-		this.workerAdapter = config.workerAdapter ?? null;
+		// P40: Wire WorkerAdapter for platform/agent separation.
+		// If no adapter is provided, auto-create a default LocalPiWorkerAdapter.
+		if (config.workerAdapter) {
+			this.workerAdapter = config.workerAdapter;
+		} else if (this.enableRealExecution && this.executorConfig) {
+			this.workerAdapter = new LocalPiWorkerAdapter({
+				createExecutor: (request) => {
+					return new WorkspaceAgentExecutor({
+						...this.executorConfig!,
+						onCommandExecuted: (event) =>
+							this.recordWorkspaceCommand(request.workspaceId, event),
+					});
+				},
+			});
+		}
 	}
 
 	/**
@@ -1039,7 +1054,7 @@ export class AutonomousExecutor {
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
 					const workerResult = await this.workerAdapter.run({
-						planExecutionId: planExecutionId,
+						planExecutionId,
 						workspaceExecutionId: workspace.id,
 						workspaceId: workspace.id,
 						attemptNumber: wsStateForPacket.attempts,
@@ -1048,8 +1063,21 @@ export class AutonomousExecutor {
 						packet,
 						allowedTools: [],
 						timeoutMs: this.executorConfig?.timeoutMs ?? 30 * 60 * 1000,
-						metadata: { logPath },
+						abortSignal,
+						metadata: {
+							logPath,
+						},
 					});
+
+					// Write execution logs (the adapter writes logs, but keep this
+					// as a safety net in case adapter didn't write them)
+					if (workerResult.report) {
+						await fs.writeFile(logPath, workerResult.report, "utf-8").catch(() => {});
+					}
+
+					if (workerResult.error?.startsWith("Transient provider failure:")) {
+						throw new Error(workerResult.error);
+					}
 
 					// Map WorkerRunResult to WorkspaceExecutionResult
 					result = {
@@ -1771,6 +1799,18 @@ export class AutonomousExecutor {
 			case "stop":
 				if (state.status === "running" || state.status === "paused" || state.status === "stopped") {
 					log.info(`[control] plan_stop_requested — draining active workspaces`);
+
+					// P40.1D: Route stop through execution-service command boundary
+					await handleExecutionCommand(
+						{ type: "stop_plan", planExecutionId, reason: control.reason ?? "plan_stop" },
+						{
+							planControlManager: {
+								writeControlRequest: (action, reason) =>
+									this.stateStore.writeControlRequest(planExecutionId, action, reason),
+							},
+						},
+					);
+
 					await this.appendControlPlaneEvent(planExecutionId, "plan_stop_requested", {
 						reason: control.reason ?? null,
 						status: state.status,

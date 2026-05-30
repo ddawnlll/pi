@@ -65,6 +65,8 @@ export interface WorkerRunRequest {
 	allowedTools: string[];
 	/** Execution timeout in milliseconds */
 	timeoutMs: number;
+	/** Optional external abort signal (e.g. from plan stop) */
+	abortSignal?: AbortSignal;
 	/** Optional metadata */
 	metadata?: Record<string, unknown>;
 }

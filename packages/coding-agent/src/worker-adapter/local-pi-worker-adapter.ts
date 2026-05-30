@@ -34,6 +34,7 @@ export class LocalPiWorkerAdapter implements WorkerAdapter {
 			const agentResult = await executor.execute(request.packet, request.workspaceId, {
 				logPath: request.metadata?.logPath as string | undefined,
 				attemptNo: request.attemptNumber,
+				_signal: request.abortSignal,
 			});
 
 			const verdict = mapVerdict(agentResult.verdict);
