@@ -19,6 +19,7 @@ import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import { createGitRunner } from "./git-runner.js";
+import type { LeadAgent } from "./lead-agent/index.js";
 import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
 import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
@@ -164,6 +165,12 @@ export interface AutonomousExecutorConfig {
 	 * Defaults to 30 seconds (30000 ms).
 	 */
 	stopDrainTimeoutMs?: number;
+	/**
+	 * Lead Agent instance for failure supervision — P38.LEAD.
+	 * When provided, the Lead Agent observes failures, classifies them,
+	 * limits blind retries, and issues directives before retrying.
+	 */
+	leadAgent?: LeadAgent;
 }
 
 /**
@@ -231,6 +238,8 @@ export class AutonomousExecutor {
 	 * before force-killing during stop (default 30s).
 	 */
 	private stopDrainTimeoutMs = 30_000;
+	/** Lead Agent for failure supervision — P38.LEAD */
+	private leadAgent: LeadAgent | null = null;
 
 	/**
 	 * P37.RCA: Extract test file name from a command string for matching.
@@ -505,6 +514,9 @@ export class AutonomousExecutor {
 				worktree: config.worktree ?? { enabled: true },
 			};
 		}
+
+		// P38.LEAD: Wire Lead Agent for failure supervision
+		this.leadAgent = config.leadAgent ?? null;
 	}
 
 	/**
@@ -1222,6 +1234,23 @@ export class AutonomousExecutor {
 				// Completion gate blocked — transition to the recommended state instead
 				const gateBlockMsg = gateResult.blockReasons.join("; ");
 				console.error(`[completion-gate] Workspace ${workspace.id} cannot be marked complete: ${gateBlockMsg}`);
+
+				// P38.LEAD: Observe completion gate block through Lead Agent
+				if (this.leadAgent) {
+					try {
+						this.leadAgent.observeEvent({
+							eventType: "completion_gate_blocked",
+							planExecId: planExecutionId,
+							workspaceId: workspace.id,
+							attemptNo: currentAttemptNo,
+							errorMessage: `Completion gate blocked: ${gateBlockMsg}`,
+							completionGateBlockReasons: gateResult.blockReasons,
+							timestamp: Date.now(),
+						});
+					} catch {
+						// Lead Agent observation failure must not crash
+					}
+				}
 				// Write the block reason into the workspace state and journal so the
 				// dashboard can show why execution is blocked.
 				await this.appendControlPlaneEvent(
@@ -1280,6 +1309,22 @@ export class AutonomousExecutor {
 			// Handle failure
 			const errorMessage = error instanceof Error ? error.message : String(error);
 
+			// P38.LEAD: Observe workspace failure through Lead Agent
+			if (this.leadAgent) {
+				try {
+					this.leadAgent.observeEvent({
+						eventType: "workspace_failed",
+						planExecId: planExecutionId,
+						workspaceId: workspace.id,
+						attemptNo: wsState?.attempts ?? 1,
+						errorMessage,
+						timestamp: Date.now(),
+					});
+				} catch {
+					// Lead Agent observation failure must not crash
+				}
+			}
+
 			// P26.B: Clean up workspace-scoped executor on failure
 			this.activeAgentExecutors.delete(workspace.id);
 
@@ -1323,6 +1368,40 @@ export class AutonomousExecutor {
 			// Classify failure and determine if retry is possible
 			const failureType = this.retryHandler.classifyFailure(errorMessage);
 
+			// P38.LEAD: Consult Lead Agent before retrying
+			let leadReviewResult: ReturnType<LeadAgent["reviewFailure"]> | null = null;
+			let leadBlocksRetry = false;
+			if (this.leadAgent) {
+				try {
+					leadReviewResult = this.leadAgent.reviewFailure({
+						planExecId: planExecutionId,
+						workspaceId: workspace.id,
+						errorMessage,
+						attemptNo: wsForRetry.attempts,
+						completionGateBlockReasons: [],
+						commandHistory: [],
+						lastCommand: null,
+						lastCommandExitCode: null,
+					});
+
+					new PiLogger({ planExecId: planExecutionId }).info(
+						`[workspace ${workspace.id}] Lead review: ${leadReviewResult.decision} — ${leadReviewResult.summary}`,
+						{ planExecId: planExecutionId, workspaceId: workspace.id, leadDecision: leadReviewResult.decision },
+					);
+
+					if (
+						leadReviewResult.decision === "block_and_escalate_user" ||
+						leadReviewResult.decision === "handoff_required"
+					) {
+						leadBlocksRetry = true;
+					}
+				} catch (leadError) {
+					new PiLogger({ planExecId: planExecutionId }).warn(
+						`[workspace ${workspace.id}] Lead Agent review failed, falling back: ${leadError}`,
+					);
+				}
+			}
+
 			// H-P-STATE-2: Controller rejection (transition routing failed) is NOT retryable.
 			// The workspace must terminalize immediately instead of staying Pending and
 			// causing an infinite schedule loop.
@@ -1334,11 +1413,13 @@ export class AutonomousExecutor {
 				errorMessage.includes("Attempt not found");
 
 			let retryDecision: RetryDecision;
-			if (isRejectionError) {
+			if (isRejectionError || leadBlocksRetry) {
 				retryDecision = {
 					shouldRetry: false,
 					stage: RetryStage.Worker,
-					reason: "Transition rejection — not retryable",
+					reason: leadBlocksRetry
+						? `Lead Agent blocked retry: ${leadReviewResult?.reason ?? "retry budget exhausted"}`
+						: "Transition rejection — not retryable",
 				};
 			} else {
 				retryDecision = this.retryHandler.shouldRetry(workspace, wsForRetry, failureType);
