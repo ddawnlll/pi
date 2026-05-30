@@ -26,6 +26,7 @@ import {
 	Filter,
 	FolderOpen,
 	History,
+	Inbox,
 	Lightbulb,
 	ListOrdered,
 	Moon,
@@ -43,6 +44,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { Project, PlanExecution, MultiPhaseTask } from "../../types";
 import { BrainNudgeCard } from "./BrainNudgeCard.js";
+import type { TopbarBrainMode } from "../topbar/Topbar";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,6 +96,9 @@ export const BRAIN_ITEMS: SidebarItem[] = [
 	{ id: "brain_reflections", label: "Reflections", icon: Lightbulb },
 	{ id: "brain_overnight", label: "Overnight", icon: Moon },
 	{ id: "brain_trust", label: "Trust", icon: Shield },
+	{ id: "brain_goals", label: "Goals", icon: Target },
+	{ id: "brain_digest", label: "Morning Digest", icon: Sunrise },
+	{ id: "brain_inbox", label: "Worker Inbox", icon: Inbox },
 ];
 
 // ---------------------------------------------------------------------------
@@ -143,10 +148,10 @@ export interface SidebarProps {
 	onOpenSettings: () => void;
 	/** Upload a plan */
 	onUploadPlan: () => void;
-	/** Whether brain is enabled for this project */
-	brainEnabled: boolean;
-	/** Toggle brain enabled */
-	onToggleBrain: (enabled: boolean) => void;
+	/** Brain V5 operating mode */
+	brainMode: TopbarBrainMode;
+	/** Cycle brain mode */
+	onCycleBrainMode: () => void;
 	/** Executions for the current project (for Runs section) */
 	/** Unread brain counts for nudges and badges */
 	unreadCounts?: {
@@ -188,8 +193,8 @@ export function Sidebar({
 	onRenameProject,
 	onOpenSettings,
 	onUploadPlan,
-	brainEnabled,
-	onToggleBrain,
+	brainMode,
+	onCycleBrainMode,
 	unreadCounts,
 	unreadCountsLoading = false,
 	executions = [],
@@ -438,16 +443,16 @@ export function Sidebar({
 							<button
 								onClick={(e) => {
 									e.stopPropagation();
-									onToggleBrain(!brainEnabled);
+									onCycleBrainMode();
 								}}
-								className={`text-[10px] px-1.5 py-0.5 rounded ${
-									brainEnabled
+								className={`text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wide whitespace-nowrap ${
+									brainMode !== "OFF"
 										? "text-emerald-600 dark:text-emerald-400"
 										: MUT
 								}`}
-								title={brainEnabled ? "Disable brain" : "Enable brain"}
+								title={`Brain mode: ${brainMode.replace(/_/g, " ")}`}
 							>
-								{brainEnabled ? "ON" : "OFF"}
+								{brainMode === "OFF" ? "OFF" : brainMode === "READ_ONLY" ? "READ ONLY" : brainMode === "ADVISORY" ? "ADVISORY" : brainMode === "DRAFTING" ? "DRAFTING" : "OPERATOR READY"}
 							</button>
 						)}
 						<Chevron sectionId={section.id} />
@@ -461,7 +466,7 @@ export function Sidebar({
 					>
 						<div className="flex flex-col gap-0.5 px-1 pt-0.5">
 							{/* Brain nudge card — show inside brain section when brain is enabled */}
-							{section.id === "brain" && brainEnabled && unreadCounts && (
+							{section.id === "brain" && brainMode !== "OFF" && unreadCounts && (
 								<div className="px-0.5 pt-1 pb-1.5">
 									<BrainNudgeCard
 										observations={unreadCounts.observations}
@@ -662,7 +667,7 @@ export function Sidebar({
 									const itemWithBadge: SidebarItem = badgeOverride !== item.badge
 										? { ...item, badge: badgeOverride }
 										: item;
-									return section.id === "brain" && !brainEnabled
+									return section.id === "brain" && brainMode === "OFF"
 										? null
 										: renderItem(itemWithBadge);
 								})
@@ -677,8 +682,8 @@ export function Sidebar({
 			toggleSection,
 			renderItem,
 			project,
-			brainEnabled,
-			onToggleBrain,
+			brainMode,
+			onCycleBrainMode,
 			onCreateTask,
 			onSelectTask,
 			onUploadPlan,
@@ -706,7 +711,7 @@ export function Sidebar({
 		title: "Brain",
 		type: "brain",
 		isExpanded: expanded.brain ?? true,
-		items: brainEnabled ? BRAIN_ITEMS : [],
+		items: brainMode !== "OFF" ? BRAIN_ITEMS : [],
 	};
 
 	const tasksSection: SidebarSection = {

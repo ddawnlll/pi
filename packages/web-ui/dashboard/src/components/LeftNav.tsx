@@ -1,27 +1,20 @@
 /**
- * LeftNav — Platform navigation group for P11 dashboard shell.
+ * LeftNav — Platform navigation group for the dashboard shell.
  *
- * P11.S — Dashboard shell, navigation integration, and registry settings
+ * V5.13: This component is DEPRECATED for rendering. The project-centric
+ * Sidebar (./sidebar/Sidebar.tsx) is the single source of navigation truth.
+ * LeftNav is retained only for type definitions (`PlatformNavItem`) and
+ * the `PlatformNavEntry` data shape.
  *
- * AC: New Platform nav entries route to the correct screens.
+ * Brain entries (P19 / V5.13) live exclusively in Sidebar.tsx.
  *
- * Platform entries:
+ * Platform entries (P11):
  * - Autonomy → AutonomyCenter
  * - Plan Intake → PlanIntakePanel
  * - Extensions & Skills → ExtensionsManager / SkillsManager
- * - Memory → MemoryCockpit
  * - Policy & Audit → PolicyAuditCenter
+ * - Pi Inbox → PiInbox
  * - Registry Settings → RegistrySettings
- *
- * Brain entries (P19):
- * - Morning Digest → DigestPage
- * - Brain State → BrainStatePage
- * - Memory Explorer → BrainMemoryPage
- * - Reflections → BrainReflectionsPage
- * - Overnight → BrainOvernightPage
- * - Goals → GoalBoard
- * - Proposals → ProposalInbox
- * - Trust → BrainTrustPage
  */
 
 import {
@@ -58,17 +51,14 @@ const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 export type PlatformNavItem =
 	| "autonomy"
-	| "goals"
 	| "observability"
 	| "pi_inbox"
 	| "plan_intake"
 	| "extensions_skills"
 	| "policy_audit"
-	| "trust_dashboard"
 	| "registry_settings"
 	// P19 brain pages (V5.13 unified Brain section)
 	| "brain_overview"
-	| "brain_state"
 	| "brain_ask"
 	| "brain_temporal"
 	| "brain_memory"
@@ -105,12 +95,7 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		icon: Activity,
 		description: "Telemetry events, stats, errors, time-series",
 	},
-	{
-		id: "goals",
-		label: "Goals",
-		icon: Target,
-		description: "Goal board, milestones, drift alerts",
-	},
+
 	{
 		id: "plan_intake",
 		label: "Plan Intake",
@@ -129,12 +114,7 @@ export const PLATFORM_NAV_ENTRIES: PlatformNavEntry[] = [
 		icon: ShieldAlert,
 		description: "Permissions, approvals, audit timeline",
 	},
-	{
-		id: "trust_dashboard",
-		label: "Trust Dashboard",
-		icon: Shield,
-		description: "Trust metrics, safety, approvals, audit health",
-	},
+
 	{
 		id: "pi_inbox",
 		label: "Pi Inbox",
@@ -219,6 +199,13 @@ export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 		description: "Trust metrics, safety, approvals, audit health",
 	},
 	{
+		id: "brain_goals",
+		label: "Goals",
+		icon: Target,
+		description: "Goal board, milestones, drift alerts",
+	},
+
+	{
 		id: "brain_digest",
 		label: "Morning Digest",
 		icon: Sunrise,
@@ -233,12 +220,13 @@ export const BRAIN_NAV_ENTRIES: PlatformNavEntry[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// LeftNav component
+// LeftNav component (DEPRECATED — use Sidebar instead)
 // ---------------------------------------------------------------------------
 
 interface LeftNavProps {
 	activeItem: PlatformNavItem | null;
 	onNavigate: (item: PlatformNavItem) => void;
+	/** @deprecated Brain section moved to Sidebar — this prop is ignored */
 	showBrainSection?: boolean;
 }
 
@@ -274,22 +262,17 @@ function renderEntries(
 	});
 }
 
-export function LeftNav({ activeItem, onNavigate, showBrainSection = true }: LeftNavProps) {
+/**
+ * @deprecated Use Sidebar component instead. LeftNav renders only Platform entries.
+ * Brain navigation has moved to the project-centric Sidebar.
+ */
+export function LeftNav({ activeItem, onNavigate }: LeftNavProps) {
 	return (
 		<div className="flex flex-col gap-0.5 px-2 pb-2">
 			<div className={`mt-0 mb-0.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
 				Platform
 			</div>
 			{renderEntries(PLATFORM_NAV_ENTRIES, activeItem, onNavigate)}
-
-			{showBrainSection && (
-				<>
-					<div className={`mt-2 mb-0.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
-						Brain (P19)
-					</div>
-					{renderEntries(BRAIN_NAV_ENTRIES, activeItem, onNavigate)}
-				</>
-			)}
 		</div>
 	);
 }

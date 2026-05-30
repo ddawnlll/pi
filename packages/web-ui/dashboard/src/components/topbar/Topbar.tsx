@@ -100,6 +100,8 @@ export interface TopbarProps {
   statusBadge?: React.ReactNode;
   /** Brain V5 mode indicator — shown next to title when set. */
   brainMode?: TopbarBrainMode | null;
+  /** Cycle brain V5 operating mode (triggered from badge click). */
+  onCycleBrainMode?: () => void;
 
   // Navigation
   onToggleMobileNav: () => void;
@@ -143,7 +145,7 @@ export interface TopbarProps {
   showBrainContext: boolean;
 }
 
-function BrainModeBadge({ mode }: { mode: TopbarBrainMode }) {
+function BrainModeBadge({ mode, onClick }: { mode: TopbarBrainMode; onClick?: () => void }) {
   const colors: Record<TopbarBrainMode, string> = {
     OFF:            "bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-400",
     READ_ONLY:      "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
@@ -151,22 +153,38 @@ function BrainModeBadge({ mode }: { mode: TopbarBrainMode }) {
     DRAFTING:       "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
     OPERATOR_READY: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
   };
-  const icons: Record<TopbarBrainMode, LucideIcon> = {
-    OFF:            Eye,
-    READ_ONLY:      Eye,
-    ADVISORY:       Zap,
-    DRAFTING:       Edit3,
-    OPERATOR_READY: Rocket,
+  const dots: Record<TopbarBrainMode, string> = {
+    OFF:            "bg-stone-400 dark:bg-stone-500",
+    READ_ONLY:      "bg-blue-500 dark:bg-blue-400",
+    ADVISORY:       "bg-amber-500 dark:bg-amber-400",
+    DRAFTING:       "bg-purple-500 dark:bg-purple-400",
+    OPERATOR_READY: "bg-emerald-500 dark:bg-emerald-400",
   };
-  const Icon = icons[mode];
+  const labels: Record<TopbarBrainMode, string> = {
+    OFF:            "OFF",
+    READ_ONLY:      "READ ONLY",
+    ADVISORY:       "ADVISORY",
+    DRAFTING:       "DRAFTING",
+    OPERATOR_READY: "OPERATOR READY",
+  };
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap ${colors[mode]}`}
-      title={`Brain V5 mode: ${mode.replace(/_/g, " ")}`}
+    <button
+      onClick={onClick}
+      type="button"
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-[5px] text-[10px] font-semibold tracking-wider whitespace-nowrap border transition-colors ${
+        mode === "OFF" ? "border-stone-300 dark:border-stone-600" :
+        mode === "READ_ONLY" ? "border-blue-300 dark:border-blue-700" :
+        mode === "ADVISORY" ? "border-amber-300 dark:border-amber-700" :
+        mode === "DRAFTING" ? "border-purple-300 dark:border-purple-700" :
+        "border-emerald-300 dark:border-emerald-700"
+      } ${colors[mode]} hover:brightness-90 dark:hover:brightness-125`}
+      title={`Brain V5 mode: ${mode.replace(/_/g, " ")}. Click to cycle.`}
     >
-      <Icon size={10} strokeWidth={2} />
-      {mode === "OPERATOR_READY" ? "OPS" : mode === "READ_ONLY" ? "R/O" : mode.slice(0, 3)}
-    </span>
+      <span className={`w-1.5 h-1.5 rounded-full ${dots[mode]}`} />
+      <span>Brain</span>
+      <span className="opacity-60">·</span>
+      <span>{labels[mode]}</span>
+    </button>
   );
 }
 
@@ -174,6 +192,7 @@ export function Topbar({
   planTitle,
   statusBadge,
   brainMode,
+  onCycleBrainMode,
   onToggleMobileNav,
   onToggleLeftSidebar,
   leftSidebarOpen,
@@ -231,7 +250,9 @@ export function Topbar({
         <span className="text-[13px] font-semibold text-stone-800 dark:text-stone-200 tracking-tight whitespace-nowrap">
           Planner
         </span>
-        {brainMode && <BrainModeBadge mode={brainMode} />}
+        {brainMode && (
+          <BrainModeBadge mode={brainMode} onClick={onCycleBrainMode} />
+        )}
         {statusBadge}
         {planTitle && (
           <span className="hidden sm:inline text-xs text-stone-400 dark:text-stone-500 truncate max-w-[200px]">

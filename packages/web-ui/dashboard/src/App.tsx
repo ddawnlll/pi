@@ -57,7 +57,6 @@ import { SkillsManager } from "./components/SkillsManager";
 import { Sidebar } from "./components/sidebar";
 import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
-import { MemoryCockpit } from "./features/memory/MemoryCockpit";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
 import { TrustDashboard } from "./features/trust/TrustDashboard";
 import { GoalBoard } from "./components/brain/goals/GoalBoard";
@@ -352,34 +351,31 @@ export function App() {
   const [rightOpen, setRightOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
-  // ── Project-level state: brain enabled ──────────────────────────────────
-  const [brainEnabled, setBrainEnabled] = useState(true);
+  // ── Brain V5 mode ─────────────────────────────────────────────────────
+  const [brainMode, setBrainMode] = useState<TopbarBrainMode>("READ_ONLY");
+  const cycleBrainMode = useCallback(() => {
+    setBrainMode((prev) => {
+      const modes: TopbarBrainMode[] = ["OFF", "READ_ONLY", "ADVISORY", "DRAFTING", "OPERATOR_READY"];
+      const idx = modes.indexOf(prev);
+      return modes[(idx + 1) % modes.length];
+    });
+  }, []);
 
   // ── New state: active view ─────────────────────────────────────────────
   const [activeView, setActiveView] = useState<ActiveView>(loadSelectedView());
 
   // ── Derived booleans from activeView ──────────────────────────────────
   const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
-  const showGoals            = activeView.type === "platform" && activeView.screen === "goals";
   const showObservability    = activeView.type === "platform" && activeView.screen === "observability";
-  const showProposalInbox    = activeView.type === "platform" && activeView.screen === "proposal_inbox";
   const showExtensions       = activeView.type === "platform" && activeView.screen === "extensions_skills";
   const showSkills           = activeView.type === "platform" && activeView.screen === "extensions_skills";
   const showPlanIntake       = activeView.type === "platform" && activeView.screen === "plan_intake";
-  const showMemory           = activeView.type === "platform" && activeView.screen === "memory";
   const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
   const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
-  const showTrustDashboard    = activeView.type === "platform" && activeView.screen === "trust_dashboard";
   const showPiInbox            = activeView.type === "platform" && activeView.screen === "pi_inbox";
-  // ── Brain V5 mode (derived from brainEnabled for now) ──────────────
-  // In the future this will come from a V5 status endpoint; for now
-  // we map the boolean toggle to OFF / READ_ONLY.
-  const brainMode: TopbarBrainMode = brainEnabled ? "READ_ONLY" : "OFF";
-
   // P19 brain pages (V5.13 unified Brain section)
   const showBrainOverview    = activeView.type === "platform" && activeView.screen === "brain_overview";
   const showBrainAsk         = activeView.type === "platform" && activeView.screen === "brain_ask";
-  const showBrainState       = activeView.type === "platform" && activeView.screen === "brain_state";
   const showBrainTemporal    = activeView.type === "platform" && activeView.screen === "brain_temporal";
   const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
   const showBrainRepoScanner = activeView.type === "platform" && activeView.screen === "brain_repo_scanner";
@@ -400,9 +396,15 @@ export function App() {
     // Brain items are platform screens
     if (item.startsWith("brain_")) {
       setActiveView({ type: "platform", screen: item as PlatformNavItem });
-    } else if (item === "autonomy" || item === "plan_intake" || item === "extensions_skills" ||
-               item === "proposal_inbox" || item === "registry_settings" ||
-               item === "observability") {
+    } else if (
+      item === "autonomy" ||
+      item === "plan_intake" ||
+      item === "extensions_skills" ||
+      item === "registry_settings" ||
+      item === "observability" ||
+      item === "policy_audit" ||
+      item === "pi_inbox"
+    ) {
       setActiveView({ type: "platform", screen: item as PlatformNavItem });
     } else {
       // Default: try as a run or task selection handled by parent
@@ -716,6 +718,7 @@ export function App() {
         planTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
         statusBadge={activePlanStatus !== "unknown" ? <StatusBadge status={activePlanStatus} /> : undefined}
         brainMode={brainMode}
+        onCycleBrainMode={cycleBrainMode}
         onToggleMobileNav={() => setMobileNav(mobileNav === "left" ? null : "left")}
         onToggleLeftSidebar={() => setLeftOpen(o => !o)}
         leftSidebarOpen={leftOpen}
@@ -791,8 +794,8 @@ export function App() {
                 onRenameProject={handleRenameProject}
                 onOpenSettings={() => setShowSettingsDialog(true)}
                 onUploadPlan={handleUploadPlan}
-                brainEnabled={brainEnabled}
-                onToggleBrain={setBrainEnabled}
+                brainMode={brainMode}
+                onCycleBrainMode={cycleBrainMode}
                 executions={executions}
                 tasks={projectTasks}
                 executionsLoading={executionsLoading}
@@ -983,27 +986,19 @@ export function App() {
                           <RegistrySettings className="flex-1 min-h-0" />
                         ) : showPlanIntake ? (
                           <PlanIntakePanel className="flex-1 min-h-0" />
-                        ) : showMemory ? (
-                          <MemoryCockpit className="flex-1 min-h-0" />
                         ) : showPolicyAudit ? (
                           <PolicyAuditCenter className="flex-1 min-h-0" />
-                        ) : showTrustDashboard ? (
-                          <TrustDashboard className="flex-1 min-h-0" />
                         ) : showExtensions ? (
                           <ExtensionsManager className="flex-1 min-h-0" />
                         ) : showSkills ? (
                           <SkillsManager className="flex-1 min-h-0" />
-                        ) : showGoals ? (
-                          <GoalBoard className="flex-1 min-h-0" />
                         ) : showAutonomy ? (
                           <AutonomyCenter className="flex-1 min-h-0" />
                         ) : showObservability ? (
                           <ObservabilityCockpit className="flex-1 min-h-0" />
-                        ) : showProposalInbox ? (
-                          <ProposalInbox className="flex-1 min-h-0" />
                         ) : showPiInbox ? (
                           <PiInbox className="flex-1 min-h-0" />
-                        ) : showBrainOverview || showBrainState ? (
+                        ) : showBrainOverview ? (
                           <BrainStatePage />
                         ) : showBrainTemporal ? (
                           <BrainStatePage />

@@ -245,7 +245,7 @@ describe("P19.H — LeftNav integration", () => {
 		const mod = await import("../src/components/LeftNav");
 		const ids = mod.BRAIN_NAV_ENTRIES.map((e: any) => e.id);
 		expect(ids).toContain("brain_digest");
-		expect(ids).toContain("brain_state");
+		expect(ids).toContain("brain_overview");
 		expect(ids).toContain("brain_proposals");
 		expect(ids).toContain("brain_memory");
 		expect(ids).toContain("brain_reflections");

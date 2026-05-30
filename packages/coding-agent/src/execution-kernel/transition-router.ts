@@ -255,28 +255,27 @@ export class KernelTransitionRouter implements TransitionRouter {
 		workspaceId: string,
 		data?: Record<string, unknown>,
 	): Promise<void> {
-		// P37.RCA: If the attempt is already cached (retry of the same
-		// workspace), skip row creation but still fire attempt_started so
-		// the attempt transitions from its last state (e.g. FAILED_RETRYABLE
-		// or PENDING from retry) back to RUNNING in the DB. Without this,
-		// completeAttempt fires attempt_succeeded on a non-RUNNING attempt
-		// and the FSM rejects PENDING -> SUCCEEDED.
-		const cachedEntry = this.attemptCache.get(workspaceId);
-		if (cachedEntry) {
-			try {
-				await this.controller.handleEvent(cachedEntry.attemptId, "attempt_started", {
-					...data,
-					workspaceId,
-				});
-				cachedEntry.currentState = "RUNNING";
-				cachedEntry.version++;
-			} catch (error) {
-				this.log.error(
-					`[workspace ${workspaceId}] Cached attempt handleEvent(attempt_started) failed: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				throw error;
+		// Skip if we already have a cached attempt for this workspace
+		// with a running state. If the cached state is terminal (e.g.,
+		// FAILED_RETRYABLE after a completion-gate failure that was
+		// externally reset via stateStore), clear the stale cache entry
+		// so the full attempt start logic (handleEvent attempt_started)
+		// runs and transitions the DB to RUNNING. Without this check,
+		// the stale cache causes completeAttempt to attempt an illegal
+		// FAILED_RETRYABLE -> SUCCEEDED FSM transition.
+		if (this.attemptCache.has(workspaceId)) {
+			const cached = this.attemptCache.get(workspaceId)!;
+			if (cached.currentState === "RUNNING") {
+				this.log.info(`[workspace ${workspaceId}] Attempt already exists and is RUNNING, skipping creation`);
+				return;
 			}
-			return;
+			// Stale cache entry — clear it so the logic below creates or
+			// reuses an attempt and fires attempt_started properly.
+			this.log.info(
+				`[workspace ${workspaceId}] Stale cache entry (${cached.currentState}), clearing for fresh start`,
+			);
+			this.attemptCache.delete(workspaceId);
+		}
 		}
 
 		// Look up workspace execution ID from the DB
