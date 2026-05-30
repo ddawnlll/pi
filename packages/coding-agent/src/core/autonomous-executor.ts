@@ -27,6 +27,7 @@ import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
+import type { WorkerAdapter } from "../worker-adapter/types.js";
 import {
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,
@@ -171,6 +172,13 @@ export interface AutonomousExecutorConfig {
 	 * limits blind retries, and issues directives before retrying.
 	 */
 	leadAgent?: LeadAgent;
+	/**
+	 * P40: WorkerAdapter for platform/agent separation.
+	 * When provided, execution uses the adapter instead of directly constructing
+	 * WorkspaceAgentExecutor. This makes Pi replaceable as the default worker.
+	 * If not provided, falls back to direct WorkspaceAgentExecutor construction.
+	 */
+	workerAdapter?: WorkerAdapter;
 }
 
 /**
@@ -205,6 +213,8 @@ export class AutonomousExecutor {
 	private enableRealExecution: boolean;
 	/** Stored config for lazy per-workspace executor creation */
 	private executorConfig: WorkspaceAgentExecutorConfig | null = null;
+	/** P40: WorkerAdapter for platform/agent separation */
+	private workerAdapter: WorkerAdapter | null = null;
 	private autoCommitEnabled: boolean;
 	private postPlanHandoffEnabled: boolean;
 	private handoffTimeoutMs: number;
@@ -517,6 +527,9 @@ export class AutonomousExecutor {
 
 		// P38.LEAD: Wire Lead Agent for failure supervision
 		this.leadAgent = config.leadAgent ?? null;
+
+		// P40: Wire WorkerAdapter for platform/agent separation
+		this.workerAdapter = config.workerAdapter ?? null;
 	}
 
 	/**
@@ -1020,8 +1033,34 @@ export class AutonomousExecutor {
 			const executionPromise = (async (): Promise<WorkspaceExecutionResult> => {
 				let result: WorkspaceExecutionResult;
 
-				if (this.enableRealExecution && workspaceExecutor) {
-					// Real agent execution
+				if (this.enableRealExecution && this.workerAdapter) {
+					// P40: WorkerAdapter path — adapter executes work and returns result.
+					// Execution decides how the result maps to workspace state.
+					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
+
+					const workerResult = await this.workerAdapter.run({
+						planExecutionId: planExecutionId,
+						workspaceExecutionId: workspace.id,
+						workspaceId: workspace.id,
+						attemptNumber: wsStateForPacket.attempts,
+						projectRoot: this.workspaceRoot,
+						workspacePath: this.workspaceRoot,
+						packet,
+						allowedTools: [],
+						timeoutMs: this.executorConfig?.timeoutMs ?? 30 * 60 * 1000,
+						metadata: { logPath },
+					});
+
+					// Map WorkerRunResult to WorkspaceExecutionResult
+					result = {
+						workspaceId: workspace.id,
+						success: workerResult.verdict === "complete",
+						verdict: workerResult.verdict === "complete" ? "COMPLETE" : workerResult.verdict === "blocked" ? "BLOCKED" : "FAILED",
+						report: workerResult.report,
+						error: workerResult.error,
+					};
+				} else if (this.enableRealExecution && workspaceExecutor) {
+					// Legacy path — direct WorkspaceAgentExecutor construction
 					const logPath = path.join(snapshot.snapshotDir, `execution-${wsStateForPacket.attempts}.log`);
 
 					// P26.C: Pass logPath to execute() instead of calling setLogPath()
