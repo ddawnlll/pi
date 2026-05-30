@@ -296,6 +296,119 @@ stack-down-hard: stop db-drop
 	@echo ""
 	@echo "  Full stack tear-down with database drop complete."
 
+# ── Test ──────────────────────────────────────────────────────────────────────
+
+test:
+	@echo "=== Deterministic Focused Tests ==="
+	@cd packages/coding-agent && npx vitest run test/execution-gauntlet/
+
+test-full:
+	@echo "╔══════════════════════════════════════════════════════════════╗"
+	@echo "║  P39 Readiness Gate — Full Execution Stability Gauntlet     ║"
+	@echo "╚══════════════════════════════════════════════════════════════╝"
+	@echo ""
+	@TIMESTAMP=$$(date -u +"%Y-%m-%dT%H-%M-%S-%3NZ" 2>/dev/null || date -u +"%Y-%m-%dT%H-%M-%SZ"); \
+	REPORT_DIR="$$(pwd)/reports/execution-stability-gauntlet/$$TIMESTAMP"; \
+	echo "Report dir: $$REPORT_DIR"; \
+	echo ""; \
+	echo "=== Phase A: Deterministic Tests ==="; \
+	(cd packages/coding-agent && npx vitest run test/execution-gauntlet/) || (echo "DETERMINISTIC FAILED" && exit 1); \
+	echo ""; \
+	echo "=== Phase B: Synthetic Execution Gauntlet ==="; \
+	npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode fast \
+		--suite all \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 100 \
+		--seed 1 \
+		--timeout-ms 300000 \
+		--report-dir "$$REPORT_DIR" \
+		|| (echo "SYNTHETIC GAUNTLET FAILED" && exit 1); \
+	echo ""; \
+	echo "=== Phase C: Smoke-Real Python Web App ==="; \
+	npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode smoke-real \
+		--suite python-webapp \
+		--execution-modes stable_3,patch_transaction \
+		--seed 1 \
+		--timeout-ms 300000 \
+		--report-dir "$$REPORT_DIR" \
+		|| (echo "SMOKE-REAL PYTHON FAILED" && exit 1); \
+	echo ""; \
+	echo "=== Phase D: Smoke-Real Python Monte Carlo ==="; \
+	npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode smoke-real \
+		--suite python-webapp-monte-carlo \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 20 \
+		--seed 1 \
+		--timeout-ms 300000 \
+		--report-dir "$$REPORT_DIR" \
+		|| (echo "SMOKE-REAL MC FAILED" && exit 1); \
+	echo ""; \
+	echo "=== Phase E: Combined Summary Validation ==="; \
+	npx tsx scripts/validate-combined-summary.ts \
+		--path "$$REPORT_DIR/combined-summary.json" \
+		|| (echo "SUMMARY VALIDATION FAILED" && exit 1); \
+	echo ""; \
+	echo "╔══════════════════════════════════════════════════════════════╗"; \
+	echo "║  P39 Readiness Gate — PASSED                                ║"; \
+	echo "╚══════════════════════════════════════════════════════════════╝"
+
+test-deterministic:
+	@cd packages/coding-agent && npx vitest run test/execution-gauntlet/
+
+test-execution-gauntlet:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode fast \
+		--suite all \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 100 \
+		--seed 1 \
+		--timeout-ms 300000
+
+test-execution-gauntlet-lead:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode fast \
+		--suite lead-agent \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 50 \
+		--seed 1 \
+		--timeout-ms 300000
+
+test-execution-gauntlet-control:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode fast \
+		--suite control-plane \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 50 \
+		--seed 1 \
+		--timeout-ms 300000
+
+test-smoke-real-python:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode smoke-real \
+		--suite python-webapp \
+		--execution-modes stable_3,patch_transaction \
+		--seed 1 \
+		--timeout-ms 300000
+
+test-smoke-real-python-monte-carlo:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode smoke-real \
+		--suite python-webapp-monte-carlo \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 20 \
+		--seed 1 \
+		--timeout-ms 300000
+
+test-nightly-real:
+	@npx tsx scripts/run-execution-stability-gauntlet.ts \
+		--mode nightly-real \
+		--suite all \
+		--execution-modes stable_3,patch_transaction \
+		--iterations 10
+
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
 clean:
