@@ -193,16 +193,16 @@ function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
 			<div className="flex items-center gap-0.5">
 				{batches.map((b) => {
 					let cls = "bg-gray-700";
-					let label = `${b.batchIndex}: pending`;
+					let label = `Batch ${b.batchIndex}: pending`;
 					if (b.batchIndex === currentBatchIndex) {
 						cls = "bg-blue-500 ring-1 ring-blue-400";
-						label = `${b.batchIndex}: running`;
+						label = `Batch ${b.batchIndex}: running`;
 					} else if (b.isComplete) {
 						cls = "bg-emerald-600";
-						label = `${b.batchIndex}: done`;
+						label = `Batch ${b.batchIndex}: done`;
 					} else if (b.failed > 0) {
 						cls = "bg-red-600";
-						label = `${b.batchIndex}: failed`;
+						label = `Batch ${b.batchIndex}: failed`;
 					}
 					return (
 						<span
@@ -217,16 +217,16 @@ function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
 			{/* Current step label */}
 			{currentBatchIndex > 0 ? (
 				<span className="text-[9px] text-blue-400 font-medium">
-					Step {currentBatchIndex}/{batches.length}
+					Batch {currentBatchIndex}/{batches.length}
 					{summary.active > 0 && (
 						<span className="text-gray-500 font-normal">
-							· {summary.active} active
+							· {summary.active} running
 						</span>
 					)}
 				</span>
 			) : batches.length > 0 ? (
 				<span className="text-[9px] text-gray-500">
-					{batches.length} step{batches.length > 1 ? "s" : ""} · {pct}%
+					{batches.length} batch{batches.length > 1 ? "es" : ""} · {pct}%
 				</span>
 			) : null}
 		</div>
@@ -238,9 +238,16 @@ function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
  * with workspace cards, status colors, and progress bars.
  */
 function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
-	const { batches, currentBatchIndex } = useBatchProgress(batchPlan, workspaces);
+	const { batches, currentBatchIndex, summary } = useBatchProgress(batchPlan, workspaces);
 
 	if (batches.length === 0) return null;
+
+	const currentBatch = currentBatchIndex > 0 ? batches.find((b) => b.batchIndex === currentBatchIndex) : null;
+	const currentExpectedWorkers = currentBatch
+		? batchPlan.effectiveParallelism > 1
+			? batchPlan.batches.find((b) => b.batchIndex === currentBatchIndex)?.workspaceIds.length ?? 0
+			: 1
+		: 0;
 
 	return (
 		<div className="mt-2 border border-gray-800 rounded bg-gray-900/50 p-2">
@@ -258,12 +265,36 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 				</span>
 				<span className="text-gray-600">·</span>
 				<span>{batches.length} step{batches.length > 1 ? "s" : ""}</span>
+				{currentBatchIndex > 0 && (
+					<>
+						<span className="text-gray-600">·</span>
+						<span className="text-blue-400 font-semibold">
+							Now: Batch {currentBatchIndex}/{batches.length}
+							{currentExpectedWorkers > 0 && (
+								<span className="text-gray-400 font-normal">
+									{" "}({currentExpectedWorkers} worker{currentExpectedWorkers !== 1 ? "s" : ""} expected)
+								</span>
+							)}
+						</span>
+					</>
+				)}
+				{summary.active > 0 ? (
+					<span className="text-blue-400 ml-auto flex items-center gap-1 text-[9px]">
+						<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+						{summary.active} active / {summary.done} done
+					</span>
+				) : summary.done > 0 ? (
+					<span className="text-emerald-400 ml-auto text-[9px]">
+						{summary.done}/{summary.total} done
+					</span>
+				) : null}
 			</div>
 
 			{/* Batch rows */}
 			<div className="space-y-1">
 				{batches.map((batch) => {
 					const isCurrent = batch.batchIndex === currentBatchIndex;
+					const totalInBatch = batchPlan.batches.find((b) => b.batchIndex === batch.batchIndex)?.workspaceIds.length ?? 0;
 
 					return (
 						<div
@@ -287,7 +318,16 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 												: "text-gray-500"
 									}`}
 								>
-									Step {batch.batchIndex}
+									Batch {batch.batchIndex}
+								</span>
+
+								{/* Expected workers badge */}
+								<span className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${
+									batchPlan.effectiveParallelism > 1 && totalInBatch > 1
+										? "bg-blue-900/30 text-blue-300 border border-blue-800"
+										: "bg-gray-800 text-gray-500 border border-gray-700"
+								}`}>
+									{totalInBatch} worker{totalInBatch !== 1 ? "s" : ""}
 								</span>
 
 								{/* Mini progress bar */}
@@ -321,6 +361,11 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 										Running
 									</span>
 								)}
+								{batch.isComplete && !isCurrent && (
+									<span className="text-[9px] text-emerald-500 ml-auto">
+										Complete
+									</span>
+								)}
 							</div>
 
 							{/* Workspace cards row */}
@@ -330,7 +375,7 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 										const cfg = WS_STATUS[item.status];
 										const isRunning = item.status === "active";
 										return (
-											<>
+											<React.Fragment key={item.wsId}>
 												{idx > 0 && batchPlan.effectiveParallelism === 1 && (
 													<ArrowRight size={5} className="text-gray-700 shrink-0" />
 												)}
@@ -342,7 +387,7 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 															? "bg-blue-900/50 shadow-[0_0_4px_rgba(59,130,246,0.4)]"
 															: ""
 													}`}
-													title={`${item.wsId} \u2014 ${cfg.label}`}
+													title={`${item.wsId} \u2014 ${cfg.label}${isRunning ? " (running now)" : ""}`}
 												>
 													<span
 														className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -351,7 +396,7 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 													/>
 													{shortWsId(item.wsId)}
 												</span>
-											</>
+											</React.Fragment>
 										);
 									})}
 								</div>
@@ -501,6 +546,13 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 							<span>Requested workers: {stats!.requestedWorkers}</span>
 							{stats!.maxAllowedWorkers !== undefined && <><span className="text-gray-700">|</span><span>Max allowed: {stats!.maxAllowedWorkers}</span></>}
 							{stats!.safeEffectiveParallelism !== undefined && <><span className="text-gray-700">|</span><span>Effective: {stats!.safeEffectiveParallelism}</span></>}
+						</div>
+					)}
+					{/* Current batch info */}
+					{hasDagData && workspaces.some((w) => w.stage === "active" || w.stage === "running") && (
+						<div className="flex items-center gap-2 text-[9px] text-blue-400 mt-1">
+							<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
+							<span>Executing now</span>
 						</div>
 					)}
 					{/* Bottleneck reasons */}

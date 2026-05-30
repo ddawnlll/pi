@@ -455,6 +455,91 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 				: undefined,
 		acceptanceCriteria: Array.isArray(w.acceptanceCriteria) ? w.acceptanceCriteria : undefined,
 		targetCommand: w.targetCommand,
+		// P37.HOTFIX: validation equivalence fields
+		validationRequirement:
+			w.validationRequirement &&
+			typeof w.validationRequirement === "object" &&
+			!Array.isArray(w.validationRequirement)
+				? {
+						kind: (["targeted_test", "typecheck", "build", "custom"] as const).includes(
+							w.validationRequirement.kind,
+						)
+							? w.validationRequirement.kind
+							: "custom",
+						testFile:
+							typeof w.validationRequirement.testFile === "string"
+								? w.validationRequirement.testFile
+								: undefined,
+						packageName:
+							typeof w.validationRequirement.packageName === "string"
+								? w.validationRequirement.packageName
+								: undefined,
+						mustPass:
+							typeof w.validationRequirement.mustPass === "boolean"
+								? w.validationRequirement.mustPass
+								: undefined,
+						preferredCommand:
+							typeof w.validationRequirement.preferredCommand === "string"
+								? w.validationRequirement.preferredCommand
+								: undefined,
+						memoryProfile:
+							typeof w.validationRequirement.memoryProfile === "string"
+								? w.validationRequirement.memoryProfile
+								: undefined,
+						watchModeForbidden:
+							typeof w.validationRequirement.watchModeForbidden === "boolean"
+								? w.validationRequirement.watchModeForbidden
+								: undefined,
+						noTestsFoundIsFailure:
+							typeof w.validationRequirement.noTestsFoundIsFailure === "boolean"
+								? w.validationRequirement.noTestsFoundIsFailure
+								: undefined,
+						acceptedEquivalentCommands: Array.isArray(w.validationRequirement.acceptedEquivalentCommands)
+							? w.validationRequirement.acceptedEquivalentCommands.filter((c: unknown) => typeof c === "string")
+							: undefined,
+					}
+				: undefined,
+		acceptedEquivalentCommands: Array.isArray(w.acceptedEquivalentCommands)
+			? w.acceptedEquivalentCommands.filter((c: unknown) => typeof c === "string")
+			: undefined,
+		validationPolicy:
+			w.validationPolicy && typeof w.validationPolicy === "object" && !Array.isArray(w.validationPolicy)
+				? {
+						mode: typeof w.validationPolicy.mode === "string" ? w.validationPolicy.mode : undefined,
+						requiredBeforeWorkspaceComplete:
+							typeof w.validationPolicy.requiredBeforeWorkspaceComplete === "boolean"
+								? w.validationPolicy.requiredBeforeWorkspaceComplete
+								: undefined,
+						requiredBeforePlanComplete:
+							typeof w.validationPolicy.requiredBeforePlanComplete === "boolean"
+								? w.validationPolicy.requiredBeforePlanComplete
+								: undefined,
+						finalValidationWorkspace:
+							typeof w.validationPolicy.finalValidationWorkspace === "string"
+								? w.validationPolicy.finalValidationWorkspace
+								: undefined,
+						allowSmokeChecks:
+							typeof w.validationPolicy.allowSmokeChecks === "boolean"
+								? w.validationPolicy.allowSmokeChecks
+								: undefined,
+						heavyValidationDeferred:
+							typeof w.validationPolicy.heavyValidationDeferred === "boolean"
+								? w.validationPolicy.heavyValidationDeferred
+								: undefined,
+						runsFinalValidation:
+							typeof w.validationPolicy.runsFinalValidation === "boolean"
+								? w.validationPolicy.runsFinalValidation
+								: undefined,
+						consumesFinalValidationFailures:
+							typeof w.validationPolicy.consumesFinalValidationFailures === "boolean"
+								? w.validationPolicy.consumesFinalValidationFailures
+								: undefined,
+						mustProduceRepairReport:
+							typeof w.validationPolicy.mustProduceRepairReport === "boolean"
+								? w.validationPolicy.mustProduceRepairReport
+								: undefined,
+					}
+				: undefined,
 		// V4/V5 prompt fields (P-HOTFIX-WT)
 		executorPrompt: typeof w.executorPrompt === "string" ? w.executorPrompt : undefined,
 		instructions: typeof w.instructions === "string" ? w.instructions : undefined,

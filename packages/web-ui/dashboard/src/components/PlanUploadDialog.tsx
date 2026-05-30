@@ -43,7 +43,7 @@ import type {
 	DependencyGraphNode,
 	DependencyPatch,
 } from "../types";
-import { FileSelectScreen, type FileEntry } from "./FileSelectScreen";
+import { FileSelectScreen, type FileEntry, type ScaleMode } from "./FileSelectScreen";
 import { ValidationScreen } from "./ValidationScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { ExecuteScreen, type FileExecutionState } from "./ExecuteScreen";
@@ -184,6 +184,7 @@ export function PlanUploadDialog({
 	// ── Multi-file state ──
 	const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
 	const [executionMode, setExecutionMode] = useState<"parallel" | "sequential">("parallel");
+	const [scaleMode, setScaleMode] = useState<ScaleMode>("stable_3");
 
 	// ── Phase name override (P22.E) ──
 	const [phaseName, setPhaseName] = useState<string>("");
@@ -311,6 +312,33 @@ export function PlanUploadDialog({
 			return fileEntries.find((f) => f.file.name === fileName)?.content;
 		},
 		[fileEntries],
+	);
+
+	/**
+	 * Inject selected scale mode override into plan content's Part 3 JSON.
+	 * Overrides planExecution.scale.selectedMode if the JSON block exists.
+	 */
+	const injectScaleMode = useCallback(
+		(content: string): string => {
+			if (scaleMode === "stable_3") return content; // stable_3 is default, no override needed
+			try {
+				// Try to find and modify JSON block in the plan
+				const jsonMatch = content.match(/```json\n([\s\S]*?)```/);
+				if (jsonMatch) {
+					const json = JSON.parse(jsonMatch[1]);
+					if (json.planExecution?.scale) {
+						json.planExecution.scale.selectedMode = scaleMode;
+						json.planExecution.scale.selected_mode = scaleMode;
+					}
+					const newJson = JSON.stringify(json, null, 2);
+					return content.replace(jsonMatch[0], "```json\n" + newJson + "\n```");
+				}
+			} catch {
+				// If JSON parsing fails, return content unchanged
+			}
+			return content;
+		},
+		[scaleMode],
 	);
 
 	const allFilesSelected = fileEntries.length > 0;
@@ -505,7 +533,7 @@ export function PlanUploadDialog({
 		// If single-file (backward compat)
 		if (fileEntries.length === 0 && previewState.validationResponse) {
 			// Use the old hook run method directly
-			const result = await hookRun("", safetyOverrides);
+			const result = await hookRun(injectScaleMode(""), safetyOverrides);
 			if (result?.success && result.planExecutionId) {
 				// Apply phase name override if set (P22.E)
 				if (phaseName.trim()) {
@@ -551,7 +579,7 @@ export function PlanUploadDialog({
 			}
 
 			try {
-				const result = await hookRun(entry.content, safetyOverrides);
+			const result = await hookRun(injectScaleMode(entry.content), safetyOverrides);
 
 				if (result?.success && result.planExecutionId) {
 					setExecutions((prev) =>
@@ -634,7 +662,7 @@ export function PlanUploadDialog({
 		if (fileEntries.length === 0) {
 			// Backward compat: single-file queue
 			if (previewState.validationResponse) {
-				const result = await queuePlan("", "uploaded-plan.md");
+				const result = await queuePlan(injectScaleMode(""), "uploaded-plan.md");
 				if (result?.success) {
 					onEnqueued?.();
 					onClose();
@@ -649,7 +677,7 @@ export function PlanUploadDialog({
 		let hasError = false;
 
 		for (const entry of fileEntries) {
-			const result = await queuePlan(entry.content, entry.file.name);
+			const result = await queuePlan(injectScaleMode(entry.content), entry.file.name);
 			if (result?.success) {
 				onEnqueued?.();
 			} else if (result?.errors) {
@@ -813,6 +841,8 @@ export function PlanUploadDialog({
 												onFilesChange={setFileEntries}
 												executionMode={executionMode}
 												onExecutionModeChange={setExecutionMode}
+												scaleMode={scaleMode}
+												onScaleModeChange={setScaleMode}
 											/>
 											{/* Phase name override (P22.E) */}
 											<div className="border border-gray-700 rounded-lg p-3 bg-gray-800/50">

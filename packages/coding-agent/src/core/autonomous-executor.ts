@@ -14,19 +14,23 @@ import type { Model } from "@earendil-works/pi-ai";
 import type { TransitionRouter } from "../execution-kernel/transition-router.js";
 import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
-import { killTrackedDetachedChildren } from "../utils/shell.js";
+import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import type { WorktreeConfig } from "../worktree/worktree-types.js";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import { createGitRunner } from "./git-runner.js";
-import type { PlanState } from "./plan-state.js";
+import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
 import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
-import { WorkspaceAgentExecutor, type WorkspaceAgentExecutorConfig } from "./workspace-agent-executor.js";
+import {
+	WorkspaceAgentExecutor,
+	type WorkspaceAgentExecutorConfig,
+	type WorkspaceCommandExecutionEvent,
+} from "./workspace-agent-executor.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { ApprovedPreviewMetadata, Workspace, WorkspaceQueue, WorkspaceQueue as WQ } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
@@ -153,6 +157,13 @@ export interface AutonomousExecutorConfig {
 	 * Defaults to 30 minutes (1800000 ms).
 	 */
 	workspaceTimeoutMs?: number;
+	/**
+	 * P37.HOTFIX: Stop drain hard timeout in milliseconds.
+	 * When stop is requested, the drain phase waits up to this long for
+	 * active workspaces to settle before force-killing.
+	 * Defaults to 30 seconds (30000 ms).
+	 */
+	stopDrainTimeoutMs?: number;
 }
 
 /**
@@ -196,9 +207,247 @@ export class AutonomousExecutor {
 	private inFlightExecutions = new Map<string, Promise<WorkspaceExecutionResult>>();
 
 	/**
+	 * P37.HOTFIX: Flag preventing the scheduler from starting new work during
+	 * the draining phase of a stop/stop request. Set when stop begins, cleared
+	 * after the stop has fully completed.
+	 */
+	private isStopping = false;
+
+	/**
+	 * P37.HOTFIX: Map of workspaceId -> attemptNo for the currently in-flight
+	 * workspace executions. Used by the stale attempt guard to verify that a
+	 * completion event still belongs to the current execution round.
+	 */
+	private inFlightAttemptNos = new Map<string, number>();
+
+	/**
+	 * P37.HOTFIX: Mutex serializing stop/stop transitions so concurrent
+	 * callers do not race (idempotency guard).
+	 */
+	private stopMutex = new AsyncMutex();
+
+	/**
+	 * P37.HOTFIX: Maximum time (ms) to wait for active workspaces to drain
+	 * before force-killing during stop (default 30s).
+	 */
+	private stopDrainTimeoutMs = 30_000;
+
+	/**
+	 * P37.RCA: Extract test file name from a command string for matching.
+	 */
+	private extractTestFileFromCommand(command: string): string | undefined {
+		const match = command.match(/[a-zA-Z0-9_.-]+test[a-zA-Z0-9_.-]*\.(test|spec)\.(ts|tsx|js|jsx)/i);
+		return match ? match[0] : undefined;
+	}
+
+	/**
+	 * P37.RCA: Check if a workspace execution result is from a stale attempt.
+	 *
+	 * Returns true if the workspace execution should be treated as stale:
+	 * - The workspace's current stage is no longer Active (was terminalized by
+	 *   stop or reset to Pending by retry/continue).
+	 * - The attempt number doesn't match the current in-flight attempt.
+	 * - The plan is stopped/cancelled.
+	 *
+	 * IMPORTANT: Reads fresh state from the database (not the in-memory cache)
+	 * to correctly detect staleness after a new executor (created by Continue)
+	 * has reset the workspace while the old executor's promises are still
+	 * in-flight. The old implementation used `this.currentPlanState` which was
+	 * stale and showed the workspace as Active when it was already Pending in DB.
+	 *
+	 * Additionally, only Active workspaces may transition. Pending is stale —
+	 * the workspace was reset and any incoming completion belongs to a prior
+	 * attempt.
+	 */
+	private async isAttemptStale(
+		planExecutionId: string,
+		workspaceId: string,
+		expectedAttemptNo?: number,
+	): Promise<{ stale: boolean; reason?: string }> {
+		// Load FRESH state from the database, not from the stale in-memory cache.
+		// This catches the case where adoptExistingExecution (called by Continue API)
+		// reset the workspace to Pending after the old executor's cache was loaded.
+		const state = await this.stateStore.loadState(planExecutionId);
+		if (!state) {
+			return { stale: true, reason: "no_plan_state" };
+		}
+
+		// Check plan status from fresh DB state
+		if (state.status === "stopped" || state.status === "cancelled") {
+			return { stale: true, reason: `plan_status_${state.status}` };
+		}
+
+		// Check workspace stage from fresh DB state
+		const wsState = state.workspaces.get(workspaceId);
+		if (!wsState) {
+			return { stale: true, reason: "workspace_not_found" };
+		}
+
+		// P37.RCA: Only Active workspaces may transition. Pending is stale —
+		// the workspace was reset (by stop then continue, or by retry). Any
+		// incoming completion event belongs to a prior attempt and must be
+		// discarded. The old allowance for Pending was wrong: it allowed
+		// the catch block's retry path, but that path should only transition
+		// workspace state inside the catch block itself, not receive stale
+		// completions from the outside.
+		if (wsState.stage !== WorkspaceStage.Active) {
+			return { stale: true, reason: `workspace_stage_${wsState.stage}` };
+		}
+
+		// Check attempt number if provided
+		if (expectedAttemptNo !== undefined) {
+			const currentAttempt = wsState.attempts;
+			if (currentAttempt !== expectedAttemptNo) {
+				return { stale: true, reason: `attempt_mismatch_expected_${expectedAttemptNo}_current_${currentAttempt}` };
+			}
+		}
+
+		return { stale: false };
+	}
+
+	/**
 	 * Register a promise for tracking via inFlightExecutions.
 	 * When the promise settles (resolves or rejects), it is removed from the map.
 	 */
+	private async appendControlPlaneEvent(
+		planExecutionId: string,
+		type: JournalEventType,
+		data?: Record<string, unknown>,
+		workspaceId?: string,
+	): Promise<void> {
+		try {
+			await this.stateStore.appendJournal(planExecutionId, {
+				type,
+				timestamp: Date.now(),
+				workspaceId,
+				data,
+			});
+		} catch {
+			// Diagnostics must never break control-plane recovery.
+		}
+	}
+
+	private detectNoTestsFound(output: string | undefined): boolean {
+		return /No test files found|No tests found|0 test files|0 tests/i.test(output ?? "");
+	}
+
+	private recordWorkspaceCommand(workspaceId: string, event: WorkspaceCommandExecutionEvent): void {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) return;
+		const workspace = this.workspaceQueue?.workspaces.find((w) => w.id === workspaceId);
+		const noTestsFoundDetected = this.detectNoTestsFound(event.outputSummary);
+		const acceptedCommands = [
+			...(workspace?.acceptedEquivalentCommands ?? []),
+			...(workspace?.validationRequirement?.acceptedEquivalentCommands ?? []),
+		];
+		const matchedAcceptedEquivalentCommand = acceptedCommands.find((command) => command === event.command);
+		const matchedValidationRequirement = Boolean(
+			workspace?.validationRequirement &&
+				(event.command === workspace.validationRequirement.preferredCommand ||
+					matchedAcceptedEquivalentCommand ||
+					(workspace.validationRequirement.testFile &&
+						event.command.includes(workspace.validationRequirement.testFile))),
+		);
+
+		// P37.RCA: Also check if command contains test file from targetCommand
+		// (heuristic match). The agent might run the test from a different cwd
+		// (e.g., cd packages/coding-agent && npm test -- test/execution/foo.test.ts)
+		// which doesn't match the exact targetCommand string but runs the same test.
+		const targetCmdTestFile = workspace?.targetCommand
+			? this.extractTestFileFromCommand(workspace.targetCommand)
+			: undefined;
+		const executedTestFile = this.extractTestFileFromCommand(event.command);
+		const sameTestFile = Boolean(targetCmdTestFile && executedTestFile && targetCmdTestFile === executedTestFile);
+		void this.appendControlPlaneEvent(
+			planExecutionId,
+			"command_started",
+			{ command: event.command, cwd: event.cwd, startedAt: event.startedAt },
+			workspaceId,
+		);
+		this.completionGate.recordCommand(planExecutionId, workspaceId, event.command);
+		this.completionGate.recordCompletion(
+			planExecutionId,
+			workspaceId,
+			event.exitCode ?? -1,
+			workspace?.targetCommand === event.command,
+			event.command,
+			{
+				cwd: event.cwd,
+				startedAt: event.startedAt,
+				finishedAt: event.finishedAt,
+				outputSummary: event.outputSummary,
+				outputArtifactPath: event.outputArtifactPath,
+				matchedValidationRequirement,
+				matchedAcceptedEquivalentCommand: matchedAcceptedEquivalentCommand || undefined,
+				noTestsFoundDetected,
+				equivalentValidationSatisfied:
+					event.exitCode === 0 &&
+					!noTestsFoundDetected &&
+					(Boolean(matchedAcceptedEquivalentCommand) || Boolean(sameTestFile)),
+			},
+		);
+		void this.appendControlPlaneEvent(
+			planExecutionId,
+			"command_completed",
+			{
+				command: event.command,
+				cwd: event.cwd,
+				exitCode: event.exitCode,
+				outputArtifactPath: event.outputArtifactPath ?? null,
+				isTargetCommand: workspace?.targetCommand === event.command,
+				matchedValidationRequirement,
+				matchedAcceptedEquivalentCommand: matchedAcceptedEquivalentCommand ?? null,
+				noTestsFoundDetected,
+			},
+			workspaceId,
+		);
+	}
+
+	private async ignoreStaleWorkspaceCompletion(
+		planExecutionId: string,
+		workspace: Workspace,
+		reason: string,
+		error?: string,
+	): Promise<WorkspaceExecutionResult> {
+		new PiLogger({ planExecId: planExecutionId }).info(
+			`[workspace ${workspace.id}] stale_attempt_completion_ignored — ${reason}`,
+			{ planExecId: planExecutionId, workspaceId: workspace.id, staleReason: reason },
+		);
+		await this.appendControlPlaneEvent(
+			planExecutionId,
+			"stale_attempt_completion_ignored",
+			{ reason, error: error ?? null },
+			workspace.id,
+		);
+		await this.appendControlPlaneEvent(
+			planExecutionId,
+			"illegal_transition_prevented_before_router",
+			{ reason, preventedTransition: "PENDING->SUCCEEDED/COMPLETE" },
+			workspace.id,
+		);
+
+		this.scheduler.releaseFileLocks(workspace);
+		await this.stateStore.releaseFileLocks(planExecutionId, workspace.id);
+		await this.appendControlPlaneEvent(planExecutionId, "workspace_locks_released", { reason }, workspace.id);
+		this.activeAgentExecutors.delete(workspace.id);
+		this.inFlightAttemptNos.delete(workspace.id);
+
+		await this.stateCacheMutex.runExclusive(async () => {
+			const updatedState = await this.stateStore.loadState(planExecutionId);
+			if (updatedState) {
+				this.currentPlanState = updatedState;
+			}
+		});
+
+		return {
+			workspaceId: workspace.id,
+			success: false,
+			verdict: "FAILED",
+			error: `Stale completion ignored (${reason})`,
+			report: `Stale attempt completion was ignored: ${reason}`,
+		};
+	}
+
 	private trackExecution(workspaceId: string, promise: Promise<WorkspaceExecutionResult>): void {
 		this.inFlightExecutions.set(workspaceId, promise);
 		// Suppress unhandled rejection from the .finally() side-chain
@@ -288,7 +537,10 @@ export class AutonomousExecutor {
 			this.activeAgentExecutors.delete(workspaceId);
 		}
 
-		const executor = new WorkspaceAgentExecutor(this.executorConfig);
+		const executor = new WorkspaceAgentExecutor({
+			...this.executorConfig,
+			onCommandExecuted: (event) => this.recordWorkspaceCommand(workspaceId, event),
+		});
 		if (this.planExecutionId) {
 			executor.setPlanExecutionId(this.planExecutionId);
 		}
@@ -396,13 +648,34 @@ export class AutonomousExecutor {
 		// stale locks from previous execution from blocking workspace scheduling.
 		this.scheduler.reset();
 
-		// Reset stranded or resettable workspaces back to pending so they get
-		// re-scheduled. Completed workspaces are never reset here.
+		// P37.HOTFIX: Reset stranded or resettable workspaces.
+		// Active workspaces must first be terminalized (to Failed) before resetting
+		// to Pending. Direct Active -> Pending bypasses the attempt FSM and can cause
+		// illegal PENDING -> SUCCEEDED transitions if a stale completion arrives.
+		// Completed workspaces are never reset.
 		let recovered = 0;
 		const resetReason = options.allowTerminal ? "manual-continue" : "crash-recovery";
 		for (const [wsId, ws] of state.workspaces) {
-			if (
-				ws.stage === WorkspaceStage.Active ||
+			if (ws.stage === WorkspaceStage.Active) {
+				// Terminalize active workspaces first, then reset to Pending
+				try {
+					await this.transitionRouter.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Failed, {
+						reason: resetReason,
+						previousStage: ws.stage,
+						note: `Stranded workspace from ${resetReason} — terminalized before reset`,
+					});
+				} catch {
+					// If FSM rejects (e.g. attempt already gone), fallback to direct store
+					await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Failed, {
+						reason: resetReason,
+					});
+				}
+				await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
+					reason: resetReason,
+					previousStage: WorkspaceStage.Failed,
+				});
+				recovered++;
+			} else if (
 				ws.stage === WorkspaceStage.Failed ||
 				(options.allowTerminal && ws.stage === WorkspaceStage.Blocked)
 			) {
@@ -555,13 +828,22 @@ export class AutonomousExecutor {
 		this.workspaceQueue = queue;
 		this.currentPlanState = await this.stateStore.loadState(planExecutionId);
 
-		// Clear any pending control requests
+		// P37.RCA: Clear any pending control requests from both file-based
+		// and database-backed state stores. The stop API writes control
+		// requests to the state store, not just the file manager. Stale
+		// control requests cause the new execution loop to immediately
+		// stop on the first iteration.
 		try {
 			const { createPlanControlManager } = await import("./plan-control.js");
 			const mgr = createPlanControlManager(this.workspaceRoot);
 			await mgr.clearControlRequest();
 		} catch {
 			// Non-fatal — control file may not exist
+		}
+		try {
+			await this.stateStore.clearControlRequest(planExecutionId);
+		} catch {
+			// Non-fatal — database may not support control requests
 		}
 
 		const log = new PiLogger({ planExecId: planExecutionId });
@@ -643,6 +925,11 @@ export class AutonomousExecutor {
 			// retry_attempt journal events until attempt > 1.
 			await this.transitionRouter.incrementRetryAttempt(planExecutionId, workspace.id);
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
+
+			// P37.HOTFIX: Track the attempt number so the stale attempt guard
+			// can verify that completion events still belong to this execution.
+			const currentAttemptNo = updatedWsState?.attempts ?? wsState?.attempts ?? 1;
+			this.inFlightAttemptNos.set(workspace.id, currentAttemptNo);
 
 			// Transition to active via TransitionRouter (Finding 2)
 			await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Active);
@@ -769,6 +1056,21 @@ export class AutonomousExecutor {
 			this.trackExecution(workspace.id, executionPromise);
 			const result = await executionPromise;
 
+			// P37.STABILITY: Before any completion path can transition the workspace,
+			// reload DB truth and quarantine stale completions. This protects lead-role
+			// and completion-gate paths alike from old workers finishing after Stop or
+			// Continue reset the workspace to Pending.
+			const preTransitionStale = this.isStopping
+				? { stale: true, reason: "plan_stopping" }
+				: await this.isAttemptStale(planExecutionId, workspace.id, currentAttemptNo);
+			if (preTransitionStale.stale) {
+				return this.ignoreStaleWorkspaceCompletion(
+					planExecutionId,
+					workspace,
+					preTransitionStale.reason ?? "stale_attempt",
+				);
+			}
+
 			// P26.B: Keep the workspace-scoped executor registered until after
 			// auto-commit so commitWorkspace() can read its effective worktree root.
 
@@ -821,14 +1123,59 @@ export class AutonomousExecutor {
 			// Feed the completion gate with execution results before evaluating (P4.6.1).
 			// The agent executor does not call into the completion gate directly, so we
 			// translate the agent result into gate state here.
+			//
+			// P37.HOTFIX: Do NOT blindly mark targetCommand as passed just because the
+			// agent returned COMPLETE. Instead, mark implementation as finished and let
+			// the completion gate evaluate whether the validation requirement was met based
+			// on command history or equivalent validation records. If the agent report/log
+			// contains evidence that a low-memory equivalent test passed, that is recorded
+			// as an equivalent validation artifact via recordEquivalentCommand().
 			if (result.verdict === "COMPLETE") {
 				// Mark implementation as finished
 				this.completionGate.markImplementationFinished(planExecutionId, workspace.id);
-				// If a targetCommand was specified, mark it as passed (the agent was
-				// instructed to run it in its prompt; if it reported COMPLETE, assume success)
+				// If a targetCommand was specified, record it via the equivalent command path
+				// so the gate can check command history for equivalence. Do NOT blindly set
+				// targetCommandPassed=true — the gate must see real command evidence.
 				if (workspace.targetCommand) {
-					this.completionGate.markTargetCommandStarted(planExecutionId, workspace.id);
-					this.completionGate.recordCompletion(planExecutionId, workspace.id, 0, true);
+					// Scan agent report for equivalent command evidence. If the report mentions
+					// running an equivalent command with exit code 0, record it.
+					const reportText = result.report ?? "";
+					const acceptedCommands = new Set<string>();
+					if (workspace.acceptedEquivalentCommands) {
+						for (const cmd of workspace.acceptedEquivalentCommands) {
+							acceptedCommands.add(cmd);
+						}
+					}
+					if (workspace.validationRequirement?.acceptedEquivalentCommands) {
+						for (const cmd of workspace.validationRequirement.acceptedEquivalentCommands) {
+							acceptedCommands.add(cmd);
+						}
+					}
+					// Check if report contains evidence of a successful equivalent command
+					let foundEquivalent = false;
+					if (acceptedCommands.size > 0) {
+						for (const cmd of acceptedCommands) {
+							if (reportText.includes(cmd)) {
+								this.completionGate.recordEquivalentCommand(planExecutionId, workspace.id, cmd, 0);
+								foundEquivalent = true;
+								break;
+							}
+						}
+					}
+					// Check if report mentions the test file from validationRequirement
+					if (!foundEquivalent && workspace.validationRequirement?.testFile) {
+						if (reportText.includes(workspace.validationRequirement.testFile)) {
+							this.completionGate.recordEquivalentCommand(
+								planExecutionId,
+								workspace.id,
+								workspace.targetCommand,
+								0,
+							);
+						}
+					}
+					// Only mark target command explicitly passed if there IS command history
+					// evidence (from actual command execution, not just agent report).
+					// The recordEquivalentCommand above provides a fallback for the agent report case.
 				}
 			}
 			// Process lifecycle containment: kill any orphaned child processes
@@ -838,6 +1185,35 @@ export class AutonomousExecutor {
 			killTrackedDetachedChildren();
 			// Evaluate via registry to get the live state after mutations above
 			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
+
+			// P37.HOTFIX: Stale attempt guard — check if workspace is still current
+			// before attempting any transition. If the workspace was terminalized
+			// by a plan stop during execution, skip the transition.
+			if (this.isStopping || (await this.isAttemptStale(planExecutionId, workspace.id, currentAttemptNo)).stale) {
+				const staleReason = this.isStopping ? "plan_stopping" : "stale_attempt";
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] stale_attempt_completion_ignored — workspace was ${staleReason}, discarding completion result`,
+					{ planExecId: planExecutionId, workspaceId: workspace.id, staleReason },
+				);
+				// Clean up without transitioning (workspace is already terminal)
+				this.activeAgentExecutors.delete(workspace.id);
+				this.inFlightAttemptNos.delete(workspace.id);
+				// Update local cache
+				await this.stateCacheMutex.runExclusive(async () => {
+					const updatedState = await this.stateStore.loadState(planExecutionId);
+					if (updatedState) {
+						this.currentPlanState = updatedState;
+					}
+				});
+				return {
+					workspaceId: workspace.id,
+					success: false,
+					verdict: "FAILED",
+					error: `Stale completion ignored (${staleReason})`,
+					report: `Stale attempt completion was ignored because the workspace was terminalized by plan stop.`,
+				};
+			}
+
 			if (gateResult.canComplete) {
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
@@ -846,7 +1222,14 @@ export class AutonomousExecutor {
 				// Completion gate blocked — transition to the recommended state instead
 				const gateBlockMsg = gateResult.blockReasons.join("; ");
 				console.error(`[completion-gate] Workspace ${workspace.id} cannot be marked complete: ${gateBlockMsg}`);
-				// Write the block reason into the workspace state so failure reason is visible
+				// Write the block reason into the workspace state and journal so the
+				// dashboard can show why execution is blocked.
+				await this.appendControlPlaneEvent(
+					planExecutionId,
+					"completion_gate_blocked_visible",
+					{ blockReasons: gateResult.blockReasons },
+					workspace.id,
+				);
 				await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
 					error: `Completion gate blocked: ${gateBlockMsg}`,
 				});
@@ -913,6 +1296,30 @@ export class AutonomousExecutor {
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
 			const wsForRetry = updatedWsState ?? wsState;
 
+			// P37.HOTFIX: Stale attempt guard — if workspace was terminalized by a
+			// plan stop, skip retry/fail transitions and return cleanly.
+			if (this.isStopping || (await this.isAttemptStale(planExecutionId, workspace.id)).stale) {
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] stale_attempt_completion_ignored — workspace was terminalized, discarding failure result`,
+					{ planExecId: planExecutionId, workspaceId: workspace.id },
+				);
+				this.activeAgentExecutors.delete(workspace.id);
+				this.inFlightAttemptNos.delete(workspace.id);
+				await this.stateCacheMutex.runExclusive(async () => {
+					const updatedState = await this.stateStore.loadState(planExecutionId);
+					if (updatedState) {
+						this.currentPlanState = updatedState;
+					}
+				});
+				return {
+					workspaceId: workspace.id,
+					success: false,
+					verdict: "FAILED",
+					error: `Stale error ignored: ${errorMessage}`,
+					report: `Stale attempt completion was ignored because the workspace was terminalized by plan stop.`,
+				};
+			}
+
 			// Classify failure and determine if retry is possible
 			const failureType = this.retryHandler.classifyFailure(errorMessage);
 
@@ -938,6 +1345,22 @@ export class AutonomousExecutor {
 			}
 
 			if (retryDecision.shouldRetry) {
+				// P37.HOTFIX: Re-check in case the stop flag was set during retry decision
+				if (this.isStopping) {
+					new PiLogger({ planExecId: planExecutionId }).info(
+						`[workspace ${workspace.id}] Retry skipped — plan is stopping`,
+						{ planExecId: planExecutionId, workspaceId: workspace.id },
+					);
+					this.inFlightAttemptNos.delete(workspace.id);
+					return {
+						workspaceId: workspace.id,
+						success: false,
+						verdict: "FAILED",
+						error: `Retry skipped due to plan stop: ${errorMessage}`,
+						report: `Retry cancelled because the plan is stopping.`,
+					};
+				}
+
 				// Transition back to pending for retry via TransitionRouter
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Pending, {
 					error: errorMessage,
@@ -945,6 +1368,7 @@ export class AutonomousExecutor {
 				});
 
 				// Update local cache
+				this.inFlightAttemptNos.delete(workspace.id);
 				await this.stateCacheMutex.runExclusive(async () => {
 					const updatedState = await this.stateStore.loadState(planExecutionId);
 					if (updatedState) {
@@ -971,6 +1395,7 @@ export class AutonomousExecutor {
 			});
 
 			// Update local cache
+			this.inFlightAttemptNos.delete(workspace.id);
 			await this.stateCacheMutex.runExclusive(async () => {
 				const updatedState = await this.stateStore.loadState(planExecutionId);
 				if (updatedState) {
@@ -997,42 +1422,180 @@ export class AutonomousExecutor {
 	 * @returns Control state if a control request is pending, null otherwise
 	 */
 	/**
-	 * Abort active workspaces and reset them back to Pending so they will
-	 * be re-executed when the plan is resumed.
+	 * P37.HOTFIX: Drain and terminalize active workspaces during stop.
+	 *
+	 * Unlike the old abortAndResetActiveWorkspaces, this method:
+	 * 1. Prevents new scheduling before starting drain (isStopping = true)
+	 * 2. Aborts executors and waits for in-flight promises to settle
+	 * 3. Applies a hard timeout to the drain
+	 * 4. Terminalizes each workspace to Failed (not Pending) with a
+	 *    stop-related reason so the attempt FSM can accept the transition
+	 * 5. Does NOT reset to Pending — that only happens on continue/rerun
+	 *
+	 * Returns the list of workspace IDs that were active and have been
+	 * terminalized.
 	 */
-	private async abortAndResetActiveWorkspaces(planExecutionId: string): Promise<void> {
-		// Collect workspace IDs that are currently active BEFORE aborting.
-		// Snapshot to prevent concurrent modification during iteration.
-		const state = this.currentPlanState;
-		const activeIds: string[] = [];
-		if (state) {
-			for (const [wsId, ws] of Array.from(state.workspaces)) {
-				if (ws.stage === "active") {
-					activeIds.push(wsId);
+	private async drainAndTerminalizeActiveWorkspaces(
+		planExecutionId: string,
+		options: { reason?: string } = {},
+	): Promise<string[]> {
+		const stopReason = options.reason ?? "plan_stop";
+		const log = new PiLogger({ planExecId: planExecutionId });
+
+		// P37.HOTFIX: Idempotency guard — serialize stop operations via mutex.
+		// If a drain is already in progress, subsequent calls return immediately.
+		return this.stopMutex.runExclusive(async () => {
+			// Prevent new scheduling during drain
+			this.isStopping = true;
+
+			// Collect active workspace IDs from fresh DB/runtime state, not stale cache.
+			const state = await this.stateStore.loadState(planExecutionId);
+			if (state) {
+				this.currentPlanState = state;
+			}
+			const activeIds: string[] = [];
+			if (state) {
+				for (const [wsId, ws] of Array.from(state.workspaces)) {
+					if (ws.stage === "active") {
+						activeIds.push(wsId);
+					}
 				}
 			}
-		}
 
-		// Abort all in-flight agent executions
-		await this.stopAllActiveWorkspaces();
+			await this.appendControlPlaneEvent(planExecutionId, "plan_stop_acknowledged", { reason: stopReason });
 
-		// Transition any aborted workspaces back to Pending so they
-		// are re-scheduled on resume. After stopAllActiveWorkspaces(),
-		// the abort handler in executeWorkspace transitions them to
-		// Failed (or Blocked) via the completion gate. We reset them
-		// to Pending so the plan doesn't need rerun before continuing.
-		// Uses TransitionRouter for FSM-aware transitions (Finding 2).
-		for (const wsId of activeIds) {
-			await this.transitionRouter.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Pending, {
-				reason: "paused-abort",
+			if (activeIds.length === 0) {
+				log.info(`[drain] No active workspaces to drain`);
+				await this.appendControlPlaneEvent(planExecutionId, "plan_stop_drained", { activeWorkspaces: 0 });
+				return [];
+			}
+
+			log.info(`[drain] Stopping plan — draining ${activeIds.length} active workspace(s): ${activeIds.join(", ")}`);
+			await this.appendControlPlaneEvent(planExecutionId, "plan_stop_draining_started", {
+				activeWorkspaces: activeIds.length,
+				workspaceIds: activeIds,
 			});
-		}
 
-		// Reload state cache after transitions
-		const updatedState = await this.stateStore.loadState(planExecutionId);
-		if (updatedState) {
-			this.currentPlanState = updatedState;
+			// Step 1: Abort all executors (sends abort signal to in-flight LLM calls)
+			for (const [workspaceId, executor] of this.activeAgentExecutors) {
+				await this.appendControlPlaneEvent(
+					planExecutionId,
+					"workspace_abort_requested",
+					{ reason: stopReason },
+					workspaceId,
+				);
+				executor.abort();
+			}
+			this.activeAgentExecutors.clear();
+
+			// Step 2: Await in-flight execution promises with hard timeout
+			const drainTimeout = this.stopDrainTimeoutMs;
+			if (this.inFlightExecutions.size > 0) {
+				const promises = Array.from(this.inFlightExecutions.values());
+				this.inFlightExecutions.clear();
+
+				const drainTimer = new Promise<"timeout">((resolve) => {
+					setTimeout(() => resolve("timeout"), drainTimeout).unref();
+				});
+				const drainResult = await Promise.race([
+					Promise.allSettled(promises).then(() => "settled" as const),
+					drainTimer,
+				]);
+
+				if (drainResult === "timeout") {
+					log.warn(`[drain] In-flight workspaces did not settle within ${drainTimeout}ms — force-killing`);
+					await this.appendControlPlaneEvent(planExecutionId, "workspace_inflight_timeout", {
+						timeoutMs: drainTimeout,
+						workspaceIds: activeIds,
+					});
+					// Kill process scopes for active workspaces
+					killPlanProcesses(planExecutionId, "stop-drain-timeout");
+					killTrackedDetachedChildren();
+				} else {
+					await this.appendControlPlaneEvent(planExecutionId, "workspace_inflight_settled", {
+						workspaceIds: activeIds,
+					});
+				}
+			}
+
+			// Step 3: Kill remaining tracked processes
+			killPlanProcesses(planExecutionId, "plan-stop");
+			killTrackedDetachedChildren();
+			await this.appendControlPlaneEvent(planExecutionId, "workspace_processes_killed", {
+				reason: "plan-stop",
+				workspaceIds: activeIds,
+			});
+
+			// Step 4: Terminalize each active workspace to Failed with stop reason.
+			// Do NOT reset to Pending — the attempt FSM must see a terminal state
+			// so that any stale completion events are rejected.
+			for (const wsId of activeIds) {
+				try {
+					// Try via TransitionRouter (FSM-aware)
+					await this.transitionRouter.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Failed, {
+						reason: stopReason,
+						previousStage: WorkspaceStage.Active,
+						note: `Aborted during plan stop (${stopReason})`,
+					});
+				} catch (transitionError) {
+					// If FSM rejects (e.g. attempt already Pending from a stale completion),
+					// try direct state store transition as safety net.
+					log.warn(
+						`[drain] FSM rejected Active->Failed for ${wsId}: ${transitionError instanceof Error ? transitionError.message : String(transitionError)}`,
+					);
+					try {
+						await this.stateStore.transitionWorkspace(planExecutionId, wsId, WorkspaceStage.Failed, {
+							reason: stopReason,
+							note: `Fallback terminalization after stop`,
+						});
+					} catch (storeError) {
+						log.error(
+							`[drain] Failed to terminalize ${wsId}: ${storeError instanceof Error ? storeError.message : String(storeError)}`,
+						);
+					}
+				}
+
+				// Release file locks
+				const wsDef = this.workspaceQueue?.workspaces.find((w) => w.id === wsId);
+				if (wsDef) {
+					this.scheduler.releaseFileLocks(wsDef);
+				}
+				await this.stateStore.releaseFileLocks(planExecutionId, wsId);
+				await this.appendControlPlaneEvent(
+					planExecutionId,
+					"workspace_locks_released",
+					{ reason: stopReason },
+					wsId,
+				);
+
+				// Release workspace-scoped executor
+				this.activeAgentExecutors.delete(wsId);
+			}
+
+			// P37.HOTFIX: Clear in-flight attempt tracking after terminalization
+			this.inFlightAttemptNos.clear();
+
+			// Reload state cache after terminalization
+			const updatedState = await this.stateStore.loadState(planExecutionId);
+			if (updatedState) {
+				this.currentPlanState = updatedState;
+			}
+
+			log.info(`[drain] Terminalized ${activeIds.length} workspace(s)`);
+			await this.appendControlPlaneEvent(planExecutionId, "plan_stop_drained", {
+				activeWorkspaces: activeIds.length,
+				workspaceIds: activeIds,
+			});
+			return activeIds;
+		}); // End of stopMutex.runExclusive
+	}
+
+	async drainActiveWorkspacesForStop(reason?: string): Promise<string[]> {
+		const planExecutionId = this.planExecutionId;
+		if (!planExecutionId) {
+			return [];
 		}
+		return this.drainAndTerminalizeActiveWorkspaces(planExecutionId, { reason });
 	}
 
 	async checkControlRequest(): Promise<PlanControlState | null> {
@@ -1049,11 +1612,21 @@ export class AutonomousExecutor {
 			return null;
 		}
 
+		// P37.HOTFIX: If already stopping, ignore new control requests (idempotency).
+		// This prevents a second stop request from double-terminalizing already
+		// terminal workspaces.
+		if (this.isStopping && state.status === "stopped") {
+			// Already fully stopped — clear and return
+			await this.stateStore.clearControlRequest(planExecutionId);
+			return null;
+		}
+
+		const log = new PiLogger({ planExecId: planExecutionId });
+
 		// Handle control actions
 		switch (control.action) {
 			case "pause":
 				if (state.status === "running") {
-					// Snapshot workspaces to prevent concurrent modification during iteration
 					const activeIds: string[] = [];
 					for (const [wsId, ws] of Array.from(state.workspaces)) {
 						if (ws.stage === "active") {
@@ -1062,12 +1635,13 @@ export class AutonomousExecutor {
 					}
 
 					if (activeIds.length === 0) {
-						// No active workspaces, pause immediately
 						await this.stateStore.pausePlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
 					} else {
-						// Abort active workspaces and reset them to Pending
-						await this.abortAndResetActiveWorkspaces(planExecutionId);
+						// P37.HOTFIX: Use drain+terminalize instead of abort+reset to Pending
+						await this.drainAndTerminalizeActiveWorkspaces(planExecutionId, {
+							reason: "paused-abort",
+						});
 						await this.stateStore.pausePlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
 					}
@@ -1075,8 +1649,13 @@ export class AutonomousExecutor {
 				break;
 
 			case "stop":
-				if (state.status === "running" || state.status === "paused") {
-					// Snapshot workspaces to prevent concurrent modification during iteration
+				if (state.status === "running" || state.status === "paused" || state.status === "stopped") {
+					log.info(`[control] plan_stop_requested — draining active workspaces`);
+					await this.appendControlPlaneEvent(planExecutionId, "plan_stop_requested", {
+						reason: control.reason ?? null,
+						status: state.status,
+					});
+
 					const activeIds: string[] = [];
 					for (const [wsId, ws] of Array.from(state.workspaces)) {
 						if (ws.stage === "active") {
@@ -1088,12 +1667,25 @@ export class AutonomousExecutor {
 						// No active workspaces, stop immediately
 						await this.stateStore.stopPlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
+						await this.appendControlPlaneEvent(planExecutionId, "plan_stop_acknowledged", {
+							reason: control.reason ?? null,
+						});
+						await this.appendControlPlaneEvent(planExecutionId, "plan_stop_drained", { activeWorkspaces: 0 });
 					} else {
-						// Abort active workspaces and reset them to Pending
-						await this.abortAndResetActiveWorkspaces(planExecutionId);
+						// P37.HOTFIX: Drain active workspaces — terminalize them first,
+						// then set plan status to stopped. Do NOT reset to Pending
+						// while in-flight execution can still complete.
+						log.info(`[control] plan_stop_draining_started — ${activeIds.length} active workspace(s)`);
+						const terminalized = await this.drainAndTerminalizeActiveWorkspaces(planExecutionId, {
+							reason: control.reason ?? "plan_stop",
+						});
 						await this.stateStore.stopPlan(planExecutionId, control.reason);
 						await this.stateStore.clearControlRequest(planExecutionId);
+						log.info(`[control] plan stopped — terminalized ${terminalized.length} workspace(s)`);
 					}
+
+					// Clear stopping flag after stop is fully complete
+					this.isStopping = false;
 				}
 				break;
 
@@ -1131,6 +1723,13 @@ export class AutonomousExecutor {
 
 		const state = this.currentPlanState;
 		if (!state) {
+			return [];
+		}
+
+		// P37.HOTFIX: Check stopping flag before scheduling new work.
+		// This prevents the scheduler from starting new workspaces during
+		// the draining phase of a stop request.
+		if (this.isStopping) {
 			return [];
 		}
 
@@ -1875,6 +2474,9 @@ export class AutonomousExecutor {
 		// Clear the map after aborting all executors
 		this.activeAgentExecutors.clear();
 
+		// P37.HOTFIX: Clear in-flight attempt tracking
+		this.inFlightAttemptNos.clear();
+
 		// Wait for all tracked in-flight executions to settle
 		if (this.inFlightExecutions.size > 0) {
 			const promises = Array.from(this.inFlightExecutions.values());
@@ -1882,9 +2484,12 @@ export class AutonomousExecutor {
 			await Promise.allSettled(promises);
 		}
 
-		// Process lifecycle containment: kill all tracked child processes
-		// (vitest, npm, node, etc.) that may have been spawned by workspace
-		// agent sessions via the bash tool.
+		// P37.HOTFIX: Kill only plan-scoped processes, not every tracked process.
+		// This prevents killing unrelated processes from other plans.
+		if (this.planExecutionId) {
+			killPlanProcesses(this.planExecutionId, "plan-stop");
+		}
+		// Keep global kill as fallback for untracked orphans
 		killTrackedDetachedChildren();
 
 		// Clean up git worktrees created during this execution

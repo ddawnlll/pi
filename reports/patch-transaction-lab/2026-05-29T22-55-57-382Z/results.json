@@ -1,0 +1,222 @@
+[
+  {
+    "testName": "T1 — six_non_conflicting_patches",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 6,
+      "rejected": 0,
+      "handoff": 0,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 6,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T2 — same_file_conflict",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 1,
+      "rejected": 0,
+      "handoff": 1,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 2,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T3 — write_set_violation",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 1,
+      "handoff": 0,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 1,
+    "writeSetViolationsTotal": 1,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T4 — stale_file_hash",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 1,
+      "rejected": 0,
+      "handoff": 1,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 2,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T5 — validation_failure_rollback",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 0,
+      "handoff": 0,
+      "rolledBack": 1,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 1,
+    "rollbackSuccesses": 1
+  },
+  {
+    "testName": "T6 — worker_crash_before_patch",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 0,
+      "handoff": 0,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T7 — coordinator_crash_before_apply",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 1,
+      "handoff": 0,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T8 — coordinator_crash_after_apply_before_validation",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 0,
+      "handoff": 0,
+      "rolledBack": 1,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T9 — forbidden_path",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 0,
+      "rejected": 1,
+      "handoff": 0,
+      "rolledBack": 0,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 1,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 0,
+    "writeSetViolationsTotal": 0,
+    "rollbackAttempts": 0,
+    "rollbackSuccesses": 0
+  },
+  {
+    "testName": "T10 — fuzz_100_runs",
+    "passed": true,
+    "details": [],
+    "patchStats": {
+      "accepted": 327,
+      "rejected": 49,
+      "handoff": 194,
+      "rolledBack": 10,
+      "failedValidation": 0,
+      "timedOut": 0,
+      "failedRetryable": 0
+    },
+    "peakActiveWorkers": 0,
+    "dirtyRepoLeak": false,
+    "stuckStates": 0,
+    "directMutationCount": 0,
+    "writeSetViolationsDetected": 34,
+    "writeSetViolationsTotal": 34,
+    "rollbackAttempts": 10,
+    "rollbackSuccesses": 10
+  }
+]

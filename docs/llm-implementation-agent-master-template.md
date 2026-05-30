@@ -1,8 +1,10 @@
-# LLM Implementation Agent — ExecutionKernel & Intent-Driven Execution Template v4.0
+# LLM Implementation Agent — ExecutionKernel & Intent-Driven Execution Template v4.1
 
-**Version:** 4.0.0  
-**Last Updated:** 2026-05-27  
-**Purpose:** Canonical v4 flagship template for Pi execution plans. v4 preserves the v3 repair-first contract envelope while adding ExecutionKernel authority, intent-driven execution profiles, PostgreSQL authoritative runtime state, event-sourced attempt control, watchdog-driven bounded liveness, and safe migration from legacy multi-writer runtime paths. Autonomous execution MUST NOT run when `executionAutomation.autonomousExecutionEnabled` is false or when v4 admission gates reject the request.
+**Version:** 4.1.1  
+**Last Updated:** 2026-05-30  
+**Purpose:** Canonical v4 flagship template for Pi execution plans. v4 preserves the v3 repair-first contract envelope while adding ExecutionKernel authority, intent-driven execution profiles, PostgreSQL authoritative runtime state, event-sourced attempt control, watchdog-driven bounded liveness, safe migration from legacy multi-writer runtime paths, and Patch Transaction stable_6 semantics. Autonomous execution MUST NOT run when `executionAutomation.autonomousExecutionEnabled` is false or when v4 admission gates reject the request.
+
+stable_6 no longer requires git worktree isolation by default. Instead, stable_6 derives a patch_transaction execution profile with 6 codegen workers, 1 patch apply lane, a single PatchCoordinator repository mutation authority, mandatory PatchArtifact contracts, writeSet/fileHash guards, rollback-required patch apply, and final integration validation. Worktree-based 6-worker execution remains available as experimental_worktree_6 for explicit opt-in legacy operation.
 
 ---
 
@@ -69,13 +71,112 @@ This template is a v3 successor, not a from-scratch replacement. It preserves:
 
 It changes the execution doctrine underneath that envelope:
 
-- `contractVersion` becomes `4.0.0` for v4-native plans.
+- `contractVersion` becomes `4.1.1` for v4.1-native plans.
 - Legacy validator compatibility is preserved by keeping all v3 required fields present.
 - New v4 fields are additive and should be ignored by legacy read-only consumers until the validator is upgraded.
 - If a legacy validator hard-rejects unknown fields, the `LegacyPlanNormalizer` may temporarily emit a v3-compatible contract plus a v4 sidecar. The v4 sidecar is not optional for execution.
 
 
 ---
+
+
+## What Changed in v4.1.1
+
+v4.1.1 preserves all v4.1.0 stable_6 patch_transaction decisions:
+stable_3 remains unchanged; stable_6 remains patch_transaction; stable_6
+uses 6 codegen workers and 1 patch apply lane; stable_6 does not require
+worktree isolation; experimental_worktree_6 remains explicit legacy fallback;
+PatchCoordinator remains repository mutation authority; patchApplyQueue remains
+separate from integrationQueue; 2 patch apply lanes remain gated and disabled
+by default.
+
+### Deferred Validation Doctrine
+
+Implementation workspace completion is not plan completion. Ordinary
+implementation/codegen workspaces should not run heavy tests by default. Heavy
+validation should run in final validation workspace(s). Final validation is
+mandatory before plan completion. Deferred validation must not bypass tests; it
+only moves expensive tests later. Watch-mode validation remains forbidden.
+Non-zero validation exit codes block validation. If final validation fails, the
+plan cannot complete and must create repair/handoff.
+
+### Validation Visibility Doctrine
+
+Validation must remain live and visible even when heavy tests are deferred. The
+dashboard must show the validation queue, running validations, failed
+validations, final validation gate, repair status, CompletionGate block
+reasons, last command, exit code, and artifacts. Test failures must be attached
+to artifacts and visible to the user.
+
+### Final Repair Workspace Convention
+
+Large plans should have implementation workspaces, a final validation
+workspace, an optional final repair workspace, and a final
+report/recommendation workspace. The final repair workspace consumes final
+validation failures, attempts targeted fixes, then triggers validation again or
+creates handoff_required.
+
+### Validation Requirement and Equivalence
+
+`targetCommand` remains supported. Exact `targetCommand` string is not the only
+validation satisfaction model. `acceptedEquivalentCommands` may satisfy the
+same `validationRequirement` only when real command evidence proves success.
+Equivalent commands must not be watch-mode. Non-zero exits do not satisfy
+validation. If targeted test output says `No test files found`, validation
+fails even when the exit code is 0. Missing command evidence cannot satisfy
+validation.
+
+## What Changed in v4.1.0
+
+v4.1.0 introduces Patch Transaction stable_6 semantics.
+
+stable_6 no longer requires git worktree isolation by default. Instead,
+stable_6 derives a patch_transaction execution profile with 6 codegen workers,
+1 patch apply lane, a single PatchCoordinator repository mutation authority,
+mandatory PatchArtifact contracts, writeSet/fileHash guards, rollback-required
+patch apply, and final integration validation.
+
+Worktree-based 6-worker execution remains available as experimental_worktree_6
+for explicit opt-in legacy operation.
+
+This version updates the execution contract and template doctrine only. It does
+not by itself implement the real runtime PatchTransactionBackend.
+
+### Flagship Design Goals
+
+- stable_3 remains unchanged.
+- stable_6 becomes patch_transaction-based.
+- stable_6 does not require worktree isolation.
+- experimental_6 becomes experimental_worktree_6 for legacy worktree opt-in.
+- Add repository mutation authority doctrine (PatchCoordinator).
+- Add patch apply queue semantics separate from integration queue.
+- Add PatchArtifact contract definition.
+- Add patch transaction lifecycle states.
+- Add aggregator workspace convention.
+- Update hard stops for patch_transaction.
+- Update actor permissions with repository mutation permissions.
+
+### Core Semantic Changes
+
+- **stable_6 executor_type**: Changed from `worktree` to `patch_transaction`.
+- **stable_6 isolation**: Changed from `worktree_required: true` to `patch_isolation_required: true`, `worktree_required: false`.
+- **experimental_worktree_6**: New mode replacing `experimental_6` for legacy worktree-based 6-worker execution.
+- **PatchCoordinator**: New repository mutation authority. Only PatchCoordinator may directly mutate the main repository in patch_transaction mode.
+- **patchApplyQueue**: New queue type for patch_transaction, separate from integrationQueue (which remains for worktree/external merge flows).
+- **PatchArtifact**: New mandatory contract for all patches in patch_transaction mode.
+- **Actor permissions extended**: New `mayMutateRepository`, `mayProducePatchArtifact`, `mustUsePatchArtifact`, `mustUseWriteSetGuard`, `mustUseFileHashGuard`, `mustUseRollback` permissions.
+- **Aggregator workspace convention**: Shared fan-in files must be handled by aggregator workspaces to prevent false conflicts.
+- **Hard stops updated**: Old worktree-related hard stops revised; new patch_transaction hard stops added.
+
+### New v4.1 Contract Areas
+
+- `repositoryMutationAuthority`
+- `patchApplyQueue`
+- `patchArtifact`
+- `aggregatorWorkspaceConvention`
+- Updated `scale.modes` with `stable_6` and `experimental_worktree_6`
+- Updated `actorPermissions` with repository mutation fields
+- Updated `derivedExecutionProfile` for patch_transaction
 
 ## What Changed in v4.0.0
 
@@ -161,6 +262,31 @@ I14  Every transition requires expectedVersion.
 I15  HANDOFF_REQUIRED creates a durable handoff queue item.
 I16  Plan completion is determined by explicit PlanSupervisor predicates.
 I17  Raw logs are evidence, not runtime truth.
+
+### v4.1 Additions — Patch Transaction Doctrine
+
+v4.1 adds the **Patch Transaction stable_6** execution profile. The key doctrine change is that stable_6 no longer requires worktree isolation. Instead, it uses patch transaction isolation with a dedicated PatchCoordinator repository mutation authority.
+
+Core rules for stable_6:
+
+- stable_6 uses `executor_type: patch_transaction`.
+- stable_6 uses 6 codegen workers, 1 patch apply lane.
+- stable_6 requires a single PatchCoordinator repository mutation authority.
+- stable_6 requires `patch_isolation_required: true`, not `worktree_required: true`.
+- stable_6 requires `patch_coordinator_required: true`.
+- stable_6 requires `final_integration_validation_required: true`.
+- stable_6 requires `patch_apply_lanes: 1`.
+- 2 patch apply lanes are not enabled yet. Must be explicitly gated.
+- experimental_worktree_6 preserves the old worktree-based 6-worker mode as explicit opt-in.
+- The normalizer may map old `experimental_6` references to `experimental_worktree_6`.
+- Aggregator workspaces handle shared fan-in files to prevent false conflicts.
+
+experimental_worktree_6 rules:
+
+- `executor_type: worktree`
+- `worktree_required: true`
+- `integration_queue_required: true`
+- `explicit_opt_in_required: true`
 ```
 
 ### v4 Derivation Philosophy
@@ -179,6 +305,8 @@ Human authors write:
 
 The system derives:
 
+For worktree-based modes (stable_3, experimental_worktree_6, scale_8):
+
 ```text
 worktree required
 integration queue required
@@ -186,6 +314,24 @@ GitRunner queue required
 validation lanes required
 attempt-scoped artifacts required
 writeSet drift gate required
+AdmissionGate strict mode required
+DeadlineWatchdog required
+PostgreSQL event journal required
+```
+
+For patch_transaction mode (stable_6):
+
+```text
+patch isolation required
+patch coordinator required
+patch apply queue required
+repository mutation authority: patch_coordinator
+GitRunner queue required
+validation lanes required
+PatchArtifact required
+writeSet guard required
+fileHash guard required
+rollback plan required
 AdmissionGate strict mode required
 DeadlineWatchdog required
 PostgreSQL event journal required
@@ -432,9 +578,10 @@ b) **Repair plans** (before promotion) — follow the repair-first workflow.
 - **No git repo-wide mutation may bypass GitRunner / repo-wide lock.**
 - **State writes must be transaction-backed or serialized by a write queue.**
 - **Promotion to `stable_6` requires dogfood/stress gates.**
-- Scale modes above `stable_3` require worktree isolation, integration queue, global validation lock, archive support, and completion gate hardening.
-- If worktree isolation is disabled, `maxParallelWorkspaces` must not exceed 3.
-- If integration queue is disabled, `experimental_6` and `scale_8` are invalid.
+- Scale modes above `stable_3` require either worktree isolation (experimental_worktree_6, scale_8) or patch_transaction isolation (stable_6), integration queue or patch apply queue, global validation lock, archive support, and completion gate hardening.
+- If worktree isolation is disabled and the mode is not patch_transaction, `maxParallelWorkspaces` must not exceed 3.
+- If integration queue is disabled, `experimental_worktree_6` and `scale_8` are invalid.
+- For stable_6 (patch_transaction mode), worktree isolation is not required; patch isolation is used instead.
 - Dashboard and doctor output must distinguish theoretical DAG parallelism from safe effective parallelism.
 - Merge conflicts must be surfaced as handoff artifacts and must not mark the plan complete.
 - `git push` remains forbidden in every scale mode.
@@ -448,7 +595,7 @@ b) **Repair plans** (before promotion) — follow the repair-first workflow.
 ### Additional v4 Critical Requirements
 
 - **v4 plans MUST preserve the v3 envelope unless the validator has explicitly migrated to a pure v4 schema.**
-- **v4-native plans SHOULD set `contractVersion: "4.0.0"` and MUST include `templateVersion: "4.0.0"`.**
+- **v4-native plans SHOULD set `contractVersion: "4.1.1"` and MUST include `templateVersion: "4.1.1"`.**
 - **During validator transition, a `legacyCompatibility` object MUST explain how v3 fields are preserved or normalized.**
 - **The ExecutionKernel, not the executor, is the only authority that mutates execution state.**
 - **Executors, validators, Git/worktree managers, lease monitors, retry routers, cleanup workers, brain workers, diagnostics, and proposal executors MUST emit events only.**
@@ -483,7 +630,7 @@ b) **Repair plans** (before promotion) — follow the repair-first workflow.
 **Autonomous execution allowed:** `{{ true / false }}`  
 **Agent repo mutation allowed:** `{{ true / false }}`  
 **Promotion gate status:** `{{ pending / in_progress / passed }}`  
-**Scale mode:** `{{ stable_3 / experimental_6 / scale_8 }}`  
+**Scale mode:** `{{ stable_3 / stable_6 / experimental_worktree_6 / scale_8 }}`  
 **Safe parallelism target:** `{{ Expected safe effective parallelism, e.g. 1, 2, 3 }}`  
 **Done when:** `{{ Clear definition of completion criteria }}`
 
@@ -508,12 +655,18 @@ b) **Repair plans** (before promotion) — follow the repair-first workflow.
 | Autonomous execution allowed | `{{ true / false }}` |
 | Agent repo mutation allowed | `{{ true / false }}` |
 | Promotion gate status | `{{ pending / in_progress / passed }}` |
-| Selected scale mode | `{{ stable_3 / experimental_6 / scale_8 }}` |
+| Selected scale mode | `{{ stable_3 / stable_6 / experimental_worktree_6 / scale_8 }}` |
 | Requested max workers | `{{ integer }}` |
 | Expected DAG effective parallelism | `{{ integer or TBD }}` |
 | Expected safe effective parallelism | `{{ integer or TBD }}` |
 | Worktree isolation | `{{ Required / Optional / Disabled }}` |
 | Integration queue | `{{ Required / Optional / Disabled }}` |
+| Isolation mode | `{{ direct / worktree / patch_transaction }}` |
+| Patch isolation | `{{ Required / Optional / Disabled }}` |
+| Patch apply queue | `{{ Required / Optional / Disabled }}` |
+| Patch apply lanes | `{{ integer }}` |
+| Repository mutation authority | `{{ patch_coordinator / worktree_integration / direct }}` |
+| PatchCoordinator | `{{ Required / Optional / Disabled }}` |
 
 ### 1.1 RACI
 
@@ -538,16 +691,20 @@ List all constraints, policies, and systems that MUST remain stable:
 * [ ] `{{ Constraint or policy that must not be violated }}`
 * [ ] `{{ System or component that must remain unchanged }}`
 * [ ] `{{ Safety guarantee that must be preserved }}`
-* [ ] Worktree isolation remains available when requested by scale mode.
-* [ ] Integration queue remains enabled when required by scale mode.
+* [ ] Worktree isolation remains available when requested by worktree-based scale mode (experimental_worktree_6, scale_8).
+* [ ] Integration queue remains enabled when required by worktree-based scale mode.
+* [ ] Patch apply queue is used for patch_transaction mode (stable_6).
+* [ ] PatchCoordinator is the single repository mutation authority in patch_transaction mode.
 * [ ] Global validation lock remains active for heavy validation.
 * [ ] Completion gate hardening remains active.
 * [ ] Merge conflicts produce handoff artifacts and do not mark the plan complete.
-* [ ] The next plan does not start while the integration queue is dirty.
+* [ ] The next plan does not start while the integration queue or patch apply queue is dirty.
 * [ ] `git push` remains forbidden.
 * [ ] Raw destructive cleanup remains forbidden.
 * [ ] Watch-mode validation remains forbidden.
 * [ ] The ExecutionKernel remains the source of truth for state transitions; executors and actors emit events only.
+* [ ] Workers must not directly mutate the repository in patch_transaction mode; only PatchCoordinator may apply patches.
+* [ ] Aggregator workspaces handle shared fan-in files to prevent false conflicts.
 
 ---
 
@@ -645,8 +802,18 @@ List all known blockers and unimplemented components:
 * [ ] DAG batch preview has been reviewed if required.
 * [ ] Safe batch preview has been reviewed if required.
 * [ ] Selected scale mode readiness passes.
-* [ ] Worktree isolation status is correct for selected scale mode.
-* [ ] Integration queue status is clean or intentionally blocked with handoff.
+* [ ] Isolation mode (worktree / patch_transaction) is valid for selected scale mode.
+* [ ] Worktree isolation status is correct for worktree-based scale modes (experimental_worktree_6, scale_8).
+* [ ] Integration queue status is clean or intentionally blocked with handoff, for worktree-based modes.
+* [ ] For stable_6 (patch_transaction):
+    * [ ] Patch transaction readiness passes.
+    * [ ] PatchCoordinator readiness passes.
+    * [ ] patchApplyQueue status is clean or intentionally blocked with handoff.
+    * [ ] PatchArtifact contract is valid.
+    * [ ] Workers did not directly mutate the repository.
+    * [ ] WriteSetGuard and FileHashGuard were enforced.
+    * [ ] Rollback path exists for every patch apply.
+    * [ ] Final integration validation passes.
 * [ ] No forbidden commands or files were used.
 * [ ] Validation gates passed.
 * [ ] Typecheck/build/test requirements passed where applicable.
@@ -657,14 +824,17 @@ List all known blockers and unimplemented components:
 
 **Trigger conditions:**
 * `{{ Condition that triggers rollback }}`
-* Worktree creation or cleanup behaves unsafely.
-* Integration queue merges incorrect or unvalidated diffs.
+* Worktree creation or cleanup behaves unsafely (worktree-based modes only).
+* Integration queue merges incorrect or unvalidated diffs (worktree-based modes only).
+* PatchCoordinator apply fails or violates writeSet/fileHash guard (patch_transaction mode only).
+* Patch apply without rollback executed.
+* Patch artifact is invalid or missing baseSha/writeSet.
 * Merge conflicts are not detected or no handoff artifact is produced.
 * Safe scale mode causes resource exhaustion or state corruption.
 * Validation planner misses a required failure.
 * Dashboard or doctor reports misleading scale readiness.
 
-**Rollback procedure:**
+**Rollback procedure — worktree-based modes (experimental_worktree_6, scale_8):**
 1. Set scale mode to `stable_3`.
 2. Set `maxParallelWorkspaces` to `3` or lower.
 3. Disable worktree mode only if safe fallback is required.
@@ -675,6 +845,17 @@ List all known blockers and unimplemented components:
 8. Keep failure classifier and dashboard telemetry read-only if safe.
 9. Revert phase commits independently if needed.
 
+**Rollback procedure — patch_transaction mode (stable_6):**
+1. Set selected scale mode to `stable_3`.
+2. Set `maxParallelWorkspaces` to `3` or lower.
+3. Disable patch_transaction mode.
+4. Pause patchApplyQueue.
+5. Preserve PatchCoordinator journal / event records for debugging.
+6. Roll back any partially applied patch through RollbackManager.
+7. Convert ambiguous patch states to handoff_required.
+8. Re-run final validation after rollback.
+9. Preserve patch artifacts for debugging under `.pi/patch-artifacts/{planExecId}/`.
+
 ---
 
 ## 11. What Next Phase Inherits
@@ -682,9 +863,14 @@ List all known blockers and unimplemented components:
 `{{ Next Phase ID }}` inherits:
 
 * `{{ System or component }}`
-* Worktree-aware execution contract.
+* Execution contract with mode awareness (worktree or patch_transaction).
 * Scale-mode-aware validation rules.
-* Integration queue requirements.
+* Integration queue requirements (worktree-based modes).
+* PatchApplyQueue requirements (patch_transaction mode).
+* PatchCoordinator repository mutation authority.
+* PatchArtifact contract.
+* Aggregator workspace convention.
+* Mode-specific scale readiness rules.
 * Safe effective parallelism review.
 * Workspace-level parallelism/isolation/integration/validation metadata.
 
@@ -710,7 +896,10 @@ List all known blockers and unimplemented components:
 
 **For repair plans**, the agent is an **advisor/reviewer/patch author**, NOT an autonomous executor. The agent may propose patches but must NOT apply them if `agentMayMutateRepo` is false. Human approval is required for every patch.
 
-If this plan uses P6 scale-aware execution (after promotion), the agent must optimize for safe parallelism, not maximum concurrency. Higher worker counts are allowed only when scale-mode readiness passes and the executor can preserve correctness through worktree isolation, integration queue, validation locks, and completion gates.
+If this plan uses P6 scale-aware execution (after promotion), the agent must optimize for safe parallelism, not maximum concurrency. Higher worker counts are allowed only when scale-mode readiness passes and the executor can preserve correctness:
+
+* For stable_6 (patch_transaction): through patch_transaction isolation, patch artifacts, PatchCoordinator, patchApplyQueue, writeSet/fileHash guards, rollback, validation lanes, PostgreSQL state, and completion gates.
+* For experimental_worktree_6 / scale_8 (worktree): through worktree isolation, integration queue, validation locks, and completion gates.
 
 If this plan uses queue optimization, the agent must assign meaningful queue priority levels to workspaces and document the optimization rationale. Critical-path workspaces should receive `high` or `critical` priority. Workspaces with no downstream dependents should receive `normal` or `low` priority. The agent must not use queue optimization to bypass safety constraints — validation gates still apply regardless of priority level.
 
@@ -728,7 +917,9 @@ If this plan uses queue optimization, the agent must assign meaningful queue pri
 8. **Do not claim `stable_6` until the stable_6 stress gate passes.**
 9. **Do not use the broken executor to repair itself.**
 10. Do not exceed selected scale-mode worker cap.
-11. Do not run more than 3 workers unless worktree isolation and integration queue readiness pass.
+11. Do not run more than 3 workers unless the selected mode is either:
+    * stable_6 (patch_transaction) with PatchCoordinator, patchApplyQueue, PatchArtifact, WriteSetGuard, FileHashGuard, rollback, validation lanes, and PostgreSQL readiness passing; or
+    * experimental_worktree_6 / scale_8 (worktree-based) with worktree isolation and integration queue readiness passing.
 12. Do not merge workspace output without passed workspace validation.
 13. Do not mark a plan complete if integration validation fails.
 14. Do not treat merge conflict as ordinary worker failure.
@@ -799,16 +990,33 @@ scale:
   selected_mode: stable_3
   modes:
     stable_3:
+      executor_type: direct
       max_parallel_workspaces: 3
       worktree_required: false
       integration_queue_required: false
-    experimental_6:
+      preserve_existing_behavior: true
+    stable_6:
+      executor_type: patch_transaction
+      max_codegen_workers: 6
+      patch_isolation_required: true
+      worktree_required: false
+      patch_coordinator_required: true
+      repository_mutation_authority: patch_coordinator
+      patch_apply_lanes: 1
+      single_repository_writer_required: true
+      targeted_validation_required: true
+      final_integration_validation_required: true
+      postgres_required: true
+      completion_gate_required: true
+    experimental_worktree_6:
+      executor_type: worktree
       max_parallel_workspaces: 6
       worktree_required: true
       integration_queue_required: true
       validation_lock_required: true
       archive_required: true
       completion_gate_required: true
+      explicit_opt_in_required: true
     scale_8:
       max_parallel_workspaces: 8
       worktree_required: true
@@ -828,11 +1036,23 @@ worktree:
 
 integration_queue:
   enabled: true
+  enabled_for_executor_types: ["worktree"]
   process_one_merge_at_a_time: true
   stop_on_merge_conflict: true
   require_workspace_validation_pass: true
   require_integration_validation_pass: true
   git_push_allowed: false
+
+patch_apply_queue:
+  enabled_for_executor_types: ["patch_transaction"]
+  apply_lanes: 1
+  single_writer_default: true
+  allow_parallel_apply_when_write_sets_do_not_overlap: false
+  parallel_apply_requires_evidence_gate: true
+  overlapping_write_set_policy: "handoff_or_serialize"
+  stale_base_policy: "reject_or_handoff"
+  rollback_required: true
+  validation_after_apply_required: true
 
 queue_optimization:
   enabled_by_default: true
@@ -914,7 +1134,7 @@ Hard stop execution only for:
 * Unsafe scale mode
 * Queue starting next plan while integration queue is dirty
 * Scale mode approval stale or missing
-* Worktree isolation disabled while requesting more than 3 workers
+* Parallelism > 3 without patch_transaction or worktree isolation
 * Forbidden file access
 * Secrets access
 * `git push`
@@ -963,6 +1183,8 @@ This model does not reduce parallelism. The controller serializes decisions, not
 | `ExecutorActor` | Run LLM/tools/bash for an attempt | No |
 | `ValidationActor` | Run validation with deadlines and process containment | No |
 | `GitRunner` | Serialize Git repo mutations | No attempt state mutation |
+| `PatchCoordinator` (v4.1) | Own patch transaction lifecycle, apply patches to repository, enforce writeSet/fileHash guards | Yes, repository mutation only in patch_transaction mode |
+| `PatchApplyActor` (v4.1) | Execute patch apply operations under PatchCoordinator authority | No (invoked by PatchCoordinator) |
 | `LeaseActor` | Emit lease heartbeat/stale/quarantine events | No |
 | `IntegrationActor` | Single-writer integration workflow, emits integration events | No direct attempt mutation |
 | `BrainWorkers` | Diagnose and propose | No |
@@ -971,6 +1193,8 @@ This model does not reduce parallelism. The controller serializes decisions, not
 ## 2.5.3 Attempt FSM Doctrine
 
 A v4 attempt is a bounded state machine. It cannot remain in a non-terminal state forever. Non-terminal states require deadlines and watchdog coverage.
+
+### Worktree-based execution FSM:
 
 ```text
 QUEUED
@@ -1006,6 +1230,44 @@ HANDOFF_REQUIRED
 ```
 
 Retry is legal only after terminal state.
+
+### Patch transaction execution FSM (v4.1):
+
+```text
+TRANSACTION_QUEUED
+  -> CODEGEN_RUNNING
+  -> PATCH_PROPOSED
+  -> PATCH_CHECKING
+  -> PATCH_APPLYING
+  -> VALIDATING
+  -> ACCEPTED / REJECTED / ROLLED_BACK / HANDOFF_REQUIRED / TIMED_OUT
+```
+
+Failure and intervention paths for patch transaction:
+
+```text
+CODEGEN_RUNNING + failure                 -> FAILED_RETRYABLE
+PATCH_CHECKING + writeSet violation       -> REJECTED
+PATCH_CHECKING + forbidden path detected  -> REJECTED
+PATCH_CHECKING + stale base               -> HANDOFF_REQUIRED
+PATCH_APPLYING + timeout                  -> TIMED_OUT / ROLLED_BACK
+PATCH_APPLYING + apply error              -> ROLLED_BACK
+VALIDATING + failure                      -> REJECTED / ROLLED_BACK
+VALIDATING + ambiguous                    -> HANDOFF_REQUIRED
+ROLLED_BACK + rollback success            -> terminal (repaired)
+ROLLED_BACK + rollback failure            -> FAILED_FINAL
+TIMED_OUT + retryable                     -> FAILED_RETRYABLE
+HANDOFF_REQUIRED                          -> AWAITING_HANDOFF (plan-level)
+```
+
+Additional terminal states for patch transaction:
+
+```text
+ACCEPTED
+REJECTED
+ROLLED_BACK
+TRANSACTION_FAILED_FINAL
+```
 
 ## 2.5.4 PlanSupervisor Completion Predicate
 
@@ -1154,6 +1416,164 @@ They may not:
 - bypass AdmissionGate
 - bypass human approval or promotion gates
 
+## 2.5.11 Patch Transaction Lifecycle States
+
+For patch_transaction execution mode, the attempt lifecycle includes the following states:
+
+```text
+transaction_queued
+codegen_running
+patch_proposed
+patch_checking
+patch_applying
+validating
+accepted
+rejected
+rolled_back
+handoff_required
+timed_out
+failed_retryable
+failed_final
+```
+
+### State Rules
+
+- Every non-terminal state has a deadline.
+- `patch_applying` cannot remain stuck. A deadline watchdog emits `patch_apply_timeout` events.
+- `validating` cannot remain stuck. A deadline watchdog emits `patch_validation_timeout` events.
+- Retry is allowed only after a terminal state (`failed_retryable`, `timed_out`).
+- `handoff_required` creates a durable handoff queue item.
+- A patch may not remain indefinitely non-terminal.
+
+### State Transitions
+
+```text
+transaction_queued -> codegen_running
+codegen_running -> patch_proposed
+patch_proposed -> patch_checking
+patch_checking -> patch_applying (if checks pass)
+patch_checking -> rejected (if checks fail)
+patch_applying -> validating
+validating -> accepted
+validating -> rejected
+validating -> handoff_required (on ambiguity)
+rejected -> rolled_back (rollback must be attempted)
+timed_out -> handoff_required or failed_retryable
+failed_retryable -> transaction_queued (retry)
+failed_final -> terminal (no retry)
+rolled_back -> terminal (repaired)
+```
+
+## 2.5.12 Repository Mutation Authority Doctrine
+
+The current template defines execution state authority, but it does not answer:
+"Who is allowed to mutate the repository?"
+
+This section defines repository mutation authority separately from execution state authority.
+
+### Authority Assignments
+
+| Component | Repository mutation allowed? | Notes |
+|---|---|---|
+| `ExecutionKernel` | No | Controls execution state only |
+| `PatchCoordinator` | Yes | Repository mutation authority in patch_transaction mode |
+| `ExecutorActor` | No (patch artifacts only) | May run codegen and produce patch artifacts; must not directly mutate the main repository |
+| `ValidationActor` | No | May validate but must not mutate repository state except through controlled rollback/reporting if explicitly mediated by PatchCoordinator |
+| `GitRunner` | Low-level only | May perform low-level git operations only when invoked by authorized repository mutation authority |
+| `BrainWorkers` | No | Read-only; may diagnose and propose |
+
+### Repository Mutation Doctrine
+
+```text
+In patch_transaction mode:
+  Only PatchCoordinator may apply patches to the main repository.
+  ExecutorActor may produce patch artifacts only.
+  No other component may directly mutate the repository.
+  All mutations require:
+    - A PatchArtifact with baseSha, writeSet, fileHashes
+    - A rollback plan
+    - A validation plan
+    - WriteSet guard enforcement
+    - FileHash guard enforcement
+
+In worktree mode:
+  GitRunner serializes repo mutations under worktree isolation.
+  Integration queue serializes merges.
+  Workspace validation must pass before merge.
+```
+
+## 2.5.13 PatchArtifact Contract
+
+Every patch in patch_transaction mode must conform to the PatchArtifact contract.
+
+### Required Fields
+
+| Field | Description |
+|---|---|
+| `patchId` | Unique patch identifier |
+| `planExecId` | Plan execution this patch belongs to |
+| `workspaceId` | Workspace that generated this patch |
+| `baseSha` or `baseVersion` | Git SHA or version the patch is based on |
+| `readSet` | Files/directories read during codegen |
+| `writeSet` | Files/directories the patch modifies |
+| `fileHashes` | Expected pre-apply file hashes for each file in writeSet |
+| `diff` or `fileOperations` | The actual patch diff or file operations |
+| `validationPlan` | How the patch will be validated |
+| `riskLevel` | low / medium / high / critical |
+| `createdAt` | Timestamp of patch creation |
+
+### Validation Rules
+
+- Patch without `baseSha`/`baseVersion` is invalid.
+- Patch without `writeSet` is invalid.
+- Patch touching files outside declared `writeSet` is invalid (writeSet violation).
+- Patch touching forbidden paths is invalid.
+- Patch with stale file hashes (pre-apply hash does not match current file) must be rejected or handed off.
+- Patch apply without a rollback plan is invalid.
+- Patch must be accepted, rejected, rolled back, timed out, or handoff_required.
+- No patch may remain indefinitely non-terminal.
+
+## 2.5.14 Aggregator Workspace Convention
+
+In patch_transaction mode, shared files must be handled by aggregator workspaces to prevent false conflicts and preserve parallelism.
+
+### Shared Files Requiring Aggregation
+
+Shared files include:
+
+- Route registries
+- App/root UI wiring
+- Barrel exports (index.ts, index.js)
+- Shared type registries
+- Global config files
+- Package-level index files
+
+### Rules
+
+- Ordinary codegen workspaces should avoid shared fan-in files.
+- Aggregator workspaces run after source workspaces they aggregate.
+- Aggregator workspaces are allowed to edit shared files.
+- Aggregator workspaces must declare themselves as aggregators (`"aggregator": true`).
+- Aggregator workspaces must list dependencies on the source workspaces they aggregate.
+- This convention prevents false conflicts and preserves patch transaction parallelism.
+
+### Example Aggregator Workspace
+
+```json
+{
+  "id": "7.G",
+  "title": "Aggregate barrel exports and route registries",
+  "dependencies": ["7.B", "7.C", "7.D"],
+  "aggregator": true,
+  "allowedFiles": ["src/index.ts", "src/routes.ts"],
+  "conflictScope": ["src/index.ts", "src/routes.ts"],
+  "acceptanceCriteria": [
+    "All barrel exports from source workspaces are re-exported",
+    "All route registrations from source workspaces are registered"
+  ]
+}
+```
+
 # Part 3 — Machine-Readable Execution Contract
 
 **Purpose:** This JSON structure is the authoritative execution contract (or validation contract for repair plans) for Pi's PostgreSQL-backed multi-project execution system. Pi parses this section first to validate the plan. v4 preserves the v3 envelope while adding ExecutionKernel, intent, persistence, derived profile, and migration semantics. In repair mode, this JSON describes what the repair plan expects but does NOT authorize autonomous mutation.
@@ -1162,8 +1582,8 @@ They may not:
 
 ```json
 {
-  "contractVersion": "4.0.0",
-  "templateVersion": "4.0.0",
+  "contractVersion": "4.1.1",
+  "templateVersion": "4.1.1",
   "legacyCompatibility": {
     "v3EnvelopePreserved": true,
     "legacyValidatorMode": "v3_compatible_extensions",
@@ -1200,19 +1620,25 @@ They may not:
   },
   "derivedExecutionProfile": {
     "generatedBy": "ExecutionProfileDeriver",
-    "deriverVersion": "4.0.0",
+    "deriverVersion": "4.1.1",
     "readOnly": true,
-    "worktreeRequired": true,
-    "integrationQueueRequired": true,
+    "isolationMode": "patch_transaction",
+    "worktreeRequired": false,
+    "patchIsolationRequired": true,
+    "patchCoordinatorRequired": true,
+    "repositoryMutationAuthority": "patch_coordinator",
+    "patchApplyLanes": 1,
+    "maxCodegenWorkers": 6,
+    "integrationQueueRequired": false,
     "gitRunnerQueueRequired": true,
     "validationLanesRequired": true,
     "attemptScopedArtifactsRequired": true,
     "deadlineWatchdogRequired": true,
     "admissionGateMode": "strict",
-    "writeSetDriftPolicy": "warn_and_flag_integration",
+    "writeSetDriftPolicy": "reject_or_handoff",
     "explain": [
-      "strict safety level requires admission gate and event journal",
-      "medium conflict risk requires worktree isolation and integration queue",
+      "stable_6 patch_transaction mode: 6 codegen workers, 1 apply lane, single PatchCoordinator",
+      "patch isolation required instead of worktree isolation for stable_6",
       "all production execution requires PostgreSQL authoritative runtime state"
     ]
   },
@@ -1257,28 +1683,53 @@ They may not:
     }
   },
   "attemptLifecycle": {
-    "initialState": "queued",
-    "terminalStates": [
-      "succeeded",
-      "failed_retryable",
-      "failed_final",
-      "aborted",
-      "timed_out",
-      "quarantined",
-      "handoff_required"
-    ],
-    "nonTerminalStates": [
-      "queued",
-      "leasing_worktree",
-      "running",
-      "validating",
-      "waiting_for_validation_lane",
-      "integration_queued",
-      "integrating",
-      "aborting",
-      "killing_process_tree",
-      "stale"
-    ],
+    "modeSpecificLifecycles": {
+      "worktree": {
+        "initialState": "queued",
+        "nonTerminalStates": [
+          "queued",
+          "leasing_worktree",
+          "running",
+          "validating",
+          "waiting_for_validation_lane",
+          "integration_queued",
+          "integrating",
+          "aborting",
+          "killing_process_tree",
+          "stale"
+        ],
+        "terminalStates": [
+          "succeeded",
+          "failed_retryable",
+          "failed_final",
+          "aborted",
+          "timed_out",
+          "quarantined",
+          "handoff_required"
+        ]
+      },
+      "patch_transaction": {
+        "initialState": "transaction_queued",
+        "nonTerminalStates": [
+          "transaction_queued",
+          "codegen_running",
+          "patch_proposed",
+          "patch_checking",
+          "patch_applying",
+          "validating",
+          "rolling_back"
+        ],
+        "terminalStates": [
+          "accepted",
+          "rejected",
+          "rolled_back",
+          "failed_retryable",
+          "failed_final",
+          "timed_out",
+          "handoff_required"
+        ]
+      }
+    },
     "retryableTerminalStates": [
       "failed_retryable",
       "timed_out",
@@ -1286,7 +1737,32 @@ They may not:
     ],
     "retryForbiddenFromNonTerminal": true,
     "deadlineRequiredForNonTerminalStates": true,
-    "handoffRequiredCreatesQueueItem": true
+    "handoffRequiredCreatesQueueItem": true,
+    "legacyFlatStates": {
+      "note": "Compat fields for v3/v4.0 validators. modeSpecificLifecycles above are authoritative for v4.1.",
+      "initialState": "queued",
+      "terminalStates": [
+        "succeeded",
+        "failed_retryable",
+        "failed_final",
+        "aborted",
+        "timed_out",
+        "quarantined",
+        "handoff_required"
+      ],
+      "nonTerminalStates": [
+        "queued",
+        "leasing_worktree",
+        "running",
+        "validating",
+        "waiting_for_validation_lane",
+        "integration_queued",
+        "integrating",
+        "aborting",
+        "killing_process_tree",
+        "stale"
+      ]
+    }
   },
   "planLifecycle": {
     "completionPredicateRequired": true,
@@ -1310,13 +1786,36 @@ They may not:
   "actorPermissions": {
     "workspaceAttemptController": { "mayMutateAttemptState": true, "mayCreateRetryAttempt": true },
     "planSupervisor": { "mayMutatePlanState": true, "mayReserveSchedulerSlots": true },
-    "executorActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
-    "validationActor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
-    "gitRunner": { "mayMutateAttemptState": false, "mayEmitEvents": true },
+    "executorActor": { "mayMutateAttemptState": false, "mayMutateRepository": false, "mayProducePatchArtifact": true, "mayEmitEvents": true },
+    "patchCoordinator": { "mayMutateRepository": true, "mayMutateAttemptState": false, "mustUsePatchArtifact": true, "mustUseWriteSetGuard": true, "mustUseFileHashGuard": true, "mustUseRollback": true },
+    "validationActor": { "mayMutateAttemptState": false, "mayMutateRepository": false, "mayEmitEvents": true },
+    "gitRunner": { "mayMutateAttemptState": false, "mayEmitEvents": true, "note": "May perform low-level git operations only when invoked by authorized repository mutation authority." },
     "leaseMonitor": { "mayMutateAttemptState": false, "mayEmitEvents": true },
     "retryPolicy": { "mayMutateAttemptState": false, "mayCreateRetryAttempt": false, "maySuggestRetry": true },
     "brainWorkers": { "mayMutateExecutionState": false, "mayEmitDiagnosis": true, "mayProposeAction": true },
     "diagnostics": { "mayMutateExecutionState": false, "mayEmitEvidence": true }
+  },
+  "repositoryMutationAuthority": {
+    "mode": "patch_transaction",
+    "onlyWriter": "patchCoordinator",
+    "workersMayMutateRepositoryDirectly": false,
+    "workersMayProducePatchArtifacts": true,
+    "mutationRequiresPatchArtifact": true,
+    "mutationRequiresWriteSetGuard": true,
+    "mutationRequiresFileHashGuard": true,
+    "mutationRequiresRollbackPlan": true,
+    "mutationRequiresValidationPlan": true
+  },
+  "patchApplyQueue": {
+    "enabledForExecutorTypes": ["patch_transaction"],
+    "applyLanes": 1,
+    "singleWriterDefault": true,
+    "allowParallelApplyWhenWriteSetsDoNotOverlap": false,
+    "parallelApplyRequiresEvidenceGate": true,
+    "overlappingWriteSetPolicy": "handoff_or_serialize",
+    "staleBasePolicy": "reject_or_handoff",
+    "rollbackRequired": true,
+    "validationAfterApplyRequired": true
   },
   "admissionGate": {
     "required": true,
@@ -1429,20 +1928,38 @@ They may not:
     "autoPush": false,
     "scale": {
       "defaultMode": "stable_3",
-      "selectedMode": "stable_3",
+      "selectedMode": "stable_6",
       "modes": {
         "stable_3": {
+          "executorType": "direct",
           "maxParallelWorkspaces": 3,
           "worktreeRequired": false,
-          "integrationQueueRequired": false
+          "integrationQueueRequired": false,
+          "preserveExistingBehavior": true
         },
-        "experimental_6": {
+        "stable_6": {
+          "executorType": "patch_transaction",
+          "maxCodegenWorkers": 6,
+          "patchIsolationRequired": true,
+          "worktreeRequired": false,
+          "patchCoordinatorRequired": true,
+          "repositoryMutationAuthority": "patch_coordinator",
+          "patchApplyLanes": 1,
+          "singleRepositoryWriterRequired": true,
+          "targetedValidationRequired": true,
+          "finalIntegrationValidationRequired": true,
+          "postgresRequired": true,
+          "completionGateRequired": true
+        },
+        "experimental_worktree_6": {
+          "executorType": "worktree",
           "maxParallelWorkspaces": 6,
           "worktreeRequired": true,
           "integrationQueueRequired": true,
           "validationLockRequired": true,
           "archiveRequired": true,
-          "completionGateRequired": true
+          "completionGateRequired": true,
+          "explicitOptInRequired": true
         },
         "scale_8": {
           "maxParallelWorkspaces": 8,
@@ -1466,6 +1983,7 @@ They may not:
     },
     "integrationQueue": {
       "enabled": true,
+      "enabledForExecutorTypes": ["worktree"],
       "processOneMergeAtATime": true,
       "stopOnMergeConflict": true,
       "requireWorkspaceValidationPass": true,
@@ -1481,6 +1999,17 @@ They may not:
         "strategy": "priority_then_fifo",
         "availableStrategies": ["priority_then_fifo", "critical_path_first", "weighted_shortest_job_first"]
       }
+    },
+    "patchApplyQueue": {
+      "enabledForExecutorTypes": ["patch_transaction"],
+      "applyLanes": 1,
+      "singleWriterDefault": true,
+      "allowParallelApplyWhenWriteSetsDoNotOverlap": false,
+      "parallelApplyRequiresEvidenceGate": true,
+      "overlappingWriteSetPolicy": "handoff_or_serialize",
+      "staleBasePolicy": "reject_or_handoff",
+      "rollbackRequired": true,
+      "validationAfterApplyRequired": true
     },
     "validation": {
       "globalValidationLockRequired": true,
@@ -1740,6 +2269,18 @@ They may not:
       "queue_next_plan_while_integration_dirty",
       "scale_mode_approval_stale",
       "worktree_required_for_requested_parallelism",
+      "patch_transaction_disabled_for_stable_6",
+      "patch_coordinator_missing",
+      "repository_mutation_authority_missing",
+      "worker_direct_repo_mutation_detected",
+      "patch_without_base_sha",
+      "patch_without_write_set",
+      "patch_write_set_violation",
+      "patch_forbidden_path_detected",
+      "patch_apply_without_check",
+      "patch_apply_without_rollback",
+      "patch_validation_failure_without_rollback",
+      "patch_apply_lane_count_gt_1_without_evidence_gate",
       "watch_mode_validation",
       "execution_without_dry_run",
       "execution_without_approval",
@@ -1825,25 +2366,25 @@ They may not:
           "key": "worktree_isolation",
           "required": false,
           "met": true,
-          "message": "Required for experimental_6 and scale_8."
+          "message": "Required for experimental_worktree_6 and scale_8."
         },
         {
           "key": "integration_queue",
           "required": false,
           "met": true,
-          "message": "Required for experimental_6 and scale_8."
+          "message": "Required for experimental_worktree_6 and scale_8."
         },
         {
           "key": "validation_lock",
           "required": false,
           "met": true,
-          "message": "Required for experimental_6 and scale_8."
+          "message": "Required for experimental_worktree_6 and scale_8."
         },
         {
           "key": "completion_gate",
           "required": false,
           "met": true,
-          "message": "Required for experimental_6 and scale_8."
+          "message": "Required for experimental_worktree_6 and scale_8."
         }
       ]
     },
@@ -1902,6 +2443,12 @@ They may not:
       "integration_queue_serializes_merges",
       "scale_mode_prerequisites_missing",
       "worktree_isolation_required_for_scale",
+      "patch_transaction_state_stuck",
+      "patch_apply_lane_saturated",
+      "patch_write_set_conflict_detected",
+      "aggregator_workspace_missing_for_shared_file",
+      "patch_artifact_missing",
+      "patch_coordinator_not_responding",
       "queue_optimization_disabled_with_active_priority",
       "queue_priority_mismatch_with_configured_levels",
       "critical_path_workspace_has_low_priority",
@@ -1954,6 +2501,42 @@ They may not:
       "git_lock_timeout_quarantine_record",
       "state_write_serialization_evidence"
     ]
+  },
+  "validationPolicy": {
+    "defaultMode": "deferred",
+    "workspaceCompletionRequiresTargetCommand": false,
+    "planCompletionRequiresFinalValidation": true,
+    "heavyValidationDeferredByDefault": true,
+    "allowWorkspaceImmediateValidation": true,
+    "allowSmokeValidation": true,
+    "watchModeForbidden": true,
+    "finalValidationWorkspaceRequired": true,
+    "finalRepairWorkspaceRecommended": true,
+    "validationArtifactsRequired": true,
+    "liveValidationVisibilityRequired": true
+  },
+  "validationModes": {
+    "deferred": {
+      "workspaceMayCompleteWithoutTargetCommand": true,
+      "planMayCompleteWithoutFinalValidation": false
+    },
+    "immediate": {
+      "workspaceMayCompleteWithoutTargetCommand": false,
+      "targetCommandRequiredBeforeWorkspaceComplete": true
+    },
+    "smoke_only": {
+      "workspaceMayCompleteWithoutHeavyValidation": true,
+      "allowedChecks": ["syntax", "import", "type_shape", "unit_smoke"]
+    },
+    "final_required": {
+      "workspaceRole": "final_validation",
+      "mustPassBeforePlanComplete": true
+    },
+    "final_repair": {
+      "workspaceRole": "final_repair",
+      "consumesFinalValidationFailures": true,
+      "mustProduceRepairReport": true
+    }
   },
   "workspaces": [
     {
@@ -2061,7 +2644,7 @@ They may not:
 
 ### v4 ExecutionKernel Metadata Fields
 
-- **`templateVersion`**: The template family version. For this flagship template, MUST be `"4.0.0"`.
+- **`templateVersion`**: The template family version. For this flagship template, MUST be `"4.1.1"`.
 - **`legacyCompatibility`**: Declares how the v4 plan preserves the v3 envelope. This exists so old parsers can still recognize the plan shape while new validators enforce v4 semantics.
 - **`intent`**: Human-authored desired execution behavior. It contains `parallelism`, `safetyLevel`, `conflictRisk`, `deadlines`, and `executionEnvironment`. Authors SHOULD prefer intent over low-level mechanism flags.
 - **`derivedExecutionProfile`**: System-generated read-only explanation of required mechanisms. It MUST NOT be treated as human-authored authority unless generated by the trusted deriver.
@@ -2075,6 +2658,8 @@ They may not:
 - **`deadlineWatchdog`**: Defines the supervised process that emits deadline events for expired non-terminal attempts.
 - **`handoffQueue`**: Defines durable human/controller handoff workflow for `HANDOFF_REQUIRED` attempts.
 - **`legacyMigration`**: Defines safe migration from old multi-writer runtime paths to ExecutionKernel authority.
+- **`repositoryMutationAuthority`** (v4.1): Defines who is allowed to mutate the repository in patch_transaction mode. `onlyWriter` must be `patchCoordinator`. `workersMayMutateRepositoryDirectly` must be `false`. `workersMayProducePatchArtifacts` must be `true`. All mutations require a PatchArtifact, writeSet guard, fileHash guard, rollback plan, and validation plan.
+- **`patchApplyQueue`** (v4.1): Defines patch apply behavior for patch_transaction executor types. `applyLanes` defaults to `1`. `allowParallelApplyWhenWriteSetsDoNotOverlap` defaults to `false`. `parallelApplyRequiresEvidenceGate` must be `true` when apply lanes > 1. `rollbackRequired` must be `true`. `validationAfterApplyRequired` must be `true`.
 
 ### v4 Intent Fields
 
@@ -2223,12 +2808,14 @@ They may not:
 ### P6 Scale-Aware Execution Fields
 
 - **`planExecution.scale`**: Defines available scale modes and prerequisites.
-- **`selectedMode`**: Requested scale mode for this plan. Must be one of `stable_3`, `experimental_6`, or `scale_8`. For repair plans, the executor does not use scale mode scheduling until promotion permits it.
-- **`stable_3`**: Default safe mode. Maximum 3 workers. Does not require worktree isolation or integration queue, though both may still be enabled. For repair plans, `stable_3` is a promotion target, not a default execution assumption.
-- **`experimental_6`**: Allows up to 6 workers only when worktree isolation, integration queue, validation lock, archive, and completion gate hardening are active. Not used during repair mode; only reachable after promotion gates pass.
-- **`scale_8`**: Allows up to 8 workers only when all `experimental_6` prerequisites pass, dogfood has passed, and explicit approval is present. Not used during repair mode.
+- **`selectedMode`**: Requested scale mode for this plan. Must be one of `stable_3`, `stable_6`, `experimental_worktree_6`, or `scale_8`. For repair plans, the executor does not use scale mode scheduling until promotion permits it.
+- **`stable_3`**: Default safe mode. Uses `executor_type: direct`. Maximum 3 workers. Does not require worktree isolation or integration queue, though both may still be enabled. For repair plans, `stable_3` is a promotion target, not a default execution assumption.
+- **`stable_6`**: Patch transaction mode. Uses `executor_type: patch_transaction` with 6 codegen workers, 1 patch apply lane, and a single PatchCoordinator repository mutation authority. Does not require worktree isolation. Requires `patchIsolationRequired: true`, `patchCoordinatorRequired: true`, `finalIntegrationValidationRequired: true`. 2 patch apply lanes are not enabled by default.
+- **`experimental_worktree_6`**: Legacy worktree-based 6-worker mode. Allows up to 6 workers only when worktree isolation, integration queue, validation lock, archive, and completion gate hardening are active. Requires `explicit_opt_in_required: true`. Replaces the old `experimental_6` mode.
+- **`scale_8`**: Allows up to 8 workers only when all `experimental_worktree_6` prerequisites pass, dogfood has passed, and explicit approval is present. Not used during repair mode.
 - **`planExecution.worktree`**: Defines git worktree isolation behavior, root path, quarantine policy, and cleanup safety requirements.
-- **`planExecution.integrationQueue`**: Defines controlled merge behavior for successful workspace outputs.
+- **`planExecution.integrationQueue`**: Defines controlled merge behavior for successful workspace outputs. Used by worktree-based executor types.
+- **`planExecution.patchApplyQueue`**: Defines patch apply behavior for patch_transaction executor types. Controls apply lanes, writeSet guard, rollback policy, and validation requirements.
 - **`planExecution.integrationQueue.queuePriority`**: Configures queue priority levels. When `enabled`, the queue reorders pending merges by priority before falling back to FIFO within the same priority band. `defaultLevel` sets the priority for workspaces that do not specify an explicit priority. `levels` enumerates valid priority values.
 - **`planExecution.leaseMonitor`**: Defines the continuous lease watchdog behavior (v2.6). `enabled` enables the watchdog. `heartbeatIntervalSeconds` sets how often active leases write heartbeat files (default 15). `staleThresholdSeconds` sets how long without a heartbeat before a lease is considered stale (default 45 = 3x heartbeat interval). `monitorLoopIntervalSeconds` sets the watchdog poll interval (default 30). `stalePolicy` must be `quarantine_and_replace`. `reconciliationPrecedence` defines lease file vs worktree-state precedence: `wasRunning: lease_file`, `whatIsOnDisk: worktree_state`, `onDisagreement: quarantine_and_requeue`.
 - **`planExecution.validationLane`**: Defines validation lane backpressure behavior (v2.6). `maxConcurrentHeavyValidations` (default 1). `maxConcurrentTargetedValidations` (default 3). `backpressureEnabled` enables the scheduler pre-filter. `backpressureStrategy` must be `prefer_targeted_when_heavy_saturated`. `schedulerFeedbackEnabled` enables lane state feedback to the scheduler.
@@ -2332,18 +2919,28 @@ Pi's `doctor` command validates the execution contract against these rules:
 7. All workspace IDs must be unique.
 8. All dependency references must point to existing workspaces.
 9. Dependency graph must be acyclic.
-10. `planExecution.scale.selectedMode` must be one of `stable_3`, `experimental_6`, or `scale_8`.
+10. `planExecution.scale.selectedMode` must be one of `stable_3`, `stable_6`, `experimental_worktree_6`, or `scale_8`.
 11. `maxParallelWorkspaces` must not exceed the maximum allowed by selected scale mode.
 12. If `selectedMode` is `stable_3`, `maxParallelWorkspaces` must be between 1 and 3.
-13. If `selectedMode` is `experimental_6`, `maxParallelWorkspaces` must be between 1 and 6.
+13. If `selectedMode` is `experimental_worktree_6`, `maxParallelWorkspaces` must be between 1 and 6.
 14. If `selectedMode` is `scale_8`, `maxParallelWorkspaces` must be between 1 and 8.
-15. If `maxParallelWorkspaces` is greater than 3, worktree isolation must be enabled and ready.
-16. If `maxParallelWorkspaces` is greater than 3, integration queue must be enabled and ready.
+15. If `maxParallelWorkspaces` is greater than 3 and the executor type is not `patch_transaction`, worktree isolation must be enabled and ready.
+16. If `maxParallelWorkspaces` is greater than 3 and the executor type is not `patch_transaction`, integration queue must be enabled and ready.
 17. If `maxParallelWorkspaces` is greater than 3, global validation lock must be enabled.
-18. If selected mode is `experimental_6`, archive and completion gate hardening must be enabled.
+18. If selected mode is `experimental_worktree_6`, archive and completion gate hardening must be enabled.
 19. If selected mode is `scale_8`, dogfood pass and explicit approval must be present.
-20. If worktree isolation is disabled, `maxParallelWorkspaces` must not exceed 3.
-21. If integration queue is disabled, `experimental_6` and `scale_8` are invalid.
+20. If worktree isolation is disabled and executor type is not `patch_transaction`, `maxParallelWorkspaces` must not exceed 3.
+21. If integration queue is disabled and executor type is not `patch_transaction`, `experimental_worktree_6` and `scale_8` are invalid.
+21a. If selected mode is `stable_6`, `executorType` must be `patch_transaction`.
+21b. If selected mode is `stable_6`, `patchIsolationRequired` must be `true`.
+21c. If selected mode is `stable_6`, `patchCoordinatorRequired` must be `true`.
+21d. If selected mode is `stable_6`, `patchApplyLanes` must be `1`.
+21e. If selected mode is `stable_6`, `singleRepositoryWriterRequired` must be `true`.
+21f. If selected mode is `stable_6`, `finalIntegrationValidationRequired` must be `true`.
+21g. If `patchApplyLanes` > 1, `parallelApplyRequiresEvidenceGate` must be `true`.
+21h. Patch apply without a rollback plan is invalid.
+21i. Patch without a writeSet is invalid.
+21j. Patch writing outside its declared writeSet is a validation violation.
 22. `autoPush` must be false by default.
 23. Forbidden commands and files must include required safety patterns.
 24. No unresolved placeholders may remain.
@@ -2532,8 +3129,8 @@ It may read workspace metadata such as allowed files, conflict scopes, target co
 |---|---|
 | `parallelism = 1` | Worktree optional unless `safetyLevel=strict` or `conflictRisk>=medium`; integration queue optional unless strict; GitRunner queue still required for repo mutations; ExecutionKernel still required. |
 | `parallelism = 2-3` | Worktree required if `conflictRisk>=medium` or strict; integration queue required if worktree required; validation lanes required; GitRunner queue required. |
-| `parallelism = 4-6` | Worktree required; integration queue required; validation lanes required; heavy validation max 1; targeted validation max 3; GitRunner queue required; event journal required; strict admission required. |
-| `parallelism = 7-8` | Requires explicit scale_8 approval, prior stable_6 stress pass, worktree, integration queue, validation lanes, GitRunner queue, event journal, and explicit human approval. |
+| `parallelism = 4-6` | Worktree required (for worktree executor types) OR patch isolation required (for patch_transaction executor types); integration queue required for worktree OR patch apply queue required for patch_transaction; validation lanes required; heavy validation max 1; targeted validation max 3; GitRunner queue required; event journal required; strict admission required. |
+| `parallelism = 7-8` | Requires explicit scale_8 approval, prior stable_6 stress pass, worktree, integration queue, validation lanes, GitRunner queue, event journal, and explicit human approval. Only worktree-based executor types supported for scale_8. |
 
 ## 3.5.3 Safety Level Derivation Table
 
@@ -2541,7 +3138,20 @@ It may read workspace metadata such as allowed files, conflict scopes, target co
 |---|---|
 | `relaxed` | Allowed only for trusted local, low-risk, non-repair execution with parallelism <= 1. ExecutionKernel invariants still apply. |
 | `normal` | Default deadlines, standard admission, PostgreSQL authority, event journal, validation lanes when parallelism/risk requires them. |
-| `strict` | Strict AdmissionGate, event journal required, attempt-scoped artifacts, integration queue for mutations, handoff on ambiguity, JSON fallback forbidden, watchdog required. |
+| `strict` | Strict AdmissionGate, event journal required, attempt-scoped artifacts, integration queue or patch apply queue for mutations, handoff on ambiguity, JSON fallback forbidden, watchdog required. |
+
+## 3.5.3a Patch Transaction Derivation Table
+
+For executor type `patch_transaction`, the following additional derivation rules apply:
+
+| Intent field | Derived behavior |
+|---|---|
+| `executorType = patch_transaction` (from scale mode) | `patchIsolationRequired: true`, `worktreeRequired: false` |
+| `patchIsolationRequired: true` | `patchCoordinatorRequired: true` |
+| `patchCoordinatorRequired: true` | `repositoryMutationAuthority: patch_coordinator` |
+| stable_6 mode | `patchApplyLanes: 1`, `singleRepositoryWriterRequired: true`, `finalIntegrationValidationRequired: true` |
+| Any patch_transaction mode | `PatchArtifact required: baseSha, writeSet, fileHashes, rollbackPlan, validationPlan` |
+| `writeSetConflictRisk: high` | `allowParallelApplyWhenWriteSetsDoNotOverlap: false`, `overlappingWriteSetPolicy: handoff_or_serialize` |
 
 ## 3.5.4 Conflict Risk Derivation Table
 
@@ -2612,6 +3222,23 @@ transition_without_expected_version
 handoff_required_without_queue_item
 ```
 
+### v4.1 Additional Hard Stops (Patch Transaction)
+
+```text
+patch_transaction_disabled_for_stable_6
+patch_coordinator_missing
+repository_mutation_authority_missing
+worker_direct_repo_mutation_detected
+patch_without_base_sha
+patch_without_write_set
+patch_write_set_violation
+patch_forbidden_path_detected
+patch_apply_without_check
+patch_apply_without_rollback
+patch_validation_failure_without_rollback
+patch_apply_lane_count_gt_1_without_evidence_gate
+```
+
 # Part 3.6 — v4 PostgreSQL Runtime Shape
 
 This section is informative but recommended for implementations.
@@ -2638,6 +3265,9 @@ admission_decisions
 brain_proposals
 diagnostic_packets
 artifacts
+patch_artifacts          (v4.1: PatchArtifact contract storage)
+patch_apply_queue       (v4.1: Patch apply queue for patch_transaction mode)
+patch_coordinator_leases (v4.1: PatchCoordinator leadership lease for single-writer enforcement)
 ```
 
 Transaction rule:
@@ -2685,7 +3315,10 @@ For execution-capable coding agents using this template:
   "selectedScaleMode": "stable_3",
   "maxParallelWorkspaces": 1,
   "requiresWorktreeIsolation": false,
+  "requiresPatchIsolation": false,
   "requiresIntegrationQueue": true,
+  "requiresPatchApplyQueue": false,
+  "repositoryMutationAuthority": null,
   "queueOptimizationEnabled": true,
   "queueOptimizationStrategy": "priority_then_fifo",
   "continuousScheduling": false,
@@ -2711,6 +3344,11 @@ For execution-capable coding agents using this template:
     "queue_next_plan_while_integration_dirty",
     "queue_optimization_invalid_strategy",
     "queue_priority_invalid_level",
+    "patch_transaction_disabled_for_stable_6",
+    "patch_coordinator_missing",
+    "repository_mutation_authority_missing",
+    "worker_direct_repo_mutation_detected",
+    "patch_apply_lane_count_gt_1_without_evidence_gate",
     "autonomous_execution_requested_during_repair_mode",
     "promotion_gate_failed_or_missing"
   ],
@@ -2844,7 +3482,7 @@ This example shows why DAG parallelism and safe effective parallelism can differ
 
 ```text
 Requested max workers: 6
-Selected scale mode: experimental_6
+Selected scale mode: experimental_worktree_6
 DAG batch width: 5
 Safe batch width: 3
 Reason: validation lock pressure and overlapping conflict scopes reduce safe parallelism.
@@ -2863,7 +3501,7 @@ Example interpretation:
 {
   "parallelismReview": {
     "requestedMaxParallelWorkspaces": 6,
-    "selectedScaleMode": "experimental_6",
+    "selectedScaleMode": "experimental_worktree_6",
     "dagEffectiveParallelism": 5,
     "safeEffectiveParallelism": 3,
     "scaleModeReadiness": {
@@ -2932,7 +3570,139 @@ Do not treat `dagEffectiveParallelism` as permission to run that many workers. T
 
 ---
 
+
+### v4.1.1 Validation Workspace Examples
+
+Implementation workspace:
+
+```json
+{
+  "id": "P37.03",
+  "title": "PatchCoordinator, Guards, and Rollback Core",
+  "validationPolicy": {
+    "mode": "deferred",
+    "requiredBeforeWorkspaceComplete": false,
+    "requiredBeforePlanComplete": true,
+    "finalValidationWorkspace": "P37.09",
+    "allowSmokeChecks": true,
+    "heavyValidationDeferred": true
+  },
+  "targetCommand": null
+}
+```
+
+Final validation workspace:
+
+```json
+{
+  "id": "P37.09",
+  "title": "Final Validation and Patch Coordinator Targeted Tests",
+  "role": "final_validation",
+  "validationPolicy": {
+    "mode": "final_required",
+    "requiredBeforeWorkspaceComplete": true,
+    "requiredBeforePlanComplete": true,
+    "runsFinalValidation": true
+  },
+  "targetCommand": "npm --prefix packages/coding-agent run test:patch-coordinator",
+  "validationRequirement": {
+    "kind": "targeted_test",
+    "testFile": "packages/coding-agent/test/execution/patch-coordinator.test.ts",
+    "mustPass": true,
+    "preferredCommand": "npm --prefix packages/coding-agent run test:patch-coordinator",
+    "acceptedEquivalentCommands": [
+      "npm test -- packages/coding-agent/test/execution/patch-coordinator.test.ts",
+      "npm --prefix packages/coding-agent run test:patch-coordinator",
+      "npx vitest run packages/coding-agent/test/execution/patch-coordinator.test.ts --maxWorkers=1"
+    ],
+    "memoryProfile": "low_memory",
+    "watchModeForbidden": true,
+    "noTestsFoundIsFailure": true
+  }
+}
+```
+
+Final repair workspace:
+
+```json
+{
+  "id": "P37.10",
+  "title": "Final Repair from Validation Failures",
+  "role": "final_repair",
+  "validationPolicy": {
+    "mode": "final_repair",
+    "consumesFinalValidationFailures": true,
+    "requiredBeforePlanComplete": true,
+    "mustProduceRepairReport": true
+  },
+  "dependsOn": ["P37.09"],
+  "goal": "Inspect final validation failures, fix localized defects, rerun targeted validation or create handoff_required."
+}
+```
+
+### v4.1.1 Additional Hard Stops
+
+final_validation_missing_when_workspace_validation_deferred
+plan_completion_without_required_final_validation
+deferred_validation_used_without_validation_artifacts
+final_validation_failed
+final_repair_missing_after_failed_final_validation
+validation_equivalence_declared_without_requirement
+accepted_equivalent_command_is_watch_mode
+equivalent_validation_command_failed
+target_command_blocked_without_equivalence_or_deferred_policy
+immediate_validation_workspace_missing_target_command
+workspace_heavy_validation_required_but_deferred
+validation_policy_unknown
+validation_requirement_unsatisfied
+validation_no_tests_found_but_exit_zero
+command_history_missing_for_required_validation
+completion_gate_not_wired_to_command_execution
+
+### v4.1.1 Doctor Warnings
+
+too_many_per_workspace_heavy_validations
+workspace_has_heavy_target_command_but_validation_policy_deferred_default
+final_validation_workspace_missing
+final_repair_workspace_missing_for_large_plan
+target_command_has_no_validation_requirement
+accepted_equivalent_command_missing_for_memory_constrained_test
+final_validation_too_late_for_high_risk_workspace
+validation_visibility_missing
+dashboard_does_not_surface_completion_gate_block_reasons
+
 ## Template Changelog
+
+
+### v4.1.1 (2026-05-30)
+
+- Deferred validation is the default for implementation workspaces.
+- Heavy tests move to final validation workspace(s), not every workspace.
+- Final validation is required before plan completion.
+- Added final repair workspace convention.
+- Added validationRequirement and acceptedEquivalentCommands semantics.
+- Targeted tests with `No test files found` fail even with exit code 0.
+- Dashboard validation visibility is required for CompletionGate blocks and artifacts.
+- stable_3 remains unchanged and stable_6 patch_transaction semantics are preserved.
+
+### v4.1.0 (2026-05-30)
+
+- **Patch Transaction stable_6**: stable_6 now uses `executor_type: patch_transaction` instead of worktree isolation.
+- **stable_6 no longer requires worktree isolation**: stable_6 uses `patchIsolationRequired: true`, `worktreeRequired: false`.
+- **Added experimental_worktree_6**: New explicit opt-in mode replacing `experimental_6` for legacy worktree-based 6-worker execution. Old `experimental_6` references are normalized to `experimental_worktree_6`.
+- **Added `repositoryMutationAuthority`**: Defines PatchCoordinator as the only component allowed to mutate the repository in patch_transaction mode.
+- **Added `patchApplyQueue`**: New queue type for patch_transaction, separate from `integrationQueue` which remains for worktree modes. Defaults to 1 apply lane.
+- **Added PatchArtifact contract**: Mandatory contract for all patches in patch_transaction mode with baseSha, writeSet, fileHashes, rollback plan, and validation plan requirements.
+- **Added patch transaction lifecycle states**: `queued`, `codegen_running`, `patch_proposed`, `patch_checking`, `patch_applying`, `validating`, `accepted`, `rejected`, `rolled_back`, `handoff_required`, `timed_out`, `failed_retryable`, `failed_final`.
+- **Added aggregator workspace convention**: Shared fan-in files (route registries, barrel exports, global config) must be handled by aggregator workspaces to prevent false conflicts.
+- **Updated `actorPermissions`**: Added `mayMutateRepository`, `mayProducePatchArtifact`, `mustUsePatchArtifact`, `mustUseWriteSetGuard`, `mustUseFileHashGuard`, `mustUseRollback` fields.
+- **Updated execution policies YAML**: Added `stable_6` and `experimental_worktree_6` scale modes; integration queue scoped to worktree executor types; patch_apply_queue added.
+- **Updated validation rules**: Rules 10, 13, 15-21 updated for patch_transaction; rules 21a-21j added for stable_6 validation.
+- **Updated hard stops**: Added `patch_transaction_disabled_for_stable_6`, `patch_coordinator_missing`, `repository_mutation_authority_missing`, `worker_direct_repo_mutation_detected`, `patch_without_base_sha`, `patch_without_write_set`, `patch_write_set_violation`, `patch_forbidden_path_detected`, `patch_apply_without_check`, `patch_apply_without_rollback`, `patch_validation_failure_without_rollback`, `patch_apply_lane_count_gt_1_without_evidence_gate`.
+- **Updated doctor warnings**: Added `patch_transaction_state_stuck`, `patch_apply_lane_saturated`, `patch_write_set_conflict_detected`, `aggregator_workspace_missing_for_shared_file`, `patch_artifact_missing`, `patch_coordinator_not_responding`.
+- **Added v4.1 derivation matrix entries**: New patch_transaction derivation table entries for isolation, coordinator, and apply queue.
+- **contractVersion** updated to `4.1.0`.
+- **templateVersion** updated to `4.1.0`.
 
 ### v3.0.0 (2026-05-25)
 

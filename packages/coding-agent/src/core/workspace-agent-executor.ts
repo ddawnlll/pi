@@ -31,6 +31,20 @@ function parsePositiveTimeoutEnv(name: string, fallbackMs: number): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
 }
 
+function formatLiveLogPreview(value: unknown, maxLength = 1200): string {
+	let text: string;
+	if (typeof value === "string") {
+		text = value;
+	} else {
+		try {
+			text = JSON.stringify(value, null, 2);
+		} catch {
+			text = String(value);
+		}
+	}
+	return text.length > maxLength ? `${text.slice(0, maxLength)}… [truncated ${text.length - maxLength} chars]` : text;
+}
+
 /**
  * Agent execution result
  */
@@ -89,6 +103,22 @@ export interface WorkspaceAgentExecutorConfig {
 	 * Passed through to WorktreeWorkspaceExecutor when executing in worktree mode.
 	 */
 	onWorktreeEvent?: (event: { type: string; data?: Record<string, unknown> }) => void;
+	/**
+	 * P37.RCA: Callback fired when the agent executes a command through the
+	 * bash tool. The completion gate uses this to record command history
+	 * and determine whether the targetCommand was satisfied.
+	 */
+	onCommandExecuted?: (event: WorkspaceCommandExecutionEvent) => void;
+}
+
+export interface WorkspaceCommandExecutionEvent {
+	command: string;
+	cwd: string;
+	startedAt: number;
+	finishedAt: number;
+	exitCode: number | null;
+	outputSummary?: string;
+	outputArtifactPath?: string;
 }
 
 /**
@@ -151,6 +181,7 @@ export class WorkspaceAgentExecutor {
 	private consecutiveProviderFailures = 0;
 	private readonly MAX_CONSECUTIVE_PROVIDER_FAILURES = 3;
 	private onWorktreeEvent?: (event: { type: string; data?: Record<string, unknown> }) => void;
+	private onCommandExecuted?: (event: WorkspaceCommandExecutionEvent) => void;
 	/** Last effective workspace root used by a completed execution. */
 	private lastEffectiveWorkspaceRoot: string | null = null;
 
@@ -191,6 +222,7 @@ export class WorkspaceAgentExecutor {
 			config.firstAgentEventTimeoutMs ?? parsePositiveTimeoutEnv("PI_FIRST_AGENT_EVENT_TIMEOUT_MS", 30 * 1000);
 		this.actorEventSink = config.actorEventSink;
 		this.onWorktreeEvent = config.onWorktreeEvent;
+		this.onCommandExecuted = config.onCommandExecuted;
 
 		// Use provided model or try to get from settings, then fall back to available models
 		if (config.model) {
@@ -650,7 +682,7 @@ export class WorkspaceAgentExecutor {
 
 			// Track last event timestamp for LLM idle timeout
 			let _agentCompleted = false;
-			const pendingToolCalls = new Map<string, { toolName: string; args: any }>();
+			const pendingToolCalls = new Map<string, { toolName: string; args: unknown; startedAt: number }>();
 			let agentTurnCount = 0;
 
 			// Helper: emit worker_status via state store and log
@@ -721,6 +753,27 @@ export class WorkspaceAgentExecutor {
 				ctx.firstEventHandle.unref();
 			};
 
+			const flushThinkingBuffer = (force = false) => {
+				const maxChunkLength = 320;
+				let newlineIdx = thinkingBuffer.lastIndexOf("\n");
+				while (newlineIdx >= 0) {
+					const completeLines = thinkingBuffer.slice(0, newlineIdx);
+					for (const line of completeLines.split("\n")) {
+						if (line.length > 0) {
+							void log(`[assistant] ${line}`);
+						}
+					}
+					thinkingBuffer = thinkingBuffer.slice(newlineIdx + 1);
+					newlineIdx = thinkingBuffer.lastIndexOf("\n");
+				}
+
+				while (thinkingBuffer.length >= maxChunkLength || (force && thinkingBuffer.length > 0)) {
+					const chunk = force ? thinkingBuffer : thinkingBuffer.slice(0, maxChunkLength);
+					void log(`[assistant] ${chunk}`);
+					thinkingBuffer = force ? "" : thinkingBuffer.slice(maxChunkLength);
+				}
+			};
+
 			// LLM stream idle watchdog: reset on every agent event
 			const resetIdleWatchdog = () => {
 				ctx.lastLLMEventTime = Date.now();
@@ -777,38 +830,21 @@ export class WorkspaceAgentExecutor {
 					if (event.type === "message_start" && event.message.role === "assistant") {
 						emitStatus("thinking", "Assistant message started");
 					} else if (event.type === "message_update") {
-						// Buffer text deltas until newline, then emit complete lines.
-						// Each delta is often a single character; logging each one individually
-						// would flood the log viewer with one-line-per-character garbage.
+						// Mirror assistant text deltas into the raw Pi CLI stream. This is
+						// intentionally separate from the sanitized transcript: the web UI's
+						// Pi CLI tab should show what the agent is actively writing, not only
+						// turn/status summaries. Deltas are chunked to avoid one log row per
+						// character while still updating during long paragraphs with no newline.
 						if (
 							event.assistantMessageEvent &&
 							event.assistantMessageEvent.type === "text_delta" &&
 							event.assistantMessageEvent.delta
 						) {
-							const delta = event.assistantMessageEvent.delta;
-							thinkingBuffer += delta;
-
-							// Flush complete lines (split on \n, keep remainder)
-							const newlineIdx = thinkingBuffer.lastIndexOf("\n");
-							if (newlineIdx >= 0) {
-								const completeLines = thinkingBuffer.slice(0, newlineIdx);
-								for (const line of completeLines.split("\n")) {
-									if (line.length <= 120) {
-										log(`[thinking] ${line}`);
-									}
-								}
-								thinkingBuffer = thinkingBuffer.slice(newlineIdx + 1);
-							}
+							thinkingBuffer += event.assistantMessageEvent.delta;
+							flushThinkingBuffer(false);
 						}
 					} else if (event.type === "message_end" && event.message.role === "assistant") {
-						// Flush remaining thinking buffer
-						if (thinkingBuffer) {
-							const remainder = thinkingBuffer.trim();
-							if (remainder && remainder.length <= 120) {
-								log(`[thinking] ${remainder}`);
-							}
-							thinkingBuffer = "";
-						}
+						flushThinkingBuffer(true);
 
 						// Capture cache usage from assistant message for cache hit rate computation
 						const assistantMsg = event.message as unknown as AssistantMessage;
@@ -841,7 +877,9 @@ export class WorkspaceAgentExecutor {
 						pendingToolCalls.set(event.toolCallId, {
 							toolName: event.toolName,
 							args: event.args,
+							startedAt: Date.now(),
 						});
+						void log(`[tool:start] ${event.toolName} ${formatLiveLogPreview(event.args)}`);
 						void this.actorEventSink?.emit({
 							type: "tool_event",
 							timestamp: Date.now(),
@@ -857,9 +895,49 @@ export class WorkspaceAgentExecutor {
 						const pending = pendingToolCalls.get(event.toolCallId);
 						if (pending) {
 							const resultPreview = event.isError
-								? `error: ${typeof event.result === "object" && event.result !== null ? JSON.stringify(event.result).slice(0, 100) : String(event.result).slice(0, 100)}`
+								? `error: ${formatLiveLogPreview(event.result, 1200)}`
 								: "success";
-							emitStatus("deciding", `Tool ${pending.toolName}: ${resultPreview}`);
+							void log(`[tool:end] ${pending.toolName} ${resultPreview}`);
+							emitStatus("deciding", `Tool ${pending.toolName}: ${resultPreview.slice(0, 120)}`);
+
+							// P37.RCA: Record bash commands for completion gate validation.
+							// When a bash command completes, notify the completion gate so
+							// the workspace can pass its targetCommand check on the next
+							// completion evaluation.
+							if (pending.toolName === "bash") {
+								const args = pending.args as { command?: unknown };
+								if (typeof args.command === "string") {
+									const result = event.result as
+										| {
+												content?: Array<{ text?: string }>;
+												details?: { fullOutputPath?: string; exitCode?: number | null };
+										  }
+										| string
+										| undefined;
+									const resultText =
+										typeof result === "string"
+											? result
+											: (result?.content?.map((part) => part.text ?? "").join("\n") ?? "");
+									const exitMatch = resultText.match(/Command exited with code (\d+)/);
+									const parsedExitCode = event.isError
+										? exitMatch
+											? Number(exitMatch[1])
+											: 1
+										: typeof result === "object" && result?.details?.exitCode !== undefined
+											? result.details.exitCode
+											: 0;
+									this.onCommandExecuted?.({
+										command: args.command,
+										cwd: this.workspaceRoot,
+										startedAt: pending.startedAt,
+										finishedAt: Date.now(),
+										exitCode: parsedExitCode,
+										outputSummary: resultText.slice(-2000),
+										outputArtifactPath:
+											typeof result === "object" ? result?.details?.fullOutputPath : undefined,
+									});
+								}
+							}
 
 							// Persist tool call to journal
 							if (this.stateStore && this.planExecutionId) {
@@ -1333,6 +1411,7 @@ export class WorkspaceAgentExecutor {
 				stateStore: this.stateStore,
 				planExecutionId: this.planExecutionId,
 				timeoutMs: this.timeoutMs,
+				onCommandExecuted: this.onCommandExecuted,
 				// Worktree mode enabled. The executor will enter execute(),
 				// but _skipWorktreeCheck will make it bypass the worktree check
 				// and go directly to executeAgentInPlace().

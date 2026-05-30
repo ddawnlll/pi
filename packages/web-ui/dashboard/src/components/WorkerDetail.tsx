@@ -9,7 +9,7 @@ import { WorkerP6LifecycleTab } from "./WorkerP6LifecycleTab";
 import { EditStrategyWarnings, type EditStrategyWarningData } from "./EditStrategyWarnings";
 import { ThinkingAnimation, LiveWritingText } from "./ThinkingAnimation";
 
-type TabId = "overview" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript" | "p6-lifecycle";
+type TabId = "overview" | "pi-cli" | "tokens" | "performance" | "git" | "commands" | "logs" | "transcript" | "p6-lifecycle";
 
 interface WorkerDetailProps {
   worker: WorkerInfo;
@@ -19,6 +19,7 @@ interface WorkerDetailProps {
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "pi-cli", label: "Pi CLI" },
   { id: "tokens", label: "Tokens" },
   { id: "performance", label: "Performance" },
   { id: "git", label: "Git" },
@@ -95,6 +96,15 @@ export function WorkerDetail({ worker, planExecId, workspace }: WorkerDetailProp
             logContainerRef={logContainerRef} planExecId={planExecId}
             attempts={attempts} attemptsLoading={attemptsLoading}
             transcriptEvents={transcriptEvents} />
+        )}
+        {activeTab === "pi-cli" && (
+          <PiCliTab
+            lines={lines}
+            isConnected={isConnected}
+            isReconnecting={isReconnecting}
+            logError={logError}
+            workerId={worker.id}
+          />
         )}
         {activeTab === "tokens" && <TokensTab workspace={workspace} />}
         {activeTab === "performance" && <PerformanceTab workspace={workspace} planExecId={planExecId} workerId={worker.id} />}
@@ -224,6 +234,75 @@ function OverviewTab({ worker, workspace, lines, isConnected, isReconnecting, lo
           {lines.length === 0 && <div className="text-stone-400 dark:text-stone-500 italic">No logs yet...</div>}
           {lines.map((line, i) => <div key={i} className="whitespace-pre-wrap break-words">{line}</div>)}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Pi CLI Tab ────────────────────────────────────────────────────────────────
+
+function PiCliTab({ lines, isConnected, isReconnecting, logError, workerId }: {
+  lines: string[];
+  isConnected: boolean;
+  isReconnecting: boolean;
+  logError: string | null;
+  workerId: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  useEffect(() => {
+    if (autoScroll && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [lines.length, autoScroll]);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 48;
+    if (nearBottom && !autoScroll) {
+      setAutoScroll(true);
+    } else if (!nearBottom && autoScroll) {
+      setAutoScroll(false);
+    }
+  }, [autoScroll]);
+
+  return (
+    <div className="flex flex-col gap-3 pt-3 h-full min-h-0">
+      <div className="shrink-0 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-stone-700 dark:text-stone-300">Raw Pi CLI Mirror</h3>
+          <p className="text-[10px] text-stone-400 dark:text-stone-500">
+            Exact workspace agent log stream for {workerId}. This view is not the summarized transcript.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs shrink-0">
+          {isConnected && <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-pulse" />live</span>}
+          {isReconnecting && <span className="text-amber-600 dark:text-amber-400">reconnecting</span>}
+          {logError && !isReconnecting && <span className="text-red-500 dark:text-red-400">{logError}</span>}
+          <button
+            onClick={() => setAutoScroll((v) => !v)}
+            className={`px-2 py-1 rounded text-[10px] font-medium ${autoScroll ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "bg-stone-100 dark:bg-[#333] text-stone-600 dark:text-stone-400"}`}
+          >
+            {autoScroll ? "Auto-scroll" : "Paused"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-[360px] overflow-y-auto rounded border border-[#333] bg-[#050505] p-3 font-mono text-[11px] leading-relaxed text-[#D6D3D1] shadow-inner"
+      >
+        {lines.length === 0 && (
+          <div className="text-stone-500 italic">Waiting for raw Pi CLI output...</div>
+        )}
+        {lines.map((line, i) => (
+          <div key={`${i}-${line.slice(0, 24)}`} className="whitespace-pre-wrap break-words">
+            {line}
+          </div>
+        ))}
       </div>
     </div>
   );

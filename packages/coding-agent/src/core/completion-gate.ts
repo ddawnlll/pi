@@ -26,8 +26,46 @@ import type { Workspace } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum number of command history entries to keep per workspace.
+ * P37.HOTFIX: bounded history prevents unbounded memory growth.
+ */
+const MAX_COMMAND_HISTORY = 20;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/**
+ * A single recorded command in the bounded command history.
+ * P37.HOTFIX: used by equivalent validation to track which commands
+ * were run and their outcomes.
+ */
+export interface CommandHistoryEntry {
+	planExecId?: string;
+	workspaceId?: string;
+	/** The command string that was executed */
+	command: string;
+	cwd?: string;
+	/** Exit code (null if still running or unknown) */
+	exitCode: number | null;
+	/** When the command started (epoch ms) */
+	startedAt?: number;
+	/** When the command finished (epoch ms) */
+	finishedAt?: number;
+	outputSummary?: string;
+	outputArtifactPath?: string;
+	/** Whether this was explicitly marked as the workspace's targetCommand */
+	isTargetCommand?: boolean;
+	matchedValidationRequirement?: boolean;
+	matchedAcceptedEquivalentCommand?: string;
+	noTestsFoundDetected?: boolean;
+	/** Whether this command satisfied an equivalent validation requirement */
+	equivalentValidationSatisfied?: boolean;
+}
 
 /**
  * Events/signals tracked per workspace for completion gate evaluation.
@@ -57,6 +95,12 @@ export interface WorkspaceValidationState {
 	validationCommandRunning: boolean;
 	/** Most recent command exit code (null if no command run or still running) */
 	lastCommandExitCode: number | null;
+	/**
+	 * Bounded command history (last MAX_COMMAND_HISTORY commands).
+	 * P37.HOTFIX: used by equivalent validation to determine whether
+	 * an equivalent command satisfied the validation requirement.
+	 */
+	commandHistory: CommandHistoryEntry[];
 }
 
 /**
@@ -140,11 +184,108 @@ export function isErrorSignal(signal: FailureSignal): boolean {
 }
 
 /**
+ * Check whether equivalent validation has been satisfied via command history.
+ *
+ * P37.HOTFIX: The completion gate no longer requires an exact targetCommand
+ * string match. If a command in the history satisfies the validation
+ * requirement through equivalence, this returns true.
+ *
+ * Rules:
+ * - If targetCommandPassed === true, return true (exact match).
+ * - If workspace has acceptedEquivalentCommands and any of them appear in
+ *   command history with exitCode 0, return true.
+ * - If workspace has validationRequirement.testFile and any command in
+ *   history contains that testFile reference and exited 0, return true.
+ * - Watch-mode commands are always rejected even if they match a pattern.
+ * - Non-zero exit codes always fail.
+ *
+ * @param validationState - Current validation state
+ * @param workspace - Workspace definition (for equivalence fields)
+ * @returns True if equivalent validation is satisfied
+ */
+export function isEquivalentValidationSatisfied(
+	validationState: WorkspaceValidationState,
+	workspace: Workspace,
+): boolean {
+	// Exact target command passed
+	if (validationState.targetCommandPassed === true) {
+		return true;
+	}
+
+	// No targetCommand and no equivalence fields -> nothing to check
+	if (!workspace.targetCommand && !workspace.validationRequirement && !workspace.acceptedEquivalentCommands) {
+		return true; // No validation needed
+	}
+
+	// No command history at all -> cannot determine equivalence
+	if (validationState.commandHistory.length === 0) {
+		return false;
+	}
+
+	// Collect all acceptable equivalent commands
+	const acceptedCommands = new Set<string>();
+
+	// From workspace-level acceptedEquivalentCommands
+	if (workspace.acceptedEquivalentCommands) {
+		for (const cmd of workspace.acceptedEquivalentCommands) {
+			acceptedCommands.add(cmd);
+		}
+	}
+
+	// From validationRequirement.acceptedEquivalentCommands
+	if (workspace.validationRequirement?.acceptedEquivalentCommands) {
+		for (const cmd of workspace.validationRequirement.acceptedEquivalentCommands) {
+			acceptedCommands.add(cmd);
+		}
+	}
+
+	// Include targetCommand itself as accepted
+	if (workspace.targetCommand) {
+		acceptedCommands.add(workspace.targetCommand);
+	}
+
+	// The test file from validationRequirement
+	const testFile = workspace.validationRequirement?.testFile;
+
+	// Scan command history for accepted equivalents
+	for (const entry of validationState.commandHistory) {
+		// Watch-mode commands are always rejected
+		if (isWatchModeCommand(entry.command)) {
+			continue;
+		}
+
+		// P37.RCA: Direct equivalent validation satisfied flag set by
+		// AutonomousExecutor.recordWorkspaceCommand. Covers test file
+		// heuristic matching and other fallback equivalence checks.
+		if (entry.equivalentValidationSatisfied) {
+			return true;
+		}
+
+		// Non-zero exit codes and targeted test no-match output are rejections.
+		if (entry.exitCode !== 0 || entry.noTestsFoundDetected) {
+			continue;
+		}
+
+		// Check if command is in the accepted set
+		if (acceptedCommands.has(entry.command)) {
+			return true;
+		}
+
+		// Check if command contains the test file reference
+		if (testFile && entry.command.includes(testFile)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
  * Evaluate whether a workspace can be marked complete.
  *
  * A workspace can be marked complete ONLY if ALL are true:
  * - implementation finished
- * - targetCommand, if defined, exited with code 0
+ * - targetCommand, if defined, exited with code 0 (or equivalent satisfied)
  * - no unresolved test failure exists for that workspace
  * - no unresolved error event exists for that workspace
  * - no "out of retries" event exists for that workspace
@@ -166,14 +307,32 @@ export function evaluateWorkspaceCompletion(
 		blockReasons.push("Implementation not finished");
 	}
 
+	const validationPolicy = workspace.validationPolicy;
+	const deferredMode = validationPolicy?.mode === "deferred";
+	const workspaceValidationNotRequired = deferredMode && validationPolicy?.requiredBeforeWorkspaceComplete === false;
+
 	// 2. Target command, if defined, must have exited with code 0
-	if (workspace.targetCommand) {
+	//    or satisfied via equivalent validation (P37.HOTFIX)
+	if (workspace.targetCommand && !workspaceValidationNotRequired) {
 		if (validationState.targetCommandRunning) {
 			blockReasons.push(`Target command still running: ${workspace.targetCommand}`);
 		} else if (validationState.targetCommandPassed === null) {
-			blockReasons.push(`Target command has not been executed: ${workspace.targetCommand}`);
+			// Check if equivalent validation is satisfied before blocking
+			if (!isEquivalentValidationSatisfied(validationState, workspace)) {
+				blockReasons.push(`Target command has not been executed: ${workspace.targetCommand}`);
+			}
 		} else if (!validationState.targetCommandPassed) {
 			blockReasons.push(`Target command did not exit with code 0: ${workspace.targetCommand}`);
+		}
+	}
+
+	if (workspace.validationRequirement?.kind === "targeted_test") {
+		const hasNoTestsFound = validationState.commandHistory.some((entry) => entry.noTestsFoundDetected);
+		if (hasNoTestsFound) {
+			blockReasons.push("Targeted validation matched no tests (No test files found)");
+		}
+		if (!workspaceValidationNotRequired && !isEquivalentValidationSatisfied(validationState, workspace)) {
+			blockReasons.push("Validation requirement unsatisfied: targeted_test");
 		}
 	}
 
@@ -274,6 +433,7 @@ export function createWorkspaceValidationState(planExecId: string, workspaceId: 
 		watchModeCommand: null,
 		validationCommandRunning: false,
 		lastCommandExitCode: null,
+		commandHistory: [],
 	};
 }
 
@@ -313,9 +473,29 @@ export function mergeFailureSignals(
 }
 
 /**
+ * Append an entry to the bounded command history.
+ * Keeps at most MAX_COMMAND_HISTORY entries, dropping the oldest first.
+ *
+ * @param history - Current command history
+ * @param entry - Entry to append
+ * @returns Updated command history (bounded)
+ */
+export function appendCommandHistory(
+	history: CommandHistoryEntry[],
+	entry: CommandHistoryEntry,
+): CommandHistoryEntry[] {
+	const updated = [...history, entry];
+	if (updated.length > MAX_COMMAND_HISTORY) {
+		return updated.slice(updated.length - MAX_COMMAND_HISTORY);
+	}
+	return updated;
+}
+
+/**
  * Record a command being used as validation, checking for watch-mode.
  *
  * If the command is a watch-mode command, marks the validation state accordingly.
+ * Adds the command to the bounded command history.
  *
  * @param state - Current validation state
  * @param command - The command being run
@@ -344,20 +524,33 @@ export function recordValidationCommand(
 		update.watchModeCommand = command;
 	}
 
+	// Record in command history
+	const historyEntry: CommandHistoryEntry = {
+		command,
+		exitCode: null,
+		startedAt: Date.now(),
+	};
+
 	return {
 		...state,
 		...update,
+		commandHistory: appendCommandHistory(state.commandHistory, historyEntry),
 	};
 }
 
 /**
  * Record command completion in validation state.
  *
+ * Updates the last unmatched command entry in history (one with exitCode null)
+ * or appends a new one with the exit code. If isTargetCommand, updates
+ * targetCommandPassed accordingly.
+ *
  * @param state - Current validation state
  * @param exitCode - Exit code of the command
  * @param isTargetCommand - Whether this was the workspace's targetCommand
  * @param planExecId - The planExecId to scope by
  * @param workspaceId - The workspaceId to scope by
+ * @param command - Optional command string that completed (P37.HOTFIX)
  * @returns Updated validation state
  */
 export function recordCommandCompletion(
@@ -366,6 +559,7 @@ export function recordCommandCompletion(
 	isTargetCommand: boolean,
 	planExecId: string,
 	workspaceId: string,
+	command?: string,
 ): WorkspaceValidationState {
 	// Isolation: only update for matching context
 	if (state.planExecId !== planExecId || state.workspaceId !== workspaceId) {
@@ -382,9 +576,47 @@ export function recordCommandCompletion(
 		update.targetCommandPassed = exitCode === 0;
 	}
 
+	// Update command history: find the last entry with null exitCode and update it
+	let history = state.commandHistory;
+	if (command) {
+		// Check if the last entry has the same command name and null exitCode
+		const lastIdx = history.length - 1;
+		if (lastIdx >= 0 && history[lastIdx].command === command && history[lastIdx].exitCode === null) {
+			// Update the existing entry
+			const updatedHistory = [...history];
+			updatedHistory[lastIdx] = {
+				...updatedHistory[lastIdx],
+				exitCode,
+				finishedAt: Date.now(),
+				isTargetCommand: isTargetCommand || updatedHistory[lastIdx].isTargetCommand,
+			};
+			history = updatedHistory;
+		} else {
+			// Append a new completion entry
+			history = appendCommandHistory(history, {
+				command,
+				exitCode,
+				finishedAt: Date.now(),
+				isTargetCommand,
+			});
+		}
+	} else if (isTargetCommand && history.length > 0) {
+		// No command string but isTargetCommand: update the last entry
+		const lastIdx = history.length - 1;
+		const updatedHistory = [...history];
+		updatedHistory[lastIdx] = {
+			...updatedHistory[lastIdx],
+			exitCode,
+			finishedAt: Date.now(),
+			isTargetCommand: true,
+		};
+		history = updatedHistory;
+	}
+
 	return {
 		...state,
 		...update,
+		commandHistory: history,
 	};
 }
 
@@ -806,10 +1038,33 @@ export class CompletionGateRegistry {
 	 * @param workspaceId - Workspace ID
 	 * @param exitCode - Exit code
 	 * @param isTargetCommand - Whether this was the target command
+	 * @param command - Optional command string that completed (P37.HOTFIX)
 	 */
-	recordCompletion(planExecId: string, workspaceId: string, exitCode: number, isTargetCommand: boolean): void {
+	recordCompletion(
+		planExecId: string,
+		workspaceId: string,
+		exitCode: number,
+		isTargetCommand: boolean,
+		command?: string,
+		metadata?: Partial<CommandHistoryEntry>,
+	): void {
 		const state = this.getOrCreate(planExecId, workspaceId);
-		const updated = recordCommandCompletion(state, exitCode, isTargetCommand, planExecId, workspaceId);
+		let updated = recordCommandCompletion(state, exitCode, isTargetCommand, planExecId, workspaceId, command);
+		if (command && metadata) {
+			const history = [...updated.commandHistory];
+			let idx = -1;
+			for (let i = history.length - 1; i >= 0; i--) {
+				const entry = history[i];
+				if (entry.command === command && entry.exitCode === exitCode) {
+					idx = i;
+					break;
+				}
+			}
+			if (idx >= 0) {
+				history[idx] = { ...history[idx], ...metadata, planExecId, workspaceId };
+				updated = { ...updated, commandHistory: history };
+			}
+		}
 		this.set(planExecId, workspaceId, updated);
 	}
 
@@ -825,14 +1080,63 @@ export class CompletionGateRegistry {
 	}
 
 	/**
-	 * Mark target command as started.
+	 * Mark target command as started, recording the command string.
 	 *
 	 * @param planExecId - Plan execution ID
 	 * @param workspaceId - Workspace ID
+	 * @param command - Optional command string being started (P37.HOTFIX)
 	 */
-	markTargetCommandStarted(planExecId: string, workspaceId: string): void {
+	markTargetCommandStarted(planExecId: string, workspaceId: string, command?: string): void {
 		const state = this.getOrCreate(planExecId, workspaceId);
-		this.set(planExecId, workspaceId, { ...state, targetCommandRunning: true });
+		const update: Partial<WorkspaceValidationState> = {
+			targetCommandRunning: true,
+		};
+		let history = state.commandHistory;
+		if (command) {
+			const entry: CommandHistoryEntry = {
+				command,
+				exitCode: null,
+				startedAt: Date.now(),
+				isTargetCommand: true,
+			};
+			history = appendCommandHistory(history, entry);
+		}
+		this.set(planExecId, workspaceId, { ...state, ...update, commandHistory: history });
+	}
+
+	/**
+	 * Record an equivalent validation command directly into state.
+	 * P37.HOTFIX: Allows the executor to record that a low-memory equivalent
+	 * command passed validation without requiring exact targetCommand match.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param command - The command that was run
+	 * @param exitCode - Exit code (must be 0 to satisfy)
+	 */
+	recordEquivalentCommand(planExecId: string, workspaceId: string, command: string, exitCode: number): void {
+		const state = this.getOrCreate(planExecId, workspaceId);
+		const entry: CommandHistoryEntry = {
+			command,
+			exitCode,
+			finishedAt: Date.now(),
+			isTargetCommand: false,
+			equivalentValidationSatisfied: exitCode === 0,
+		};
+		this.set(planExecId, workspaceId, {
+			...state,
+			commandHistory: appendCommandHistory(state.commandHistory, entry),
+		});
+	}
+
+	/**
+	 * Check if equivalent validation is satisfied for a workspace.
+	 * Convenience wrapper around isEquivalentValidationSatisfied.
+	 * P37.HOTFIX
+	 */
+	isEquivalentSatisfied(planExecId: string, workspaceId: string, workspace: Workspace): boolean {
+		const state = this.getOrCreate(planExecId, workspaceId);
+		return isEquivalentValidationSatisfied(state, workspace);
 	}
 
 	/**

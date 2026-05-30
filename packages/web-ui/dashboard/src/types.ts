@@ -596,7 +596,7 @@ export interface PrerequisiteStatus {
 /** Scale mode readiness from the API. */
 export interface ScaleModeReadiness {
 	ready: boolean;
-	currentMode: "stable_3" | "experimental_6" | "scale_8";
+	currentMode: "stable_3" | "stable_6" | "experimental_worktree_6" | "scale_8";
 	isScaleModeActive: boolean;
 	prerequisites: PrerequisiteStatus[];
 	blockedReasons: string[];

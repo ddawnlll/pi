@@ -2250,11 +2250,53 @@ fastify.post<{
 			});
 		}
 
+		const resettableCount = persistedState
+			? Array.from(persistedState.workspaces.values()).filter(
+					(ws) =>
+						ws.stage === "failed" || ws.stage === "blocked" || ws.stage === "active" || ws.stage === "pending",
+				).length
+			: 0;
+		if (persistedState && resettableCount === 0) {
+			await stateStore.appendJournal(planExecId, {
+				type: "continue_no_resettable_workspaces",
+				timestamp: Date.now(),
+				data: { status: effectiveStatus },
+			});
+			return reply.code(400).send({
+				success: false,
+				error: "No resettable workspaces were found. Completed workspaces were preserved and nothing needs to continue.",
+			});
+		}
+
+		const queuePath = join(workspaceRoot, ".pi", `${planExecId}.workspace-queue.json`);
+		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+		const planFileByExecId = join(workspaceRoot, ".pi", "plans", `${planExecId}.md`);
+		// P37.RCA: Also check for {planExecId}.md in the plans directory before
+		// rejecting — recoverSingleExecution can reconstruct the queue from it
+		// when the meta file and queue snapshot have been deleted.
+		if (!existsSync(queuePath) && !meta?.planFile && !existsSync(planFileByExecId)) {
+			await stateStore.appendJournal(planExecId, {
+				type: "continue_failed_queue_missing",
+				timestamp: Date.now(),
+				data: { queuePath, hasMeta: Boolean(meta) },
+			});
+			return reply.code(400).send({
+				success: false,
+				error: "Execution cannot be continued because its workspace queue snapshot and plan metadata are missing. Preserve logs and rerun from the original plan file.",
+			});
+		}
+
+		await stateStore.appendJournal(planExecId, {
+			type: "continue_requested",
+			timestamp: Date.now(),
+			data: { status: effectiveStatus, resettableCount },
+		});
+
 		const continued = await continuePlanExecution(workspaceRoot, projectId, planExecId);
 		if (!continued) {
 			return reply.code(400).send({
 				success: false,
-				error: "Execution could not be continued. It may be complete or missing its queue snapshot/plan metadata.",
+				error: "Execution could not be continued. It may already be complete, have no resettable workspaces, or lack recoverable queue/plan metadata.",
 			});
 		}
 
@@ -3822,6 +3864,11 @@ fastify.post<{
 				break;
 			case "stop":
 				await stateStore.stopPlan(planExecId, "Stopped by user");
+				// P37.RCA: Write a control request so the executor's checkControlRequest()
+				// path detects the stop and calls drainAndTerminalizeActiveWorkspaces().
+				// Without this, the stop signal is only detected via the completion bus,
+				// which the plan-runner's while loop may not be waiting on.
+				await stateStore.writeControlRequest(planExecId, "stop", "Stopped by user");
 				signalExecutionEvent(planExecId, "stop");
 				break;
 			case "cancel":
@@ -3835,6 +3882,8 @@ fastify.post<{
 			case "force-kill": {
 				// Forcefully kill all active workers, child processes, and worktrees
 				await stateStore.stopPlan(planExecId, "Force killed by user");
+				// P37.RCA: Write a control request so the executor's drain/terminalize logic runs.
+				await stateStore.writeControlRequest(planExecId, "stop", "Force killed by user");
 				// Import and call the force-kill helper
 				const { killTrackedDetachedChildren } = await import("@earendil-works/pi-coding-agent");
 				try {

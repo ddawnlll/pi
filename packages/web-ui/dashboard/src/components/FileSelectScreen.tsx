@@ -26,11 +26,22 @@ export interface FileEntry {
 	statusMessage?: string;
 }
 
+export type ScaleMode = "stable_3" | "stable_6" | "experimental_worktree_6" | "scale_8";
+
+const SCALE_MODE_DESCRIPTIONS: Record<ScaleMode, string> = {
+	stable_3: "3 workers, direct execution — default safe mode",
+	stable_6: "6 workers, patch_transaction isolation — PatchCoordinator, PatchArtifact, rollback",
+	experimental_worktree_6: "6 workers, legacy worktree isolation — integration queue, validation lock",
+	scale_8: "8 workers, explicit approval — highest parallelism, worktree isolation",
+};
+
 interface FileSelectScreenProps {
 	files: FileEntry[];
 	onFilesChange: (files: FileEntry[]) => void;
 	executionMode: "parallel" | "sequential";
 	onExecutionModeChange: (mode: "parallel" | "sequential") => void;
+	scaleMode: ScaleMode;
+	onScaleModeChange: (mode: ScaleMode) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +82,8 @@ export function FileSelectScreen({
 	onFilesChange,
 	executionMode,
 	onExecutionModeChange,
+	scaleMode,
+	onScaleModeChange,
 }: FileSelectScreenProps) {
 	const [dragging, setDragging] = useState(false);
 	const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -377,6 +390,38 @@ export function FileSelectScreen({
 							? "All plans run concurrently"
 							: "Each plan waits for the previous to finish"}
 					</span>
+				</div>
+			)}
+
+			{/* ── Scale mode override ── */}
+			{files.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<div className="flex items-center gap-4">
+						<span className="text-xs text-gray-500 font-medium">
+							Scale mode override:
+						</span>
+						<span className="text-[10px] text-gray-600">
+							Overrides the plan's embedded scale mode for execution
+						</span>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						{(Object.keys(SCALE_MODE_DESCRIPTIONS) as ScaleMode[]).map((mode) => (
+							<button
+								key={mode}
+								onClick={() => onScaleModeChange(mode)}
+								className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-left ${
+									scaleMode === mode
+										? "bg-blue-700 text-white border-blue-600"
+										: "bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-200"
+								}`}
+							>
+								<span className="font-semibold">{mode.replace(/_/g, " ")}</span>
+								<span className="block text-[9px] opacity-70 mt-0.5">
+									{SCALE_MODE_DESCRIPTIONS[mode]}
+								</span>
+							</button>
+						))}
+					</div>
 				</div>
 			)}
 		</div>

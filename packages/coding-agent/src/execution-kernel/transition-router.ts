@@ -255,9 +255,27 @@ export class KernelTransitionRouter implements TransitionRouter {
 		workspaceId: string,
 		data?: Record<string, unknown>,
 	): Promise<void> {
-		// Skip if we already have a cached attempt for this workspace
-		if (this.attemptCache.has(workspaceId)) {
-			this.log.info(`[workspace ${workspaceId}] Attempt already exists, skipping creation`);
+		// P37.RCA: If the attempt is already cached (retry of the same
+		// workspace), skip row creation but still fire attempt_started so
+		// the attempt transitions from its last state (e.g. FAILED_RETRYABLE
+		// or PENDING from retry) back to RUNNING in the DB. Without this,
+		// completeAttempt fires attempt_succeeded on a non-RUNNING attempt
+		// and the FSM rejects PENDING -> SUCCEEDED.
+		const cachedEntry = this.attemptCache.get(workspaceId);
+		if (cachedEntry) {
+			try {
+				await this.controller.handleEvent(cachedEntry.attemptId, "attempt_started", {
+					...data,
+					workspaceId,
+				});
+				cachedEntry.currentState = "RUNNING";
+				cachedEntry.version++;
+			} catch (error) {
+				this.log.error(
+					`[workspace ${workspaceId}] Cached attempt handleEvent(attempt_started) failed: ${error instanceof Error ? error.message : String(error)}`,
+				);
+				throw error;
+			}
 			return;
 		}
 

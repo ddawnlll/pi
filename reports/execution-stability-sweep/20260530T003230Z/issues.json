@@ -1,0 +1,116 @@
+{
+  "issues": [
+    {
+      "id": "P37-001",
+      "severity": "P0",
+      "title": "Stop could update DB state without draining active workers",
+      "status": "fixed",
+      "rootCause": "The runner returned from DB stopped/cancelled and bus stop paths after aborting workers without terminalizing Active workspaces through the drain path.",
+      "files": [
+        "packages/coding-agent/src/core/autonomous-executor.ts",
+        "packages/web-server/src/plan-runner.ts",
+        "packages/web-server/src/index.ts"
+      ],
+      "fixSummary": "Added public stop drain entrypoint, called it from DB stopped/cancelled and bus stop paths, and emitted stop drain events.",
+      "tests": [
+        "packages/coding-agent/test/execution/stop-continue-race.test.ts",
+        "packages/coding-agent/test/execution/stop-drain-active-workers.test.ts",
+        "packages/coding-agent/test/execution/stop-idempotency.test.ts"
+      ],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-002",
+      "severity": "P0",
+      "title": "Late worker completion could attempt Pending to Succeeded/Complete",
+      "status": "fixed",
+      "rootCause": "Old executor promises could complete after Continue reset the workspace to Pending, and not every completion path reloaded DB truth before transitioning.",
+      "files": [
+        "packages/coding-agent/src/core/autonomous-executor.ts",
+        "packages/coding-agent/src/core/plan-state.ts"
+      ],
+      "fixSummary": "Added DB-truth stale completion guard before completion transitions and emitted stale/illegal-prevented diagnostics.",
+      "tests": [
+        "packages/coding-agent/test/execution/stop-continue-race.test.ts",
+        "packages/coding-agent/test/execution/stale-attempt-completion.test.ts"
+      ],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-003",
+      "severity": "P0",
+      "title": "Recovery deleted snapshots required for Continue",
+      "status": "fixed",
+      "rootCause": "Crash recovery cleaned queue/meta snapshots for failed, stopped, and cancelled plans even though manual Continue needs them.",
+      "files": [
+        "packages/web-server/src/plan-runner.ts",
+        "packages/web-server/src/index.ts"
+      ],
+      "fixSummary": "Preserved snapshots for failed/stopped/cancelled executions and added explicit Continue errors for queue/metadata missing.",
+      "tests": [
+        "packages/coding-agent/test/execution/continue-failed-plan.test.ts"
+      ],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-004",
+      "severity": "P0",
+      "title": "Active registry could diverge from PostgreSQL plan state",
+      "status": "fixed",
+      "rootCause": "The runner trusted the active execution registry in some paths and did not emit diagnostics when PostgreSQL said stopped/cancelled.",
+      "files": [
+        "packages/web-server/src/plan-runner.ts",
+        "packages/coding-agent/src/core/plan-state.ts"
+      ],
+      "fixSummary": "PostgreSQL stopped/cancelled now wins, runner drains active work, and mismatch events are journaled.",
+      "tests": [
+        "packages/coding-agent/test/execution/stop-drain-active-workers.test.ts"
+      ],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-005",
+      "severity": "P1",
+      "title": "Dashboard lacked control-plane health visibility",
+      "status": "fixed",
+      "rootCause": "The run view showed plan/workspace data but not stop drain, stale completion, mismatch, or stream health diagnostics.",
+      "files": [
+        "packages/web-ui/dashboard/src/App.tsx",
+        "packages/web-ui/dashboard/src/hooks/usePlanEvents.ts",
+        "packages/web-ui/dashboard/src/components/WorkerDetail.tsx",
+        "packages/coding-agent/src/core/workspace-agent-executor.ts"
+      ],
+      "fixSummary": "Added a minimal Execution Stability / Control Plane Health panel, connection status from the SSE hook, and a worker Pi CLI raw log tab with live assistant text chunks.",
+      "tests": [],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-006",
+      "severity": "P1",
+      "title": "Continue errors were generic",
+      "status": "fixed",
+      "rootCause": "The rerun route collapsed queue-missing, no-resettable, and unrecoverable states into one generic message.",
+      "files": [
+        "packages/web-server/src/index.ts",
+        "packages/web-ui/dashboard/src/App.tsx"
+      ],
+      "fixSummary": "Added explicit no-resettable and queue/metadata-missing responses and surfaced them in the dashboard error banner/panel.",
+      "tests": [],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-007",
+      "severity": "P2",
+      "title": "Long-term execution service split remains needed",
+      "status": "deferred",
+      "rootCause": "Execution lifecycle, dashboard routes, and runner registry remain physically coupled.",
+      "files": [
+        "packages/web-server/src/plan-runner.ts",
+        "packages/web-server/src/index.ts"
+      ],
+      "fixSummary": "Reported only. No package extraction or large architecture rewrite was done.",
+      "tests": [],
+      "dashboardVisible": false
+    }
+  ]
+}

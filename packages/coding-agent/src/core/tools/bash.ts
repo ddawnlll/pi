@@ -33,6 +33,7 @@ export type BashToolInput = Static<typeof bashSchema>;
 export interface BashToolDetails {
 	truncation?: TruncationResult;
 	fullOutputPath?: string;
+	exitCode?: number | null;
 }
 
 /**
@@ -451,10 +452,11 @@ export function createBashToolDefinition(
 
 				const snapshot = await finishOutput();
 				const { text: outputText, details } = formatOutput(snapshot);
+				const resultDetails = { ...(details ?? {}), exitCode };
 				if (exitCode !== 0 && exitCode !== null) {
 					throw new Error(appendStatus(outputText, `Command exited with code ${exitCode}`));
 				}
-				return { content: [{ type: "text", text: outputText }], details };
+				return { content: [{ type: "text", text: outputText }], details: resultDetails };
 			} finally {
 				clearUpdateTimer();
 			}

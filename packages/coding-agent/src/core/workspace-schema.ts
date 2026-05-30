@@ -72,6 +72,8 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"2.5.1",
 	"2.6.0",
 	"4.0.0",
+	"4.1.0",
+	"4.1.1",
 ]);
 
 /**
@@ -581,6 +583,58 @@ export interface Workspace {
 	 * Contract Schema v2.4.0 field.
 	 */
 	splitCandidate?: boolean;
+
+	// ---------------------------------------------------------------------------
+	// P37.HOTFIX: Validation equivalence fields
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Validation requirement descriptor for completion gate equivalence.
+	 *
+	 * When set, the completion gate accepts equivalent commands that satisfy
+	 * the same requirement even if the exact targetCommand string was not
+	 * executed. Supported kinds:
+	 * - "targeted_test": A specific test file must pass.
+	 * - "typecheck": Type checking must pass.
+	 * - "build": Build must pass.
+	 * - "custom": Custom validation requirement.
+	 *
+	 * P37.HOTFIX field. Optional — legacy plans without this field continue
+	 * to use exact targetCommand matching as before.
+	 */
+	validationRequirement?: {
+		kind: "targeted_test" | "typecheck" | "build" | "custom";
+		testFile?: string;
+		packageName?: string;
+		mustPass?: boolean;
+		preferredCommand?: string;
+		acceptedEquivalentCommands?: string[];
+		memoryProfile?: string;
+		watchModeForbidden?: boolean;
+		noTestsFoundIsFailure?: boolean;
+	};
+
+	validationPolicy?: {
+		mode?: "deferred" | "immediate" | "smoke_only" | "final_required" | "final_repair" | string;
+		requiredBeforeWorkspaceComplete?: boolean;
+		requiredBeforePlanComplete?: boolean;
+		finalValidationWorkspace?: string;
+		allowSmokeChecks?: boolean;
+		heavyValidationDeferred?: boolean;
+		runsFinalValidation?: boolean;
+		consumesFinalValidationFailures?: boolean;
+		mustProduceRepairReport?: boolean;
+	};
+
+	/**
+	 * List of equivalent commands that satisfy the same validation requirement
+	 * as targetCommand. When any of these commands exits with code 0, the
+	 * completion gate treats validation as satisfied.
+	 *
+	 * P37.HOTFIX field. Optional — legacy plans without this field continue
+	 * to use exact targetCommand matching as before.
+	 */
+	acceptedEquivalentCommands?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -890,7 +944,9 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 		contractVer === "2.5.0" ||
 		contractVer === "2.5.1" ||
 		contractVer === "2.6.0" ||
-		contractVer === "4.0.0";
+		contractVer === "4.0.0" ||
+		contractVer === "4.1.0" ||
+		contractVer === "4.1.1";
 
 	if (queue.maxParallelWorkspaces < 1) {
 		errors.push({

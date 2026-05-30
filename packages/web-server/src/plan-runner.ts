@@ -459,9 +459,14 @@ function updateExecutionStatus(planExecId: string, status: ActiveExecution["stat
 		if (status === "complete" || status === "failed" || status === "stopped" || status === "cancelled") {
 			exec.completedAt = Date.now();
 
-			// Delete snapshot files (meta + workspace queue)
-			// Fire-and-forget with explicit catch so failures don't propagate
-			deleteExecutionSnapshots(planExecId).catch(() => {});
+			// P37.RCA: Only delete snapshot files on `complete`. For stopped, failed,
+			// and cancelled, the user may Continue the plan, which needs the queue
+			// snapshot and meta file to reconstruct the workspace list. Deleting them
+			// here causes "Execution could not be continued. It may be complete or
+			// missing its queue snapshot/plan metadata."
+			if (status === "complete") {
+				deleteExecutionSnapshots(planExecId).catch(() => {});
+			}
 
 			// Schedule cleanup after TTL
 			scheduleExecutionCleanup(planExecId);
@@ -1079,23 +1084,50 @@ async function executePlanInBackground(
 			// (e.g. crash recovery, external reset, stalled workspace recovery).
 			await executor.loadState();
 
-			// Check if execution was externally cancelled/stopped
+			// Check if execution was externally cancelled/stopped. Registry state is
+			// not authoritative, but if it is terminal we must still drain active
+			// workers instead of marking the plan failed cosmetically.
 			let exec = activeExecutions.get(planExecId);
 			if (!exec || exec.status === "stopped" || exec.status === "cancelled") {
-				await log(`Execution cancelled by user`);
-				await executor.failPlan("Execution cancelled by user");
+				await log(`Execution ${exec?.status ?? "missing"} in active registry; draining active workspaces`);
 				// Save worktree artifacts before aborting agents (Bug #4 fix)
 				const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
 				if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
-				// Stop any in-flight active workspaces immediately
-				await executor.stopAllActiveWorkspaces();
+				await executor.drainActiveWorkspacesForStop(`active-registry-${exec?.status ?? "missing"}`);
+				return;
+			}
+
+			// Check the plan status from the freshly-loaded state (DB authoritative),
+			// not just the in-memory exec.status which may not be updated by the API.
+			// P37.RCA: Handle stopped/cancelled from DB state, not just paused.
+			const planStateCheck = executor.getState();
+			if (planStateCheck && (planStateCheck.status === "stopped" || planStateCheck.status === "cancelled")) {
+				// P37.RCA: The type narrows exec.status to exclude "stopped"/"cancelled"
+				// due to the early return at the active-registry check above, so this
+				// comparison always diverges. Log the mismatch unconditionally.
+				await executor.getStateStore().appendJournal(planExecId, {
+					type: "active_registry_db_mismatch",
+					timestamp: Date.now(),
+					data: { registryStatus: exec.status, dbStatus: planStateCheck.status },
+				});
+				await log(`active_registry_db_mismatch: registry=${exec.status} db=${planStateCheck.status}`);
+				await executor.getStateStore().appendJournal(planExecId, {
+					type: "runner_stopped_by_db_state",
+					timestamp: Date.now(),
+					data: { status: planStateCheck.status },
+				});
+				await log(`Execution ${planStateCheck.status} by external signal`);
+				// Save worktree artifacts before aborting agents
+				const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
+				if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
+				await executor.drainActiveWorkspacesForStop(`db-${planStateCheck.status}`);
+				updateExecutionStatus(planExecId, planStateCheck.status);
 				return;
 			}
 
 			// Check if externally paused (e.g. via dashboard API which calls
 			// stateStore.pausePlan() directly). When paused with active workers,
 			// abort them immediately and reset to pending for resume.
-			const planStateCheck = executor.getState();
 			if (planStateCheck && planStateCheck.status === "paused") {
 				await log(`Plan paused by external signal`);
 				// Abort active workspaces and reset to pending
@@ -1271,6 +1303,7 @@ async function executePlanInBackground(
 						// Save worktree artifacts before returning (Bug #4 fix)
 						const saved = await executor.saveAllWorktreeArtifactsBeforeStop();
 						if (saved > 0) await log(`Saved ${saved} worktree artifact(s) before stop`);
+						await executor.drainActiveWorkspacesForStop("stop-signal-while-waiting");
 						await log(`Execution stopped while waiting for active workspaces`);
 						return;
 					}
@@ -1934,9 +1967,8 @@ async function recoverSingleExecution(
 		!options.allowTerminal
 	) {
 		new PiLogger({ planExecId }).info(
-			`Execution ${planExecId} already ${planState.status}, cleaning up orphaned snapshots`,
+			`Execution ${planExecId} already ${planState.status}, preserving snapshots for manual continue`,
 		);
-		await deleteExecutionSnapshots(planExecId);
 		return false;
 	}
 
@@ -1966,7 +1998,19 @@ async function recoverSingleExecution(
 			}
 		}
 
-		// Fallback: scan .md files for the most recent
+		// P37.RCA: When meta is gone (deleted by an old updateExecutionStatus bug),
+		// try the plan file named after the plan execution ID first, since the
+		// plan files in .pi/plans/ are stored as {planExecId}.md.
+		if (!planContent) {
+			try {
+				planContent = await readFile(join(plansDir, `${planExecId}.md`), "utf-8");
+				new PiLogger({ planExecId }).info(`Found plan file by execution ID: ${planExecId}.md`);
+			} catch {
+				new PiLogger({ planExecId }).info(`No plan file at ${planExecId}.md, scanning directory`);
+			}
+		}
+
+		// Final fallback: scan .md files for the most recent
 		if (!planContent) {
 			const planFiles = await readdir(plansDir).catch(() => [] as string[]);
 			for (const file of planFiles.reverse()) {
@@ -2139,7 +2183,39 @@ export async function continuePlanExecution(
 	projectId: string,
 	planExecId: string,
 ): Promise<boolean> {
-	return recoverSingleExecution(workspaceRoot, projectId, planExecId, { allowTerminal: true });
+	const stateStore = getStateStore();
+	await stateStore
+		.appendJournal(planExecId, {
+			type: "continue_requested",
+			timestamp: Date.now(),
+			data: { projectId },
+		})
+		.catch(() => {});
+	await stateStore
+		.appendJournal(planExecId, {
+			type: "continue_failed_plan_requested",
+			timestamp: Date.now(),
+			data: { projectId },
+		})
+		.catch(() => {});
+	await stateStore
+		.appendJournal(planExecId, {
+			type: "continue_rerun_started",
+			timestamp: Date.now(),
+			data: { projectId },
+		})
+		.catch(() => {});
+	const recovered = await recoverSingleExecution(workspaceRoot, projectId, planExecId, { allowTerminal: true });
+	if (recovered) {
+		await stateStore
+			.appendJournal(planExecId, {
+				type: "continue_rerun_completed",
+				timestamp: Date.now(),
+				data: { projectId },
+			})
+			.catch(() => {});
+	}
+	return recovered;
 }
 
 // ---------------------------------------------------------------------------

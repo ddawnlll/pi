@@ -167,6 +167,90 @@ function QueueStrip({ queue }: { queue: { pending: number; active: number; block
   );
 }
 
+function ExecutionStabilityPanel({
+  status,
+  queue,
+  events,
+  connectionStatus,
+  lastEventAt,
+  isEventStreamStale,
+  lastError,
+}: {
+  status: string;
+  queue: { pending: number; active: number; blocked: number; complete: number; failed: number };
+  events: Array<{ type: string; timestamp: number; workspaceId?: string; data?: Record<string, unknown> }>;
+  connectionStatus: string;
+  lastEventAt: number | null;
+  isEventStreamStale: boolean;
+  lastError: string | null;
+}) {
+  const watched = new Set([
+    "plan_stop_requested",
+    "plan_stop_acknowledged",
+    "plan_stop_draining_started",
+    "plan_stop_drained",
+    "continue_requested",
+    "continue_rerun_started",
+    "continue_rerun_completed",
+    "continue_no_resettable_workspaces",
+    "continue_failed_queue_missing",
+    "stale_attempt_completion_ignored",
+    "illegal_transition_prevented_before_router",
+    "active_registry_db_mismatch",
+    "completion_gate_blocked_visible",
+    "runner_stopped_by_db_state",
+  ]);
+  const stabilityEvents = events.filter((event) => watched.has(event.type));
+  const lastControl = stabilityEvents.find((event) => event.type.startsWith("plan_stop") || event.type.startsWith("continue_"));
+  const issueEvents = stabilityEvents.filter((event) =>
+    event.type.includes("failed") ||
+    event.type.includes("missing") ||
+    event.type.includes("stale") ||
+    event.type.includes("mismatch") ||
+    event.type.includes("blocked") ||
+    event.type.includes("illegal")
+  );
+  const hasStopDraining = stabilityEvents.some((event) => event.type === "plan_stop_draining_started") &&
+    !stabilityEvents.some((event) => event.type === "plan_stop_drained");
+  const staleIgnored = stabilityEvents.filter((event) => event.type === "stale_attempt_completion_ignored").length;
+  const updatedAt = lastEventAt ? new Date(lastEventAt).toLocaleTimeString() : "never";
+
+  return (
+    <div className={`shrink-0 p-3 border-b ${BORD} ${SURF}`}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400">Execution Stability / Control Plane Health</div>
+          <div className="text-[11px] text-stone-500 dark:text-stone-400">DB status: {status} · stream: {connectionStatus} · last event: {updatedAt}</div>
+        </div>
+        <div className={`text-[10px] px-2 py-1 rounded-full ${isEventStreamStale ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"}`}>
+          {isEventStreamStale ? "stream stale" : "stream current"}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-[11px] mb-2">
+        <span>ready {queue.pending}</span>
+        <span>active {queue.active}</span>
+        <span>blocked {queue.blocked}</span>
+        <span>failed {queue.failed}</span>
+        <span>complete {queue.complete}</span>
+        <span>stale ignored {staleIgnored}</span>
+      </div>
+      <div className="space-y-1 text-[11px]">
+        {hasStopDraining && <div className="text-amber-700 dark:text-amber-300">Stop is draining active workers.</div>}
+        {lastControl && <div className="text-stone-600 dark:text-stone-300">Last control action: {lastControl.type}</div>}
+        {lastError && <div className="text-red-700 dark:text-red-300">Last control error: {lastError}</div>}
+        {issueEvents.slice(0, 3).map((event, index) => (
+          <div key={`${event.type}-${event.timestamp}-${index}`} className="text-red-700 dark:text-red-300">
+            {event.type}{event.workspaceId ? ` · ${event.workspaceId}` : ""}
+          </div>
+        ))}
+        {issueEvents.length === 0 && !hasStopDraining && !lastError && (
+          <div className="text-stone-500 dark:text-stone-400">No active control-plane stability issue reported.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── localStorage keys ───────────────────────────────────────────────────
 
 const SELECTED_PROJECT_KEY = "pi_selected_project_id";
@@ -347,7 +431,7 @@ export function App() {
   const { data: executionDetail } = usePlanExecutionDetail(selectedProjectId, selectedPlanExecId);
   const { data: planStats } = usePlanStats(selectedProjectId, selectedPlanExecId);
   const { budgets: contextBudgets } = useSettings();
-  const { events: planEvents } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
+  const { events: planEvents, connectionStatus, lastEventAt, isStale: isEventStreamStale } = usePlanEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { toolCalls } = useToolCallEvents({ projectId: selectedProjectId, planExecId: selectedPlanExecId });
   const { data: integrationQueueData } = useIntegrationQueueStatus(hasProjects);
   // Auto-select execution: restore saved one, or fall back to first
@@ -370,6 +454,7 @@ export function App() {
   const { events: legacyEvents } = useJournalStream(!hasProjects);
   const isLegacyMode = !hasProjects && !selectedProjectId;
   const isStartingUp = projectsLoading && !hasProjects;
+  const [controlActionInFlight, setControlActionInFlight] = useState(false);
 
   const activePlanStatus = isLegacyMode
     ? (legacyPlanState?.status ?? "unknown")
@@ -379,7 +464,7 @@ export function App() {
   const canPause = activePlanStatus === "running";
   const canStop = activePlanStatus === "running" || activePlanStatus === "paused";
   const canRerun = activePlanStatus === "failed" || activePlanStatus === "stopped" || activePlanStatus === "cancelled";
-  const controlDisabled = selectedPlanExecId === null;
+  const controlDisabled = selectedPlanExecId === null || controlActionInFlight;
   const canForceKill = activePlanStatus === "running" || activePlanStatus === "paused";
 
   const activeWorkspaces: WorkspaceSummary[] = isLegacyMode
@@ -435,9 +520,18 @@ export function App() {
   useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
 
   const handleControl = useCallback(async (action: "pause" | "stop" | "cancel" | "resume") => {
-    const res = await sendControlCommand(action, selectedPlanExecId);
-    if (!res.success) showError(res.error || `Failed to ${action}`);
-  }, [showError, selectedPlanExecId]);
+    if (controlActionInFlight) return;
+    setControlActionInFlight(true);
+    try {
+      const res = await sendControlCommand(action, selectedPlanExecId);
+      if (!res.success) showError(res.error || `Failed to ${action}`);
+      queryClient.invalidateQueries({ queryKey: ["plan-execution-detail", selectedProjectId, selectedPlanExecId] });
+      queryClient.invalidateQueries({ queryKey: ["plan-stats", selectedProjectId, selectedPlanExecId] });
+      queryClient.invalidateQueries({ queryKey: ["plan-executions", selectedProjectId] });
+    } finally {
+      setControlActionInFlight(false);
+    }
+  }, [showError, selectedPlanExecId, selectedProjectId, queryClient, controlActionInFlight]);
 
   const [showForceKillConfirm, setShowForceKillConfirm] = useState(false);
 
@@ -806,6 +900,15 @@ export function App() {
                               <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
                             </div>
                             <QueueStrip queue={queue} />
+                            <ExecutionStabilityPanel
+                              status={activePlanStatus}
+                              queue={queue}
+                              events={activeEvents}
+                              connectionStatus={connectionStatus}
+                              lastEventAt={lastEventAt}
+                              isEventStreamStale={isEventStreamStale}
+                              lastError={errorBanner}
+                            />
                             <div className={`shrink-0 p-3 border-b ${BORD}`}>
                               <SchedulerStatusPanel stats={planStats ?? null} />
                             </div>

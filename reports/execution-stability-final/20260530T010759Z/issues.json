@@ -1,0 +1,37 @@
+{
+  "issues": [
+    {
+      "id": "P37-CG-COMMAND-WIRING",
+      "severity": "P0",
+      "title": "CompletionGate lacked reliable command evidence",
+      "status": "fixed",
+      "rootCause": "bash tool results were not consistently recorded as workspace-scoped validation evidence",
+      "files": ["packages/coding-agent/src/core/workspace-agent-executor.ts", "packages/coding-agent/src/core/autonomous-executor.ts", "packages/coding-agent/src/core/completion-gate.ts"],
+      "fixSummary": "Record command history and command journal events from bash execution callbacks",
+      "tests": ["completion-gate-command-wiring.test.ts", "completion-gate-equivalent-command.test.ts"],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-NO-TESTS-FOUND",
+      "severity": "P0",
+      "title": "No test files found could satisfy targeted validation",
+      "status": "fixed",
+      "rootCause": "exit code 0 was accepted without inspecting no-match test output",
+      "files": ["packages/coding-agent/src/core/completion-gate.ts"],
+      "fixSummary": "noTestsFoundDetected blocks targeted_test validation",
+      "tests": ["no-tests-found-validation.test.ts"],
+      "dashboardVisible": true
+    },
+    {
+      "id": "P37-TEMPLATE-411",
+      "severity": "P0",
+      "title": "Template needed deferred validation defaults",
+      "status": "fixed",
+      "rootCause": "v4.1.0 did not encode deferred validation/final repair conventions",
+      "files": ["docs/llm-implementation-agent-master-template.md"],
+      "fixSummary": "Updated canonical template to v4.1.1",
+      "tests": ["template-v4.1.1-verification.md"],
+      "dashboardVisible": false
+    }
+  ]
+}

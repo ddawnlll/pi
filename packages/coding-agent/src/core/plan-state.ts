@@ -118,7 +118,29 @@ export type JournalEventType =
 	| "cache_usage"
 	| "workspace_preflight_approved"
 	| "workspace_preflight_rejected"
-	| "lead_observation";
+	| "lead_observation"
+	| "plan_stop_acknowledged"
+	| "plan_stop_draining_started"
+	| "plan_stop_drained"
+	| "workspace_abort_requested"
+	| "workspace_inflight_settled"
+	| "workspace_inflight_timeout"
+	| "workspace_processes_killed"
+	| "workspace_locks_released"
+	| "continue_requested"
+	| "continue_failed_plan_requested"
+	| "continue_rerun_started"
+	| "continue_rerun_completed"
+	| "continue_no_resettable_workspaces"
+	| "continue_failed_queue_missing"
+	| "stale_attempt_completion_ignored"
+	| "illegal_transition_prevented_before_router"
+	| "active_registry_db_mismatch"
+	| "dashboard_connection_stale"
+	| "command_started"
+	| "command_completed"
+	| "completion_gate_blocked_visible"
+	| "runner_stopped_by_db_state";
 
 /**
  * Execution journal event
