@@ -8,6 +8,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { STABLE_3_PROFILE } from "./execution-mode-adapter.js";
 import type { ScenarioResult } from "./report-writer.js";
 
 // ---------------------------------------------------------------------------
@@ -16,10 +17,14 @@ import type { ScenarioResult } from "./report-writer.js";
 
 export interface CombinedStageResult {
 	id: string;
-	verdict: "PASS" | "FAIL" | "SKIPPED";
+	verdict: "PASS" | "FAIL" | "SKIPPED" | "PARTIAL" | "PASS_WITH_EXPECTED_FAILURES";
 	durationMs: number;
 	testsRun?: number;
 	failures: string[];
+	/** P39.00: Expected failures that were correctly caught */
+	expectedFailures?: string[];
+	expectedFailureCount?: number;
+	unexpectedFailureCount?: number;
 	executionModes?: string[];
 	scenarioCount?: number;
 	plans?: CombinedPlanResult[];
@@ -41,10 +46,18 @@ export interface CombinedWorkspaceResult {
 export interface CombinedExecutionModeResult {
 	tested: boolean;
 	verdict: "PASS" | "FAIL" | "PARTIAL";
+	/** P39.00: stable_3 workers only (capped at 3) */
 	maxObservedActiveWorkers: number;
 	averageActiveWorkers: number;
 	parallelismRegression: boolean;
 	plans: Array<{ id: string; verdict: string }>;
+	/** P39.00: Expected failures in this execution mode */
+	expectedFailures?: {
+		total: number;
+		caught: number;
+		missed: number;
+		items: Array<{ iteration: number; scenario: string; verdict: string }>;
+	};
 	patchTransactionFidelity?: "simulated" | "adapter" | "real";
 	patchApplyLanesObserved?: number;
 	directWorkerMutations?: number;
@@ -70,6 +83,20 @@ export interface CombinedSummary {
 	seed: number;
 	durationMs: number;
 	overallVerdict: "PASS" | "FAIL" | "PARTIAL";
+	/** P39.00: Verdict semantics version */
+	verdictSemanticsVersion: string;
+	/** P39.01: Stable_3 execution profile as used in this run */
+	executionProfile?: {
+		maxParallelWorkspaces: number;
+		worktreeRequired: boolean;
+		patchIsolationRequired: boolean;
+		patchTransaction: boolean;
+		finalValidationRequired: boolean;
+		leadAgentEnabled: boolean;
+		completionGateEnabled: boolean;
+		commandHistoryRequired: boolean;
+		stopContinueRecoveryEnabled: boolean;
+	};
 	commands: Record<string, string>;
 	stages: CombinedStageResult[];
 	executionModes: Record<string, CombinedExecutionModeResult>;
@@ -93,9 +120,13 @@ export interface CombinedSummary {
 		staleCompletionsIgnored: number;
 		illegalTransitionsAttempted: number;
 	};
+	/** P39.00: Separate stable_3 parallelism from global */
 	parallelism: {
 		samplesPath: string;
 		maxObservedActiveWorkers: number;
+		stable3MaxObservedActiveWorkers: number;
+		patchTxMaxObservedCodegenWorkers: number;
+		globalMaxObservedWorkers: number;
 		timelineSummary: Array<{ timestampMs: number; active: number }>;
 	};
 	artifacts: Record<string, string>;
@@ -104,6 +135,12 @@ export interface CombinedSummary {
 		commands: string[];
 	};
 	limitations: string[];
+	expectedFailures: {
+		total: number;
+		caught: number;
+		missed: number;
+		items: Array<{ iteration: number; scenario: string; verdict: string; countsAsSuiteFailure: boolean }>;
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -119,10 +156,20 @@ export class CombinedSummaryBuilder {
 		leadAgent: { directivesCreated: 0, escalationsCreated: 0, classifications: [] },
 		completionGate: { blocks: [], commandHistoryRecorded: false, noTestsFoundFailures: 0 },
 		stopContinue: { staleCompletionsIgnored: 0, illegalTransitionsAttempted: 0 },
-		parallelism: { samplesPath: "", maxObservedActiveWorkers: 0, timelineSummary: [] },
+		parallelism: {
+			samplesPath: "",
+			maxObservedActiveWorkers: 0,
+			stable3MaxObservedActiveWorkers: 0,
+			patchTxMaxObservedCodegenWorkers: 0,
+			globalMaxObservedWorkers: 0,
+			timelineSummary: [],
+		},
 		artifacts: {},
 		replay: { available: false, commands: [] },
 		limitations: [],
+		expectedFailures: { total: 0, caught: 0, missed: 0, items: [] },
+		verdictSemanticsVersion: "1.0",
+		executionProfile: { ...STABLE_3_PROFILE },
 	};
 	private reportDir: string;
 
@@ -187,8 +234,19 @@ export class CombinedSummaryBuilder {
 		return this;
 	}
 
-	setParallelism(data: CombinedSummary["parallelism"]): this {
-		this.summary.parallelism = data;
+	setParallelism(data: Partial<CombinedSummary["parallelism"]> & { maxObservedActiveWorkers?: number }): this {
+		this.summary.parallelism = { ...this.summary.parallelism!, ...data };
+		return this;
+	}
+
+	setExpectedFailures(data: CombinedSummary["expectedFailures"]): this {
+		this.summary.expectedFailures = data;
+		return this;
+	}
+
+	/** P39.01: Set execution profile used in this run */
+	setExecutionProfile(profile: NonNullable<CombinedSummary["executionProfile"]>): this {
+		this.summary.executionProfile = profile;
 		return this;
 	}
 
@@ -214,6 +272,8 @@ export class CombinedSummaryBuilder {
 			seed: this.summary.seed ?? 0,
 			durationMs,
 			overallVerdict,
+			verdictSemanticsVersion: this.summary.verdictSemanticsVersion ?? "1.0",
+			executionProfile: this.summary.executionProfile ?? STABLE_3_PROFILE,
 			commands: this.summary.commands ?? {},
 			stages: this.summary.stages ?? [],
 			executionModes: this.summary.executionModes ?? {},
@@ -226,10 +286,18 @@ export class CombinedSummaryBuilder {
 				noTestsFoundFailures: 0,
 			},
 			stopContinue: this.summary.stopContinue ?? { staleCompletionsIgnored: 0, illegalTransitionsAttempted: 0 },
-			parallelism: this.summary.parallelism ?? { samplesPath: "", maxObservedActiveWorkers: 0, timelineSummary: [] },
+			parallelism: this.summary.parallelism ?? {
+				samplesPath: "",
+				maxObservedActiveWorkers: 0,
+				stable3MaxObservedActiveWorkers: 0,
+				patchTxMaxObservedCodegenWorkers: 0,
+				globalMaxObservedWorkers: 0,
+				timelineSummary: [],
+			},
 			artifacts: this.summary.artifacts ?? {},
 			replay: this.summary.replay ?? { available: false, commands: [] },
 			limitations: this.summary.limitations ?? [],
+			expectedFailures: this.summary.expectedFailures ?? { total: 0, caught: 0, missed: 0, items: [] },
 		};
 	}
 
@@ -309,16 +377,42 @@ export class CombinedSummaryBuilder {
 			};
 		}
 
-		// Take max parallelism
+		// Merge parallelism (take max per field)
 		if (existing.parallelism) {
 			const epar = existing.parallelism as Record<string, unknown>;
 			const npar = this.summary.parallelism ?? {};
 			this.summary.parallelism = {
-				...npar,
+				...npar as any,
 				maxObservedActiveWorkers: Math.max(
 					Number(epar.maxObservedActiveWorkers) || 0,
-					Number(npar.maxObservedActiveWorkers) || 0,
+					Number((npar as any).maxObservedActiveWorkers) || 0,
 				),
+				stable3MaxObservedActiveWorkers: Math.max(
+					Number(epar.stable3MaxObservedActiveWorkers) || 0,
+					Number((npar as any).stable3MaxObservedActiveWorkers) || 0,
+				),
+				patchTxMaxObservedCodegenWorkers: Math.max(
+					Number(epar.patchTxMaxObservedCodegenWorkers) || 0,
+					Number((npar as any).patchTxMaxObservedCodegenWorkers) || 0,
+				),
+				globalMaxObservedWorkers: Math.max(
+					Number(epar.globalMaxObservedWorkers) || 0,
+					Number((npar as any).globalMaxObservedWorkers) || 0,
+				),
+				samplesPath: (npar as any).samplesPath || String(epar.samplesPath || ""),
+				timelineSummary: (npar as any).timelineSummary || epar.timelineSummary || [],
+			};
+		}
+
+		// Merge expected failures (additive)
+		if (existing.expectedFailures) {
+			const eef = existing.expectedFailures as Record<string, unknown>;
+			const nef = this.summary.expectedFailures ?? { total: 0, caught: 0, missed: 0, items: [] };
+			this.summary.expectedFailures = {
+				total: (Number(eef.total) || 0) + nef.total,
+				caught: (Number(eef.caught) || 0) + nef.caught,
+				missed: (Number(eef.missed) || 0) + nef.missed,
+				items: [...((eef.items as unknown[]) ?? []), ...nef.items],
 			};
 		}
 

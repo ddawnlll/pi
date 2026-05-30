@@ -21,9 +21,11 @@ export type { DeterministicRunConfig } from "./deterministic-runner.js";
 export { runDeterministicScenario } from "./deterministic-runner.js";
 export type { ExecutionModeContext, GauntletExecutionMode } from "./execution-mode-adapter.js";
 export {
+	assertStable3Profile,
 	createExecutionModeContext,
 	isBehaviorValidForMode,
 	isDirectMutationAllowed,
+	STABLE_3_PROFILE,
 } from "./execution-mode-adapter.js";
 export type {
 	InvariantCategory,

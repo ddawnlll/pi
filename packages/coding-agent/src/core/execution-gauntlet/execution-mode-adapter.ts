@@ -43,6 +43,38 @@ export interface ExecutionModeContext {
 	limitations: string[];
 }
 
+/**
+ * P39.01: Stable_3 execution profile definition.
+ * This is the canonical profile — must not be silently mutated.
+ */
+export const STABLE_3_PROFILE = {
+	maxParallelWorkspaces: 3,
+	worktreeRequired: false,
+	patchIsolationRequired: false,
+	patchTransaction: false as const,
+	finalValidationRequired: true,
+	leadAgentEnabled: true,
+	completionGateEnabled: true,
+	commandHistoryRequired: true,
+	stopContinueRecoveryEnabled: true,
+} as const;
+
+/**
+ * P39.01: Verify that a context matches the stable_3 profile invariants.
+ */
+export function assertStable3Profile(ctx: ExecutionModeContext): string[] {
+	if (ctx.mode !== "stable_3") return [];
+	const violations: string[] = [];
+	if (ctx.maxWorkers > 3) violations.push(`maxWorkers ${ctx.maxWorkers} > 3`);
+	if (ctx.patchCoordinatorRequired) violations.push("patchCoordinatorRequired is true (stable_3 must not use patch coordinator)");
+	if (ctx.writeSetEnforced) violations.push("writeSetEnforced is true (stable_3 must not enforce writeSet)");
+	if (!ctx.completionGateActive) violations.push("completionGateActive is false");
+	if (!ctx.leadAgentActive) violations.push("leadAgentActive is false");
+	if (!ctx.finalValidationRequired) violations.push("finalValidationRequired is false");
+	if (!ctx.stopContinueSupported) violations.push("stopContinueSupported is false");
+	return violations;
+}
+
 // ---------------------------------------------------------------------------
 // Mode adapter factory
 // ---------------------------------------------------------------------------
