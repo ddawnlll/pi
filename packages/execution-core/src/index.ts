@@ -13,6 +13,17 @@ export type { LogLevel, LogEntry } from "./logger.js";
 // Process killer utility (standalone, zero coding-agent deps)
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 
+// P40.2 Dependency Inversion Interfaces
+export type {
+	AgentRuntime,
+	AgentRuntimeConfig,
+	AgentRuntimeResult,
+	GovernanceProvider,
+	StorageProvider,
+	InfrastructureProvider,
+	SkillProvider,
+} from "./types.js";
+
 // Shared types
 export { WorkspaceStage } from "./types.js";
 export type { IStateStore } from "./types.js";

@@ -65,6 +65,69 @@ export interface IStateStore {
 	getBackendType(): string;
 }
 
+
+
+// ---------------------------------------------------------------------------
+// P40.2 Dependency Inversion Interfaces
+// These interfaces allow execution-runtime modules to be extracted
+// without importing coding-agent infrastructure directly.
+// Implementations stay in coding-agent; execution-* imports the interface only.
+// ---------------------------------------------------------------------------
+
+/**
+ * AgentRuntime — abstraction over the local Pi worker agent executor.
+ * Replaces direct WorkspaceAgentExecutor construction in autonomous-executor.
+ */
+export interface AgentRuntime {
+	execute(packet: Record<string, unknown>, workspaceId: string, config: AgentRuntimeConfig): Promise<AgentRuntimeResult>;
+	abort(): void;
+}
+
+export interface AgentRuntimeConfig {
+	logPath?: string;
+	attemptNo?: number;
+	_signal?: AbortSignal;
+}
+
+export interface AgentRuntimeResult {
+	success: boolean;
+	verdict: string;
+	report?: string;
+	error?: string;
+	logs: unknown[];
+}
+
+/**
+ * GovernanceProvider — abstracts completion gate governance checks.
+ */
+export interface GovernanceProvider {
+	checkApproval(planExecutionId: string, workspaceId: string): Promise<{ approved: boolean; reason?: string }>;
+}
+
+/**
+ * StorageProvider — abstracts DB/JSON state persistence.
+ */
+export interface StorageProvider {
+	loadState(planExecutionId: string): Promise<unknown>;
+	saveState(planExecutionId: string, state: unknown): Promise<void>;
+}
+
+/**
+ * InfrastructureProvider — abstracts SDK, session, settings access.
+ */
+export interface InfrastructureProvider {
+	getSdk(): unknown;
+	getSessionManager(): unknown;
+	getSettingsManager(): unknown;
+}
+
+/**
+ * SkillProvider — abstracts skill registry access.
+ */
+export interface SkillProvider {
+	getAvailableSkills(): Promise<unknown[]>;
+}
+
 // ---------------------------------------------------------------------------
 // Forward declarations (defined in commands.ts, imported for convenience)
 // ---------------------------------------------------------------------------
