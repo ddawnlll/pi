@@ -1,7 +1,7 @@
 /**
  * Brain Boundary — P40 Platform / Agent Separation
  */
-import type { BrainProposal, ExecutionReadModel } from "../execution-core/types.js";
+import type { BrainProposal, ExecutionReadModel } from "@earendil-works/pi-execution-core";
 
 export interface BrainBoundaryConfig {
 	executionReadModel: ExecutionReadModel;

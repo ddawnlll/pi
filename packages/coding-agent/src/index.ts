@@ -1132,11 +1132,11 @@ export {
 // v4 ExecutionKernel exports
 // =============================================================================
 
+export type { AttemptState, StateAuthorityToken } from "./execution-core/index.js";
 export {
 	type AdmissionDecision,
 	admitExecution,
 } from "./execution-kernel/admission-gate.js";
-
 export {
 	type AdmissionDecisionRecord,
 	type AdmissionEntrypoint,
@@ -1144,7 +1144,6 @@ export {
 } from "./execution-kernel/admission-guard.js";
 export { assertLegalTransition, assertRetryAllowed, getDeadlinePolicy } from "./execution-kernel/attempt-fsm.js";
 export { createStateAuthorityToken } from "./execution-kernel/state-authority.js";
-export type { AttemptState, StateAuthorityToken } from "./execution-core/index.js";
 
-export { handleExecutionCommand } from "./execution-service/command-handler.js";
-export { createExecutionReadModel } from "./execution-service/query-handler.js";
+export { handleExecutionCommand } from "@earendil-works/pi-execution-service";
+export { createExecutionReadModel } from "@earendil-works/pi-execution-service";

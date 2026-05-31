@@ -24,6 +24,10 @@
 			"types": "./dist/core/extensions/registry.d.ts",
 			"import": "./dist/core/extensions/registry.js"
 		},
+		"./core/workspace-agent-executor.js": {
+			"types": "./dist/core/workspace-agent-executor.d.ts",
+			"import": "./dist/core/workspace-agent-executor.js"
+		},
 		"./execution-gauntlet": {
 			"types": "./dist/core/execution-gauntlet/index.d.ts",
 			"import": "./dist/core/execution-gauntlet/index.js"
@@ -54,7 +58,10 @@
 		"@earendil-works/pi-agent-core": "^0.74.0",
 		"@earendil-works/pi-ai": "^0.74.0",
 		"@earendil-works/pi-db": "^0.74.0",
+		"@earendil-works/pi-execution-core": "^0.74.0",
+		"@earendil-works/pi-execution-service": "^0.74.0",
 		"@earendil-works/pi-tui": "^0.74.0",
+		"@earendil-works/pi-worker-adapters": "^0.74.0",
 		"@silvia-odwyer/photon-node": "^0.3.4",
 		"chalk": "^5.5.0",
 		"cli-highlight": "^2.1.11",

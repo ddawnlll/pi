@@ -10,7 +10,7 @@ import type {
 	LeadDirectiveView,
 	PlanExecutionSummary,
 	WorkspaceExecutionSummary,
-} from "../execution-core/types.js";
+} from "@earendil-works/pi-execution-core";
 
 export class BrainExecutionReadClient {
 	private readonly readModel: ExecutionReadModel;

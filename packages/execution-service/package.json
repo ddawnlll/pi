@@ -1,0 +1,48 @@
+{
+	"name": "@earendil-works/pi-execution-service",
+	"version": "0.74.0",
+	"description": "Execution service facades — command/query handlers and execution service gateway",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "vitest --run",
+		"check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/pi-execution-core": "^0.74.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"keywords": [
+		"execution",
+		"service",
+		"command-handler",
+		"query-handler"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/earendil-works/pi-mono.git",
+		"directory": "packages/execution-service"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

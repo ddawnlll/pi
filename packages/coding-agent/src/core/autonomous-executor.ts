@@ -11,6 +11,9 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
+import type { WorkerAdapter } from "@earendil-works/pi-execution-core";
+import { handleExecutionCommand } from "@earendil-works/pi-execution-service";
+import { LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
 import type { TransitionRouter } from "../execution-kernel/transition-router.js";
 import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
@@ -24,12 +27,9 @@ import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
 import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "./retry-handler.js";
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
-import type { IStateStore, PlanControlState } from "./state-store.js";
+import type { ControlAction, IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
 import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
-import type { WorkerAdapter, WorkerRunRequest } from "../worker-adapter/types.js";
-import { LocalPiWorkerAdapter } from "../worker-adapter/local-pi-worker-adapter.js";
-import { handleExecutionCommand } from "../execution-service/command-handler.js";
 import {
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,
@@ -539,8 +539,7 @@ export class AutonomousExecutor {
 				createExecutor: (request) => {
 					return new WorkspaceAgentExecutor({
 						...this.executorConfig!,
-						onCommandExecuted: (event) =>
-							this.recordWorkspaceCommand(request.workspaceId, event),
+						onCommandExecuted: (event) => this.recordWorkspaceCommand(request.workspaceId, event),
 					});
 				},
 			});
@@ -1060,7 +1059,7 @@ export class AutonomousExecutor {
 						attemptNumber: wsStateForPacket.attempts,
 						projectRoot: this.workspaceRoot,
 						workspacePath: this.workspaceRoot,
-						packet,
+						packet: packet as unknown as Record<string, unknown>,
 						allowedTools: [],
 						timeoutMs: this.executorConfig?.timeoutMs ?? 30 * 60 * 1000,
 						abortSignal,
@@ -1083,7 +1082,12 @@ export class AutonomousExecutor {
 					result = {
 						workspaceId: workspace.id,
 						success: workerResult.verdict === "complete",
-						verdict: workerResult.verdict === "complete" ? "COMPLETE" : workerResult.verdict === "blocked" ? "BLOCKED" : "FAILED",
+						verdict:
+							workerResult.verdict === "complete"
+								? "COMPLETE"
+								: workerResult.verdict === "blocked"
+									? "BLOCKED"
+									: "FAILED",
 						report: workerResult.report,
 						error: workerResult.error,
 					};
@@ -1806,7 +1810,7 @@ export class AutonomousExecutor {
 						{
 							planControlManager: {
 								writeControlRequest: (action, reason) =>
-									this.stateStore.writeControlRequest(planExecutionId, action, reason),
+									this.stateStore.writeControlRequest(planExecutionId, action as ControlAction, reason),
 							},
 						},
 					);

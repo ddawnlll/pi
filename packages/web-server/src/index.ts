@@ -52,6 +52,7 @@ import {
 	runCleanupReview,
 	validatePlanTargetCommands,
 } from "@earendil-works/pi-coding-agent";
+import { handleExecutionCommand } from "@earendil-works/pi-execution-service";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
@@ -3862,7 +3863,12 @@ fastify.post<{
 				// so the loop won't try to schedule work on a paused plan.
 				signalExecutionEvent(planExecId, "wake");
 				break;
-			case "stop":
+			case "stop": {
+				// Route through execution-service for adoption tracking
+				await handleExecutionCommand(
+					{ type: "stop_plan", planExecutionId: planExecId, reason: "Stopped by user" },
+					{},
+				);
 				await stateStore.stopPlan(planExecId, "Stopped by user");
 				// P37.RCA: Write a control request so the executor's checkControlRequest()
 				// path detects the stop and calls drainAndTerminalizeActiveWorkspaces().
@@ -3871,14 +3877,27 @@ fastify.post<{
 				await stateStore.writeControlRequest(planExecId, "stop", "Stopped by user");
 				signalExecutionEvent(planExecId, "stop");
 				break;
-			case "cancel":
+			}
+			case "cancel": {
+				// Route through execution-service for adoption tracking
+				await handleExecutionCommand(
+					{ type: "rerun_plan", planExecutionId: planExecId, reason: "Cancelled by user" },
+					{},
+				);
 				await stateStore.cancelPlan(planExecId);
 				signalExecutionEvent(planExecId, "stop");
 				break;
-			case "resume":
+			}
+			case "resume": {
+				// Route through execution-service for adoption tracking
+				await handleExecutionCommand(
+					{ type: "continue_plan", planExecutionId: planExecId, reason: "Resumed by user" },
+					{},
+				);
 				await stateStore.resumePlan(planExecId);
 				signalExecutionEvent(planExecId, "complete");
 				break;
+			}
 			case "force-kill": {
 				// Forcefully kill all active workers, child processes, and worktrees
 				await stateStore.stopPlan(planExecId, "Force killed by user");

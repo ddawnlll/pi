@@ -1,10 +1,14 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+const codingAgentSrcDir = fileURLToPath(new URL("../coding-agent/src", import.meta.url));
 const aiSrcIndex = fileURLToPath(new URL("../ai/src/index.ts", import.meta.url));
 const aiSrcOAuth = fileURLToPath(new URL("../ai/src/oauth.ts", import.meta.url));
 const dbSrcIndex = fileURLToPath(new URL("../db/src/index.ts", import.meta.url));
 const agentSrcIndex = fileURLToPath(new URL("../agent/src/index.ts", import.meta.url));
+const executionCoreSrcDir = fileURLToPath(new URL("../execution-core/src", import.meta.url));
+const executionServiceSrcDir = fileURLToPath(new URL("../execution-service/src", import.meta.url));
+const workerAdaptersSrcDir = fileURLToPath(new URL("../worker-adapters/src", import.meta.url));
 
 export default defineConfig({
 	test: {
@@ -32,6 +36,14 @@ export default defineConfig({
 			{ find: /^@earendil-works\/pi-ai\/oauth$/, replacement: aiSrcOAuth },
 			{ find: /^@earendil-works\/pi-db$/, replacement: dbSrcIndex },
 			{ find: /^@earendil-works\/pi-agent-core$/, replacement: agentSrcIndex },
+			{ find: /^@earendil-works\/pi-coding-agent$/, replacement: `${codingAgentSrcDir}/index.ts` },
+			{ find: /^@earendil-works\/pi-coding-agent\/(.*)/, replacement: `${codingAgentSrcDir}/$1.ts` },
+			{ find: /^@earendil-works\/pi-execution-core$/, replacement: `${executionCoreSrcDir}/index.ts` },
+			{ find: /^@earendil-works\/pi-execution-core\/(.*)/, replacement: `${executionCoreSrcDir}/$1.ts` },
+			{ find: /^@earendil-works\/pi-execution-service$/, replacement: `${executionServiceSrcDir}/index.ts` },
+			{ find: /^@earendil-works\/pi-execution-service\/(.*)/, replacement: `${executionServiceSrcDir}/$1.ts` },
+			{ find: /^@earendil-works\/pi-worker-adapters$/, replacement: `${workerAdaptersSrcDir}/index.ts` },
+			{ find: /^@earendil-works\/pi-worker-adapters\/(.*)/, replacement: `${workerAdaptersSrcDir}/$1.ts` },
 			{ find: /^@mariozechner\/pi-ai$/, replacement: aiSrcIndex },
 			{ find: /^@mariozechner\/pi-ai\/oauth$/, replacement: aiSrcOAuth },
 			{ find: /^@mariozechner\/pi-agent-core$/, replacement: agentSrcIndex },

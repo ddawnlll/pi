@@ -276,7 +276,6 @@ export class KernelTransitionRouter implements TransitionRouter {
 			);
 			this.attemptCache.delete(workspaceId);
 		}
-		}
 
 		// Look up workspace execution ID from the DB
 		const wsExecs = await this.db

@@ -1,0 +1,49 @@
+{
+	"name": "@earendil-works/pi-worker-adapters",
+	"version": "0.74.0",
+	"description": "Worker adapter implementations bridging execution-core contracts to agent workers",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "vitest --run",
+		"check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/pi-execution-core": "^0.74.0",
+		"@earendil-works/pi-coding-agent": "^0.74.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"keywords": [
+		"worker",
+		"adapter",
+		"execution",
+		"pi"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/earendil-works/pi-mono.git",
+		"directory": "packages/worker-adapters"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

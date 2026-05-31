@@ -1,45 +1,11 @@
 /**
- * Execution Command Handler — P40 Platform / Agent Separation
+ * Compatibility shim — P40 Platform / Agent Separation
+ *
+ * Re-exports command handler from @earendil-works/pi-execution-service.
+ * This file is a compatibility shim and will be removed in a future phase.
+ * New code should import directly from @earendil-works/pi-execution-service.
+ *
+ * @deprecated Import from @earendil-works/pi-execution-service instead
  */
-import type { ExecutionCommand } from "../execution-core/types.js";
-
-export interface CommandHandlerResult {
-	accepted: boolean;
-	message: string;
-	error?: string;
-}
-
-export async function handleExecutionCommand(
-	command: ExecutionCommand,
-	deps: {
-		planControlManager?: { writeControlRequest(action: string, reason?: string): Promise<void> };
-		transitionRouter?: { transitionWorkspace(planExecutionId: string, workspaceId: string, stage: string, metadata?: Record<string, unknown>): Promise<void> };
-	},
-): Promise<CommandHandlerResult> {
-	switch (command.type) {
-		case "start_plan":
-			return { accepted: true, message: `Plan ${command.planId} start requested.` };
-		case "stop_plan":
-			if (!deps.planControlManager) return { accepted: false, message: "Plan control manager not available", error: "No plan control manager configured" };
-			await deps.planControlManager.writeControlRequest("stop", command.reason);
-			return { accepted: true, message: `Stop request sent for plan ${command.planExecutionId}` };
-		case "continue_plan":
-			if (!deps.planControlManager) return { accepted: false, message: "Plan control manager not available", error: "No plan control manager configured" };
-			await deps.planControlManager.writeControlRequest("resume", command.reason);
-			return { accepted: true, message: `Continue request sent for plan ${command.planExecutionId}` };
-		case "rerun_plan":
-			if (!deps.planControlManager) return { accepted: false, message: "Plan control manager not available", error: "No plan control manager configured" };
-			await deps.planControlManager.writeControlRequest("cancel", command.reason ?? "rerun requested");
-			return { accepted: true, message: `Rerun request sent for plan ${command.planExecutionId}` };
-		case "retry_workspace":
-			if (!deps.transitionRouter) return { accepted: false, message: "Transition router not available", error: "No transition router configured" };
-			await deps.transitionRouter.transitionWorkspace(command.planExecutionId, command.workspaceId, "Pending", { reason: command.reason ?? "retry requested" });
-			return { accepted: true, message: `Retry requested for workspace ${command.workspaceId}` };
-		case "request_user_escalation":
-			return { accepted: true, message: `User escalation requested for workspace ${command.workspaceId}` };
-		case "approve_proposal":
-			return { accepted: true, message: `Proposal ${command.proposalId} approved` };
-		default:
-			return { accepted: false, message: `Unknown command type: ${(command as any).type}`, error: "Unhandled command type" };
-	}
-}
+export type { CommandHandlerResult } from "@earendil-works/pi-execution-service";
+export { handleExecutionCommand } from "@earendil-works/pi-execution-service";

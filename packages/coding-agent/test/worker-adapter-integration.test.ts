@@ -7,7 +7,6 @@
  * 3. WorkerAdapter boundary is the real execution path
  */
 import { describe, expect, it } from "vitest";
-import type { WorkerAdapter, WorkerRunRequest, WorkerRunResult } from "../src/worker-adapter/types.js";
 import { LocalPiWorkerAdapter } from "../src/worker-adapter/local-pi-worker-adapter.js";
 import { createMockWorkerAdapter } from "./mock-worker-adapter.js";
 
@@ -15,10 +14,7 @@ describe("WorkerAdapter integration — AutonomousExecutor path", () => {
 	it("AutonomousExecutor config type accepts workerAdapter", async () => {
 		// Read the source file to verify the config type includes workerAdapter
 		const fs = await import("node:fs/promises");
-		const content = await fs.readFile(
-			new URL("../src/core/autonomous-executor.ts", import.meta.url),
-			"utf-8",
-		);
+		const content = await fs.readFile(new URL("../src/core/autonomous-executor.ts", import.meta.url), "utf-8");
 		// Verify the config interface includes workerAdapter
 		expect(content).toContain("workerAdapter?: WorkerAdapter");
 		// Verify the class stores it (with if/else handling)
@@ -101,7 +97,9 @@ describe("WorkerAdapter integration — AutonomousExecutor path", () => {
 				verdict: "complete",
 				events: [{ type: "custom", payload: { workspaceId: request.workspaceId }, timestamp: Date.now() }],
 				changedFiles: ["src/new-file.ts"],
-				commandHistory: [{ command: "npm test", cwd: "/tmp", exitCode: 0, startedAt: Date.now(), finishedAt: Date.now() }],
+				commandHistory: [
+					{ command: "npm test", cwd: "/tmp", exitCode: 0, startedAt: Date.now(), finishedAt: Date.now() },
+				],
 				report: `Custom handler completed ${request.workspaceId}`,
 			}),
 		});
@@ -128,7 +126,9 @@ describe("WorkerAdapter integration — AutonomousExecutor path", () => {
 describe("LocalPiWorkerAdapter cannot mutate execution state", () => {
 	it("WorkerRunResult has no transition methods", async () => {
 		const adapter = new LocalPiWorkerAdapter({
-			createExecutor: () => { throw new Error("not implemented"); },
+			createExecutor: () => {
+				throw new Error("not implemented");
+			},
 		});
 
 		// Verify the adapter's run method returns a result without transition authority

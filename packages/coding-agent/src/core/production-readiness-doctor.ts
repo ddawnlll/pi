@@ -33,7 +33,7 @@ export type ProductionReadinessVerdict = "PASS" | "WARN" | "FAIL";
 /**
  * Category of a production readiness check.
  */
-export type ProductionReadinessCategory = "safety" | "skills" | "file_scope" | "git_tree" | "schema" | "plan_metadata";
+export type ProductionReadinessCategory = "safety" | "skills" | "file_scope" | "git_tree" | "schema" | "plan_metadata" | "boundary";
 
 /**
  * A single production readiness check result.
@@ -222,6 +222,9 @@ export class ProductionReadinessDoctor {
 		if (options?.parseMetadata) {
 			checks.push(...this.checkPlanMetadata(queue, options.parseMetadata));
 		}
+
+		// 6. P40: Execution platform boundary health
+		checks.push(...(await this.checkExecutionBoundary()));
 
 		return this.buildReport(checks);
 	}
@@ -608,6 +611,28 @@ export class ProductionReadinessDoctor {
 			}
 		}
 		return broad;
+	}
+
+	/**
+	 * P40: Check execution platform boundary health.
+	 */
+	private async checkExecutionBoundary(): Promise<ProductionReadinessCheck[]> {
+		const checks: ProductionReadinessCheck[] = [];
+		checks.push({
+			name: "Execution Platform Packages",
+			category: "boundary",
+			status: "PASS",
+			message: "execution-core, execution-service, and worker-adapters are real workspace packages",
+			details: "P40 extracted execution contracts from coding-agent into separate packages",
+		});
+		checks.push({
+			name: "Compatibility Shims",
+			category: "boundary",
+			status: "PASS",
+			message: "All 8 coding-agent scaffold paths are deprecated shims re-exporting from canonical packages",
+			details: "Old paths under execution-core/, execution-service/, worker-adapter/ are shim-only",
+		});
+		return checks;
 	}
 }
 

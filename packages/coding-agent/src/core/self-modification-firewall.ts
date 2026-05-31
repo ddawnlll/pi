@@ -176,7 +176,7 @@ export class SelfModificationFirewall {
 				const normalizedAllowed = allowed.split(path.sep).join("/");
 				return (
 					normalized === normalizedAllowed ||
-					normalized.startsWith(normalizedAllowed + "/") ||
+					normalized.startsWith(`${normalizedAllowed}/`) ||
 					this.matchesPattern(normalized, normalizedAllowed)
 				);
 			});

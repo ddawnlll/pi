@@ -19,7 +19,13 @@
 			"@earendil-works/pi-web-ui": ["./packages/web-ui/src/index.ts"],
 			"@earendil-works/pi-web-ui/*": ["./packages/web-ui/src/*"],
 			"@earendil-works/pi-agent-old": ["./packages/agent-old/src/index.ts"],
-			"@earendil-works/pi-agent-old/*": ["./packages/agent-old/src/*"]
+			"@earendil-works/pi-agent-old/*": ["./packages/agent-old/src/*"],
+			"@earendil-works/pi-execution-core": ["./packages/execution-core/src/index.ts"],
+			"@earendil-works/pi-execution-core/*": ["./packages/execution-core/src/*"],
+			"@earendil-works/pi-execution-service": ["./packages/execution-service/src/index.ts"],
+			"@earendil-works/pi-execution-service/*": ["./packages/execution-service/src/*"],
+			"@earendil-works/pi-worker-adapters": ["./packages/worker-adapters/src/index.ts"],
+			"@earendil-works/pi-worker-adapters/*": ["./packages/worker-adapters/src/*"]
 		}
 	},
 	"include": ["packages/*/src/**/*", "packages/*/test/**/*", "packages/coding-agent/examples/**/*"],
