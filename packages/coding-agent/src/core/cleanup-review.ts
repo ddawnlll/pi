@@ -19,7 +19,7 @@ import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 import { admitExecution } from "../execution-kernel/admission-gate.js";
 import { PiLogger } from "../utils/logger.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
-import { createGitRunner } from "./git-runner.js";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import { createAgentSession } from "./sdk.js";
 import { SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";

@@ -56,6 +56,16 @@ export type {
 // Events
 export type { WorkspaceExecutionStage } from "./events.js";
 
+export type { WorkerConcurrencySettings, WorkerConcurrencyValidationResult } from "./worker-concurrency.js";
+export {
+	MIN_STABLE_WORKERS, MAX_STABLE_WORKERS, MIN_EXPERIMENTAL_WORKERS,
+	MAX_EXPERIMENTAL_WORKERS, DEFAULT_WORKERS, PROMOTION_GATES,
+	checkPromotionGates, isStableWorkerCount, isExperimentalWorkerCount,
+	requiresExperimentalMode, validateWorkerConcurrency,
+	resolveEffectiveWorkerCount, formatWorkerConcurrencyValidation,
+} from "./worker-concurrency.js";
+export type { WorktreeConfig, WorktreeState, WorktreeStatus, WorktreeExecutorConfig, WorktreeCreateResult, WorktreeExecutionResult, WorktreeListEntry, WorktreeDiffArtifact, WorktreeCleanupResult } from "./worktree-types.js";
+export { DEFAULT_WORKTREE_ROOT, DEFAULT_WORKTREE_CONFIG } from "./worktree-types.js";
 // Worker adapter
 export type {
 	WorkerAdapter,

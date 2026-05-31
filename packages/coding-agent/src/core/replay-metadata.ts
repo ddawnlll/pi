@@ -11,7 +11,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createGitRunner } from "./git-runner.js";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { PlanState, WorkspaceState } from "./plan-state.js";
 import { createSafetyDoctor } from "./safety-doctor.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";

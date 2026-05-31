@@ -18,10 +18,10 @@ import type { TransitionRouter } from "../execution-kernel/transition-router.js"
 import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
-import type { WorktreeConfig } from "../worktree/worktree-types.js";
+import type { WorktreeConfig } from "@earendil-works/pi-execution-core";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
-import { createGitRunner } from "./git-runner.js";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { LeadAgent } from "./lead-agent/index.js";
 import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -29,7 +29,7 @@ import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { ControlAction, IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
-import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "./worker-concurrency.js";
+import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "@earendil-works/pi-execution-core";
 import {
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,

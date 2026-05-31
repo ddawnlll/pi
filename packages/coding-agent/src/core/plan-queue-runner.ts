@@ -13,7 +13,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { checkDraftGates, isDraftPlan } from "./draft-planner.js";
-import { createGitRunner } from "./git-runner.js";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { IStateStore } from "./state-store.js";
 import type { WorkspaceQueue } from "./workspace-schema.js";
 

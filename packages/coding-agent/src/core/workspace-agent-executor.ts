@@ -13,7 +13,7 @@ import { getModel } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../config.js";
 import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
-import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "../worktree/worktree-types.js";
+import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "@earendil-works/pi-execution-core";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";

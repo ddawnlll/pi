@@ -15,7 +15,7 @@
  * execution archive and rendered in the dashboard.
  */
 
-import { createGitRunner } from "./git-runner.js";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import { SafetyDoctor, type SafetyIssue } from "./safety-doctor.js";
 
 import { SkillRegistry } from "./skill-registry.js";
