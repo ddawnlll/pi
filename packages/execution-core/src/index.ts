@@ -13,6 +13,17 @@ export type { LogLevel, LogEntry } from "./logger.js";
 // Process killer utility (standalone, zero coding-agent deps)
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 
+// P40.2C Dirty Runtime Dependency Ports
+export type {
+	GovernanceLedgerLike,
+	FailureDetectorLike,
+	FailureSignalLike,
+	WatchModeGuardLike,
+	StateStoreBackendFactoryLike,
+	BudgetPolicyLike,
+	CompletionGateDeps,
+} from "./types.js";
+
 // P40.2 Dependency Inversion Interfaces
 export type {
 	AgentRuntime,

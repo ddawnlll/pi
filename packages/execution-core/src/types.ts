@@ -128,6 +128,76 @@ export interface SkillProvider {
 	getAvailableSkills(): Promise<unknown[]>;
 }
 
+
+
+// ---------------------------------------------------------------------------
+// P40.2C Dirty Runtime Dependency Ports
+// These interfaces allow extraction of completion-gate, state-store,
+// workspace-schema, and retry-handler without importing coding-agent infra.
+// Implementations remain in coding-agent.
+// ---------------------------------------------------------------------------
+
+/**
+ * Governance ledger port — abstracts plan/workspace approval checks.
+ * Used by completion-gate.ts to verify governance status.
+ */
+export interface GovernanceLedgerLike {
+	isApproved(planExecutionId: string): Promise<boolean>;
+	getApprovalReason(planExecutionId: string): Promise<string | null>;
+}
+
+/**
+ * Failure signal detector port — abstracts log-based failure detection.
+ * Used by completion-gate.ts to detect unresolved failures.
+ */
+export interface FailureDetectorLike {
+	detectFailures(planExecutionId: string, workspaceId: string): Promise<FailureSignalLike[]>;
+}
+
+export interface FailureSignalLike {
+	category: string;
+	message: string;
+	workspaceId: string;
+}
+
+/**
+ * Watch mode guard port — abstracts watch-mode command detection.
+ * Used by completion-gate.ts to check for watch-mode commands.
+ */
+export interface WatchModeGuardLike {
+	isWatchModeCommand(command: string): boolean;
+	isWatchCommand(command: string): boolean;
+}
+
+/**
+ * State store backend factory port — abstracts DB vs JSON backend creation.
+ * Used by state-store.ts to create persistence backends.
+ */
+export interface StateStoreBackendFactoryLike {
+	createDatabaseBackend(): unknown;
+	createJsonBackend(): unknown;
+}
+
+/**
+ * Budget policy port — abstracts workspace budget enforcement.
+ * Used by workspace-schema.ts for capacity validation.
+ */
+export interface BudgetPolicyLike {
+	checkBudget(workspaceCount: number, config?: Record<string, unknown>): { allowed: boolean; reason?: string };
+}
+
+/**
+ * Completion gate dependency bundle — groups all deps needed by completion-gate.
+ * Allows completion-gate to be extracted as a pure module that accepts
+ * this bundle at construction time.
+ */
+export interface CompletionGateDeps {
+	governance: GovernanceLedgerLike;
+	failureDetector: FailureDetectorLike;
+	watchModeGuard: WatchModeGuardLike;
+}
+
+
 // ---------------------------------------------------------------------------
 // Forward declarations (defined in commands.ts, imported for convenience)
 // ---------------------------------------------------------------------------
