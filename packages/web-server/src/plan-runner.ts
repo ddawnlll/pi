@@ -1296,13 +1296,52 @@ async function executePlanInBackground(
 
 				// 3. Deadlock check gated on exec.status === running
 				if (stats && stats.blocked > 0 && stats.active === 0 && exec.status === "running") {
-					await log(`ERROR: Execution blocked - dependency deadlock`);
+					const state = executor.getState();
+					const blockedWs: string[] = [];
+					const pendingWs: Array<{ id: string; waitingOn: string[] }> = [];
+					const blockingReasons: Record<string, string> = {};
 
-					// Audit log: dependency deadlock
+					if (state) {
+						for (const [wsId, ws] of state.workspaces) {
+							if (ws.stage === WorkspaceStage.Blocked) {
+								blockedWs.push(wsId);
+								blockingReasons[wsId] = ws.error || "unknown";
+							}
+						}
+						for (const [wsId, ws] of state.workspaces) {
+							if (ws.stage === WorkspaceStage.Pending) {
+								const planWs = queue.workspaces.find((w) => w.id === wsId);
+								const unmetDeps = (planWs?.dependencies ?? []).filter((depId) => {
+									const depState = state.workspaces.get(depId);
+									return !depState || depState.stage !== WorkspaceStage.Complete;
+								});
+								if (unmetDeps.length > 0) {
+									pendingWs.push({ id: wsId, waitingOn: unmetDeps });
+								}
+							}
+						}
+					}
+
+					const blockedList = blockedWs.join(", ");
+					const pendingList = pendingWs.map((p) => `  ${p.id} waiting on [${p.waitingOn.join(", ")}]`).join("\n");
+					const reasonList = Object.entries(blockingReasons)
+						.map(([id, r]) => `  ${id}: ${r}`)
+						.join("\n");
+
+					await log(`ERROR: Execution blocked - dependency deadlock`);
+					await log(`  Blocked workspaces (${blockedWs.length}): ${blockedList}`);
+					await log(`  Block reasons:\n${reasonList}`);
+					await log(`  Pending workspaces waiting on blocked deps:\n${pendingList}`);
+
+					// Audit log: dependency deadlock with full diagnostics
 					await appendAuditEntry(workspaceRoot, planExecId, "_plan", {
 						timestamp: new Date().toISOString(),
 						type: "deadlock-detected",
 						blockedCount: stats.blocked,
+						blockedWorkspaces: blockedWs,
+						pendingWorkspaces: pendingWs.map((p) => p.id),
+						blockingReasons,
+						dependencyEdges: pendingWs.map((p) => ({ workspace: p.id, waitingOn: p.waitingOn })),
 						planExecId,
 						iteration,
 					}).catch(() => {});

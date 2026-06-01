@@ -15,18 +15,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { checkInvariants, type ScenarioInvariantContext } from "../../src/core/execution-gauntlet/invariant-checker.js";
-import type { GauntletPlan } from "../../src/core/execution-gauntlet/synthetic-plan-builder.js";
 import {
-	buildG7RepeatedRetryLoop,
-	buildG10SucceededToRunningRetry,
 	buildG13RunawayInstantFailureLoop,
 	buildG14UnstableFailureSignature,
 	buildG15MaxAttemptsExceeded,
 	buildG16CompletedWorkspaceNotRetried,
 	buildPlanQueue,
 } from "../../src/core/execution-gauntlet/synthetic-plan-builder.js";
-import { createSyntheticWorker, type SyntheticRunResult } from "../../src/core/execution-gauntlet/synthetic-worker.js";
+import { createSyntheticWorker } from "../../src/core/execution-gauntlet/synthetic-worker.js";
 
 // ---------------------------------------------------------------------------
 // Synthetic worker tests

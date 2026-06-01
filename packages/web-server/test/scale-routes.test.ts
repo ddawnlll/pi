@@ -367,8 +367,8 @@ describe("buildScaleModeReadiness", () => {
 	it("returns ready=true for stable mode (1-3 workers)", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 3, false);
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("stable_3");
-		expect(result.isScaleModeActive).toBe(false);
+		expect(result.currentMode).toBe("experimental_6");
+		expect(result.isScaleModeActive).toBe(true);
 		expect(result.blockedReasons).toHaveLength(0);
 	});
 
@@ -452,28 +452,29 @@ describe("buildScaleModeReadiness", () => {
 
 	it("warns when prerequisites are met but workers in stable range", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 3, true);
-		// Two warnings: prerequisites met + stable range, and experimental flag has no effect
-		expect(result.warnings.length).toBeGreaterThanOrEqual(1);
-		expect(result.warnings.some((w) => w.includes("stable range") && w.includes("4-8"))).toBe(true);
+		// In worktree-only mode, scale is always active — no stable-range warnings
+		expect(result.warnings).toEqual([]);
 	});
 
 	it("warns when experimental flag set but workers in stable range", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 2, true);
-		expect(result.warnings.length).toBeGreaterThanOrEqual(1);
-		expect(result.warnings.some((w) => w.includes("experimental"))).toBe(true);
+		// In worktree-only mode, scale is always active — no experimental-flag warnings
+		expect(result.warnings).toEqual([]);
 	});
 
 	it("clamps worker count to valid range", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 99, true);
-		expect(result.currentMode).toBe("scale_8");
+		// P22.C: Worktree-only mode — always experimental_6
+		expect(result.currentMode).toBe("experimental_6");
 		expect(result.requestedWorkers).toBe(99);
 		expect(result.maxAllowedWorkers).toBe(8);
 	});
 
 	it("clamps worker count below minimum", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 0, false);
+		// P22.C: Worktree-only mode — always experimental_6
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("stable_3");
+		expect(result.currentMode).toBe("experimental_6");
 	});
 
 	it("six workers with experimental enabled returns experimental_6 mode", () => {
@@ -484,10 +485,11 @@ describe("buildScaleModeReadiness", () => {
 		expect(result.blockedReasons).toHaveLength(0);
 	});
 
-	it("eight workers with experimental enabled returns scale_8 mode", () => {
+	it("eight workers with experimental enabled returns experimental_6 mode", () => {
 		const result = buildScaleModeReadiness(allSettingsTrue, 8, true);
+		// P22.C: Worktree-only mode — always experimental_6
 		expect(result.ready).toBe(true);
-		expect(result.currentMode).toBe("scale_8");
+		expect(result.currentMode).toBe("experimental_6");
 		expect(result.isScaleModeActive).toBe(true);
 		expect(result.blockedReasons).toHaveLength(0);
 		expect(result.maxAllowedWorkers).toBe(8);

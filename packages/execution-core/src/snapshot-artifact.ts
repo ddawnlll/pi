@@ -847,15 +847,15 @@ function buildHunks(ops: DiffOp[], oldLines: string[], newLines: string[], conte
 
 		// Build hunk lines
 		const hunkLines: string[] = [];
-		let oldLineNum = hunkStart > 0 ? oldLines.length : 1;
-		let newLineNum = hunkStart > 0 ? newLines.length : 1;
+		let _oldLineNum = hunkStart > 0 ? oldLines.length : 1;
+		let _newLineNum = hunkStart > 0 ? newLines.length : 1;
 
 		// Find the old/new line numbers at hunk start
 		if (hunkStart > 0) {
 			const prevOp = ops[hunkStart - 1];
 			if (prevOp.type === "equal") {
-				oldLineNum = prevOp.oldLineIdx + 2;
-				newLineNum = prevOp.newLineIdx + 2;
+				_oldLineNum = prevOp.oldLineIdx + 2;
+				_newLineNum = prevOp.newLineIdx + 2;
 			}
 		}
 
@@ -865,20 +865,20 @@ function buildHunks(ops: DiffOp[], oldLines: string[], newLines: string[], conte
 				case "equal": {
 					const line = oldLines[op.oldLineIdx] ?? "";
 					hunkLines.push(` ${line}`);
-					oldLineNum = op.oldLineIdx + 2;
-					newLineNum = op.newLineIdx + 2;
+					_oldLineNum = op.oldLineIdx + 2;
+					_newLineNum = op.newLineIdx + 2;
 					break;
 				}
 				case "delete": {
 					const line = oldLines[op.oldLineIdx] ?? "";
 					hunkLines.push(`-${line}`);
-					oldLineNum = op.oldLineIdx + 2;
+					_oldLineNum = op.oldLineIdx + 2;
 					break;
 				}
 				case "insert": {
 					const line = newLines[op.newLineIdx] ?? "";
 					hunkLines.push(`+${line}`);
-					newLineNum = op.newLineIdx + 2;
+					_newLineNum = op.newLineIdx + 2;
 					break;
 				}
 			}

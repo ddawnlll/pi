@@ -10,7 +10,7 @@ import {
   Filter, DollarSign, Zap, ListOrdered,
   FolderOpen,
 } from "lucide-react";
-import type { WorkerInfo, WorkspaceSummary, GitFilePatch } from "./types";
+import type { WorkerInfo, WorkspaceSummary, GitFilePatch, JournalEvent } from "./types";
 import type { PlatformNavItem } from "./components/LeftNav";
 import type { TopbarBrainMode } from "./components/topbar/Topbar";
 import { usePlanState } from "./hooks/usePlanState";
@@ -71,6 +71,7 @@ import { BrainTrustPage } from "./pages/BrainTrustPage";
 import { BrainOvernightPage } from "./pages/BrainOvernightPage";
 import { DigestPage } from "./pages/DigestPage";
 import { BrainInboxPage } from "./pages/BrainInboxPage";
+import { CockpitPanels } from "./components/CockpitPanels";
 
 // ─── ActiveView type ────────────────────────────────────────────────────
 // Single source of truth for the center column view
@@ -914,6 +915,18 @@ export function App() {
                             />
                             <div className={`shrink-0 p-3 border-b ${BORD}`}>
                               <SchedulerStatusPanel stats={planStats ?? null} />
+                            </div>
+
+                            {/* P41.12: Minimal Dashboard Cockpit Panels */}
+                            <div className={`border-b ${BORD}`}>
+                              <CockpitPanels
+                                projectId={selectedProjectId}
+                                planExecId={selectedPlanExecId}
+                                selectedWorkerId={selectedWorkerId}
+                                workspaceStage={selectedWorker?.stage}
+                                workers={workers}
+                                planEvents={activeEvents as JournalEvent[]}
+                              />
                             </div>
                           </>
                         )}

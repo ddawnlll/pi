@@ -15,17 +15,16 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { CombinedSummaryBuilder } from "../../src/core/execution-gauntlet/combined-summary.js";
 import { runDeterministicScenario } from "../../src/core/execution-gauntlet/deterministic-runner.js";
-import { createExecutionModeContext, STABLE_3_PROFILE } from "../../src/core/execution-gauntlet/execution-mode-adapter.js";
-import { createLeadAgent } from "../../src/core/lead-agent/lead-agent.js";
-import { createSyntheticRepo } from "../../src/core/execution-gauntlet/synthetic-repo.js";
 import { LiveMonitor } from "../../src/core/execution-gauntlet/live-monitor.js";
 import type { ScenarioResult } from "../../src/core/execution-gauntlet/report-writer.js";
+import { createSyntheticRepo } from "../../src/core/execution-gauntlet/synthetic-repo.js";
+import { createLeadAgent } from "../../src/core/lead-agent/lead-agent.js";
 import {
-	createDefaultVisibility,
 	type CombinedSummaryVisibility,
+	createDefaultVisibility,
 	VISIBILITY_PLANS,
 	VISIBILITY_SCENARIO_META,
 } from "./visibility-gauntlet-plans.js";
@@ -39,8 +38,12 @@ const VISIBILITY_TIMEOUT_MS = 60_000;
 const RUN_ID = `p41-13-visibility-${new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, "")}`;
 const REPORT_DIR = path.join(
 	__dirname,
-	"..", "..", "..", "..",
-	"reports", "p41-visibility-control-cockpit",
+	"..",
+	"..",
+	"..",
+	"..",
+	"reports",
+	"p41-visibility-control-cockpit",
 	new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, ""),
 );
 
@@ -132,22 +135,20 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 			expect(meta).toBeDefined();
 
 			// Create synthetic repo
-			const repo = await createSyntheticRepo(plan.id, SEED);
+			const repo = await createSyntheticRepo(plan.id);
 
 			// Create live monitor
-			const monitor = new LiveMonitor(
-				path.join(REPORT_DIR, "monitor"),
-				`${RUN_ID}-${plan.id}`,
-			);
+			const monitor = new LiveMonitor(path.join(REPORT_DIR, "monitor"), `${RUN_ID}-${plan.id}`);
 			await monitor.open();
 
 			try {
 				// Create lead agent factory for scenarios that need it
 				let createLeadAgentFn: (() => ReturnType<typeof createLeadAgent>) | undefined;
 				if (meta.expectsLeadAgentVisible) {
-					createLeadAgentFn = () => createLeadAgent({
-						mode: "dry_run",
-					});
+					createLeadAgentFn = () =>
+						createLeadAgent({
+							mode: "dry_run",
+						});
 				}
 
 				// Run the deterministic scenario
@@ -194,16 +195,11 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 				}
 
 				if (meta.expectsLeadAgentVisible) {
-					expect(
-						result.leadDirectivesCreated,
-						`${plan.id} should create lead directives`,
-					).toBeGreaterThan(0);
+					expect(result.leadDirectivesCreated, `${plan.id} should create lead directives`).toBeGreaterThan(0);
 				}
 
 				if (meta.expectsCompletionGateVisible) {
-					const cgBlocked = result.workspaceStates.some(
-						(ws) => ws.stage === "Blocked",
-					);
+					const cgBlocked = result.workspaceStates.some((ws) => ws.stage === "Blocked");
 					expect(cgBlocked, `${plan.id} should have completion gate blocked`).toBe(true);
 				}
 			} finally {
@@ -257,7 +253,10 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 		builder.setExecutionMode("stable_3", {
 			tested: true,
 			verdict: allPassed ? "PASS" : "FAIL",
-			maxObservedActiveWorkers: Math.max(0, ...allResults.map((r) => r.parallelismSummary?.maxObservedActiveWorkers ?? 0)),
+			maxObservedActiveWorkers: Math.max(
+				0,
+				...allResults.map((r) => r.parallelismSummary?.maxObservedActiveWorkers ?? 0),
+			),
 			averageActiveWorkers:
 				allResults.length > 0
 					? allResults.reduce((s, r) => s + (r.parallelismSummary?.averageActiveWorkers ?? 0), 0) /
@@ -275,9 +274,7 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 			escalationsCreated: totalEscalations,
 			classifications: allResults
 				.flatMap((r) =>
-					r.invariantResults
-						.filter((i) => i.category === "lead-agent" && !i.passed)
-						.map((i) => i.name),
+					r.invariantResults.filter((i) => i.category === "lead-agent" && !i.passed).map((i) => i.name),
 				)
 				.filter((c, i, a) => a.indexOf(c) === i),
 		});
@@ -302,9 +299,8 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 
 		// Set stop/continue data
 		builder.setStopContinue({
-			staleCompletionsIgnored: allResults.filter((r) =>
-				r.invariantResults.some((i) => i.name.includes("stale")),
-			).length,
+			staleCompletionsIgnored: allResults.filter((r) => r.invariantResults.some((i) => i.name.includes("stale")))
+				.length,
 			illegalTransitionsAttempted: allResults.filter((r) =>
 				r.invariantResults.some((i) => i.name.includes("illegal")),
 			).length,
@@ -327,13 +323,7 @@ describe("P41.13 — E2E Visibility Gauntlet", () => {
 		await fs.mkdir(REPORT_DIR, { recursive: true });
 
 		// Write summary.md
-		const summaryMd = generateFinalSummary(
-			RUN_ID,
-			allResults,
-			mergedVisibility,
-			allPassed,
-			totalDurationMs,
-		);
+		const summaryMd = generateFinalSummary(RUN_ID, allResults, mergedVisibility, allPassed, totalDurationMs);
 		await fs.writeFile(path.join(REPORT_DIR, "summary.md"), summaryMd, "utf-8");
 		reportFiles.push(path.join(REPORT_DIR, "summary.md"));
 
@@ -525,7 +515,10 @@ function generateFinalSummary(
 		{ name: "File tree read model exists", condition: vis.fileTreeAvailable },
 		{ name: "File diff artifacts exist", condition: vis.fileDiffsWritten },
 		{ name: "Worker context inspector exists", condition: vis.workerContextAvailable },
-		{ name: "Lead Agent diagnosis/directive/escalation visible", condition: vis.leadAgentVisible && vis.escalationVisible },
+		{
+			name: "Lead Agent diagnosis/directive/escalation visible",
+			condition: vis.leadAgentVisible && vis.escalationVisible,
+		},
 		{ name: "Human directive API works", condition: vis.humanDirectiveVisible },
 		{ name: "Control actions emit events", condition: vis.controlEventsVisible },
 		{ name: "Minimal dashboard cockpit panels exist", condition: vis.dashboardReadModelAvailable },
@@ -598,10 +591,7 @@ function generateScenarioReport(
 	return lines.join("\n");
 }
 
-function generateRemainingRisks(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateRemainingRisks(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Remaining Risks — P41");
 	lines.push("");
@@ -657,10 +647,7 @@ function generateRemainingRisks(
 	return lines.join("\n");
 }
 
-function generateEventSpineReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateEventSpineReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Event Spine Report — P41");
 	lines.push("");
@@ -681,9 +668,7 @@ function generateEventSpineReport(
 	lines.push("| Scenario | Events Generated |");
 	lines.push("| -------- | ---------------- |");
 	for (const r of results) {
-		lines.push(
-			`| ${r.planId} | plan_start, plan_end, workspace_${r.passed ? "complete" : "error"} |`,
-		);
+		lines.push(`| ${r.planId} | plan_start, plan_end, workspace_${r.passed ? "complete" : "error"} |`);
 	}
 	lines.push("");
 
@@ -697,10 +682,7 @@ function generateEventSpineReport(
 	return lines.join("\n");
 }
 
-function generateWorkerTranscriptsReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateWorkerTranscriptsReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Worker Transcripts Report — P41");
 	lines.push("");
@@ -717,9 +699,7 @@ function generateWorkerTranscriptsReport(
 	lines.push("");
 
 	for (const r of results) {
-		lines.push(
-			`- **${r.planId}**: ${r.workspaceStates.length} workspace(s), ${r.passed ? "PASS" : "FAIL"}`,
-		);
+		lines.push(`- **${r.planId}**: ${r.workspaceStates.length} workspace(s), ${r.passed ? "PASS" : "FAIL"}`);
 	}
 	lines.push("");
 	lines.push("---");
@@ -728,10 +708,7 @@ function generateWorkerTranscriptsReport(
 	return lines.join("\n");
 }
 
-function generateCommandLogsReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateCommandLogsReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Command Logs / Terminal Stream Report — P41");
 	lines.push("");
@@ -765,10 +742,7 @@ function generateCommandLogsReport(
 	return lines.join("\n");
 }
 
-function generateFileTreeReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateFileTreeReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# File Tree Read Model Report — P41");
 	lines.push("");
@@ -799,10 +773,7 @@ function generateFileTreeReport(
 	return lines.join("\n");
 }
 
-function generateFileDiffsReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateFileDiffsReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# File Diff / Snapshot Artifacts Report — P41");
 	lines.push("");
@@ -830,10 +801,7 @@ function generateFileDiffsReport(
 	return lines.join("\n");
 }
 
-function generateWorkerContextReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateWorkerContextReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Worker Context Inspector Report — P41");
 	lines.push("");
@@ -863,10 +831,7 @@ function generateWorkerContextReport(
 	return lines.join("\n");
 }
 
-function generateLeadEscalationReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateLeadEscalationReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Lead Agent Escalation Surface Report — P41");
 	lines.push("");
@@ -890,12 +855,12 @@ function generateLeadEscalationReport(
 	lines.push("| Scenario | Directives | Escalations |");
 	lines.push("| -------- | ---------- | ----------- |");
 	for (const r of results) {
-		lines.push(
-			`| ${r.planId} | ${r.leadDirectivesCreated} | ${r.leadEscalationsCreated} |`,
-		);
+		lines.push(`| ${r.planId} | ${r.leadDirectivesCreated} | ${r.leadEscalationsCreated} |`);
 	}
 	lines.push("");
-	lines.push(`**Totals:** ${totalDirectives} directives, ${totalEscalations} escalations across ${results.length} scenarios`);
+	lines.push(
+		`**Totals:** ${totalDirectives} directives, ${totalEscalations} escalations across ${results.length} scenarios`,
+	);
 	lines.push("");
 	lines.push("---");
 	lines.push("_P41.13 Visibility Gauntlet — Lead Agent Escalation Validation_");
@@ -903,10 +868,7 @@ function generateLeadEscalationReport(
 	return lines.join("\n");
 }
 
-function generateHumanDirectivesReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateHumanDirectivesReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Human Directive / Intervention API Report — P41");
 	lines.push("");
@@ -935,10 +897,7 @@ function generateHumanDirectivesReport(
 	return lines.join("\n");
 }
 
-function generateControlActionsReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateControlActionsReport(vis: CombinedSummaryVisibility, results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Control Actions API Report — P41");
 	lines.push("");
@@ -967,10 +926,7 @@ function generateControlActionsReport(
 	return lines.join("\n");
 }
 
-function generateDashboardPanelsReport(
-	vis: CombinedSummaryVisibility,
-	results: ScenarioResult[],
-): string {
+function generateDashboardPanelsReport(vis: CombinedSummaryVisibility, _results: ScenarioResult[]): string {
 	const lines: string[] = [];
 	lines.push("# Minimal Dashboard Cockpit Panels Report — P41");
 	lines.push("");
@@ -982,11 +938,15 @@ function generateDashboardPanelsReport(
 	lines.push("| ----- | ----------- | -------- |");
 	lines.push(`| Plan Overview | Plan lifecycle events | ${vis.eventStreamWritten ? "PASS" : "FAIL"} |`);
 	lines.push(`| Worker List | Workspace states | ${vis.dashboardReadModelAvailable ? "PASS" : "FAIL"} |`);
-	lines.push(`| Worker Detail | Workspace state + transcript | ${vis.workerContextAvailable && vis.transcriptsWritten ? "PASS" : "FAIL"} |`);
+	lines.push(
+		`| Worker Detail | Workspace state + transcript | ${vis.workerContextAvailable && vis.transcriptsWritten ? "PASS" : "FAIL"} |`,
+	);
 	lines.push(`| Live Logs | Command history | ${vis.commandLogsWritten ? "PASS" : "FAIL"} |`);
 	lines.push(`| File Tree | Workspace file changes | ${vis.fileTreeAvailable ? "PASS" : "FAIL"} |`);
 	lines.push(`| Diff metadata | File snapshot/diff artifacts | ${vis.fileDiffsWritten ? "PASS" : "FAIL"} |`);
-	lines.push(`| Lead/Escalation | Lead directives + escalations | ${vis.leadAgentVisible && vis.escalationVisible ? "PASS" : "FAIL"} |`);
+	lines.push(
+		`| Lead/Escalation | Lead directives + escalations | ${vis.leadAgentVisible && vis.escalationVisible ? "PASS" : "FAIL"} |`,
+	);
 	lines.push(`| Control Actions | Control events | ${vis.controlEventsVisible ? "PASS" : "FAIL"} |`);
 	lines.push("");
 
@@ -1001,10 +961,7 @@ function generateDashboardPanelsReport(
 	return lines.join("\n");
 }
 
-function generateE2eVisibilityGauntletReport(
-	results: ScenarioResult[],
-	vis: CombinedSummaryVisibility,
-): string {
+function generateE2eVisibilityGauntletReport(results: ScenarioResult[], vis: CombinedSummaryVisibility): string {
 	const lines: string[] = [];
 	lines.push("# E2E Visibility Gauntlet — V1-V8 Results");
 	lines.push("");
@@ -1041,7 +998,7 @@ function generateE2eVisibilityGauntletReport(
 	lines.push("| ------- | ------ |");
 	const visFlags: Record<string, keyof CombinedSummaryVisibility> = {
 		"Event stream": "eventStreamWritten",
-		"Transcript": "transcriptsWritten",
+		Transcript: "transcriptsWritten",
 		"Command logs": "commandLogsWritten",
 		"File tree": "fileTreeAvailable",
 		"File diffs": "fileDiffsWritten",

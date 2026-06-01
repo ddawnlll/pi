@@ -240,11 +240,13 @@ describe("plan-preview validate enhancements", () => {
 			expect(result.warnings.some((w) => w.type === "over_serialized")).toBe(true);
 		});
 
-		it("returns low effective parallelism warning when below max", () => {
+		it("returns no low effective parallelism warning when below max", () => {
 			const queue = sampleQueue();
 			const result = computeBatchPlan(queue);
 
-			expect(result.warnings.some((w) => w.type === "low_effective_parallelism")).toBe(true);
+			// Parallelism mismatch warnings removed — users may intentionally set higher capacity
+			// for future growth or to handle burst scenarios.
+			expect(result.warnings.some((w) => w.type === "low_effective_parallelism")).toBe(false);
 		});
 
 		it("assigns batch indices to graph nodes", () => {
@@ -333,12 +335,14 @@ describe("plan-preview validate enhancements", () => {
 			expect(fixes.some((f) => f.category === "remove_dependency")).toBe(true);
 		});
 
-		it("suggests adjusting parallelism for under-utilized plans", () => {
+		it("does not suggest adjusting parallelism for under-utilized plans", () => {
 			const queue = sampleQueue();
 			const batchPlan = computeBatchPlan(queue);
 			const fixes = generateSuggestedFixes(queue, batchPlan);
 
-			expect(fixes.some((f) => f.category === "adjust_parallelism")).toBe(true);
+			// Parallelism adjustment suggestions removed — users may intentionally set higher capacity
+			// for future growth or to handle burst scenarios.
+			expect(fixes.some((f) => f.category === "adjust_parallelism")).toBe(false);
 		});
 
 		it("suggests cycle resolution for cyclic plans", () => {

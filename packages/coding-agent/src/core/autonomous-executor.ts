@@ -1898,7 +1898,7 @@ export class AutonomousExecutor {
 		const maxAttemptsPerWorkspace = 5;
 
 		return {
-			canSchedule: (workspaceId: string, wsState: any, _planExecutionId: string) => {
+			canSchedule: (_workspaceId: string, wsState: any, _planExecutionId: string) => {
 				// Reject if workspace is in a terminal/escalated state
 				if (wsState.stage === WorkspaceStage.Blocked || wsState.stage === WorkspaceStage.Complete) {
 					return {

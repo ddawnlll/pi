@@ -36,8 +36,7 @@ export function buildV1LiveLogStream(): GauntletPlan {
 		executionMode: "stable_3",
 		category: "visibility",
 		maxParallelWorkspaces: 1,
-		purpose:
-			"Verify command stdout/stderr are streamed and visible via synthetic worker command history and output.",
+		purpose: "Verify command stdout/stderr are streamed and visible via synthetic worker command history and output.",
 		workspaces: [
 			{
 				workspaceId: "V1-live-log",
@@ -211,8 +210,7 @@ export function buildV6HumanDirectiveFlow(): GauntletPlan {
 		executionMode: "stable_3",
 		category: "visibility",
 		maxParallelWorkspaces: 1,
-		purpose:
-			"Verify human directive flow: directive sent, persisted, and visible in retry/control pathways.",
+		purpose: "Verify human directive flow: directive sent, persisted, and visible in retry/control pathways.",
 		workspaces: [
 			{
 				workspaceId: "V6-human-directive",
