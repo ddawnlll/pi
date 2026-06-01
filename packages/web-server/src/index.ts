@@ -63,6 +63,7 @@ import { registerAuthRoutes } from "./auth-routes.js";
 import { registerBrainWorkerInboxRoutes } from "./brain-worker-routes.js";
 import { registerExtensionRoutes } from "./extensions-routes.js";
 import { registerFileExplorerRoutes } from "./file-explorer-routes.js";
+import { registerHumanDirectiveRoutes } from "./human-directive-routes.js";
 import { registerLogStreamRoutes } from "./log-stream-routes.js";
 import { registerPerformanceRoutes } from "./performance-routes.js";
 import { registerPiInboxRoutes } from "./pi-inbox-routes.js";
@@ -88,6 +89,7 @@ import { registerProposalRoutes } from "./proposal-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
+import { registerWorkerContextRoutes } from "./worker-context-routes.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
 
@@ -4805,6 +4807,18 @@ await registerFileExplorerRoutes(fastify);
 // ---------------------------------------------------------------------------
 
 await registerScaleRoutes(fastify, getPiDir, getWorkspaceRoot, getSettingsManager);
+
+// ---------------------------------------------------------------------------
+// Worker Context Routes (P41.08 — Worker Context Inspector)
+// ---------------------------------------------------------------------------
+
+registerWorkerContextRoutes(fastify, getPiDir, getWorkspaceRoot, getStateStore);
+
+// ---------------------------------------------------------------------------
+// Human Directive / Intervention Routes (P41.10 — Human Directive / Intervention API)
+// ---------------------------------------------------------------------------
+
+registerHumanDirectiveRoutes(fastify, getStateStore);
 
 // ---------------------------------------------------------------------------
 // Proposal Routes (P8.G — Lead Agent Dashboard, read-only)

@@ -89,6 +89,46 @@ export async function handleExecutionCommand(
 			};
 		case "approve_proposal":
 			return { accepted: true, message: `Proposal ${command.proposalId} approved` };
+		case "issue_human_directive": {
+			if (!deps.planControlManager)
+				return {
+					accepted: false,
+					message: "Plan control manager not available",
+					error: "No plan control manager configured",
+				};
+			await deps.planControlManager.writeControlRequest(
+				"human_directive",
+				JSON.stringify({
+					workspaceId: command.workspaceId,
+					directive: command.directive,
+					severity: command.severity ?? "medium",
+					directiveId: command.directiveId,
+				}),
+			);
+			return {
+				accepted: true,
+				message: `Human directive issued for workspace ${command.workspaceId}`,
+			};
+		}
+		case "intervene_workspace": {
+			if (!deps.planControlManager)
+				return {
+					accepted: false,
+					message: "Plan control manager not available",
+					error: "No plan control manager configured",
+				};
+			await deps.planControlManager.writeControlRequest(
+				command.action,
+				JSON.stringify({
+					workspaceId: command.workspaceId,
+					reason: command.reason,
+				}),
+			);
+			return {
+				accepted: true,
+				message: `${command.action} intervention sent for workspace ${command.workspaceId}`,
+			};
+		}
 		default:
 			return {
 				accepted: false,

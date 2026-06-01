@@ -18,6 +18,7 @@ import type {
 	LeadDirectiveView,
 	LeadEscalationView,
 	PlanExecutionSummary,
+	WorkerContextView,
 	WorkspaceExecutionSummary,
 } from "@earendil-works/pi-execution-core";
 import { buildFileTreeFromEntries, getFileExt } from "@earendil-works/pi-execution-core";
@@ -127,6 +128,27 @@ export function createExecutionReadModel(stateStore: {
 		async listJournalEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]> {
 			if (stateStore.getJournalEvents) return stateStore.getJournalEvents(planExecutionId, options);
 			return [];
+		},
+
+		async getWorkerContext(planExecutionId: string, workspaceId: string): Promise<WorkerContextView> {
+			const summary = await this.getWorkspaceSummary(planExecutionId, workspaceId);
+			const directives = await this.getLeadDirectives(planExecutionId, workspaceId);
+			const escalations = await this.getLeadEscalations(planExecutionId, workspaceId);
+
+			return {
+				workspaceId,
+				planExecutionId,
+				stage: summary.stage,
+				attempts: summary.attempts,
+				error: summary.error,
+				startedAt: summary.startedAt,
+				completedAt: summary.completedAt,
+				allowedFiles: [],
+				touchedFiles: [],
+				activeDirectives: directives.filter((d) => d.status === "issued" || d.status === "acknowledged"),
+				activeEscalations: escalations.filter((e) => e.status === "awaiting_user"),
+				transcriptUrl: `/api/transcript/${planExecutionId}/${workspaceId}`,
+			};
 		},
 
 		async getCommandHistory(): Promise<CommandHistoryView[]> {
