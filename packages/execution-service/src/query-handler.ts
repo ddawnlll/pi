@@ -708,8 +708,8 @@ function extractDependencyGraphFromEvents(
  */
 function extractFileDiffFromPatch(patchContent: string, targetFilePath: string): FileDiffView | null {
 	const lines = patchContent.split("\n");
-	let currentFile: string | null = null;
 	let inTarget = false;
+	let found = false;
 	const diffLines: string[] = [];
 	let additions = 0;
 	let deletions = 0;
@@ -718,8 +718,20 @@ function extractFileDiffFromPatch(patchContent: string, targetFilePath: string):
 		// Track which file we're in based on diff headers
 		const fileHeaderMatch = line.match(/^diff --git a\/(.*) b\/(.*)/);
 		if (fileHeaderMatch) {
-			currentFile = fileHeaderMatch[2];
-			inTarget = currentFile === targetFilePath;
+			// If we were accumulating diffs for the target file and hit a new file header,
+			// the target file's diff is complete — return it immediately.
+			if (found) {
+				return {
+					path: targetFilePath,
+					status: "modified",
+					diff: diffLines.join("\n"),
+					additions,
+					deletions,
+					truncated: false,
+				};
+			}
+			inTarget = fileHeaderMatch[2] === targetFilePath;
+			found = inTarget;
 			if (inTarget) {
 				diffLines.push(line);
 			}
@@ -733,7 +745,7 @@ function extractFileDiffFromPatch(patchContent: string, targetFilePath: string):
 		}
 	}
 
-	if (!inTarget || diffLines.length === 0) return null;
+	if (diffLines.length === 0) return null;
 
 	return {
 		path: targetFilePath,
