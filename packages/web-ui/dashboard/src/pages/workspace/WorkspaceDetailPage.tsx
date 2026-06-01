@@ -13,7 +13,7 @@
  * - Escalations / Directives
  */
 
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Maximize2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigation } from "../../navigation/NavigationState";
 import { useWorkerContext, type WorkerContextView } from "../../hooks/useWorkerContext";
@@ -23,6 +23,11 @@ import { useWorkerTranscript } from "../../hooks/useWorkerTranscript";
 import { useValidationStatus } from "../../hooks/useValidationStatus";
 import { useEscalations, useResolveEscalation } from "../../hooks/useEscalations";
 import { useHumanDirectives } from "../../hooks/useHumanDirectives";
+import { useDrawer } from "../../components/drawers/DrawerContext";
+import { TranscriptDrawer } from "../../components/drawers/TranscriptDrawer";
+import { FileEvidenceDrawer } from "../../components/drawers/FileEvidenceDrawer";
+import { DirectiveDrawer } from "../../components/drawers/DirectiveDrawer";
+import { ArtifactDrawer } from "../../components/drawers/ArtifactDrawer";
 
 import {
   WorkspaceDetailCurrentState,
@@ -142,6 +147,9 @@ export function WorkspaceDetailPage({
 
   const resolveEscalation = useResolveEscalation();
 
+  // ── Drawer state ──
+  const { openDrawer } = useDrawer();
+
   // ── Attempt history ──
   const [attempts, setAttempts] = useState<AttemptEntry[]>([]);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
@@ -187,6 +195,63 @@ export function WorkspaceDetailPage({
     },
     [planExecId, workspaceId, resolveEscalation],
   );
+
+  // ── Drawer open handlers ──
+  const handleOpenTranscriptDrawer = useCallback(() => {
+    openDrawer({
+      id: "worker-transcript",
+      title: "Transcript",
+      content: (
+        <TranscriptDrawer
+          projectId={projectId}
+          planExecId={planExecId}
+          workspaceId={workspaceId}
+        />
+      ),
+    });
+  }, [openDrawer, projectId, planExecId, workspaceId]);
+
+  const handleOpenFileEvidenceDrawer = useCallback(() => {
+    openDrawer({
+      id: "file-evidence",
+      title: "File Evidence",
+      content: (
+        <FileEvidenceDrawer
+          projectId={projectId}
+          planExecId={planExecId}
+          workspaceId={workspaceId}
+        />
+      ),
+    });
+  }, [openDrawer, projectId, planExecId, workspaceId]);
+
+  const handleOpenDirectiveDrawer = useCallback(() => {
+    openDrawer({
+      id: "directive",
+      title: "Directives",
+      content: (
+        <DirectiveDrawer
+          projectId={projectId}
+          planExecId={planExecId}
+          workspaceId={workspaceId}
+        />
+      ),
+    });
+  }, [openDrawer, projectId, planExecId, workspaceId]);
+
+  const handleOpenArtifactDrawer = useCallback(() => {
+    openDrawer({
+      id: "artifact-browser",
+      title: "Artifacts",
+      content: (
+        <ArtifactDrawer
+          projectId={projectId}
+          planExecId={planExecId}
+          workspaceId={workspaceId}
+        />
+      ),
+    });
+  }, [openDrawer, projectId, planExecId, workspaceId]);
 
   // ── Derived ──
   const stage = context?.stage ?? "unknown";
@@ -272,7 +337,25 @@ export function WorkspaceDetailPage({
           />
         </div>
 
-        {/* Row 3: Transcript (full width) */}
+        {/* Row 3: Transcript + Artifacts actions */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleOpenTranscriptDrawer}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            title="Open transcript in drawer"
+          >
+            <Maximize2 size={11} />
+            Open Transcript Drawer
+          </button>
+          <button
+            onClick={handleOpenArtifactDrawer}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            title="Open artifacts in drawer"
+          >
+            <Maximize2 size={11} />
+            Open Artifact Drawer
+          </button>
+        </div>
         <WorkspaceDetailTranscript
           events={transcriptEvents}
           isConnected={transcriptConnected}
@@ -295,6 +378,24 @@ export function WorkspaceDetailPage({
         </div>
 
         {/* Row 5: Escalations / Directives (full width) */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenDirectiveDrawer}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            title="Open directives in drawer"
+          >
+            <Maximize2 size={11} />
+            Open Directive Drawer
+          </button>
+          <button
+            onClick={handleOpenFileEvidenceDrawer}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            title="Open file evidence in drawer"
+          >
+            <Maximize2 size={11} />
+            Open File Evidence Drawer
+          </button>
+        </div>
         <WorkspaceDetailEscalations
           escalations={escalations}
           directives={directives}

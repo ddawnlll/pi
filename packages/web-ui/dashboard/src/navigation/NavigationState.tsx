@@ -32,10 +32,11 @@ export const COCKPIT_TABS: { id: CockpitTabId; label: string }[] = [
 // ---------------------------------------------------------------------------
 
 export type NavigationRouteType =
-  | "empty"      // No execution selected
-  | "run"        // Execution overview (cockpit tabs)
-  | "task"       // Task detail
-  | "platform";  // Platform/brain secondary page
+  | "empty"              // No execution selected
+  | "run"                // Execution overview (cockpit tabs)
+  | "task"               // Task detail
+  | "platform"           // Platform/brain secondary page
+  | "workspace-detail";  // Workspace detail page (P42.06)
 
 export interface NavigationRoute {
   type: NavigationRouteType;
@@ -57,6 +58,8 @@ export interface NavigationState {
   setCockpitTab: (tab: CockpitTabId) => void;
   navigateToRun: (execId: string) => void;
   navigateToTask: (taskId: string) => void;
+  navigateToWorkspace: (workspaceId: string) => void;
+  navigateToWorkspaceDetail: (workspaceId: string) => void;
   navigateToPlatform: (screen: string) => void;
   navigateToEmpty: () => void;
 }
@@ -134,6 +137,25 @@ export function NavigationProvider({ children, initialRoute }: { children: React
     }));
   }, []);
 
+  const navigateToWorkspace = useCallback((workspaceId: string) => {
+    setRouteState((prev) => ({
+      ...prev,
+      type: "run",
+      workspaceId,
+      platformScreen: null,
+      cockpitTab: "workspaces",
+    }));
+  }, []);
+
+  const navigateToWorkspaceDetail = useCallback((workspaceId: string) => {
+    setRouteState((prev) => ({
+      ...prev,
+      type: "workspace-detail",
+      workspaceId,
+      platformScreen: null,
+    }));
+  }, []);
+
   const navigateToEmpty = useCallback(() => {
     setRouteState(DEFAULT_ROUTE);
   }, []);
@@ -144,9 +166,11 @@ export function NavigationProvider({ children, initialRoute }: { children: React
     setCockpitTab,
     navigateToRun,
     navigateToTask,
+    navigateToWorkspace,
+    navigateToWorkspaceDetail,
     navigateToPlatform,
     navigateToEmpty,
-  }), [route, setRoute, setCockpitTab, navigateToRun, navigateToTask, navigateToPlatform, navigateToEmpty]);
+  }), [route, setRoute, setCockpitTab, navigateToRun, navigateToTask, navigateToWorkspace, navigateToWorkspaceDetail, navigateToPlatform, navigateToEmpty]);
 
   return (
     <NavigationContext.Provider value={value}>

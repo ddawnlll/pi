@@ -1,5 +1,11 @@
 /**
- * RightSidebar — P21.C Right Sidebar 3-Section Split
+ * RightSidebar — LEGACY (P42.10)
+ *
+ * @deprecated Replaced by contextual drawers in V3 cockpit.
+ *   Kept for backward compatibility but NOT part of default layout.
+ *   The permanent right sidebar must not be the default cockpit layout.
+ *   Use TranscriptDrawer, ArtifactDrawer, DebugEventDrawer,
+ *   FileEvidenceDrawer, or DirectiveDrawer instead.
  *
  * Three vertically stacked sections with clear separators:
  *   1. Events — filterable event feed (All / Errors)

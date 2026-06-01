@@ -13,6 +13,9 @@
  * For "platform" view:
  * - Platform/brain page
  *
+ * For "workspace-detail" view:
+ * - WorkspaceDetailPage (P42.06)
+ *
  * For "empty" view:
  * - Empty state with upload plan CTA
  */
@@ -52,6 +55,9 @@ export interface CenterWorkSurfaceProps {
   /** Platform content (for platform view). */
   platformContent?: React.ReactNode;
 
+  /** Workspace detail content (for workspace-detail view). */
+  workspaceDetailContent?: React.ReactNode;
+
   /** Empty state CTA. */
   onUploadPlan?: () => void;
 
@@ -74,6 +80,7 @@ export function CenterWorkSurface({
   tabContent = {},
   taskContent,
   platformContent,
+  workspaceDetailContent,
   onUploadPlan,
   contextualToolbar,
   children,
@@ -122,6 +129,19 @@ export function CenterWorkSurface({
         {platformContent ?? (
           <div className={`flex-1 flex items-center justify-center ${MUT}`}>
             <p className="text-sm">Platform view</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Workspace detail view ──
+  if (type === "workspace-detail") {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        {workspaceDetailContent ?? (
+          <div className={`flex-1 flex items-center justify-center ${MUT}`}>
+            <p className="text-sm">Workspace detail</p>
           </div>
         )}
       </div>
