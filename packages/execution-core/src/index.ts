@@ -6,132 +6,155 @@
  * Must NOT import from @earendil-works/pi-coding-agent.
  */
 
+// Commands
+export type {
+	ExecutionCommandApproveProposal,
+	ExecutionCommandContinuePlan,
+	ExecutionCommandRequestUserEscalation,
+	ExecutionCommandRerunPlan,
+	ExecutionCommandRetryWorkspace,
+	ExecutionCommandStartPlan,
+	ExecutionCommandStopPlan,
+} from "./commands.js";
+// Event store
+export type { IEventStore } from "./event-store.js";
+export { EventStoreError, InMemoryEventStore } from "./event-store.js";
+// Events
+export type {
+	BrainApprovedPayload,
+	BrainProposedPayload,
+	BrainRejectedPayload,
+	CommandFinishedPayload,
+	CommandStartedPayload,
+	ExecutionEvent,
+	ExecutionEventPayloadMap,
+	ExecutionEventType,
+	GovernanceApprovedPayload,
+	GovernanceCheckStartedPayload,
+	GovernanceEscalatedPayload,
+	GovernanceRejectedPayload,
+	PlanCancelledPayload,
+	PlanCompletedPayload,
+	PlanFailedPayload,
+	PlanPausedPayload,
+	PlanResumedPayload,
+	PlanStartedPayload,
+	PlanStoppedPayload,
+	SystemErrorPayload,
+	SystemInfoPayload,
+	SystemWarningPayload,
+	WorkerCancelledPayload,
+	WorkerCompletedPayload,
+	WorkerFailedPayload,
+	WorkerStartedPayload,
+	WorkerTimedOutPayload,
+	WorkspaceExecutionStage,
+	WorkspaceStageChangedPayload,
+} from "./events.js";
+export {
+	createExecutionEvent,
+	EXECUTION_EVENT_TYPES,
+	isBrainEventType,
+	isCommandEventType,
+	isGovernanceEventType,
+	isPlanEventType,
+	isSystemEventType,
+	isWorkerEventType,
+	isWorkspaceEventType,
+	mapWorkspaceStageToExecutionStage,
+	workspaceStageToEventType,
+} from "./events.js";
+export type { LogEntry, LogLevel } from "./logger.js";
 // Logger utility (standalone, zero coding-agent deps)
 export { PiLogger } from "./logger.js";
-export type { LogLevel, LogEntry } from "./logger.js";
-
 // Process killer utility (standalone, zero coding-agent deps)
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
-
-// P40.2C Dirty Runtime Dependency Ports
+// Read model
 export type {
-	GovernanceLedgerLike,
-	FailureDetectorLike,
-	FailureSignalLike,
-	WatchModeGuardLike,
-	StateStoreBackendFactoryLike,
-	BudgetPolicyLike,
-	CompletionGateDeps,
-} from "./types.js";
-
+	CommandHistoryView,
+	ExecutionReadModel,
+	FinalValidationView,
+	JournalEventEnvelope,
+	JournalQuery,
+	LeadDirectiveView,
+	PlanExecutionSummary,
+	WorkspaceExecutionSummary,
+} from "./read-model.js";
+// Runtime event emitter
+export { RuntimeEventEmitter } from "./runtime-emitter.js";
+// P40.2C Dirty Runtime Dependency Ports
 // P40.2 Dependency Inversion Interfaces
 export type {
 	AgentRuntime,
 	AgentRuntimeConfig,
 	AgentRuntimeResult,
+	BrainProposal,
+	BudgetPolicyLike,
+	CompletionGateDeps,
+	ExecutionCommand,
+	FailureDetectorLike,
+	FailureSignalLike,
+	GovernanceLedgerLike,
 	GovernanceProvider,
-	StorageProvider,
 	InfrastructureProvider,
+	IStateStore,
+	PlanStatus,
 	SkillProvider,
+	StateStoreBackendFactoryLike,
+	StorageProvider,
+	WatchModeGuardLike,
 } from "./types.js";
-
 // Shared types
 export { WorkspaceStage } from "./types.js";
-export type { IStateStore } from "./types.js";
-export type { PlanStatus, BrainProposal } from "./types.js";
-export type { ExecutionCommand } from "./types.js";
-
-// Commands
-export type {
-	ExecutionCommandStartPlan,
-	ExecutionCommandStopPlan,
-	ExecutionCommandContinuePlan,
-	ExecutionCommandRerunPlan,
-	ExecutionCommandRetryWorkspace,
-	ExecutionCommandRequestUserEscalation,
-	ExecutionCommandApproveProposal,
-} from "./commands.js";
-
-// Read model
-export type {
-	ExecutionReadModel,
-	PlanExecutionSummary,
-	WorkspaceExecutionSummary,
-	JournalEventEnvelope,
-	JournalQuery,
-	CommandHistoryView,
-	LeadDirectiveView,
-	FinalValidationView,
-} from "./read-model.js";
-
-// Events
-export type { WorkspaceExecutionStage, ExecutionEventType, ExecutionEvent } from "./events.js";
-export type {
-	PlanStartedPayload,
-	PlanCompletedPayload,
-	PlanFailedPayload,
-	PlanPausedPayload,
-	PlanResumedPayload,
-	PlanCancelledPayload,
-	PlanStoppedPayload,
-	WorkspaceStageChangedPayload,
-	WorkerStartedPayload,
-	WorkerCompletedPayload,
-	WorkerFailedPayload,
-	WorkerTimedOutPayload,
-	WorkerCancelledPayload,
-	CommandStartedPayload,
-	CommandFinishedPayload,
-	BrainProposedPayload,
-	BrainApprovedPayload,
-	BrainRejectedPayload,
-	GovernanceCheckStartedPayload,
-	GovernanceApprovedPayload,
-	GovernanceRejectedPayload,
-	GovernanceEscalatedPayload,
-	SystemErrorPayload,
-	SystemWarningPayload,
-	SystemInfoPayload,
-	ExecutionEventPayloadMap,
-} from "./events.js";
-export {
-	EXECUTION_EVENT_TYPES,
-	createExecutionEvent,
-	isPlanEventType,
-	isWorkspaceEventType,
-	isWorkerEventType,
-	isCommandEventType,
-	isBrainEventType,
-	isGovernanceEventType,
-	isSystemEventType,
-	mapWorkspaceStageToExecutionStage,
-	workspaceStageToEventType,
-} from "./events.js";
-
-export type { WorkerConcurrencySettings, WorkerConcurrencyValidationResult } from "./worker-concurrency.js";
-export {
-	MIN_STABLE_WORKERS, MAX_STABLE_WORKERS, MIN_EXPERIMENTAL_WORKERS,
-	MAX_EXPERIMENTAL_WORKERS, DEFAULT_WORKERS, PROMOTION_GATES,
-	checkPromotionGates, isStableWorkerCount, isExperimentalWorkerCount,
-	requiresExperimentalMode, validateWorkerConcurrency,
-	resolveEffectiveWorkerCount, formatWorkerConcurrencyValidation,
-} from "./worker-concurrency.js";
-export type { WorktreeConfig, WorktreeState, WorktreeStatus, WorktreeExecutorConfig, WorktreeCreateResult, WorktreeExecutionResult, WorktreeListEntry, WorktreeDiffArtifact, WorktreeCleanupResult } from "./worktree-types.js";
-export { DEFAULT_WORKTREE_ROOT, DEFAULT_WORKTREE_CONFIG } from "./worktree-types.js";
-// Event store
-export type { IEventStore } from "./event-store.js";
-export { InMemoryEventStore, EventStoreError } from "./event-store.js";
-
 // Worker adapter
 export type {
 	WorkerAdapter,
+	WorkerAdapterCapabilities,
+	WorkerCommandHistoryEntry,
+	WorkerEvent,
 	WorkerRunRequest,
 	WorkerRunResult,
 	WorkerVerdict,
-	WorkerEvent,
-	WorkerCommandHistoryEntry,
-	WorkerAdapterCapabilities,
 } from "./worker-adapter.js";
-
-// Runtime event emitter
-export { RuntimeEventEmitter } from "./runtime-emitter.js";
+export type { WorkerConcurrencySettings, WorkerConcurrencyValidationResult } from "./worker-concurrency.js";
+export {
+	checkPromotionGates,
+	DEFAULT_WORKERS,
+	formatWorkerConcurrencyValidation,
+	isExperimentalWorkerCount,
+	isStableWorkerCount,
+	MAX_EXPERIMENTAL_WORKERS,
+	MAX_STABLE_WORKERS,
+	MIN_EXPERIMENTAL_WORKERS,
+	MIN_STABLE_WORKERS,
+	PROMOTION_GATES,
+	requiresExperimentalMode,
+	resolveEffectiveWorkerCount,
+	validateWorkerConcurrency,
+} from "./worker-concurrency.js";
+// Worker Transcript Capture (P41.04)
+export type {
+	IWorkerTranscriptStore,
+	JournalEvent,
+	WorkerTranscriptEvent,
+	WorkerTranscriptEventType,
+} from "./worker-transcript.js";
+export {
+	buildTranscriptSummary,
+	createWorkerTranscriptEvent,
+	InMemoryWorkerTranscriptStore,
+	PRIVATE_DATA_KEYS,
+	sanitizeTranscriptData,
+} from "./worker-transcript.js";
+export type {
+	WorktreeCleanupResult,
+	WorktreeConfig,
+	WorktreeCreateResult,
+	WorktreeDiffArtifact,
+	WorktreeExecutionResult,
+	WorktreeExecutorConfig,
+	WorktreeListEntry,
+	WorktreeState,
+	WorktreeStatus,
+} from "./worktree-types.js";
+export { DEFAULT_WORKTREE_CONFIG, DEFAULT_WORKTREE_ROOT } from "./worktree-types.js";

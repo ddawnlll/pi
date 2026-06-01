@@ -37,11 +37,7 @@ export interface IEventStore {
 	 * @param event - The typed ExecutionEvent to store
 	 * @param workspaceId - Optional workspace scope for the event
 	 */
-	appendEvent(
-		planExecutionId: string,
-		event: ExecutionEvent,
-		workspaceId?: string,
-	): Promise<string>;
+	appendEvent(planExecutionId: string, event: ExecutionEvent, workspaceId?: string): Promise<string>;
 
 	/**
 	 * Query events for a plan execution, with optional filtering and pagination.
@@ -50,10 +46,7 @@ export interface IEventStore {
 	 * @param planExecutionId - The plan execution to query
 	 * @param options - Optional filters: limit, offset, eventType, workspaceId
 	 */
-	queryEvents(
-		planExecutionId: string,
-		options?: JournalQuery,
-	): Promise<JournalEventEnvelope[]>;
+	queryEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]>;
 
 	/**
 	 * Retrieve a single event by its eventId (UUID).
@@ -127,17 +120,9 @@ export class InMemoryEventStore implements IEventStore {
 	// IEventStore implementation
 	// -----------------------------------------------------------------------
 
-	async appendEvent(
-		planExecutionId: string,
-		event: ExecutionEvent,
-		workspaceId?: string,
-	): Promise<string> {
+	async appendEvent(planExecutionId: string, event: ExecutionEvent, workspaceId?: string): Promise<string> {
 		if (!planExecutionId) {
-			throw new EventStoreError(
-				"planExecutionId is required",
-				"INVALID_ARGUMENT",
-				{ planExecutionId },
-			);
+			throw new EventStoreError("planExecutionId is required", "INVALID_ARGUMENT", { planExecutionId });
 		}
 
 		// Generate unique event ID and sequence
@@ -169,10 +154,7 @@ export class InMemoryEventStore implements IEventStore {
 		return eventId;
 	}
 
-	async queryEvents(
-		planExecutionId: string,
-		options?: JournalQuery,
-	): Promise<JournalEventEnvelope[]> {
+	async queryEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]> {
 		const planEvents = this.planIndex.get(planExecutionId);
 		if (!planEvents || planEvents.length === 0) {
 			return [];
@@ -189,16 +171,12 @@ export class InMemoryEventStore implements IEventStore {
 
 		// Apply workspaceId filter
 		if (options?.workspaceId) {
-			results = results.filter(
-				(e) => e.workspaceId === options!.workspaceId,
-			);
+			results = results.filter((e) => e.workspaceId === options!.workspaceId);
 		}
 
 		// Apply eventType filter
 		if (options?.eventType) {
-			results = results.filter(
-				(e) => e.eventType === options!.eventType,
-			);
+			results = results.filter((e) => e.eventType === options!.eventType);
 		}
 
 		// Apply offset

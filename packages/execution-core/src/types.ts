@@ -25,7 +25,6 @@ export interface BrainProposal {
 	proposedCommand?: ExecutionCommand;
 }
 
-
 // ---------------------------------------------------------------------------
 // Workspace Stage (extracted from workspace-schema.ts for transition-router)
 // ---------------------------------------------------------------------------
@@ -54,18 +53,36 @@ export enum WorkspaceStage {
 export interface IStateStore {
 	loadState(planExecutionId: string): Promise<unknown>;
 	saveState(planExecutionId: string, state: unknown): Promise<void>;
-	writeControlRequest(planExecutionId: string, action: string, reason?: string, schemaCompatible?: boolean): Promise<void>;
+	writeControlRequest(
+		planExecutionId: string,
+		action: string,
+		reason?: string,
+		schemaCompatible?: boolean,
+	): Promise<void>;
 	stopPlan(planExecutionId: string, reason: string): Promise<void>;
 	pausePlan(planExecutionId: string): Promise<void>;
 	cancelPlan(planExecutionId: string): Promise<void>;
 	resumePlan(planExecutionId: string): Promise<void>;
-	transitionWorkspace(planExecutionId: string, workspaceId: string, stage: string, metadata?: Record<string, unknown>): Promise<void>;
+	transitionWorkspace(
+		planExecutionId: string,
+		workspaceId: string,
+		stage: string,
+		metadata?: Record<string, unknown>,
+	): Promise<void>;
 	incrementRetryAttempt(planExecutionId: string, workspaceId: string): Promise<void>;
-	getWorkspaceState(planExecutionId: string, workspaceId: string): Promise<{ stage: string; attempts: number; startedAt?: number; completedAt?: number; error?: string; reportPath?: string } | null>;
+	getWorkspaceState(
+		planExecutionId: string,
+		workspaceId: string,
+	): Promise<{
+		stage: string;
+		attempts: number;
+		startedAt?: number;
+		completedAt?: number;
+		error?: string;
+		reportPath?: string;
+	} | null>;
 	getBackendType(): string;
 }
-
-
 
 // ---------------------------------------------------------------------------
 // P40.2 Dependency Inversion Interfaces
@@ -79,7 +96,11 @@ export interface IStateStore {
  * Replaces direct WorkspaceAgentExecutor construction in autonomous-executor.
  */
 export interface AgentRuntime {
-	execute(packet: Record<string, unknown>, workspaceId: string, config: AgentRuntimeConfig): Promise<AgentRuntimeResult>;
+	execute(
+		packet: Record<string, unknown>,
+		workspaceId: string,
+		config: AgentRuntimeConfig,
+	): Promise<AgentRuntimeResult>;
 	abort(): void;
 }
 
@@ -127,8 +148,6 @@ export interface InfrastructureProvider {
 export interface SkillProvider {
 	getAvailableSkills(): Promise<unknown[]>;
 }
-
-
 
 // ---------------------------------------------------------------------------
 // P40.2C Dirty Runtime Dependency Ports
@@ -196,7 +215,6 @@ export interface CompletionGateDeps {
 	failureDetector: FailureDetectorLike;
 	watchModeGuard: WatchModeGuardLike;
 }
-
 
 // ---------------------------------------------------------------------------
 // Forward declarations (defined in commands.ts, imported for convenience)

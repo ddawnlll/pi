@@ -19,38 +19,40 @@
 
 import type { IEventStore } from "./event-store.js";
 import type {
-	ExecutionEventType,
+	BrainApprovedPayload,
+	BrainProposedPayload,
+	BrainRejectedPayload,
+	CommandFinishedPayload,
+	CommandStartedPayload,
 	ExecutionEventPayloadMap,
-	PlanStartedPayload,
+	ExecutionEventType,
+	GovernanceApprovedPayload,
+	GovernanceCheckStartedPayload,
+	GovernanceEscalatedPayload,
+	GovernanceRejectedPayload,
+	PlanCancelledPayload,
 	PlanCompletedPayload,
 	PlanFailedPayload,
 	PlanPausedPayload,
 	PlanResumedPayload,
-	PlanCancelledPayload,
+	PlanStartedPayload,
 	PlanStoppedPayload,
-	WorkspaceStageChangedPayload,
-	WorkspaceExecutionStage,
-	WorkerStartedPayload,
+	SystemErrorPayload,
+	SystemInfoPayload,
+	SystemWarningPayload,
+	WorkerCancelledPayload,
 	WorkerCompletedPayload,
 	WorkerFailedPayload,
+	WorkerStartedPayload,
 	WorkerTimedOutPayload,
-	WorkerCancelledPayload,
-	CommandStartedPayload,
-	CommandFinishedPayload,
-	BrainProposedPayload,
-	BrainApprovedPayload,
-	BrainRejectedPayload,
-	GovernanceCheckStartedPayload,
-	GovernanceApprovedPayload,
-	GovernanceRejectedPayload,
-	GovernanceEscalatedPayload,
-	SystemErrorPayload,
-	SystemWarningPayload,
-	SystemInfoPayload,
+	WorkspaceExecutionStage,
+	WorkspaceStageChangedPayload,
 } from "./events.js";
 import { createExecutionEvent, workspaceStageToEventType } from "./events.js";
 import type { PiLogger } from "./logger.js";
 import type { WorkerEvent } from "./worker-adapter.js";
+import type { IWorkerTranscriptStore, JournalEvent, WorkerTranscriptEvent } from "./worker-transcript.js";
+import { buildTranscriptSummary, createWorkerTranscriptEvent } from "./worker-transcript.js";
 
 // ---------------------------------------------------------------------------
 // RuntimeEventEmitter
@@ -69,6 +71,7 @@ export class RuntimeEventEmitter {
 		private readonly planExecutionId: string,
 		private readonly workspaceId?: string,
 		private readonly logger?: PiLogger,
+		private readonly transcriptStore?: IWorkerTranscriptStore,
 	) {}
 
 	// -----------------------------------------------------------------------
@@ -86,6 +89,7 @@ export class RuntimeEventEmitter {
 			overrides.planExecutionId ?? this.planExecutionId,
 			overrides.workspaceId ?? this.workspaceId,
 			this.logger,
+			this.transcriptStore,
 		);
 	}
 
@@ -301,10 +305,7 @@ export class RuntimeEventEmitter {
 	 *
 	 * Returns the list of generated eventIds.
 	 */
-	async emitWorkerEvents(
-		workerEvents: WorkerEvent[],
-		workspaceId?: string,
-	): Promise<string[]> {
+	async emitWorkerEvents(workerEvents: WorkerEvent[], workspaceId?: string): Promise<string[]> {
 		const eventIds: string[] = [];
 		for (const we of workerEvents) {
 			// Try to match the WorkerEvent type to a known ExecutionEventType
@@ -332,23 +333,96 @@ export class RuntimeEventEmitter {
 	 */
 	private resolveWorkerEventType(type: string): ExecutionEventType {
 		const knownTypes = [
-			"plan_started", "plan_completed", "plan_failed",
-			"plan_paused", "plan_resumed", "plan_cancelled", "plan_stopped",
-			"workspace_pending", "workspace_running", "workspace_completed",
-			"workspace_failed", "workspace_blocked", "workspace_cancelled",
-			"workspace_skipped", "workspace_paused", "workspace_timed_out",
-			"worker_started", "worker_completed", "worker_failed",
-			"worker_timed_out", "worker_cancelled",
-			"command_started", "command_finished",
-			"brain_proposed", "brain_approved", "brain_rejected",
-			"governance_check_started", "governance_approved",
-			"governance_rejected", "governance_escalated",
-			"system_error", "system_warning", "system_info",
+			"plan_started",
+			"plan_completed",
+			"plan_failed",
+			"plan_paused",
+			"plan_resumed",
+			"plan_cancelled",
+			"plan_stopped",
+			"workspace_pending",
+			"workspace_running",
+			"workspace_completed",
+			"workspace_failed",
+			"workspace_blocked",
+			"workspace_cancelled",
+			"workspace_skipped",
+			"workspace_paused",
+			"workspace_timed_out",
+			"worker_started",
+			"worker_completed",
+			"worker_failed",
+			"worker_timed_out",
+			"worker_cancelled",
+			"command_started",
+			"command_finished",
+			"brain_proposed",
+			"brain_approved",
+			"brain_rejected",
+			"governance_check_started",
+			"governance_approved",
+			"governance_rejected",
+			"governance_escalated",
+			"system_error",
+			"system_warning",
+			"system_info",
 		] as const;
 
 		if (knownTypes.includes(type as any)) {
 			return type as ExecutionEventType;
 		}
 		return "system_info";
+	}
+
+	// -----------------------------------------------------------------------
+	// Worker Transcript bridge
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Derive and store a transcript event from a raw journal event.
+	 *
+	 * Takes a JournalEvent, builds a human-readable summary, creates a sanitized
+	 * WorkerTranscriptEvent, and persists it via the optional IWorkerTranscriptStore.
+	 *
+	 * This is the primary bridge between the raw journal event pipeline and the
+	 * sanitized transcript pipeline consumed by the dashboard UI.
+	 *
+	 * @param journalEvent - Raw journal event to derive a transcript from
+	 * @param workspaceId - Workspace ID (defaults to emitter's workspaceId)
+	 * @returns The generated transcript event, or null if skipped (no store,
+	 *          no workspaceId, or private thinking event)
+	 */
+	async emitTranscriptFromJournal(
+		journalEvent: JournalEvent,
+		workspaceId?: string,
+	): Promise<WorkerTranscriptEvent | null> {
+		if (!this.transcriptStore) return null;
+
+		const wsId = workspaceId ?? journalEvent.workspaceId ?? this.workspaceId;
+		if (!wsId) return null;
+
+		const summary = buildTranscriptSummary(journalEvent);
+		const transcriptEvent = createWorkerTranscriptEvent({ ...journalEvent, workspaceId: wsId }, summary);
+
+		if (!transcriptEvent) return null;
+
+		await this.transcriptStore.appendTranscriptEvent(this.planExecutionId, wsId, transcriptEvent);
+
+		return transcriptEvent;
+	}
+
+	/**
+	 * Emit a raw worker transcript event directly (already sanitized).
+	 *
+	 * Use this when you have already constructed the WorkerTranscriptEvent
+	 * (e.g., from an existing pipeline). For automatic derivation from a
+	 * JournalEvent, use emitTranscriptFromJournal instead.
+	 *
+	 * @param workspaceId - Workspace ID
+	 * @param event - The sanitized WorkerTranscriptEvent to store
+	 */
+	async emitTranscriptEvent(workspaceId: string, event: WorkerTranscriptEvent): Promise<void> {
+		if (!this.transcriptStore) return;
+		await this.transcriptStore.appendTranscriptEvent(this.planExecutionId, workspaceId, event);
 	}
 }

@@ -288,45 +288,45 @@ export interface SystemInfoPayload {
 
 export interface ExecutionEventPayloadMap {
 	// Plan
-	"plan_started": PlanStartedPayload;
-	"plan_completed": PlanCompletedPayload;
-	"plan_failed": PlanFailedPayload;
-	"plan_paused": PlanPausedPayload;
-	"plan_resumed": PlanResumedPayload;
-	"plan_cancelled": PlanCancelledPayload;
-	"plan_stopped": PlanStoppedPayload;
+	plan_started: PlanStartedPayload;
+	plan_completed: PlanCompletedPayload;
+	plan_failed: PlanFailedPayload;
+	plan_paused: PlanPausedPayload;
+	plan_resumed: PlanResumedPayload;
+	plan_cancelled: PlanCancelledPayload;
+	plan_stopped: PlanStoppedPayload;
 	// Workspace
-	"workspace_pending": WorkspaceStageChangedPayload;
-	"workspace_running": WorkspaceStageChangedPayload;
-	"workspace_completed": WorkspaceStageChangedPayload;
-	"workspace_failed": WorkspaceStageChangedPayload;
-	"workspace_blocked": WorkspaceStageChangedPayload;
-	"workspace_cancelled": WorkspaceStageChangedPayload;
-	"workspace_skipped": WorkspaceStageChangedPayload;
-	"workspace_paused": WorkspaceStageChangedPayload;
-	"workspace_timed_out": WorkspaceStageChangedPayload;
+	workspace_pending: WorkspaceStageChangedPayload;
+	workspace_running: WorkspaceStageChangedPayload;
+	workspace_completed: WorkspaceStageChangedPayload;
+	workspace_failed: WorkspaceStageChangedPayload;
+	workspace_blocked: WorkspaceStageChangedPayload;
+	workspace_cancelled: WorkspaceStageChangedPayload;
+	workspace_skipped: WorkspaceStageChangedPayload;
+	workspace_paused: WorkspaceStageChangedPayload;
+	workspace_timed_out: WorkspaceStageChangedPayload;
 	// Worker
-	"worker_started": WorkerStartedPayload;
-	"worker_completed": WorkerCompletedPayload;
-	"worker_failed": WorkerFailedPayload;
-	"worker_timed_out": WorkerTimedOutPayload;
-	"worker_cancelled": WorkerCancelledPayload;
+	worker_started: WorkerStartedPayload;
+	worker_completed: WorkerCompletedPayload;
+	worker_failed: WorkerFailedPayload;
+	worker_timed_out: WorkerTimedOutPayload;
+	worker_cancelled: WorkerCancelledPayload;
 	// Commands
-	"command_started": CommandStartedPayload;
-	"command_finished": CommandFinishedPayload;
+	command_started: CommandStartedPayload;
+	command_finished: CommandFinishedPayload;
 	// Brain
-	"brain_proposed": BrainProposedPayload;
-	"brain_approved": BrainApprovedPayload;
-	"brain_rejected": BrainRejectedPayload;
+	brain_proposed: BrainProposedPayload;
+	brain_approved: BrainApprovedPayload;
+	brain_rejected: BrainRejectedPayload;
 	// Governance
-	"governance_check_started": GovernanceCheckStartedPayload;
-	"governance_approved": GovernanceApprovedPayload;
-	"governance_rejected": GovernanceRejectedPayload;
-	"governance_escalated": GovernanceEscalatedPayload;
+	governance_check_started: GovernanceCheckStartedPayload;
+	governance_approved: GovernanceApprovedPayload;
+	governance_rejected: GovernanceRejectedPayload;
+	governance_escalated: GovernanceEscalatedPayload;
 	// System
-	"system_error": SystemErrorPayload;
-	"system_warning": SystemWarningPayload;
-	"system_info": SystemInfoPayload;
+	system_error: SystemErrorPayload;
+	system_warning: SystemWarningPayload;
+	system_info: SystemInfoPayload;
 }
 
 // ---------------------------------------------------------------------------
