@@ -18,7 +18,9 @@ export type ExecutionCommand =
 	| ExecutionCommandRequestUserEscalation
 	| ExecutionCommandApproveProposal
 	| ExecutionCommandAcknowledgeDirective
-	| ExecutionCommandResolveEscalation;
+	| ExecutionCommandResolveEscalation
+	| ExecutionCommandIssueHumanDirective
+	| ExecutionCommandInterveneWorkspace;
 
 // ---------------------------------------------------------------------------
 // Command variants
@@ -81,4 +83,38 @@ export interface ExecutionCommandResolveEscalation {
 	escalationId: string;
 	chosenOptionId: string;
 	userResponse?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Human Directive / Intervention commands (P41.10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Issue a human directive to a specific workspace.
+ * The directive provides guidance, constraints, or overrides to the worker.
+ */
+export interface ExecutionCommandIssueHumanDirective {
+	type: "issue_human_directive";
+	planExecutionId: string;
+	workspaceId: string;
+	/** The directive message from the human */
+	directive: string;
+	/** Severity/priority level */
+	severity?: "low" | "medium" | "high" | "blocking";
+	/** Optional ID for deduplication / tracking */
+	directiveId?: string;
+}
+
+/**
+ * Human intervention to stop/pause/cancel a running workspace.
+ * Used when the human wants to directly take control.
+ */
+export interface ExecutionCommandInterveneWorkspace {
+	type: "intervene_workspace";
+	planExecutionId: string;
+	workspaceId: string;
+	/** The intervention action */
+	action: "stop" | "pause" | "cancel" | "retry";
+	/** Reason for intervention */
+	reason?: string;
 }

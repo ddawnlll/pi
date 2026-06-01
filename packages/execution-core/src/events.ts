@@ -88,6 +88,11 @@ export const EXECUTION_EVENT_TYPES = [
 	"lead_agent_escalation_initiated",
 	"lead_agent_escalation_resolved",
 
+	// Human directive / intervention events (P41.10)
+	"human_directive_issued",
+	"human_directive_acknowledged",
+	"human_intervention_requested",
+
 	// System-level events
 	"system_error",
 	"system_warning",
@@ -372,6 +377,44 @@ export interface LeadAgentEscalationResolvedPayload {
 	resolvedAt: number;
 }
 
+// ---------- Human Directive / Intervention Events (P41.10) ----------
+
+/**
+ * Payload for human_directive_issued — emitted when a human issues a
+ * directive to a workspace (guidance, constraint, or override).
+ */
+export interface HumanDirectiveIssuedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	directiveId: string;
+	directive: string;
+	severity: "low" | "medium" | "high" | "blocking";
+	issuedAt: number;
+}
+
+/**
+ * Payload for human_directive_acknowledged — emitted when a worker
+ * acknowledges receipt of a human directive.
+ */
+export interface HumanDirectiveAcknowledgedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	directiveId: string;
+	acknowledgedAt: number;
+}
+
+/**
+ * Payload for human_intervention_requested — emitted when a human
+ * intervenes to stop/pause/cancel/retry a running workspace.
+ */
+export interface HumanInterventionRequestedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	action: "stop" | "pause" | "cancel" | "retry";
+	reason?: string;
+	requestedAt: number;
+}
+
 // ---------- System Events ----------
 
 export interface SystemErrorPayload {
@@ -445,6 +488,10 @@ export interface ExecutionEventPayloadMap {
 	system_error: SystemErrorPayload;
 	system_warning: SystemWarningPayload;
 	system_info: SystemInfoPayload;
+	// Human directive / intervention (P41.10)
+	human_directive_issued: HumanDirectiveIssuedPayload;
+	human_directive_acknowledged: HumanDirectiveAcknowledgedPayload;
+	human_intervention_requested: HumanInterventionRequestedPayload;
 }
 
 // ---------------------------------------------------------------------------

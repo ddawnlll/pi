@@ -14,6 +14,8 @@ export type {
 	ExecutionCommandAcknowledgeDirective,
 	ExecutionCommandApproveProposal,
 	ExecutionCommandContinuePlan,
+	ExecutionCommandInterveneWorkspace,
+	ExecutionCommandIssueHumanDirective,
 	ExecutionCommandRequestUserEscalation,
 	ExecutionCommandRerunPlan,
 	ExecutionCommandResolveEscalation,
@@ -39,6 +41,9 @@ export type {
 	GovernanceCheckStartedPayload,
 	GovernanceEscalatedPayload,
 	GovernanceRejectedPayload,
+	HumanDirectiveAcknowledgedPayload,
+	HumanDirectiveIssuedPayload,
+	HumanInterventionRequestedPayload,
 	LeadAgentDirectiveAcknowledgedPayload,
 	LeadAgentDirectiveIssuedPayload,
 	LeadAgentEscalationInitiatedPayload,
@@ -104,6 +109,7 @@ export type {
 	LeadDirectiveView,
 	LeadEscalationView,
 	PlanExecutionSummary,
+	WorkerContextView,
 	WorkspaceExecutionSummary,
 } from "./read-model.js";
 // Runtime event emitter

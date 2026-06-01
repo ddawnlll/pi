@@ -260,6 +260,80 @@ export interface FileTreeQuery {
 }
 
 // ---------------------------------------------------------------------------
+// Worker Context View (P41.08)
+// ---------------------------------------------------------------------------
+
+/**
+ * Worker context view — exposes the context packet, role, goals, allowed/touched
+ * files, transcript link, and Lead Agent state for a worker running in a workspace.
+ *
+ * This read model collects static packet data (from the execution archive) with
+ * dynamic runtime state (current stage, retry count, lead directives) and provides
+ * a link to the transcript SSE endpoint for real-time event streaming.
+ */
+export interface WorkerContextView {
+	/** Workspace ID */
+	workspaceId: string;
+	/** Plan execution ID */
+	planExecutionId: string;
+
+	// -- Workspace state --
+	/** Current workspace stage (Pending, Running, Complete, Failed, Blocked, Cancelled) */
+	stage: string;
+	/** Retry attempt count */
+	attempts: number;
+	/** Error message if the workspace failed or is blocked */
+	error?: string;
+	/** Started at ISO timestamp */
+	startedAt?: string;
+	/** Completed at ISO timestamp */
+	completedAt?: string;
+
+	// -- Goal & Role --
+	/** Goal description extracted from the workspace packet or workspace definition */
+	goal?: string;
+	/** Role/agent type assigned to this worker (e.g. "coder", "reviewer") */
+	role?: string;
+
+	// -- Packets --
+	/**
+	 * Full role packet content from the execution archive (packet.md).
+	 * Contains the brief/goal given to the worker agent.
+	 */
+	rolePacketContent?: string;
+	/**
+	 * Context packet summary — what context was provided to the worker
+	 * (e.g. file paths, prior workspace results, constraints).
+	 * A sanitized excerpt from the packet, not the full raw prompt.
+	 */
+	contextPacketSummary?: string;
+
+	// -- File access --
+	/** Files the worker is allowed to edit (from the workspace definition) */
+	allowedFiles: string[];
+	/** Files the worker touched during execution (from archive files-touched.json) */
+	touchedFiles: Array<{ path: string; change: "created" | "modified" | "deleted" }>;
+
+	// -- Command history --
+	/** Last command executed by the worker, if available */
+	lastCommand?: string;
+	/** Short stdout/stderr summary from recent logs */
+	logSummary?: string;
+
+	// -- Lead Agent state --
+	/** Active Lead Agent directives for this workspace */
+	activeDirectives: LeadDirectiveView[];
+	/** Active escalations (should be at most one) */
+	activeEscalations: LeadEscalationView[];
+	/** Human directive message, if one was issued */
+	humanDirective?: string;
+
+	// -- Transcript link --
+	/** URL path for the SSE transcript stream endpoint (/api/transcript/:planExecId/:workspaceId) */
+	transcriptUrl: string;
+}
+
+// ---------------------------------------------------------------------------
 // Final Validation View
 // ---------------------------------------------------------------------------
 
@@ -275,6 +349,13 @@ export interface FinalValidationView {
 // ---------------------------------------------------------------------------
 
 export interface ExecutionReadModel {
+	/**
+	 * Get the worker context for a workspace.
+	 * Returns the full context view including role packet, touched files,
+	 * command history, lead directives, and transcript link.
+	 */
+	getWorkerContext(planExecutionId: string, workspaceId: string): Promise<WorkerContextView>;
+
 	getPlanSummary(planExecutionId: string): Promise<PlanExecutionSummary>;
 	getWorkspaceSummary(planExecutionId: string, workspaceId: string): Promise<WorkspaceExecutionSummary>;
 	listJournalEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]>;
