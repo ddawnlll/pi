@@ -804,6 +804,14 @@ export function createExecutionReadModel(stateStore: {
 	 * the execution archive directory.
 	 */
 	readArchiveFile?(planExecutionId: string, artifactPath: string): Promise<string | null>;
+	/**
+	 * Optional: read a file from the worktree directory.
+	 * If provided, enables getFileContent() and getFileDiff() to
+	 * read directly from worktree files when archive access fails.
+	 * Paths are resolved relative to the worktree root:
+	 * .pi/worktrees/{planExecId}/{workspaceId}/
+	 */
+	readWorktreeFile?(planExecutionId: string, workspaceId: string, filePath: string): Promise<string | null>;
 }): ExecutionReadModel {
 	/**
 	 * Fetch all journal events for a plan execution, with caching for shared use.
@@ -1233,15 +1241,29 @@ export function createExecutionReadModel(stateStore: {
 			workspaceId: string,
 			filePath: string,
 		): Promise<FileContentView | null> {
-			// Try to read file content from the execution archive via the state store.
+			// Path sandbox check
+			if (filePath.includes("..") || filePath.includes("~")) {
+				return null;
+			}
+
+			// Try the execution archive first (where snapshots may be stored).
 			if (stateStore.readArchiveFile) {
-				// Construct the workspace artifact path: workspaces/{workspaceId}/{filePath}
-				// To keep path sandboxing, only allow reading within the workspace directory.
 				const safePath = `workspaces/${workspaceId}/${filePath}`;
-				if (safePath.includes("..") || safePath.includes("~")) {
-					return null;
-				}
 				const content = await stateStore.readArchiveFile(planExecutionId, safePath);
+				if (content !== null) {
+					return {
+						path: filePath,
+						content,
+						isBinary: false,
+						size: Buffer.byteLength(content, "utf-8"),
+						language: getFileExt(filePath) || undefined,
+					};
+				}
+			}
+
+			// Fallback: read directly from the worktree directory.
+			if (stateStore.readWorktreeFile) {
+				const content = await stateStore.readWorktreeFile(planExecutionId, workspaceId, filePath);
 				if (content !== null) {
 					return {
 						path: filePath,
@@ -1257,14 +1279,8 @@ export function createExecutionReadModel(stateStore: {
 			// directories or a snapshot store (ISnapshotArtifactStore). The
 			// journal event stream does not contain file content.
 			//
-			// Consumers that need file content should:
-			//   a) Use the worktree filesystem endpoint
-			//      GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/*
-			//   b) Implement file content retrieval using the snapshot artifact store
-			//      ISnapshotArtifactStore.get(planExecId, workspaceId, attemptNo)
-			//
 			// To enable file content through the read model, provide
-			// readArchiveFile() in the state store implementation.
+			// readArchiveFile() or readWorktreeFile() in the state store.
 			return null;
 		},
 
@@ -1274,66 +1290,59 @@ export function createExecutionReadModel(stateStore: {
 			filePath?: string,
 			options?: FileTreeQuery,
 		): Promise<FileDiffView[]> {
-			// Try to read the diff.patch from the execution archive.
+			let diffContent: string | null = null;
+
+			// Try the execution archive first.
 			if (stateStore.readArchiveFile) {
 				const diffPath = `workspaces/${workspaceId}/diff.patch`;
-				const diffContent = await stateStore.readArchiveFile(planExecutionId, diffPath);
-				if (diffContent !== null) {
-					const lines = diffContent.split("\n");
-					let additions = 0;
-					let deletions = 0;
-					for (const line of lines) {
-						if (line.startsWith("+") && !line.startsWith("+++")) additions++;
-						if (line.startsWith("-") && !line.startsWith("---")) deletions++;
-					}
-
-					// Apply maxDiffLines truncation
-					const maxLines = options?.maxDiffLines;
-					const truncated = maxLines !== undefined && lines.length > maxLines;
-					const truncatedDiff = truncated
-						? lines.slice(0, maxLines).join("\n") + "\n... (truncated)"
-						: diffContent;
-
-					if (filePath) {
-						// Return only the diff for a specific file.
-						// Parse the unified diff and extract the relevant hunk.
-						const fileDiff = extractFileDiffFromPatch(diffContent, filePath);
-						if (!fileDiff) return [];
-						// Truncate individual file diff
-						const fileLines = fileDiff.diff.split("\n");
-						if (maxLines !== undefined && fileLines.length > maxLines) {
-							fileDiff.diff = fileLines.slice(0, maxLines).join("\n") + "\n... (truncated)";
-							fileDiff.truncated = true;
-						}
-						return [fileDiff];
-					}
-					return [
-						{
-							path: `workspaces/${workspaceId}/diff.patch`,
-							status: "modified",
-							diff: truncatedDiff,
-							additions,
-							deletions,
-							truncated,
-						},
-					];
-				}
+				diffContent = await stateStore.readArchiveFile(planExecutionId, diffPath);
 			}
 
-			// Diff retrieval requires git access or pre/post snapshot pairs
-			// from the snapshot artifact store (ISnapshotArtifactStore). The
-			// journal event stream does not contain diff content.
-			//
-			// Consumers that need diff content should:
-			//   a) Use the worktree git-diff endpoint
-			//      GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/diff
-			//   b) Use the worktree file diff endpoint
-			//      GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/diff?format=patch
-			//   c) Implement diff computation using snapshot artifact store pairs
-			//      computeSnapshotDiff(pre, post) from @earendil-works/pi-execution-core
-			//
-			// To enable diff through the read model, provide
-			// readArchiveFile() in the state store implementation.
+			// Fallback: try the worktree diff.patch.
+			if (diffContent === null && stateStore.readWorktreeFile) {
+				diffContent = await stateStore.readWorktreeFile(planExecutionId, workspaceId, "diff.patch");
+			}
+
+			if (diffContent !== null) {
+				const lines = diffContent.split("\n");
+				let additions = 0;
+				let deletions = 0;
+				for (const line of lines) {
+					if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+					if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+				}
+
+				// Apply maxDiffLines truncation
+				const maxLines = options?.maxDiffLines;
+				const truncated = maxLines !== undefined && lines.length > maxLines;
+				const truncatedDiff = truncated ? lines.slice(0, maxLines).join("\n") + "\n... (truncated)" : diffContent;
+
+				if (filePath) {
+					// Return only the diff for a specific file.
+					const fileDiff = extractFileDiffFromPatch(diffContent, filePath);
+					if (!fileDiff) return [];
+					const fileLines = fileDiff.diff.split("\n");
+					if (maxLines !== undefined && fileLines.length > maxLines) {
+						fileDiff.diff = fileLines.slice(0, maxLines).join("\n") + "\n... (truncated)";
+						fileDiff.truncated = true;
+					}
+					return [fileDiff];
+				}
+				return [
+					{
+						path: `workspaces/${workspaceId}/diff.patch`,
+						status: "modified",
+						diff: truncatedDiff,
+						additions,
+						deletions,
+						truncated,
+					},
+				];
+			}
+
+			// No diff data available from any source.
+			// Consumers that need diff content should provide readArchiveFile()
+			// or readWorktreeFile() in the state store implementation.
 			return [];
 		},
 

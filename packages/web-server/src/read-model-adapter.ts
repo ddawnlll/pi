@@ -16,7 +16,8 @@
  *   const planSummary = await readModel.getPlanSummary("exec-1");
  */
 
-import { stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { IStateStore } from "@earendil-works/pi-coding-agent";
 import type { JournalEventEnvelope } from "@earendil-works/pi-execution-core";
@@ -71,6 +72,13 @@ export interface ReadModelAdapter {
 	 * Returns null when the file is not found, forbidden, or the archive is not accessible.
 	 */
 	readArchiveFile?(planExecutionId: string, artifactPath: string): Promise<string | null>;
+
+	/**
+	 * Read a file from a worktree directory.
+	 * The filePath is resolved relative to .pi/worktrees/{planExecId}/{workspaceId}/.
+	 * Returns null when the file is not found or the worktree is not accessible.
+	 */
+	readWorktreeFile?(planExecutionId: string, workspaceId: string, filePath: string): Promise<string | null>;
 
 	/**
 	 * List available files in the execution archive.
@@ -229,6 +237,48 @@ export function createReadModelAdapter(stateStore: IStateStore, workspaceRoot?: 
 
 			// Delegate to execution-archive with full sandbox protection
 			return readArchiveArtifact(workspaceRoot, planExecutionId, artifactPath);
+		},
+
+		/**
+		 * Read a file from a worktree directory.
+		 *
+		 * Reads from .pi/worktrees/{planExecutionId}/{workspaceId}/{filePath}
+		 * with path sandboxing to prevent traversal attacks.
+		 *
+		 * Returns null when:
+		 *   - workspaceRoot is not provided
+		 *   - the path contains traversal sequences (.., ~)
+		 *   - the file does not exist
+		 *   - the file is unreadable
+		 */
+		async readWorktreeFile(planExecutionId: string, workspaceId: string, filePath: string): Promise<string | null> {
+			if (!workspaceRoot) {
+				return null;
+			}
+
+			// Path sandbox: block traversal attacks
+			if (filePath.includes("..") || filePath.includes("~")) {
+				return null;
+			}
+
+			const resolvedPath = resolve(join(workspaceRoot, ".pi", "worktrees", planExecutionId, workspaceId, filePath));
+			const worktreeBase = resolve(join(workspaceRoot, ".pi", "worktrees", planExecutionId, workspaceId));
+
+			// Ensure resolved path is within the worktree directory
+			if (!resolvedPath.startsWith(worktreeBase + "/") && resolvedPath !== worktreeBase) {
+				return null;
+			}
+
+			try {
+				if (!existsSync(resolvedPath)) return null;
+				const s = await stat(resolvedPath);
+				if (s.isDirectory()) return null;
+				// Limit file size to 5MB for read model access
+				if (s.size > 5 * 1024 * 1024) return null;
+				return await readFile(resolvedPath, "utf-8");
+			} catch {
+				return null;
+			}
 		},
 
 		/**
