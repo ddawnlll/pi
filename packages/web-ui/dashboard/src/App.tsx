@@ -6,13 +6,16 @@ let _appMounted = false;
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Upload,
-  AlertCircle, Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
+  Plus, History, LayoutGrid, X, Cpu, Loader2, Activity,
   Filter, DollarSign, Zap, ListOrdered,
   FolderOpen,
 } from "lucide-react";
 import type { WorkerInfo, WorkspaceSummary, GitFilePatch, JournalEvent } from "./types";
 import type { PlatformNavItem } from "./components/LeftNav";
-import type { TopbarBrainMode } from "./components/topbar/Topbar";
+import type { TopbarV3BrainMode } from "./components/topbar/TopbarV3";
+import type { CockpitTabId, NavigationRoute } from "./navigation/NavigationState";
+import { NavigationProvider, useNavigation, DEFAULT_ROUTE } from "./navigation/NavigationState";
+import { buildRunBreadcrumbs } from "./navigation/BreadcrumbModel";
 import { usePlanState } from "./hooks/usePlanState";
 import { useJournalStream } from "./hooks/useJournalStream";
 import { useProjects } from "./hooks/useProjects";
@@ -54,7 +57,6 @@ import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { AutonomyCenter } from "./features/autonomy/AutonomyCenter";
 import { ExtensionsManager } from "./components/ExtensionsManager";
 import { SkillsManager } from "./components/SkillsManager";
-import { Sidebar } from "./components/sidebar";
 import { RegistrySettings } from "./features/settings/RegistrySettings";
 import { PlanIntakePanel } from "./features/plan-intake/PlanIntakePanel";
 import { PolicyAuditCenter } from "./features/policy-audit/PolicyAuditCenter";
@@ -63,7 +65,7 @@ import { GoalBoard } from "./components/brain/goals/GoalBoard";
 import { ProposalInbox } from "./features/proposal-inbox/ProposalInbox";
 import { ObservabilityCockpit } from "./features/observability/ObservabilityCockpit";
 import { PiInbox } from "./components/inbox/PiInbox";
-import { Topbar, ContextualToolbar } from "./components/topbar/Topbar";
+
 import { BrainStatePage } from "./pages/BrainStatePage";
 import { BrainMemoryPage } from "./pages/BrainMemoryPage";
 import { BrainReflectionsPage } from "./pages/BrainReflectionsPage";
@@ -73,19 +75,15 @@ import { DigestPage } from "./pages/DigestPage";
 import { BrainInboxPage } from "./pages/BrainInboxPage";
 import { CockpitPanels } from "./components/CockpitPanels";
 
-// ─── ActiveView type ────────────────────────────────────────────────────
-// Single source of truth for the center column view
-type ActiveView =
-  | { type: "run" }
-  | { type: "task" }
-  | { type: "platform"; screen: PlatformNavItem }
-  | { type: "empty" };
+// ─── V3 Shell imports ───────────────────────────────────────────────────
+import { AppShell } from "./components/shell/AppShell";
+import { TopbarV3 } from "./components/topbar/TopbarV3";
+import { TaskRunSidebar } from "./components/sidebar/TaskRunSidebar";
+import { StatusBarV3 } from "./components/statusbar/StatusBarV3";
+import { CenterWorkSurface } from "./routes/CenterWorkSurface";
+import type { DrawerPanel } from "./components/shell/ContextualRightDrawer";
 
-// ─── Platform screen picker ─────────────────────────────────────────────
-function platformScreen(s: PlatformNavItem): React.ReactNode | null {
-  // Returns null so the caller can use its own className wrapping
-  return null;
-}
+
 
 const API_BASE = "";
 
@@ -294,17 +292,17 @@ function saveSelectedExecId(id: string | null): void {
   saveLocal(SELECTED_EXEC_KEY, id);
 }
 
-function loadSelectedView(): ActiveView {
+function loadSelectedView(): NavigationRoute {
   try {
     const raw = localStorage.getItem(SELECTED_VIEW_KEY);
-    if (raw) return JSON.parse(raw) as ActiveView;
+    if (raw) return JSON.parse(raw) as NavigationRoute;
   } catch {
     // ignore
   }
-  return { type: "empty" };
+  return { ...DEFAULT_ROUTE };
 }
 
-function saveSelectedView(view: ActiveView): void {
+function saveSelectedView(view: NavigationRoute): void {
   saveLocal(SELECTED_VIEW_KEY, JSON.stringify(view));
 }
 
@@ -349,70 +347,69 @@ export function App() {
   const [showBrainContext, setShowBrainContext] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  // V3: right sidebar defaults to CLOSED (not permanently visible)
+  const [rightOpen, setRightOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState<"left" | "right" | null>(null);
 
+  // ── Contextual drawer state (V3) ────────────────────────────────────
+  const [contextualDrawer, setContextualDrawer] = useState<DrawerPanel | null>(null);
+
   // ── Brain V5 mode ─────────────────────────────────────────────────────
-  const [brainMode, setBrainMode] = useState<TopbarBrainMode>("READ_ONLY");
+  // ── Navigation state (V3) ──────────────────────────────────────────
+  const nav = useNavigation();
+  const { route, setCockpitTab } = nav;
+  const activeView = route;
+
+  // ── Brain V5 mode ─────────────────────────────────────────────────────
+  const [brainMode, setBrainMode] = useState<TopbarV3BrainMode>("READ_ONLY");
   const cycleBrainMode = useCallback(() => {
     setBrainMode((prev) => {
-      const modes: TopbarBrainMode[] = ["OFF", "READ_ONLY", "ADVISORY", "DRAFTING", "OPERATOR_READY"];
+      const modes: TopbarV3BrainMode[] = ["OFF", "READ_ONLY", "ADVISORY", "DRAFTING", "OPERATOR_READY"];
       const idx = modes.indexOf(prev);
       return modes[(idx + 1) % modes.length];
     });
   }, []);
 
-  // ── New state: active view ─────────────────────────────────────────────
-  const [activeView, setActiveView] = useState<ActiveView>(loadSelectedView());
+  // Derive cockpit tab from activeView on "run" type
+  const activeCockpitTab: CockpitTabId =
+    activeView.type === "run" ? route.cockpitTab : "overview";
 
   // ── Derived booleans from activeView ──────────────────────────────────
-  const showAutonomy         = activeView.type === "platform" && activeView.screen === "autonomy";
-  const showObservability    = activeView.type === "platform" && activeView.screen === "observability";
-  const showExtensions       = activeView.type === "platform" && activeView.screen === "extensions_skills";
-  const showSkills           = activeView.type === "platform" && activeView.screen === "extensions_skills";
-  const showPlanIntake       = activeView.type === "platform" && activeView.screen === "plan_intake";
-  const showPolicyAudit      = activeView.type === "platform" && activeView.screen === "policy_audit";
-  const showRegistrySettings = activeView.type === "platform" && activeView.screen === "registry_settings";
-  const showPiInbox            = activeView.type === "platform" && activeView.screen === "pi_inbox";
-  // P19 brain pages (V5.13 unified Brain section)
-  const showBrainOverview    = activeView.type === "platform" && activeView.screen === "brain_overview";
-  const showBrainAsk         = activeView.type === "platform" && activeView.screen === "brain_ask";
-  const showBrainTemporal    = activeView.type === "platform" && activeView.screen === "brain_temporal";
-  const showBrainMemory      = activeView.type === "platform" && activeView.screen === "brain_memory";
-  const showBrainRepoScanner = activeView.type === "platform" && activeView.screen === "brain_repo_scanner";
-  const showBrainSignals     = activeView.type === "platform" && activeView.screen === "brain_signals";
-  const showBrainReflections = activeView.type === "platform" && activeView.screen === "brain_reflections";
-  const showBrainDigest      = activeView.type === "platform" && activeView.screen === "brain_digest";
-  const showBrainOvernight   = activeView.type === "platform" && activeView.screen === "brain_overnight";
-  const showBrainGoals       = activeView.type === "platform" && activeView.screen === "brain_goals";
-  const showBrainProposals   = activeView.type === "platform" && activeView.screen === "brain_proposals";
-  const showBrainDrafts      = activeView.type === "platform" && activeView.screen === "brain_drafts";
-  const showBrainTrust       = activeView.type === "platform" && activeView.screen === "brain_trust";
-  const showBrainInbox       = activeView.type === "platform" && activeView.screen === "brain_inbox";
+  const showAutonomy         = activeView.type === "platform" && activeView.platformScreen === "autonomy";
+  const showObservability    = activeView.type === "platform" && activeView.platformScreen === "observability";
+  const showExtensions       = activeView.type === "platform" && activeView.platformScreen === "extensions_skills";
+  const showSkills           = activeView.type === "platform" && activeView.platformScreen === "extensions_skills";
+  const showPlanIntake       = activeView.type === "platform" && activeView.platformScreen === "plan_intake";
+  const showPolicyAudit      = activeView.type === "platform" && activeView.platformScreen === "policy_audit";
+  const showRegistrySettings = activeView.type === "platform" && activeView.platformScreen === "registry_settings";
+  const showPiInbox            = activeView.type === "platform" && activeView.platformScreen === "pi_inbox";
+  const showBrainOverview    = activeView.type === "platform" && activeView.platformScreen === "brain_overview";
+  const showBrainAsk         = activeView.type === "platform" && activeView.platformScreen === "brain_ask";
+  const showBrainTemporal    = activeView.type === "platform" && activeView.platformScreen === "brain_temporal";
+  const showBrainMemory      = activeView.type === "platform" && activeView.platformScreen === "brain_memory";
+  const showBrainRepoScanner = activeView.type === "platform" && activeView.platformScreen === "brain_repo_scanner";
+  const showBrainSignals     = activeView.type === "platform" && activeView.platformScreen === "brain_signals";
+  const showBrainReflections = activeView.type === "platform" && activeView.platformScreen === "brain_reflections";
+  const showBrainDigest      = activeView.type === "platform" && activeView.platformScreen === "brain_digest";
+  const showBrainOvernight   = activeView.type === "platform" && activeView.platformScreen === "brain_overnight";
+  const showBrainGoals       = activeView.type === "platform" && activeView.platformScreen === "brain_goals";
+  const showBrainProposals   = activeView.type === "platform" && activeView.platformScreen === "brain_proposals";
+  const showBrainDrafts      = activeView.type === "platform" && activeView.platformScreen === "brain_drafts";
+  const showBrainTrust       = activeView.type === "platform" && activeView.platformScreen === "brain_trust";
+  const showBrainInbox       = activeView.type === "platform" && activeView.platformScreen === "brain_inbox";
   const platformActiveItem: PlatformNavItem | null =
-    activeView.type === "platform" ? activeView.screen : null;
+    activeView.type === "platform" ? (activeView.platformScreen as PlatformNavItem) : null;
 
   // ── Navigate to a sidebar item ────────────────────────────────────────
   const handleSidebarNavigate = useCallback((item: string) => {
-    // Brain items are platform screens
-    if (item.startsWith("brain_")) {
-      setActiveView({ type: "platform", screen: item as PlatformNavItem });
-    } else if (
-      item === "autonomy" ||
-      item === "plan_intake" ||
-      item === "extensions_skills" ||
-      item === "registry_settings" ||
-      item === "observability" ||
-      item === "policy_audit" ||
-      item === "pi_inbox"
-    ) {
-      setActiveView({ type: "platform", screen: item as PlatformNavItem });
-    } else {
-      // Default: try as a run or task selection handled by parent
-      // This is handled by separate callbacks
+    if (item.startsWith("brain_") || [
+      "autonomy", "plan_intake", "extensions_skills",
+      "registry_settings", "observability", "policy_audit", "pi_inbox",
+    ].includes(item)) {
+      nav.navigateToPlatform(item);
     }
     setMobileNav(null);
-  }, []);
+  }, [nav]);
 
   // Select first project if none selected, with localStorage support
   useEffect(() => {
@@ -426,7 +423,7 @@ export function App() {
   // Save project/exec/view/task to localStorage whenever they change
   useEffect(() => { saveSelectedProjectId(selectedProjectId); }, [selectedProjectId]);
   useEffect(() => { saveSelectedExecId(selectedPlanExecId); }, [selectedPlanExecId]);
-  useEffect(() => { saveSelectedView(activeView); }, [activeView]);
+  useEffect(() => { saveSelectedView(route); }, [route]);
   useEffect(() => { saveSelectedTaskId(selectedTaskId); }, [selectedTaskId]);
 
   const [includeArchivedPlans, setIncludeArchivedPlans] = useState(false);
@@ -444,14 +441,14 @@ export function App() {
     if (activeView.type !== "empty") return;
     if (selectedPlanExecId && executions.find(e => e.id === selectedPlanExecId)) {
       // Our saved execution is still valid
-      setActiveView({ type: "run" });
+      nav.navigateToRun(selectedPlanExecId ?? "");
       return;
     }
     // Saved execution not found in current list — pick first
     const running = executions.find(e => e.status === "running");
     setSelectedPlanExecId(running?.id ?? executions[0].id);
-    setActiveView({ type: "run" });
-  }, [executions, selectedPlanExecId, activeView.type]);
+    nav.navigateToRun(selectedPlanExecId ?? "");
+  }, [executions, selectedPlanExecId, activeView.type, nav]);
 
   const { data: legacyPlanState, isLoading: legacyLoading, workers: legacyWorkers, queue: legacyQueue } = usePlanState(!hasProjects);
   const { events: legacyEvents } = useJournalStream(!hasProjects);
@@ -583,9 +580,9 @@ export function App() {
 
   const handleExecutionStarted = useCallback((id: string) => {
     setSelectedPlanExecId(id);
-    setActiveView({ type: "run" });
+    nav.navigateToRun(id);
     setShowPlanUploadDialog(false);
-  }, []);
+  }, [nav]);
 
   const handlePlanEnqueued = useCallback(() => {
     if (selectedProjectId) {
@@ -598,9 +595,9 @@ export function App() {
     setSelectedPlanExecId(null);
     setSelectedTask(null);
     setSelectedTaskId(null);
-    setActiveView({ type: "empty" });
+    nav.navigateToEmpty();
     setMobileNav(null);
-  }, []);
+  }, [nav]);
 
   // ── Project CRUD helpers ──────────────────────────────────────────────
   const handleCreateProject = useCallback(() => {
@@ -623,13 +620,13 @@ export function App() {
           handleProjectSelected(remaining[0].id);
         } else {
           setSelectedProjectId(null);
-          setActiveView({ type: "empty" });
+          nav.navigateToEmpty();
         }
       }
     } catch (e) {
       showError(String(e));
     }
-  }, [selectedProjectId, projects, queryClient, handleProjectSelected, showError]);
+  }, [selectedProjectId, projects, queryClient, handleProjectSelected, showError, nav]);
 
   const handleRenameProject = useCallback(async (projectId: string, name: string) => {
     try {
@@ -679,7 +676,7 @@ export function App() {
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
-    setActiveView({ type: "task" });
+    nav.navigateToTask(taskId);
     setMobileNav(null);
     fetch(`${API_BASE}/api/projects/${encodeURIComponent(selectedProjectId ?? "")}/tasks/${encodeURIComponent(taskId)}`)
       .then(r => r.json())
@@ -691,9 +688,9 @@ export function App() {
 
   const handleSelectExecution = useCallback((execId: string) => {
     setSelectedPlanExecId(execId);
-    setActiveView({ type: "run" });
+    nav.navigateToRun(execId);
     setMobileNav(null);
-  }, []);
+  }, [nav]);
 
   const handleCreateTask = useCallback(() => {
     setShowTaskCreateDialog(true);
@@ -701,6 +698,7 @@ export function App() {
 
   useEffect(() => { setSelectedWorkerId(null); }, [selectedPlanExecId]);
 
+  // ── Loading state ──
   if (isStartingUp) {
     return (
       <div className={`w-full h-screen flex items-center justify-center ${BG}`}>
@@ -711,516 +709,529 @@ export function App() {
     );
   }
 
-  return (
-    <div className={`w-full h-screen flex flex-col ${BG} font-['DM_Sans',ui-sans-serif,system-ui,sans-serif] overflow-hidden`}>
+  // ── Breadcrumbs (V3) ──
+  const runTitle = (executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null;
+  const currentProject = projects.find(p => p.id === selectedProjectId);
+  const projectName = currentProject?.name ?? null;
+  const selectedTaskObj = projectTasks.find(t => t.id === selectedTaskId);
+  const taskName = selectedTaskObj?.title ?? null;
 
-      {/* ── topbar ── */}
-      <Topbar
-        planTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
-        statusBadge={activePlanStatus !== "unknown" ? <StatusBadge status={activePlanStatus} /> : undefined}
-        brainMode={brainMode}
-        onCycleBrainMode={cycleBrainMode}
-        onToggleMobileNav={() => setMobileNav(mobileNav === "left" ? null : "left")}
-        onToggleLeftSidebar={() => setLeftOpen(o => !o)}
-        leftSidebarOpen={leftOpen}
-        onToggleRightSidebar={() => setRightOpen(o => !o)}
-        rightSidebarOpen={rightOpen}
-        canResume={canResume}
-        canPause={canPause}
-        canStop={canStop}
-        controlDisabled={controlDisabled}
-        onResume={() => handleControl("resume")}
-        onPause={() => handleControl("pause")}
-        onStop={() => handleControl("stop")}
-        canRerun={!!selectedPlanExecId && canRerun}
-        onRerun={() => setShowRerunDialog(true)}
-        canForceKill={canForceKill}
-        onForceKill={() => setShowForceKillConfirm(true)}
-        onSettings={() => setShowSettingsDialog(true)}
-        activeViewType={activeView.type}
-        onUploadPlan={handleUploadPlan}
-        onGit={() => setShowGitDialog(true)}
-        onCommands={() => setShowCommandsDialog(true)}
-        onChat={() => setShowChat(o => !o)}
-        showChat={showChat}
-        onBrainContext={() => setShowBrainContext(o => !o)}
-        showBrainContext={showBrainContext}
-        onArtifacts={() => setShowArtifacts(o => !o)}
-        showArtifacts={showArtifacts}
-        onExecutionLog={() => setShowExecutionLog(true)}
-        hasSelectedPlanExecId={!!selectedPlanExecId}
-      />
+  const breadcrumbs = buildRunBreadcrumbs(
+    projectName,
+    selectedProjectId,
+    taskName,
+    selectedTaskId,
+    runTitle,
+    selectedPlanExecId,
+    (route: string) => {
+      // Simple route handler — future: integrate with URL router
+      if (route === "/") {
+        setSelectedPlanExecId(null);
+        nav.navigateToEmpty();
+      } else if (route.startsWith("/projects/")) {
+        const parts = route.split("/").filter(Boolean);
+        if (parts.length >= 2 && parts[0] === "projects") {
+          handleProjectSelected(parts[1]);
+        }
+      }
+    },
+  );
 
-      {/* ── error banner ── */}
-      <AnimatePresence>
-        {errorBanner && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="bg-red-50 dark:bg-red-950 border-b border-red-200 dark:border-red-900 px-4 py-2.5 flex items-center gap-2 text-xs text-red-700 dark:text-red-300 shrink-0">
-            <AlertCircle size={13} strokeWidth={2} className="shrink-0" />
-            <span className="flex-1">{errorBanner}</span>
-            <button onClick={() => setErrorBanner(null)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-300"><X size={13} /></button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+  // ── Status text for topbar ──
+  const statusText = queue
+    ? `${queue.active} active${queue.blocked > 0 ? ` · ${queue.blocked} blocked` : ""}`
+    : null;
 
-      {/* ── 3-panel grid body ── */}
-      <div className="flex-1 flex overflow-hidden relative">
+  // ── TopbarV3 brain mode ──
+  const brainModeV3: TopbarV3BrainMode = brainMode;
 
-        {/* mobile overlay */}
-        <AnimatePresence>
-          {mobileNav && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/30 z-30 md:hidden" onClick={() => setMobileNav(null)} />
-          )}
-        </AnimatePresence>
+  // ── Status bar data ──
+  const statusBarRunTitle = runTitle ?? (selectedPlanExecId ? `Run ${selectedPlanExecId.slice(0, 6)}` : null);
+  const statusBarWorkspaceCounts = queue;
+  const estimatedCostStr = planStats?.estimated_cost_usd != null ? `$${planStats.estimated_cost_usd.toFixed(2)}` : null;
+  const totalTokensIn = planStats?.total_tokens_in ?? 0;
+  const totalTokensOut = planStats?.total_tokens_out ?? 0;
+  const totalTokens = totalTokensIn + totalTokensOut;
+  const tokenCountStr = totalTokens > 0 ? formatTokens(totalTokens) : null;
+  const cacheHitRateStr = planStats?.cache_hit_rate_known && planStats?.cache_hit_rate != null
+    ? formatPercent(planStats.cache_hit_rate)
+    : null;
+  const burnRateStr = planStats?.burn_rate_per_min != null
+    ? `${planStats.burn_rate_per_min.toFixed(0)}`
+    : null;
 
-        {/* ── left sidebar (project-centric) ── */}
-        <AnimatePresence initial={false}>
-          {(leftOpen || mobileNav === "left") && (
-            <motion.aside key="left"
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className={`shrink-0 ${SURF} border-r ${BORD} flex flex-col overflow-hidden
-                md:relative md:z-auto ${mobileNav === "left" ? "absolute left-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
-            >
-              <Sidebar
-                project={projects.find(p => p.id === selectedProjectId) ?? null}
-                projects={projects}
-                activeItem={selectedPlanExecId ?? selectedTaskId ?? platformActiveItem}
-                onNavigate={handleSidebarNavigate}
-                onSelectProject={handleProjectSelected}
-                onCreateProject={handleCreateProject}
-                onDeleteProject={handleDeleteProject}
-                onRenameProject={handleRenameProject}
-                onOpenSettings={() => setShowSettingsDialog(true)}
-                onUploadPlan={handleUploadPlan}
-                brainMode={brainMode}
-                onCycleBrainMode={cycleBrainMode}
-                executions={executions}
-                tasks={projectTasks}
-                executionsLoading={executionsLoading}
-                tasksLoading={tasksLoading}
-                onSelectExecution={handleSelectExecution}
-                onSelectTask={handleSelectTask}
-                onCreateTask={handleCreateTask}
-                includeArchived={includeArchivedPlans}
-                onToggleArchived={() => setIncludeArchivedPlans(a => !a)}
-                unreadCounts={{ observations, proposals, approvals }}
-              />
-            </motion.aside>
-          )}
-        </AnimatePresence>
-
-        {/* ── center column ── */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
-
-          {/* ── contextual toolbar ── */}
-          <ContextualToolbar
-            activeViewType={activeView.type}
-            onUploadPlan={handleUploadPlan}
-            onGit={() => setShowGitDialog(true)}
-            onCommands={() => setShowCommandsDialog(true)}
-            onChat={() => setShowChat(o => !o)}
-            showChat={showChat}
-            onBrainContext={() => setShowBrainContext(o => !o)}
-            showBrainContext={showBrainContext}
-            onArtifacts={() => setShowArtifacts(o => !o)}
-            showArtifacts={showArtifacts}
-            onExecutionLog={() => setShowExecutionLog(true)}
-            hasSelectedPlanExecId={!!selectedPlanExecId}
-          />
-
-          {/* ── center body — switch on activeView ── */}
-          {isLegacyMode ? (
-            /* ── LEGACY MODE ── */
+  // ── Render center content ──
+  const renderCenterContent = () => {
+    if (isLegacyMode) {
+      return (
+        <>
+          {legacyPlanState && (
             <>
-              {legacyPlanState && (
-                <>
-                  <div className={`shrink-0 grid grid-cols-2 gap-3 p-3 ${BG} border-b ${BORD}`}>
-                    <StatCard icon={History} label="Workspaces" value={String(legacyPlanState.workspaces?.length ?? 0)} />
-                    <StatCard icon={Activity} label="Status" value={legacyPlanState.status} accent={legacyPlanState.status === "running"} />
-                  </div>
-                  <QueueStrip queue={queue} />
-                  <div className={`flex gap-4 p-4 border-b ${BORD} ${SURF} shrink-0`}>
-                    <div className="w-64"><PlanSummary planState={legacyPlanState} /></div>
-                    <div className="w-48"><QueuePanel queue={queue} /></div>
-                  </div>
-                  {workers.length > 0 && (
-                    <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
-                      {workers.map(w => (
-                        <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
-                          active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
-                          onStopWorker={(id) => handleStopWorker(id)} />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    {selectedWorker ? (
-                      <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
-                    ) : workers.length > 0 ? (
-                      <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
-                    ) : null}
-                  </div>
-                </>
-              )}
-              {legacyLoading && (
-                <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
-              )}
-              {!legacyPlanState && !legacyLoading && (
-                <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${MUT} p-8`}>
-                  <LayoutGrid size={48} strokeWidth={1} className="text-stone-300 dark:text-stone-600" />
-                  <p className={`text-sm text-stone-500 dark:text-stone-400`}>No plan execution data found</p>
-                  <p className={`text-xs ${MUT} max-w-md text-center`}>Upload a plan to get started.</p>
-                  <div className="flex gap-2 mt-2">
-                    <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
-                    <LabeledBtn icon={Plus} label="Create project" onClick={() => setShowProjectDialog(true)} />
-                  </div>
+              <div className={`shrink-0 grid grid-cols-2 gap-3 p-3 ${BG} border-b ${BORD}`}>
+                <StatCard icon={History} label="Workspaces" value={String(legacyPlanState.workspaces?.length ?? 0)} />
+                <StatCard icon={Activity} label="Status" value={legacyPlanState.status} accent={legacyPlanState.status === "running"} />
+              </div>
+              <QueueStrip queue={queue} />
+              <div className={`flex gap-4 p-4 border-b ${BORD} ${SURF} shrink-0`}>
+                <div className="w-64"><PlanSummary planState={legacyPlanState} /></div>
+                <div className="w-48"><QueuePanel queue={queue} /></div>
+              </div>
+              {workers.length > 0 && (
+                <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
+                  {workers.map(w => (
+                    <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
+                      active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
+                      onStopWorker={(id) => handleStopWorker(id)} />
+                  ))}
                 </div>
               )}
-            </>
-          ) : (
-            /* ── PROJECT MODE — switch on activeView ── */
-            <>
-              {(() => {
-                switch (activeView.type) {
-                  case "run":
-                    return (
-                      <>
-                        {/* warning banner */}
-                        <WarningBanner executionDetail={executionDetail ?? null} workers={activeWorkspaces}
-                          events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} executionStats={planStats ?? null} />
-
-                        {/* stats */}
-                        {executionDetail && (
-                          <>
-                            <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-7 gap-3 p-3 ${BG} border-b ${BORD}`}>
-                              <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
-                              <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
-                              <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
-                              <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
-                              <StatCard icon={Activity} label="Cache hit" value={formatPercentOrUnknown(planStats?.cache_hit_rate_known ? planStats?.cache_hit_rate : null)} />
-                              <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
-                              <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
-                            </div>
-                            <QueueStrip queue={queue} />
-                            <ExecutionStabilityPanel
-                              status={activePlanStatus}
-                              queue={queue}
-                              events={activeEvents}
-                              connectionStatus={connectionStatus}
-                              lastEventAt={lastEventAt}
-                              isEventStreamStale={isEventStreamStale}
-                              lastError={errorBanner}
-                            />
-                            <div className={`shrink-0 p-3 border-b ${BORD}`}>
-                              <SchedulerStatusPanel stats={planStats ?? null} />
-                            </div>
-
-                            {/* P41.12: Minimal Dashboard Cockpit Panels */}
-                            <div className={`border-b ${BORD}`}>
-                              <CockpitPanels
-                                projectId={selectedProjectId}
-                                planExecId={selectedPlanExecId}
-                                selectedWorkerId={selectedWorkerId}
-                                workspaceStage={selectedWorker?.stage}
-                                workers={workers}
-                                planEvents={activeEvents as JournalEvent[]}
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        {/* no execution selected */}
-                        {!executionDetail && (
-                          <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
-                            <History size={32} strokeWidth={1.2} />
-                            <p className="text-sm">No execution selected</p>
-                            <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
-                          </div>
-                        )}
-
-                        {/* worker list */}
-                        {executionDetail && workers.length > 0 && (
-                          <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
-                            {workers.map(w => (
-                              <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
-                                active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
-                                onStopWorker={(id) => handleStopWorker(id)} />
-                            ))}
-                          </div>
-                        )}
-
-                        {/* worker detail / live log */}
-                        {executionDetail && (
-                          <div className="flex-1 min-h-0 overflow-y-auto">
-                            {selectedWorker ? (
-                              <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
-                            ) : workers.length > 0 ? (
-                              <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
-                            ) : null}
-                          </div>
-                        )}
-                      </>
-                    );
-
-                  case "task":
-                    return (
-                      <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                        {selectedTask ? (
-                          <TaskDetailView
-                            task={selectedTask}
-                            projectId={selectedProjectId ?? ""}
-                            onBack={() => {
-                              setSelectedTask(null);
-                              setSelectedTaskId(null);
-                              setActiveView(selectedPlanExecId ? { type: "run" } : { type: "empty" });
-                            }}
-                            onTaskUpdated={(updated) => setSelectedTask(updated)}
-                            onPhasePlanClick={(planExecId) => {
-                              setSelectedPlanExecId(planExecId);
-                              setActiveView({ type: "run" });
-                            }}
-                          />
-                        ) : (
-                          <div className={`flex flex-col items-center justify-center h-full gap-3 ${MUT}`}>
-                            <Loader2 size={20} className="animate-spin" />
-                            <p className="text-sm">Loading task...</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-
-                  case "platform":
-                    return (
-                      <>
-                        {/* Platform screen containers only when no task detail */}
-                        {showRegistrySettings ? (
-                          <RegistrySettings className="flex-1 min-h-0" />
-                        ) : showPlanIntake ? (
-                          <PlanIntakePanel className="flex-1 min-h-0" />
-                        ) : showPolicyAudit ? (
-                          <PolicyAuditCenter className="flex-1 min-h-0" />
-                        ) : showExtensions ? (
-                          <ExtensionsManager className="flex-1 min-h-0" />
-                        ) : showSkills ? (
-                          <SkillsManager className="flex-1 min-h-0" />
-                        ) : showAutonomy ? (
-                          <AutonomyCenter className="flex-1 min-h-0" />
-                        ) : showObservability ? (
-                          <ObservabilityCockpit className="flex-1 min-h-0" />
-                        ) : showBrainOverview ? (
-                          <BrainStatePage />
-                        ) : showBrainTemporal ? (
-                          <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-temporal"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Temporal Journal</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
-                        ) : showBrainRepoScanner ? (
-                          <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-repo-scanner"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Repo Scanner</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
-                        ) : showBrainProposals || showBrainDrafts ? (
-                          <ProposalInbox className="flex-1 min-h-0" />
-                        ) : showBrainMemory ? (
-                          <BrainMemoryPage />
-                        ) : showBrainReflections ? (
-                          <BrainReflectionsPage />
-                        ) : showBrainSignals ? (
-                          <DigestPage />
-                        ) : showBrainAsk ? (
-                          <BrainInboxPage />
-                        ) : showBrainDigest ? (
-                          <DigestPage />
-                        ) : showBrainOvernight ? (
-                          <BrainOvernightPage />
-                        ) : showBrainGoals ? (
-                          <GoalBoard className="flex-1 min-h-0" />
-                        ) : showBrainTrust ? (
-                          <TrustDashboard className="flex-1 min-h-0" />
-                        ) : showBrainInbox ? (
-                          <BrainInboxPage />
-                        ) : (
-                          <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
-                            <Cpu size={32} strokeWidth={1.2} />
-                            <p className="text-sm">Select a platform feature from the sidebar</p>
-                          </div>
-                        )}
-                      </>
-                    );
-
-                  case "empty":
-                  default:
-                    return (
-                      <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
-                        <History size={32} strokeWidth={1.2} />
-                        <p className="text-sm">No execution selected</p>
-                        <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
-                      </div>
-                    );
-                }
-              })()}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {selectedWorker ? (
+                  <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
+                ) : workers.length > 0 ? (
+                  <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
+                ) : null}
+              </div>
             </>
           )}
-        </div>
+          {legacyLoading && (
+            <div className="flex-1 flex items-center justify-center"><Loader2 size={20} className="animate-spin text-stone-400 dark:text-stone-500" /></div>
+          )}
+          {!legacyPlanState && !legacyLoading && (
+            <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${MUT} p-8`}>
+              <LayoutGrid size={48} strokeWidth={1} className="text-stone-300 dark:text-stone-600" />
+              <p className={`text-sm text-stone-500 dark:text-stone-400`}>No plan execution data found</p>
+              <p className={`text-xs ${MUT} max-w-md text-center`}>Upload a plan to get started.</p>
+              <div className="flex gap-2 mt-2">
+                <LabeledBtn icon={Upload} label="Upload plan" onClick={handleUploadPlan} accent />
+                <LabeledBtn icon={Plus} label="Create project" onClick={() => setShowProjectDialog(true)} />
+              </div>
+            </div>
+          )}
+        </>
+      );
+    }
 
-        {/* ── right sidebar (3 sections) ── */}
-        <AnimatePresence initial={false}>
-          {(rightOpen || mobileNav === "right") && (
-            <motion.aside key="right"
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 300, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className={`shrink-0 overflow-hidden
-                md:relative md:z-auto ${mobileNav === "right" ? "absolute right-0 top-0 bottom-0 z-40 shadow-lg" : ""}`}
-            >
-              <RightSidebar
-                events={activeEvents}
-                eventFilter={eventFilter}
-                onEventFilterChange={setEventFilter}
-                alertEntries={[
-                  ...activeWorkspaces.filter(w => w.stage === "failed").map(w => ({ id: w.id, type: "failed" as const, workspaceId: w.id })),
-                  ...conflictEntries.map(entry => ({ id: entry.workspaceId, type: "conflict" as const, workspaceId: entry.workspaceId })),
-                  ...activeWorkspaces.filter(w => w.stage === "blocked").map(w => ({ id: w.id, type: "blocked" as const, workspaceId: w.id })),
-                ]}
-                totalAlertIssues={totalAlertIssues}
-                projectId={selectedProjectId}
-                planExecId={selectedPlanExecId}
+    // ── PROJECT MODE ──
+    switch (activeView.type) {
+      case "run":
+        return (
+          <>
+            {/* warning banner */}
+            <WarningBanner executionDetail={executionDetail ?? null} workers={activeWorkspaces}
+              events={activeEvents as any} burnRatePerMin={planStats?.burn_rate_per_min} contextBudgets={contextBudgets} executionStats={planStats ?? null} />
+
+            {/* stats */}
+            {executionDetail && (
+              <>
+                <div className={`shrink-0 grid grid-cols-2 sm:grid-cols-7 gap-3 p-3 ${BG} border-b ${BORD}`}>
+                  <StatCard icon={DollarSign} label="Est. cost" value={formatCost(planStats?.estimated_cost_usd)} />
+                  <StatCard icon={Cpu} label="Tokens in" value={formatTokens(planStats?.total_tokens_in)} accent />
+                  <StatCard icon={Activity} label="Tokens out" value={formatTokens(planStats?.total_tokens_out)} />
+                  <StatCard icon={Zap} label="Burn rate" value={planStats?.burn_rate_per_min != null ? `${planStats.burn_rate_per_min.toFixed(0)}/m` : "—"} sublabel="total tokens ÷ elapsed min" />
+                  <StatCard icon={Activity} label="Cache hit" value={formatPercentOrUnknown(planStats?.cache_hit_rate_known ? planStats?.cache_hit_rate : null)} />
+                  <StatCard icon={ListOrdered} label="Tok/workspace" value={planStats?.tokens_per_workspace != null ? formatTokens(planStats.tokens_per_workspace) : "—"} />
+                  <StatCard icon={Filter} label="Tok/progress%" value={planStats?.tokens_per_percent != null ? formatTokens(planStats.tokens_per_percent) : "—"} />
+                </div>
+                <QueueStrip queue={queue} />
+                <ExecutionStabilityPanel
+                  status={activePlanStatus}
+                  queue={queue}
+                  events={activeEvents as any}
+                  connectionStatus={connectionStatus}
+                  lastEventAt={lastEventAt}
+                  isEventStreamStale={isEventStreamStale}
+                  lastError={errorBanner}
+                />
+                <div className={`shrink-0 p-3 border-b ${BORD}`}>
+                  <SchedulerStatusPanel stats={planStats ?? null} />
+                </div>
+
+                {/* P41.12: Minimal Dashboard Cockpit Panels */}
+                <div className={`border-b ${BORD}`}>
+                  <CockpitPanels
+                    projectId={selectedProjectId}
+                    planExecId={selectedPlanExecId}
+                    selectedWorkerId={selectedWorkerId}
+                    workspaceStage={selectedWorker?.stage}
+                    workers={workers}
+                    planEvents={activeEvents as JournalEvent[]}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* no execution selected */}
+            {!executionDetail && (
+              <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+                <History size={32} strokeWidth={1.2} />
+                <p className="text-sm">No execution selected</p>
+                <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
+              </div>
+            )}
+
+            {/* worker list */}
+            {executionDetail && workers.length > 0 && (
+              <div className={`shrink-0 max-h-48 overflow-y-auto border-b ${BORD} ${SURF}`}>
+                {workers.map(w => (
+                  <WorkerCard key={w.id} worker={w} workspace={activeWorkspaces.find(ws => ws.id === w.id)}
+                    active={w.id === selectedWorkerId} onClick={() => setSelectedWorkerId(w.id)}
+                    onStopWorker={(id) => handleStopWorker(id)} />
+                ))}
+              </div>
+            )}
+
+            {/* worker detail / live log */}
+            {executionDetail && (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {selectedWorker ? (
+                  <WorkerDetail worker={selectedWorker} planExecId={selectedPlanExecId} workspace={selectedWorkspace} />
+                ) : workers.length > 0 ? (
+                  <LiveLogTerminal workers={workers} planEvents={activeEvents as any} className="h-full" />
+                ) : null}
+              </div>
+            )}
+          </>
+        );
+
+      case "task":
+        return (
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
+            {selectedTask ? (
+              <TaskDetailView
+                task={selectedTask}
+                projectId={selectedProjectId ?? ""}
+                onBack={() => {
+                  setSelectedTask(null);
+                  setSelectedTaskId(null);
+                  if (selectedPlanExecId) {
+                    nav.navigateToRun(selectedPlanExecId);
+                  } else {
+                    nav.navigateToEmpty();
+                  }
+                }}
+                onTaskUpdated={(updated) => setSelectedTask(updated)}
+                onPhasePlanClick={(planExecId) => {
+                  setSelectedPlanExecId(planExecId);
+                  nav.navigateToRun(planExecId);
+                }}
               />
-            </motion.aside>
+            ) : (
+              <div className={`flex flex-col items-center justify-center h-full gap-3 ${MUT}`}>
+                <Loader2 size={20} className="animate-spin" />
+                <p className="text-sm">Loading task...</p>
+              </div>
+            )}
+          </div>
+        );
+
+      case "platform":
+        return (
+          <>
+            {showRegistrySettings ? (
+              <RegistrySettings className="flex-1 min-h-0" />
+            ) : showPlanIntake ? (
+              <PlanIntakePanel className="flex-1 min-h-0" />
+            ) : showPolicyAudit ? (
+              <PolicyAuditCenter className="flex-1 min-h-0" />
+            ) : showExtensions ? (
+              <ExtensionsManager className="flex-1 min-h-0" />
+            ) : showSkills ? (
+              <SkillsManager className="flex-1 min-h-0" />
+            ) : showAutonomy ? (
+              <AutonomyCenter className="flex-1 min-h-0" />
+            ) : showObservability ? (
+              <ObservabilityCockpit className="flex-1 min-h-0" />
+            ) : showBrainOverview ? (
+              <BrainStatePage />
+            ) : showBrainTemporal ? (
+              <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-temporal"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Temporal Journal</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
+            ) : showBrainRepoScanner ? (
+              <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-repo-scanner"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Repo Scanner</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
+            ) : showBrainProposals || showBrainDrafts ? (
+              <ProposalInbox className="flex-1 min-h-0" />
+            ) : showBrainMemory ? (
+              <BrainMemoryPage />
+            ) : showBrainReflections ? (
+              <BrainReflectionsPage />
+            ) : showBrainSignals ? (
+              <DigestPage />
+            ) : showBrainAsk ? (
+              <BrainInboxPage />
+            ) : showBrainDigest ? (
+              <DigestPage />
+            ) : showBrainOvernight ? (
+              <BrainOvernightPage />
+            ) : showBrainGoals ? (
+              <GoalBoard className="flex-1 min-h-0" />
+            ) : showBrainTrust ? (
+              <TrustDashboard className="flex-1 min-h-0" />
+            ) : showBrainInbox ? (
+              <BrainInboxPage />
+            ) : (
+              <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+                <Cpu size={32} strokeWidth={1.2} />
+                <p className="text-sm">Select a platform feature from the sidebar</p>
+              </div>
+            )}
+          </>
+        );
+
+      case "empty":
+      default:
+        return (
+          <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
+            <History size={32} strokeWidth={1.2} />
+            <p className="text-sm">No execution selected</p>
+            <LabeledBtn icon={Upload} label="Upload a plan" onClick={() => setShowPlanUploadDialog(true)} accent />
+          </div>
+        );
+    }
+  };
+
+  return (
+    <AppShell
+      breadcrumbs={breadcrumbs}
+      topbar={
+        <TopbarV3
+          breadcrumbs={breadcrumbs}
+          status={activePlanStatus !== "unknown" ? activePlanStatus : undefined}
+          statusText={statusText}
+          brainMode={brainModeV3}
+          onCycleBrainMode={cycleBrainMode}
+          canResume={canResume}
+          canPause={canPause}
+          canStop={canStop}
+          controlDisabled={controlDisabled}
+          onResume={() => handleControl("resume")}
+          onPause={() => handleControl("pause")}
+          onStop={() => handleControl("stop")}
+          canRerun={!!selectedPlanExecId && canRerun}
+          onRerun={() => setShowRerunDialog(true)}
+          canForceKill={canForceKill}
+          onForceKill={() => setShowForceKillConfirm(true)}
+          onSettings={() => setShowSettingsDialog(true)}
+          onSearch={() => { /* Command palette — future */ }}
+          onBrainMenu={() => {
+            // Navigate to brain overview
+            nav.navigateToPlatform("brain_overview");
+          }}
+        />
+      }
+      leftSidebar={
+        <TaskRunSidebar
+          project={currentProject ?? null}
+          projects={projects}
+          activeItem={selectedPlanExecId ?? selectedTaskId ?? platformActiveItem}
+          onNavigate={handleSidebarNavigate}
+          onSelectProject={handleProjectSelected}
+          onCreateProject={handleCreateProject}
+          onUploadPlan={handleUploadPlan}
+          onCreateTask={handleCreateTask}
+          onOpenSettings={() => setShowSettingsDialog(true)}
+          brainMode={brainModeV3}
+          onCycleBrainMode={cycleBrainMode}
+          executions={executions}
+          tasks={projectTasks}
+          executionsLoading={executionsLoading}
+          tasksLoading={tasksLoading}
+          onSelectExecution={handleSelectExecution}
+          onSelectTask={handleSelectTask}
+          unreadCounts={{ observations, proposals, approvals }}
+        />
+      }
+      centerContent={
+        renderCenterContent()
+      }
+      statusBar={
+        <StatusBarV3
+          runTitle={statusBarRunTitle}
+          status={activePlanStatus !== "unknown" ? activePlanStatus : undefined}
+          workspaceCounts={statusBarWorkspaceCounts}
+          estimatedCost={estimatedCostStr}
+          tokenCount={tokenCountStr}
+          cacheHitRate={cacheHitRateStr}
+          burnRate={burnRateStr}
+        />
+      }
+      contextualDrawer={contextualDrawer}
+      onCloseDrawer={() => setContextualDrawer(null)}
+      errorBanner={errorBanner}
+      onClearError={() => setErrorBanner(null)}
+      leftSidebarOpen={leftOpen}
+      onToggleLeftSidebar={() => setLeftOpen(o => !o)}
+      leftSidebarWidth={230}
+      mobileNav={mobileNav}
+      onMobileNavClose={() => setMobileNav(null)}
+      legacyRightSidebar={
+        <RightSidebar
+          events={activeEvents}
+          eventFilter={eventFilter}
+          onEventFilterChange={setEventFilter}
+          alertEntries={[
+            ...activeWorkspaces.filter(w => w.stage === "failed").map(w => ({ id: w.id, type: "failed" as const, workspaceId: w.id })),
+            ...conflictEntries.map(entry => ({ id: entry.workspaceId, type: "conflict" as const, workspaceId: entry.workspaceId })),
+            ...activeWorkspaces.filter(w => w.stage === "blocked").map(w => ({ id: w.id, type: "blocked" as const, workspaceId: w.id })),
+          ]}
+          totalAlertIssues={totalAlertIssues}
+          projectId={selectedProjectId}
+          planExecId={selectedPlanExecId}
+        />
+      }
+      legacyRightOpen={rightOpen}
+      overlays={
+        <>
+          {/* brain context panel */}
+          <AnimatePresence>
+            {showBrainContext && (
+              <motion.aside
+                initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                className="shrink-0 overflow-hidden relative z-20"
+              >
+                <BrainContextPanel
+                  projectId={selectedProjectId}
+                  isOpen={showBrainContext}
+                  onClose={() => setShowBrainContext(false)}
+                />
+              </motion.aside>
+            )}
+          </AnimatePresence>
+
+          {/* artifacts overlay */}
+          <AnimatePresence>
+            {showArtifacts && (
+              <motion.aside
+                initial={{ width: 0, opacity: 0 }} animate={{ width: 480, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden relative z-20`}
+              >
+                <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
+                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Artifacts</span>
+                  <button onClick={() => setShowArtifacts(false)} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300`}>
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ArtifactBrowser planExecId={selectedPlanExecId} />
+                </div>
+              </motion.aside>
+            )}
+          </AnimatePresence>
+
+          {/* chat panel */}
+          <AnimatePresence>
+            {showChat && (
+              <motion.aside
+                initial={{ width: 0, opacity: 0 }} animate={{ width: 400, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                className="shrink-0 overflow-hidden relative z-20"
+              >
+                <ChatPanel
+                  isOpen={showChat}
+                  projectId={selectedProjectId}
+                  onClose={() => setShowChat(false)}
+                  contextRefs={chatContextRefs}
+                  onContextRefClick={(ref) => {
+                    if (ref.kind === "run") {
+                      setSelectedPlanExecId(ref.id);
+                      nav.navigateToRun(ref.id);
+                    } else if (ref.kind === "workspace") {
+                      setSelectedWorkerId(ref.id);
+                    }
+                  }}
+                />
+              </motion.aside>
+            )}
+          </AnimatePresence>
+        </>
+      }
+      dialogs={
+        <>
+          <OpenProjectDialog isOpen={showProjectDialog} onClose={() => setShowProjectDialog(false)}
+            onCreate={createProject} projects={projects}
+            onSelectExisting={(id) => handleProjectSelected(id)} />
+          {showPlanUploadDialog && (selectedProjectId || projects.length > 0) && (
+            <PlanUploadDialog isOpen={showPlanUploadDialog} onClose={() => setShowPlanUploadDialog(false)}
+              projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted}
+              onEnqueued={handlePlanEnqueued} />
           )}
-        </AnimatePresence>
-
-        {/* -- brain context panel -- */}
-        <AnimatePresence>
-          {showBrainContext && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className="shrink-0 overflow-hidden relative z-20"
-            >
-              <BrainContextPanel
-                projectId={selectedProjectId}
-                isOpen={showBrainContext}
-                onClose={() => setShowBrainContext(false)}
-              />
-            </motion.aside>
+          {showTaskCreateDialog && selectedProjectId && (
+            <TaskCreationStudio isOpen={showTaskCreateDialog} onClose={() => setShowTaskCreateDialog(false)}
+              projectId={selectedProjectId} onTaskCreated={(taskId) => {
+                setShowTaskCreateDialog(false);
+                setSelectedTaskId(taskId);
+                nav.navigateToTask(taskId);
+                queryClient.invalidateQueries({ queryKey: ["tasks", selectedProjectId] });
+              }} />
           )}
-        </AnimatePresence>
+          <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
+            project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />
+          <ExecutionLogViewer planExecId={selectedPlanExecId} isOpen={showExecutionLog} onClose={() => setShowExecutionLog(false)} />
+          <RerunDialog
+            isOpen={showRerunDialog}
+            onClose={() => setShowRerunDialog(false)}
+            onConfirm={handleRerun}
+            executionDetail={executionDetail ?? null}
+            loading={rerunning}
+          />
+          <ForceKillDialog
+            isOpen={showForceKillConfirm}
+            onClose={() => setShowForceKillConfirm(false)}
+            onConfirm={handleForceKill}
+            executionTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
+          />
 
-        {/* -- artifacts overlay -- */}
-        <AnimatePresence>
-          {showArtifacts && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 480, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              className={`shrink-0 ${SURF} border-l ${BORD} flex flex-col overflow-hidden relative z-20`}
-            >
-              <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
-                <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Artifacts</span>
-                <button onClick={() => setShowArtifacts(false)} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300`}>
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <ArtifactBrowser planExecId={selectedPlanExecId} />
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-      </div>
+          {/* git dialog */}
+          <AnimatePresence>
+            {showGitDialog && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                onClick={() => setShowGitDialog(false)}
+              >
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                  className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                    <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Git Status</h2>
+                    <button onClick={() => setShowGitDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <GitContent workspaces={activeWorkspaces} planExecId={selectedPlanExecId} />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* ── dialogs ── */}
-      <OpenProjectDialog isOpen={showProjectDialog} onClose={() => setShowProjectDialog(false)}
-        onCreate={createProject} projects={projects}
-        onSelectExisting={(id) => handleProjectSelected(id)} />
-      {showPlanUploadDialog && (selectedProjectId || projects.length > 0) && (
-        <PlanUploadDialog isOpen={showPlanUploadDialog} onClose={() => setShowPlanUploadDialog(false)}
-          projectId={selectedProjectId ?? projects[0].id} onExecutionStarted={handleExecutionStarted}
-          onEnqueued={handlePlanEnqueued} />
-      )}
-      {showTaskCreateDialog && selectedProjectId && (
-        <TaskCreationStudio isOpen={showTaskCreateDialog} onClose={() => setShowTaskCreateDialog(false)}
-          projectId={selectedProjectId} onTaskCreated={(taskId) => {
-            setShowTaskCreateDialog(false);
-            setSelectedTaskId(taskId);
-            setActiveView({ type: "task" });
-            queryClient.invalidateQueries({ queryKey: ["tasks", selectedProjectId] });
-          }} />
-      )}
-      <SettingsDialog isOpen={showSettingsDialog} onClose={() => setShowSettingsDialog(false)}
-        project={selectedProjectId ? projects.find(p => p.id === selectedProjectId) ?? null : null} />
-      <ExecutionLogViewer planExecId={selectedPlanExecId} isOpen={showExecutionLog} onClose={() => setShowExecutionLog(false)} />
-      <RerunDialog
-        isOpen={showRerunDialog}
-        onClose={() => setShowRerunDialog(false)}
-        onConfirm={handleRerun}
-        executionDetail={executionDetail ?? null}
-        loading={rerunning}
-      />
-      <ForceKillDialog
-        isOpen={showForceKillConfirm}
-        onClose={() => setShowForceKillConfirm(false)}
-        onConfirm={handleForceKill}
-        executionTitle={(executionDetail as any)?.displayTitle ?? executionDetail?.title ?? null}
-      />
-      <ChatPanel
-        isOpen={showChat}
-        projectId={selectedProjectId}
-        onClose={() => setShowChat(false)}
-        contextRefs={chatContextRefs}
-        onContextRefClick={(ref) => {
-          if (ref.kind === "run") {
-            setSelectedPlanExecId(ref.id);
-            setActiveView({ type: "run" });
-          } else if (ref.kind === "workspace") {
-            setSelectedWorkerId(ref.id);
-          }
-        }}
-      />
-
-      {/* ── git dialog ── */}
-      <AnimatePresence>
-        {showGitDialog && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setShowGitDialog(false)}
-          >
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Git Status</h2>
-                <button onClick={() => setShowGitDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
-                  <X size={18} />
-                </button>
-              </div>
-              <GitContent workspaces={activeWorkspaces} planExecId={selectedPlanExecId} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── commands dialog ── */}
-      <AnimatePresence>
-        {showCommandsDialog && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setShowCommandsDialog(false)}
-          >
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 0.95 }} exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.1 }}
-              className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Commands</h2>
-                <button onClick={() => setShowCommandsDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
-                  <X size={18} />
-                </button>
-              </div>
-              <CommandsPanel toolCalls={toolCalls} workspaceIds={activeWorkspaces.map(w => w.id)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          {/* commands dialog */}
+          <AnimatePresence>
+            {showCommandsDialog && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                onClick={() => setShowCommandsDialog(false)}
+              >
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 0.95 }} exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                  className={`bg-white dark:bg-[#1E1E1E] border ${BORD} rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                    <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Commands</h2>
+                    <button onClick={() => setShowCommandsDialog(false)} className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <CommandsPanel toolCalls={toolCalls} workspaceIds={activeWorkspaces.map(w => w.id)} />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      }
+    />
   );
 }
 
