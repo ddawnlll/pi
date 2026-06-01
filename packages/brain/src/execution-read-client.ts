@@ -8,6 +8,7 @@ import type {
 	JournalEventEnvelope,
 	JournalQuery,
 	LeadDirectiveView,
+	LeadEscalationView,
 	PlanExecutionSummary,
 	WorkspaceExecutionSummary,
 } from "@earendil-works/pi-execution-core";
@@ -31,6 +32,9 @@ export class BrainExecutionReadClient {
 	}
 	async getLeadDirectives(planExecutionId: string, workspaceId: string): Promise<LeadDirectiveView[]> {
 		return this.readModel.getLeadDirectives(planExecutionId, workspaceId);
+	}
+	async getLeadEscalations(planExecutionId: string, workspaceId: string): Promise<LeadEscalationView[]> {
+		return this.readModel.getLeadEscalations(planExecutionId, workspaceId);
 	}
 	async getFinalValidationStatus(planExecutionId: string, workspaceId: string): Promise<FinalValidationView> {
 		return this.readModel.getFinalValidationStatus(planExecutionId, workspaceId);

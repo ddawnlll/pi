@@ -8,10 +8,12 @@
 
 // Commands
 export type {
+	ExecutionCommandAcknowledgeDirective,
 	ExecutionCommandApproveProposal,
 	ExecutionCommandContinuePlan,
 	ExecutionCommandRequestUserEscalation,
 	ExecutionCommandRerunPlan,
+	ExecutionCommandResolveEscalation,
 	ExecutionCommandRetryWorkspace,
 	ExecutionCommandStartPlan,
 	ExecutionCommandStopPlan,
@@ -25,6 +27,7 @@ export type {
 	BrainProposedPayload,
 	BrainRejectedPayload,
 	CommandFinishedPayload,
+	CommandOutputPayload,
 	CommandStartedPayload,
 	ExecutionEvent,
 	ExecutionEventPayloadMap,
@@ -33,6 +36,11 @@ export type {
 	GovernanceCheckStartedPayload,
 	GovernanceEscalatedPayload,
 	GovernanceRejectedPayload,
+	LeadAgentDirectiveAcknowledgedPayload,
+	LeadAgentDirectiveIssuedPayload,
+	LeadAgentEscalationInitiatedPayload,
+	LeadAgentEscalationResolvedPayload,
+	LeadAgentReviewStartedPayload,
 	PlanCancelledPayload,
 	PlanCompletedPayload,
 	PlanFailedPayload,
@@ -56,7 +64,9 @@ export {
 	EXECUTION_EVENT_TYPES,
 	isBrainEventType,
 	isCommandEventType,
+	isCommandOutputEventType,
 	isGovernanceEventType,
+	isLeadAgentEventType,
 	isPlanEventType,
 	isSystemEventType,
 	isWorkerEventType,
@@ -71,15 +81,31 @@ export { PiLogger } from "./logger.js";
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 // Read model
 export type {
+	ChangedFileEntry,
 	CommandHistoryView,
 	ExecutionReadModel,
+	FileChangeStatus,
+	FileContentView,
+	FileDiffView,
+	FileTreeNode,
+	FileTreeQuery,
 	FinalValidationView,
 	JournalEventEnvelope,
 	JournalQuery,
 	LeadDirectiveView,
+	LeadEscalationView,
 	PlanExecutionSummary,
 	WorkspaceExecutionSummary,
 } from "./read-model.js";
+// File tree utilities (P41.06)
+export {
+	buildFileTreeFromEntries,
+	flattenFileTree,
+	getFileExt,
+} from "./file-tree.js";
+// Live command log stream (P41.05)
+export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
+export { InMemoryCommandLogStream } from "./command-log-stream.js";
 // Runtime event emitter
 export { RuntimeEventEmitter } from "./runtime-emitter.js";
 // P40.2C Dirty Runtime Dependency Ports

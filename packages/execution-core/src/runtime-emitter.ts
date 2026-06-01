@@ -23,6 +23,7 @@ import type {
 	BrainProposedPayload,
 	BrainRejectedPayload,
 	CommandFinishedPayload,
+	CommandOutputPayload,
 	CommandStartedPayload,
 	ExecutionEventPayloadMap,
 	ExecutionEventType,
@@ -30,6 +31,11 @@ import type {
 	GovernanceCheckStartedPayload,
 	GovernanceEscalatedPayload,
 	GovernanceRejectedPayload,
+	LeadAgentDirectiveAcknowledgedPayload,
+	LeadAgentDirectiveIssuedPayload,
+	LeadAgentEscalationInitiatedPayload,
+	LeadAgentEscalationResolvedPayload,
+	LeadAgentReviewStartedPayload,
 	PlanCancelledPayload,
 	PlanCompletedPayload,
 	PlanFailedPayload,
@@ -229,6 +235,11 @@ export class RuntimeEventEmitter {
 		return this.emit("command_finished", payload, payload.workspaceId);
 	}
 
+	/** Emit command_output — stream stdout/stderr chunk during command execution. */
+	async emitCommandOutput(payload: CommandOutputPayload): Promise<string> {
+		return this.emit("command_output", payload, payload.workspaceId);
+	}
+
 	// -----------------------------------------------------------------------
 	// Brain proposal events
 	// -----------------------------------------------------------------------
@@ -246,6 +257,35 @@ export class RuntimeEventEmitter {
 	/** Emit brain_rejected. */
 	async emitBrainRejected(payload: BrainRejectedPayload): Promise<string> {
 		return this.emit("brain_rejected", payload);
+	}
+
+	// -----------------------------------------------------------------------
+	// Lead Agent escalation events (P41.09)
+	// -----------------------------------------------------------------------
+
+	/** Emit lead_agent_review_started when the Lead Agent begins reviewing a failure. */
+	async emitLeadAgentReviewStarted(payload: LeadAgentReviewStartedPayload): Promise<string> {
+		return this.emit("lead_agent_review_started", payload, payload.workspaceId);
+	}
+
+	/** Emit lead_agent_directive_issued when the Lead Agent issues a directive. */
+	async emitLeadAgentDirectiveIssued(payload: LeadAgentDirectiveIssuedPayload): Promise<string> {
+		return this.emit("lead_agent_directive_issued", payload, payload.workspaceId);
+	}
+
+	/** Emit lead_agent_directive_acknowledged when a worker acknowledges a directive. */
+	async emitLeadAgentDirectiveAcknowledged(payload: LeadAgentDirectiveAcknowledgedPayload): Promise<string> {
+		return this.emit("lead_agent_directive_acknowledged", payload, payload.workspaceId);
+	}
+
+	/** Emit lead_agent_escalation_initiated when the Lead Agent escalates to the user. */
+	async emitLeadAgentEscalationInitiated(payload: LeadAgentEscalationInitiatedPayload): Promise<string> {
+		return this.emit("lead_agent_escalation_initiated", payload, payload.workspaceId);
+	}
+
+	/** Emit lead_agent_escalation_resolved when the user responds to an escalation. */
+	async emitLeadAgentEscalationResolved(payload: LeadAgentEscalationResolvedPayload): Promise<string> {
+		return this.emit("lead_agent_escalation_resolved", payload, payload.workspaceId);
 	}
 
 	// -----------------------------------------------------------------------
@@ -363,6 +403,11 @@ export class RuntimeEventEmitter {
 			"governance_approved",
 			"governance_rejected",
 			"governance_escalated",
+			"lead_agent_review_started",
+			"lead_agent_directive_issued",
+			"lead_agent_directive_acknowledged",
+			"lead_agent_escalation_initiated",
+			"lead_agent_escalation_resolved",
 			"system_error",
 			"system_warning",
 			"system_info",

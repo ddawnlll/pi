@@ -16,7 +16,9 @@ export type ExecutionCommand =
 	| ExecutionCommandRerunPlan
 	| ExecutionCommandRetryWorkspace
 	| ExecutionCommandRequestUserEscalation
-	| ExecutionCommandApproveProposal;
+	| ExecutionCommandApproveProposal
+	| ExecutionCommandAcknowledgeDirective
+	| ExecutionCommandResolveEscalation;
 
 // ---------------------------------------------------------------------------
 // Command variants
@@ -62,4 +64,21 @@ export interface ExecutionCommandRequestUserEscalation {
 export interface ExecutionCommandApproveProposal {
 	type: "approve_proposal";
 	proposalId: string;
+}
+
+export interface ExecutionCommandAcknowledgeDirective {
+	type: "acknowledge_directive";
+	planExecutionId: string;
+	workspaceId: string;
+	directiveId: string;
+	attemptNumber: number;
+}
+
+export interface ExecutionCommandResolveEscalation {
+	type: "resolve_escalation";
+	planExecutionId: string;
+	workspaceId: string;
+	escalationId: string;
+	chosenOptionId: string;
+	userResponse?: string;
 }

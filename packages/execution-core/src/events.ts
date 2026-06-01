@@ -68,6 +68,7 @@ export const EXECUTION_EVENT_TYPES = [
 	// Command execution events
 	"command_started",
 	"command_finished",
+	"command_output",
 
 	// Brain proposal events
 	"brain_proposed",
@@ -79,6 +80,13 @@ export const EXECUTION_EVENT_TYPES = [
 	"governance_approved",
 	"governance_rejected",
 	"governance_escalated",
+
+	// Lead Agent escalation events (P41.09)
+	"lead_agent_review_started",
+	"lead_agent_directive_issued",
+	"lead_agent_directive_acknowledged",
+	"lead_agent_escalation_initiated",
+	"lead_agent_escalation_resolved",
 
 	// System-level events
 	"system_error",
@@ -212,6 +220,31 @@ export interface CommandFinishedPayload {
 	runId?: string;
 }
 
+/**
+ * Payload for command_output events — streamed stdout/stderr chunks during command execution.
+ *
+ * Emitted in real-time as the command produces output, enabling live terminal streaming
+ * for the dashboard UI and other consumers.
+ */
+export interface CommandOutputPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	/** The command being executed */
+	command: string;
+	/** Working directory the command was run in */
+	cwd: string;
+	/** Which stream produced the output */
+	stream: "stdout" | "stderr";
+	/** The chunk of output data */
+	data: string;
+	/** Byte offset from the start of the command's output (for ordering) */
+	offset: number;
+	/** Optional run identifier */
+	runId?: string;
+	/** Whether this is the final output chunk for this command */
+	final?: boolean;
+}
+
 // ---------- Brain Proposal Events ----------
 
 export interface BrainProposedPayload {
@@ -259,6 +292,84 @@ export interface GovernanceEscalatedPayload {
 	planExecutionId: string;
 	workspaceId?: string;
 	reason: string;
+}
+
+// ---------- Lead Agent Escalation Events (P41.09) ----------
+
+/**
+ * Payload for lead_agent_review_started — emitted when the Lead Agent begins
+ * reviewing a workspace failure or block to decide next actions.
+ */
+export interface LeadAgentReviewStartedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	attemptNumber: number;
+	failureSummary: string;
+	errorMessage?: string;
+	completionGateBlockReasons?: string[];
+}
+
+/**
+ * Payload for lead_agent_directive_issued — emitted when the Lead Agent
+ * issues a directive to a worker after reviewing a failure.
+ * The directive tells the worker what actions are allowed/forbidden.
+ */
+export interface LeadAgentDirectiveIssuedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	directiveId: string;
+	attemptNumber: number;
+	severity: "low" | "medium" | "high" | "blocking";
+	summary: string;
+	directive: string;
+	allowedActions: string[];
+	forbiddenActions: string[];
+	maxAdditionalRetries: number;
+	escalateAfter: number;
+}
+
+/**
+ * Payload for lead_agent_directive_acknowledged — emitted when a worker
+ * acknowledges a Lead Agent directive before retrying.
+ */
+export interface LeadAgentDirectiveAcknowledgedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	directiveId: string;
+	attemptNumber: number;
+	acknowledgedAt: number;
+}
+
+/**
+ * Payload for lead_agent_escalation_initiated — emitted when the Lead Agent
+ * escalates a stuck workspace to the user for decision.
+ */
+export interface LeadAgentEscalationInitiatedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	escalationId: string;
+	severity: "low" | "medium" | "high" | "blocking";
+	title: string;
+	summary: string;
+	whatHappened: string;
+	whyStuck: string;
+	options: Array<{ id: string; label: string; risk: string; description?: string }>;
+	recommendedOptionId: string;
+	evidenceRefs: string[];
+	logsToInspect: string[];
+}
+
+/**
+ * Payload for lead_agent_escalation_resolved — emitted when the user responds
+ * to an escalation with a chosen option.
+ */
+export interface LeadAgentEscalationResolvedPayload {
+	planExecutionId: string;
+	workspaceId: string;
+	escalationId: string;
+	chosenOptionId: string;
+	userResponse?: string;
+	resolvedAt: number;
 }
 
 // ---------- System Events ----------
@@ -314,6 +425,7 @@ export interface ExecutionEventPayloadMap {
 	// Commands
 	command_started: CommandStartedPayload;
 	command_finished: CommandFinishedPayload;
+	command_output: CommandOutputPayload;
 	// Brain
 	brain_proposed: BrainProposedPayload;
 	brain_approved: BrainApprovedPayload;
@@ -323,6 +435,12 @@ export interface ExecutionEventPayloadMap {
 	governance_approved: GovernanceApprovedPayload;
 	governance_rejected: GovernanceRejectedPayload;
 	governance_escalated: GovernanceEscalatedPayload;
+	// Lead Agent Escalation (P41.09)
+	lead_agent_review_started: LeadAgentReviewStartedPayload;
+	lead_agent_directive_issued: LeadAgentDirectiveIssuedPayload;
+	lead_agent_directive_acknowledged: LeadAgentDirectiveAcknowledgedPayload;
+	lead_agent_escalation_initiated: LeadAgentEscalationInitiatedPayload;
+	lead_agent_escalation_resolved: LeadAgentEscalationResolvedPayload;
 	// System
 	system_error: SystemErrorPayload;
 	system_warning: SystemWarningPayload;
@@ -389,6 +507,11 @@ export function isCommandEventType(type: ExecutionEventType): boolean {
 	return type.startsWith("command_");
 }
 
+/** True if the event type is a command output streaming event. */
+export function isCommandOutputEventType(type: ExecutionEventType): boolean {
+	return type === "command_output";
+}
+
 /** True if the event type is a brain proposal event. */
 export function isBrainEventType(type: ExecutionEventType): boolean {
 	return type.startsWith("brain_");
@@ -397,6 +520,11 @@ export function isBrainEventType(type: ExecutionEventType): boolean {
 /** True if the event type is a governance/validation event. */
 export function isGovernanceEventType(type: ExecutionEventType): boolean {
 	return type.startsWith("governance_");
+}
+
+/** True if the event type is a lead agent escalation event. */
+export function isLeadAgentEventType(type: ExecutionEventType): boolean {
+	return type.startsWith("lead_agent_");
 }
 
 /** True if the event type is a system-level event. */
