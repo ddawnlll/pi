@@ -16,8 +16,11 @@
  *   const planSummary = await readModel.getPlanSummary("exec-1");
  */
 
-import type { JournalEventEnvelope } from "@earendil-works/pi-execution-core";
+import { stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type { IStateStore } from "@earendil-works/pi-coding-agent";
+import type { JournalEventEnvelope } from "@earendil-works/pi-execution-core";
+import { isForbiddenPath, listArchiveFiles, readArchiveArtifact } from "./execution-archive.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +64,22 @@ export interface ReadModelAdapter {
 			workspaceId?: string;
 		},
 	): Promise<JournalEventEnvelope[]>;
+
+	/**
+	 * Read a file from the execution archive.
+	 * The artifactPath is a relative, sandboxed path within .pi/executions/{planExecId}/.
+	 * Returns null when the file is not found, forbidden, or the archive is not accessible.
+	 */
+	readArchiveFile?(planExecutionId: string, artifactPath: string): Promise<string | null>;
+
+	/**
+	 * List available files in the execution archive.
+	 * Returns file metadata (path, size, modification time).
+	 * Returns an empty array when the archive is not accessible.
+	 */
+	listArchiveArtifacts?(
+		planExecutionId: string,
+	): Promise<Array<{ path: string; size: number; modifiedAt: string | null }>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,15 +94,21 @@ export interface ReadModelAdapter {
  *     with planExecutionId, eventType, payload, createdAt mapping
  *   - getWorkspaceState() — delegates directly to state store
  *   - getPlanExecutionSummary() — extracts from loadState() result
+ *   - readArchiveFile() — reads files from .pi/executions/{planExecId}/ (requires workspaceRoot)
+ *   - listArchiveArtifacts() — lists available files in the execution archive (requires workspaceRoot)
+ *
+ * NOTE: getTranscriptEvents() is NOT provided because there is no file-based
+ * IWorkerTranscriptStore implementation that persists transcript events to
+ * the execution archive. The read model falls back to reconstructing transcript
+ * events from journal events when getTranscriptEvents() is absent, which
+ * provides equivalent coverage.
  *
  * @param stateStore - The IStateStore instance from getStateStore()
- * @param workspaceRoot - Optional workspace root path (for archive access in the future)
+ * @param workspaceRoot - Project workspace root path. Required for archive-based methods
+ *   (readArchiveFile, listArchiveArtifacts). When absent, those methods return fallback values.
  * @returns A ReadModelAdapter suitable for createExecutionReadModel()
  */
-export function createReadModelAdapter(
-	stateStore: IStateStore,
-	_workspaceRoot?: string,
-): ReadModelAdapter {
+export function createReadModelAdapter(stateStore: IStateStore, workspaceRoot?: string): ReadModelAdapter {
 	let seqCounter = 0;
 
 	return {
@@ -105,9 +130,7 @@ export function createReadModelAdapter(
 					startedAt: (state as any).startedAt
 						? new Date((state as any).startedAt).toISOString()
 						: new Date().toISOString(),
-					completedAt: (state as any).completedAt
-						? new Date((state as any).completedAt).toISOString()
-						: null,
+					completedAt: (state as any).completedAt ? new Date((state as any).completedAt).toISOString() : null,
 				};
 			} catch {
 				return null;
@@ -179,6 +202,77 @@ export function createReadModelAdapter(
 				envelopes = envelopes.slice(offset, offset + limit);
 
 				return envelopes;
+			} catch {
+				return [];
+			}
+		},
+
+		/**
+		 * Read a file from the execution archive via the filesystem.
+		 *
+		 * Reads from .pi/executions/{planExecutionId}/{artifactPath} with
+		 * path sandboxing via isForbiddenPath and path traversal protection
+		 * provided by readArchiveArtifact().
+		 *
+		 * Returns null when:
+		 *   - workspaceRoot is not provided
+		 *   - the path violates sandbox rules
+		 *   - the file does not exist
+		 *   - the file is unreadable
+		 */
+		async readArchiveFile(planExecutionId: string, artifactPath: string): Promise<string | null> {
+			if (!workspaceRoot) {
+				// Archive access requires workspace root, which may not be set
+				// in environments without access to the project filesystem.
+				return null;
+			}
+
+			// Delegate to execution-archive with full sandbox protection
+			return readArchiveArtifact(workspaceRoot, planExecutionId, artifactPath);
+		},
+
+		/**
+		 * List available artifact files in the execution archive.
+		 *
+		 * Walks .pi/executions/{planExecutionId}/ recursively and returns
+		 * artifact entries with path, size, and modification timestamp.
+		 *
+		 * Returns an empty array when:
+		 *   - workspaceRoot is not provided
+		 *   - the archive directory does not exist
+		 *   - the archive directory has no files
+		 */
+		async listArchiveArtifacts(
+			planExecutionId: string,
+		): Promise<Array<{ path: string; size: number; modifiedAt: string | null }>> {
+			if (!workspaceRoot) {
+				return [];
+			}
+
+			try {
+				const relativePaths = await listArchiveFiles(workspaceRoot, planExecutionId);
+				const archiveDir = resolve(join(workspaceRoot, ".pi", "executions", planExecutionId));
+
+				const artifacts: Array<{ path: string; size: number; modifiedAt: string | null }> = [];
+
+				for (const relPath of relativePaths) {
+					// Skip forbidden paths as defense-in-depth
+					if (isForbiddenPath(relPath)) continue;
+
+					const fullPath = join(archiveDir, relPath);
+					try {
+						const s = await stat(fullPath);
+						artifacts.push({
+							path: relPath,
+							size: s.size,
+							modifiedAt: s.mtime.toISOString(),
+						});
+					} catch {
+						// skip unreadable files
+					}
+				}
+
+				return artifacts;
 			} catch {
 				return [];
 			}

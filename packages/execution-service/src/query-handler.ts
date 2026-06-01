@@ -830,7 +830,9 @@ export function createExecutionReadModel(stateStore: {
 					projectId: (p.projectId as string) ?? "default",
 					phase: (p.phase as string) ?? "unknown",
 					title: (p.title as string) ?? "Unknown Plan",
-					status: terminalEvent ? (PLAN_STATUS_MAP[terminalEvent.eventType] ?? terminalEvent.eventType.replace("plan_", "")) : "running",
+					status: terminalEvent
+						? (PLAN_STATUS_MAP[terminalEvent.eventType] ?? terminalEvent.eventType.replace("plan_", ""))
+						: "running",
 					startedAt: planStarted.createdAt,
 					completedAt: terminalEvent?.createdAt ?? null,
 					dataAvailability: {
@@ -1276,7 +1278,9 @@ export function createExecutionReadModel(stateStore: {
 					// Apply maxDiffLines truncation
 					const maxLines = options?.maxDiffLines;
 					const truncated = maxLines !== undefined && lines.length > maxLines;
-					const truncatedDiff = truncated ? lines.slice(0, maxLines).join("\n") + "\n... (truncated)" : diffContent;
+					const truncatedDiff = truncated
+						? lines.slice(0, maxLines).join("\n") + "\n... (truncated)"
+						: diffContent;
 
 					if (filePath) {
 						// Return only the diff for a specific file.

@@ -1438,7 +1438,12 @@ async function executePlanInBackground(
 			// not block the rest of the batch. Using 3 minutes per workspace —
 			// the LLM idle watchdog is 60s and worktree creation is also bounded.
 			// Reduced from 10 min so force-kill doesn't wait forever.
-			const WORKSPACE_TIMEOUT_MS = 3 * 60 * 1000;
+			// P42.HOTFIX: Use configured workspaceTimeoutMs from execution meta,
+			// falling back to 15 min. The previous hardcoded 3 min killed agents
+			// mid-LLM-stream, producing stale_attempt_completion_ignored cascades.
+			const meta = await loadExecutionMeta(workspaceRoot, planExecId).catch(() => null);
+			const configuredTimeout = meta?.workspaceTimeoutMs;
+			const WORKSPACE_TIMEOUT_MS = configuredTimeout && configuredTimeout > 0 ? configuredTimeout : 15 * 60 * 1000;
 			const settled = await Promise.allSettled(
 				nextWorkspaces.map((ws) =>
 					Promise.race([

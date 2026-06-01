@@ -86,11 +86,11 @@ import {
 	signalExecutionEvent,
 } from "./plan-runner.js";
 import { registerProposalRoutes } from "./proposal-routes.js";
+import { registerReadModelRoutes } from "./read-model-routes.js";
 import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
 import { registerWorkerContextRoutes } from "./worker-context-routes.js";
-import { registerReadModelRoutes } from "./read-model-routes.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
 

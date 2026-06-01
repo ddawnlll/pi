@@ -622,6 +622,42 @@ export async function listWorkspaceArchives(workspaceRoot: string, planExecId: s
 }
 
 /**
+ * List all files recursively under the execution archive for a plan.
+ * Returns relative paths within the archive directory.
+ *
+ * @param workspaceRoot - Root directory of the project workspace
+ * @param planExecId - Plan execution ID
+ * @returns Array of relative file paths within the archive
+ */
+export async function listArchiveFiles(workspaceRoot: string, planExecId: string): Promise<string[]> {
+	const archiveDir = join(workspaceRoot, ".pi", "executions", planExecId);
+	if (!existsSync(archiveDir)) {
+		return [];
+	}
+
+	const files: string[] = [];
+
+	async function walk(dir: string, relativePath: string): Promise<void> {
+		try {
+			const entries = await readdir(dir, { withFileTypes: true });
+			for (const entry of entries) {
+				const rel = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+				if (entry.isDirectory()) {
+					await walk(join(dir, entry.name), rel);
+				} else {
+					files.push(rel);
+				}
+			}
+		} catch {
+			// skip unreadable directories
+		}
+	}
+
+	await walk(archiveDir, "");
+	return files;
+}
+
+/**
  * Read an artifact from the execution archive.
  *
  * Ensures forbidden paths are never read through the archive system.

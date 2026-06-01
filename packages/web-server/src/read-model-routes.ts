@@ -150,23 +150,20 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/commands",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const history = await readModel.getCommandHistory(planExecId, workspaceId);
-				return { success: true, commands: history };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get command history");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/commands", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const history = await readModel.getCommandHistory(planExecId, workspaceId);
+			return { success: true, commands: history };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get command history");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/directives
@@ -174,23 +171,20 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/directives",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const directives = await readModel.getLeadDirectives(planExecId, workspaceId);
-				return { success: true, directives };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get lead directives");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/directives", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const directives = await readModel.getLeadDirectives(planExecId, workspaceId);
+			return { success: true, directives };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get lead directives");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/escalations
@@ -198,23 +192,20 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/escalations",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const escalations = await readModel.getLeadEscalations(planExecId, workspaceId);
-				return { success: true, escalations };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get lead escalations");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/escalations", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const escalations = await readModel.getLeadEscalations(planExecId, workspaceId);
+			return { success: true, escalations };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get lead escalations");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/validation
@@ -222,23 +213,20 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/validation",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const status = await readModel.getFinalValidationStatus(planExecId, workspaceId);
-				return { success: true, validation: status };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get final validation status");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/validation", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const status = await readModel.getFinalValidationStatus(planExecId, workspaceId);
+			return { success: true, validation: status };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get final validation status");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/changed-files
@@ -246,23 +234,20 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/changed-files",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const files = await readModel.getChangedFiles(planExecId, workspaceId);
-				return { success: true, files };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get changed files");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/changed-files", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const files = await readModel.getChangedFiles(planExecId, workspaceId);
+			return { success: true, files };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get changed files");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-tree
@@ -271,24 +256,21 @@ export function registerReadModelRoutes(
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
 		Querystring: { flat?: string };
-	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-tree",
-		async (request, reply) => {
-			const { planExecId, workspaceId } = request.params;
-			const flat = request.query.flat === "true";
-			try {
-				const stateStore = getStateStore();
-				const workspaceRoot = getWorkspaceRoot();
-				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
-				const readModel = createExecutionReadModel(adapter);
-				const tree = await readModel.getFileTree(planExecId, workspaceId, { flat });
-				return { success: true, tree };
-			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get file tree");
-				return reply.code(500).send({ success: false, error: String(error) });
-			}
-		},
-	);
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-tree", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		const flat = request.query.flat === "true";
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const tree = await readModel.getFileTree(planExecId, workspaceId, { flat });
+			return { success: true, tree };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get file tree");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 
 	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/transcript
@@ -296,8 +278,107 @@ export function registerReadModelRoutes(
 	// -----------------------------------------------------------------------
 	fastify.get<{
 		Params: { projectId: string; planExecId: string; workspaceId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/transcript", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const events = await readModel.getTranscript(planExecId, workspaceId);
+			return { success: true, events };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId }, "Failed to get transcript events");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-content
+	// File content for a specific file in a workspace
+	// Query: ?path=src/index.ts
+	// -----------------------------------------------------------------------
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; workspaceId: string };
+		Querystring: { path: string };
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-content", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		const filePath = request.query.path;
+
+		if (!filePath) {
+			return reply.code(400).send({ success: false, error: "Query parameter 'path' is required" });
+		}
+
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const content = await readModel.getFileContent(planExecId, workspaceId, filePath);
+
+			if (content === null) {
+				return {
+					success: true,
+					content: null,
+					available: false,
+					reason:
+						"File content is not available through the read model. Use the worktree filesystem endpoint GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/files/* for file access.",
+				};
+			}
+
+			return { success: true, content };
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId, filePath }, "Failed to get file content");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-diff
+	// File diff(s) for a workspace
+	// Query: ?path=src/index.ts for single file diff
+	//        ?maxDiffLines=200 to truncate
+	// -----------------------------------------------------------------------
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; workspaceId: string };
+		Querystring: { path?: string; maxDiffLines?: string };
+	}>("/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/file-diff", async (request, reply) => {
+		const { planExecId, workspaceId } = request.params;
+		const filePath = request.query.path;
+		const maxDiffLines = request.query.maxDiffLines ? Number.parseInt(request.query.maxDiffLines, 10) : undefined;
+
+		try {
+			const stateStore = getStateStore();
+			const workspaceRoot = getWorkspaceRoot();
+			const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+			const readModel = createExecutionReadModel(adapter);
+			const diffs = await readModel.getFileDiff(planExecId, workspaceId, filePath, {
+				maxDiffLines,
+			});
+
+			return {
+				success: true,
+				diffs,
+				available: diffs.length > 0,
+				reason:
+					diffs.length === 0
+						? "File diff is not available through the read model. Use the worktree git-diff endpoint GET /api/projects/:projectId/plans/:planExecId/worktrees/:workspaceId/diff for diff access."
+						: undefined,
+			};
+		} catch (error) {
+			log.error({ error, planExecId, workspaceId, filePath }, "Failed to get file diff");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// -----------------------------------------------------------------------
+	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/workspace-summary
+	// Workspace execution summary via read model
+	// -----------------------------------------------------------------------
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; workspaceId: string };
 	}>(
-		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/transcript",
+		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/workspace-summary",
 		async (request, reply) => {
 			const { planExecId, workspaceId } = request.params;
 			try {
@@ -305,10 +386,10 @@ export function registerReadModelRoutes(
 				const workspaceRoot = getWorkspaceRoot();
 				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
 				const readModel = createExecutionReadModel(adapter);
-				const events = await readModel.getTranscript(planExecId, workspaceId);
-				return { success: true, events };
+				const summary = await readModel.getWorkspaceSummary(planExecId, workspaceId);
+				return { success: true, summary };
 			} catch (error) {
-				log.error({ error, planExecId, workspaceId }, "Failed to get transcript events");
+				log.error({ error, planExecId, workspaceId }, "Failed to get workspace summary from read model");
 				return reply.code(500).send({ success: false, error: String(error) });
 			}
 		},
