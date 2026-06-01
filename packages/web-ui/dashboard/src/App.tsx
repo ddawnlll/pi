@@ -73,6 +73,7 @@ import { BrainTrustPage } from "./pages/BrainTrustPage";
 import { BrainOvernightPage } from "./pages/BrainOvernightPage";
 import { DigestPage } from "./pages/DigestPage";
 import { BrainInboxPage } from "./pages/BrainInboxPage";
+import { WorkspaceDetailPage } from "./pages/workspace/WorkspaceDetailPage";
 import { CockpitPanels } from "./components/CockpitPanels";
 
 // ─── V3 Shell imports ───────────────────────────────────────────────────
@@ -82,6 +83,8 @@ import { TaskRunSidebar } from "./components/sidebar/TaskRunSidebar";
 import { StatusBarV3 } from "./components/statusbar/StatusBarV3";
 import { CenterWorkSurface } from "./routes/CenterWorkSurface";
 import type { DrawerPanel } from "./components/shell/ContextualRightDrawer";
+import { DrawerProvider, useDrawer } from "./components/drawers/DrawerContext";
+import { DebugEventDrawer } from "./components/drawers/DebugEventDrawer";
 
 
 
@@ -745,6 +748,20 @@ export function App() {
   // ── TopbarV3 brain mode ──
   const brainModeV3: TopbarV3BrainMode = brainMode;
 
+  // ── Debug events drawer handler (P42.10) ──
+  const handleOpenDebugEvents = useCallback(() => {
+    setContextualDrawer({
+      id: "debug-event",
+      title: "Debug Events",
+      content: (
+        <DebugEventDrawer
+          events={activeEvents}
+          planExecId={selectedPlanExecId}
+        />
+      ),
+    });
+  }, [activeEvents, selectedPlanExecId]);
+
   // ── Status bar data ──
   const statusBarRunTitle = runTitle ?? (selectedPlanExecId ? `Run ${selectedPlanExecId.slice(0, 6)}` : null);
   const statusBarWorkspaceCounts = queue;
@@ -925,6 +942,32 @@ export function App() {
           </div>
         );
 
+      case "workspace-detail":
+        return (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {activeView.workspaceId ? (
+              <WorkspaceDetailPage
+                projectId={selectedProjectId}
+                planExecId={selectedPlanExecId}
+                workspaceId={activeView.workspaceId}
+                onBackToWorkspaces={() => {
+                  if (selectedPlanExecId) {
+                    nav.navigateToRun(selectedPlanExecId);
+                    nav.setCockpitTab("workspaces");
+                  } else {
+                    nav.navigateToEmpty();
+                  }
+                }}
+              />
+            ) : (
+              <div className={`flex flex-col items-center justify-center h-full gap-3 ${MUT}`}>
+                <Cpu size={32} strokeWidth={1.2} />
+                <p className="text-sm">No workspace selected</p>
+              </div>
+            )}
+          </div>
+        );
+
       case "platform":
         return (
           <>
@@ -990,8 +1033,9 @@ export function App() {
   };
 
   return (
-    <AppShell
-      breadcrumbs={breadcrumbs}
+    <DrawerProvider drawer={contextualDrawer} onDrawerChange={setContextualDrawer}>
+      <AppShell
+        breadcrumbs={breadcrumbs}
       topbar={
         <TopbarV3
           breadcrumbs={breadcrumbs}
@@ -1052,6 +1096,7 @@ export function App() {
           tokenCount={tokenCountStr}
           cacheHitRate={cacheHitRateStr}
           burnRate={burnRateStr}
+          onDebugEvents={handleOpenDebugEvents}
         />
       }
       contextualDrawer={contextualDrawer}
@@ -1232,6 +1277,7 @@ export function App() {
         </>
       }
     />
+    </DrawerProvider>
   );
 }
 

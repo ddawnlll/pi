@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
+import { NavigationProvider } from "./navigation/NavigationState";
 import "./index.css";
 
 console.log("[main] Starting Pi Dashboard bootstrap...");
@@ -29,7 +30,9 @@ console.timeLog("[main] bootstrap");
 ReactDOM.createRoot(root).render(
 	<React.StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<App />
+			<NavigationProvider>
+				<App />
+			</NavigationProvider>
 		</QueryClientProvider>
 	</React.StrictMode>,
 );

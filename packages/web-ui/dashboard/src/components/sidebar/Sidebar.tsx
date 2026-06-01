@@ -1,6 +1,11 @@
 /**
  * Sidebar — P22.A Project-Centric Sidebar & Navigation
  *
+ * @deprecated Replaced by TaskRunSidebar (P42 V3).
+ *   Kept for backward compatibility but NOT part of the V3 app shell.
+ *   The V3 shell uses TaskRunSidebar with a task/run tree + secondary
+ *   brain/platform sections instead of the old 4-tab system.
+ *
  * Replaces the old 4-tab system with a project-centric hierarchy:
  * - Project selector at top (current project name + dropdown to switch)
  * - Brain section (per-project brain navigation)
@@ -81,7 +86,10 @@ const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const SURF = "bg-white dark:bg-[#1E1E1E]";
 
 // ---------------------------------------------------------------------------
-// Brain section data (static, per-project)
+// Brain section data — STATIC PLACEHOLDER (P42.11)
+//
+// These are hardcoded navigation items. In production, brain navigation
+// should be derived from the project's actual brain state and capabilities.
 // ---------------------------------------------------------------------------
 
 export const BRAIN_ITEMS: SidebarItem[] = [
@@ -102,7 +110,10 @@ export const BRAIN_ITEMS: SidebarItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Platform items (shown at bottom)
+// Platform items — STATIC PLACEHOLDER (P42.11)
+//
+// These are hardcoded platform navigation items. In production, platform
+// navigation should be derived from installed extensions/skills/features.
 // ---------------------------------------------------------------------------
 
 export const PLATFORM_ITEMS: SidebarItem[] = [

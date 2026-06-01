@@ -78,10 +78,10 @@ export function WorkspaceCardV3({
 	onRetry,
 	className = "",
 }: WorkspaceCardV3Props) {
-	const { navigateToWorkspace } = useNavigation();
+	const { navigateToWorkspaceDetail } = useNavigation();
 
 	const handleClick = () => {
-		navigateToWorkspace(workspace.id);
+		navigateToWorkspaceDetail(workspace.id);
 	};
 
 	return (

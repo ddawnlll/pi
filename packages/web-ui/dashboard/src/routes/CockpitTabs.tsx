@@ -4,7 +4,10 @@
  * Primary tabs for the execution cockpit view:
  * Overview, Workspaces, Files, Logs, Escalations
  *
- * No Controls tab, no Feed tab — these are contextual actions.
+ * REMOVED TABS (P42.11): "Controls" tab and "Feed" tab.
+ *   - Controls: Now contextual actions in the topbar (pause/stop/resume/rerun/kill)
+ *   - Feed: Now the PriorityFeed card in the execution overview
+ * These were removed as part of the V3 cockpit redesign.
  */
 
 import { COCKPIT_TABS, type CockpitTabId } from "../navigation/NavigationState";

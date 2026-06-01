@@ -1,5 +1,10 @@
 /**
  * RightSidebar types — P21.C Right Sidebar 3-Section Split
+ *
+ * @deprecated Replaced by contextual drawers in V3 cockpit (P42.10).
+ *   The permanent right sidebar must not be the default cockpit layout.
+ *   Use TranscriptDrawer, ArtifactDrawer, DebugEventDrawer,
+ *   FileEvidenceDrawer, or DirectiveDrawer instead.
  */
 
 export interface RightSidebarSection {

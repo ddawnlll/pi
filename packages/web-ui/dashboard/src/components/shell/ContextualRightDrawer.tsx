@@ -33,6 +33,8 @@ export type DrawerPanelId =
   | "worker-transcript"
   | "event-detail"
   | "artifact-browser"
+  | "debug-event"
+  | "directive"
   | "none";
 
 export interface DrawerPanel {

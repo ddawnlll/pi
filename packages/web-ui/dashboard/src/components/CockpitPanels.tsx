@@ -41,6 +41,7 @@ import { HumanDirectivePanel } from "./HumanDirectivePanel";
 import { ControlActionsPanel } from "./ControlActionsPanel";
 import { PlanSummaryPanel } from "./PlanSummaryPanel";
 import { LiveLogTerminal } from "./LiveLogTerminal";
+import { CommandTimelineView } from "./logs/CommandTimelineView";
 import { FileExplorer } from "./FileExplorer";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
@@ -178,7 +179,9 @@ export function CockpitPanels({
 										)
 									)}
 									{section.id === "live-logs" && (
-										<LiveLogTerminal
+										<CommandTimelineView
+											projectId={projectId}
+											planExecId={planExecId}
 											workers={workers}
 											planEvents={planEvents}
 										/>

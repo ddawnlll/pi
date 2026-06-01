@@ -91,7 +91,10 @@ export interface TaskRunSidebarProps {
 }
 
 // ---------------------------------------------------------------------------
-// Brain section items
+// Brain section items — STATIC PLACEHOLDER (P42.11)
+//
+// These are hardcoded navigation items. In production, brain navigation
+// should be derived from the project's actual brain state and capabilities.
 // ---------------------------------------------------------------------------
 
 const BRAIN_ITEMS: { id: string; label: string; icon: typeof Brain }[] = [
@@ -105,7 +108,10 @@ const BRAIN_ITEMS: { id: string; label: string; icon: typeof Brain }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Platform section items
+// Platform section items — STATIC PLACEHOLDER (P42.11)
+//
+// These are hardcoded platform navigation items. In production, platform
+// navigation should be derived from installed extensions/skills/features.
 // ---------------------------------------------------------------------------
 
 const PLATFORM_ITEMS: { id: string; label: string; icon: typeof Cpu }[] = [

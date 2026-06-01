@@ -45,6 +45,8 @@ export interface StatusBarV3Props {
   cacheHitRate?: string | null;
   /** Optional burn rate. */
   burnRate?: string | null;
+  /** Optional debug action (opens DebugEventDrawer). */
+  onDebugEvents?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +171,17 @@ export function StatusBarV3({
         <span className="hidden lg:inline" title="Burn rate (total tokens / elapsed min)">
           {burnRate}/m
         </span>
+      )}
+
+      {/* Debug events button (P42.10) */}
+      {onDebugEvents && (
+        <button
+          onClick={onDebugEvents}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+          title="Open debug event drawer"
+        >
+          Debug
+        </button>
       )}
     </footer>
   );
