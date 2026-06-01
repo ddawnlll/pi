@@ -11,17 +11,20 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
-import type { WorkerAdapter } from "@earendil-works/pi-execution-core";
-import { handleExecutionCommand } from "@earendil-works/pi-execution-service";
+import type { WorkerAdapter, WorktreeConfig } from "@earendil-works/pi-execution-core";
+import {
+	DEFAULT_WORKERS,
+	resolveEffectiveWorkerCount,
+	type WorkerConcurrencySettings,
+} from "@earendil-works/pi-execution-core";
+import { createGitRunner, handleExecutionCommand } from "@earendil-works/pi-execution-service";
 import { LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
 import type { TransitionRouter } from "../execution-kernel/transition-router.js";
 import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
-import type { WorktreeConfig } from "@earendil-works/pi-execution-core";
 import { AutoCommit } from "./auto-commit.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
-import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { LeadAgent } from "./lead-agent/index.js";
 import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -29,7 +32,6 @@ import { type RetryDecision, RetryHandler, type RetryPolicy, RetryStage } from "
 import { type HashedPacket, RolePacketBuilder } from "./role-packets.js";
 import type { ControlAction, IStateStore, PlanControlState } from "./state-store.js";
 import { createStateStore, detectStateStoreBackend } from "./state-store.js";
-import { DEFAULT_WORKERS, resolveEffectiveWorkerCount, type WorkerConcurrencySettings } from "@earendil-works/pi-execution-core";
 import {
 	WorkspaceAgentExecutor,
 	type WorkspaceAgentExecutorConfig,
@@ -1879,6 +1881,45 @@ export class AutonomousExecutor {
 	 * @param workspaces - All workspaces
 	 * @returns Array of eligible workspaces
 	 */
+
+	// ── P41-HOTFIX: Runaway retry loop admission guard ──────────────────
+	/**
+	 * Create an admission guard that checks whether a workspace is allowed
+	 * to be scheduled. Prevents runaway retry loops by rejecting workspaces
+	 * that have exceeded retry limits or are in terminal/escalated states.
+	 */
+	private createAdmissionGuard(): {
+		canSchedule(
+			workspaceId: string,
+			wsState: import("./plan-state.js").WorkspaceState,
+			planExecutionId: string,
+		): { allowed: boolean; reason?: string };
+	} {
+		const maxAttemptsPerWorkspace = 5;
+
+		return {
+			canSchedule: (workspaceId: string, wsState: any, _planExecutionId: string) => {
+				// Reject if workspace is in a terminal/escalated state
+				if (wsState.stage === WorkspaceStage.Blocked || wsState.stage === WorkspaceStage.Complete) {
+					return {
+						allowed: false,
+						reason: `workspace in terminal state: ${wsState.stage}`,
+					};
+				}
+
+				// Reject if workspace has exceeded max attempts
+				if (wsState.attempts > maxAttemptsPerWorkspace) {
+					return {
+						allowed: false,
+						reason: `workspace exceeded max attempts: ${wsState.attempts} > ${maxAttemptsPerWorkspace}`,
+					};
+				}
+
+				return { allowed: true };
+			},
+		};
+	}
+
 	async getNextWorkspaces(workspaces: Workspace[]): Promise<Workspace[]> {
 		const planExecutionId = this.planExecutionId;
 		if (!planExecutionId) {
@@ -1929,10 +1970,33 @@ export class AutonomousExecutor {
 
 		const decision = this.scheduler.getNextWorkspaces(workspaces, state);
 
+		// ── P41-HOTFIX: Scheduler admission guard ─────────────────────────
+		// Before admitting any workspace for execution, verify it hasn't
+		// exceeded retry limits. Filter out workspaces that are in terminal
+		// or escalated states, or that have been retried too many times.
+		const admissionGuard = this.createAdmissionGuard();
+		const admitted: Workspace[] = [];
+		for (const ws of decision.ready) {
+			const wsState = state.workspaces.get(ws.id);
+			if (wsState) {
+				const decision_ = admissionGuard.canSchedule(ws.id, wsState, planExecutionId);
+				if (decision_.allowed) {
+					admitted.push(ws);
+				} else {
+					new PiLogger({ planExecId: planExecutionId }).info(
+						`Scheduler admission guard rejected ${ws.id}: ${decision_.reason}`,
+						{ planExecId: planExecutionId, workspaceId: ws.id, reason: decision_.reason },
+					);
+				}
+			} else {
+				admitted.push(ws);
+			}
+		}
+
 		// AC4: Log planned batch IDs for each scheduled workspace
-		if (decision.ready.length > 0) {
+		if (admitted.length > 0) {
 			const log = new PiLogger({ planExecId: planExecutionId });
-			for (const ws of decision.ready) {
+			for (const ws of admitted) {
 				const batchId = decision.readyBatchIds.get(ws.id);
 				if (batchId !== undefined) {
 					log.info(`Scheduled workspace ${ws.id} in batch ${batchId}`);
@@ -1942,7 +2006,7 @@ export class AutonomousExecutor {
 			}
 		}
 
-		return decision.ready;
+		return admitted;
 	}
 
 	/**

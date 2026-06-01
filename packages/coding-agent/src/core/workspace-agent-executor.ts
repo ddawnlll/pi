@@ -10,10 +10,10 @@ import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { getModel } from "@earendil-works/pi-ai";
+import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "@earendil-works/pi-execution-core";
 import { getAgentDir } from "../config.js";
 import type { ActorEventSink } from "../execution-kernel/actor-events.js";
 import { ToolAdapter } from "../extensions/tool-adapter.js";
-import type { WorktreeConfig, WorktreeDiffArtifact, WorktreeState } from "@earendil-works/pi-execution-core";
 import { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
@@ -526,16 +526,10 @@ export class WorkspaceAgentExecutor {
 			}
 
 			if (!this.isWorktreeModeEnabled) {
-				return {
-					success: false,
-					verdict: "FAILED",
-					report: "Worktree-less execution is blocked. All workspaces must run inside an isolated git worktree.",
-					error: "Worktree mode disabled — execution not allowed without worktree isolation",
-					logs: [
-						`[${new Date().toISOString()}] FATAL: Worktree-less execution attempted for workspace ${workspaceId}`,
-						`[${new Date().toISOString()}] Worktree mode must be enabled for all workspace execution`,
-					],
-				};
+				// P41: Non-worktree execution — run agent directly in the project
+				// workspace root without git worktree isolation. Used by stable_3
+				// plans with derivedProfile.worktreeRequired=false.
+				return await this.executeAgentInPlace(packet, workspaceId, ctx);
 			}
 
 			if (!this.planExecutionId) {
@@ -1503,7 +1497,8 @@ export class WorkspaceAgentExecutor {
 		const content = this.getMessageContent(lastMessage).trim();
 		const assistantMessage = lastMessage as AssistantMessage;
 		const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall").length;
-		return content.length === 0 && toolCalls === 0;
+		const hasThinking = assistantMessage.content.some((c) => c.type === "thinking");
+		return content.length === 0 && toolCalls === 0 && !hasThinking;
 	}
 
 	/**

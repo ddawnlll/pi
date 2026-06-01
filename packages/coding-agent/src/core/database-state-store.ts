@@ -32,9 +32,9 @@ import {
 	WorkspaceExecutionRepository,
 	WorkspaceLogRepository,
 } from "@earendil-works/pi-db";
+import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
-import { createGitRunner } from "@earendil-works/pi-execution-service";
 import type { JournalEvent, PlanState, WorkspaceState } from "./plan-state.js";
 import { buildTranscriptSummary, createWorkerTranscriptEvent } from "./plan-state.js";
 import type {

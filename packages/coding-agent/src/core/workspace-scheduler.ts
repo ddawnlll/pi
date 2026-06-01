@@ -5,6 +5,7 @@
  * and bounded parallelism with stable (1-3) and experimental (4-6) worker modes.
  */
 
+import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-core";
 import type { PlanState } from "./plan-state.js";
 import type {
 	FileLockConflict,
@@ -15,7 +16,6 @@ import type {
 	SchedulingDecision,
 	SkipReason,
 } from "./scheduler.js";
-import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "./worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "./workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "./workspace-schema.js";
 

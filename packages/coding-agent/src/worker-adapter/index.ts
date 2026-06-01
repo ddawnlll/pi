@@ -11,12 +11,12 @@
  */
 export type {
 	WorkerAdapter,
+	WorkerAdapterCapabilities,
+	WorkerCommandHistoryEntry,
+	WorkerEvent,
 	WorkerRunRequest,
 	WorkerRunResult,
 	WorkerVerdict,
-	WorkerEvent,
-	WorkerCommandHistoryEntry,
-	WorkerAdapterCapabilities,
 } from "@earendil-works/pi-execution-core";
 export type { LocalPiWorkerAdapterConfig } from "@earendil-works/pi-worker-adapters";
-export { LocalPiWorkerAdapter, createLocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
+export { createLocalPiWorkerAdapter, LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";

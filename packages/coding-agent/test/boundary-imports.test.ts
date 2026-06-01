@@ -42,9 +42,7 @@ describe("execution-core package boundary", () => {
 	}
 
 	it("package.json does not depend on @earendil-works/pi-coding-agent", async () => {
-		const pkg = JSON.parse(
-			await fs.readFile(path.resolve(EXECUTION_CORE_DIR, "../package.json"), "utf-8"),
-		);
+		const pkg = JSON.parse(await fs.readFile(path.resolve(EXECUTION_CORE_DIR, "../package.json"), "utf-8"));
 		expect(pkg.dependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
 	});
 });
@@ -64,9 +62,7 @@ describe("execution-service package boundary", () => {
 	}
 
 	it("package.json does not depend on @earendil-works/pi-coding-agent", async () => {
-		const pkg = JSON.parse(
-			await fs.readFile(path.resolve(EXECUTION_SERVICE_DIR, "../package.json"), "utf-8"),
-		);
+		const pkg = JSON.parse(await fs.readFile(path.resolve(EXECUTION_SERVICE_DIR, "../package.json"), "utf-8"));
 		expect(pkg.dependencies?.["@earendil-works/pi-coding-agent"]).toBeUndefined();
 	});
 });

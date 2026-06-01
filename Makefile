@@ -67,6 +67,11 @@ build:
 	@echo "Building packages in dependency order..."
 	@cd $(AI_DIR) && npm run build
 	@cd $(DB_DIR) && npm run build
+	@cd packages/execution-core && npm run build
+	@cd packages/execution-kernel && npm run build
+	@cd packages/execution-service && npm run build
+	@cd packages/worker-adapters && npm run build
+	@cd packages/brain && npm run build
 	@cd $(SERVER_DIR)/../coding-agent && npm run build
 	@cd $(SERVER_DIR) && npm run build
 	@echo "Build complete."

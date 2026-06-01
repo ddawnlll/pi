@@ -13,15 +13,12 @@
  */
 
 import { type Database, getKysely } from "@earendil-works/pi-db";
-import type { Kysely } from "kysely";
 import type { IStateStore } from "@earendil-works/pi-execution-core";
-import { WorkspaceStage } from "@earendil-works/pi-execution-core";
-
-import { PiLogger } from "@earendil-works/pi-execution-core";
+import { PiLogger, WorkspaceStage } from "@earendil-works/pi-execution-core";
+import type { Kysely } from "kysely";
 import { assertLegalTransition } from "./attempt-fsm.js";
 import type { AttemptState } from "./types.js";
 import { WorkspaceAttemptController } from "./workspace-attempt-controller.js";
-
 
 /**
  * Maps workspace lifecycle stages to attempt FSM states.
@@ -157,7 +154,13 @@ export class KernelTransitionRouter implements TransitionRouter {
 
 		// Route through attempt controller for Active/Complete/Failed transitions
 		if (currentStage !== newStage) {
-			await this.routeStageTransition(planExecutionId, workspaceId, currentStage as WorkspaceStage, newStage as WorkspaceStage, data);
+			await this.routeStageTransition(
+				planExecutionId,
+				workspaceId,
+				currentStage as WorkspaceStage,
+				newStage as WorkspaceStage,
+				data,
+			);
 		}
 
 		// Persist the workspace stage through IStateStore

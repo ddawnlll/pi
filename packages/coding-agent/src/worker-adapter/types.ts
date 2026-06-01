@@ -9,10 +9,10 @@
  */
 export type {
 	WorkerAdapter,
+	WorkerAdapterCapabilities,
+	WorkerCommandHistoryEntry,
+	WorkerEvent,
 	WorkerRunRequest,
 	WorkerRunResult,
 	WorkerVerdict,
-	WorkerEvent,
-	WorkerCommandHistoryEntry,
-	WorkerAdapterCapabilities,
 } from "@earendil-works/pi-execution-core";

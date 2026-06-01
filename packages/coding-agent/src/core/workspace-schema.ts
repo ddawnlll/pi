@@ -74,6 +74,7 @@ export const ACCEPTED_SCHEMA_VERSIONS: ReadonlySet<string> = new Set([
 	"4.0.0",
 	"4.1.0",
 	"4.1.1",
+	"5.0.0",
 ]);
 
 /**
@@ -144,7 +145,7 @@ export interface PlanExecutionConfig {
 	 *
 	 * Contract Schema v2.3.0 field.
 	 */
-	worktree?: { enabled: true };
+	worktree?: { enabled: boolean };
 
 	/**
 	 * Integration queue configuration.
@@ -187,7 +188,7 @@ export interface PlanExecutionScale {
 	 * Selected scaling mode.
 	 * - "experimental_6": Expanded parallelism (maxParallelWorkspaces <= 6)
 	 */
-	selectedMode: "experimental_6";
+	selectedMode: "experimental_6" | "stable_3_harmony";
 }
 
 /**
@@ -965,9 +966,11 @@ export function validateWorkspaceQueue(queue: WorkspaceQueue): ValidationResult 
 			});
 		}
 
-		// P22.C: Worktree-only mode — worktree isolation is mandatory.
-		// All plans must use git worktree isolation.
-		if (!queue.planExecution?.worktree?.enabled) {
+		// P22.C: Worktree-only mode — worktree isolation is mandatory for
+		// plans that require it. Plans with derivedProfile.worktreeRequired=false
+		// (e.g., stable_3 plans like P41) may opt out of worktree isolation.
+		const worktreeRequired = queue.derivedProfile?.worktreeRequired ?? true;
+		if (worktreeRequired && !queue.planExecution?.worktree?.enabled) {
 			errors.push({
 				type: "missing_field",
 				message:

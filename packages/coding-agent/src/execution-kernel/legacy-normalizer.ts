@@ -95,6 +95,8 @@ export function normalizeLegacyPlanToIntent(input: LegacyPlanInput): LegacyNorma
 		safetyLevel = "strict";
 	} else if (input.maxParallelWorkspaces && input.maxParallelWorkspaces > 3) {
 		safetyLevel = "strict";
+	} else if (input.scale?.selectedMode === "stable_3_harmony") {
+		safetyLevel = "normal";
 	}
 
 	// Derive conflict risk from mechanism hints

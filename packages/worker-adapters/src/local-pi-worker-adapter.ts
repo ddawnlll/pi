@@ -7,6 +7,8 @@
  * This is the default local worker adapter for Pi.
  * It may import @earendil-works/pi-coding-agent internals because it is the bridge.
  */
+
+import type { WorkspaceAgentExecutor } from "@earendil-works/pi-coding-agent/core/workspace-agent-executor.js";
 import type {
 	WorkerAdapter,
 	WorkerAdapterCapabilities,
@@ -14,7 +16,6 @@ import type {
 	WorkerRunRequest,
 	WorkerRunResult,
 } from "@earendil-works/pi-execution-core";
-import type { WorkspaceAgentExecutor } from "@earendil-works/pi-coding-agent/core/workspace-agent-executor.js";
 
 export interface LocalPiWorkerAdapterConfig {
 	createExecutor: (request: WorkerRunRequest) => WorkspaceAgentExecutor;
@@ -33,15 +34,11 @@ export class LocalPiWorkerAdapter implements WorkerAdapter {
 		this.activeExecutors.set(request.workspaceId, executor);
 
 		try {
-			const agentResult = await executor.execute(
-				request.packet as any,
-				request.workspaceId,
-				{
-					logPath: request.metadata?.logPath as string | undefined,
-					attemptNo: request.attemptNumber,
-					_signal: request.abortSignal,
-				},
-			);
+			const agentResult = await executor.execute(request.packet as any, request.workspaceId, {
+				logPath: request.metadata?.logPath as string | undefined,
+				attemptNo: request.attemptNumber,
+				_signal: request.abortSignal,
+			});
 
 			const verdict = mapVerdict(agentResult.verdict);
 			const commandHistory: WorkerCommandHistoryEntry[] = [];
@@ -87,9 +84,7 @@ export function createLocalPiWorkerAdapter(
 	return new LocalPiWorkerAdapter({ createExecutor });
 }
 
-function mapVerdict(
-	agentVerdict: "COMPLETE" | "BLOCKED" | "FAILED",
-): WorkerRunResult["verdict"] {
+function mapVerdict(agentVerdict: "COMPLETE" | "BLOCKED" | "FAILED"): WorkerRunResult["verdict"] {
 	switch (agentVerdict) {
 		case "COMPLETE":
 			return "complete";

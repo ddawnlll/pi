@@ -10,7 +10,6 @@
  */
 
 import type { PlanExecutionConfig, Workspace, WorkspaceQueue } from "../workspace-schema.js";
-import { WorkspaceStage } from "../workspace-schema.js";
 import type { SyntheticWorkerBehavior } from "./synthetic-worker.js";
 
 // ---------------------------------------------------------------------------
@@ -101,48 +100,41 @@ export interface GauntletPlan {
 export function buildPlanQueue(plan: GauntletPlan): WorkspaceQueue {
 	const workspaces: Workspace[] = plan.workspaces.map((w) => ({
 		id: w.workspaceId,
-		task: w.task,
-		stage: WorkspaceStage.Pending,
+		title: w.task,
 		dependencies: w.dependencies ?? [],
-		dependsOn: w.dependsOn ?? [],
-		files: w.writeSet ?? [],
-		// Retry policy — default allow 1 retry
+		roleBudget: "worker",
+		maxRetries: 2,
 		retryPolicy: {
-			maxRetries: 2,
-			retryStrategy: "same_strategy",
-			retryDelayMs: 0,
+			maxTestRetries: 2,
+			maxReviewRetries: 1,
+			escalationThresholds: {
+				flash: 4,
+				reviewer: 7,
+				final: 10,
+			},
 		},
-		executionAttempt: 0,
 	}));
 
 	const planExecution: PlanExecutionConfig = {
-		phase: plan.id,
-		title: plan.name,
-		maxParallelWorkspaces: plan.maxParallelWorkspaces ?? 3,
-		scale: plan.executionMode === "stable_3" ? "stable_3" : "patch_transaction",
-		executionMode: plan.executionMode,
+		scale: {
+			selectedMode: "experimental_6",
+		},
 		worktree: {
-			required: false,
+			enabled: true,
 		},
 		integrationQueue: {
-			required: false,
+			enabled: true,
 		},
-		validation: {
-			required: false,
-		},
+		validation: {},
 		interactiveParallelismReview: false,
 	};
 
 	return {
-		schemaVersion: "2.6.0",
-		plan: {
-			id: plan.id,
-			phase: plan.id,
-			title: plan.name,
-			description: plan.purpose,
-			planExecution,
-		},
+		phase: plan.id,
+		title: plan.name,
+		maxParallelWorkspaces: plan.maxParallelWorkspaces ?? 3,
 		workspaces,
+		planExecution,
 	};
 }
 
@@ -472,6 +464,102 @@ export function buildG12DashboardVisibility(): GauntletPlan {
 }
 
 // ---------------------------------------------------------------------------
+// P41-HOTFIX: Runaway retry loop safety scenarios
+// ---------------------------------------------------------------------------
+
+export function buildG13RunawayInstantFailureLoop(): GauntletPlan {
+	return {
+		id: "G13",
+		name: "runaway_instant_failure_loop",
+		executionMode: "stable_3",
+		category: "lead-agent",
+		maxParallelWorkspaces: 1,
+		purpose: "Verify workspace is blocked after max attempts when failing instantly with same error.",
+		workspaces: [
+			{
+				workspaceId: "G13-instant-fail",
+				task: "Fail instantly with same preflight error every time",
+				behavior: "instant_failure",
+			},
+		],
+		expected: {
+			leadDirectiveCreated: true,
+			userEscalationCreated: true,
+			planDoesNotComplete: true,
+		},
+	};
+}
+
+export function buildG14UnstableFailureSignature(): GauntletPlan {
+	return {
+		id: "G14",
+		name: "unstable_failure_signature_retry_loop",
+		executionMode: "stable_3",
+		category: "lead-agent",
+		maxParallelWorkspaces: 1,
+		purpose:
+			"Verify that semantically identical failures with noisy messages are caught by normalized signature guard.",
+		workspaces: [
+			{
+				workspaceId: "G14-unstable-sig",
+				task: "Fail with same root cause but different error messages",
+				behavior: "unstable_failure_signature",
+			},
+		],
+		expected: {
+			leadDirectiveCreated: true,
+			userEscalationCreated: true,
+			planDoesNotComplete: true,
+		},
+	};
+}
+
+export function buildG15MaxAttemptsExceeded(): GauntletPlan {
+	return {
+		id: "G15",
+		name: "max_attempts_per_workspace_exceeded",
+		executionMode: "stable_3",
+		category: "lead-agent",
+		maxParallelWorkspaces: 1,
+		purpose: "Verify plan-runner blocks workspace after maxAttemptsPerWorkspace limit is exceeded.",
+		workspaces: [
+			{
+				workspaceId: "G15-max-attempts",
+				task: "Fail repeatedly to trigger max attempt guard",
+				behavior: "repeat_same_failure",
+			},
+		],
+		expected: {
+			leadDirectiveCreated: true,
+			userEscalationCreated: true,
+			planDoesNotComplete: true,
+		},
+	};
+}
+
+export function buildG16CompletedWorkspaceNotRetried(): GauntletPlan {
+	return {
+		id: "G16",
+		name: "completed_workspace_not_retried",
+		executionMode: "stable_3",
+		category: "fsm",
+		maxParallelWorkspaces: 1,
+		purpose: "Verify that a completed (SUCCEEDED) workspace is never retried, preventing SUCCEEDED->RUNNING loop.",
+		workspaces: [
+			{
+				workspaceId: "G16-succeed-once",
+				task: "Succeed on first attempt, should not be retried",
+				behavior: "success",
+			},
+		],
+		expected: {
+			allComplete: true,
+			planCompletes: true,
+		},
+	};
+}
+
+// ---------------------------------------------------------------------------
 // All plans registry
 // ---------------------------------------------------------------------------
 
@@ -488,6 +576,10 @@ export const ALL_PLANS: GauntletPlan[] = [
 	buildG10SucceededToRunningRetry(),
 	buildG11FinalValidationRepair(),
 	buildG12DashboardVisibility(),
+	buildG13RunawayInstantFailureLoop(),
+	buildG14UnstableFailureSignature(),
+	buildG15MaxAttemptsExceeded(),
+	buildG16CompletedWorkspaceNotRetried(),
 ];
 
 export function getPlansByCategory(category: GauntletPlan["category"]): GauntletPlan[] {

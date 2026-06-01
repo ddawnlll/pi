@@ -4,7 +4,12 @@
  * A mock WorkerAdapter for testing that proves AutonomousExecutor
  * can run through the WorkerAdapter boundary without real agent execution.
  */
-import type { WorkerAdapter, WorkerAdapterCapabilities, WorkerRunRequest, WorkerRunResult } from "../src/worker-adapter/types.js";
+import type {
+	WorkerAdapter,
+	WorkerAdapterCapabilities,
+	WorkerRunRequest,
+	WorkerRunResult,
+} from "../src/worker-adapter/types.js";
 
 export interface MockWorkerAdapterConfig {
 	/** Default verdict to return */
@@ -15,7 +20,9 @@ export interface MockWorkerAdapterConfig {
 	abortCalls?: string[];
 }
 
-export function createMockWorkerAdapter(config: MockWorkerAdapterConfig = {}): WorkerAdapter & { abortCalls: string[] } {
+export function createMockWorkerAdapter(
+	config: MockWorkerAdapterConfig = {},
+): WorkerAdapter & { abortCalls: string[] } {
 	const abortCalls: string[] = [];
 
 	return {

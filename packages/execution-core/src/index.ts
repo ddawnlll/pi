@@ -6,6 +6,9 @@
  * Must NOT import from @earendil-works/pi-coding-agent.
  */
 
+// Live command log stream (P41.05)
+export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
+export { InMemoryCommandLogStream } from "./command-log-stream.js";
 // Commands
 export type {
 	ExecutionCommandAcknowledgeDirective,
@@ -74,6 +77,12 @@ export {
 	mapWorkspaceStageToExecutionStage,
 	workspaceStageToEventType,
 } from "./events.js";
+// File tree utilities (P41.06)
+export {
+	buildFileTreeFromEntries,
+	flattenFileTree,
+	getFileExt,
+} from "./file-tree.js";
 export type { LogEntry, LogLevel } from "./logger.js";
 // Logger utility (standalone, zero coding-agent deps)
 export { PiLogger } from "./logger.js";
@@ -97,15 +106,6 @@ export type {
 	PlanExecutionSummary,
 	WorkspaceExecutionSummary,
 } from "./read-model.js";
-// File tree utilities (P41.06)
-export {
-	buildFileTreeFromEntries,
-	flattenFileTree,
-	getFileExt,
-} from "./file-tree.js";
-// Live command log stream (P41.05)
-export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
-export { InMemoryCommandLogStream } from "./command-log-stream.js";
 // Runtime event emitter
 export { RuntimeEventEmitter } from "./runtime-emitter.js";
 // P40.2C Dirty Runtime Dependency Ports

@@ -81,10 +81,11 @@ export interface ICommandLogStream {
 
 	/**
 	 * Emit a command output entry to all subscribers of the given plan execution.
+	 * The seq and timestamp fields are auto-assigned by the implementation.
 	 *
-	 * @param entry - The command log entry to emit
+	 * @param entry - The command log entry to emit (seq and timestamp auto-assigned)
 	 */
-	emitOutput(entry: CommandLogEntry): void;
+	emitOutput(entry: Omit<CommandLogEntry, "seq" | "timestamp">): void;
 
 	/**
 	 * Unsubscribe a specific subscriber from a plan execution.

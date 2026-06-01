@@ -8,18 +8,17 @@
  * @deprecated Import from @earendil-works/pi-execution-service instead
  */
 export type {
+	BrainProposal,
+	CommandHistoryView,
 	ExecutionCommand,
 	ExecutionReadModel,
-	PlanExecutionSummary,
-	WorkspaceExecutionSummary,
+	FinalValidationView,
 	JournalEventEnvelope,
 	JournalQuery,
-	PlanStatus,
-	CommandHistoryView,
 	LeadDirectiveView,
-	FinalValidationView,
-	BrainProposal,
+	PlanExecutionSummary,
+	PlanStatus,
+	WorkspaceExecutionSummary,
 } from "@earendil-works/pi-execution-core";
 export type { CommandHandlerResult } from "@earendil-works/pi-execution-service";
-export { handleExecutionCommand } from "@earendil-works/pi-execution-service";
-export { createExecutionReadModel } from "@earendil-works/pi-execution-service";
+export { createExecutionReadModel, handleExecutionCommand } from "@earendil-works/pi-execution-service";

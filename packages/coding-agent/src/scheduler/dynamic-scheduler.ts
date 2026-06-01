@@ -17,6 +17,7 @@
  *   AC5: Same-file conflicts are not run unsafely
  */
 
+import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-core";
 import type { PlanState } from "../core/plan-state.js";
 import type {
 	FileLockConflict,
@@ -27,7 +28,6 @@ import type {
 	SchedulingDecision,
 	SkipReason,
 } from "../core/scheduler.js";
-import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "../core/worker-concurrency.js";
 import type { TopologicalBatch, Workspace } from "../core/workspace-schema.js";
 import { detectCycles, WorkspaceStage } from "../core/workspace-schema.js";
 

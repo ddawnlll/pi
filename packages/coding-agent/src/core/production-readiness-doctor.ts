@@ -33,7 +33,14 @@ export type ProductionReadinessVerdict = "PASS" | "WARN" | "FAIL";
 /**
  * Category of a production readiness check.
  */
-export type ProductionReadinessCategory = "safety" | "skills" | "file_scope" | "git_tree" | "schema" | "plan_metadata" | "boundary";
+export type ProductionReadinessCategory =
+	| "safety"
+	| "skills"
+	| "file_scope"
+	| "git_tree"
+	| "schema"
+	| "plan_metadata"
+	| "boundary";
 
 /**
  * A single production readiness check result.

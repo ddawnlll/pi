@@ -16,9 +16,9 @@ describe("ScenarioRegistry", () => {
 		expect(missing).toEqual([]);
 	});
 
-	it("has exactly 12 scenarios", () => {
+	it("has exactly 16 scenarios", () => {
 		const registry = new ScenarioRegistry();
-		expect(registry.count).toBe(12);
+		expect(registry.count).toBe(16);
 	});
 
 	it("get returns scenario by ID", () => {

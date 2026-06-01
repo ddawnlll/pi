@@ -140,7 +140,8 @@ export type JournalEventType =
 	| "command_started"
 	| "command_completed"
 	| "completion_gate_blocked_visible"
-	| "runner_stopped_by_db_state";
+	| "runner_stopped_by_db_state"
+	| "runaway_retry_loop_detected";
 
 /**
  * Execution journal event

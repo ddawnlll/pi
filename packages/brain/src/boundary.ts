@@ -103,11 +103,7 @@ export class BrainBoundary {
 	 * Create an investigate proposal when the Lead Agent needs more information
 	 * before making a decision.
 	 */
-	createInvestigateProposal(params: {
-		summary: string;
-		rationale: string;
-		evidenceRefs: string[];
-	}): BrainProposal {
+	createInvestigateProposal(params: { summary: string; rationale: string; evidenceRefs: string[] }): BrainProposal {
 		return this.createProposal({
 			type: "investigate",
 			summary: params.summary,
@@ -123,20 +119,14 @@ export class BrainBoundary {
 	/**
 	 * Get all directives issued by the Lead Agent for a workspace.
 	 */
-	async getDirectives(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<LeadDirectiveView[]> {
+	async getDirectives(planExecutionId: string, workspaceId: string): Promise<LeadDirectiveView[]> {
 		return this.executionReadModel.getLeadDirectives(planExecutionId, workspaceId);
 	}
 
 	/**
 	 * Get all escalations initiated by the Lead Agent for a workspace.
 	 */
-	async getEscalations(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<LeadEscalationView[]> {
+	async getEscalations(planExecutionId: string, workspaceId: string): Promise<LeadEscalationView[]> {
 		return this.executionReadModel.getLeadEscalations(planExecutionId, workspaceId);
 	}
 }

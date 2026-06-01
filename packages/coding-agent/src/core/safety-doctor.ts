@@ -5,12 +5,12 @@
  * Detects placeholders, forbidden files, destructive commands, and security issues.
  */
 
+import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "@earendil-works/pi-execution-core";
 import { computeBatchPlan } from "./dag-analyzer.js";
 import { ExecutionSimulator } from "./execution-simulator.js";
 import type { RetryPolicy } from "./retry-handler.js";
 import { checkCommand, getEffectivePermissions, type SafetyProfileName } from "./safety-profile.js";
 import { SkillRegistry } from "./skill-registry.js";
-import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "./worker-concurrency.js";
 import { WorkspaceScheduler } from "./workspace-scheduler.js";
 import type { Workspace, WorkspaceQueue } from "./workspace-schema.js";
 import { validateWorkspaceQueue } from "./workspace-schema.js";

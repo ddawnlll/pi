@@ -113,8 +113,8 @@ export function normalizeLegacyPlanToIntentV4(input: {
 
 export function derivePlanExecutionFromProfile(profile: DerivedExecutionProfile): PlanExecutionConfig {
 	return {
-		scale: { selectedMode: "experimental_6" },
-		worktree: profile.worktreeRequired ? { enabled: true } : undefined,
+		scale: { selectedMode: profile.worktreeRequired ? "experimental_6" : "stable_3_harmony" },
+		...(profile.worktreeRequired ? { worktree: { enabled: true } } : {}),
 		integrationQueue: { enabled: profile.integrationQueueRequired },
 		validation: { globalValidationLockRequired: profile.validationLaneRequired },
 	};

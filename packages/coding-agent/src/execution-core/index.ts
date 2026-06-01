@@ -11,46 +11,50 @@
 
 // Re-export canonical types from the new execution-core package
 export type {
+	BrainProposal,
+	CommandHistoryView,
 	ExecutionCommand,
+	ExecutionCommandAcknowledgeDirective,
+	ExecutionCommandApproveProposal,
+	ExecutionCommandContinuePlan,
+	ExecutionCommandRequestUserEscalation,
+	ExecutionCommandRerunPlan,
+	ExecutionCommandResolveEscalation,
+	ExecutionCommandRetryWorkspace,
 	ExecutionCommandStartPlan,
 	ExecutionCommandStopPlan,
-	ExecutionCommandContinuePlan,
-	ExecutionCommandRerunPlan,
-	ExecutionCommandRetryWorkspace,
-	ExecutionCommandRequestUserEscalation,
-	ExecutionCommandApproveProposal,
 	ExecutionReadModel,
-	PlanExecutionSummary,
-	WorkspaceExecutionSummary,
+	FinalValidationView,
 	JournalEventEnvelope,
 	JournalQuery,
-	PlanStatus,
-	CommandHistoryView,
 	LeadDirectiveView,
-	FinalValidationView,
-	BrainProposal,
-	WorkspaceExecutionStage,
+	LeadEscalationView,
+	PlanExecutionSummary,
+	PlanStatus,
 	WorkerAdapter,
+	WorkerAdapterCapabilities,
+	WorkerCommandHistoryEntry,
+	WorkerEvent,
 	WorkerRunRequest,
 	WorkerRunResult,
 	WorkerVerdict,
-	WorkerEvent,
-	WorkerCommandHistoryEntry,
-	WorkerAdapterCapabilities,
+	WorkspaceExecutionStage,
+	WorkspaceExecutionSummary,
 } from "@earendil-works/pi-execution-core";
-
-// Re-export types still inside coding-agent (not yet extracted)
 export type {
-	AttemptState,
-	AttemptEventType,
-	StateAuthorityToken,
-	AttemptRow,
-	AttemptEventRow,
-	AttemptTransitionRow,
-} from "../execution-kernel/types.js";
-export type {
-	LeadDirective,
-	UserEscalation,
 	FailureClass,
 	FailureSignature,
+	LeadDirective,
+	UserEscalation,
 } from "../core/lead-agent/types.js";
+// Re-export types still inside coding-agent (not yet extracted)
+export type {
+	AttemptEventRow,
+	AttemptEventType,
+	AttemptRow,
+	AttemptState,
+	AttemptTransitionRow,
+	StateAuthorityToken,
+} from "../execution-kernel/types.js";
+// Re-export Lead Agent escalation types from the new execution-core
+// (LeadDirectiveView and LeadEscalationView are now available via execution-core)

@@ -590,26 +590,37 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		const pe = parsed.planExecution;
 
 		// v2.3.0: scale
-		// P22.C: Worktree-only mode — always experimental_6, no "standard" option.
+		// Default scale based on maxParallelWorkspaces:
+		// - > 3: experimental_6 (requires strict safety, worktree, etc.)
+		// - <= 3: standard/stable_3 (simpler execution path, worktree optional)
+		const planMaxParallel = typeof parsed.maxParallelWorkspaces === "number";
+		const defaultScaleMode =
+			planMaxParallel && parsed.maxParallelWorkspaces > 3 ? "experimental_6" : "stable_3_harmony";
 		let scale: PlanExecutionScale | undefined;
 		if (pe.scale && typeof pe.scale === "object" && !Array.isArray(pe.scale)) {
 			const mode = pe.scale.selectedMode;
 			if (mode === "experimental_6") {
 				scale = { selectedMode: mode };
+			} else {
+				// Accept any scale mode but default to stable_3 for <= 3 parallelism
+				scale = { selectedMode: mode };
 			}
 		} else {
-			// Default to experimental_6 when scale config is missing
-			scale = { selectedMode: "experimental_6" };
+			// Default based on parallelism
+			scale = { selectedMode: defaultScaleMode };
 		}
 
 		// v2.3.0: worktree
-		// P22.C: Worktree is always enabled — ignore any disabled setting.
-		let worktree: { enabled: true } | undefined;
+		// P22.C: Worktree-only mode is the default, but plans with
+		// derivedProfile.worktreeRequired=false (e.g., stable_3 plans)
+		// may explicitly set worktree.enabled=false.
+		// Respect the plan's setting; the plan-runner will validate
+		// profile vs runtime compatibility before execution.
+		let worktree: { enabled: boolean } | undefined;
 		if (pe.worktree && typeof pe.worktree === "object" && !Array.isArray(pe.worktree)) {
-			// Always force enabled: true regardless of what the plan says
-			worktree = { enabled: true };
+			worktree = { enabled: pe.worktree.enabled === true };
 		} else {
-			// Default to enabled when worktree config is missing
+			// Default to enabled (safe default for existing plans)
 			worktree = { enabled: true };
 		}
 
@@ -735,6 +746,13 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		};
 	}
 
+	// Map derivedExecutionProfile from JSON to workspace queue's derivedProfile
+	// for plans that include it (e.g., P41-style plans with explicit profile).
+	const jsonDerivedProfile: Record<string, unknown> | undefined =
+		parsed.derivedExecutionProfile && typeof parsed.derivedExecutionProfile === "object"
+			? parsed.derivedExecutionProfile
+			: undefined;
+
 	const baseQueue: WorkspaceQueue = {
 		phase,
 		title,
@@ -749,6 +767,7 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 		executionAutomation,
 		repairMode,
 		promotionGates,
+		derivedProfile: jsonDerivedProfile as any,
 	};
 
 	if (contractVersion === "4.0.0" && parsed.intent) {
@@ -758,7 +777,7 @@ function normalizeQueue(parsed: any): WorkspaceQueue {
 	const normalized = normalizeLegacyPlanToIntentV4({
 		maxParallelWorkspaces: baseQueue.maxParallelWorkspaces,
 		planExecution: { scale: baseQueue.planExecution?.scale },
-		worktreeRequired: parsed.worktreeRequired,
+		worktreeRequired: parsed.worktreeRequired ?? (jsonDerivedProfile?.worktreeRequired as boolean | undefined),
 		integrationQueueRequired: parsed.integrationQueueRequired,
 		validationLockRequired: parsed.validationLockRequired,
 	});

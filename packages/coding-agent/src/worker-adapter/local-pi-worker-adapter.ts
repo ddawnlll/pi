@@ -8,4 +8,4 @@
  * @deprecated Import from @earendil-works/pi-worker-adapters instead
  */
 export type { LocalPiWorkerAdapterConfig } from "@earendil-works/pi-worker-adapters";
-export { LocalPiWorkerAdapter, createLocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
+export { createLocalPiWorkerAdapter, LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";

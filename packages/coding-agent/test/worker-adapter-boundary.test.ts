@@ -3,10 +3,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { LocalPiWorkerAdapter } from "../src/worker-adapter/local-pi-worker-adapter.js";
-import type {
-	WorkerAdapter,
-	WorkerRunResult,
-} from "../src/worker-adapter/types.js";
+import type { WorkerAdapter, WorkerRunResult } from "../src/worker-adapter/types.js";
 
 describe("WorkerAdapter boundary", () => {
 	it("WorkerAdapter interface is satisfied by LocalPiWorkerAdapter", () => {

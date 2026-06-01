@@ -318,8 +318,8 @@ export class CombinedSummaryBuilder {
 		}
 
 		// Merge stages: keep existing stages, add new ones (dedupe by id)
-		const existingStages = (existing.stages as Array<Record<string, unknown>>) ?? [];
-		const newStages = (this.summary.stages ?? []) as Array<Record<string, unknown>>;
+		const existingStages = (existing.stages as Array<Record<string, unknown>> | undefined) ?? [];
+		const newStages = (this.summary.stages ?? []) as unknown as Array<Record<string, unknown>>;
 		const mergedStages = [...existingStages];
 		for (const ns of newStages) {
 			const idx = mergedStages.findIndex((s) => s.id === ns.id);
@@ -329,20 +329,24 @@ export class CombinedSummaryBuilder {
 				mergedStages.push(ns);
 			}
 		}
-		this.summary.stages = mergedStages;
+		this.summary.stages = mergedStages as unknown as CombinedStageResult[];
 
 		// Merge execution modes (take newer if exists)
-		const existingModes = (existing.executionModes as Record<string, Record<string, unknown>>) ?? {};
-		const newModes = (this.summary.executionModes ?? {}) as Record<string, Record<string, unknown>>;
+		const existingModes = (existing.executionModes as Record<string, Record<string, unknown>> | undefined) ?? {};
+		const newModes = (this.summary.executionModes ?? {}) as unknown as Record<string, Record<string, unknown>>;
 		for (const [key, val] of Object.entries(newModes)) {
 			existingModes[key] = val;
 		}
-		this.summary.executionModes = existingModes;
+		this.summary.executionModes = existingModes as unknown as Record<string, CombinedExecutionModeResult>;
 
 		// Merge leadAgent (additive)
 		if (existing.leadAgent) {
 			const ela = existing.leadAgent as Record<string, unknown>;
-			const nla = this.summary.leadAgent ?? {};
+			const nla = this.summary.leadAgent ?? {
+				directivesCreated: 0,
+				escalationsCreated: 0,
+				classifications: [] as string[],
+			};
 			this.summary.leadAgent = {
 				directivesCreated: (Number(ela.directivesCreated) || 0) + (Number(nla.directivesCreated) || 0),
 				escalationsCreated: (Number(ela.escalationsCreated) || 0) + (Number(nla.escalationsCreated) || 0),
@@ -355,11 +359,15 @@ export class CombinedSummaryBuilder {
 		// Merge completionGate blocks (additive)
 		if (existing.completionGate) {
 			const ecg = existing.completionGate as Record<string, unknown>;
-			const ncg = this.summary.completionGate ?? {};
-			const existingBlocks = (ecg.blocks as Array<Record<string, unknown>>) ?? [];
-			const newBlocks = (ncg.blocks as Array<Record<string, unknown>>) ?? [];
+			const ncg = this.summary.completionGate ?? {
+				blocks: [],
+				commandHistoryRecorded: false,
+				noTestsFoundFailures: 0,
+			};
+			const existingBlocks = (ecg.blocks as Array<Record<string, unknown>> | undefined) ?? [];
+			const newBlocks = (ncg.blocks as Array<Record<string, unknown>> | undefined) ?? [];
 			this.summary.completionGate = {
-				blocks: [...existingBlocks, ...newBlocks],
+				blocks: [...existingBlocks, ...newBlocks] as Array<{ workspaceId: string; reasons: string[] }>,
 				commandHistoryRecorded: ecg.commandHistoryRecorded === true || ncg.commandHistoryRecorded === true,
 				noTestsFoundFailures: (Number(ecg.noTestsFoundFailures) || 0) + (Number(ncg.noTestsFoundFailures) || 0),
 			};
@@ -368,9 +376,9 @@ export class CombinedSummaryBuilder {
 		// Merge replay commands (additive, dedupe)
 		if (existing.replay) {
 			const erp = existing.replay as Record<string, unknown>;
-			const nrp = this.summary.replay ?? {};
-			const existingCmds = (erp.commands as string[]) ?? [];
-			const newCmds = (nrp.commands as string[]) ?? [];
+			const nrp = this.summary.replay ?? { available: false, commands: [] as string[] };
+			const existingCmds = (erp.commands as string[] | undefined) ?? [];
+			const newCmds = (nrp.commands as string[] | undefined) ?? [];
 			this.summary.replay = {
 				available: existingCmds.length + newCmds.length > 0,
 				commands: [...new Set([...existingCmds, ...newCmds])],
@@ -382,7 +390,7 @@ export class CombinedSummaryBuilder {
 			const epar = existing.parallelism as Record<string, unknown>;
 			const npar = this.summary.parallelism ?? {};
 			this.summary.parallelism = {
-				...npar as any,
+				...(npar as any),
 				maxObservedActiveWorkers: Math.max(
 					Number(epar.maxObservedActiveWorkers) || 0,
 					Number((npar as any).maxObservedActiveWorkers) || 0,
@@ -407,12 +415,22 @@ export class CombinedSummaryBuilder {
 		// Merge expected failures (additive)
 		if (existing.expectedFailures) {
 			const eef = existing.expectedFailures as Record<string, unknown>;
-			const nef = this.summary.expectedFailures ?? { total: 0, caught: 0, missed: 0, items: [] };
+			const nef = this.summary.expectedFailures ?? {
+				total: 0,
+				caught: 0,
+				missed: 0,
+				items: [] as Array<{ iteration: number; scenario: string; verdict: string; countsAsSuiteFailure: boolean }>,
+			};
 			this.summary.expectedFailures = {
 				total: (Number(eef.total) || 0) + nef.total,
 				caught: (Number(eef.caught) || 0) + nef.caught,
 				missed: (Number(eef.missed) || 0) + nef.missed,
-				items: [...((eef.items as unknown[]) ?? []), ...nef.items],
+				items: [...((eef.items as unknown[]) ?? []), ...nef.items] as Array<{
+					iteration: number;
+					scenario: string;
+					verdict: string;
+					countsAsSuiteFailure: boolean;
+				}>,
 			};
 		}
 

@@ -28,6 +28,19 @@ export {
 // State store interface and implementations
 
 export {
+	DEFAULT_WORKERS,
+	isExperimentalWorkerCount,
+	isStableWorkerCount,
+	MAX_EXPERIMENTAL_WORKERS,
+	MAX_STABLE_WORKERS,
+	MIN_STABLE_WORKERS,
+	requiresExperimentalMode,
+	resolveEffectiveWorkerCount,
+	validateWorkerConcurrency,
+	type WorkerConcurrencySettings,
+	type WorkerConcurrencyValidationResult,
+} from "@earendil-works/pi-execution-core";
+export {
 	AutoCommit,
 	type CommitResult,
 	type CommitValidation,
@@ -238,19 +251,6 @@ export {
 	type StateStoreConfig,
 	type WorkspaceAttempt,
 } from "./core/state-store.js";
-export {
-	DEFAULT_WORKERS,
-	isExperimentalWorkerCount,
-	isStableWorkerCount,
-	MAX_EXPERIMENTAL_WORKERS,
-	MAX_STABLE_WORKERS,
-	MIN_STABLE_WORKERS,
-	requiresExperimentalMode,
-	resolveEffectiveWorkerCount,
-	validateWorkerConcurrency,
-	type WorkerConcurrencySettings,
-	type WorkerConcurrencyValidationResult,
-} from "./core/worker-concurrency.js";
 export {
 	canStartWorker,
 	configureMemoryGuard,
@@ -1132,6 +1132,7 @@ export {
 // v4 ExecutionKernel exports
 // =============================================================================
 
+export { createExecutionReadModel, handleExecutionCommand } from "@earendil-works/pi-execution-service";
 export type { AttemptState, StateAuthorityToken } from "./execution-core/index.js";
 export {
 	type AdmissionDecision,
@@ -1144,6 +1145,3 @@ export {
 } from "./execution-kernel/admission-guard.js";
 export { assertLegalTransition, assertRetryAllowed, getDeadlinePolicy } from "./execution-kernel/attempt-fsm.js";
 export { createStateAuthorityToken } from "./execution-kernel/state-authority.js";
-
-export { handleExecutionCommand } from "@earendil-works/pi-execution-service";
-export { createExecutionReadModel } from "@earendil-works/pi-execution-service";

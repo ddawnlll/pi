@@ -66,7 +66,8 @@ export function assertStable3Profile(ctx: ExecutionModeContext): string[] {
 	if (ctx.mode !== "stable_3") return [];
 	const violations: string[] = [];
 	if (ctx.maxWorkers > 3) violations.push(`maxWorkers ${ctx.maxWorkers} > 3`);
-	if (ctx.patchCoordinatorRequired) violations.push("patchCoordinatorRequired is true (stable_3 must not use patch coordinator)");
+	if (ctx.patchCoordinatorRequired)
+		violations.push("patchCoordinatorRequired is true (stable_3 must not use patch coordinator)");
 	if (ctx.writeSetEnforced) violations.push("writeSetEnforced is true (stable_3 must not enforce writeSet)");
 	if (!ctx.completionGateActive) violations.push("completionGateActive is false");
 	if (!ctx.leadAgentActive) violations.push("leadAgentActive is false");

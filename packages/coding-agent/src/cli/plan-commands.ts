@@ -16,6 +16,16 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as readline from "node:readline";
+import {
+	checkPromotionGates,
+	DEFAULT_WORKERS,
+	isExperimentalWorkerCount,
+	MAX_EXPERIMENTAL_WORKERS,
+	MIN_STABLE_WORKERS,
+	PROMOTION_GATES,
+	validateWorkerConcurrency,
+	type WorkerConcurrencySettings,
+} from "@earendil-works/pi-execution-core";
 import chalk from "chalk";
 import { AutoCommit } from "../core/auto-commit.js";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";
@@ -37,16 +47,6 @@ import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
 import { createStateStore, detectStateStoreBackend } from "../core/state-store.js";
-import {
-	checkPromotionGates,
-	DEFAULT_WORKERS,
-	isExperimentalWorkerCount,
-	MAX_EXPERIMENTAL_WORKERS,
-	MIN_STABLE_WORKERS,
-	PROMOTION_GATES,
-	validateWorkerConcurrency,
-	type WorkerConcurrencySettings,
-} from "../core/worker-concurrency.js";
 import type { Workspace } from "../core/workspace-schema.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
 

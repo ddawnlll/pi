@@ -46,7 +46,9 @@ export type SyntheticWorkerBehavior =
 	| "patch_write_set_violation"
 	| "patch_stale_hash"
 	| "timeout"
-	| "memory_killed";
+	| "memory_killed"
+	| "instant_failure"
+	| "unstable_failure_signature";
 
 // ---------------------------------------------------------------------------
 // Command execution result
@@ -142,6 +144,10 @@ export function createSyntheticWorker(
 				return runTimeout(options, rng);
 			case "memory_killed":
 				return runMemoryKilled(options, rng);
+			case "instant_failure":
+				return runInstantFailure(options, rng);
+			case "unstable_failure_signature":
+				return runUnstableFailureSignature(options, rng);
 		}
 	};
 }
@@ -447,6 +453,56 @@ async function runMemoryKilled(
 		exitCode: 137, // SIGKILL (128 + 9)
 		output: "Killed: process exceeded memory limit",
 		commandHistory: [],
+		filesCreated: {},
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Behavior: instant_failure
+// ---------------------------------------------------------------------------
+
+/**
+ * Worker fails instantly (0s duration) with the same error every time.
+ * Used to test the runaway retry loop guard and instant-failure detection.
+ */
+async function runInstantFailure(
+	_opts: { workspaceId: string; workspaceDir: string },
+	_rng: () => number,
+): Promise<SyntheticRunResult> {
+	return {
+		exitCode: 1,
+		output: "Preflight check failed: planExecutionId not set for worktree-based execution",
+		commandHistory: [],
+		filesCreated: {},
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Behavior: unstable_failure_signature
+// ---------------------------------------------------------------------------
+
+/**
+ * Worker fails with the same root cause but different error messages
+ * (e.g., changing path, timestamp, attempt ID in the message).
+ * Used to test that the normalized failure signature guard catches
+ * semantically identical failures despite noisy messages.
+ */
+async function runUnstableFailureSignature(
+	opts: { workspaceId: string; workspaceDir: string },
+	rng: () => number,
+): Promise<SyntheticRunResult> {
+	// Generate a different temp path or attempt-id-like suffix each call
+	const noise = Math.floor(rng() * 100000);
+	return {
+		exitCode: 1,
+		output: `Cannot find module '${opts.workspaceDir}/.cache/attempt-${noise}/main.ts'`,
+		commandHistory: [
+			{
+				command: "npx tsx src/main.ts",
+				exitCode: 1,
+				outputSummary: `Cannot find module 'main.ts' (attempt ${noise})`,
+			},
+		],
 		filesCreated: {},
 	};
 }

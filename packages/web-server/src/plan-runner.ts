@@ -48,7 +48,7 @@ export interface ExecutionMeta {
 	/** Approved preview metadata persisted for crash recovery (AC2). */
 	approvedPreview?: ApprovedPreviewMetadata;
 	/** Worktree isolation config persisted for crash recovery. */
-	worktreeConfig?: { enabled: true };
+	worktreeConfig?: { enabled: boolean };
 	/** Workspace execution timeout in milliseconds persisted for crash recovery. */
 	workspaceTimeoutMs?: number;
 	/** User-provided phase title override (P22.E). */
@@ -741,9 +741,15 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 				}
 			: undefined;
 
-		// P22.C: Worktree mode is FORE ENABLED. Ignore any plan-level override.
-		// Worktree-less execution is blocked at WorkspaceAgentExecutor.execute().
-		const worktreeConfig: { enabled: true } = { enabled: true };
+		// Determine worktree mode from the plan's execution profile.
+		// Plans with worktreeRequired=false (e.g., stable_3 plans like P41)
+		// run without git worktree isolation. Other plans default to enabled.
+		const derivedProfile = parseResult.queue.derivedProfile;
+		const planWorktreeConfig = parseResult.queue.planExecution?.worktree;
+		const worktreeRequired = derivedProfile?.worktreeRequired ?? true;
+		const worktreeConfig: { enabled: boolean } = {
+			enabled: worktreeRequired && (planWorktreeConfig?.enabled ?? true),
+		};
 
 		const executor = new AutonomousExecutor(stateStore, {
 			workspaceRoot,
@@ -1029,6 +1035,20 @@ async function executePlanInBackground(
 			await log(`Execution backend: ${state.metadata?.backend || "json"}`);
 		}
 
+		// P41-HOTFIX: Profile admission check — validate plan profile matches runtime.
+		// If the plan requires worktree=false but runtime is worktree-only, fail early.
+		const profile = queue.derivedProfile;
+		const planWorktree = queue.planExecution?.worktree;
+		if (profile?.worktreeRequired === false && planWorktree?.enabled === true) {
+			const msg =
+				`Runtime profile mismatch: plan ${queue.phase} has derivedProfile.worktreeRequired=false ` +
+				`but planExecution.worktree.enabled=true. ` +
+				`Cannot execute plan with conflicting profile.`;
+			await log(`FATAL: ${msg}`);
+			updateExecutionStatus(planExecId, "failed", msg);
+			return;
+		}
+
 		// Log workspace details
 		await log(`Workspaces: ${queue.workspaces.map((w) => w.id).join(", ")}`);
 
@@ -1037,6 +1057,15 @@ async function executePlanInBackground(
 		let iteration = 0;
 		let planRetryCount = 0;
 		const maxPlanRetries = 10;
+
+		// P41-HOTFIX: Runaway retry loop safety guards
+		const maxAttemptsPerWorkspace = 5;
+		const maxSameSignatureAttempts = 3;
+		const maxInstantFailures = 3;
+		const workspaceAttemptCounts = new Map<string, number>();
+		const workspaceLastErrors = new Map<string, string>();
+		const workspaceSameSignatureCounts = new Map<string, number>();
+		const workspaceLastAttemptTimestamps = new Map<string, number>();
 
 		// Persist the workspace queue for crash recovery
 		await persistWorkspaceQueue(workspaceRoot, planExecId, queue);
@@ -1464,23 +1493,126 @@ async function executePlanInBackground(
 					_completedCount++;
 				} else if (result.verdict === "FAILED" || result.verdict === "BLOCKED") {
 					failedCount++;
-					// Log the specific error for plan-level diagnostics
-					await log(
-						`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level if retries remain`,
-					);
 
-					// CRITICAL: Transition workspace state back to Pending so the scheduler
-					// does not see it as 'active' on the next iteration. Without this, the
-					// scheduler thinks active slots are occupied and never retries.
-					try {
-						await executor
-							.getStateStore()
-							.transitionWorkspace(planExecId, result.workspaceId, WorkspaceStage.Pending, {
-								reason: result.verdict === "FAILED" ? "timeout-retry" : "blocked-retry",
-							});
-						await executor.loadState();
-					} catch (stateError) {
-						await log(`  WARNING: failed to transition workspace state: ${stateError}`);
+					// ── P41-HOTFIX: Runaway retry loop safety guards ──────────────
+					// Check attempt count, same-signature, and instant-failure guards
+					// before retrying. If limits are exceeded, block the workspace
+					// and emit a runaway_retry_loop_detected event.
+					const currentAttempts = (workspaceAttemptCounts.get(result.workspaceId) ?? 0) + 1;
+					workspaceAttemptCounts.set(result.workspaceId, currentAttempts);
+
+					const lastError = workspaceLastErrors.get(result.workspaceId);
+					const currentError = result.error ?? "";
+					const isSameSignature = lastError !== undefined && lastError === currentError;
+					if (isSameSignature) {
+						const sigCount = (workspaceSameSignatureCounts.get(result.workspaceId) ?? 0) + 1;
+						workspaceSameSignatureCounts.set(result.workspaceId, sigCount);
+					} else if (currentError) {
+						workspaceSameSignatureCounts.set(result.workspaceId, 1);
+					}
+					workspaceLastErrors.set(result.workspaceId, currentError);
+
+					const now = Date.now();
+					const lastTs = workspaceLastAttemptTimestamps.get(result.workspaceId);
+					const isInstantFailure = lastTs !== undefined && now - lastTs < 1000;
+					workspaceLastAttemptTimestamps.set(result.workspaceId, now);
+
+					// Compute instant failure count (failures within 1s of last)
+					let instantFailureCount = 0;
+					if (isInstantFailure) {
+						// We count consecutive instant failures; tracked separately
+						for (let i = 0; i < currentAttempts; i++) {
+							// Rough estimate: if currentAttempts > 3 and all recent were instant
+							instantFailureCount = currentAttempts > 3 ? currentAttempts : 0;
+						}
+					}
+
+					// Check all guards — any one exceeded means the workspace must be blocked
+					const sameSignatureCount = workspaceSameSignatureCounts.get(result.workspaceId) ?? 0;
+					const exceedMaxAttempts = currentAttempts > maxAttemptsPerWorkspace;
+					const exceedSameSignature = sameSignatureCount >= maxSameSignatureAttempts;
+					const exceedInstantFailures = instantFailureCount >= maxInstantFailures;
+					const shouldEscalate = exceedMaxAttempts || exceedSameSignature || exceedInstantFailures;
+
+					if (shouldEscalate) {
+						// Do NOT retry — block workspace and create escalation
+						await log(
+							`  -> ${result.workspaceId} (${result.verdict}) RUNAWAY RETRY DETECTED: ` +
+								`attempts=${currentAttempts}, sameSignature=${sameSignatureCount}, ` +
+								`instantFailures=${instantFailureCount}. BLOCKING workspace.`,
+						);
+
+						// Emit runaway_retry_loop_detected event
+						const runawayEvent: {
+							type: "runaway_retry_loop_detected";
+							timestamp: number;
+							workspaceId: string;
+							data: {
+								planExecutionId: string;
+								attemptCount: number;
+								sameSignatureCount: number;
+								instantFailureCount: number;
+								lastFailureSignature: string;
+								lastFailureMessage: string;
+								actionTaken: string;
+							};
+						} = {
+							type: "runaway_retry_loop_detected",
+							timestamp: now,
+							workspaceId: result.workspaceId,
+							data: {
+								planExecutionId: planExecId,
+								attemptCount: currentAttempts,
+								sameSignatureCount,
+								instantFailureCount,
+								lastFailureSignature: currentError.slice(0, 200),
+								lastFailureMessage: currentError.slice(0, 500),
+								actionTaken: "blocked",
+							},
+						};
+
+						// Log the event to the journal
+						try {
+							await executor
+								.getStateStore()
+								.appendJournal(planExecId, runawayEvent)
+								.catch(() => {});
+						} catch {}
+
+						// Transition workspace to BLOCKED (terminal, not retryable)
+						try {
+							await executor
+								.getStateStore()
+								.transitionWorkspace(planExecId, result.workspaceId, WorkspaceStage.Blocked, {
+									reason: `runaway-retry-after-${currentAttempts}-attempts`,
+								});
+							await executor.loadState();
+						} catch (stateError) {
+							await log(`  WARNING: failed to block runaway workspace: ${stateError}`);
+						}
+
+						// Log the escalation event
+						await log(
+							`  ESCALATION: Workspace ${result.workspaceId} blocked after ${currentAttempts} attempts. ` +
+								`Human intervention required.`,
+						);
+					} else {
+						// Safe to retry — transition workspace back to Pending
+						await log(
+							`  -> ${result.workspaceId} (${result.verdict}) will be retried at plan level ` +
+								`(attempt ${currentAttempts}/${maxAttemptsPerWorkspace})`,
+						);
+
+						try {
+							await executor
+								.getStateStore()
+								.transitionWorkspace(planExecId, result.workspaceId, WorkspaceStage.Pending, {
+									reason: result.verdict === "FAILED" ? "timeout-retry" : "blocked-retry",
+								});
+							await executor.loadState();
+						} catch (stateError) {
+							await log(`  WARNING: failed to transition workspace state: ${stateError}`);
+						}
 					}
 				}
 

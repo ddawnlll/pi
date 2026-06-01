@@ -12,8 +12,8 @@
  * - Review failures route to human re-review.
  */
 
-import type { ActorEvent } from "../execution-kernel/actor-events.js";
 import { FailureCategory } from "@earendil-works/pi-execution-service";
+import type { ActorEvent } from "../execution-kernel/actor-events.js";
 
 /**
  * Retry strategy type.

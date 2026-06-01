@@ -292,10 +292,7 @@ export interface ExecutionReadModel {
 	 * Returns an array of file entries with change metadata, or an empty array
 	 * if no change information is available.
 	 */
-	getChangedFiles(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<ChangedFileEntry[]>;
+	getChangedFiles(planExecutionId: string, workspaceId: string): Promise<ChangedFileEntry[]>;
 
 	/**
 	 * Get a hierarchical file tree of files changed during a workspace execution.
@@ -303,21 +300,13 @@ export interface ExecutionReadModel {
 	 *
 	 * Use options.flat=true to receive a flat list instead of a tree.
 	 */
-	getFileTree(
-		planExecutionId: string,
-		workspaceId: string,
-		options?: FileTreeQuery,
-	): Promise<FileTreeNode[]>;
+	getFileTree(planExecutionId: string, workspaceId: string, options?: FileTreeQuery): Promise<FileTreeNode[]>;
 
 	/**
 	 * Get the content of a specific file from a workspace execution.
 	 * Returns null if the file is not found in the workspace's file set.
 	 */
-	getFileContent(
-		planExecutionId: string,
-		workspaceId: string,
-		filePath: string,
-	): Promise<FileContentView | null>;
+	getFileContent(planExecutionId: string, workspaceId: string, filePath: string): Promise<FileContentView | null>;
 
 	/**
 	 * Get diff output for files changed in a workspace execution.

@@ -17,6 +17,7 @@
  *   await child.emitWorkerStarted({ runId, attemptNumber });
  */
 
+import type { ICommandLogStream } from "./command-log-stream.js";
 import type { IEventStore } from "./event-store.js";
 import type {
 	BrainApprovedPayload,
@@ -78,6 +79,7 @@ export class RuntimeEventEmitter {
 		private readonly workspaceId?: string,
 		private readonly logger?: PiLogger,
 		private readonly transcriptStore?: IWorkerTranscriptStore,
+		private readonly commandLogStream?: ICommandLogStream,
 	) {}
 
 	// -----------------------------------------------------------------------
@@ -96,6 +98,7 @@ export class RuntimeEventEmitter {
 			overrides.workspaceId ?? this.workspaceId,
 			this.logger,
 			this.transcriptStore,
+			this.commandLogStream,
 		);
 	}
 
@@ -237,7 +240,24 @@ export class RuntimeEventEmitter {
 
 	/** Emit command_output — stream stdout/stderr chunk during command execution. */
 	async emitCommandOutput(payload: CommandOutputPayload): Promise<string> {
-		return this.emit("command_output", payload, payload.workspaceId);
+		const eventId = await this.emit("command_output", payload, payload.workspaceId);
+
+		// Also publish to the live command log stream if one is configured.
+		if (this.commandLogStream) {
+			this.commandLogStream.emitOutput({
+				planExecutionId: payload.planExecutionId,
+				workspaceId: payload.workspaceId,
+				command: payload.command,
+				cwd: payload.cwd,
+				stream: payload.stream,
+				data: payload.data,
+				offset: payload.offset,
+				runId: payload.runId,
+				final: payload.final,
+			});
+		}
+
+		return eventId;
 	}
 
 	// -----------------------------------------------------------------------

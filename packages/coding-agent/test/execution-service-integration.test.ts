@@ -64,19 +64,13 @@ describe("Execution Service — command handler", () => {
 		);
 
 		expect(result.accepted).toBe(true);
-		expect(mockTransitionRouter.transitionWorkspace).toHaveBeenCalledWith(
-			"plan-1",
-			"ws-1",
-			"Pending",
-			{ reason: "test retry" },
-		);
+		expect(mockTransitionRouter.transitionWorkspace).toHaveBeenCalledWith("plan-1", "ws-1", "Pending", {
+			reason: "test retry",
+		});
 	});
 
 	it("returns error when planControlManager not available", async () => {
-		const result = await handleExecutionCommand(
-			{ type: "stop_plan", planExecutionId: "plan-1" },
-			{},
-		);
+		const result = await handleExecutionCommand({ type: "stop_plan", planExecutionId: "plan-1" }, {});
 
 		expect(result.accepted).toBe(false);
 		expect(result.error).toContain("No plan control manager configured");
@@ -93,10 +87,7 @@ describe("Execution Service — command handler", () => {
 	});
 
 	it("handles start_plan command", async () => {
-		const result = await handleExecutionCommand(
-			{ type: "start_plan", planId: "plan-1" },
-			{},
-		);
+		const result = await handleExecutionCommand({ type: "start_plan", planId: "plan-1" }, {});
 
 		expect(result.accepted).toBe(true);
 		expect(result.message).toContain("plan-1");
@@ -112,10 +103,7 @@ describe("Execution Service — command handler", () => {
 	});
 
 	it("handles approve_proposal command", async () => {
-		const result = await handleExecutionCommand(
-			{ type: "approve_proposal", proposalId: "prop-1" },
-			{},
-		);
+		const result = await handleExecutionCommand({ type: "approve_proposal", proposalId: "prop-1" }, {});
 
 		expect(result.accepted).toBe(true);
 	});
@@ -163,7 +151,14 @@ describe("Execution Service — query handler", () => {
 	it("creates read model with listJournalEvents", async () => {
 		const mockStateStore = {
 			getJournalEvents: vi.fn().mockResolvedValue([
-				{ seq: "1", eventId: "evt-1", planExecutionId: "plan-1", eventType: "plan_start", payload: null, createdAt: "2026-01-01T00:00:00Z" },
+				{
+					seq: "1",
+					eventId: "evt-1",
+					planExecutionId: "plan-1",
+					eventType: "plan_start",
+					payload: null,
+					createdAt: "2026-01-01T00:00:00Z",
+				},
 			]),
 		};
 

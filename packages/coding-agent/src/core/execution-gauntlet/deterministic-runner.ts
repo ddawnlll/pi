@@ -340,7 +340,7 @@ export async function runDeterministicScenario(config: DeterministicRunConfig): 
 		plan,
 		workspaceStates: workspaceStates.map((ws) => ({
 			...ws,
-			lastCommand: ws.errorMessage ?? null,
+			lastCommand: ws.errorMessage ?? undefined,
 			lastCommandExitCode: null,
 			attempts: ws.attempts,
 			completionGateBlockReasons: ws.completionGateBlockReasons ?? [],

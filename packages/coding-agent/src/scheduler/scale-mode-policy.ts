@@ -23,7 +23,7 @@ import {
 	MAX_STABLE_WORKERS,
 	MIN_EXPERIMENTAL_WORKERS,
 	MIN_STABLE_WORKERS,
-} from "../core/worker-concurrency.js";
+} from "@earendil-works/pi-execution-core";
 
 // ---------------------------------------------------------------------------
 // Constants
