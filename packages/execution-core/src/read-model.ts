@@ -100,24 +100,9 @@ export interface FinalValidationView {
 
 export interface ExecutionReadModel {
 	getPlanSummary(planExecutionId: string): Promise<PlanExecutionSummary>;
-	getWorkspaceSummary(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<WorkspaceExecutionSummary>;
-	listJournalEvents(
-		planExecutionId: string,
-		options?: JournalQuery,
-	): Promise<JournalEventEnvelope[]>;
-	getCommandHistory(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<CommandHistoryView[]>;
-	getLeadDirectives(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<LeadDirectiveView[]>;
-	getFinalValidationStatus(
-		planExecutionId: string,
-		workspaceId: string,
-	): Promise<FinalValidationView>;
+	getWorkspaceSummary(planExecutionId: string, workspaceId: string): Promise<WorkspaceExecutionSummary>;
+	listJournalEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]>;
+	getCommandHistory(planExecutionId: string, workspaceId: string): Promise<CommandHistoryView[]>;
+	getLeadDirectives(planExecutionId: string, workspaceId: string): Promise<LeadDirectiveView[]>;
+	getFinalValidationStatus(planExecutionId: string, workspaceId: string): Promise<FinalValidationView>;
 }

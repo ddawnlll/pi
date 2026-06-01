@@ -65,7 +65,48 @@ export type {
 } from "./read-model.js";
 
 // Events
-export type { WorkspaceExecutionStage } from "./events.js";
+export type { WorkspaceExecutionStage, ExecutionEventType, ExecutionEvent } from "./events.js";
+export type {
+	PlanStartedPayload,
+	PlanCompletedPayload,
+	PlanFailedPayload,
+	PlanPausedPayload,
+	PlanResumedPayload,
+	PlanCancelledPayload,
+	PlanStoppedPayload,
+	WorkspaceStageChangedPayload,
+	WorkerStartedPayload,
+	WorkerCompletedPayload,
+	WorkerFailedPayload,
+	WorkerTimedOutPayload,
+	WorkerCancelledPayload,
+	CommandStartedPayload,
+	CommandFinishedPayload,
+	BrainProposedPayload,
+	BrainApprovedPayload,
+	BrainRejectedPayload,
+	GovernanceCheckStartedPayload,
+	GovernanceApprovedPayload,
+	GovernanceRejectedPayload,
+	GovernanceEscalatedPayload,
+	SystemErrorPayload,
+	SystemWarningPayload,
+	SystemInfoPayload,
+	ExecutionEventPayloadMap,
+} from "./events.js";
+export {
+	EXECUTION_EVENT_TYPES,
+	createExecutionEvent,
+	isPlanEventType,
+	isWorkspaceEventType,
+	isWorkerEventType,
+	isCommandEventType,
+	isBrainEventType,
+	isGovernanceEventType,
+	isSystemEventType,
+	mapWorkspaceStageToExecutionStage,
+	workspaceStageToEventType,
+} from "./events.js";
 
 export type { WorkerConcurrencySettings, WorkerConcurrencyValidationResult } from "./worker-concurrency.js";
 export {
@@ -77,6 +118,10 @@ export {
 } from "./worker-concurrency.js";
 export type { WorktreeConfig, WorktreeState, WorktreeStatus, WorktreeExecutorConfig, WorktreeCreateResult, WorktreeExecutionResult, WorktreeListEntry, WorktreeDiffArtifact, WorktreeCleanupResult } from "./worktree-types.js";
 export { DEFAULT_WORKTREE_ROOT, DEFAULT_WORKTREE_CONFIG } from "./worktree-types.js";
+// Event store
+export type { IEventStore } from "./event-store.js";
+export { InMemoryEventStore, EventStoreError } from "./event-store.js";
+
 // Worker adapter
 export type {
 	WorkerAdapter,
