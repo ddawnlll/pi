@@ -626,44 +626,49 @@ flowchart TB
 
 ## 9. Read Model Report Card
 
-### 9.1 All Methods
+### 9.1 All Methods (P42.01 Hardened)
 
 | # | Method | Status | Real Data? | Data Source | Dashboard Consumer(s) | Notes |
 |---|---|---|---|---|---|---|
-| 1 | `getPlanSummary()` | ✅ IMPLEMENTED | ✅ Yes | State store `getPlanExecutionSummary()` | Plan detail endpoint | |
-| 2 | `getWorkspaceSummary()` | ✅ IMPLEMENTED | ✅ Yes | State store `getWorkspaceState()` | Workspace detail endpoint | |
-| 3 | `listJournalEvents()` | ✅ IMPLEMENTED | ✅ Yes | State store `getJournalEvents()` | EventFeed, journal endpoint | |
-| 4 | `getWorkerContext()` | ✅ IMPLEMENTED | ✅ Yes | Combines workspace + directives + escalations | WorkerContextInspector (via web-server) | |
-| 5 | `getChangedFiles()` | ✅ IMPLEMENTED | ✅ Yes | Worker_completed journal events | File tree builder | |
-| 6 | `getFileTree()` | ✅ IMPLEMENTED | ✅ Yes | Same as getChangedFiles, then builds tree | FileExplorer (bypasses!) | Dashboard reads git directly |
-| 7 | `getCommandHistory()` | ❌ **STUB** | ❌ No | Always returns `[]` | WorkerDetail (missing data) | |
-| 8 | `getLeadDirectives()` | ❌ **STUB** | ❌ No | Always returns `[]` | LeadEscalationPanel, WorkerContextInspector | |
-| 9 | `getLeadEscalations()` | ❌ **STUB** | ❌ No | Always returns `[]` | LeadEscalationPanel, WorkerContextInspector | |
-| 10 | `getFinalValidationStatus()` | ❌ **STUB** | ❌ No | Returns default `{required, passed, blocked}` | Validation panels | |
-| 11 | `getFileContent()` | ❌ **STUB** | ❌ No | Always returns `null` | File preview (missing) | |
-| 12 | `getFileDiff()` | ❌ **STUB** | ❌ No | Always returns `[]` | DiffViewer (bypasses!) | Dashboard reads git directly |
+| 1 | `getPlanSummary()` | ✅ IMPLEMENTED | ✅ Yes | State store `getPlanExecutionSummary()` or `plan_started` event | Plan detail endpoint | Fallback returns explicit `dataAvailability: false` instead of fake timestamps |
+| 2 | `getWorkspaceSummary()` | ✅ IMPLEMENTED | ✅ Yes | State store `getWorkspaceState()` or workspace journal events | Workspace detail endpoint | Returns `dataAvailability` on all paths |
+| 3 | `getPlanStats()` | ✅ IMPLEMENTED | ✅ Yes | Computed from journal events | Executions stats endpoint | `dataSource` field indicates events/state-store/unavailable |
+| 4 | `getDependencyGraph()` | ✅ IMPLEMENTED | ✅ Yes | `plan_started` event or reconstructed from workspace events | Workspace DAG view | Returns `dataAvailability.available` with reason when reconstructed |
+| 5 | `listJournalEvents()` | ✅ IMPLEMENTED | ✅ Yes | State store `getJournalEvents()` | EventFeed, journal endpoint | |
+| 6 | `getWorkerContext()` | ✅ IMPLEMENTED | ✅ Yes | Combines workspace + directives + escalations + events | WorkerContextInspector (via web-server) | Enriches with archive data (`files-touched.json`, `packet.md`) when `readArchiveFile` provided |
+| 7 | `getCommandHistory()` | ✅ IMPLEMENTED | ✅ Yes | Extracted from `command_started`/`command_finished` journal events | WorkerDetail | Pairs started/finished events by command+cwd+runId; sorted chronologically |
+| 8 | `getLeadDirectives()` | ✅ IMPLEMENTED | ✅ Yes | Extracted from `lead_agent_directive_issued` journal events | LeadEscalationPanel, WorkerContextInspector | Tracks `acknowledged` status via `lead_agent_directive_acknowledged` events |
+| 9 | `getLeadEscalations()` | ✅ IMPLEMENTED | ✅ Yes | Extracted from `lead_agent_escalation_initiated` journal events | LeadEscalationPanel, WorkerContextInspector | Resolved status tracked via `lead_agent_escalation_resolved` events |
+| 10 | `getFinalValidationStatus()` | ✅ IMPLEMENTED | ✅ Yes | Extracted from `governance_*` journal events | Validation panels | Checks latest governance: `approved`/`rejected`/`escalated` |
+| 11 | `getChangedFiles()` | ✅ IMPLEMENTED | ✅ Yes | Extracts `changedFiles` from `worker_completed` journal events | File tree builder | |
+| 12 | `getFileTree()` | ✅ IMPLEMENTED | ✅ Yes | Calls `getChangedFiles()` then `buildFileTreeFromEntries()` | FileExplorer (bypasses!) | Dashboard reads git directly; supports `flat` option |
+| 13 | `getFileContent()` | ✅ WITH FALLBACK | ⚠️ Conditional | Returns null by default; tries `readArchiveFile()` when available | File preview | Requires `readArchiveFile` in state store for archive-based content; docs explain worktree endpoint fallback |
+| 14 | `getFileDiff()` | ✅ WITH FALLBACK | ⚠️ Conditional | Returns [] by default; tries `diff.patch` via `readArchiveFile()` when available | DiffViewer (bypasses!) | Supports per-file extraction from unified diff; `maxDiffLines` truncation |
+| 15 | `getTranscript()` | ✅ IMPLEMENTED | ✅ Yes | Backed by `getTranscriptEvents()` or fallback journal event reconstruction | Transcript panels | 36 event types mapped; fallback generates summaries for all event types |
+| 16 | `getArtifacts()` | ✅ WITH FALLBACK | ⚠️ Conditional | Returns [] by default; tries `listArchiveArtifacts()` when available | Artifact browser | Requires `listArchiveArtifacts` in state store for archive listing |
 
 ### 9.2 Summary
 
 ```
-Read model methods:          12
-Working:                      6  (50%)
-Stubs:                        6  (50%)
-Bypassed by dashboard:        2  (getFileTree, getFileDiff — dashboard uses git directly)
-Consumer components affected: 6+ (WorkerDetail, LeadEscalationPanel, WorkerContextInspector, 
-                                   FileExplorer, DiffViewer, validation panels)
+Read model methods:          16
+Fully working (events):      12 (75%)
+Conditional (archive):        3 (19%)  — getFileContent, getFileDiff, getArtifacts
+Fully unavailable:             0
+Data availability sentinel:   All methods return explicit unavailable markers
 ```
 
-### 9.3 What's Needed to Fix Each Stub
+### 9.3 State Store Interface for Archive Access (P42.01)
 
-| Stub Method | What's Needed |
-|---|---|
-| `getCommandHistory()` | State store must expose command history (from command events or execution archive) |
-| `getLeadDirectives()` | State store must expose lead directive events as a queryable collection |
-| `getLeadEscalations()` | State store must expose lead escalation events as a queryable collection |
-| `getFinalValidationStatus()` | State store must expose completion gate state |
-| `getFileContent()` | Need file system access or archive retrieval (injected via adapter) |
-| `getFileDiff()` | Need git diff computation or snapshot comparison |
+Two optional methods were added to the state store interface to enable
+archive-based read model methods without coupling the read model to filesystem I/O:
+
+| Method | Enables | Description |
+|---|---|---|
+| `listArchiveArtifacts(planExecId)` | `getArtifacts()` | Lists files under `.pi/executions/{planExecId}/` with path, size, modifiedAt |
+| `readArchiveFile(planExecId, path)` | `getFileContent()`, `getFileDiff()`, `getWorkerContext()` | Reads a single archived file; path is sandboxed to archive directory |
+
+When these methods are not provided, the read model methods return unavailable
+states with documentation explaining the missing data source and how to enable it.
 
 ---
 
@@ -958,10 +963,10 @@ system_info             │ System      │ SystemInfoPayload
         State Store Journal
                 │
                 ▼
-        read model (stubs!)  ←─ OR ──→  worker-context-routes (reads state store directly)
+        read model (implemented)  ←─ OR ──→  worker-context-routes (reads state store directly)
                 │                                  │
                 ▼                                  ▼
-        (empty data)                        LeadEscalationPanel
+        (event-backed data)                 LeadEscalationPanel
                                             WorkerContextInspector
 ```
 
@@ -970,8 +975,8 @@ system_info             │ System      │ SystemInfoPayload
 | Source | Implementation | Event Names | Read Model Method | Dashboard Consumer | Status |
 |---|---|---|---|---|---|
 | Lead diagnosis | BrainBoundary + Lead Agent (coding-agent) | `lead_agent_review_started` | `getWorkerContext()` | WorkerContextInspector | 🟡 Diagnosis not surfaced as structured data |
-| Directive creation | `BrainBoundary.createDirectiveProposal()` | `lead_agent_directive_issued` | `getLeadDirectives()` (STUB) | LeadEscalationPanel, WorkerContextInspector | 🟡 Web-server reads state store directly |
-| Escalation creation | `BrainBoundary.createEscalationProposal()` | `lead_agent_escalation_initiated` | `getLeadEscalations()` (STUB) | LeadEscalationPanel, WorkerContextInspector | 🟡 Web-server reads state store directly |
+| Directive creation | `BrainBoundary.createDirectiveProposal()` | `lead_agent_directive_issued` | `getLeadDirectives()` (✅ IMPLEMENTED) | LeadEscalationPanel, WorkerContextInspector | Extracts from journal events; tracks acknowledged status |
+| Escalation creation | `BrainBoundary.createEscalationProposal()` | `lead_agent_escalation_initiated` | `getLeadEscalations()` (✅ IMPLEMENTED) | LeadEscalationPanel, WorkerContextInspector | Extracts from journal events; tracks resolved status |
 | Retry budget | `LeadDirectiveView.retryBudget` field | `lead_agent_directive_issued` | Contained in directive view | LeadEscalationPanel | ✅ But not tracked in read model |
 | Escalation resolution | `handleExecutionCommand` + human-directive-routes | `lead_agent_escalation_resolved` | POST endpoint resolves via ES | LeadEscalationPanel | ✅ |
 
@@ -1080,16 +1085,18 @@ system_info             │ System      │ SystemInfoPayload
 
 ## 17. Fake / Static / Stub Data Inventory
 
-### 17.1 Read Model Stubs (in execution-service/query-handler.ts)
+### 17.1 Read Model State (execution-service/query-handler.ts) — P42.01 Hardened
 
-| # | Stub Method | Returns | Consumer Panel(s) | Impact | Priority |
+| # | Method | Status | Returns When Unavailable | Consumer Panel(s) | Notes |
 |---|---|---|---|---|---|
-| 1 | `getCommandHistory()` | `[]` (empty array) | WorkerDetail — can't show command history | Worker detail shows no commands | 🔴 HIGH |
-| 2 | `getLeadDirectives()` | `[]` (empty array) | LeadEscalationPanel, WorkerContextInspector — no directives | Lead agent directives invisible | 🔴 HIGH |
-| 3 | `getLeadEscalations()` | `[]` (empty array) | LeadEscalationPanel, WorkerContextInspector — no escalations | Escalations invisible | 🔴 HIGH |
-| 4 | `getFinalValidationStatus()` | Default stub `{required:true, passed:null, blocked:false}` | Validation panels | Status is always indeterminate | 🟡 MEDIUM |
-| 5 | `getFileContent()` | `null` | File preview | File content not available through read model | 🟡 MEDIUM |
-| 6 | `getFileDiff()` | `[]` (empty array) | DiffViewer — must get diffs from git directly | Read model bypassed | 🟡 MEDIUM |
+| 1 | `getCommandHistory()` | ✅ FIXED | `[]` (empty array, no data) | WorkerDetail | Extracted from `command_started`/`command_finished` journal events |
+| 2 | `getLeadDirectives()` | ✅ FIXED | `[]` (empty array, no events) | LeadEscalationPanel, WorkerContextInspector | Extracted from `lead_agent_directive_issued` events; tracks acknowledged status |
+| 3 | `getLeadEscalations()` | ✅ FIXED | `[]` (empty array, no events) | LeadEscalationPanel, WorkerContextInspector | Extracted from `lead_agent_escalation_initiated` events; tracks resolved status |
+| 4 | `getFinalValidationStatus()` | ✅ FIXED | `{required:true, passed:null, blocked:false, blockReasons:[]}` | Validation panels | Extracted from `governance_*` journal events |
+| 5 | `getFileContent()` | 🟡 CONDITIONAL | `null` (default); archive content when `readArchiveFile` provided | File preview | Archive-backed when state store implements `readArchiveFile` |
+| 6 | `getFileDiff()` | 🟡 CONDITIONAL | `[]` (default); `diff.patch` content when `readArchiveFile` provided | DiffViewer | Supports per-file extraction and `maxDiffLines` truncation |
+| 7 | `getArtifacts()` | 🟡 CONDITIONAL | `[]` (default); archive listing when `listArchiveArtifacts` provided | Artifact browser | Archive-backed when state store implements `listArchiveArtifacts` |
+| 8 | `getTranscript()` | ✅ FIXED | `[]` (empty array, no events) | Transcript panels | Backed by `getTranscriptEvents()` or journal event reconstruction with 36 event type mappings |
 
 ### 17.2 Missing Archive Artifacts (in worker-context-routes.ts)
 

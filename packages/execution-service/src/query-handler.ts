@@ -16,7 +16,6 @@ import type {
 	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
-	DataAvailability,
 	DependencyGraphNode,
 	DependencyGraphView,
 	ExecutionReadModel,
@@ -129,6 +128,138 @@ function extractCommandHistoryFromEvents(events: JournalEventEnvelope[]): Comman
 /**
  * Extract Lead Agent directives from lead_agent_directive_issued journal events.
  */
+/**
+ * Map a journal event type to a transcript event type for fallback reconstruction.
+ * Only events with a meaningful transcript representation are mapped; workspace
+ * lifecycle, worker, command, and governance events produce transcript entries.
+ */
+function mapEventTypeToTranscriptType(eventType: string): string {
+	const typeMap: Record<string, string> = {
+		workspace_pending: "workspace_start",
+		workspace_running: "worker_status",
+		workspace_completed: "workspace_complete",
+		workspace_failed: "workspace_failed",
+		workspace_blocked: "workspace_blocked",
+		workspace_cancelled: "worker_status",
+		workspace_skipped: "worker_status",
+		workspace_timed_out: "workspace_failed",
+		workspace_paused: "worker_status",
+		worker_started: "workspace_start",
+		worker_completed: "workspace_complete",
+		worker_failed: "workspace_failed",
+		worker_cancelled: "worker_status",
+		worker_timed_out: "workspace_failed",
+		command_started: "tool_call",
+		command_finished: "tool_call",
+		governance_check_started: "validation",
+		governance_approved: "validation",
+		governance_rejected: "blocker",
+		governance_escalated: "blocker",
+		lead_agent_review_started: "blocker",
+		lead_agent_directive_issued: "blocker",
+		lead_agent_escalation_initiated: "blocker",
+		brain_proposed: "worker_decision_summary",
+		brain_approved: "validation",
+		brain_rejected: "blocker",
+		human_directive_issued: "blocker",
+		human_directive_acknowledged: "worker_status",
+		human_intervention_requested: "blocker",
+		plan_started: "plan_summary",
+		plan_completed: "plan_summary",
+		plan_failed: "plan_summary",
+		plan_paused: "plan_summary",
+		plan_resumed: "plan_summary",
+		plan_cancelled: "plan_summary",
+		plan_stopped: "plan_summary",
+	};
+	return typeMap[eventType] ?? "worker_status";
+}
+
+/**
+ * Build a human-readable summary string for a journal event,
+ * used in the fallback transcript reconstruction path.
+ */
+function buildTranscriptEventSummary(event: JournalEventEnvelope): string {
+	const payload = event.payload as Record<string, unknown> | null;
+
+	switch (event.eventType) {
+		case "workspace_completed":
+			return "Workspace completed successfully";
+		case "workspace_failed":
+			return `Workspace failed: ${(payload?.error as string) ?? "unknown error"}`;
+		case "workspace_blocked":
+			return `Workspace blocked: ${(payload?.reason as string) ?? "unknown"}`;
+		case "workspace_running":
+			return "Workspace started execution";
+		case "workspace_pending":
+			return "Workspace pending";
+		case "workspace_cancelled":
+			return `Workspace cancelled: ${(payload?.reason as string) ?? "no reason"}`;
+		case "workspace_skipped":
+			return "Workspace skipped";
+		case "workspace_timed_out":
+			return `Workspace timed out: ${(payload?.timeoutMs as number) ?? "unknown"}ms`;
+		case "workspace_paused":
+			return "Workspace paused";
+		case "worker_started":
+			return `Worker started (attempt ${(payload?.attemptNumber as number) ?? "?"})`;
+		case "worker_completed":
+			return `Worker completed: ${(payload?.verdict as string) ?? "unknown"}`;
+		case "worker_failed":
+			return `Worker failed: ${(payload?.error as string) ?? "unknown error"}`;
+		case "worker_cancelled":
+			return "Worker cancelled";
+		case "worker_timed_out":
+			return `Worker timed out after ${(payload?.timeoutMs as number) ?? "unknown"}ms`;
+		case "command_started":
+			return `Command: ${(payload?.command as string) ?? "unknown"}`;
+		case "command_finished":
+			return `Command finished (exit ${(payload?.exitCode as number) ?? "?"})`;
+		case "governance_check_started":
+			return "Governance check started";
+		case "governance_approved":
+			return "Governance approved";
+		case "governance_rejected":
+			return `Governance rejected: ${(payload?.reason as string) ?? "no reason"}`;
+		case "governance_escalated":
+			return `Governance escalated: ${(payload?.reason as string) ?? "no reason"}`;
+		case "lead_agent_review_started":
+			return "Lead Agent review started";
+		case "lead_agent_directive_issued":
+			return `Directive: ${(payload?.summary as string) ?? ""}`;
+		case "lead_agent_escalation_initiated":
+			return `Escalation: ${(payload?.summary as string) ?? ""}`;
+		case "brain_proposed":
+			return `Brain proposal: ${(payload?.summary as string) ?? ""}`;
+		case "brain_approved":
+			return "Brain proposal approved";
+		case "brain_rejected":
+			return "Brain proposal rejected";
+		case "human_directive_issued":
+			return `Human directive: ${(payload?.directive as string) ?? ""}`;
+		case "human_directive_acknowledged":
+			return "Human directive acknowledged";
+		case "human_intervention_requested":
+			return `Human intervention: ${(payload?.action as string) ?? ""}`;
+		case "plan_started":
+			return "Plan started";
+		case "plan_completed":
+			return "Plan completed";
+		case "plan_failed":
+			return "Plan failed";
+		case "plan_paused":
+			return "Plan paused";
+		case "plan_resumed":
+			return "Plan resumed";
+		case "plan_cancelled":
+			return "Plan cancelled";
+		case "plan_stopped":
+			return "Plan stopped";
+		default:
+			return `Event: ${event.eventType}`;
+	}
+}
+
 function extractDirectivesFromEvents(events: JournalEventEnvelope[]): LeadDirectiveView[] {
 	const directives: LeadDirectiveView[] = [];
 	const acknowledgedIds = new Set<string>();
@@ -557,6 +688,53 @@ function extractDependencyGraphFromEvents(
 // Factory
 // ---------------------------------------------------------------------------
 
+/**
+ * Extract a single file's diff from a unified diff patch.
+ * Returns a FileDiffView for the matching file, or null if not found.
+ */
+function extractFileDiffFromPatch(patchContent: string, targetFilePath: string): FileDiffView | null {
+	const lines = patchContent.split("\n");
+	let currentFile: string | null = null;
+	let inTarget = false;
+	const diffLines: string[] = [];
+	let additions = 0;
+	let deletions = 0;
+
+	for (const line of lines) {
+		// Track which file we're in based on diff headers
+		const fileHeaderMatch = line.match(/^diff --git a\/(.*) b\/(.*)/);
+		if (fileHeaderMatch) {
+			currentFile = fileHeaderMatch[2];
+			inTarget = currentFile === targetFilePath;
+			if (inTarget) {
+				diffLines.push(line);
+			}
+			continue;
+		}
+
+		if (inTarget) {
+			diffLines.push(line);
+			if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+			if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+		}
+	}
+
+	if (!inTarget || diffLines.length === 0) return null;
+
+	return {
+		path: targetFilePath,
+		status: "modified",
+		diff: diffLines.join("\n"),
+		additions,
+		deletions,
+		truncated: false,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
 export function createExecutionReadModel(stateStore: {
 	getPlanExecutionSummary?(planExecutionId: string): Promise<PlanExecutionSummary | null>;
 	getWorkspaceState?(
@@ -579,6 +757,27 @@ export function createExecutionReadModel(stateStore: {
 			workspaceId?: string;
 		},
 	): Promise<JournalEventEnvelope[]>;
+	/**
+	 * Optional transcript store for reading workspace transcript events.
+	 * If provided, enables the getTranscript() read model method.
+	 */
+	getTranscriptEvents?(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]>;
+	/**
+	 * Optional: list artifact files from the execution archive.
+	 * If provided, enables getArtifacts() to return real data.
+	 * Each entry is a relative path within .pi/executions/{planExecId}/.
+	 */
+	listArchiveArtifacts?(
+		planExecutionId: string,
+	): Promise<Array<{ path: string; size: number; modifiedAt: string | null }>>;
+	/**
+	 * Optional: read a file from the execution archive.
+	 * If provided, enables getFileContent() and getFileDiff() to
+	 * read from archived workspace files (e.g. diff.patch, packet.md).
+	 * The artifactPath must be a relative, sandboxed path within
+	 * the execution archive directory.
+	 */
+	readArchiveFile?(planExecutionId: string, artifactPath: string): Promise<string | null>;
 }): ExecutionReadModel {
 	/**
 	 * Fetch all journal events for a plan execution, with caching for shared use.
@@ -608,27 +807,41 @@ export function createExecutionReadModel(stateStore: {
 			if (planStarted?.payload) {
 				const p = planStarted.payload as Record<string, unknown>;
 				const planCompleted = events.find((e) => e.eventType === "plan_completed");
+				const planFailed = events.find((e) => e.eventType === "plan_failed");
+				const planCancelled = events.find((e) => e.eventType === "plan_cancelled");
+				const planStopped = events.find((e) => e.eventType === "plan_stopped");
+				const terminalEvent = planCompleted ?? planFailed ?? planCancelled ?? planStopped;
 				return {
 					id: planExecutionId,
 					projectId: (p.projectId as string) ?? "default",
 					phase: (p.phase as string) ?? "unknown",
 					title: (p.title as string) ?? "Unknown Plan",
-					status: planCompleted ? "complete" : "running",
+					status: terminalEvent ? terminalEvent.eventType.replace("plan_", "") : "running",
 					startedAt: planStarted.createdAt,
-					completedAt: planCompleted?.createdAt ?? null,
+					completedAt: terminalEvent?.createdAt ?? null,
+					dataAvailability: {
+						available: true,
+						reason: "Reconstructed from plan_started journal event; state store summary was not available.",
+					},
 				};
 			}
 
+			// No plan data available from any source.
+			// Return explicit unavailable state so consumers know the data
+			// is a fallback wrapper, not a real plan summary.
 			return {
 				id: planExecutionId,
 				projectId: "default",
 				phase: "unknown",
 				title: "Unknown Plan",
-				status: "running",
-				startedAt: new Date().toISOString(),
+				status: "unknown",
+				startedAt: "",
 				completedAt: null,
-				// NOTE: Data source is journal events -- no plan_started event
-				// found, so fallback values are generic.
+				dataAvailability: {
+					available: false,
+					reason:
+						"No plan_started event or state store summary found. Plan summary cannot be determined from available data sources.",
+				},
 			};
 		},
 
@@ -659,6 +872,7 @@ export function createExecutionReadModel(stateStore: {
 						completedAt: state.completedAt ? new Date(state.completedAt).toISOString() : undefined,
 						error: state.error,
 						reportPath: state.reportPath,
+						dataAvailability: { available: true },
 					};
 			}
 
@@ -721,6 +935,7 @@ export function createExecutionReadModel(stateStore: {
 					startedAt,
 					completedAt: terminalStages.has(latestStage) ? completedAt : undefined,
 					error,
+					dataAvailability: { available: true },
 				};
 			}
 
@@ -730,6 +945,11 @@ export function createExecutionReadModel(stateStore: {
 				workspaceId,
 				stage: "unknown",
 				attempts: 0,
+				dataAvailability: {
+					available: false,
+					reason:
+						"No state store workspace state or journal events found for this workspace. Cannot determine workspace summary.",
+				},
 			};
 		},
 
@@ -781,9 +1001,7 @@ export function createExecutionReadModel(stateStore: {
 
 			// Log summary: extract last meaningful output from command events
 			let logSummary: string | undefined;
-			const outputEvents = wsEvents
-				.filter((e) => e.eventType === "command_finished" && e.payload)
-				.slice(-3);
+			const outputEvents = wsEvents.filter((e) => e.eventType === "command_finished" && e.payload).slice(-3);
 			if (outputEvents.length > 0) {
 				const summaries = outputEvents
 					.map((e) => (e.payload as Record<string, unknown>).outputSummary as string | undefined)
@@ -791,6 +1009,32 @@ export function createExecutionReadModel(stateStore: {
 				if (summaries.length > 0) {
 					logSummary = summaries.join("\n");
 				}
+			}
+
+			// Try to enrich with archive data if available
+			let touchedFiles: Array<{ path: string; change: "created" | "modified" | "deleted" }> = [];
+			let rolePacketContent: string | undefined;
+
+			if (stateStore.readArchiveFile) {
+				// Try loading files-touched.json from archive
+				const filesTouchedRaw = await stateStore.readArchiveFile(
+					planExecutionId,
+					`workspaces/${workspaceId}/files-touched.json`,
+				);
+				if (filesTouchedRaw !== null) {
+					try {
+						touchedFiles = JSON.parse(filesTouchedRaw) as Array<{
+							path: string;
+							change: "created" | "modified" | "deleted";
+						}>;
+					} catch {
+						// Invalid JSON, leave as empty
+					}
+				}
+
+				// Try loading packet.md from archive
+				const rawPacket = await stateStore.readArchiveFile(planExecutionId, `workspaces/${workspaceId}/packet.md`);
+				rolePacketContent = rawPacket ?? undefined;
 			}
 
 			return {
@@ -803,10 +1047,20 @@ export function createExecutionReadModel(stateStore: {
 				completedAt: summary.completedAt,
 				goal,
 				role,
-				// Role packet and context packet summary require filesystem access
-				// to execution archive (see worker-context-routes.ts).
+				rolePacketContent,
+				// Build a brief context summary from the packet if available
+				contextPacketSummary: rolePacketContent
+					? rolePacketContent
+							.split("\n")
+							.filter((l) => l.trim().length > 0)
+							.slice(0, 10)
+							.join("\n")
+					: undefined,
+				// Allowed files are not tracked in the read model directly.
+				// The web-server worker-context-routes.ts extracts them from
+				// the workspace definition in the state store.
 				allowedFiles: [],
-				touchedFiles: [],
+				touchedFiles,
 				lastCommand,
 				logSummary,
 				activeDirectives: directives.filter((d) => d.status === "issued" || d.status === "acknowledged"),
@@ -851,9 +1105,7 @@ export function createExecutionReadModel(stateStore: {
 				const workspaceEvents = await stateStore.getJournalEvents(planExecutionId, {
 					workspaceId,
 				});
-				governanceEvents.push(
-					...workspaceEvents.filter((e) => governanceTypes.includes(e.eventType)),
-				);
+				governanceEvents.push(...workspaceEvents.filter((e) => governanceTypes.includes(e.eventType)));
 			}
 
 			if (governanceEvents.length === 0) {
@@ -949,10 +1201,30 @@ export function createExecutionReadModel(stateStore: {
 		},
 
 		async getFileContent(
-			_planExecutionId: string,
-			_workspaceId: string,
-			_filePath: string,
+			planExecutionId: string,
+			workspaceId: string,
+			filePath: string,
 		): Promise<FileContentView | null> {
+			// Try to read file content from the execution archive via the state store.
+			if (stateStore.readArchiveFile) {
+				// Construct the workspace artifact path: workspaces/{workspaceId}/{filePath}
+				// To keep path sandboxing, only allow reading within the workspace directory.
+				const safePath = `workspaces/${workspaceId}/${filePath}`;
+				if (safePath.includes("..") || safePath.includes("~")) {
+					return null;
+				}
+				const content = await stateStore.readArchiveFile(planExecutionId, safePath);
+				if (content !== null) {
+					return {
+						path: filePath,
+						content,
+						isBinary: false,
+						size: Buffer.byteLength(content, "utf-8"),
+						language: getFileExt(filePath) || undefined,
+					};
+				}
+			}
+
 			// File content retrieval requires filesystem access to worktree
 			// directories or a snapshot store (ISnapshotArtifactStore). The
 			// journal event stream does not contain file content.
@@ -963,18 +1235,61 @@ export function createExecutionReadModel(stateStore: {
 			//   b) Implement file content retrieval using the snapshot artifact store
 			//      ISnapshotArtifactStore.get(planExecId, workspaceId, attemptNo)
 			//
-			// The ExecutionReadModel does not have filesystem or snapshot store access.
-			// See worker-context-routes.ts for the web-server implementation that
-			// provides context data including file access via the execution archive.
+			// To enable file content through the read model, provide
+			// readArchiveFile() in the state store implementation.
 			return null;
 		},
 
 		async getFileDiff(
-			_planExecutionId: string,
-			_workspaceId: string,
-			_filePath?: string,
-			_options?: FileTreeQuery,
+			planExecutionId: string,
+			workspaceId: string,
+			filePath?: string,
+			options?: FileTreeQuery,
 		): Promise<FileDiffView[]> {
+			// Try to read the diff.patch from the execution archive.
+			if (stateStore.readArchiveFile) {
+				const diffPath = `workspaces/${workspaceId}/diff.patch`;
+				const diffContent = await stateStore.readArchiveFile(planExecutionId, diffPath);
+				if (diffContent !== null) {
+					const lines = diffContent.split("\n");
+					let additions = 0;
+					let deletions = 0;
+					for (const line of lines) {
+						if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+						if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+					}
+
+					// Apply maxDiffLines truncation
+					const maxLines = options?.maxDiffLines;
+					const truncated = maxLines !== undefined && lines.length > maxLines;
+					const truncatedDiff = truncated ? lines.slice(0, maxLines).join("\n") + "\n... (truncated)" : diffContent;
+
+					if (filePath) {
+						// Return only the diff for a specific file.
+						// Parse the unified diff and extract the relevant hunk.
+						const fileDiff = extractFileDiffFromPatch(diffContent, filePath);
+						if (!fileDiff) return [];
+						// Truncate individual file diff
+						const fileLines = fileDiff.diff.split("\n");
+						if (maxLines !== undefined && fileLines.length > maxLines) {
+							fileDiff.diff = fileLines.slice(0, maxLines).join("\n") + "\n... (truncated)";
+							fileDiff.truncated = true;
+						}
+						return [fileDiff];
+					}
+					return [
+						{
+							path: `workspaces/${workspaceId}/diff.patch`,
+							status: "modified",
+							diff: truncatedDiff,
+							additions,
+							deletions,
+							truncated,
+						},
+					];
+				}
+			}
+
 			// Diff retrieval requires git access or pre/post snapshot pairs
 			// from the snapshot artifact store (ISnapshotArtifactStore). The
 			// journal event stream does not contain diff content.
@@ -987,8 +1302,34 @@ export function createExecutionReadModel(stateStore: {
 			//   c) Implement diff computation using snapshot artifact store pairs
 			//      computeSnapshotDiff(pre, post) from @earendil-works/pi-execution-core
 			//
-			// The ExecutionReadModel does not have git or snapshot store access.
+			// To enable diff through the read model, provide
+			// readArchiveFile() in the state store implementation.
 			return [];
+		},
+
+		// -------------------------------------------------------------------
+		// Transcript
+		// -------------------------------------------------------------------
+
+		async getTranscript(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]> {
+			if (stateStore.getTranscriptEvents) {
+				return stateStore.getTranscriptEvents(planExecutionId, workspaceId);
+			}
+			// Fallback: try to reconstruct from journal events
+			// by filtering worker-level system events and creating
+			// a minimal transcript view. This is a best-effort reconstruction
+			// since the full transcript pipeline requires a proper transcript store.
+			const events = await getEvents(planExecutionId);
+			const wsEvents = events.filter((e) => e.workspaceId === workspaceId);
+			if (wsEvents.length === 0) return [];
+
+			return wsEvents.map((e) => ({
+				type: mapEventTypeToTranscriptType(e.eventType) as WorkerTranscriptEvent["type"],
+				timestamp: new Date(e.createdAt).getTime(),
+				workspaceId: e.workspaceId ?? workspaceId,
+				summary: buildTranscriptEventSummary(e),
+				data: (e.payload as Record<string, unknown>) ?? undefined,
+			}));
 		},
 
 		// -------------------------------------------------------------------
@@ -996,6 +1337,17 @@ export function createExecutionReadModel(stateStore: {
 		// -------------------------------------------------------------------
 
 		async getArtifacts(planExecutionId: string): Promise<ArtifactEntry[]> {
+			// Try to list artifacts from the execution archive via the state store.
+			if (stateStore.listArchiveArtifacts) {
+				const archiveArtifacts = await stateStore.listArchiveArtifacts(planExecutionId);
+				return archiveArtifacts.map((a) => ({
+					path: a.path,
+					size: a.size,
+					modifiedAt: a.modifiedAt,
+					dataAvailability: { available: true },
+				}));
+			}
+
 			// Artifact listing requires filesystem access to the execution
 			// archive directory (.pi/executions/{planExecId}/). The journal
 			// event stream does not contain artifact metadata.
@@ -1006,6 +1358,9 @@ export function createExecutionReadModel(stateStore: {
 			// which provides sandboxed listing with path validation.
 			//
 			// See artifact-routes.ts for the web-server implementation.
+			//
+			// To enable artifact listing through the read model, provide
+			// listArchiveArtifacts() in the state store implementation.
 			return [];
 		},
 	};

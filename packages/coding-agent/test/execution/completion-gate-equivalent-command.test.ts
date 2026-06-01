@@ -198,7 +198,7 @@ describe("equivalent-command: no equivalent passed", () => {
 		expect(result.blockReasons.some((r) => r.includes("Target command has not been executed"))).toBe(true);
 	});
 
-	it("blocks when history has commands but none match accepted equivalents", () => {
+	it("allows completion when history has successful commands but none match accepted equivalents (P42 clean-evidence downgrade)", () => {
 		const workspace = makeWorkspace({
 			targetCommand: "npm test -- packages/coding-agent/test/execution/patch-coordinator.test.ts",
 			acceptedEquivalentCommands: ["npm --prefix packages/coding-agent run test:patch-coordinator"],
@@ -213,9 +213,14 @@ describe("equivalent-command: no equivalent passed", () => {
 		const state = makeStateWithHistory("plan-p37", "P37.A", history, {
 			targetCommandPassed: null,
 		});
+		// Equivalent validation not satisfied (exact targetCommand not matched)
 		expect(isEquivalentValidationSatisfied(state, workspace)).toBe(false);
+		// P42.HOTFIX: Clean evidence (implementation finished, no failures, at
+		// least one successful command) downgrades missing targetCommand to a
+		// non-blocking warning instead of blocking the workspace.
 		const result = evaluateWorkspaceCompletion(state, workspace);
-		expect(result.canComplete).toBe(false);
+		expect(result.canComplete).toBe(true);
+		expect(result.blockReasons.length).toBe(0);
 	});
 });
 

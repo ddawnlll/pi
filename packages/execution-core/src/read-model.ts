@@ -21,6 +21,8 @@
  *   - Stats aggregation requires event counting from journal
  */
 
+import type { WorkerTranscriptEvent } from "./worker-transcript.js";
+
 // ---------------------------------------------------------------------------
 // Data Availability Sentinel
 // ---------------------------------------------------------------------------
@@ -49,6 +51,8 @@ export interface PlanExecutionSummary {
 	status: string;
 	startedAt: string;
 	completedAt: string | null;
+	/** Whether this data is backed by real sources or fallback defaults */
+	dataAvailability?: DataAvailability;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +165,8 @@ export interface WorkspaceExecutionSummary {
 	completedAt?: string;
 	error?: string;
 	reportPath?: string;
+	/** Whether this data is backed by real sources or fallback defaults */
+	dataAvailability?: DataAvailability;
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +590,27 @@ export interface ExecutionReadModel {
 		filePath?: string,
 		options?: FileTreeQuery,
 	): Promise<FileDiffView[]>;
+
+	// -----------------------------------------------------------------------
+	// Transcript
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get transcript events for a workspace execution.
+	 * Transcript events are sanitized, UI-safe event summaries derived from
+	 * the raw journal events emitted during worker execution.
+	 *
+	 * Transcripts are persisted by IWorkerTranscriptStore implementations
+	 * (e.g., ndjson files under the execution archive, or in-memory store).
+	 *
+	 * Returns an empty array when no transcript events exist for the given
+	 * workspace (no execution data yet, or transcript store unavailable).
+	 *
+	 * NOTE: This method requires a backing IWorkerTranscriptStore. If the
+	 * read model was not constructed with a transcript store, this method
+	 * returns an empty array.
+	 */
+	getTranscript(planExecutionId: string, workspaceId: string): Promise<WorkerTranscriptEvent[]>;
 
 	// -----------------------------------------------------------------------
 	// Artifacts

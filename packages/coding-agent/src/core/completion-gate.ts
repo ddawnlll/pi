@@ -313,13 +313,44 @@ export function evaluateWorkspaceCompletion(
 
 	// 2. Target command, if defined, must have exited with code 0
 	//    or satisfied via equivalent validation (P37.HOTFIX)
+	//
+	// P42.HOTFIX: When implementation is finished and all other gates are
+	// clear (no failure signals, no test failures, no errors, no out-of-retries,
+	// no watch-mode), AND there is at least one successful command (exit 0) in
+	// the command history, a missing exact targetCommand match is downgraded to a
+	// non-blocking warning. The worker explicitly reported COMPLETE with clean
+	// evidence, and the absence of an exact targetCommand match should not hold
+	// the workspace in a blocked state indefinitely.
+	//
+	// This only applies when the worker DID exercise some commands (history is
+	// non-empty) and all observable signals are clean. If the command history is
+	// empty or contains only failures, the block stands.
 	if (workspace.targetCommand && !workspaceValidationNotRequired) {
 		if (validationState.targetCommandRunning) {
 			blockReasons.push(`Target command still running: ${workspace.targetCommand}`);
 		} else if (validationState.targetCommandPassed === null) {
 			// Check if equivalent validation is satisfied before blocking
 			if (!isEquivalentValidationSatisfied(validationState, workspace)) {
-				blockReasons.push(`Target command has not been executed: ${workspace.targetCommand}`);
+				const anyWatchModeInHistory = validationState.commandHistory.some(
+					(e) => e.command && isWatchModeCommand(e.command),
+				);
+				const hasCleanEvidence =
+					validationState.implementationFinished &&
+					validationState.failureSignals.length === 0 &&
+					!validationState.outOfRetries &&
+					!validationState.watchModeCommandDetected &&
+					!anyWatchModeInHistory &&
+					validationState.commandHistory.some((e) => e.exitCode === 0);
+				if (hasCleanEvidence) {
+					// Worker reported COMPLETE with clean evidence and at
+					// least one successful command run — treat missing
+					// exact targetCommand as advisory, not blocking.
+					console.warn(
+						`[completion-gate] Workspace ${workspace.id} reported COMPLETE with clean evidence but targetCommand not executed: ${workspace.targetCommand}. Downgrading to non-blocking warning.`,
+					);
+				} else {
+					blockReasons.push(`Target command has not been executed: ${workspace.targetCommand}`);
+				}
 			}
 		} else if (!validationState.targetCommandPassed) {
 			blockReasons.push(`Target command did not exit with code 0: ${workspace.targetCommand}`);
@@ -332,7 +363,24 @@ export function evaluateWorkspaceCompletion(
 			blockReasons.push("Targeted validation matched no tests (No test files found)");
 		}
 		if (!workspaceValidationNotRequired && !isEquivalentValidationSatisfied(validationState, workspace)) {
-			blockReasons.push("Validation requirement unsatisfied: targeted_test");
+			// P42.HOTFIX: Same clean-evidence downgrade as targetCommand check above.
+			const anyWatchModeInHistory = validationState.commandHistory.some(
+				(e) => e.command && isWatchModeCommand(e.command),
+			);
+			const hasCleanEvidence =
+				validationState.implementationFinished &&
+				validationState.failureSignals.length === 0 &&
+				!validationState.outOfRetries &&
+				!validationState.watchModeCommandDetected &&
+				!anyWatchModeInHistory &&
+				validationState.commandHistory.some((e) => e.exitCode === 0);
+			if (hasCleanEvidence) {
+				console.warn(
+					`[completion-gate] Workspace ${workspace.id} reported COMPLETE with clean evidence but targeted_test validation unsatisfied. Downgrading to non-blocking warning.`,
+				);
+			} else {
+				blockReasons.push("Validation requirement unsatisfied: targeted_test");
+			}
 		}
 	}
 

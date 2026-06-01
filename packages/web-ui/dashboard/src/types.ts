@@ -830,6 +830,97 @@ export interface MultiPhaseTask {
 	reflection: TaskReflectionSummary | null;
 }
 
+// =============================================================================
+// Task Creation Studio Types (P42)
+// =============================================================================
+
+export type TaskCreationMode = "single" | "bulk_plans";
+
+export type BulkCreateStrategy =
+	| "one_task_per_plan"
+	| "single_task_many_phases";
+
+export type ParseStatus = "ok" | "warning" | "error";
+
+export type ValidationSeverity = "pass" | "warning" | "error" | "blocker";
+
+export type ValidationArea = "parse" | "rename" | "dag" | "schema" | "files" | "validation" | "api";
+
+export interface PlanValidationMessage {
+	id: string;
+	severity: ValidationSeverity;
+	area: ValidationArea;
+	planLocalId?: string;
+	message: string;
+	evidence?: string;
+}
+
+export interface ParsedPlanDraft {
+	localId: string;
+	sourceFileName: string;
+	rawText: string;
+	detectedPlanId?: string;
+	detectedTitle?: string;
+	detectedExecutionClass?: string;
+	detectedWorkspaces: string[];
+	detectedDependencies: string[];
+	detectedAllowedFiles: string[];
+	detectedForbiddenFiles: string[];
+	detectedValidationCommands: string[];
+	detectedReportRequirements: string[];
+	parseStatus: ParseStatus;
+	parseMessages: PlanValidationMessage[];
+}
+
+export interface RenamePreview {
+	originalName: string;
+	newTitle: string;
+	slug: string;
+	conflicts: string[];
+}
+
+export interface ExecutionBatch {
+	id: string;
+	title: string;
+	planLocalIds: string[];
+	canRunInParallel: boolean;
+	reasons: string[];
+}
+
+export interface TaskCreationPreview {
+	strategy: BulkCreateStrategy;
+	safeParallelism: number;
+	hardMaxParallelism: number;
+	batches: ExecutionBatch[];
+	validationMessages: PlanValidationMessage[];
+}
+
+export interface BulkCreateTaskRequest {
+	mode: TaskCreationMode;
+	strategy: BulkCreateStrategy;
+	executionMode: "sequential" | "parallel";
+	safeParallelism: number;
+	plans: Array<{
+		localId: string;
+		title: string;
+		planId: string;
+		sourceFileName: string;
+		rawText: string;
+		dependencies: string[];
+		allowedFiles: string[];
+		forbiddenFiles: string[];
+		validationCommands: string[];
+	}>;
+}
+
+export interface BulkCreateTaskResponse {
+	ok: boolean;
+	createdTasks?: Array<{ id: string; title: string; planId: string }>;
+	warnings?: string[];
+	error?: string;
+	validationMessages?: PlanValidationMessage[];
+}
+
 export interface TimelineEvent {
 	timestamp: number;
 	type: string;
