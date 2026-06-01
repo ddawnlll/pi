@@ -129,6 +129,20 @@ function extractCommandHistoryFromEvents(events: JournalEventEnvelope[]): Comman
  * Extract Lead Agent directives from lead_agent_directive_issued journal events.
  */
 /**
+ * Map plan event types to canonical PlanExecutionSummary status values.
+ */
+const PLAN_STATUS_MAP: Record<string, string> = {
+	plan_completed: "complete",
+	plan_failed: "failed",
+	plan_cancelled: "cancelled",
+	plan_stopped: "stopped",
+	plan_paused: "paused",
+	plan_running: "running",
+	plan_resumed: "running",
+	plan_awaiting_handoff: "awaiting_handoff",
+};
+
+/**
  * Map a journal event type to a transcript event type for fallback reconstruction.
  * Only events with a meaningful transcript representation are mapped; workspace
  * lifecycle, worker, command, and governance events produce transcript entries.
@@ -816,7 +830,7 @@ export function createExecutionReadModel(stateStore: {
 					projectId: (p.projectId as string) ?? "default",
 					phase: (p.phase as string) ?? "unknown",
 					title: (p.title as string) ?? "Unknown Plan",
-					status: terminalEvent ? terminalEvent.eventType.replace("plan_", "") : "running",
+					status: terminalEvent ? (PLAN_STATUS_MAP[terminalEvent.eventType] ?? terminalEvent.eventType.replace("plan_", "")) : "running",
 					startedAt: planStarted.createdAt,
 					completedAt: terminalEvent?.createdAt ?? null,
 					dataAvailability: {

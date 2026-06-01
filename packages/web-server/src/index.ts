@@ -90,6 +90,7 @@ import { registerScaleRoutes } from "./scale-routes.js";
 import { getSettingsManager, getStateStore, getWorkspaceRoot } from "./state-store-provider.js";
 import { createTaskStore } from "./task-store.js";
 import { registerWorkerContextRoutes } from "./worker-context-routes.js";
+import { registerReadModelRoutes } from "./read-model-routes.js";
 
 // ── helpers for enriching workspace data ────────────────────────────────────
 
@@ -4965,6 +4966,12 @@ await registerScaleRoutes(fastify, getPiDir, getWorkspaceRoot, getSettingsManage
 // ---------------------------------------------------------------------------
 
 registerWorkerContextRoutes(fastify, getPiDir, getWorkspaceRoot, getStateStore);
+
+// ---------------------------------------------------------------------------
+// Read Model Routes (P42.01 — Read Model API Endpoints)
+// ---------------------------------------------------------------------------
+
+registerReadModelRoutes(fastify, getStateStore, getWorkspaceRoot);
 
 // ---------------------------------------------------------------------------
 // Human Directive / Intervention Routes (P41.10 — Human Directive / Intervention API)
