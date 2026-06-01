@@ -260,7 +260,9 @@ describe("createExecutionReadModel", () => {
 			const model = createExecutionReadModel({});
 			const summary = await model.getPlanSummary("exec-1");
 			expect(summary.id).toBe("exec-1");
-			expect(summary.status).toBe("running");
+			expect(summary.status).toBe("unknown");
+			expect(summary.dataAvailability).toBeDefined();
+			expect(summary.dataAvailability!.available).toBe(false);
 		});
 
 		it("should still return empty journal events", async () => {

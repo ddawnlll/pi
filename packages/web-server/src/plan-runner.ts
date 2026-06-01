@@ -782,6 +782,14 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		// and return it instead of starting a duplicate.
 		activeExecutions.set(planExecutionId, execution);
 
+		// P42.HOTFIX: Cancel any stale TTL cleanup timer so the
+		// execution is not prematurely dropped from the registry.
+		const staleTimer2 = cleanupTimers.get(planExecutionId);
+		if (staleTimer2) {
+			clearTimeout(staleTimer2);
+			cleanupTimers.delete(planExecutionId);
+		}
+
 		// Write the meta file so recovery can find the correct plan file
 		const planFileNameOnly = planFileName || path.basename(planFilePath);
 		await writeExecutionMeta(workspaceRoot, planExecutionId, {
@@ -2333,6 +2341,14 @@ async function recoverSingleExecution(
 	};
 
 	activeExecutions.set(planExecId, execution);
+
+	// P42.HOTFIX: Cancel any stale TTL cleanup timer from a previous
+	// stop-rerun cycle so the active execution is not prematurely dropped.
+	const staleTimer = cleanupTimers.get(planExecId);
+	if (staleTimer) {
+		clearTimeout(staleTimer);
+		cleanupTimers.delete(planExecId);
+	}
 
 	// Register the workspace root for meta file cleanup
 	executionWorkspaceRoots.set(planExecId, workspaceRoot);

@@ -2296,6 +2296,11 @@ fastify.post<{
 			data: { status: effectiveStatus, resettableCount },
 		});
 
+		// P42.HOTFIX: Clear any stale control request (e.g. "stop" from a
+		// previous run) so the plan-runner loop doesn't immediately kill
+		// the restarted execution.
+		await stateStore.clearControlRequest(planExecId).catch(() => {});
+
 		const continued = await continuePlanExecution(workspaceRoot, projectId, planExecId);
 		if (!continued) {
 			return reply.code(400).send({

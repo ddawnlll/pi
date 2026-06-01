@@ -217,7 +217,7 @@ export class WorkspaceAgentExecutor {
 		this.worktreeConfig = config.worktree;
 		this.timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // 30 minutes
 		this.llmStreamIdleTimeoutMs =
-			config.llmStreamIdleTimeoutMs ?? parsePositiveTimeoutEnv("PI_LLM_STREAM_IDLE_TIMEOUT_MS", 60 * 1000);
+			config.llmStreamIdleTimeoutMs ?? parsePositiveTimeoutEnv("PI_LLM_STREAM_IDLE_TIMEOUT_MS", 300 * 1000);
 		this.firstAgentEventTimeoutMs =
 			config.firstAgentEventTimeoutMs ?? parsePositiveTimeoutEnv("PI_FIRST_AGENT_EVENT_TIMEOUT_MS", 30 * 1000);
 		this.actorEventSink = config.actorEventSink;

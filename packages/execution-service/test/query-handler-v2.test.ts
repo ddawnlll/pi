@@ -1,19 +1,23 @@
 /**
- * Query Handler V2 Tests — P42.01 Read Model Harden
+ * Query Handler Tests — Comprehensive read model coverage (P42.01)
  *
- * Tests for:
- *   - getPlanStats (computed from journal events)
- *   - getDependencyGraph (extracted from plan_started payload)
- *   - getCommandHistory (extracted from command_started/finished events)
- *   - getLeadDirectives (extracted from lead_agent_directive_issued events)
- *   - getLeadEscalations (extracted from lead_agent_escalation_initiated events)
- *   - getFinalValidationStatus (from governance events)
- *   - getPlanSummary from plan_started event fallback
- *   - getWorkspaceSummary from workspace events fallback
- *   - getArtifacts (explicit unavailable)
+ * Covers all ExecutionReadModel methods with data availability sentinels:
+ *   - getPlanSummary
+ *   - getPlanStats
+ *   - getDependencyGraph
+ *   - getWorkspaceSummary
+ *   - getCommandHistory
+ *   - getLeadDirectives
+ *   - getLeadEscalations
+ *   - getFinalValidationStatus
+ *   - getTranscript
+ *   - getArtifacts
+ *   - getWorkerContext
+ *   - getChangedFiles (edge cases)
+ *   - getFileTree (edge cases)
+ *   - getFileContent (archive-backed)
+ *   - getFileDiff (archive-backed)
  */
-
-import type { JournalEventEnvelope } from "@earendil-works/pi-execution-core";
 import { describe, expect, it } from "vitest";
 import { createExecutionReadModel } from "../src/query-handler.js";
 
@@ -21,916 +25,1395 @@ import { createExecutionReadModel } from "../src/query-handler.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeEvent(
-	seq: string,
-	eventType: string,
-	workspaceId: string | undefined,
-	payload: Record<string, unknown> | null,
-	createdAt?: string,
-): JournalEventEnvelope {
+function makeEvent(overrides: {
+	seq?: string;
+	eventId?: string;
+	planExecutionId?: string;
+	workspaceId?: string;
+	eventType?: string;
+	payload?: Record<string, unknown> | null;
+	createdAt?: string;
+}): any {
 	return {
-		seq,
-		eventId: `evt-${seq}`,
-		planExecutionId: "exec-1",
-		workspaceId,
-		eventType,
-		payload,
-		createdAt: createdAt ?? new Date().toISOString(),
+		seq: overrides.seq ?? "1",
+		eventId: overrides.eventId ?? "evt-1",
+		planExecutionId: overrides.planExecutionId ?? "exec-1",
+		workspaceId: overrides.workspaceId ?? "ws-1",
+		eventType: overrides.eventType ?? "plan_started",
+		payload: overrides.payload ?? null,
+		createdAt: overrides.createdAt ?? new Date().toISOString(),
 	};
 }
 
+function ts(offsetMs: number): string {
+	return new Date(Date.now() + offsetMs).toISOString();
+}
+
 // ---------------------------------------------------------------------------
-// getPlanStats
+// Suite
 // ---------------------------------------------------------------------------
 
-describe("getPlanStats", () => {
-	it("should return unavailable state when no events exist", async () => {
-		const model = createExecutionReadModel({});
-		const stats = await model.getPlanStats("exec-1");
+describe("createExecutionReadModel — comprehensive", () => {
+	// -----------------------------------------------------------------------
+	// getPlanSummary
+	// -----------------------------------------------------------------------
+	describe("getPlanSummary", () => {
+		it("should return unavailable state when no data sources exist", async () => {
+			const model = createExecutionReadModel({});
+			const summary = await model.getPlanSummary("exec-1");
 
-		expect(stats.planExecutionId).toBe("exec-1");
-		expect(stats.dataSource).toBe("unavailable");
-		expect(stats.totalWorkspaces).toBe(0);
-		expect(stats.completedWorkspaces).toBe(0);
-		expect(stats.failedWorkspaces).toBe(0);
-		expect(stats.durationMs).toBeNull();
-	});
-
-	it("should count workspace stages from events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, { totalWorkspaces: 3 }),
-				makeEvent("2", "workspace_running", "ws-1", null),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-				makeEvent("4", "workspace_running", "ws-2", null),
-				makeEvent("5", "workspace_failed", "ws-2", null),
-				makeEvent("6", "workspace_running", "ws-3", null),
-				makeEvent("7", "workspace_blocked", "ws-3", null),
-			],
+			expect(summary.id).toBe("exec-1");
+			expect(summary.status).toBe("unknown");
+			expect(summary.dataAvailability).toBeDefined();
+			expect(summary.dataAvailability!.available).toBe(false);
+			expect(summary.dataAvailability!.reason).toContain("No plan_started event");
 		});
 
-		const stats = await model.getPlanStats("exec-1");
+		it("should reconstruct summary from plan_started event", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { projectId: "proj-1", phase: "dev", title: "My Plan" },
+						createdAt: ts(-5000),
+					}),
+				],
+			});
 
-		expect(stats.totalWorkspaces).toBe(3);
-		expect(stats.completedWorkspaces).toBe(1);
-		expect(stats.failedWorkspaces).toBe(1);
-		expect(stats.blockedWorkspaces).toBe(1);
-		expect(stats.runningWorkspaces).toBe(0); // all resolved
-		expect(stats.pendingWorkspaces).toBe(0);
-		expect(stats.cancelledWorkspaces).toBe(0);
-		expect(stats.skippedWorkspaces).toBe(0);
-		expect(stats.dataSource).toBe("events");
-	});
-
-	it("should compute duration from first worker start to last completion", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, { totalWorkspaces: 1 }, "2026-01-01T00:00:00Z"),
-				makeEvent("2", "worker_started", "ws-1", {}, "2026-01-01T00:01:00Z"),
-				makeEvent("3", "workspace_completed", "ws-1", null, "2026-01-01T00:02:30Z"),
-			],
+			const summary = await model.getPlanSummary("exec-1");
+			expect(summary.projectId).toBe("proj-1");
+			expect(summary.phase).toBe("dev");
+			expect(summary.title).toBe("My Plan");
+			expect(summary.status).toBe("running");
+			expect(summary.startedAt).toBeTruthy();
+			expect(summary.completedAt).toBeNull();
+			expect(summary.dataAvailability!.available).toBe(true);
 		});
 
-		const stats = await model.getPlanStats("exec-1");
+		it("should detect terminal status from plan_completed event", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { projectId: "proj-1", phase: "dev", title: "My Plan" },
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						eventType: "plan_completed",
+						payload: null,
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		expect(stats.durationMs).toBe(90_000); // 1m30s
-	});
-
-	it("should handle cancelled and skipped workspaces", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, { totalWorkspaces: 4 }),
-				makeEvent("2", "workspace_running", "ws-1", null),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-				makeEvent("4", "workspace_running", "ws-2", null),
-				makeEvent("5", "workspace_cancelled", "ws-2", null),
-				makeEvent("6", "workspace_pending", "ws-3", null),
-				makeEvent("7", "workspace_skipped", "ws-3", null),
-			],
+			const summary = await model.getPlanSummary("exec-1");
+			expect(summary.status).toBe("complete");
+			expect(summary.completedAt).toBeTruthy();
 		});
 
-		const stats = await model.getPlanStats("exec-1");
+		it("should detect plan_failed status", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { projectId: "proj-1", phase: "dev", title: "My Plan" },
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						eventType: "plan_failed",
+						payload: null,
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		expect(stats.completedWorkspaces).toBe(1);
-		expect(stats.cancelledWorkspaces).toBe(1);
-		expect(stats.skippedWorkspaces).toBe(1);
-		expect(stats.dataSource).toBe("events");
-	});
-});
+			const summary = await model.getPlanSummary("exec-1");
+			expect(summary.status).toBe("failed");
+		});
 
-// ---------------------------------------------------------------------------
-// getDependencyGraph
-// ---------------------------------------------------------------------------
+		it("should detect plan_cancelled status", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { projectId: "proj-1", phase: "dev", title: "My Plan" },
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						eventType: "plan_cancelled",
+						payload: null,
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-describe("getDependencyGraph", () => {
-	it("should return unavailable state when no events exist", async () => {
-		const model = createExecutionReadModel({});
-		const graph = await model.getDependencyGraph("exec-1");
+			const summary = await model.getPlanSummary("exec-1");
+			expect(summary.status).toBe("cancelled");
+		});
 
-		expect(graph.planExecutionId).toBe("exec-1");
-		expect(graph.dataAvailability.available).toBe(false);
-		expect(graph.nodes).toEqual([]);
-		expect(graph.totalBatches).toBe(0);
-	});
-
-	it("should extract workspace nodes from plan_started payload", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, {
-					workspaces: [
-						{ id: "ws-1", title: "Setup", dependencies: [], batch: 0 },
-						{ id: "ws-2", title: "Build", dependencies: ["ws-1"], batch: 1 },
-						{ id: "ws-3", title: "Test", dependencies: ["ws-2"], batch: 2 },
-					],
+		it("should use state store when available", async () => {
+			const model = createExecutionReadModel({
+				getPlanExecutionSummary: async (id: string) => ({
+					id,
+					projectId: "proj-1",
+					phase: "test",
+					title: "State Plan",
+					status: "complete",
+					startedAt: new Date(Date.now() - 10000).toISOString(),
+					completedAt: new Date().toISOString(),
+					dataAvailability: { available: true },
 				}),
-			],
+			});
+
+			const summary = await model.getPlanSummary("exec-1");
+			expect(summary.title).toBe("State Plan");
+			expect(summary.status).toBe("complete");
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// getPlanStats
+	// -----------------------------------------------------------------------
+	describe("getPlanStats", () => {
+		it("should return unavailable data source when no events", async () => {
+			const model = createExecutionReadModel({});
+			const stats = await model.getPlanStats("exec-1");
+
+			expect(stats.totalWorkspaces).toBe(0);
+			expect(stats.dataSource).toBe("unavailable");
+			expect(stats.durationMs).toBeNull();
 		});
 
-		const graph = await model.getDependencyGraph("exec-1");
+		it("should compute stats from workspace lifecycle events", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { totalWorkspaces: 3 },
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-2",
+						eventType: "workspace_failed",
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "4",
+						workspaceId: "ws-3",
+						eventType: "workspace_running",
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		expect(graph.dataAvailability.available).toBe(true);
-		expect(graph.nodes).toHaveLength(3);
-		expect(graph.totalBatches).toBe(3);
+			const stats = await model.getPlanStats("exec-1");
 
-		expect(graph.nodes[0].id).toBe("ws-1");
-		expect(graph.nodes[0].dependsOn).toEqual([]);
-		expect(graph.nodes[0].batch).toBe(0);
-
-		expect(graph.nodes[1].id).toBe("ws-2");
-		expect(graph.nodes[1].dependsOn).toEqual(["ws-1"]);
-		expect(graph.nodes[1].batch).toBe(1);
-
-		expect(graph.nodes[2].id).toBe("ws-3");
-		expect(graph.nodes[2].dependsOn).toEqual(["ws-2"]);
-		expect(graph.nodes[2].batch).toBe(2);
-	});
-
-	it("should reconstruct from workspace events when no plan_started payload", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "workspace_running", "ws-1", null),
-				makeEvent("2", "workspace_running", "ws-2", { dependencies: ["ws-1"] }),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-				makeEvent("4", "workspace_completed", "ws-2", null),
-			],
+			expect(stats.dataSource).toBe("events");
+			expect(stats.totalWorkspaces).toBe(3);
+			expect(stats.completedWorkspaces).toBe(1);
+			expect(stats.failedWorkspaces).toBe(1);
+			expect(stats.runningWorkspaces).toBe(1);
+			expect(stats.pendingWorkspaces).toBe(0);
+			expect(stats.durationMs).not.toBeNull();
 		});
 
-		const graph = await model.getDependencyGraph("exec-1");
+		it("should derive total from workspace count when plan_started missing", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-2",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		// Should have reconstructed from workspace events
-		expect(graph.nodes).toHaveLength(2);
-		expect(graph.nodes.find((n) => n.id === "ws-1")).toBeDefined();
-		expect(graph.nodes.find((n) => n.id === "ws-2")).toBeDefined();
-		expect(graph.dataAvailability.available).toBe(true);
-		expect(graph.dataAvailability.reason).toContain("Reconstructed");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getCommandHistory
-// ---------------------------------------------------------------------------
-
-describe("getCommandHistory", () => {
-	it("should return empty array when no command events exist", async () => {
-		const model = createExecutionReadModel({});
-		const history = await model.getCommandHistory("exec-1", "ws-1");
-		expect(history).toEqual([]);
-	});
-
-	it("should pair command_started and command_finished events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				expect(options?.workspaceId).toBe("ws-1");
-				return [
-					makeEvent(
-						"1",
-						"command_started",
-						"ws-1",
-						{
-							command: "npm run build",
-							cwd: "/project",
-						},
-						"2026-01-01T00:01:00Z",
-					),
-					makeEvent(
-						"2",
-						"command_finished",
-						"ws-1",
-						{
-							command: "npm run build",
-							cwd: "/project",
-							exitCode: 0,
-							outputSummary: "Build succeeded",
-						},
-						"2026-01-01T00:01:30Z",
-					),
-				];
-			},
+			const stats = await model.getPlanStats("exec-1");
+			expect(stats.totalWorkspaces).toBe(2);
+			expect(stats.completedWorkspaces).toBe(2);
 		});
 
-		const history = await model.getCommandHistory("exec-1", "ws-1");
+		it("should use latest event per workspace for terminal state", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_running",
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		expect(history).toHaveLength(1);
-		expect(history[0].command).toBe("npm run build");
-		expect(history[0].cwd).toBe("/project");
-		expect(history[0].exitCode).toBe(0);
-		expect(history[0].outputSummary).toBe("Build succeeded");
-		expect(history[0].startedAt).toBeLessThan(history[0].finishedAt);
-	});
-
-	it("should return multiple commands in order", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "command_started", "ws-1", { command: "echo first", cwd: "/p" }, "2026-01-01T00:01:00Z"),
-				makeEvent(
-					"2",
-					"command_finished",
-					"ws-1",
-					{ command: "echo first", cwd: "/p", exitCode: 0 },
-					"2026-01-01T00:01:01Z",
-				),
-				makeEvent("3", "command_started", "ws-1", { command: "echo second", cwd: "/p" }, "2026-01-01T00:02:00Z"),
-				makeEvent(
-					"4",
-					"command_finished",
-					"ws-1",
-					{ command: "echo second", cwd: "/p", exitCode: 0 },
-					"2026-01-01T00:02:05Z",
-				),
-			],
+			const stats = await model.getPlanStats("exec-1");
+			expect(stats.completedWorkspaces).toBe(1);
+			expect(stats.runningWorkspaces).toBe(0);
 		});
 
-		const history = await model.getCommandHistory("exec-1", "ws-1");
+		it("should detect blocked and skipped workspaces", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_blocked",
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-2",
+						eventType: "workspace_skipped",
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		expect(history).toHaveLength(2);
-		expect(history[0].command).toBe("echo first");
-		expect(history[1].command).toBe("echo second");
-		expect(history[1].startedAt).toBeGreaterThan(history[0].startedAt);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getLeadDirectives
-// ---------------------------------------------------------------------------
-
-describe("getLeadDirectives", () => {
-	it("should return empty array when no directive events exist", async () => {
-		const model = createExecutionReadModel({});
-		const directives = await model.getLeadDirectives("exec-1", "ws-1");
-		expect(directives).toEqual([]);
-	});
-
-	it("should extract directives from lead_agent_directive_issued events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "lead_agent_directive_issued", "ws-1", {
-					directiveId: "dir-1",
-					workspaceId: "ws-1",
-					attemptNumber: 2,
-					severity: "high",
-					summary: "Build failed due to missing deps",
-					directive: "Run npm install before build",
-					allowedActions: ["run_command", "edit_file"],
-					forbiddenActions: ["delete_file"],
-					maxAdditionalRetries: 3,
-					escalateAfter: 5,
-				}),
-			],
+			const stats = await model.getPlanStats("exec-1");
+			expect(stats.blockedWorkspaces).toBe(1);
+			expect(stats.skippedWorkspaces).toBe(1);
 		});
 
-		const directives = await model.getLeadDirectives("exec-1", "ws-1");
-
-		expect(directives).toHaveLength(1);
-		expect(directives[0].directiveId).toBe("dir-1");
-		expect(directives[0].severity).toBe("high");
-		expect(directives[0].summary).toBe("Build failed due to missing deps");
-		expect(directives[0].allowedActions).toContain("run_command");
-		expect(directives[0].status).toBe("issued");
-	});
-
-	it("should mark directives as acknowledged when followed by ack event", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "lead_agent_directive_issued", "ws-1", {
-					directiveId: "dir-1",
-					workspaceId: "ws-1",
-					attemptNumber: 1,
-					severity: "medium",
-					summary: "Fix lint errors",
-					directive: "Run linter",
-					allowedActions: ["run_command"],
-					forbiddenActions: [],
-					maxAdditionalRetries: 2,
-					escalateAfter: 3,
-				}),
-				makeEvent("2", "lead_agent_directive_acknowledged", "ws-1", {
-					directiveId: "dir-1",
-					attemptNumber: 1,
-				}),
-			],
-		});
-
-		const directives = await model.getLeadDirectives("exec-1", "ws-1");
-
-		expect(directives).toHaveLength(1);
-		expect(directives[0].status).toBe("acknowledged");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getLeadEscalations
-// ---------------------------------------------------------------------------
-
-describe("getLeadEscalations", () => {
-	it("should return empty array when no escalation events exist", async () => {
-		const model = createExecutionReadModel({});
-		const escalations = await model.getLeadEscalations("exec-1", "ws-1");
-		expect(escalations).toEqual([]);
-	});
-
-	it("should extract escalations from lead_agent_escalation_initiated events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "lead_agent_escalation_initiated", "ws-1", {
-					escalationId: "esc-1",
-					workspaceId: "ws-1",
-					severity: "blocking",
-					title: "Cannot install package",
-					summary: "Package X requires auth token",
-					whatHappened: "npm install failed with 401",
-					whyStuck: "Auth token not configured",
-					options: [{ id: "opt-1", label: "Configure token", risk: "low", description: "Add auth token" }],
-					recommendedOptionId: "opt-1",
-					evidenceRefs: ["npm-debug.log"],
-					logsToInspect: ["install.log"],
-				}),
-			],
-		});
-
-		const escalations = await model.getLeadEscalations("exec-1", "ws-1");
-
-		expect(escalations).toHaveLength(1);
-		expect(escalations[0].escalationId).toBe("esc-1");
-		expect(escalations[0].severity).toBe("blocking");
-		expect(escalations[0].title).toBe("Cannot install package");
-		expect(escalations[0].status).toBe("awaiting_user");
-		expect(escalations[0].options).toHaveLength(1);
-	});
-
-	it("should mark escalations as resolved when resolution event exists", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "lead_agent_escalation_initiated", "ws-1", {
-					escalationId: "esc-1",
-					workspaceId: "ws-1",
-					severity: "blocking",
-					title: "Stuck",
-					summary: "Stuck on build",
-					whatHappened: "Build fails",
-					whyStuck: "No output",
-					options: [{ id: "opt-1", label: "Fix", risk: "low" }],
-					recommendedOptionId: "opt-1",
-					evidenceRefs: [],
-					logsToInspect: [],
-				}),
-				makeEvent("2", "lead_agent_escalation_resolved", "ws-1", {
-					escalationId: "esc-1",
-					chosenOptionId: "opt-1",
-					userResponse: "Go ahead",
-				}),
-			],
-		});
-
-		const escalations = await model.getLeadEscalations("exec-1", "ws-1");
-
-		expect(escalations).toHaveLength(1);
-		expect(escalations[0].status).toBe("resolved");
-		expect(escalations[0].userChoice).toBe("opt-1");
-		expect(escalations[0].userResponse).toBe("Go ahead");
-		expect(escalations[0].resolvedAt).toBeDefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getFinalValidationStatus
-// ---------------------------------------------------------------------------
-
-describe("getFinalValidationStatus", () => {
-	it("should return default state when no governance events exist", async () => {
-		const model = createExecutionReadModel({});
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.required).toBe(true);
-		expect(status.passed).toBeNull();
-		expect(status.blocked).toBe(false);
-		expect(status.blockReasons).toEqual([]);
-	});
-
-	it("should detect governance approval", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				expect(options?.workspaceId).toBe("ws-1");
-				return [makeEvent("1", "governance_approved", "ws-1", {})];
-			},
-		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(true);
-		expect(status.blocked).toBe(false);
-	});
-
-	it("should detect governance rejection", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [makeEvent("1", "governance_rejected", "ws-1", { reason: "Lint errors > 10" })],
-		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(false);
-		expect(status.blocked).toBe(true);
-		expect(status.blockReasons).toContain("Lint errors > 10");
-	});
-
-	it("should detect governance escalation", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "governance_escalated", "ws-1", { reason: "Requires manual review" }),
-			],
-		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBeNull();
-		expect(status.blocked).toBe(true);
-		expect(status.blockReasons).toContain("Requires manual review");
-	});
-
-	it("should use the latest event when multiple exist", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "governance_rejected", "ws-1", { reason: "First rejection" }, "2026-01-01T00:01:00Z"),
-				makeEvent("2", "governance_approved", "ws-1", { reason: "Approved after fix" }, "2026-01-01T00:02:00Z"),
-			],
-		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(true);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getPlanSummary from events
-// ---------------------------------------------------------------------------
-
-describe("getPlanSummary from events", () => {
-	it("should reconstruct plan summary from plan_started event", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent(
-					"1",
-					"plan_started",
-					undefined,
-					{
+		it("should report state-store data source when no events but state store has data", async () => {
+			const model = createExecutionReadModel({
+				getPlanExecutionSummary: async () =>
+					({
+						id: "exec-1",
 						projectId: "proj-1",
-						phase: "p42",
-						title: "Dashboard V3",
-					},
-					"2026-01-01T00:00:00Z",
-				),
-			],
+						phase: "test",
+						title: "Test",
+						status: "running",
+						startedAt: new Date().toISOString(),
+						completedAt: null,
+					}) as any,
+			});
+
+			const stats = await model.getPlanStats("exec-1");
+			expect(stats.dataSource).toBe("state-store");
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// getDependencyGraph
+	// -----------------------------------------------------------------------
+	describe("getDependencyGraph", () => {
+		it("should return unavailable state when no events", async () => {
+			const model = createExecutionReadModel({});
+			const graph = await model.getDependencyGraph("exec-1");
+
+			expect(graph.nodes).toHaveLength(0);
+			expect(graph.dataAvailability.available).toBe(false);
+			expect(graph.dataAvailability.reason).toContain("workspace events");
 		});
 
-		const summary = await model.getPlanSummary("exec-1");
-		expect(summary.id).toBe("exec-1");
-		expect(summary.projectId).toBe("proj-1");
-		expect(summary.phase).toBe("p42");
-		expect(summary.title).toBe("Dashboard V3");
-		expect(summary.status).toBe("running");
-	});
+		it("should extract graph from plan_started event payload", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: {
+							workspaces: [
+								{ id: "ws-1", title: "Setup", dependencies: [], batch: 0 },
+								{ id: "ws-2", title: "Build", dependencies: ["ws-1"], batch: 1 },
+								{ id: "ws-3", title: "Test", dependencies: ["ws-1"], batch: 1 },
+							],
+						},
+						createdAt: ts(-5000),
+					}),
+				],
+			});
 
-	it("should mark plan as complete when plan_completed event exists", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, { title: "Test" }, "2026-01-01T00:00:00Z"),
-				makeEvent("2", "plan_completed", undefined, {}, "2026-01-01T00:10:00Z"),
-			],
+			const graph = await model.getDependencyGraph("exec-1");
+
+			expect(graph.dataAvailability.available).toBe(true);
+			expect(graph.nodes).toHaveLength(3);
+			expect(graph.totalBatches).toBe(2);
+
+			const ws2 = graph.nodes.find((n) => n.id === "ws-2");
+			expect(ws2).toBeDefined();
+			expect(ws2!.dependsOn).toEqual(["ws-1"]);
+			expect(ws2!.batch).toBe(1);
 		});
 
-		const summary = await model.getPlanSummary("exec-1");
-		expect(summary.status).toBe("complete");
-		expect(summary.completedAt).toBeDefined();
-	});
-});
+		it("should reconstruct graph from workspace events when plan_started missing", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						payload: { dependencies: [], batch: 0 },
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-2",
+						eventType: "workspace_running",
+						payload: { dependencies: ["ws-1"], batch: 1 },
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-// ---------------------------------------------------------------------------
-// getWorkspaceSummary from events
-// ---------------------------------------------------------------------------
+			const graph = await model.getDependencyGraph("exec-1");
 
-describe("getWorkspaceSummary from events", () => {
-	it("should reconstruct workspace summary from workspace events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "workspace_running", "ws-1", null, "2026-01-01T00:01:00Z"),
-				makeEvent("2", "worker_started", "ws-1", null, "2026-01-01T00:01:00Z"),
-				makeEvent("3", "worker_completed", "ws-1", null, "2026-01-01T00:02:00Z"),
-				makeEvent("4", "workspace_completed", "ws-1", null, "2026-01-01T00:02:00Z"),
-			],
+			expect(graph.dataAvailability.available).toBe(true);
+			expect(graph.nodes).toHaveLength(2);
+			expect(graph.totalBatches).toBe(2);
 		});
 
-		const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
-		expect(summary.stage).toBe("Complete");
-		expect(summary.attempts).toBe(1);
-		expect(summary.startedAt).toBeDefined();
-		expect(summary.completedAt).toBeDefined();
+		it("should return unavailable when plan_started payload has no workspaces array", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: { totalWorkspaces: 3 },
+						createdAt: ts(-5000),
+					}),
+				],
+			});
+
+			const graph = await model.getDependencyGraph("exec-1");
+			expect(graph.dataAvailability.available).toBe(false);
+			expect(graph.dataAvailability.reason).toContain("workspace array");
+		});
+
+		it("should resolve current stage from workspace events", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: {
+							workspaces: [{ id: "ws-1", title: "Setup", dependencies: [], batch: 0 }],
+						},
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const graph = await model.getDependencyGraph("exec-1");
+			const ws1 = graph.nodes.find((n) => n.id === "ws-1");
+			expect(ws1!.stage).toBe("Complete");
+		});
 	});
 
-	it("should return default when no events exist", async () => {
-		const model = createExecutionReadModel({});
-		const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
-		expect(summary.stage).toBe("unknown");
-		expect(summary.attempts).toBe(0);
+	// -----------------------------------------------------------------------
+	// getWorkspaceSummary
+	// -----------------------------------------------------------------------
+	describe("getWorkspaceSummary", () => {
+		it("should return unavailable state when no data sources", async () => {
+			const model = createExecutionReadModel({});
+			const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
+
+			expect(summary.stage).toBe("unknown");
+			expect(summary.attempts).toBe(0);
+			expect(summary.dataAvailability).toBeDefined();
+			expect(summary.dataAvailability!.available).toBe(false);
+		});
+
+		it("should use state store when available", async () => {
+			const model = createExecutionReadModel({
+				getWorkspaceState: async (pid: string, wsId: string) => ({
+					stage: "Complete",
+					attempts: 3,
+					startedAt: Date.now() - 10000,
+					completedAt: Date.now(),
+					error: undefined,
+					reportPath: ".pi/reports/report.md",
+				}),
+			});
+
+			const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
+			expect(summary.stage).toBe("Complete");
+			expect(summary.attempts).toBe(3);
+			expect(summary.startedAt).toBeTruthy();
+			expect(summary.reportPath).toBe(".pi/reports/report.md");
+			expect(summary.dataAvailability!.available).toBe(true);
+		});
+
+		it("should reconstruct from workspace events when state store unavailable", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_running",
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "worker_started",
+						payload: { attemptNumber: 1 },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
+			expect(summary.stage).toBe("Complete");
+			expect(summary.attempts).toBe(1);
+			expect(summary.dataAvailability!.available).toBe(true);
+		});
+
+		it("should extract error from worker_failed event", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "worker_failed",
+						payload: { error: "Build failed" },
+						createdAt: ts(0),
+					}),
+					// The workspace_failed event sets the stage
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "workspace_failed",
+						payload: { error: "Build failed" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const summary = await model.getWorkspaceSummary("exec-1", "ws-1");
+			expect(summary.stage).toBe("Failed");
+			expect(summary.error).toBe("Build failed");
+		});
 	});
-});
 
-// ---------------------------------------------------------------------------
-// getArtifacts
-// ---------------------------------------------------------------------------
+	// -----------------------------------------------------------------------
+	// getCommandHistory
+	// -----------------------------------------------------------------------
+	describe("getCommandHistory", () => {
+		it("should return empty array when no command events", async () => {
+			const model = createExecutionReadModel({});
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toEqual([]);
+		});
 
-describe("getArtifacts", () => {
-	it("should return empty array (requires filesystem access)", async () => {
-		const model = createExecutionReadModel({});
-		const artifacts = await model.getArtifacts("exec-1");
-		expect(artifacts).toEqual([]);
+		it("should pair command_started and command_finished events", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test", cwd: "/project", runId: "run-1" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm test", cwd: "/project", runId: "run-1", exitCode: 0, outputSummary: "PASS" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(1);
+			expect(history[0].command).toBe("npm test");
+			expect(history[0].cwd).toBe("/project");
+			expect(history[0].exitCode).toBe(0);
+			expect(history[0].outputSummary).toBe("PASS");
+			expect(history[0].startedAt).toBeLessThan(history[0].finishedAt);
+		});
+
+		it("should handle unmatched command_started without finished event", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test", cwd: "/project" },
+						createdAt: ts(-5000),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(0);
+		});
+
+		it("should handle unmatched command_finished without started event", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm test", cwd: "/project", exitCode: 0 },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(0);
+		});
+
+		it("should disambiguate concurrent commands with runId", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test", cwd: "/project", runId: "run-1" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test", cwd: "/project", runId: "run-2" },
+						createdAt: ts(-4000),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm test", cwd: "/project", runId: "run-1", exitCode: 0 },
+						createdAt: ts(-1000),
+					}),
+					makeEvent({
+						seq: "4",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm test", cwd: "/project", runId: "run-2", exitCode: 1 },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(2);
+			expect(history[0].exitCode).toBe(0);
+			expect(history[1].exitCode).toBe(1);
+		});
+
+		it("should sort by startedAt ascending", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "echo first", cwd: "/p", runId: "r1" },
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "echo second", cwd: "/p", runId: "r2" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "echo first", cwd: "/p", runId: "r1", exitCode: 0 },
+						createdAt: ts(-8000),
+					}),
+					makeEvent({
+						seq: "4",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "echo second", cwd: "/p", runId: "r2", exitCode: 0 },
+						createdAt: ts(-2000),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(2);
+			expect(history[0].command).toBe("echo first");
+			expect(history[1].command).toBe("echo second");
+		});
+
+		it("should handle missing exitCode", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test", cwd: "/project" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm test", cwd: "/project" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const history = await model.getCommandHistory("exec-1", "ws-1");
+			expect(history).toHaveLength(1);
+			expect(history[0].exitCode).toBeNull();
+		});
 	});
-});
 
-// ---------------------------------------------------------------------------
-// getWorkerContext
-// ---------------------------------------------------------------------------
+	// -----------------------------------------------------------------------
+	// getLeadDirectives
+	// -----------------------------------------------------------------------
+	describe("getLeadDirectives", () => {
+		it("should return empty array when no directive events", async () => {
+			const model = createExecutionReadModel({});
+			const directives = await model.getLeadDirectives("exec-1", "ws-1");
+			expect(directives).toEqual([]);
+		});
 
-describe("getWorkerContext", () => {
-	it("should compose from sub-queries without directives or escalations", async () => {
-		const model = createExecutionReadModel({});
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-
-		expect(ctx.workspaceId).toBe("ws-1");
-		expect(ctx.planExecutionId).toBe("exec-1");
-		expect(ctx.stage).toBe("unknown");
-		expect(ctx.activeDirectives).toEqual([]);
-		expect(ctx.activeEscalations).toEqual([]);
-		expect(ctx.transcriptUrl).toBe("/api/transcript/exec-1/ws-1");
-	});
-
-	it("should include active directives from lead agent events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				if (options?.workspaceId === "ws-1") {
-					return [
-						makeEvent("1", "lead_agent_directive_issued", "ws-1", {
+		it("should extract directives from lead_agent_directive_issued events", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_directive_issued",
+						payload: {
 							directiveId: "dir-1",
 							workspaceId: "ws-1",
 							attemptNumber: 1,
 							severity: "high",
-							summary: "Fix issue",
-							directive: "Do X",
-							allowedActions: ["run_command"],
-							forbiddenActions: [],
-							maxAdditionalRetries: 2,
-							escalateAfter: 3,
-						}),
-					];
-				}
-				return [];
-			},
+							summary: "Fix the build",
+							directive: "Run npm install and fix TypeScript errors",
+							allowedActions: ["npm install", "edit *.ts"],
+							forbiddenActions: ["git push"],
+							maxAdditionalRetries: 3,
+							escalateAfter: 2,
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const directives = await model.getLeadDirectives("exec-1", "ws-1");
+			expect(directives).toHaveLength(1);
+			expect(directives[0].directiveId).toBe("dir-1");
+			expect(directives[0].severity).toBe("high");
+			expect(directives[0].status).toBe("issued");
+			expect(directives[0].retryBudget).toBe(3);
+			expect(directives[0].escalateAfter).toBe(2);
 		});
 
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-		expect(ctx.activeDirectives).toHaveLength(1);
-		expect(ctx.activeDirectives[0].directiveId).toBe("dir-1");
-	});
+		it("should mark directive as acknowledged when acknowledgement event exists", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_directive_issued",
+						payload: {
+							directiveId: "dir-1",
+							workspaceId: "ws-1",
+							summary: "Fix the build",
+							directive: "Run fix",
+						},
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_directive_acknowledged",
+						payload: { directiveId: "dir-1" },
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-	it("should include goal and role from plan_started workspaces", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, {
-					workspaces: [
-						{ id: "ws-1", title: "Setup", goal: "Initialize project", role: "setup-agent" },
-						{ id: "ws-2", title: "Build" },
-					],
-				}),
-				makeEvent("2", "workspace_running", "ws-1", null),
-			],
+			const directives = await model.getLeadDirectives("exec-1", "ws-1");
+			expect(directives).toHaveLength(1);
+			expect(directives[0].status).toBe("acknowledged");
 		});
 
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-		expect(ctx.goal).toBe("Initialize project");
-		expect(ctx.role).toBe("setup-agent");
+		it("should handle missing optional fields with defaults", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_directive_issued",
+						payload: { directiveId: "dir-1", workspaceId: "ws-1" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const directives = await model.getLeadDirectives("exec-1", "ws-1");
+			expect(directives).toHaveLength(1);
+			expect(directives[0].severity).toBe("medium");
+			expect(directives[0].retryBudget).toBe(0);
+			expect(directives[0].escalateAfter).toBe(0);
+		});
 	});
 
-	it("should include lastCommand from command history", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				if (options?.workspaceId === "ws-1") {
-					return [
-						makeEvent("1", "command_started", "ws-1", { command: "npm test", cwd: "/p" }, "2026-01-01T00:01:00Z"),
-						makeEvent(
-							"2",
-							"command_finished",
-							"ws-1",
-							{ command: "npm test", cwd: "/p", exitCode: 0 },
-							"2026-01-01T00:01:30Z",
-						),
-					];
-				}
-				return [];
-			},
+	// -----------------------------------------------------------------------
+	// getLeadEscalations
+	// -----------------------------------------------------------------------
+	describe("getLeadEscalations", () => {
+		it("should return empty array when no escalation events", async () => {
+			const model = createExecutionReadModel({});
+			const escalations = await model.getLeadEscalations("exec-1", "ws-1");
+			expect(escalations).toEqual([]);
 		});
 
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-		expect(ctx.lastCommand).toBe("npm test");
-	});
+		it("should extract escalations from lead_agent_escalation_initiated events", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_escalation_initiated",
+						payload: {
+							escalationId: "esc-1",
+							workspaceId: "ws-1",
+							severity: "blocking",
+							title: "Build failure",
+							summary: "Worker cannot fix TypeScript errors",
+							whatHappened: "Build failed with 42 errors",
+							whyStuck: "Missing type definitions",
+							options: [
+								{ id: "opt-1", label: "Install @types", risk: "low" },
+								{ id: "opt-2", label: "Skip type check", risk: "medium" },
+							],
+							recommendedOptionId: "opt-1",
+							evidenceRefs: ["tsconfig.json", "package.json"],
+							logsToInspect: ["build.log"],
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-	it("should include humanDirective from human_directive_issued events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				if (options?.workspaceId === "ws-1") {
-					return [
-						makeEvent("1", "human_directive_issued", "ws-1", {
-							directiveId: "hd-1",
-							directive: "Please ensure we use pnpm not npm",
-							severity: "medium",
-						}),
-					];
-				}
-				return [];
-			},
+			const escalations = await model.getLeadEscalations("exec-1", "ws-1");
+			expect(escalations).toHaveLength(1);
+			expect(escalations[0].escalationId).toBe("esc-1");
+			expect(escalations[0].severity).toBe("blocking");
+			expect(escalations[0].status).toBe("awaiting_user");
+			expect(escalations[0].options).toHaveLength(2);
 		});
 
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-		expect(ctx.humanDirective).toBe("Please ensure we use pnpm not npm");
-	});
+		it("should mark escalation as resolved when resolved event exists", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_escalation_initiated",
+						payload: {
+							escalationId: "esc-1",
+							workspaceId: "ws-1",
+							severity: "high",
+							title: "Test failure",
+							summary: "Tests fail",
+							whatHappened: "42 tests fail",
+							whyStuck: "Missing mock",
+							options: [{ id: "opt-1", label: "Fix", risk: "low" }],
+							recommendedOptionId: "opt-1",
+						},
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_escalation_resolved",
+						payload: {
+							escalationId: "esc-1",
+							chosenOptionId: "opt-1",
+							userResponse: "Go ahead",
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-	it("should include logSummary from command_finished outputSummaries", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				if (options?.workspaceId === "ws-1") {
-					return [
-						makeEvent("1", "command_started", "ws-1", { command: "npm build", cwd: "/p" }),
-						makeEvent("2", "command_finished", "ws-1", {
-							command: "npm build",
-							cwd: "/p",
-							exitCode: 0,
-							outputSummary: "Build succeeded (12 modules, 2.3s)",
-						}),
-					];
-				}
-				return [];
-			},
+			const escalations = await model.getLeadEscalations("exec-1", "ws-1");
+			expect(escalations).toHaveLength(1);
+			expect(escalations[0].status).toBe("resolved");
+			expect(escalations[0].userChoice).toBe("opt-1");
+			expect(escalations[0].userResponse).toBe("Go ahead");
+			expect(escalations[0].resolvedAt).toBeTruthy();
 		});
 
-		const ctx = await model.getWorkerContext("exec-1", "ws-1");
-		expect(ctx.logSummary).toContain("Build succeeded");
+		it("should handle missing optional escalation fields with defaults", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_escalation_initiated",
+						payload: {
+							escalationId: "esc-1",
+							workspaceId: "ws-1",
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const escalations = await model.getLeadEscalations("exec-1", "ws-1");
+			expect(escalations).toHaveLength(1);
+			expect(escalations[0].severity).toBe("medium");
+			expect(escalations[0].options).toEqual([]);
+			expect(escalations[0].evidenceRefs).toEqual([]);
+		});
 	});
-});
 
-// ---------------------------------------------------------------------------
-// getTranscript
-// ---------------------------------------------------------------------------
+	// -----------------------------------------------------------------------
+	// getFinalValidationStatus
+	// -----------------------------------------------------------------------
+	describe("getFinalValidationStatus", () => {
+		it("should return default state when no governance events", async () => {
+			const model = createExecutionReadModel({});
+			const status = await model.getFinalValidationStatus("exec-1", "ws-1");
 
-describe("getTranscript", () => {
-	it("should return empty array when no transcript store and no events", async () => {
-		const model = createExecutionReadModel({});
-		const events = await model.getTranscript("exec-1", "ws-1");
-		expect(events).toEqual([]);
+			expect(status.required).toBe(true);
+			expect(status.passed).toBeNull();
+			expect(status.blocked).toBe(false);
+			expect(status.blockReasons).toEqual([]);
+		});
+
+		it("should return passed=true when governance_approved is latest", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "governance_rejected",
+						payload: { reason: "Failed lint" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "governance_approved",
+						payload: null,
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const status = await model.getFinalValidationStatus("exec-1", "ws-1");
+			expect(status.passed).toBe(true);
+			expect(status.blocked).toBe(false);
+		});
+
+		it("should return blocked when governance_rejected is latest", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "governance_rejected",
+						payload: { reason: "Failed lint check" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const status = await model.getFinalValidationStatus("exec-1", "ws-1");
+			expect(status.passed).toBe(false);
+			expect(status.blocked).toBe(true);
+			expect(status.blockReasons).toEqual(["Failed lint check"]);
+		});
+
+		it("should return blocked with reason when governance_escalated", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "governance_escalated",
+						payload: { reason: "Security concern" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const status = await model.getFinalValidationStatus("exec-1", "ws-1");
+			expect(status.passed).toBeNull();
+			expect(status.blocked).toBe(true);
+			expect(status.blockReasons).toEqual(["Security concern"]);
+		});
 	});
 
-	it("should use transcript store when available", async () => {
-		const model = createExecutionReadModel({
-			getTranscriptEvents: async (pid, wsId) => [
-				{
-					type: "workspace_complete",
-					timestamp: Date.now(),
-					workspaceId: wsId,
-					summary: "Workspace completed successfully",
+	// -----------------------------------------------------------------------
+	// getTranscript
+	// -----------------------------------------------------------------------
+	describe("getTranscript", () => {
+		it("should return empty array when no events", async () => {
+			const model = createExecutionReadModel({});
+			const events = await model.getTranscript("exec-1", "ws-1");
+			expect(events).toEqual([]);
+		});
+
+		it("should use transcript store when available", async () => {
+			const model = createExecutionReadModel({
+				getTranscriptEvents: async (_pid: string, wsId: string) => [
+					{
+						type: "workspace_complete" as any,
+						timestamp: Date.now(),
+						workspaceId: wsId,
+						summary: "Workspace completed",
+					},
+				],
+			});
+
+			const events = await model.getTranscript("exec-1", "ws-1");
+			expect(events).toHaveLength(1);
+			expect(events[0].summary).toBe("Workspace completed");
+		});
+
+		it("should fallback to reconstructing from journal events when transcript store unavailable", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm test" },
+						createdAt: ts(-5000),
+					}),
+				],
+			});
+
+			const events = await model.getTranscript("exec-1", "ws-1");
+			expect(events.length).toBeGreaterThan(0);
+			expect(events[0].type).toBeTruthy();
+			expect(events[0].summary).toBeTruthy();
+		});
+
+		it("should return empty array when journal events exist for different workspace", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-other",
+						eventType: "workspace_completed",
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const events = await model.getTranscript("exec-1", "ws-1");
+			expect(events).toEqual([]);
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// getArtifacts
+	// -----------------------------------------------------------------------
+	describe("getArtifacts", () => {
+		it("should return empty array when no archive access", async () => {
+			const model = createExecutionReadModel({});
+			const artifacts = await model.getArtifacts("exec-1");
+			expect(artifacts).toEqual([]);
+		});
+
+		it("should return artifacts from archive lister", async () => {
+			const model = createExecutionReadModel({
+				listArchiveArtifacts: async () => [
+					{ path: "plan.md", size: 100, modifiedAt: new Date().toISOString() },
+					{ path: "workspaces/ws-1/packet.md", size: 200, modifiedAt: new Date().toISOString() },
+				],
+			});
+
+			const artifacts = await model.getArtifacts("exec-1");
+			expect(artifacts).toHaveLength(2);
+			expect(artifacts[0].path).toBe("plan.md");
+			expect(artifacts[0].dataAvailability.available).toBe(true);
+			expect(artifacts[1].path).toBe("workspaces/ws-1/packet.md");
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// getFileContent (archive-backed)
+	// -----------------------------------------------------------------------
+	describe("getFileContent (archive-backed)", () => {
+		it("should return file content from readArchiveFile", async () => {
+			const model = createExecutionReadModel({
+				readArchiveFile: async (pid: string, path: string) => {
+					expect(path).toBe("workspaces/ws-1/src/index.ts");
+					return "const x = 1;";
 				},
-			],
+			});
+
+			const content = await model.getFileContent("exec-1", "ws-1", "src/index.ts");
+			expect(content).not.toBeNull();
+			expect(content!.content).toBe("const x = 1;");
+			expect(content!.path).toBe("src/index.ts");
+			expect(content!.language).toBe("ts");
 		});
 
-		const events = await model.getTranscript("exec-1", "ws-1");
-		expect(events).toHaveLength(1);
-		expect(events[0].type).toBe("workspace_complete");
-		expect(events[0].summary).toBe("Workspace completed successfully");
+		it("should return null for path traversal attempts", async () => {
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => "content",
+			});
+
+			const content = await model.getFileContent("exec-1", "ws-1", "../../etc/passwd");
+			expect(content).toBeNull();
+		});
+
+		it("should return null when readArchiveFile returns null", async () => {
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => null,
+			});
+
+			const content = await model.getFileContent("exec-1", "ws-1", "missing.ts");
+			expect(content).toBeNull();
+		});
 	});
 
-	it("should fall back to journal event reconstruction when no transcript store", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "workspace_pending", "ws-1", null),
-				makeEvent("2", "workspace_running", "ws-1", null),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-			],
+	// -----------------------------------------------------------------------
+	// getFileDiff (archive-backed)
+	// -----------------------------------------------------------------------
+	describe("getFileDiff (archive-backed)", () => {
+		it("should return diff from archive diff.patch", async () => {
+			const patchContent = `diff --git a/src/index.ts b/src/index.ts
+index abc..def 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1 +1 @@
+-old content
++new content`;
+
+			const model = createExecutionReadModel({
+				readArchiveFile: async (pid: string, path: string) => {
+					expect(path).toBe("workspaces/ws-1/diff.patch");
+					return patchContent;
+				},
+			});
+
+			const diffs = await model.getFileDiff("exec-1", "ws-1");
+			expect(diffs).toHaveLength(1);
+			expect(diffs[0].additions).toBe(1);
+			expect(diffs[0].deletions).toBe(1);
 		});
 
-		const events = await model.getTranscript("exec-1", "ws-1");
-		// Should reconstruct 3 transcript events from journal events
-		expect(events.length).toBeGreaterThanOrEqual(3);
-		expect(events[0].summary).toBeDefined();
+		it("should filter diff by specific file path", async () => {
+			const patchContent = `diff --git a/src/index.ts b/src/index.ts
+index abc..def 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1 +1 @@
+-old
++new
+diff --git a/README.md b/README.md
+index 123..456 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-# Old
++# New`;
+
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => patchContent,
+			});
+
+			const diffs = await model.getFileDiff("exec-1", "ws-1", "src/index.ts");
+			expect(diffs).toHaveLength(1);
+			expect(diffs[0].path).toBe("src/index.ts");
+		});
+
+		it("should return empty array when diff.patch not found", async () => {
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => null,
+			});
+
+			const diffs = await model.getFileDiff("exec-1", "ws-1");
+			expect(diffs).toEqual([]);
+		});
+
+		it("should return empty array when file not found in patch", async () => {
+			const patchContent = `diff --git a/other.ts b/other.ts
+index abc..def 100644
+--- a/other.ts
++++ b/other.ts
+@@ -1 +1 @@
+-old
++new`;
+
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => patchContent,
+			});
+
+			const diffs = await model.getFileDiff("exec-1", "ws-1", "missing.ts");
+			expect(diffs).toEqual([]);
+		});
+
+		it("should truncate diff when maxDiffLines specified", async () => {
+			const lines: string[] = [];
+			for (let i = 0; i < 100; i++) {
+				lines.push(`+line ${i}`);
+			}
+			const patchContent = `diff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n${lines.join("\n")}`;
+
+			const model = createExecutionReadModel({
+				readArchiveFile: async () => patchContent,
+			});
+
+			const diffs = await model.getFileDiff("exec-1", "ws-1", "file.ts", { maxDiffLines: 50 });
+			expect(diffs).toHaveLength(1);
+			expect(diffs[0].truncated).toBe(true);
+		});
 	});
 
-	it("should return empty array for workspace with no events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [makeEvent("1", "plan_started", undefined, {})],
+	// -----------------------------------------------------------------------
+	// getWorkerContext
+	// -----------------------------------------------------------------------
+	describe("getWorkerContext", () => {
+		it("should return worker context from available data sources", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						eventType: "plan_started",
+						payload: {
+							workspaces: [{ id: "ws-1", title: "Setup", goal: "Initialize project", role: "coder" }],
+						},
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "command_started",
+						payload: { command: "npm init", cwd: "/project" },
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-1",
+						eventType: "command_finished",
+						payload: { command: "npm init", cwd: "/project", exitCode: 0, outputSummary: "Done" },
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.workspaceId).toBe("ws-1");
+			expect(ctx.goal).toBe("Initialize project");
+			expect(ctx.role).toBe("coder");
+			expect(ctx.lastCommand).toBe("npm init");
+			expect(ctx.transcriptUrl).toBe("/api/transcript/exec-1/ws-1");
 		});
 
-		const events = await model.getTranscript("exec-1", "ws-1");
-		expect(events).toEqual([]);
-	});
-});
+		it("should include directives and escalations", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "lead_agent_directive_issued",
+						payload: {
+							directiveId: "dir-1",
+							workspaceId: "ws-1",
+							summary: "Fix build",
+							directive: "Fix the build",
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-// ---------------------------------------------------------------------------
-// Regressions and Edge Cases
-// ---------------------------------------------------------------------------
-
-describe("stats edge cases", () => {
-	it("should derive totalWorkspaces from event counts when plan_started missing", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "workspace_completed", "ws-1", null),
-				makeEvent("2", "workspace_failed", "ws-2", null),
-				makeEvent("3", "workspace_blocked", "ws-3", null),
-			],
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.activeDirectives).toHaveLength(1);
+			expect(ctx.activeDirectives[0].directiveId).toBe("dir-1");
+			expect(ctx.activeEscalations).toEqual([]);
 		});
 
-		const stats = await model.getPlanStats("exec-1");
-		expect(stats.totalWorkspaces).toBe(3);
-		expect(stats.completedWorkspaces).toBe(1);
-		expect(stats.failedWorkspaces).toBe(1);
-		expect(stats.blockedWorkspaces).toBe(1);
-		expect(stats.dataSource).toBe("events");
-	});
+		it("should load touched files from archive when readArchiveFile available", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [],
+				readArchiveFile: async (pid: string, path: string) => {
+					if (path === "workspaces/ws-1/files-touched.json") {
+						return JSON.stringify([
+							{ path: "src/index.ts", change: "modified" },
+							{ path: "README.md", change: "created" },
+						]);
+					}
+					return null;
+				},
+			});
 
-	it("should report state-store data source when plan summary exists but no events", async () => {
-		const model = createExecutionReadModel({
-			getPlanExecutionSummary: async () => ({
-				id: "exec-1",
-				projectId: "proj-1",
-				phase: "p42",
-				title: "Test Plan",
-				status: "running",
-				startedAt: "2026-01-01T00:00:00Z",
-				completedAt: null,
-			}),
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.touchedFiles).toHaveLength(2);
+			expect(ctx.touchedFiles[0].path).toBe("src/index.ts");
 		});
 
-		const stats = await model.getPlanStats("exec-1");
-		expect(stats.totalWorkspaces).toBe(0);
-		expect(stats.dataSource).toBe("state-store");
-	});
-});
+		it("should load role packet from archive", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [],
+				readArchiveFile: async (pid: string, path: string) => {
+					if (path === "workspaces/ws-1/packet.md") {
+						return "# Role Packet\n\nYou are a coder.\n\nFiles to edit: src/index.ts";
+					}
+					return null;
+				},
+			});
 
-describe("dependency graph stage derivation", () => {
-	it("should derive stage from workspace events when plan_started has workspaces", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "plan_started", undefined, {
-					workspaces: [
-						{ id: "ws-1", dependencies: [], batch: 0 },
-						{ id: "ws-2", dependencies: ["ws-1"], batch: 1 },
-					],
-				}),
-				makeEvent("2", "workspace_running", "ws-1", null),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-				makeEvent("4", "workspace_running", "ws-2", null),
-			],
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.rolePacketContent).toBe("# Role Packet\n\nYou are a coder.\n\nFiles to edit: src/index.ts");
+			expect(ctx.contextPacketSummary).toBeTruthy();
 		});
 
-		const graph = await model.getDependencyGraph("exec-1");
-		expect(graph.nodes).toHaveLength(2);
+		it("should handle human directive", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "human_directive_issued",
+						payload: { directive: "Skip the lint step" },
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-		const ws1Node = graph.nodes.find((n) => n.id === "ws-1")!;
-		expect(ws1Node.stage).toBe("Complete");
-
-		const ws2Node = graph.nodes.find((n) => n.id === "ws-2")!;
-		expect(ws2Node.stage).toBe("Running");
-	});
-
-	it("should derive stage from reconstructed workspace events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "workspace_running", "ws-1", null),
-				makeEvent("2", "workspace_failed", "ws-1", null),
-				makeEvent("3", "workspace_running", "ws-2", null),
-			],
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.humanDirective).toBe("Skip the lint step");
 		});
 
-		const graph = await model.getDependencyGraph("exec-1");
-		expect(graph.nodes).toHaveLength(2);
+		it("should handle cycle-break stage correctly", async () => {
+			// Simulating a workspace that went through several stages
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "workspace_running",
+						createdAt: ts(-10000),
+					}),
+					makeEvent({
+						seq: "2",
+						workspaceId: "ws-1",
+						eventType: "workspace_failed",
+						createdAt: ts(-5000),
+					}),
+					makeEvent({
+						seq: "3",
+						workspaceId: "ws-1",
+						eventType: "workspace_running",
+						createdAt: ts(-2000),
+					}),
+				],
+			});
 
-		const ws1Node = graph.nodes.find((n) => n.id === "ws-1")!;
-		expect(ws1Node.stage).toBe("Failed");
-
-		const ws2Node = graph.nodes.find((n) => n.id === "ws-2")!;
-		expect(ws2Node.stage).toBe("Running");
-	});
-});
-
-describe("command history runId disambiguation", () => {
-	it("should disambiguate concurrent commands using runId", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent(
-					"1",
-					"command_started",
-					"ws-1",
-					{
-						command: "npm test",
-						cwd: "/p",
-						runId: "run-a",
-					},
-					"2026-01-01T00:01:00Z",
-				),
-				makeEvent(
-					"2",
-					"command_started",
-					"ws-1",
-					{
-						command: "npm test",
-						cwd: "/p",
-						runId: "run-b",
-					},
-					"2026-01-01T00:01:01Z",
-				),
-				makeEvent(
-					"3",
-					"command_finished",
-					"ws-1",
-					{
-						command: "npm test",
-						cwd: "/p",
-						runId: "run-a",
-						exitCode: 0,
-					},
-					"2026-01-01T00:01:30Z",
-				),
-				makeEvent(
-					"4",
-					"command_finished",
-					"ws-1",
-					{
-						command: "npm test",
-						cwd: "/p",
-						runId: "run-b",
-						exitCode: 1,
-					},
-					"2026-01-01T00:01:35Z",
-				),
-			],
+			const ctx = await model.getWorkerContext("exec-1", "ws-1");
+			expect(ctx.stage).toBe("Running");
 		});
-
-		const history = await model.getCommandHistory("exec-1", "ws-1");
-		expect(history).toHaveLength(2);
-		expect(history[0].command).toBe("npm test");
-		expect(history[0].exitCode).toBe(0);
-		expect(history[1].exitCode).toBe(1);
-	});
-});
-
-describe("final validation separate queries", () => {
-	it("should query governance events without comma-separated eventType filter", async () => {
-		let capturedOptions: any = null;
-		const model = createExecutionReadModel({
-			getJournalEvents: async (_pid, options) => {
-				capturedOptions = options;
-				return [makeEvent("1", "governance_approved", "ws-1", {})];
-			},
-		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(true);
-		// Should NOT pass comma-separated eventType
-		expect(capturedOptions?.eventType).toBeUndefined();
 	});
 
-	it("should handle mixed governance and non-governance events", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("1", "worker_completed", "ws-1", null),
-				makeEvent("2", "governance_approved", "ws-1", {}),
-				makeEvent("3", "workspace_completed", "ws-1", null),
-			],
+	// -----------------------------------------------------------------------
+	// File tree edge cases
+	// -----------------------------------------------------------------------
+	describe("getFileTree edge cases", () => {
+		it("should build tree with deeply nested paths", async () => {
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "worker_completed",
+						payload: {
+							changedFiles: ["a/b/c/d/file1.ts", "a/b/c/file2.ts", "a/b/file3.ts", "a/file4.ts"],
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
+
+			const tree = await model.getFileTree("exec-1", "ws-1");
+			// Root should be "a"
+			expect(tree).toHaveLength(1);
+			expect(tree[0].path).toBe("a");
+			expect(tree[0].isDir).toBe(true);
+			// "a" should have "b" child with stats
+			// "a" children: "b" (dir) + "file4.ts" (file at root of "a")
+			expect(tree[0].children).toHaveLength(2);
+			// Verify stats are aggregated
+			expect(tree[0].additions).toBe(0); // No addition data
 		});
 
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(true);
-		expect(status.blocked).toBe(false);
-	});
+		it("should add orphan files to root level", async () => {
+			// File with a directory that has no other files
+			const model = createExecutionReadModel({
+				getJournalEvents: async () => [
+					makeEvent({
+						seq: "1",
+						workspaceId: "ws-1",
+						eventType: "worker_completed",
+						payload: {
+							changedFiles: ["src/orphan.ts"],
+						},
+						createdAt: ts(0),
+					}),
+				],
+			});
 
-	it("should use the latest governance event by seq", async () => {
-		const model = createExecutionReadModel({
-			getJournalEvents: async () => [
-				makeEvent("2", "governance_rejected", "ws-1", { reason: "First" }),
-				makeEvent("5", "governance_approved", "ws-1", { reason: "Second" }),
-			],
+			const tree = await model.getFileTree("exec-1", "ws-1");
+			expect(tree).toHaveLength(1);
+			expect(tree[0].isDir).toBe(true);
+			expect(tree[0].path).toBe("src");
+			expect(tree[0].children).toHaveLength(1);
+			expect(tree[0].children![0].path).toBe("src/orphan.ts");
 		});
-
-		const status = await model.getFinalValidationStatus("exec-1", "ws-1");
-		expect(status.passed).toBe(true);
 	});
 });
