@@ -16,9 +16,7 @@ import type {
 } from "@earendil-works/pi-execution-core";
 
 export function createExecutionReadModel(stateStore: {
-	getPlanExecutionSummary?(
-		planExecutionId: string,
-	): Promise<PlanExecutionSummary | null>;
+	getPlanExecutionSummary?(planExecutionId: string): Promise<PlanExecutionSummary | null>;
 	getWorkspaceState?(
 		planExecutionId: string,
 		workspaceId: string,
@@ -57,15 +55,9 @@ export function createExecutionReadModel(stateStore: {
 			};
 		},
 
-		async getWorkspaceSummary(
-			planExecutionId: string,
-			workspaceId: string,
-		): Promise<WorkspaceExecutionSummary> {
+		async getWorkspaceSummary(planExecutionId: string, workspaceId: string): Promise<WorkspaceExecutionSummary> {
 			if (stateStore.getWorkspaceState) {
-				const state = await stateStore.getWorkspaceState(
-					planExecutionId,
-					workspaceId,
-				);
+				const state = await stateStore.getWorkspaceState(planExecutionId, workspaceId);
 				if (state)
 					return {
 						id: workspaceId,
@@ -73,12 +65,8 @@ export function createExecutionReadModel(stateStore: {
 						workspaceId,
 						stage: state.stage,
 						attempts: state.attempts,
-						startedAt: state.startedAt
-							? new Date(state.startedAt).toISOString()
-							: undefined,
-						completedAt: state.completedAt
-							? new Date(state.completedAt).toISOString()
-							: undefined,
+						startedAt: state.startedAt ? new Date(state.startedAt).toISOString() : undefined,
+						completedAt: state.completedAt ? new Date(state.completedAt).toISOString() : undefined,
 						error: state.error,
 						reportPath: state.reportPath,
 					};
@@ -92,12 +80,8 @@ export function createExecutionReadModel(stateStore: {
 			};
 		},
 
-		async listJournalEvents(
-			planExecutionId: string,
-			options?: JournalQuery,
-		): Promise<JournalEventEnvelope[]> {
-			if (stateStore.getJournalEvents)
-				return stateStore.getJournalEvents(planExecutionId, options);
+		async listJournalEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]> {
+			if (stateStore.getJournalEvents) return stateStore.getJournalEvents(planExecutionId, options);
 			return [];
 		},
 

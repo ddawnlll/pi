@@ -75,12 +75,9 @@ export async function handleExecutionCommand(
 					message: "Transition router not available",
 					error: "No transition router configured",
 				};
-			await deps.transitionRouter.transitionWorkspace(
-				command.planExecutionId,
-				command.workspaceId,
-				"Pending",
-				{ reason: command.reason ?? "retry requested" },
-			);
+			await deps.transitionRouter.transitionWorkspace(command.planExecutionId, command.workspaceId, "Pending", {
+				reason: command.reason ?? "retry requested",
+			});
 			return {
 				accepted: true,
 				message: `Retry requested for workspace ${command.workspaceId}`,

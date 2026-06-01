@@ -5,7 +5,7 @@
  * External consumers interact with execution through this service.
  */
 import type { ExecutionCommand, ExecutionReadModel } from "@earendil-works/pi-execution-core";
-import { handleExecutionCommand, type CommandHandlerResult } from "./command-handler.js";
+import { type CommandHandlerResult, handleExecutionCommand } from "./command-handler.js";
 import { createExecutionReadModel } from "./query-handler.js";
 
 export interface ExecutionService {
@@ -25,9 +25,7 @@ export function createExecutionService(): ExecutionService {
 			return handleExecutionCommand(command, deps ?? {});
 		},
 
-		getReadModel(
-			stateStore: Parameters<typeof createExecutionReadModel>[0],
-		): ExecutionReadModel {
+		getReadModel(stateStore: Parameters<typeof createExecutionReadModel>[0]): ExecutionReadModel {
 			return createExecutionReadModel(stateStore);
 		},
 	};

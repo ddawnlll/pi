@@ -132,3 +132,6 @@ export type {
 	WorkerCommandHistoryEntry,
 	WorkerAdapterCapabilities,
 } from "./worker-adapter.js";
+
+// Runtime event emitter
+export { RuntimeEventEmitter } from "./runtime-emitter.js";
