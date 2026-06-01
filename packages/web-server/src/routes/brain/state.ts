@@ -41,14 +41,23 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 
 	// GET /observations - List observations
 	fastify.get<{
-		Querystring: { limit?: string; offset?: string; severity?: string };
+		Querystring: { limit?: string; offset?: string; severity?: string; planExecId?: string; workspaceId?: string };
 	}>("/observations", async (request, _reply) => {
 		try {
 			const { getObservations } = await import("@earendil-works/pi-coding-agent");
 			const { projectId } = request.params as { projectId?: string };
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
-			const result = await getObservations({ limit, offset, severity: request.query.severity }, projectId);
+			const result = await getObservations(
+				{
+					limit,
+					offset,
+					severity: request.query.severity,
+					planExecId: request.query.planExecId,
+					workspaceId: request.query.workspaceId,
+				},
+				projectId,
+			);
 			return result;
 		} catch {
 			return { observations: [], total: 0 };
@@ -57,7 +66,7 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 
 	// GET /signals - List signals
 	fastify.get<{
-		Querystring: { limit?: string; offset?: string; resolved?: string };
+		Querystring: { limit?: string; offset?: string; resolved?: string; planExecId?: string; workspaceId?: string };
 	}>("/signals", async (request, _reply) => {
 		try {
 			const { getSignals } = await import("@earendil-works/pi-coding-agent");
@@ -65,7 +74,10 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
 			const resolved = request.query.resolved !== undefined ? request.query.resolved === "true" : undefined;
-			const result = await getSignals({ limit, offset, resolved }, projectId);
+			const result = await getSignals(
+				{ limit, offset, resolved, planExecId: request.query.planExecId, workspaceId: request.query.workspaceId },
+				projectId,
+			);
 			return result;
 		} catch {
 			return { signals: [], total: 0 };
@@ -74,14 +86,23 @@ export async function registerBrainStateRoutes(fastify: FastifyInstance): Promis
 
 	// GET /timeline - Get timeline events
 	fastify.get<{
-		Querystring: { limit?: string; offset?: string; severity?: string };
+		Querystring: { limit?: string; offset?: string; severity?: string; planExecId?: string; workspaceId?: string };
 	}>("/timeline", async (request, _reply) => {
 		try {
 			const { getTimeline } = await import("@earendil-works/pi-coding-agent");
 			const { projectId } = request.params as { projectId?: string };
 			const limit = Number(request.query.limit) || 50;
 			const offset = Number(request.query.offset) || 0;
-			const result = await getTimeline({ limit, offset, severity: request.query.severity }, projectId);
+			const result = await getTimeline(
+				{
+					limit,
+					offset,
+					severity: request.query.severity,
+					planExecId: request.query.planExecId,
+					workspaceId: request.query.workspaceId,
+				},
+				projectId,
+			);
 			return result;
 		} catch {
 			return { events: [], total: 0 };

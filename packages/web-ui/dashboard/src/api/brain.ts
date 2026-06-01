@@ -89,6 +89,10 @@ export class BrainClient {
 			limit?: number;
 			offset?: number;
 			severity?: string;
+			/** P41.1-HOTFIX: Filter by plan execution ID */
+			planExecId?: string;
+			/** P41.1-HOTFIX: Filter by workspace ID */
+			workspaceId?: string;
 		},
 		projectId?: string | null,
 	): Promise<{ events: TimelineEvent[]; total: number }> {
@@ -96,6 +100,8 @@ export class BrainClient {
 		if (params?.limit) qs.set("limit", String(params.limit));
 		if (params?.offset) qs.set("offset", String(params.offset));
 		if (params?.severity) qs.set("severity", params.severity);
+		if (params?.planExecId) qs.set("planExecId", params.planExecId);
+		if (params?.workspaceId) qs.set("workspaceId", params.workspaceId);
 		return apiFetch(`${brainUrl("/timeline", projectId)}?${qs}`);
 	}
 
@@ -104,6 +110,10 @@ export class BrainClient {
 			limit?: number;
 			offset?: number;
 			severity?: string;
+			/** P41.1-HOTFIX: Filter by plan execution ID */
+			planExecId?: string;
+			/** P41.1-HOTFIX: Filter by workspace ID */
+			workspaceId?: string;
 		},
 		projectId?: string | null,
 	): Promise<{ observations: BrainObservation[]; total: number }> {
@@ -111,6 +121,8 @@ export class BrainClient {
 		if (params?.limit) qs.set("limit", String(params.limit));
 		if (params?.offset) qs.set("offset", String(params.offset));
 		if (params?.severity) qs.set("severity", params.severity);
+		if (params?.planExecId) qs.set("planExecId", params.planExecId);
+		if (params?.workspaceId) qs.set("workspaceId", params.workspaceId);
 		return apiFetch(`${brainUrl("/observations", projectId)}?${qs}`);
 	}
 
@@ -119,6 +131,10 @@ export class BrainClient {
 			limit?: number;
 			offset?: number;
 			resolved?: boolean;
+			/** P41.1-HOTFIX: Filter by plan execution ID */
+			planExecId?: string;
+			/** P41.1-HOTFIX: Filter by workspace ID */
+			workspaceId?: string;
 		},
 		projectId?: string | null,
 	): Promise<{ signals: BrainSignal[]; total: number }> {
@@ -126,6 +142,8 @@ export class BrainClient {
 		if (params?.limit) qs.set("limit", String(params.limit));
 		if (params?.offset) qs.set("offset", String(params.offset));
 		if (params?.resolved !== undefined) qs.set("resolved", String(params.resolved));
+		if (params?.planExecId) qs.set("planExecId", params.planExecId);
+		if (params?.workspaceId) qs.set("workspaceId", params.workspaceId);
 		return apiFetch(`${brainUrl("/signals", projectId)}?${qs}`);
 	}
 

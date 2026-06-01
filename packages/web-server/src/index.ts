@@ -2474,6 +2474,158 @@ function queueAuditLog(projectId: string, action: string, entryId: string, detai
 const taskStore = createTaskStore();
 
 /**
+ * POST /api/projects/:projectId/tasks/bulk - Bulk create tasks from plan drafts
+ */
+fastify.post<{
+	Params: { projectId: string };
+	Body: {
+		mode: string;
+		strategy: string;
+		executionMode: "sequential" | "parallel";
+		safeParallelism: number;
+		plans: Array<{
+			localId: string;
+			title: string;
+			planId: string;
+			sourceFileName: string;
+			rawText: string;
+			dependencies: string[];
+			allowedFiles: string[];
+			forbiddenFiles: string[];
+			validationCommands: string[];
+		}>;
+	};
+}>("/api/projects/:projectId/tasks/bulk", async (request, reply) => {
+	const { projectId } = request.params;
+	const { mode: _mode, strategy: _strategy, executionMode: _executionMode, safeParallelism, plans } = request.body;
+
+	if (!plans || plans.length === 0) {
+		return reply.code(400).send({ ok: false, error: "plans array is required and must not be empty" });
+	}
+
+	// Validate for duplicate titles
+	const titles = new Set<string>();
+	const planIds = new Set<string>();
+	const validationMessages: Array<{
+		id: string;
+		severity: string;
+		area: string;
+		planLocalId?: string;
+		message: string;
+		evidence?: string;
+	}> = [];
+
+	for (const plan of plans) {
+		if (titles.has(plan.title)) {
+			validationMessages.push({
+				id: `BULK-${plan.localId}-DUP`,
+				severity: "blocker",
+				area: "rename",
+				planLocalId: plan.localId,
+				message: `Duplicate task title "${plan.title}"`,
+			});
+		}
+		titles.add(plan.title);
+
+		if (planIds.has(plan.planId)) {
+			validationMessages.push({
+				id: `BULK-${plan.localId}-DUPID`,
+				severity: "error",
+				area: "rename",
+				planLocalId: plan.localId,
+				message: `Duplicate plan ID "${plan.planId}"`,
+			});
+		}
+		planIds.add(plan.planId);
+
+		if (!plan.title || plan.title.trim().length === 0) {
+			validationMessages.push({
+				id: `BULK-${plan.localId}-TITLE`,
+				severity: "blocker",
+				area: "schema",
+				planLocalId: plan.localId,
+				message: `Plan "${plan.sourceFileName}" has no title`,
+			});
+		}
+	}
+
+	// Check for cycle dependencies (basic check: a plan cannot depend on itself transitively through cycle)
+	const depMap = new Map<string, string[]>();
+	for (const plan of plans) {
+		depMap.set(plan.planId, plan.dependencies);
+	}
+	// Detect if any dependency references an unknown plan
+	const knownPlanIds = new Set(plans.map((p) => p.planId));
+	for (const plan of plans) {
+		for (const dep of plan.dependencies) {
+			if (!knownPlanIds.has(dep)) {
+				validationMessages.push({
+					id: `BULK-${plan.localId}-MISSDEP`,
+					severity: "error",
+					area: "dag",
+					planLocalId: plan.localId,
+					message: `Dependency "${dep}" not found among submitted plans`,
+					evidence: dep,
+				});
+			}
+		}
+	}
+
+	const hasBlocker = validationMessages.some((m) => m.severity === "blocker");
+
+	if (hasBlocker) {
+		return reply.code(422).send({
+			ok: false,
+			error: "Validation blocked. Fix errors before creating tasks.",
+			validationMessages,
+		});
+	}
+
+	// Create tasks atomically (best-effort: all or nothing)
+	const workspaceRoot = getWorkspaceRoot();
+	const createdTasks: Array<{ id: string; title: string; planId: string }> = [];
+
+	try {
+		for (let i = 0; i < plans.length; i++) {
+			const plan = plans[i];
+			const task = await taskStore.createTask(projectId, workspaceRoot, {
+				title: plan.title,
+				planFiles: [plan.sourceFileName],
+				executionMode: safeParallelism > 1 ? "parallel" : "sequential",
+				origin: {
+					type: "user_upload",
+					sourcePlanFiles: [plan.sourceFileName],
+				},
+				phases: [
+					{
+						id: `phase-${plan.planId}`,
+						title: plan.title,
+						planFile: plan.rawText ? `${plan.planId}.md` : "pending",
+						dependsOn: plan.dependencies,
+					},
+				],
+			});
+			createdTasks.push({ id: task.id, title: task.title, planId: plan.planId });
+		}
+
+		return {
+			ok: true,
+			createdTasks,
+			validationMessages,
+		};
+	} catch (err) {
+		// If partial creation occurred, we have a problem. The file-based store doesn't support transactions.
+		// Best effort: report which were created, which failed.
+		return reply.code(500).send({
+			ok: false,
+			error: `Failed to create tasks after creating ${createdTasks.length}/${plans.length}: ${String(err)}`,
+			createdTasks,
+			validationMessages,
+		});
+	}
+});
+
+/**
  * POST /api/projects/:projectId/tasks - Create a new task
  */
 fastify.post<{

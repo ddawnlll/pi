@@ -296,12 +296,7 @@ function generateRunningHealth(): OrchestratorHealth {
 		paused: false,
 		pauseReason: null,
 		lastHeartbeatAt: now,
-		activityLog: [
-			{ timestamp: now - 3600000, level: "info", message: "Orchestrator daemon started", scanCycle: 0 },
-			{ timestamp: now - 3590000, level: "info", message: "Scan #1 starting — repo health check", scanCycle: 1 },
-			{ timestamp: now - 3585000, level: "info", message: "Git status: 3 modified files detected", scanCycle: 1 },
-			{ timestamp: now - 3570000, level: "info", message: "Scan #1 complete (5 proposals generated)", scanCycle: 1 },
-		],
+		activityLog: [],
 	};
 }
 

@@ -143,6 +143,10 @@ export interface BrainQueryOptions {
 	offset?: number;
 	severity?: string;
 	resolved?: boolean;
+	/** P41.1-HOTFIX: Filter by plan execution ID. */
+	planExecId?: string;
+	/** P41.1-HOTFIX: Filter by workspace ID. */
+	workspaceId?: string;
 }
 
 /** Query observations from the brain store. */
@@ -306,10 +310,14 @@ export async function getObservations(
 		eventTypes: ["observation"],
 		limit: options?.limit ?? 50,
 		offset: options?.offset ?? 0,
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
 	});
 
 	const total = await store.count({
 		eventTypes: ["observation"],
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
 	});
 
 	const observations: BrainObservation[] = events.map((e) => {
@@ -349,10 +357,14 @@ export async function getSignals(options?: BrainQueryOptions, projectId?: string
 		eventTypes: ["signal"],
 		limit: options?.limit ?? 50,
 		offset: options?.offset ?? 0,
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
 	});
 
 	const total = await store.count({
 		eventTypes: ["signal"],
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
 	});
 
 	const signals: BrainSignal[] = events.map((e) => {
@@ -435,9 +447,14 @@ export async function getTimeline(
 	const events = await store.list({
 		limit: options?.limit ?? 50,
 		offset: options?.offset ?? 0,
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
 	});
 
-	const total = await store.count();
+	const total = await store.count({
+		planExecId: options?.planExecId,
+		workspaceId: options?.workspaceId,
+	});
 
 	return { events, total };
 }

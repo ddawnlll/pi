@@ -29,7 +29,7 @@ import { WorkerDetail } from "./components/WorkerDetail";
 import { DiffViewer } from "./components/DiffViewer";
 import { OpenProjectDialog } from "./components/OpenProjectDialog";
 import { PlanUploadDialog } from "./components/PlanUploadDialog";
-import { TaskCreateDialog } from "./components/TaskCreateDialog";
+import { TaskCreationStudio } from "./components/TaskCreationStudio";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ExecutionLogViewer } from "./components/ExecutionLogViewer";
 import { WarningBanner } from "./components/WarningBanner";
@@ -1009,14 +1009,12 @@ export function App() {
                           <AutonomyCenter className="flex-1 min-h-0" />
                         ) : showObservability ? (
                           <ObservabilityCockpit className="flex-1 min-h-0" />
-                        ) : showPiInbox ? (
-                          <PiInbox className="flex-1 min-h-0" />
                         ) : showBrainOverview ? (
                           <BrainStatePage />
                         ) : showBrainTemporal ? (
-                          <BrainStatePage />
+                          <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-temporal"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Temporal Journal</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
                         ) : showBrainRepoScanner ? (
-                          <BrainStatePage />
+                          <div className="flex-1 flex items-center justify-center p-6" data-testid="brain-tab-repo-scanner"><div className="text-center max-w-md" data-testid="brain-empty-state"><h2 className="text-lg font-semibold text-stone-700 dark:text-stone-200">Repo Scanner</h2><p className="text-sm text-stone-400 dark:text-stone-500 mt-2">This page is not yet implemented. Check back soon.</p></div></div>
                         ) : showBrainProposals || showBrainDrafts ? (
                           <ProposalInbox className="flex-1 min-h-0" />
                         ) : showBrainMemory ? (
@@ -1136,7 +1134,7 @@ export function App() {
           onEnqueued={handlePlanEnqueued} />
       )}
       {showTaskCreateDialog && selectedProjectId && (
-        <TaskCreateDialog isOpen={showTaskCreateDialog} onClose={() => setShowTaskCreateDialog(false)}
+        <TaskCreationStudio isOpen={showTaskCreateDialog} onClose={() => setShowTaskCreateDialog(false)}
           projectId={selectedProjectId} onTaskCreated={(taskId) => {
             setShowTaskCreateDialog(false);
             setSelectedTaskId(taskId);

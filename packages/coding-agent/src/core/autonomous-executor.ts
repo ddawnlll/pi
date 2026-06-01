@@ -8,6 +8,7 @@
  * enabling both JSON and PostgreSQL persistence backends.
  */
 
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
@@ -19,6 +20,8 @@ import {
 } from "@earendil-works/pi-execution-core";
 import { createGitRunner, handleExecutionCommand } from "@earendil-works/pi-execution-service";
 import { LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
+import { getBrainStore } from "../brain/api.js";
+import type { Severity, TimelineEventType } from "../brain/types.js";
 import type { TransitionRouter } from "../execution-kernel/transition-router.js";
 import { createTransitionRouter } from "../execution-kernel/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
@@ -975,6 +978,20 @@ export class AutonomousExecutor {
 			// Transition to active via TransitionRouter (Finding 2)
 			await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Active);
 
+			// P41.2: Bridge workspace start to brain activity timeline
+			const phase = this.workspaceQueue?.phase ?? "unknown";
+			await this.bridgeToBrainActivity(
+				planExecutionId,
+				workspace.id,
+				"observation",
+				"info",
+				`Workspace ${workspace.id} started`,
+				`Workspace ${workspace.id} executing (attempt ${currentAttemptNo})`,
+				phase,
+				"started",
+				{ attemptNo: currentAttemptNo },
+			).catch(() => {});
+
 			// Create workspace snapshot directory
 			const snapshot = await this.createWorkspaceSnapshot(workspace.id);
 
@@ -1303,6 +1320,19 @@ export class AutonomousExecutor {
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
 				});
+				// P41.2: Bridge completed workspace event to brain activity timeline
+				const phase = this.workspaceQueue?.phase ?? "unknown";
+				await this.bridgeToBrainActivity(
+					planExecutionId,
+					workspace.id,
+					"observation",
+					"info",
+					`Workspace ${workspace.id} completed`,
+					`Workspace ${workspace.id} completed with verdict: ${result.verdict}`,
+					phase,
+					"completed",
+					{ verdict: result.verdict, attempts: currentAttemptNo },
+				).catch(() => {});
 			} else {
 				// Completion gate blocked — transition to the recommended state instead
 				const gateBlockMsg = gateResult.blockReasons.join("; ");
@@ -1346,6 +1376,26 @@ export class AutonomousExecutor {
 				);
 				result.success = false;
 				result.verdict = gateResult.recommendedState === WorkspaceStage.Blocked ? "BLOCKED" : "FAILED";
+				// P41.2: Bridge blocked/failed workspace event to brain activity timeline
+				const phase = this.workspaceQueue?.phase ?? "unknown";
+				const bridgeEventType: TimelineEventType =
+					gateResult.recommendedState === WorkspaceStage.Blocked ? "observation" : "observation";
+				const bridgeStatus = gateResult.recommendedState === WorkspaceStage.Blocked ? "failed" : "failed";
+				const bridgeTitle =
+					gateResult.recommendedState === WorkspaceStage.Blocked
+						? `Workspace ${workspace.id} blocked`
+						: `Workspace ${workspace.id} failed`;
+				await this.bridgeToBrainActivity(
+					planExecutionId,
+					workspace.id,
+					bridgeEventType,
+					"warning",
+					bridgeTitle,
+					`Gate blocked: ${gateBlockMsg}`,
+					phase,
+					bridgeStatus,
+					{ verdict: result.verdict, gateBlockReasons: gateResult.blockReasons },
+				).catch(() => {});
 			}
 
 			// Update local cache
@@ -1409,6 +1459,20 @@ export class AutonomousExecutor {
 			await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
 				error: errorMessage,
 			});
+
+			// P41.2: Bridge unexpected workspace failure to brain activity timeline
+			const phase = this.workspaceQueue?.phase ?? "unknown";
+			await this.bridgeToBrainActivity(
+				planExecutionId,
+				workspace.id,
+				"observation",
+				"critical",
+				`Workspace ${workspace.id} execution error`,
+				errorMessage,
+				phase,
+				"failed",
+				{ errorMessage, attemptNo: wsState?.attempts ?? 1 },
+			).catch(() => {});
 
 			// Get updated state for retry decision
 			const updatedWsState = await this.stateStore.getWorkspaceState(planExecutionId, workspace.id);
@@ -2768,6 +2832,64 @@ export class AutonomousExecutor {
 			}
 		} catch {
 			// Worktree cleanup is best-effort during stop/cancel
+		}
+	}
+
+	// ───────────────────────────────────────────────────────────────────
+	// P41.2: Brain Activity Bridge — non-fatal instrumentation
+	// ───────────────────────────────────────────────────────────────────
+
+	/**
+	 * Bridge a workspace lifecycle event into the brain activity timeline.
+	 *
+	 * Called after workspace transitions (complete, fail, block). Emits a
+	 * BrainTimelineEvent into the InMemoryBrainTimelineStore so the Brain
+	 * Activity dashboard can display real runtime events.
+	 *
+	 * This is non-fatal instrumentation: if bridging fails, execution
+	 * continues without error.
+	 */
+	private async bridgeToBrainActivity(
+		planExecutionId: string,
+		workspaceId: string,
+		eventType: TimelineEventType,
+		severity: Severity,
+		title: string,
+		description: string,
+		phase: string,
+		status: "started" | "progress" | "completed" | "failed",
+		dataOverrides?: Record<string, unknown>,
+	): Promise<void> {
+		try {
+			const store = getBrainStore();
+			const traceId = randomUUID();
+			const eventData: Record<string, unknown> = {
+				// P41.1 identity fields
+				runId: planExecutionId,
+				workspaceId,
+				planExecId: planExecutionId,
+				traceId,
+				type: eventType,
+				phase,
+				status,
+				title,
+				description,
+				source: "execution",
+				...dataOverrides,
+			};
+
+			await store.append({
+				id: randomUUID(),
+				eventType,
+				timestamp: new Date().toISOString(),
+				data: eventData,
+				workspaceId,
+				planExecId: planExecutionId,
+				severity,
+			});
+		} catch {
+			// Non-fatal: brain activity instrumentation must never
+			// crash or block workspace execution.
 		}
 	}
 }

@@ -174,6 +174,112 @@ export interface BrainTimelineEvent {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// P41.1-HOTFIX: Brain Activity Event — run-scoped canonical event type
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Status of a brain activity operation.
+ */
+export type BrainActivityStatus = "started" | "progress" | "completed" | "failed";
+
+/** Array of all valid BrainActivityStatus values. */
+export const ALL_BRAIN_ACTIVITY_STATUSES: BrainActivityStatus[] = ["started", "progress", "completed", "failed"];
+
+/**
+ * Canonical brain activity event with required run-scoped identity.
+ *
+ * P41.1-HOTFIX: This type carries the full observability contract:
+ * every event has a traceable run, workspace, plan, and trace identity.
+ * Unlike BrainTimelineEvent (which has optional workspaceId/planExecId),
+ * BrainActivityEvent mandates identity for reliable dashboard scoping.
+ *
+ * Compatibility: BrainTimelineEvent.eventType maps to BrainActivityEvent.type.
+ * BrainTimelineEvent.data maps to BrainActivityEvent.payload.
+ */
+export interface BrainActivityEvent {
+	/** Unique identifier (UUID v4). */
+	id: string;
+	/** Execution run identifier. Maps to plan execution UUID or equivalent. */
+	runId: string;
+	/** Workspace identifier within the execution. */
+	workspaceId: string;
+	/** Plan execution identifier. */
+	planExecId: string;
+	/** Optional brain session identifier for multi-session runs. */
+	brainSessionId?: string;
+	/** Trace identifier for distributed tracing correlation. */
+	traceId: string;
+	/** Event type (e.g., "observation", "signal", "daemon_start"). */
+	type: string;
+	/** Execution phase this event belongs to. */
+	phase: string;
+	/** Operation status. */
+	status: BrainActivityStatus;
+	/** ISO 8601 timestamp of when the event occurred. */
+	timestamp: string;
+	/** Event payload / data. */
+	payload: unknown;
+	/** Severity level. */
+	severity?: Severity;
+}
+
+/**
+ * Map a legacy BrainTimelineEvent to the canonical BrainActivityEvent.
+ *
+ * Required fields that cannot be derived from the legacy event are
+ * populated with sentinel values. Callers must fill these in with
+ * runtime context when available.
+ */
+export function toBrainActivityEvent(
+	legacy: BrainTimelineEvent,
+	runId: string,
+	workspaceId: string,
+	planExecId: string,
+	traceId: string,
+	phase: string,
+): BrainActivityEvent {
+	return {
+		id: legacy.id,
+		runId,
+		workspaceId: legacy.workspaceId ?? workspaceId,
+		planExecId: legacy.planExecId ?? planExecId,
+		traceId,
+		type: legacy.eventType,
+		phase,
+		status: "progress" as BrainActivityStatus,
+		timestamp: legacy.timestamp,
+		payload: legacy.data,
+		severity: legacy.severity,
+	};
+}
+
+/**
+ * Map a legacy BrainObservation to a BrainActivityEvent.
+ */
+export function observationToBrainActivityEvent(
+	obs: BrainObservation,
+	runId: string,
+	workspaceId: string,
+	planExecId: string,
+	traceId: string,
+	phase: string,
+): BrainActivityEvent {
+	return {
+		id: obs.id,
+		runId,
+		workspaceId,
+		planExecId,
+		traceId,
+		type: "observation",
+		phase,
+		status: "completed" as BrainActivityStatus,
+		timestamp: obs.timestamp,
+		payload: obs,
+		severity: obs.severity,
+	};
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Helper: All signal types list
 // ─────────────────────────────────────────────────────────────────────
 
@@ -273,6 +379,27 @@ export function createBrainTimelineEvent(
 		id: randomUUID(),
 		timestamp: new Date().toISOString(),
 		data: {},
+		...overrides,
+	};
+}
+
+/** Create a new BrainActivityEvent with defaults applied. */
+export function createBrainActivityEvent(
+	overrides: Partial<Omit<BrainActivityEvent, "id" | "timestamp">> & {
+		runId: string;
+		workspaceId: string;
+		planExecId: string;
+		traceId: string;
+		type: string;
+		phase: string;
+		status: BrainActivityStatus;
+	},
+): BrainActivityEvent {
+	return {
+		id: randomUUID(),
+		timestamp: new Date().toISOString(),
+		severity: "info",
+		payload: {},
 		...overrides,
 	};
 }
@@ -442,6 +569,55 @@ export function validateBrainTimelineEvent(value: unknown): ValidationResult {
 	}
 	if (event.planExecId !== undefined && (typeof event.planExecId !== "string" || event.planExecId.length === 0)) {
 		errors.push("planExecId must be a non-empty string when provided");
+	}
+
+	return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate a BrainActivityEvent object.
+ * P41.1-HOTFIX: Rejects events missing required run/workspace/trace identity.
+ */
+export function validateBrainActivityEvent(value: unknown): ValidationResult {
+	const errors: string[] = [];
+
+	if (!value || typeof value !== "object") {
+		return { valid: false, errors: ["Value must be a non-null object"] };
+	}
+
+	const event = value as Record<string, unknown>;
+
+	if (typeof event.id !== "string" || event.id.length === 0) {
+		errors.push("id must be a non-empty string");
+	}
+	if (typeof event.runId !== "string" || event.runId.length === 0) {
+		errors.push("runId must be a non-empty string");
+	}
+	if (typeof event.workspaceId !== "string" || event.workspaceId.length === 0) {
+		errors.push("workspaceId must be a non-empty string");
+	}
+	if (typeof event.planExecId !== "string" || event.planExecId.length === 0) {
+		errors.push("planExecId must be a non-empty string");
+	}
+	if (typeof event.traceId !== "string" || event.traceId.length === 0) {
+		errors.push("traceId must be a non-empty string");
+	}
+	if (typeof event.type !== "string" || event.type.length === 0) {
+		errors.push("type must be a non-empty string");
+	}
+	if (typeof event.phase !== "string" || event.phase.length === 0) {
+		errors.push("phase must be a non-empty string");
+	}
+	if (!ALL_BRAIN_ACTIVITY_STATUSES.includes(event.status as BrainActivityStatus)) {
+		errors.push(`status must be one of: ${ALL_BRAIN_ACTIVITY_STATUSES.join(", ")}`);
+	}
+	if (!isValidTimestamp(event.timestamp)) {
+		errors.push("timestamp must be a valid ISO 8601 string");
+	}
+	if (event.severity !== undefined) {
+		if (!ALL_SEVERITIES.includes(event.severity as Severity)) {
+			errors.push(`severity must be one of: ${ALL_SEVERITIES.join(", ")}`);
+		}
 	}
 
 	return { valid: errors.length === 0, errors };

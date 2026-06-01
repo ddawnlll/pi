@@ -77,8 +77,7 @@ export function BrainStatePage() {
 	}
 
 	return (
-		<div className="p-6 max-w-5xl mx-auto space-y-4">
-			{/* Header */}
+		<div className="p-6 max-w-5xl mx-auto space-y-4" data-testid="brain-overview-page">
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<h1 className="text-base font-semibold text-stone-800 dark:text-stone-200">

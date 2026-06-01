@@ -54,6 +54,8 @@ export {
 	DEFAULT_INJECTION_POLICY_RULES,
 	MemoryInjectionEngine,
 } from "./context/index.js";
+export type { BrainEventProducerConfig } from "./event-producer.js";
+export { BrainEventProducer, createAndSeedProducer } from "./event-producer.js";
 export type { EvidenceEventSink } from "./evidence/api.js";
 export { createEvidenceApi, EvidenceApi } from "./evidence/api.js";
 // Evidence Index (V5.02)
@@ -269,6 +271,8 @@ export {
 	validateMemoryQuery,
 	validateMemoryRecord,
 } from "./memory/types.js";
+export type { ObservabilityBridgeConfig } from "./observability-bridge.js";
+export { getObservabilityBridge, ObservabilityBridge, setObservabilityBridge } from "./observability-bridge.js";
 export {
 	ExecutionJournalObserver,
 	ObservationEngine,
@@ -526,6 +530,8 @@ export {
 	type TimelineStoreStats,
 } from "./timeline-store.js";
 export type {
+	BrainActivityEvent,
+	BrainActivityStatus,
 	BrainObservation,
 	BrainSignal,
 	BrainTimelineEvent,
@@ -539,20 +545,25 @@ export type {
 	ValidationResult,
 } from "./types.js";
 export {
+	ALL_BRAIN_ACTIVITY_STATUSES,
 	ALL_EVENT_SOURCES,
 	ALL_SEVERITIES,
 	ALL_SIGNAL_TYPES,
 	ALL_SOURCE_REF_TYPES,
 	ALL_TIMELINE_EVENT_TYPES,
+	createBrainActivityEvent,
 	createBrainObservation,
 	createBrainSignal,
 	createBrainTimelineEvent,
 	deserializeBrainObservation,
 	deserializeBrainSignal,
 	deserializeBrainTimelineEvent,
+	observationToBrainActivityEvent,
 	serializeBrainObservation,
 	serializeBrainSignal,
 	serializeBrainTimelineEvent,
+	toBrainActivityEvent,
+	validateBrainActivityEvent,
 	validateBrainObservation,
 	validateBrainSignal,
 	validateBrainTimelineEvent,

@@ -26,8 +26,10 @@ export interface UseBrainStatusReturn {
  * Hook for brain state data. Supports project-scoped API calls.
  *
  * @param projectId - Optional project ID for project-scoped brain API
+ * @param planExecId - P41.1-HOTFIX: Optional plan execution ID for scoped brain data
+ * @param workspaceId - P41.1-HOTFIX: Optional workspace ID for scoped brain data
  */
-export function useBrainStatus(projectId?: string | null): UseBrainStatusReturn {
+export function useBrainStatus(projectId?: string | null, planExecId?: string | null, workspaceId?: string | null): UseBrainStatusReturn {
 	const [state, setState] = useState<BrainStateData | null>(null);
 	const [observations, setObservations] = useState<BrainObservation[]>([]);
 	const [signals, setSignals] = useState<BrainSignal[]>([]);
@@ -38,11 +40,15 @@ export function useBrainStatus(projectId?: string | null): UseBrainStatusReturn 
 
 	const fetch = useCallback(async () => {
 		try {
+			const stateQuery = projectId ?? null;
+			const obsQuery = { limit: 50, planExecId: planExecId ?? undefined, workspaceId: workspaceId ?? undefined };
+			const sigQuery = { limit: 50, planExecId: planExecId ?? undefined, workspaceId: workspaceId ?? undefined };
+			const tlQuery = { limit: 50, planExecId: planExecId ?? undefined, workspaceId: workspaceId ?? undefined };
 			const [stateData, obsData, sigData, tlData] = await Promise.all([
-				brainClient.getState(projectId).catch(() => null),
-				brainClient.getObservations({ limit: 50 }, projectId).catch(() => ({ observations: [], total: 0 })),
-				brainClient.getSignals({ limit: 50 }, projectId).catch(() => ({ signals: [], total: 0 })),
-				brainClient.getTimeline({ limit: 50 }, projectId).catch(() => ({ events: [], total: 0 })),
+				brainClient.getState(stateQuery).catch(() => null),
+				brainClient.getObservations(obsQuery, projectId).catch(() => ({ observations: [], total: 0 })),
+				brainClient.getSignals(sigQuery, projectId).catch(() => ({ signals: [], total: 0 })),
+				brainClient.getTimeline(tlQuery, projectId).catch(() => ({ events: [], total: 0 })),
 			]);
 
 			if (stateData) setState(stateData);
@@ -55,7 +61,7 @@ export function useBrainStatus(projectId?: string | null): UseBrainStatusReturn 
 		} finally {
 			setLoading(false);
 		}
-	}, [projectId]);
+	}, [projectId, planExecId, workspaceId]);
 
 	useEffect(() => {
 		fetch();
