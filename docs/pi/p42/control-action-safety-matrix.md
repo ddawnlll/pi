@@ -62,10 +62,12 @@
 
 | # | Action | Endpoint | ES Command | Event Emitted | Goes Through ES? | Confirmation Required? | Danger Level |
 |---|--------|----------|------------|---------------|-----------------|----------------------|--------------|
-| 12 | Resolve | `POST /api/human/escalations/:escId/resolve` | `resolve_escalation` | `lead_agent_escalation_resolved` | **Yes** ✅ | No | Safe |
+| 12 | Resolve | `POST /api/human/escalations/:escId/resolve` | `resolve_escalation` | `lead_agent_escalation_resolved` | **Broken**⁰ | No | Safe |
 | 13 | Acknowledge Directive | `POST /api/human/escalations/:escId/ack`¹ | `acknowledge_directive` | `lead_agent_directive_acknowledged` | **Yes** ✅ | No | Safe |
 
-**Note:** The acknowledge endpoint (`/api/human/escalations/:escId/ack`) is specified in V3 but not yet implemented in `human-directive-routes.ts`. Only resolve is currently implemented.
+**Footnotes:**
+0. **CRITICAL BUG**: `resolve_escalation` route in `human-directive-routes.ts` passes empty deps `{}` to `handleExecutionCommand()`, but the handler requires `escalationManager`. The route will ALWAYS return 422 `{"success": false, "error": "No escalation manager configured"}` regardless of request validity. Escalation is never actually resolved. This must be fixed by passing the appropriate stateStore escalation-manager interface or wiring the escalationManager dependency.
+1. The acknowledge endpoint (`/api/human/escalations/:escId/ack`) is specified in V3 but not yet implemented in `human-directive-routes.ts`. Only resolve is currently implemented — and it's broken.
 
 ### 1.4 Proposal-Level Actions (Policy / Governance)
 
@@ -157,6 +159,29 @@ These paths bypass `handleExecutionCommand()` entirely and should be migrated or
 4. **`POST /api/orchestrator/control` and `/api/orchestrator/lead-agent/control`** — These correctly bypass ES because the orchestrator is a separate daemon. Control is done via file-based signaling.
 
 5. **`POST /api/scale/*`** — Correctly bypass ES because scale/integration queue is a separate domain.
+
+### 2.2.1 Critical Gap: `resolve_escalation` Route Has Broken ES Dependency Injection
+
+The `POST /api/human/escalations/:escId/resolve` route in `human-directive-routes.ts` calls `handleExecutionCommand()` with empty deps:
+
+```typescript
+const result = await handleExecutionCommand(
+    { type: "resolve_escalation", … },
+    {},  // <-- empty deps! escalationManager not provided
+);
+```
+
+Because `handleExecutionCommand` for `resolve_escalation` requires `deps.escalationManager`:
+
+```typescript
+case "resolve_escalation": {
+    if (!deps.escalationManager)
+        return { accepted: false, message: "Escalation manager not available", error: "No escalation manager configured" };
+```
+
+**Impact**: Every resolve escalation API call returns 422. The escalation is never resolved. There is no fallback mutation path (unlike the legacy control endpoint which calls both `handleExecutionCommand()` AND direct `stateStore` methods).
+
+**Fix**: Pass the required dependency. The stateStore from `getStateStore()` needs to expose the `escalationManager` interface (`resolveEscalation` method), or a separate escalation manager should be wired in. See `registerHumanDirectiveRoutes` function signature — it already has `getStateStore` as a parameter, but `stateStore` needs to implement the escalation manager contract.
 
 ### 2.3 UI Mutation Paths
 
@@ -399,13 +424,45 @@ All endpoints return `{ success: boolean, error?: string }` but:
 | Orchestrator Pause/Resume/Scan | Safe — reversible |
 | Digest actions (resolve/dismiss/acknowledge) | Safe — lightweight state mutation |
 
-### 7.3 Legacy Paths to Migrate (priority order)
+### 7.3 Critical Bug: Fix `resolve_escalation` Deps Injection (P0)
 
-1. **`POST /api/executions/:peid/control` (pause/stop/cancel/resume)** → Replace with per-action endpoints routing through `handleExecutionCommand()` as primary mutation path
-2. **`POST /api/executions/:peid/control` (force-kill)** → Keep as-is (intentional ES bypass for last-resort), but add dedicated endpoint
-3. **Topbar control dispatch** → Migrate from `App.tsx` direct dispatch to new per-action hooks (`useControlActions` hook)
+**Severity: P0 — Action is completely broken**
 
-### 7.4 Confirmation Dialog Implementation Pattern
+The `resolve_escalation` route at `POST /api/human/escalations/:escId/resolve` always fails with 422 because `handleExecutionCommand()` receives empty deps.
+
+**Fix**: Wire the escalation manager dependency. The stateStore (from `getStateStore()`) or a separate escalation manager must implement the `escalationManager` interface:
+
+```typescript
+interface EscalationManager {
+    resolveEscalation(
+        planExecutionId: string,
+        workspaceId: string,
+        escalationId: string,
+        chosenOptionId: string,
+        userResponse?: string,
+    ): Promise<void>;
+}
+```
+
+Then in `human-directive-routes.ts`, change:
+```typescript
+// Before (broken):
+const result = await handleExecutionCommand({ … }, {});
+
+// After (fixed):
+const result = await handleExecutionCommand({ … }, {
+    escalationManager: /* stateStore or dedicated manager */,
+});
+```
+
+### 7.4 Legacy Paths to Migrate (priority order)
+
+1. **CRITICAL: Fix `resolve_escalation` deps injection** (see 7.3) — P0, action is broken
+2. **`POST /api/executions/:peid/control` (pause/stop/cancel/resume)** → Replace with per-action endpoints routing through `handleExecutionCommand()` as primary mutation path
+3. **`POST /api/executions/:peid/control` (force-kill)** → Keep as-is (intentional ES bypass for last-resort), but add dedicated endpoint
+4. **Topbar control dispatch** → Migrate from `App.tsx` direct dispatch to new per-action hooks (`useControlActions` hook)
+
+### 7.5 Confirmation Dialog Implementation Pattern
 
 For UI implementation, follow the existing `ControlActionsPanel.tsx` pattern:
 
