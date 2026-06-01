@@ -1,65 +1,155 @@
 {
-  "phase": "P19",
-  "title": "Full Second-Brain Dashboard & Autonomy UX",
+  "phase": "P-V5",
+  "title": "Brain Reality Layer",
   "workspaces": [
     {
-      "workspaceId": "7.A",
-      "stage": "active",
-      "attempts": 9,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
-    },
-    {
-      "workspaceId": "7.B",
-      "stage": "active",
-      "attempts": 7,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
-    },
-    {
-      "workspaceId": "7.C",
-      "stage": "active",
-      "attempts": 2,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
-    },
-    {
-      "workspaceId": "7.D",
-      "stage": "active",
-      "attempts": 8,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
-    },
-    {
-      "workspaceId": "7.E",
-      "stage": "active",
-      "attempts": 10,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
-    },
-    {
-      "workspaceId": "7.F",
-      "stage": "pending",
+      "workspaceId": "V5.00",
+      "stage": "complete",
       "attempts": 1,
-      "startedAt": 1779403061038,
-      "ownedFiles": []
+      "startedAt": 1780311498243,
+      "ownedFiles": [],
+      "completedAt": 1780311498332
     },
     {
-      "workspaceId": "7.G",
+      "workspaceId": "V5.01",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498371,
+      "ownedFiles": [],
+      "completedAt": 1780311498413
+    },
+    {
+      "workspaceId": "V5.02",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498433,
+      "ownedFiles": [],
+      "completedAt": 1780311498475
+    },
+    {
+      "workspaceId": "V5.03",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498496,
+      "ownedFiles": [],
+      "completedAt": 1780311498557
+    },
+    {
+      "workspaceId": "V5.04",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498613,
+      "ownedFiles": [],
+      "completedAt": 1780311498666
+    },
+    {
+      "workspaceId": "V5.05",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498684,
+      "ownedFiles": [],
+      "completedAt": 1780311498742
+    },
+    {
+      "workspaceId": "V5.06",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498765,
+      "ownedFiles": [],
+      "completedAt": 1780311498840
+    },
+    {
+      "workspaceId": "V5.07",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311498881,
+      "ownedFiles": [],
+      "completedAt": 1780311499025
+    },
+    {
+      "workspaceId": "V5.08",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311499066,
+      "ownedFiles": [],
+      "completedAt": 1780311499143
+    },
+    {
+      "workspaceId": "V5.09",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311499381,
+      "ownedFiles": [],
+      "completedAt": 1780311499435
+    },
+    {
+      "workspaceId": "V5.10",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311499456,
+      "ownedFiles": [],
+      "completedAt": 1780311499561
+    },
+    {
+      "workspaceId": "V5.11",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311499684,
+      "ownedFiles": [],
+      "completedAt": 1780311499780
+    },
+    {
+      "workspaceId": "V5.12",
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1780311499801,
+      "ownedFiles": [],
+      "completedAt": 1780311499831
+    },
+    {
+      "workspaceId": "V5.13",
+      "stage": "active",
+      "attempts": 1,
+      "startedAt": 1780311498495,
+      "ownedFiles": [
+        "packages/web-ui/dashboard/src/App.tsx",
+        "packages/web-ui/dashboard/src/components/LeftNav.tsx",
+        "packages/web-ui/dashboard/src/components/sidebar/**",
+        "packages/web-ui/dashboard/src/components/topbar/**",
+        "packages/web-ui/dashboard/src/types-brain-v5.ts"
+      ]
+    },
+    {
+      "workspaceId": "V5.14",
       "stage": "pending",
       "attempts": 0
     },
     {
-      "workspaceId": "7.H",
+      "workspaceId": "V5.15",
       "stage": "pending",
       "attempts": 0
     },
     {
-      "workspaceId": "7.I",
+      "workspaceId": "V5.16",
+      "stage": "pending",
+      "attempts": 0
+    },
+    {
+      "workspaceId": "V5.17",
+      "stage": "pending",
+      "attempts": 0
+    },
+    {
+      "workspaceId": "V5.18",
+      "stage": "pending",
+      "attempts": 0
+    },
+    {
+      "workspaceId": "V5.19",
       "stage": "pending",
       "attempts": 0
     }
   ],
-  "startedAt": 1779403058426,
+  "startedAt": 1780311498156,
   "status": "running"
 }
