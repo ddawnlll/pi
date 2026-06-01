@@ -27,6 +27,23 @@ export async function handleExecutionCommand(
 				metadata?: Record<string, unknown>,
 			): Promise<void>;
 		};
+		directiveManager?: {
+			acknowledgeDirective(
+				planExecutionId: string,
+				workspaceId: string,
+				directiveId: string,
+				attemptNumber: number,
+			): Promise<void>;
+		};
+		escalationManager?: {
+			resolveEscalation(
+				planExecutionId: string,
+				workspaceId: string,
+				escalationId: string,
+				chosenOptionId: string,
+				userResponse?: string,
+			): Promise<void>;
+		};
 	},
 ): Promise<CommandHandlerResult> {
 	switch (command.type) {
@@ -89,6 +106,43 @@ export async function handleExecutionCommand(
 			};
 		case "approve_proposal":
 			return { accepted: true, message: `Proposal ${command.proposalId} approved` };
+		case "acknowledge_directive": {
+			if (!deps.directiveManager)
+				return {
+					accepted: false,
+					message: "Directive manager not available",
+					error: "No directive manager configured",
+				};
+			await deps.directiveManager.acknowledgeDirective(
+				command.planExecutionId,
+				command.workspaceId,
+				command.directiveId,
+				command.attemptNumber,
+			);
+			return {
+				accepted: true,
+				message: `Directive ${command.directiveId} acknowledged for workspace ${command.workspaceId}`,
+			};
+		}
+		case "resolve_escalation": {
+			if (!deps.escalationManager)
+				return {
+					accepted: false,
+					message: "Escalation manager not available",
+					error: "No escalation manager configured",
+				};
+			await deps.escalationManager.resolveEscalation(
+				command.planExecutionId,
+				command.workspaceId,
+				command.escalationId,
+				command.chosenOptionId,
+				command.userResponse,
+			);
+			return {
+				accepted: true,
+				message: `Escalation ${command.escalationId} resolved with option ${command.chosenOptionId}`,
+			};
+		}
 		case "issue_human_directive": {
 			if (!deps.planControlManager)
 				return {
