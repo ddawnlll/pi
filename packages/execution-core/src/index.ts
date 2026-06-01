@@ -114,6 +114,25 @@ export type {
 } from "./read-model.js";
 // Runtime event emitter
 export { RuntimeEventEmitter } from "./runtime-emitter.js";
+// Snapshot Artifacts (P41.07)
+export type {
+	FileSnapshot,
+	ISnapshotArtifactStore,
+	SnapshotArtifact,
+	SnapshotArtifactSummary,
+	SnapshotDiff,
+	SnapshotSource,
+	WorkspaceSnapshot,
+} from "./snapshot-artifact.js";
+export {
+	computeContentHash,
+	computeSnapshotDiff,
+	computeSnapshotSummary,
+	createFileSnapshot,
+	createSnapshotArtifact,
+	createWorkspaceSnapshot,
+	InMemorySnapshotArtifactStore,
+} from "./snapshot-artifact.js";
 // P40.2C Dirty Runtime Dependency Ports
 // P40.2 Dependency Inversion Interfaces
 export type {
