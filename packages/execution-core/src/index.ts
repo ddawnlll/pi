@@ -95,8 +95,12 @@ export { PiLogger } from "./logger.js";
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 // Read model
 export type {
+	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
+	DataAvailability,
+	DependencyGraphNode,
+	DependencyGraphView,
 	ExecutionReadModel,
 	FileChangeStatus,
 	FileContentView,
@@ -108,6 +112,7 @@ export type {
 	JournalQuery,
 	LeadDirectiveView,
 	LeadEscalationView,
+	PlanExecutionStats,
 	PlanExecutionSummary,
 	WorkerContextView,
 	WorkspaceExecutionSummary,

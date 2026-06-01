@@ -4,7 +4,38 @@
  * Read model interfaces for querying execution state.
  * These are the ONLY way external consumers (Brain, Web, UI) should read
  * execution state. Direct access to state-store or DB is forbidden.
+ *
+ * DATA AVAILABILITY CONVENTION:
+ * All read model methods MUST return real data when available and explicit
+ * "not available" markers when they are not. This prevents consumers from
+ * displaying stale or misleading state. The `available` boolean on response
+ * wrappers or explicit `null`/empty arrays with documentation constitutes
+ * compliance.
+ *
+ * UNIMPLEMENTED SOURCES:
+ * The following data sources are not yet available through the read model
+ * and require dedicated persistence or filesystem access:
+ *   - File content retrieval needs worktree snapshot store
+ *   - File diff retrieval needs git access or pre/post snapshot pairs
+ *   - Dependency graph needs execution plan parser integration
+ *   - Stats aggregation requires event counting from journal
  */
+
+// ---------------------------------------------------------------------------
+// Data Availability Sentinel
+// ---------------------------------------------------------------------------
+
+/**
+ * Universal sentinel for data that is not available from any backend.
+ * Consumers check `.available` to decide whether to render the data or
+ * show an explicit "not available" message.
+ */
+export interface DataAvailability {
+	/** Whether the data is available from the current backend */
+	available: boolean;
+	/** Human-readable explanation of why data is unavailable */
+	reason?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Plan Execution Summary
@@ -18,6 +49,102 @@ export interface PlanExecutionSummary {
 	status: string;
 	startedAt: string;
 	completedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Plan Execution Stats
+// ---------------------------------------------------------------------------
+
+/**
+ * Aggregated statistics for a plan execution, computed from journal events.
+ * All numeric fields default to 0 when events are not yet available.
+ */
+export interface PlanExecutionStats {
+	/** Plan execution ID */
+	planExecutionId: string;
+	/** Total number of workspaces in the plan */
+	totalWorkspaces: number;
+	/** Number of completed workspaces */
+	completedWorkspaces: number;
+	/** Number of failed workspaces */
+	failedWorkspaces: number;
+	/** Number of blocked workspaces */
+	blockedWorkspaces: number;
+	/** Number of running workspaces */
+	runningWorkspaces: number;
+	/** Number of pending workspaces */
+	pendingWorkspaces: number;
+	/** Number of cancelled workspaces */
+	cancelledWorkspaces: number;
+	/** Number of skipped workspaces */
+	skippedWorkspaces: number;
+	/** Total duration in ms (from first workspace start to last completion/failure) */
+	durationMs: number | null;
+	/** When the stats were computed (ISO string) */
+	computedAt: string;
+	/** Whether the stats are backed by real event data */
+	dataSource: "events" | "state-store" | "unavailable";
+}
+
+// ---------------------------------------------------------------------------
+// Dependency Graph View
+// ---------------------------------------------------------------------------
+
+/**
+ * A single node in the workspace dependency graph.
+ * Represents a workspace and its dependencies on other workspaces.
+ */
+export interface DependencyGraphNode {
+	/** Workspace ID */
+	id: string;
+	/** Workspace title (if available) */
+	title?: string;
+	/** IDs of workspaces this workspace depends on */
+	dependsOn: string[];
+	/** Batch number in the execution plan (0-indexed) */
+	batch: number;
+	/** Current stage of this workspace */
+	stage: string;
+}
+
+/**
+ * The complete dependency graph for a plan execution.
+ * Includes all workspaces, their dependency relationships,
+ * and computed batch assignments.
+ */
+export interface DependencyGraphView {
+	/** Plan execution ID */
+	planExecutionId: string;
+	/** All workspace nodes with their dependencies */
+	nodes: DependencyGraphNode[];
+	/** Total number of batches in the execution plan */
+	totalBatches: number;
+	/** Whether the dependency graph data is backed by real plan data */
+	dataAvailability: DataAvailability;
+}
+
+// ---------------------------------------------------------------------------
+// Artifact Entry (from execution archive)
+// ---------------------------------------------------------------------------
+
+/**
+ * A file artifact stored in the execution archive.
+ * Artifacts are generated files (logs, reports, patches) produced
+ * during execution and stored under `.pi/executions/{planExecId}/`.
+ *
+ * NOTE: Artifact content is served through dedicated artifact-routes.ts
+ * endpoints (GET /api/artifacts/:planExecId/*), not through the read model.
+ * This interface is for listing available artifacts only.
+ */
+export interface ArtifactEntry {
+	/** Path relative to the execution archive root */
+	path: string;
+	/** File size in bytes */
+	size: number;
+	/** Last modification timestamp (ISO string) */
+	modifiedAt: string | null;
+	/** Whether the artifact is accessible through the read model */
+	dataAvailability: DataAvailability;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,11 +484,50 @@ export interface ExecutionReadModel {
 	getWorkerContext(planExecutionId: string, workspaceId: string): Promise<WorkerContextView>;
 
 	getPlanSummary(planExecutionId: string): Promise<PlanExecutionSummary>;
+
+	/**
+	 * Get aggregated statistics for a plan execution.
+	 * Stats are computed from journal events when available.
+	 * Returns explicit unavailable state when no event data exists.
+	 */
+	getPlanStats(planExecutionId: string): Promise<PlanExecutionStats>;
+
+	/**
+	 * Get the dependency graph for a plan execution.
+	 * Returns workspace nodes with dependency relationships and batch assignments.
+	 * The graph is computed from plan_started event payload or state store.
+	 * Returns explicit unavailable state when no plan data exists.
+	 */
+	getDependencyGraph(planExecutionId: string): Promise<DependencyGraphView>;
+
 	getWorkspaceSummary(planExecutionId: string, workspaceId: string): Promise<WorkspaceExecutionSummary>;
 	listJournalEvents(planExecutionId: string, options?: JournalQuery): Promise<JournalEventEnvelope[]>;
+
+	/**
+	 * Get command history for a workspace.
+	 * Commands are extracted from command_started/command_finished journal events.
+	 * Returns an empty array when no command events exist for the workspace.
+	 *
+	 * NOTE: Output content is not available through the read model. Streamed
+	 * command output is captured by the command_log_stream and must be consumed
+	 * via the SSE /api/logs/v2/ endpoint or ICommandLogStream interface.
+	 */
 	getCommandHistory(planExecutionId: string, workspaceId: string): Promise<CommandHistoryView[]>;
+
+	/**
+	 * Get Lead Agent directives for a workspace.
+	 * Directives are extracted from lead_agent_directive_issued journal events.
+	 * Returns an empty array when no directive events exist for the workspace.
+	 */
 	getLeadDirectives(planExecutionId: string, workspaceId: string): Promise<LeadDirectiveView[]>;
+
+	/**
+	 * Get Lead Agent escalations for a workspace.
+	 * Escalations are extracted from lead_agent_escalation_initiated journal events.
+	 * Returns an empty array when no escalation events exist for the workspace.
+	 */
 	getLeadEscalations(planExecutionId: string, workspaceId: string): Promise<LeadEscalationView[]>;
+
 	getFinalValidationStatus(planExecutionId: string, workspaceId: string): Promise<FinalValidationView>;
 
 	// -----------------------------------------------------------------------
@@ -372,6 +538,11 @@ export interface ExecutionReadModel {
 	 * Get the list of files changed during a workspace execution.
 	 * Returns an array of file entries with change metadata, or an empty array
 	 * if no change information is available.
+	 *
+	 * DATA SOURCE: Changed files are extracted from worker_completed journal
+	 * event payloads (changedFiles field). This only captures file paths, not
+	 * diff or content data. For diff/content, consumers must use the worktree
+	 * or git-based endpoints directly.
 	 */
 	getChangedFiles(planExecutionId: string, workspaceId: string): Promise<ChangedFileEntry[]>;
 
@@ -386,6 +557,12 @@ export interface ExecutionReadModel {
 	/**
 	 * Get the content of a specific file from a workspace execution.
 	 * Returns null if the file is not found in the workspace's file set.
+	 *
+	 * NOTE: File content retrieval requires filesystem access to worktree
+	 * directories or a snapshot store. The default read model implementation
+	 * returns null. Consumers that need file content (e.g., web-server
+	 * worktree routes) should implement file content retrieval directly
+	 * using filesystem access to the worktree directory.
 	 */
 	getFileContent(planExecutionId: string, workspaceId: string, filePath: string): Promise<FileContentView | null>;
 
@@ -395,6 +572,11 @@ export interface ExecutionReadModel {
 	 * If omitted, returns diffs for all changed files.
 	 *
 	 * Returns an empty array if no diff information is available.
+	 *
+	 * NOTE: Diff retrieval requires git access or pre/post snapshot pairs
+	 * from the snapshot artifact store. The default read model implementation
+	 * returns an empty array. Consumers that need diff content should use
+	 * the worktree git-diff endpoint directly.
 	 */
 	getFileDiff(
 		planExecutionId: string,
@@ -402,4 +584,19 @@ export interface ExecutionReadModel {
 		filePath?: string,
 		options?: FileTreeQuery,
 	): Promise<FileDiffView[]>;
+
+	// -----------------------------------------------------------------------
+	// Artifacts
+	// -----------------------------------------------------------------------
+
+	/**
+	 * List available artifacts in the execution archive for a plan execution.
+	 * Artifacts are generated files (logs, reports, patches) stored under
+	 * `.pi/executions/{planExecId}/`.
+	 *
+	 * NOTE: Artifact content is not served through this read model method.
+	 * Use the dedicated GET /api/artifacts/:planExecId/* endpoints to read
+	 * artifact content with proper path sandboxing.
+	 */
+	getArtifacts(planExecutionId: string): Promise<ArtifactEntry[]>;
 }
