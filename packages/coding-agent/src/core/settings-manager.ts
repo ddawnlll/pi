@@ -144,6 +144,7 @@ export interface Settings {
 	workerConcurrency?: WorkerConcurrencySettings; // Worker concurrency settings (1-3 stable, 4-6 experimental)
 	memoryGuard?: MemoryGuardSettings; // P6.5: Memory guard settings (limit GB, wait timeout)
 	brainV5?: BrainV5Settings; // V5: Brain V5 capability flags
+	tokenContext?: TokenContextSettings; // P43: Token context runtime settings
 }
 
 export interface MemoryGuardSettings {
@@ -151,6 +152,33 @@ export interface MemoryGuardSettings {
 	memoryLimitGb?: number;
 	/** Max seconds to wait for memory to become available (default: 300) */
 	memoryWaitTimeoutSec?: number;
+}
+
+export interface TokenContextSettings {
+	/** Enable token context runtime (default: false) */
+	enabled?: boolean;
+	/** Mode: disabled, observe_only, shadow, active_safe, active_experimental (default: observe_only) */
+	mode?: "disabled" | "observe_only" | "shadow" | "active_safe" | "active_experimental";
+	/** Raw cache settings */
+	rawCache?: {
+		/** Max bytes for raw cache (default: 52428800 = 50MB) */
+		maxBytes?: number;
+	};
+	/** LLM fallback settings */
+	llmFallback?: {
+		/** Max tokens for LLM-assisted fallback (default: 2000) */
+		maxTokens?: number;
+	};
+	/** Change ledger settings */
+	changeLedger?: {
+		/** Max delta chain before checkpoint (default: 5) */
+		maxDeltaChainBeforeCheckpoint?: number;
+	};
+	/** Provider calibration settings */
+	providerCalibration?: {
+		/** Whether provider calibration is required for P44 (default: true) */
+		requiredForP44?: boolean;
+	};
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */

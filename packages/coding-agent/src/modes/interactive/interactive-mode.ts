@@ -79,6 +79,7 @@ import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-nam
 import type { ResourceDiagnostic } from "../../core/resource-loader.js";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.js";
 import { type SessionContext, SessionManager } from "../../core/session-manager.js";
+import type { TokenContextSettings } from "../../core/settings-manager.js";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.js";
 import type { SourceInfo } from "../../core/source-info.js";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.js";
@@ -2554,6 +2555,11 @@ export class InteractiveMode {
 			}
 			if (text === "/resume") {
 				this.showSessionSelector();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/savings") {
+				this.handleSavingsCommand();
 				this.editor.setText("");
 				return;
 			}
@@ -5114,6 +5120,43 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(info, 1, 0));
 		this.ui.requestRender();
+	}
+
+	private handleSavingsCommand(): void {
+		const settings = this.session.settingsManager.getGlobalSettings();
+		const tcSettings = settings.tokenContext;
+		const report = this.generateSavingsReport(tcSettings);
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new Text(report, 1, 0));
+		this.ui.requestRender();
+	}
+
+	private generateSavingsReport(tcSettings?: TokenContextSettings): string {
+		if (!tcSettings?.enabled) {
+			return (
+				"=== P43 Token Context Savings ===\n\n" +
+				"Token context runtime is not enabled. Set tokenContext.enabled=true in settings.\n\n" +
+				"Available modes: disabled, observe_only, shadow, active_safe"
+			);
+		}
+
+		const lines: string[] = [];
+		lines.push("=== P43 Token Context Savings ===\n");
+		lines.push(`Mode: ${tcSettings.mode ?? "observe_only"}`);
+		lines.push("P44 Eligible: NO (no provider calibration)");
+		lines.push("");
+		lines.push("Use the getSavingsReport() API to view detailed per-mechanism savings.");
+		lines.push("Set mode to 'active_safe' to enable read hash cache, smart read, and change ledger.");
+		lines.push("");
+		lines.push("Settings:");
+		lines.push(`  rawCache.maxBytes: ${tcSettings.rawCache?.maxBytes ?? 52428800}`);
+		lines.push(`  llmFallback.maxTokens: ${tcSettings.llmFallback?.maxTokens ?? 2000}`);
+		lines.push(
+			`  changeLedger.maxDeltaChainBeforeCheckpoint: ${tcSettings.changeLedger?.maxDeltaChainBeforeCheckpoint ?? 5}`,
+		);
+		lines.push(`  providerCalibration.requiredForP44: ${tcSettings.providerCalibration?.requiredForP44 ?? true}`);
+
+		return lines.join("\n");
 	}
 
 	private handleChangelogCommand(): void {
