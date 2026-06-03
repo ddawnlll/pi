@@ -26,13 +26,13 @@ export function HistoryItem({ exec, active, onClick }: HistoryItemProps) {
   return (
     <button onClick={onClick}
       className={`w-full flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-xs transition-all duration-150 text-left group ${
-        active ? "bg-[#EBF2FF] dark:bg-[#1A2A44]" : "hover:bg-stone-50 dark:hover:bg-[#2A2A2A]"
+        active ? "bg-[#EBF2FF] dark:bg-[#1A2A44] dark:bg-[#EBF2FF] dark:bg-[#1A2A44]" : "hover:bg-stone-50 dark:hover:bg-[#2A2A2A]"
       }`}>
       <Icon size={13} strokeWidth={1.8} className={`${color} ${darkColor} shrink-0`} />
       <span className={`truncate flex-1 ${active ? "text-blue-700 dark:text-blue-300 font-medium" : "text-stone-600 dark:text-stone-400"}`}>
         {exec.title ?? `Run ${exec.id.slice(0, 6)}`}
       </span>
-      <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0">{timeStr}</span>
+      <span className="text-xs text-stone-400 dark:text-stone-500 shrink-0">{timeStr}</span>
     </button>
   );
 }

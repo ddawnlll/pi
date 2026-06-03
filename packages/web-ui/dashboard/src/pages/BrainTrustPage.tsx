@@ -44,7 +44,7 @@ export function BrainTrustPage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<h1 className="text-base font-semibold text-stone-800 dark:text-stone-200">Trust & Safety</h1>
-				<button onClick={refresh} className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
+				<button onClick={refresh} className="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
 					Refresh
 				</button>
 			</div>
@@ -61,12 +61,12 @@ export function BrainTrustPage() {
 			{autonomy && (
 				<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 flex items-center justify-between">
 					<div>
-						<span className="text-[10px] text-stone-400">Autonomy Level</span>
+						<span className="text-xs text-stone-400">Autonomy Level</span>
 						<p className="text-sm font-semibold text-stone-800 dark:text-stone-200">
 							Level {autonomy.level} — {autonomy.levelLabel}
 						</p>
 					</div>
-					<div className="text-right text-[10px] text-stone-400">
+					<div className="text-right text-xs text-stone-400">
 						<p>{autonomy.approvedActions} approved</p>
 						<p>{autonomy.blockedActions} blocked</p>
 					</div>
@@ -101,28 +101,28 @@ export function BrainTrustPage() {
 			{approvals.length > 0 && (
 				<div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
 					<div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800">
-						<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">Pending Approvals</h3>
+						<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">Pending Approvals</h3>
 					</div>
 					<div className="divide-y divide-stone-100 dark:divide-stone-800">
 						{approvals.map((a) => (
 							<div key={a.id} className="flex items-start gap-3 px-4 py-3">
 								<div className="flex-1 min-w-0">
-									<p className="text-[10px] font-medium text-stone-700 dark:text-stone-300">{a.title}</p>
-									<p className="text-[9px] text-stone-400 truncate mt-0.5">{a.description}</p>
-									<p className="text-[9px] text-stone-400 mt-0.5">By: {a.requestedBy}</p>
+									<p className="text-xs font-medium text-stone-800 dark:text-stone-200">{a.title}</p>
+									<p className="text-xs text-stone-400 truncate mt-0.5">{a.description}</p>
+									<p className="text-xs text-stone-400 mt-0.5">By: {a.requestedBy}</p>
 								</div>
 								<div className="flex gap-1.5 shrink-0">
 									<button
 										onClick={() => { setActionLoading(true); approve(a.id).finally(() => setActionLoading(false)); }}
 										disabled={actionLoading}
-										className="px-2 py-1 text-[9px] font-medium rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 disabled:opacity-50"
+										className="px-2 py-1 text-xs font-medium rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 disabled:opacity-50"
 									>
 										Approve
 									</button>
 									<button
 										onClick={() => { setActionLoading(true); rejectApproval(a.id).finally(() => setActionLoading(false)); }}
 										disabled={actionLoading}
-										className="px-2 py-1 text-[9px] font-medium rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 disabled:opacity-50"
+										className="px-2 py-1 text-xs font-medium rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 disabled:opacity-50"
 									>
 										Reject
 									</button>

@@ -63,7 +63,7 @@ export function EditStrategyWarnings({
   if (!hasWarnings && !hasFailures && !data.handoffTriggered) {
     return (
       <div className="pt-2">
-        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
           <span className="inline-block w-2 h-2 bg-emerald-500 rounded-full" />
           <span>Edit strategy: {data.editMode.replace(/_/g, " ")}</span>
         </div>
@@ -130,7 +130,7 @@ export function EditStrategyWarnings({
             {data.handoffPayload.preEditSnapshotPath && onRestore && (
               <button
                 onClick={() => onRestore(data.handoffPayload!.preEditSnapshotPath!)}
-                className="px-2 py-1 text-[10px] rounded bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700"
+                className="px-2 py-1 text-xs rounded bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700"
               >
                 Restore snapshot
               </button>
@@ -138,7 +138,7 @@ export function EditStrategyWarnings({
             {onResume && (
               <button
                 onClick={onResume}
-                className="px-2 py-1 text-[10px] rounded bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200"
+                className="px-2 py-1 text-xs rounded bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200"
               >
                 Continue after fix
               </button>

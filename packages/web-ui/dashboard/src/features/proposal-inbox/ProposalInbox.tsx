@@ -21,6 +21,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertCircle,
 	ArrowUpCircle,
@@ -45,13 +46,6 @@ import type { BrainProposal, InboxEntry } from "../../types";
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Recommendation config
@@ -110,7 +104,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
 	const pct = Math.round(value * 100);
 	return (
 		<div className="flex items-center gap-2">
-			<span className={`text-[9px] font-mono w-12 text-right ${MUT}`}>
+			<span className={`text-xs font-mono w-12 text-right ${MUT}`}>
 				{label}
 			</span>
 			<div className="flex-1 h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
@@ -119,7 +113,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
 					style={{ width: `${pct}%` }}
 				/>
 			</div>
-			<span className={`text-[9px] font-mono w-8 text-right ${MUT}`}>
+			<span className={`text-xs font-mono w-8 text-right ${MUT}`}>
 				{pct}%
 			</span>
 		</div>
@@ -137,7 +131,7 @@ function RankBadge({ rank }: { rank: number }) {
 
 	return (
 		<span
-			className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+			className={`inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
 				colors[rank - 1] ?? colors[2]
 			}`}
 		>
@@ -157,7 +151,7 @@ function RecommendationBadge({
 	const Icon = cfg.icon;
 	return (
 		<span
-			className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.color} ${cfg.bg} ${cfg.border}`}
+			className={`inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full border ${cfg.color} ${cfg.bg} ${cfg.border}`}
 		>
 			<Icon size={10} />
 			{cfg.label}
@@ -169,7 +163,7 @@ function RecommendationBadge({
 function TypeBadge({ type }: { type: BrainProposal["type"] }) {
 	return (
 		<span
-			className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border ${BORD}`}
+			className={`text-xs font-medium px-1.5 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border ${BORD}`}
 		>
 			{type}
 		</span>
@@ -231,13 +225,13 @@ function ProposalRow({
 								{proposal.tags.slice(0, 2).map((tag) => (
 									<span
 										key={tag}
-										className={`text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border ${BORD}`}
+										className={`text-xs px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border ${BORD}`}
 									>
 										{tag}
 									</span>
 								))}
 								{proposal.tags.length > 2 && (
-									<span className={`text-[9px] ${MUT}`}>
+									<span className={`text-xs ${MUT}`}>
 										+{proposal.tags.length - 2}
 									</span>
 								)}
@@ -246,13 +240,13 @@ function ProposalRow({
 					</div>
 
 					{/* Reason + score summary */}
-					<p className={`text-[10px] ${MUT} leading-relaxed line-clamp-2`}>
+					<p className={`text-xs ${MUT} leading-relaxed line-clamp-2`}>
 						{reason}
 					</p>
 
 					{/* Score summary row */}
 					<div className="flex items-center gap-2 mt-1.5">
-						<span className={`text-[9px] font-mono font-semibold ${
+						<span className={`text-xs font-mono font-semibold ${
 							score.total >= 0.7
 								? "text-emerald-600 dark:text-emerald-400"
 								: score.total >= 0.4
@@ -261,10 +255,10 @@ function ProposalRow({
 						}`}>
 							Score: {(score.total * 100).toFixed(0)}
 						</span>
-						<span className={`text-[9px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							Confidence: {(score.confidence * 100).toFixed(0)}%
 						</span>
-						<span className={`text-[9px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							Urgency: {(score.urgency * 100).toFixed(0)}%
 						</span>
 					</div>
@@ -272,10 +266,10 @@ function ProposalRow({
 					{/* Source + time */}
 					<div className="flex items-center gap-2 mt-1">
 						<Clock size={9} className={MUT} />
-						<span className={`text-[9px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							{formatTimestamp(proposal.createdAt)}
 						</span>
-						<span className={`text-[9px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							· {proposal.source}
 						</span>
 					</div>
@@ -287,7 +281,7 @@ function ProposalRow({
 				<div className={`px-4 pb-4 pt-1 border-t ${BORD} ${SURF}`}>
 					{/* Description */}
 					<div className="mb-3">
-						<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-1`}>
+						<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-1`}>
 							Description
 						</h4>
 						<p className={`text-xs ${TXT} leading-relaxed`}>
@@ -297,7 +291,7 @@ function ProposalRow({
 
 					{/* Score breakdown */}
 					<div className="mb-3">
-						<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-1.5`}>
+						<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-1.5`}>
 							<BarChart3 size={10} className="inline mr-1" />
 							Score Breakdown
 						</h4>
@@ -313,21 +307,21 @@ function ProposalRow({
 
 					{/* Reason */}
 					<div className="mb-3">
-						<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-1`}>
+						<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-1`}>
 							<FileText size={10} className="inline mr-1" />
 							Inbox Reason
 						</h4>
-						<p className={`text-[10px] ${MUT} leading-relaxed bg-stone-50 dark:bg-[#222] rounded-lg px-3 py-2 border ${BORD}`}>
+						<p className={`text-xs ${MUT} leading-relaxed bg-stone-50 dark:bg-[#222] rounded-lg px-3 py-2 border ${BORD}`}>
 							{reason}
 						</p>
 					</div>
 
 					{/* Status */}
 					<div className="flex items-center gap-2">
-						<span className={`text-[10px] font-medium ${MUT}`}>
+						<span className={`text-xs font-medium ${MUT}`}>
 							Status:
 						</span>
-						<span className={`text-[10px] font-mono font-medium ${
+						<span className={`text-xs font-mono font-medium ${
 							proposal.status === "pending_approval"
 								? "text-amber-600"
 								: proposal.status === "accepted"
@@ -395,7 +389,7 @@ function ErrorState({
 			<p className={`text-xs ${MUT} text-center max-w-sm`}>{error}</p>
 			<button
 				onClick={onRetry}
-				className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-700 dark:text-stone-300"
+				className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-800 dark:text-stone-200"
 			>
 				<RefreshCw size={12} /> Retry
 			</button>
@@ -485,7 +479,7 @@ export function ProposalInbox({ className = "" }: ProposalInboxProps) {
 				{/* Pending count badge */}
 				{totalPending > 0 && (
 					<span
-						className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border ${BORD}`}
+						className={`text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border ${BORD}`}
 					>
 						{totalPending} pending
 					</span>
@@ -517,13 +511,13 @@ export function ProposalInbox({ className = "" }: ProposalInboxProps) {
 			{/* Stale data warning */}
 			{isStale && entries.length > 0 && (
 				<div
-					className={`shrink-0 flex items-center gap-2 px-4 py-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b ${BORD}`}
+					className={`shrink-0 flex items-center gap-2 px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b ${BORD}`}
 				>
 					<Clock size={10} />
 					<span>Data may be stale. Last updated: {formatTimestamp(lastUpdated ?? "")}</span>
 					<button
 						onClick={handleRefresh}
-						className="ml-auto text-[10px] font-medium underline hover:no-underline"
+						className="ml-auto text-xs font-medium underline hover:no-underline"
 					>
 						Refresh
 					</button>
@@ -542,16 +536,16 @@ export function ProposalInbox({ className = "" }: ProposalInboxProps) {
 						<div
 							className={`shrink-0 flex items-center gap-3 px-4 py-2 border-b ${BORD} ${SURF}`}
 						>
-							<span className={`text-[10px] ${MUT}`}>
+							<span className={`text-xs ${MUT}`}>
 								Showing {entries.length} of {totalPending} pending proposals
 							</span>
 							{lastUpdated && (
-								<span className={`text-[9px] ${MUT}`}>
+								<span className={`text-xs ${MUT}`}>
 									· Updated {formatTimestamp(lastUpdated)}
 								</span>
 							)}
 							{isRefetching && (
-								<span className="flex items-center gap-1 text-[9px] text-blue-600 dark:text-blue-400">
+								<span className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300">
 									<Loader2 size={9} className="animate-spin" />
 									Refreshing...
 								</span>

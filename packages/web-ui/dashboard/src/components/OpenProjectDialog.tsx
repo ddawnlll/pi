@@ -65,17 +65,17 @@ export function OpenProjectDialog({
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
 						transition={{ duration: 0.1 }}
-						className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-6 min-w-96 max-w-lg"
+						className="bg-[#F7F6F3] dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded-lg shadow-xl p-6 min-w-96 max-w-lg"
 						onClick={(e) => e.stopPropagation()}
 					>
-						<h2 className="text-lg font-semibold text-gray-100 mb-4">
+						<h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200 mb-4">
 							Open / Create Project
 						</h2>
 
 						{/* Existing projects */}
 						{projects.length > 0 && (
 							<div className="mb-4">
-								<label className="text-xs text-gray-400 block mb-2">
+								<label className="text-xs text-stone-500 dark:text-stone-400 block mb-2">
 									Existing Projects
 								</label>
 								<div className="space-y-1 max-h-32 overflow-auto">
@@ -86,11 +86,11 @@ export function OpenProjectDialog({
 												onSelectExisting(p.id);
 												handleClose();
 											}}
-											className="w-full text-left px-3 py-2 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
+											className="w-full text-left px-3 py-2 text-xs rounded bg-white dark:bg-[#1E1E1E] hover:bg-stone-100 dark:bg-[#2A2A2A] text-stone-800 dark:text-stone-200 transition-colors"
 										>
 											<span className="font-medium">{p.name}</span>
 											{p.rootPath && (
-												<span className="text-gray-500 ml-2">{p.rootPath}</span>
+												<span className="text-stone-400 dark:text-stone-500 ml-2">{p.rootPath}</span>
 											)}
 										</button>
 									))}
@@ -98,8 +98,8 @@ export function OpenProjectDialog({
 							</div>
 						)}
 
-						<div className="border-t border-gray-700 pt-4">
-							<label className="text-xs text-gray-400 block mb-2">
+						<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-4">
+							<label className="text-xs text-stone-500 dark:text-stone-400 block mb-2">
 								Or Create New
 							</label>
 
@@ -110,7 +110,7 @@ export function OpenProjectDialog({
 										placeholder="Project name (required)"
 										value={name}
 										onChange={(e) => setName(e.target.value)}
-										className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+										className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500"
 										onKeyDown={(e) => e.key === "Enter" && handleCreate()}
 									/>
 								</div>
@@ -120,7 +120,7 @@ export function OpenProjectDialog({
 										placeholder="Root path (optional)"
 										value={rootPath}
 										onChange={(e) => setRootPath(e.target.value)}
-										className="w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+										className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500"
 										onKeyDown={(e) => e.key === "Enter" && handleCreate()}
 									/>
 								</div>
@@ -132,7 +132,7 @@ export function OpenProjectDialog({
 								<div className="flex gap-2 justify-end">
 									<button
 										onClick={handleClose}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+										className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 									>
 										Cancel
 									</button>

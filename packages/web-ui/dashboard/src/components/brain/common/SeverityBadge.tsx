@@ -28,7 +28,7 @@ export function SeverityBadge({ severity, className = "" }: SeverityBadgeProps) 
 	const c = COLORS[severity];
 	return (
 		<span
-			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${c.bg} ${c.text} ${className}`}
+			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text} ${className}`}
 		>
 			<span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
 			{severity}

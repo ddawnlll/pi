@@ -265,7 +265,7 @@ export function createReadModelAdapter(stateStore: IStateStore, workspaceRoot?: 
 			const worktreeBase = resolve(join(workspaceRoot, ".pi", "worktrees", planExecutionId, workspaceId));
 
 			// Ensure resolved path is within the worktree directory
-			if (!resolvedPath.startsWith(worktreeBase + "/") && resolvedPath !== worktreeBase) {
+			if (!resolvedPath.startsWith(`${worktreeBase}/`) && resolvedPath !== worktreeBase) {
 				return null;
 			}
 

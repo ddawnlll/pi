@@ -8,8 +8,8 @@ interface HeaderProps extends ControlButtonsProps {
 
 export function Header({ status, planStatus, onControl }: HeaderProps) {
 	return (
-		<div className="flex items-center justify-between border-b border-gray-700 px-4 py-3 shrink-0 bg-gray-900">
-			<h1 className="text-lg font-semibold text-gray-100">Pi Plan Dashboard</h1>
+		<div className="flex items-center justify-between border-b border-[#E8E6E1] dark:border-[#333] px-4 py-3 shrink-0 bg-[#F7F6F3] dark:bg-[#161616]">
+			<h1 className="text-lg font-semibold text-stone-800 dark:text-stone-200">Pi Plan Dashboard</h1>
 			<div className="flex items-center gap-3">
 				<motion.span
 					animate={{ backgroundColor: getBadgeBg(status) }}

@@ -74,10 +74,10 @@ export function TaskAggregatesBar({ aggregate, compact = false }: TaskAggregates
 
 	if (compact) {
 		return (
-			<div className="flex items-center gap-3 text-[10px] text-gray-500">
+			<div className="flex items-center gap-3 text-xs text-stone-400 dark:text-stone-500">
 				{items.map((item) => (
 					<div key={item.label} className="flex items-center gap-1">
-						<item.icon size={10} className="text-gray-600" />
+						<item.icon size={10} className="text-stone-400 dark:text-stone-500" />
 						<span>{item.label}: {item.value}</span>
 					</div>
 				))}
@@ -90,12 +90,12 @@ export function TaskAggregatesBar({ aggregate, compact = false }: TaskAggregates
 			{items.map((item) => (
 				<div
 					key={item.label}
-					className="flex items-center gap-2 px-3 py-2 rounded border border-gray-700 bg-gray-900/50"
+					className="flex items-center gap-2 px-3 py-2 rounded border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/50"
 				>
 					<item.icon size={14} className="text-blue-400 shrink-0" />
 					<div className="min-w-0">
-						<p className="text-[9px] text-gray-500 uppercase tracking-wider">{item.label}</p>
-						<p className="text-xs text-gray-200 font-medium tabular-nums">{item.value}</p>
+						<p className="text-xs text-stone-400 dark:text-stone-500 uppercase tracking-wider">{item.label}</p>
+						<p className="text-xs text-stone-800 dark:text-stone-200 font-medium tabular-nums">{item.value}</p>
 					</div>
 				</div>
 			))}

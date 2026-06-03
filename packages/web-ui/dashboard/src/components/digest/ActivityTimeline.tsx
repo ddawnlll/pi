@@ -62,20 +62,20 @@ function ActivityRow({ event }: { event: ActivityEvent }) {
 		<div className="flex items-start gap-3 px-4 py-2.5 border-b border-stone-100 dark:border-stone-800 last:border-b-0 hover:bg-stone-50 dark:hover:bg-white/[0.02] transition-colors">
 			<Icon size={14} className={`${colorClass} mt-0.5 shrink-0`} strokeWidth={2} />
 			<div className="flex-1 min-w-0">
-				<p className="text-[11px] leading-snug text-stone-700 dark:text-stone-300 truncate">
+				<p className="text-xs leading-snug text-stone-800 dark:text-stone-200 truncate">
 					{event.message}
 				</p>
 				<div className="flex items-center gap-2 mt-1">
-					<span className="text-[9px] text-stone-400 dark:text-stone-500 tracking-wide">
+					<span className="text-xs text-stone-400 dark:text-stone-500 tracking-wide">
 						{formatTime(event.timestamp)}
 					</span>
 					{event.projectName && (
-						<span className="text-[9px] text-stone-400 dark:text-stone-500">
+						<span className="text-xs text-stone-400 dark:text-stone-500">
 							{event.projectName}
 						</span>
 					)}
 					{event.source && (
-						<span className="text-[9px] text-stone-400 dark:text-stone-500 capitalize">
+						<span className="text-xs text-stone-400 dark:text-stone-500 capitalize">
 							{event.source.replace(/_/g, " ")}
 						</span>
 					)}
@@ -102,7 +102,7 @@ export function ActivityTimeline() {
 				<Header activityCount={0} />
 				<div className="flex items-center justify-center py-12">
 					<Loader2 size={16} className="text-stone-400 animate-spin" strokeWidth={2} />
-					<span className="ml-2 text-[11px] text-stone-400">Loading activity...</span>
+					<span className="ml-2 text-xs text-stone-400">Loading activity...</span>
 				</div>
 			</div>
 		);
@@ -115,11 +115,11 @@ export function ActivityTimeline() {
 				<Header activityCount={0} />
 				<div className="flex flex-col items-center justify-center py-10 px-4">
 					<AlertCircle size={18} className="text-red-400 mb-2" strokeWidth={2} />
-					<p className="text-[11px] text-red-500 text-center mb-3">{error}</p>
+					<p className="text-xs text-red-500 text-center mb-3">{error}</p>
 					<button
 						type="button"
 						onClick={refetch}
-						className="flex items-center gap-1.5 text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700"
+						className="flex items-center gap-1.5 text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 transition-colors px-3 py-1.5 rounded-md border border-stone-200 dark:border-stone-700"
 					>
 						<RefreshCw size={11} strokeWidth={2} />
 						Retry
@@ -136,10 +136,10 @@ export function ActivityTimeline() {
 				<Header activityCount={0} />
 				<div className="flex flex-col items-center justify-center py-10 px-4">
 					<Clock size={18} className="text-stone-300 dark:text-stone-600 mb-2" strokeWidth={2} />
-					<p className="text-[11px] text-stone-400 dark:text-stone-500 text-center">
+					<p className="text-xs text-stone-400 dark:text-stone-500 text-center">
 						No activity yet
 					</p>
-					<p className="text-[10px] text-stone-300 dark:text-stone-600 text-center mt-1">
+					<p className="text-xs text-stone-300 dark:text-stone-600 text-center mt-1">
 						Activity from plan executions and system events will appear here.
 					</p>
 				</div>
@@ -167,11 +167,11 @@ export function ActivityTimeline() {
 function Header({ activityCount }: { activityCount: number }) {
 	return (
 		<div className="flex items-center justify-between px-4 py-2 bg-stone-50 dark:bg-[#1E1E1E] border-b border-stone-200 dark:border-stone-700">
-			<h3 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400">
+			<h3 className="text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">
 				Activity Timeline
 			</h3>
 			{activityCount > 0 && (
-				<span className="text-[9px] text-stone-400 dark:text-stone-500">
+				<span className="text-xs text-stone-400 dark:text-stone-500">
 					{activityCount} event{activityCount !== 1 ? "s" : ""}
 				</span>
 			)}

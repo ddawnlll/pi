@@ -21,16 +21,15 @@
  */
 
 import type { CockpitTabId, NavigationRoute } from "../navigation/NavigationState";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import type { CockpitTabsProps } from "./CockpitTabs";
 import { CockpitTabs } from "./CockpitTabs";
+import { AnimatePresence, motion } from "framer-motion";
 
 // ---------------------------------------------------------------------------
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,9 +98,9 @@ export function CenterWorkSurface({
               <path d="M9 3v18M3 9h18" />
             </svg>
           </div>
-          <p className={`text-sm font-medium ${MUT}`}>No execution selected</p>
+          <p className={`text-sm font-medium ${MUT}`}>Your Pi cockpit is ready.</p>
           <p className={`text-xs ${MUT} max-w-sm text-center`}>
-            Upload a plan to get started, or select an existing run from the sidebar.
+            Upload a plan to begin, or select an existing run from the sidebar.
           </p>
           {onUploadPlan && (
             <button
@@ -176,9 +175,20 @@ export function CenterWorkSurface({
         />
       )}
 
-      {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {tabContent[route.cockpitTab] ?? children}
+      {/* Tab content with animated transitions */}
+      <div className="flex-1 min-h-0 overflow-y-auto relative">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={route.cockpitTab}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            className="h-full"
+          >
+            {tabContent[route.cockpitTab] ?? children}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

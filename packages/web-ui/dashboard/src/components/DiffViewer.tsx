@@ -76,7 +76,7 @@ function DiffFile({ filePatch }: { filePatch: GitFilePatch }) {
 				className="w-full flex items-center gap-2 px-3 py-2 bg-stone-100 dark:bg-[#222] hover:bg-stone-200 dark:hover:bg-[#2A2A2A] transition-colors text-left"
 			>
 				{collapsed ? <ChevronRight size={14} className="shrink-0 text-stone-400" /> : <ChevronDown size={14} className="shrink-0 text-stone-400" />}
-				<span className="font-mono text-xs text-stone-700 dark:text-stone-300 truncate flex-1">{filePatch.path}</span>
+				<span className="font-mono text-xs text-stone-800 dark:text-stone-200 truncate flex-1">{filePatch.path}</span>
 				{addCount > 0 && <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono shrink-0">+{addCount}</span>}
 				{delCount > 0 && <span className="text-xs text-red-600 dark:text-red-400 font-mono shrink-0">-{delCount}</span>}
 				<StatusBadgeInline status={filePatch.status} />
@@ -90,7 +90,7 @@ function DiffFile({ filePatch }: { filePatch: GitFilePatch }) {
 							Diff truncated to 500 lines. {filePatch.truncatedLines} line{filePatch.truncatedLines !== 1 ? "s" : ""} omitted.
 						</div>
 					)}
-					<div className="font-mono text-[11px] leading-[1.5]">
+					<div className="font-mono text-xs leading-[1.5]">
 						{parsedLines.map((line, idx) => (
 							<div
 								key={idx}
@@ -100,8 +100,8 @@ function DiffFile({ filePatch }: { filePatch: GitFilePatch }) {
 										: line.type === "deletion"
 											? "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300"
 											: line.type === "header"
-												? "bg-stone-50 dark:bg-[#161616] text-stone-500 dark:text-stone-400"
-												: "text-stone-700 dark:text-stone-300"
+												? "bg-stone-50 dark:bg-[#161616] text-stone-400 dark:text-stone-500"
+												: "text-stone-800 dark:text-stone-200"
 								}`}
 							>
 								{line.text || "\u00A0"}
@@ -119,9 +119,9 @@ function StatusBadgeInline({ status }: { status: GitFilePatch["status"] }) {
 		added: "text-emerald-600 dark:text-emerald-400",
 		modified: "text-amber-600 dark:text-amber-400",
 		deleted: "text-red-600 dark:text-red-400",
-		renamed: "text-blue-600 dark:text-blue-400",
+		renamed: "text-blue-700 dark:text-blue-300",
 		copied: "text-violet-600 dark:text-violet-400",
 		unmerged: "text-orange-600 dark:text-orange-400",
 	};
-	return <span className={`text-[10px] uppercase tracking-wider font-medium shrink-0 ${colors[status] ?? "text-stone-500"}`}>{status}</span>;
+	return <span className={`text-xs uppercase tracking-wider font-medium shrink-0 ${colors[status] ?? "text-stone-500"}`}>{status}</span>;
 }

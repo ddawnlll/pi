@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	CheckCircle,
@@ -26,12 +27,6 @@ import { useEscalations, useResolveEscalation } from "../hooks/useEscalations";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
@@ -113,18 +108,18 @@ export function LeadEscalationPanel({
 					<AlertTriangle size={13} className={
 						activeEscalations.length > 0 ? WARN_TXT : GOOD_TXT
 					} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Lead Agent Escalations
 					</span>
 					{activeEscalations.length > 0 && (
-						<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${WARN_BG} ${WARN_TXT}`}>
+						<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${WARN_BG} ${WARN_TXT}`}>
 							{activeEscalations.length} active
 						</span>
 					)}
 				</div>
 				<button
 					onClick={() => refetch()}
-					className={`text-[10px] p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+					className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
 					title="Refresh"
 				>
 					<RefreshCw size={12} />
@@ -159,7 +154,7 @@ export function LeadEscalationPanel({
 							)}
 							<AlertTriangle size={12} className={`shrink-0 ${WARN_TXT}`} />
 							<span className="flex-1 truncate">{esc.reason}</span>
-							<span className={`text-[10px] ${MUT}`}>
+							<span className={`text-xs ${MUT}`}>
 								{new Date(esc.issuedAt).toLocaleTimeString()}
 							</span>
 						</button>
@@ -178,7 +173,7 @@ export function LeadEscalationPanel({
 										<div className="min-w-0 flex-1">
 											<p className="font-medium">{opt.label}</p>
 											{opt.description && (
-												<p className={`text-[10px] ${MUT} mt-0.5`}>{opt.description}</p>
+												<p className={`text-xs ${MUT} mt-0.5`}>{opt.description}</p>
 											)}
 										</div>
 									</button>
@@ -190,7 +185,7 @@ export function LeadEscalationPanel({
 										placeholder="Optional response..."
 										value={userResponse}
 										onChange={(e) => setUserResponse(e.target.value)}
-										className={`w-full text-[10px] px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
+										className={`w-full text-xs px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
 										rows={2}
 									/>
 								</div>
@@ -209,12 +204,12 @@ export function LeadEscalationPanel({
 				{/* Resolved escalations */}
 				{resolvedEscalations.length > 0 && (
 					<details className="group">
-						<summary className={`text-[10px] ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300`}>
+						<summary className={`text-xs ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300`}>
 							{resolvedEscalations.length} resolved escalation{resolvedEscalations.length !== 1 ? "s" : ""}
 						</summary>
 						<div className="mt-1 space-y-1">
 							{resolvedEscalations.map((esc) => (
-								<div key={esc.escalationId} className={`flex items-center gap-2 text-[10px] ${MUT} px-2 py-1`}>
+								<div key={esc.escalationId} className={`flex items-center gap-2 text-xs ${MUT} px-2 py-1`}>
 									<CheckCircle size={10} className={`shrink-0 ${GOOD_TXT}`} />
 									<span className="flex-1 truncate">{esc.reason}</span>
 									<span>{esc.chosenOptionId ?? "resolved"}</span>

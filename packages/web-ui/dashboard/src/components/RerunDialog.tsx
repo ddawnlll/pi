@@ -7,6 +7,7 @@
  */
 
 import { X, RefreshCw, AlertTriangle, CheckCircle, Clock, OctagonX } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { motion, AnimatePresence } from "framer-motion";
 import type { PlanExecutionDetail } from "../types";
 
@@ -18,10 +19,6 @@ interface RerunDialogProps {
 	loading: boolean;
 }
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 function statusIcon(stage: string) {
 	switch (stage) {
@@ -93,23 +90,23 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 						<div className={`flex items-center gap-3 mb-4 p-3 rounded-lg border ${BORD} bg-stone-50 dark:bg-stone-800/30`}>
 							<div className="flex-1 text-center">
 								<p className={`text-lg font-semibold ${TXT}`}>{totalCount}</p>
-								<p className={`text-[10px] uppercase tracking-wider ${MUT}`}>Total</p>
+								<p className={`text-xs uppercase tracking-wider ${MUT}`}>Total</p>
 							</div>
 							<div className="w-px h-8 bg-stone-200 dark:bg-stone-700" />
 							<div className="flex-1 text-center">
 								<p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{completeCount}</p>
-								<p className="text-[10px] uppercase tracking-wider text-emerald-600/60 dark:text-emerald-400/60">Complete</p>
+								<p className="text-xs uppercase tracking-wider text-emerald-600/60 dark:text-emerald-400/60">Complete</p>
 							</div>
 							<div className="w-px h-8 bg-stone-200 dark:bg-stone-700" />
 							<div className="flex-1 text-center">
 								<p className="text-lg font-semibold text-red-600 dark:text-red-400">{failedCount}</p>
-								<p className="text-[10px] uppercase tracking-wider text-red-600/60 dark:text-red-400/60">Failed</p>
+								<p className="text-xs uppercase tracking-wider text-red-600/60 dark:text-red-400/60">Failed</p>
 							</div>
 						</div>
 
 						{/* DAG: workspace list */}
 						<div className="flex-1 min-h-0 overflow-y-auto mb-4">
-							<p className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+							<p className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
 								Workspace DAG
 							</p>
 							<div className="space-y-1">
@@ -123,7 +120,7 @@ export function RerunDialog({ isOpen, onClose, onConfirm, executionDetail, loadi
 											</span>
 										)}
 										<div className="flex-1" />
-										<span className={`text-[10px] uppercase ${MUT}`}>{ws.stage}</span>
+										<span className={`text-xs uppercase ${MUT}`}>{ws.stage}</span>
 									</div>
 								))}
 							</div>

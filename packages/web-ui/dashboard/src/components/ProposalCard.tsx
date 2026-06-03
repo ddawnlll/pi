@@ -11,16 +11,12 @@
  */
 
 import type { ApprovalGateStatus, ProposalResponse } from "../types";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 
 // ---------------------------------------------------------------------------
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Gate status badge configs
@@ -157,7 +153,7 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 						{proposal.title}
 					</h3>
 					{proposal.dryRunStatus === "passed" && proposal.budgetState === "valid" && (
-						<span className="shrink-0 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+						<span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
 							Ready to execute
 						</span>
 					)}
@@ -166,17 +162,17 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 				{/* P9.F AC1: Separate planning and execution approval gates */}
 				<div className="flex items-center gap-2 mb-1.5">
 					<span
-						className={`inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${planCfg.color} ${planCfg.bg} ${planCfg.darkColor} ${planCfg.darkBg} border ${BORD}`}
+						className={`inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full ${planCfg.color} ${planCfg.bg} ${planCfg.darkColor} ${planCfg.darkBg} border ${BORD}`}
 					>
 						Plan: {planCfg.label}
 					</span>
 					<span
-						className={`inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${execCfg.color} ${execCfg.bg} ${execCfg.darkColor} ${execCfg.darkBg} border ${BORD}`}
+						className={`inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full ${execCfg.color} ${execCfg.bg} ${execCfg.darkColor} ${execCfg.darkBg} border ${BORD}`}
 					>
 						Exec: {execCfg.label}
 					</span>
 					{proposal.selfModificationApproval.status === "approved" && (
-						<span className="inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+						<span className="inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
 							Self-mod OK
 						</span>
 					)}
@@ -184,22 +180,22 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 
 				{/* Phase + submission time */}
 				<div className="flex items-center gap-2 mb-1.5">
-					<span className={`text-[10px] font-mono ${MUT}`}>
+					<span className={`text-xs font-mono ${MUT}`}>
 						{proposal.phase}
 					</span>
-					<span className={`text-[10px] ${MUT}`}>
+					<span className={`text-xs ${MUT}`}>
 						{formatTimestamp(proposal.submittedAt)}
 					</span>
 					{proposal.actionedAt && (
-						<span className={`text-[10px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							· actioned {formatTimestamp(proposal.actionedAt)}
 						</span>
 					)}
 					{/* Dry-run + budget indicators */}
-					<span className={`text-[9px] ${proposal.dryRunStatus === "passed" ? "text-emerald-500" : "text-stone-400"}`}>
+					<span className={`text-xs ${proposal.dryRunStatus === "passed" ? "text-emerald-500" : "text-stone-400"}`}>
 						Dry-run: {proposal.dryRunStatus}
 					</span>
-					<span className={`text-[9px] ${proposal.budgetState === "valid" ? "text-emerald-500" : "text-stone-400"}`}>
+					<span className={`text-xs ${proposal.budgetState === "valid" ? "text-emerald-500" : "text-stone-400"}`}>
 						Budget: {proposal.budgetState}
 					</span>
 				</div>
@@ -209,7 +205,7 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 					{evidenceLines.map((line, i) => (
 						<span
 							key={i}
-							className={`text-[10px] px-1.5 py-0.5 rounded ${MUT} bg-stone-50 dark:bg-[#2A2A2A] border ${BORD}`}
+							className={`text-xs px-1.5 py-0.5 rounded ${MUT} bg-stone-100 dark:bg-[#2A2A2A] border ${BORD}`}
 						>
 							{line}
 						</span>
@@ -218,7 +214,7 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 
 				{/* Audit trail summary */}
 				{lastAction && (
-					<div className={`text-[10px] ${MUT} flex items-center gap-1`}>
+					<div className={`text-xs ${MUT} flex items-center gap-1`}>
 						<span>
 							{lastAction.action === "submitted"
 								? "Submitted"
@@ -239,7 +235,7 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 
 				{/* Approval gates summary for pending proposals */}
 				{proposal.planningApproval.status !== "approved" && (
-					<div className={`mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded ${BORD} border`}>
+					<div className={`mt-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded ${BORD} border`}>
 						Requires planning approval before execution
 					</div>
 				)}
@@ -247,7 +243,7 @@ export function ProposalCard({ proposal, selected, onClick }: ProposalCardProps)
 				{/* Rejection reason */}
 				{proposal.planningApproval.status === "rejected" && proposal.rejectionReason && (
 					<div
-						className={`mt-1.5 text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded ${BORD} border`}
+						className={`mt-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded ${BORD} border`}
 					>
 						Reason: {proposal.rejectionReason}
 					</div>

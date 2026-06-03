@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertTriangle,
@@ -89,9 +90,6 @@ export interface MissionControlHeroProps {
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── State configs ─────────────────────────────────────────────────────────
@@ -115,7 +113,7 @@ function getStateConfig(state: HeroState): StateConfig {
 				title: "Loading execution data...",
 				description: "Fetching current plan execution state",
 				tone: "info",
-				accentColor: "text-blue-600 dark:text-blue-400",
+				accentColor: "text-blue-700 dark:text-blue-300",
 				accentBg: "bg-blue-50 dark:bg-blue-950/30",
 				showProgress: false,
 				showActions: false,
@@ -170,7 +168,7 @@ function getStateConfig(state: HeroState): StateConfig {
 				title: "Execution paused",
 				description: "Plan execution has been paused by user or system",
 				tone: "info",
-				accentColor: "text-blue-600 dark:text-blue-400",
+				accentColor: "text-blue-700 dark:text-blue-300",
 				accentBg: "bg-blue-50 dark:bg-blue-950/30",
 				showProgress: false,
 				showActions: true,
@@ -303,7 +301,7 @@ export function MissionControlHero({
 			role="region"
 			aria-label="Execution overview"
 			aria-live="polite"
-			className={`rounded-xl border ${BORD} ${SURF} overflow-hidden ${className}`}
+			className={`rounded-lg border ${BORD} ${SURF} overflow-hidden ${className}`}
 		>
 			{/* Main hero content */}
 			<div className="p-4">
@@ -322,13 +320,13 @@ export function MissionControlHero({
 						<div className="flex items-center gap-2 flex-wrap">
 							<h2 className={`text-sm font-semibold ${TXT}`}>{config.title}</h2>
 							{hasActiveEscalations && (
-								<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+								<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
 									<AlertTriangle size={10} />
 									Escalations
 								</span>
 							)}
 							{isStale && (
-								<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+								<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
 									<Clock size={10} />
 									Stale
 								</span>
@@ -362,7 +360,7 @@ export function MissionControlHero({
 										complete={completeWorkerCount}
 										total={totalWorkerCount}
 									/>
-									<span className={`text-[10px] ${TXT_MUTED}`}>
+									<span className={`text-xs ${TXT_MUTED}`}>
 										{progressLabel ?? `${activeWorkerCount} active · ${blockedWorkerCount} blocked · ${completeWorkerCount} complete`}
 									</span>
 								</div>
@@ -380,11 +378,11 @@ export function MissionControlHero({
 									/>
 								</div>
 								<div className="flex items-center justify-between mt-1">
-									<span className={`text-[10px] ${TXT_MUTED}`}>
+									<span className={`text-xs ${TXT_MUTED}`}>
 										{Math.round(progressPercent)}%
 									</span>
 									{estimatedTimeRemaining !== undefined && (
-										<span className={`text-[10px] ${TXT_MUTED}`}>
+										<span className={`text-xs ${TXT_MUTED}`}>
 											~{estimatedTimeRemaining}m remaining
 										</span>
 									)}
@@ -394,7 +392,7 @@ export function MissionControlHero({
 
 						{/* Heartbeat info */}
 						{heartbeatAge !== null && (
-							<p className={`text-[10px] mt-1 ${isStale ? "text-amber-500" : TXT_MUTED}`}>
+							<p className={`text-xs mt-1 ${isStale ? "text-amber-500" : TXT_MUTED}`}>
 								Last heartbeat: {heartbeatAge}s ago
 							</p>
 						)}
@@ -406,7 +404,7 @@ export function MissionControlHero({
 							{state === "paused" && actions.onResume && (
 								<button
 									onClick={actions.onResume}
-									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors"
+									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors"
 									aria-label="Resume execution"
 								>
 									<Play size={12} />
@@ -416,7 +414,7 @@ export function MissionControlHero({
 							{(state === "onTrack" || state === "blocked" || state === "stalled" || state === "timeCritical") && actions.onPause && (
 								<button
 									onClick={actions.onPause}
-									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
 									aria-label="Pause execution"
 								>
 									<PauseCircle size={12} />
@@ -426,7 +424,7 @@ export function MissionControlHero({
 							{(state === "onTrack" || state === "blocked" || state === "stalled" || state === "timeCritical" || state === "paused") && actions.onStop && (
 								<button
 									onClick={actions.onStop}
-									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+									className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
 									aria-label="Stop execution"
 								>
 									<StopCircle size={12} />
@@ -443,7 +441,7 @@ export function MissionControlHero({
 				<>
 					<button
 						onClick={() => setDebugExpanded(!debugExpanded)}
-						className={`w-full flex items-center justify-between px-4 py-1.5 text-[10px] font-medium ${TXT_MUTED} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] border-t ${BORD} transition-colors`}
+						className={`w-full flex items-center justify-between px-4 py-1.5 text-xs font-medium ${TXT_MUTED} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] border-t ${BORD} transition-colors`}
 						aria-expanded={debugExpanded}
 						aria-label={debugExpanded ? "Hide raw events" : "Show raw events"}
 					>
@@ -460,7 +458,7 @@ export function MissionControlHero({
 							{rawEvents.map((event, i) => (
 								<div
 									key={`${event.timestamp}-${i}`}
-									className="flex items-start gap-2 text-[10px] font-mono text-stone-500 dark:text-stone-500"
+									className="flex items-start gap-2 text-xs font-mono text-stone-500 dark:text-stone-500"
 								>
 									<span className="shrink-0 text-stone-400">
 										{new Date(event.timestamp).toLocaleTimeString()}

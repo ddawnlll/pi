@@ -15,6 +15,7 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
   AlertCircle,
   X,
@@ -28,9 +29,6 @@ import { ContextualRightDrawer } from "./ContextualRightDrawer";
 // Style tokens (matching existing App.tsx conventions)
 // ---------------------------------------------------------------------------
 
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,7 +115,15 @@ export function AppShell({
   overlays,
 }: AppShellProps) {
   return (
-    <div className={`w-full h-screen flex flex-col ${BG} font-['DM_Sans',ui-sans-serif,system-ui,sans-serif] overflow-hidden`}>
+    <div className={`w-full h-screen flex flex-col ${BG} font-sans overflow-hidden`}>
+      {/* ── Skip to main content (accessibility) ── */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 text-white focus:text-primary-foreground focus:rounded-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       {/* ── Topbar ── */}
       {topbar}
 
@@ -177,9 +183,9 @@ export function AppShell({
         </AnimatePresence>
 
         {/* ── Center column ── */}
-        <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <main id="main-content" className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
           {centerContent}
-        </div>
+        </main>
 
         {/* ── Contextual drawer (right, hidden by default) ── */}
         <AnimatePresence>

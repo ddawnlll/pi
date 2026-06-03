@@ -54,7 +54,7 @@ export function LogViewer({
 
 	if (!selectedWorkerId) {
 		return (
-			<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+			<div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
 				Select a worker to view details and logs
 			</div>
 		);
@@ -63,7 +63,7 @@ export function LogViewer({
 	return (
 		<div className="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
 			<div className="flex items-center justify-between mb-2 shrink-0">
-				<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+				<h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
 					Worker Logs
 				</h2>
 				<div className="flex gap-1">
@@ -74,7 +74,7 @@ export function LogViewer({
 							className={`px-2 py-1 text-xs rounded transition-colors ${
 								activeStream === stream
 									? "bg-blue-600 text-white"
-									: "bg-gray-700 text-gray-300 hover:bg-gray-600"
+									: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-[#333]"
 							}`}
 						>
 							{stream}
@@ -88,11 +88,11 @@ export function LogViewer({
 				className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-black text-green-400 p-3 rounded font-mono text-xs leading-relaxed"
 			>
 				{lines.length === 0 && !isConnected && hasData !== false ? (
-					<div className="text-gray-500">Connecting...</div>
+					<div className="text-stone-400 dark:text-stone-500">Connecting...</div>
 				) : lines.length === 0 && hasData === false ? (
-					<div className="text-gray-500">No logs available</div>
+					<div className="text-stone-400 dark:text-stone-500">No logs available</div>
 				) : lines.length === 0 ? (
-					<div className="text-gray-500">No logs yet...</div>
+					<div className="text-stone-400 dark:text-stone-500">No logs yet...</div>
 				) : (
 					lines.map((line, i) => (
 						<div key={`${line}-${i}`} className="whitespace-pre-wrap break-words">

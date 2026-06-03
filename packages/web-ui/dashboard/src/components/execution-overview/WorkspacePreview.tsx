@@ -6,6 +6,7 @@
  * Click navigates to workspace detail route.
  */
 
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -18,9 +19,6 @@ import {
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -130,10 +128,10 @@ function WorkspaceCard({
 
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-1.5">
-					<span className={`text-[11px] font-medium ${TXT} truncate`}>
+					<span className={`text-xs font-medium ${TXT} truncate`}>
 						{shortWsId(workspace.id)}
 					</span>
-					<span className={`text-[9px] font-medium px-1 py-0.5 rounded ${
+					<span className={`text-xs font-medium px-1 py-0.5 rounded ${
 						workspace.stage === "running" || workspace.stage === "active"
 							? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
 							: workspace.stage === "failed"
@@ -150,18 +148,18 @@ function WorkspaceCard({
 
 				<div className="flex items-center gap-2 mt-0.5">
 					{workspace.attempts > 1 && (
-						<span className="flex items-center gap-0.5 text-[9px] text-amber-500">
+						<span className="flex items-center gap-0.5 text-xs text-amber-500">
 							<RefreshCw size={9} />
 							{workspace.attempts}
 						</span>
 					)}
 					{workspace.lastActivityAt && (
-						<span className={`text-[9px] ${TXT_MUTED}`}>
+						<span className={`text-xs ${TXT_MUTED}`}>
 							{relativeTime(workspace.lastActivityAt)}
 						</span>
 					)}
 					{workspace.error && (
-						<span className="text-[9px] text-red-500 truncate max-w-[120px]">
+						<span className="text-xs text-red-500 truncate max-w-[120px]">
 							{workspace.error}
 						</span>
 					)}
@@ -222,7 +220,7 @@ export function WorkspacePreview({
 				<div className="mt-2 text-center">
 					<button
 						onClick={onViewAll}
-						className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+						className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
 						aria-label="View all workspaces"
 					>
 						{remaining > 0

@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Loader2, FileText, FileCode, FilePlus, FileMinus, GitBranch, AlertCircle } from "lucide-react";
 import { DiffViewer } from "../DiffViewer";
 import type { GitFilePatch } from "../../types";
@@ -15,11 +16,6 @@ import type { GitFilePatch } from "../../types";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-700 dark:text-stone-300";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -154,7 +150,7 @@ export function FileEvidenceDrawer({ projectId, planExecId, workspaceId, filePat
       <div className="flex flex-col items-center gap-2 px-4 py-8 text-xs">
         <FileText size={16} strokeWidth={1.2} className={MUT} />
         <span className={MUT}>No file changes to show</span>
-        <span className={`text-[10px] ${MUT}`}>
+        <span className={`text-xs ${MUT}`}>
           Files change as workspaces complete their work.
         </span>
       </div>
@@ -177,7 +173,7 @@ export function FileEvidenceDrawer({ projectId, planExecId, workspaceId, filePat
               <div className={`text-xs font-medium truncate ${TXT}`}>
                 {f.path}
               </div>
-              <div className={`text-[10px] ${statusColor(f.status)} flex items-center gap-2`}>
+              <div className={`text-xs ${statusColor(f.status)} flex items-center gap-2`}>
                 <span>{f.status}</span>
                 {f.workspaceId && (
                   <span className="truncate">· {f.workspaceId.slice(0, 8)}</span>

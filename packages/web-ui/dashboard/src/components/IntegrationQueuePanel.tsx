@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	CheckCircle,
@@ -46,11 +47,6 @@ import { MergeConflictPanel, type MergeConflictData, type ConflictedFile } from 
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Status icon map ───────────────────────────────────────────────────────
 
@@ -58,12 +54,12 @@ const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; colo
 	queued: {
 		icon: <Clock size={14} />,
 		label: "Queued",
-		color: "text-stone-500 dark:text-stone-400",
+		color: "text-stone-400 dark:text-stone-500",
 	},
 	merging: {
 		icon: <GitMerge size={14} />,
 		label: "Merging",
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 	},
 	validating: {
 		icon: <RefreshCw size={14} />,
@@ -139,29 +135,29 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<span className={`text-xs font-medium ${TXT}`}>{entry.workspaceId}</span>
-					<span className={`text-[10px] font-medium ${cfg.color}`}>{cfg.label}</span>
-					<span className={`text-[9px] ${MUT}`}>{time}</span>
+					<span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+					<span className={`text-xs ${MUT}`}>{time}</span>
 				</div>
 				{/* Commit hash */}
-				<p className={`text-[10px] font-mono ${MUT}`}>
+				<p className={`text-xs font-mono ${MUT}`}>
 					{entry.commitHash.slice(0, 8)}
 				</p>
 				{/* Blocked reason */}
 				{isBlocked && entry.error && (
-					<p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+					<p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
 						Blocked: {entry.error}
 					</p>
 				)}
 				{/* Error (non-blocked) */}
 				{!isBlocked && entry.error && (
-					<p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">
+					<p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
 						{entry.error}
 					</p>
 				)}
 				{/* P23: Merge-priority score */}
 				{entry.mergeScore && (
-					<div className="mt-1 text-[9px]">
-						<span className="font-medium text-blue-600 dark:text-blue-400">
+					<div className="mt-1 text-xs">
+						<span className="font-medium text-blue-700 dark:text-blue-300">
 							Score: {entry.mergeScore.total}
 						</span>
 						<span className="text-stone-400 dark:text-stone-500 ml-1">
@@ -180,7 +176,7 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 				{/* P23: Drift flag / requires human review */}
 				{entry.requiresHumanReview && (
 					<div className="mt-1">
-						<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+						<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
 							<AlertTriangle size={8} />
 							Requires Human Review
 						</span>
@@ -189,10 +185,10 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 				{/* Conflict files */}
 				{entry.conflictFiles && entry.conflictFiles.length > 0 && (
 					<div className="mt-1">
-						<p className="text-[9px] font-medium text-amber-600 dark:text-amber-400">
+						<p className="text-xs font-medium text-amber-600 dark:text-amber-400">
 							Conflicted files:
 						</p>
-						<ul className="text-[9px] font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
+						<ul className="text-xs font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
 							{entry.conflictFiles.map((f) => (
 								<li key={f}>{f}</li>
 							))}
@@ -201,13 +197,13 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 				)}
 				{/* Click hint for conflict entries */}
 				{isConflict && clickable && !canRetry && (
-					<p className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5 italic">
+					<p className="text-xs text-amber-500 dark:text-amber-500 mt-0.5 italic">
 						Click to open handoff panel
 					</p>
 				)}
 				{/* Validation status */}
 				{entry.validationPassed !== null && (
-					<p className={`text-[10px] mt-0.5 ${entry.validationPassed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+					<p className={`text-xs mt-0.5 ${entry.validationPassed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
 						Validation: {entry.validationPassed ? "PASSED" : "FAILED"}
 					</p>
 				)}
@@ -221,7 +217,7 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 									onRetry!(entry.workspaceId);
 								}}
 								disabled={isPending}
-								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium
+								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium
 									bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300
 									hover:bg-blue-100 dark:hover:bg-blue-900/30
 									disabled:opacity-50 disabled:cursor-not-allowed"
@@ -237,8 +233,8 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 									onRequeue!(entry.workspaceId);
 								}}
 								disabled={isPending}
-								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium
-									bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+								className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium
+									bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200
 									hover:bg-stone-200 dark:hover:bg-stone-700
 									disabled:opacity-50 disabled:cursor-not-allowed"
 							>
@@ -253,7 +249,7 @@ function QueueEntryRow({ entry, onConflictClick, onRetry, onRequeue, isPending }
 			{clickable && (
 				<button
 					onClick={() => onConflictClick!(entry.workspaceId)}
-					className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium
+					className="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium
 						bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400
 						hover:bg-amber-100 dark:hover:bg-amber-900/30"
 				>
@@ -276,7 +272,7 @@ function Stat({ label, value, color }: StatProps) {
 	return (
 		<div className="text-center">
 			<p className={`text-base font-bold tabular-nums ${color ?? TXT}`}>{value}</p>
-			<p className={`text-[9px] uppercase tracking-wider mt-0.5 ${MUT}`}>{label}</p>
+			<p className={`text-xs uppercase tracking-wider mt-0.5 ${MUT}`}>{label}</p>
 		</div>
 	);
 }
@@ -310,9 +306,9 @@ function MiniMetric({ icon, label, value, sublabel, accent = "none" }: MiniMetri
 			<span className={`shrink-0 ${accentColors[accent]}`}>{icon}</span>
 			<div className="min-w-0">
 				<p className={`text-xs font-bold tabular-nums leading-tight ${accentColors[accent]}`}>{value}</p>
-				<p className={`text-[9px] leading-tight ${MUT}`}>{label}</p>
+				<p className={`text-xs leading-tight ${MUT}`}>{label}</p>
 				{sublabel && (
-					<p className={`text-[8px] leading-tight ${MUT} opacity-70`}>{sublabel}</p>
+					<p className={`text-xs leading-tight ${MUT} opacity-70`}>{sublabel}</p>
 				)}
 			</div>
 		</div>
@@ -437,14 +433,14 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 					<Layers size={16} className={ACC_TXT} />
 					<h3 className={`text-sm font-semibold ${TXT}`}>Integration Queue</h3>
 					{data?.isProcessing && (
-						<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-[10px] font-medium text-blue-700 dark:text-blue-300">
+						<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-xs font-medium text-blue-700 dark:text-blue-300">
 							<RefreshCw size={10} className="animate-spin" />
 							processing
 						</span>
 					)}
 				</div>
 				{hasIssues && (
-					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-[10px] font-medium text-red-600 dark:text-red-400">
+					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-xs font-medium text-red-600 dark:text-red-400">
 						<AlertTriangle size={10} />
 						{totalIssues} issue{totalIssues !== 1 ? "s" : ""}
 					</span>
@@ -470,7 +466,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{error && (
 				<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-2">
 					<AlertTriangle size={14} className="text-red-500 shrink-0" />
-					<p className="text-[11px] text-red-600 dark:text-red-400">
+					<p className="text-xs text-red-600 dark:text-red-400">
 						Failed to load integration queue: {String(error)}
 					</p>
 				</div>
@@ -485,7 +481,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{entries.length > 0 && (
 				<div className="grid grid-cols-7 gap-1 px-1">
 					<Stat label="Queued" value={counts.queued} />
-					<Stat label="Merge" value={counts.merging} color="text-blue-600 dark:text-blue-400" />
+					<Stat label="Merge" value={counts.merging} color="text-blue-700 dark:text-blue-300" />
 					<Stat label="Valid" value={counts.validating} color="text-amber-600 dark:text-amber-400" />
 					<Stat label="Merged" value={counts.merged} color="text-emerald-600 dark:text-emerald-400" />
 					<Stat label="Failed" value={counts.failed} color="text-red-600 dark:text-red-400" />
@@ -497,7 +493,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{/* ── DAG metrics section ── */}
 			{!metricsLoading && metrics && (
 				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
-					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+					<h4 className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>
 						Queue Metrics
 					</h4>
 					<div className="grid grid-cols-4 gap-1.5">
@@ -550,7 +546,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 					{/* Timing metrics */}
 					{metrics.queueTiming && (
 						<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 mt-1">
-							<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT} mb-1.5`}>
+							<h4 className={`text-xs uppercase tracking-widest font-semibold ${MUT} mb-1.5`}>
 								Queue Timing
 							</h4>
 							<div className="grid grid-cols-3 gap-1.5">
@@ -597,7 +593,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{/* Merge conflicts section */}
 			{mergeConflicts.length > 0 && (
 				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
-					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+					<h4 className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>
 						Merge Conflicts
 					</h4>
 					{mergeConflicts.map((conflict) => (
@@ -608,23 +604,23 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 						>
 							<div className="flex items-center gap-1.5">
 								<AlertTriangle size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
-								<span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+								<span className="text-xs font-medium text-amber-700 dark:text-amber-300">
 									{conflict.workspaceId}
 								</span>
 							</div>
 							{conflict.conflictedFiles.length > 0 && (
-								<ul className="mt-1 text-[10px] font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
+								<ul className="mt-1 text-xs font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
 									{conflict.conflictedFiles.map((f) => (
 										<li key={f}>{f}</li>
 									))}
 								</ul>
 							)}
 							{conflict.diff && (
-								<pre className="mt-1 text-[9px] font-mono text-amber-600 dark:text-amber-400 whitespace-pre-wrap max-h-16 overflow-y-auto">
+								<pre className="mt-1 text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-pre-wrap max-h-16 overflow-y-auto">
 									{conflict.diff.slice(0, 500)}
 								</pre>
 							)}
-							<p className="text-[9px] text-amber-500 dark:text-amber-500 mt-0.5 italic">
+							<p className="text-xs text-amber-500 dark:text-amber-500 mt-0.5 italic">
 								Click to open handoff panel
 							</p>
 						</button>
@@ -635,7 +631,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{/* ── Action feedback ── */}
 			{actionFeedback && (
 				<div
-					className={`px-2.5 py-1.5 rounded text-[10px] font-medium ${
+					className={`px-2.5 py-1.5 rounded text-xs font-medium ${
 						actionFeedback.type === "success"
 							? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
 							: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
@@ -648,7 +644,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			)}
 
 			{/* ── Help text ── */}
-			<p className={`text-[10px] leading-tight ${MUT}`}>
+			<p className={`text-xs leading-tight ${MUT}`}>
 				The integration queue processes workspace changes serially.
 				Conflicts and validation failures block further processing until resolved.
 				<strong> Scale mode</strong> requires the integration queue to be enabled.
@@ -657,12 +653,12 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{/* ── Queue control actions (6.6.F) ── */}
 			<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-2">
 				<div className="flex items-center justify-between">
-					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+					<h4 className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>
 						Queue Actions
 					</h4>
 					<button
 						onClick={() => setShowAuditLog(!showAuditLog)}
-						className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+						className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
 					>
 						<History size={10} />
 						{showAuditLog ? "Hide log" : "Audit log"}
@@ -674,7 +670,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 						<button
 							onClick={() => handleAction(() => queueControl.resume(), "Resume")}
 							disabled={queueControl.isPending}
-							className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+							className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors
 								bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300
 								hover:bg-emerald-100 dark:hover:bg-emerald-900/30
 								disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -686,7 +682,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 						<button
 							onClick={() => handleAction(() => queueControl.pause(), "Pause")}
 							disabled={queueControl.isPending}
-							className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+							className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors
 								bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300
 								hover:bg-amber-100 dark:hover:bg-amber-900/30
 								disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -700,8 +696,8 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 					<button
 						onClick={() => handleAction(() => queueControl.clearCompleted(), "Clear completed")}
 						disabled={queueControl.isPending || entries.length === 0}
-						className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
-							bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+						className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors
+							bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200
 							hover:bg-stone-200 dark:hover:bg-stone-700
 							disabled:opacity-50 disabled:cursor-not-allowed`}
 					>
@@ -712,8 +708,8 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 					<button
 						onClick={() => handleAction(() => queueControl.reorder(), "Reorder")}
 						disabled={queueControl.isPending}
-						className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
-							bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300
+						className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors
+							bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200
 							hover:bg-stone-200 dark:hover:bg-stone-700
 							disabled:opacity-50 disabled:cursor-not-allowed`}
 					>
@@ -726,11 +722,11 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 			{/* ── Audit log section ── */}
 			{showAuditLog && (
 				<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-2 space-y-1.5">
-					<h4 className={`text-[10px] uppercase tracking-widest font-semibold ${MUT}`}>
+					<h4 className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>
 						Audit Log {(auditLog?.total ?? 0) > 0 ? `(${auditLog!.total})` : ""}
 					</h4>
 					{(!auditLog || auditLog.entries.length === 0) && (
-						<p className={`text-[10px] italic ${MUT}`}>No audit events recorded yet.</p>
+						<p className={`text-xs italic ${MUT}`}>No audit events recorded yet.</p>
 					)}
 					{auditLog && auditLog.entries.length > 0 && (
 						<div className="max-h-32 overflow-y-auto space-y-1">
@@ -739,21 +735,21 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 									key={idx}
 									className="flex items-start gap-1.5 px-1.5 py-1 rounded bg-stone-50 dark:bg-stone-800/30"
 								>
-									<span className="shrink-0 text-[9px] font-mono text-stone-400 dark:text-stone-500 mt-0.5">
+									<span className="shrink-0 text-xs font-mono text-stone-400 dark:text-stone-500 mt-0.5">
 										{new Date(event.timestamp).toLocaleTimeString()}
 									</span>
 									<div className="min-w-0 flex-1">
-										<span className={`text-[9px] font-medium ${
+										<span className={`text-xs font-medium ${
 											event.action === "pause" || event.action === "resume"
 												? "text-amber-600 dark:text-amber-400"
 												: event.action === "retry" || event.action === "requeue"
-													? "text-blue-600 dark:text-blue-400"
+													? "text-blue-700 dark:text-blue-300"
 													: "text-stone-600 dark:text-stone-400"
 										}`}>
 											{event.action.replace("_", " ")}
 											{event.workspaceId ? `: ${event.workspaceId}` : ""}
 										</span>
-										<p className={`text-[8px] ${MUT} leading-tight`}>{event.details}</p>
+										<p className={`text-xs ${MUT} leading-tight`}>{event.details}</p>
 									</div>
 								</div>
 							))}
@@ -783,7 +779,7 @@ export function IntegrationQueuePanel({ className }: IntegrationQueuePanelProps)
 						>
 							<button
 								onClick={() => setSelectedConflict(null)}
-								className="absolute top-2 right-2 z-10 flex items-center justify-center h-6 w-6 rounded-full bg-white dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#333] shadow-sm"
+								className="absolute top-2 right-2 z-10 flex items-center justify-center h-6 w-6 rounded-full bg-white dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#333] shadow-sm"
 								aria-label="Close handoff panel"
 							>
 								<X size={12} />

@@ -21,13 +21,9 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { FC } from "react";
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACCENT = "text-stone-600 dark:text-stone-400";
 const OK = "text-green-500";
 const WARN = "text-amber-500";
 const ERR = "text-red-500";
@@ -196,19 +192,19 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 						{summary && (
 							<div className={`p-3 border-b ${BORD} grid grid-cols-4 gap-3`}>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Total Events</span>
+									<span className={`text-xs ${MUT}`}>Total Events</span>
 									<p className={`text-sm font-semibold ${TXT}`}>{summary.totalEvents}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Approved</span>
+									<span className={`text-xs ${MUT}`}>Approved</span>
 									<p className={`text-sm font-semibold ${OK}`}>{summary.totalApproved}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Denied</span>
+									<span className={`text-xs ${MUT}`}>Denied</span>
 									<p className={`text-sm font-semibold ${ERR}`}>{summary.totalDenied}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Pending</span>
+									<span className={`text-xs ${MUT}`}>Pending</span>
 									<p className={`text-sm font-semibold ${WARN}`}>{summary.totalPending}</p>
 								</div>
 							</div>
@@ -266,8 +262,8 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 													<span className={`text-xs font-medium ${TXT}`}>
 														{event.category.replace("_", " ")}
 													</span>
-													<span className={`text-[10px] ${MUT}`}>&middot;</span>
-													<span className={`text-[10px] ${
+													<span className={`text-xs ${MUT}`}>&middot;</span>
+													<span className={`text-xs ${
 														event.severity === "critical" || event.severity === "error"
 															? ERR
 															: event.severity === "warning"
@@ -280,16 +276,16 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 												<p className={`text-xs ${TXT} mt-0.5`}>{event.message}</p>
 												<div className="flex items-center gap-2 mt-1">
 													<User size={10} className={MUT} />
-													<span className={`text-[10px] ${MUT}`}>{event.actor}</span>
+													<span className={`text-xs ${MUT}`}>{event.actor}</span>
 													<Target size={10} className={MUT} />
-													<span className={`text-[10px] ${MUT}`}>{event.target}</span>
+													<span className={`text-xs ${MUT}`}>{event.target}</span>
 													<Clock size={10} className={MUT} />
-													<span className={`text-[10px] ${MUT}`}>
+													<span className={`text-xs ${MUT}`}>
 														{new Date(event.timestamp).toLocaleString()}
 													</span>
 												</div>
 											</div>
-											<span className={`text-[10px] px-1.5 py-0.5 rounded ${
+											<span className={`text-xs px-1.5 py-0.5 rounded ${
 												event.outcome === "denied" || event.outcome === "rejected"
 													? `${ERR} bg-red-50 dark:bg-red-900/20`
 													: event.outcome === "approved" || event.outcome === "allowed"
@@ -311,7 +307,7 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 						{summary && (
 							<>
 								<div className={`p-3 rounded-lg border ${BORD}`}>
-									<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+									<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 										Permission Summary
 									</h4>
 									<div className="space-y-2">
@@ -331,7 +327,7 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 								</div>
 
 								<div className={`p-3 rounded-lg border ${BORD}`}>
-									<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+									<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 										Default Policy
 									</h4>
 									<div className="space-y-1">
@@ -357,7 +353,7 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 				{activeTab === "protected" && (
 					<div className="p-4 space-y-3">
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Protected Systems
 							</h4>
 							<p className={`text-xs ${MUT} mb-3`}>
@@ -376,7 +372,7 @@ export const PolicyAuditCenter: FC<PolicyAuditCenterProps> = ({ className = "" }
 										<ShieldAlert size={14} className={ERR} />
 										<div>
 											<p className={`text-xs font-medium ${TXT}`}>{sys}</p>
-											<p className={`text-[10px] ${MUT}`}>Self-modification approval required</p>
+											<p className={`text-xs ${MUT}`}>Self-modification approval required</p>
 										</div>
 									</div>
 								))}

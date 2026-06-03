@@ -69,7 +69,7 @@ const STATE_STYLES: Record<ThinkingState, {
   idle: {
     dot: "bg-stone-300 dark:bg-stone-600",
     bg: "bg-stone-50 dark:bg-stone-900/30",
-    text: "text-stone-500 dark:text-stone-400",
+    text: "text-stone-400 dark:text-stone-500",
     border: "border-stone-200 dark:border-stone-800",
     icon: "\u{23F8}\uFE0F", // pause
   },
@@ -111,7 +111,7 @@ function AnimatedIcon({ state }: { state: ThinkingState }) {
 function StatusBar({ state, text }: { state: ThinkingState; text: string }) {
   const style = STATE_STYLES[state];
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-medium">
+    <div className="flex items-center gap-1.5 text-xs font-medium">
       <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>
         {state}
       </span>
@@ -188,7 +188,7 @@ export function ThinkingAnimation({
       <div className="flex-1 min-w-0">
         <StatusBar state={state} text={text} />
         {displayedText && (
-          <p className="text-xs mt-1 text-stone-700 dark:text-stone-300 leading-relaxed">
+          <p className="text-xs mt-1 text-stone-800 dark:text-stone-200 leading-relaxed">
             {displayedText}
             {showCursor && (
               <span className="inline-block w-[2px] h-[14px] bg-stone-500 dark:bg-stone-400 ml-[1px] align-text-bottom animate-cursor-blink" />

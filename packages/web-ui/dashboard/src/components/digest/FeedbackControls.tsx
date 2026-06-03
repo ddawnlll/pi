@@ -222,7 +222,7 @@ export function FeedbackControls({
 
 			{/* Success indicator */}
 			{showSuccess && (
-				<span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium animate-fade-in">
+				<span className="inline-flex items-center gap-0.5 text-xs text-emerald-500 font-medium animate-fade-in">
 					<Check size={10} strokeWidth={2} />
 					Saved
 				</span>
@@ -236,7 +236,7 @@ export function FeedbackControls({
 			{/* Error tooltip */}
 			{submitError && (
 				<span
-					className="inline-flex items-center gap-0.5 text-[9px] text-red-500"
+					className="inline-flex items-center gap-0.5 text-xs text-red-500"
 					title={submitError}
 				>
 					<AlertCircle size={10} strokeWidth={1.5} />
@@ -271,7 +271,7 @@ export function FeedbackControls({
 							}
 						}}
 						placeholder="What should Pi do differently?"
-						className={`text-[10px] px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-500 ${
+						className={`text-xs px-1.5 py-0.5 rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-500 ${
 							isSmall ? "w-36" : "w-48"
 						}`}
 						disabled={submitting}
@@ -280,7 +280,7 @@ export function FeedbackControls({
 					<button
 						onClick={handleCommentSubmit}
 						disabled={!comment.trim() || submitting}
-						className="text-[9px] px-1.5 py-0.5 rounded bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-800 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium"
+						className="text-xs px-1.5 py-0.5 rounded bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-800 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium"
 					>
 						Send
 					</button>
@@ -300,7 +300,7 @@ export function FeedbackControls({
  */
 export function NoFeedbackIndicator() {
 	return (
-		<span className="text-[9px] text-stone-400 dark:text-stone-500 italic flex items-center gap-1">
+		<span className="text-xs text-stone-400 dark:text-stone-500 italic flex items-center gap-1">
 			<MessageSquare size={10} strokeWidth={1.2} />
 			No feedback yet
 		</span>
@@ -322,13 +322,13 @@ export function FeedbackErrorState({
 	onRetry?: () => void;
 }) {
 	return (
-		<div className="flex items-center gap-1.5 text-[10px] text-red-500">
+		<div className="flex items-center gap-1.5 text-xs text-red-500">
 			<AlertCircle size={12} strokeWidth={1.5} />
 			<span className="truncate max-w-[160px]">{message}</span>
 			{onRetry && (
 				<button
 					onClick={onRetry}
-					className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+					className="text-xs px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
 				>
 					Retry
 				</button>

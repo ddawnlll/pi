@@ -10,6 +10,7 @@
  */
 
 import { useState, type FormEvent } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -35,12 +36,6 @@ import { useExtensions, type ExtensionInfo, type ExtensionHealth } from "../hook
 // Style constants (matching App.tsx patterns)
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Helper components
@@ -160,7 +155,7 @@ function InstallDialog({ isOpen, onClose, onInstall }: InstallDialogProps) {
 							className={`w-full px-3 py-2 text-sm rounded-lg border ${BORD} ${TXT} bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500`}
 							disabled={installing}
 						/>
-						<p className={`text-[10px] ${MUT} mt-1`}>
+						<p className={`text-xs ${MUT} mt-1`}>
 							Supported formats: npm:&lt;package&gt;, git:&lt;url&gt;, or a local path starting with ./ or /
 						</p>
 					</div>
@@ -213,7 +208,7 @@ function InstallDialog({ isOpen, onClose, onInstall }: InstallDialogProps) {
 									<a
 										href="#"
 										onClick={(e) => { e.preventDefault(); onClose(); }}
-										className={`inline-flex items-center gap-1 mt-2 text-[10px] underline ${
+										className={`inline-flex items-center gap-1 mt-2 text-xs underline ${
 											policyResult.severity === "error"
 												? "text-red-500 dark:text-red-400"
 												: "text-amber-500 dark:text-amber-400"
@@ -346,12 +341,12 @@ function ExtensionCard({
 			? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
 			: ext.type === "package"
 				? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-				: "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+				: "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
 
 	const scopeBadgeColor =
 		ext.scope === "project"
 			? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300"
-			: "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+			: "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
 
 	// Extract a short display name from the source
 	const displayName = ext.source.replace(/^(npm:|git:|https:\/\/|ssh:\/\/)/, "").split("/").pop() ?? ext.source;
@@ -364,20 +359,20 @@ function ExtensionCard({
 				className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-colors`}
 			>
 				<div className="flex items-center justify-center w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 shrink-0">
-					<Package size={15} className={ext.enabled ? "text-blue-600 dark:text-blue-400" : `${MUT}`} />
+					<Package size={15} className={ext.enabled ? "text-blue-700 dark:text-blue-300" : `${MUT}`} />
 				</div>
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
 						<span className={`text-sm font-medium truncate ${TXT}`}>{displayName}</span>
 						{ext.enabled ? (
-							<span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">enabled</span>
+							<span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">enabled</span>
 						) : (
-							<span className="text-[10px] font-medium text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded">disabled</span>
+							<span className="text-xs font-medium text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded">disabled</span>
 						)}
 					</div>
 					<div className="flex items-center gap-1.5 mt-0.5">
-						<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${typeBadgeColor}`}>{ext.type}</span>
-						<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${scopeBadgeColor}`}>{ext.scope}</span>
+						<span className={`text-xs font-medium px-1.5 py-0.5 rounded ${typeBadgeColor}`}>{ext.type}</span>
+						<span className={`text-xs font-medium px-1.5 py-0.5 rounded ${scopeBadgeColor}`}>{ext.scope}</span>
 					</div>
 				</div>
 				<div className="flex items-center gap-1 shrink-0">
@@ -386,7 +381,7 @@ function ExtensionCard({
 						<button
 							onClick={(e) => { e.stopPropagation(); handleDisable(); }}
 							disabled={busy}
-							className="h-7 px-2 rounded text-[10px] font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+							className="h-7 px-2 rounded text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
 							title="Disable extension"
 						>
 							<ToggleRight size={12} /> Disable
@@ -395,7 +390,7 @@ function ExtensionCard({
 						<button
 							onClick={(e) => { e.stopPropagation(); handleEnable(); }}
 							disabled={busy}
-							className="h-7 px-2 rounded text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+							className="h-7 px-2 rounded text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 flex items-center gap-1"
 							title="Enable extension"
 						>
 							<ToggleLeft size={12} /> Enable
@@ -445,7 +440,7 @@ function ExtensionCard({
 								<a
 									href="#"
 									onClick={(e) => { e.preventDefault(); /* could open audit log modal */ }}
-									className={`inline-flex items-center gap-1 mt-1 text-[10px] underline ${
+									className={`inline-flex items-center gap-1 mt-1 text-xs underline ${
 										actionError ? "text-red-500 dark:text-red-400" : ""
 									}`}
 								>
@@ -461,7 +456,7 @@ function ExtensionCard({
 						<button
 							onClick={handleUpdate}
 							disabled={busy || ext.filtered}
-							className={`h-7 px-2.5 rounded text-[10px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+							className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
 								${isUpdating
 									? "bg-stone-200 dark:bg-stone-800 text-stone-400 dark:text-stone-600"
 									: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
@@ -477,7 +472,7 @@ function ExtensionCard({
 							<button
 								onClick={handleRollback}
 								disabled={busy}
-								className={`h-7 px-2.5 rounded text-[10px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+								className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
 									${isRollingBack
 										? "bg-stone-200 dark:bg-stone-800 text-stone-400 dark:text-stone-600"
 										: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
@@ -491,7 +486,7 @@ function ExtensionCard({
 
 						{/* Disabled fallback */}
 						{!ext.hasRollbackBackup && ext.enabled && (
-							<span className={`text-[10px] ${MUT} flex items-center gap-1`}>
+							<span className={`text-xs ${MUT} flex items-center gap-1`}>
 								<RotateCcw size={10} />
 								No rollback backup — use Disable for safe fallback
 							</span>
@@ -510,7 +505,7 @@ function ExtensionCard({
 									</p>
 									<button
 										onClick={handleUpdate}
-										className="mt-1.5 text-[10px] font-medium text-red-600 dark:text-red-400 underline hover:text-red-700 dark:hover:text-red-300"
+										className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 underline hover:text-red-700 dark:hover:text-red-300"
 									>
 										Try updating to resolve compatibility
 									</button>
@@ -524,7 +519,7 @@ function ExtensionCard({
 						<a
 							href="#"
 							onClick={(e) => { e.preventDefault(); /* Could open audit log panel */ }}
-							className={`inline-flex items-center gap-1 text-[10px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+							className={`inline-flex items-center gap-1 text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
 						>
 							<FileCode size={10} /> View audit trail for this extension
 						</a>
@@ -585,7 +580,7 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 				<p className="text-xs text-red-500">Failed to load extensions: {error instanceof Error ? error.message : String(error)}</p>
 				<button
 					onClick={refetch}
-					className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1"
+					className="h-7 px-2.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1"
 				>
 					<RefreshCw size={11} /> Retry
 				</button>
@@ -610,9 +605,9 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 				<div className="flex items-center gap-2">
 					<Package size={14} className={TXT} />
 					<span className={`text-xs font-semibold ${TXT}`}>Extensions</span>
-					<span className={`text-[10px] ${MUT} ml-1`}>{count} installed</span>
+					<span className={`text-xs ${MUT} ml-1`}>{count} installed</span>
 					{unhealthyCount > 0 && (
-						<span className="text-[10px] font-medium text-red-500 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded flex items-center gap-1">
+						<span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded flex items-center gap-1">
 							<AlertTriangle size={9} /> {unhealthyCount} unhealthy
 						</span>
 					)}
@@ -620,14 +615,14 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 				<div className="flex items-center gap-1.5">
 					<button
 						onClick={refetch}
-						className="h-7 px-2 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors flex items-center gap-1"
+						className="h-7 px-2 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors flex items-center gap-1"
 					>
 						<RefreshCw size={11} /> Refresh
 					</button>
 					<button
 						onClick={() => setShowInstallDialog(true)}
 						disabled={isInstalling}
-						className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+						className="h-7 px-2.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
 					>
 						{isInstalling ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
 						Install
@@ -643,7 +638,7 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 						<p className={`text-xs ${MUT}`}>No extensions installed</p>
 						<button
 							onClick={() => setShowInstallDialog(true)}
-							className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1"
+							className="h-7 px-2.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1"
 						>
 							<Plus size={11} /> Install your first extension
 						</button>
@@ -678,7 +673,7 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 
 			{/* Summary footer */}
 			<div className={`shrink-0 px-4 py-2 border-t ${BORD} flex items-center justify-between`}>
-				<div className={`flex items-center gap-3 text-[10px] ${MUT}`}>
+				<div className={`flex items-center gap-3 text-xs ${MUT}`}>
 					<span className="flex items-center gap-1">
 						<Shield size={10} /> Policy enforcement active
 					</span>
@@ -692,7 +687,7 @@ export function ExtensionsManager({ className = "" }: ExtensionsManagerProps) {
 				<a
 					href="#"
 					onClick={(e) => { e.preventDefault(); }}
-					className={`inline-flex items-center gap-1 text-[10px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+					className={`inline-flex items-center gap-1 text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
 				>
 					<FileCode size={10} /> Extension audit log
 				</a>

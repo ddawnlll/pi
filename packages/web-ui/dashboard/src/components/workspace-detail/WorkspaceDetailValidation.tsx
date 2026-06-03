@@ -5,14 +5,11 @@
  */
 
 import { CheckCircle, Shield, XCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { ValidationStatus } from "../../hooks/useValidationStatus";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -63,7 +60,7 @@ export function WorkspaceDetailValidation({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b ${BORD}">
         <Shield size={13} className={MUT} />
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+        <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
           Validation Evidence
         </span>
       </div>
@@ -108,7 +105,7 @@ export function WorkspaceDetailValidation({
         )}
 
         {/* Required flag */}
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-2 text-xs">
           <span className={MUT}>Required:</span>
           <span className={validation.required ? "text-stone-600 dark:text-stone-300" : MUT}>
             {validation.required ? "Yes" : "No"}
@@ -118,10 +115,10 @@ export function WorkspaceDetailValidation({
         {/* Block reasons */}
         {validation.blockReasons && validation.blockReasons.length > 0 && (
           <div className="mt-2">
-            <span className={`text-[10px] ${MUT} block mb-1`}>Block Reasons:</span>
+            <span className={`text-xs ${MUT} block mb-1`}>Block Reasons:</span>
             <ul className="space-y-0.5">
               {validation.blockReasons.map((reason, i) => (
-                <li key={i} className="flex items-start gap-1.5 text-[10px] text-red-600 dark:text-red-400">
+                <li key={i} className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
                   <AlertTriangle size={9} className="mt-0.5 shrink-0" />
                   <span>{reason}</span>
                 </li>

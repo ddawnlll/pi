@@ -41,7 +41,7 @@ function createTempDir(): string {
 /**
  * Create a minimal Fastify app with read model routes.
  */
-async function createApp(workspaceRoot: string, stateStore: any = {}, adapterOverrides?: Record<string, any>) {
+async function createApp(workspaceRoot: string, stateStore: any = {}, _adapterOverrides?: Record<string, any>) {
 	const app = Fastify({ logger: false });
 
 	// We need to override the adapter creation to inject mocks.

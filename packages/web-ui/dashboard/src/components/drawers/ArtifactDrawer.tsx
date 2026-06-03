@@ -6,15 +6,13 @@
  */
 
 import { useState, useEffect } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Loader2, FileText, Image, Package, AlertCircle, Download } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-700 dark:text-stone-300";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -130,7 +128,7 @@ export function ArtifactDrawer({ projectId, planExecId, workspaceId }: ArtifactD
       <div className="flex flex-col items-center gap-2 px-4 py-8 text-xs">
         <Package size={16} strokeWidth={1.2} className={MUT} />
         <span className={MUT}>No artifacts found</span>
-        <span className={`text-[10px] ${MUT}`}>
+        <span className={`text-xs ${MUT}`}>
           Artifacts are generated after workspace completion.
         </span>
       </div>
@@ -149,7 +147,7 @@ export function ArtifactDrawer({ projectId, planExecId, workspaceId }: ArtifactD
             <div className={`text-xs font-medium truncate ${TXT}`}>
               {a.name}
             </div>
-            <div className={`text-[10px] ${MUT} flex items-center gap-2`}>
+            <div className={`text-xs ${MUT} flex items-center gap-2`}>
               <span>{a.kind}</span>
               {a.sizeBytes != null && <span>{formatBytes(a.sizeBytes)}</span>}
               {a.workspaceId && (

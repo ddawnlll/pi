@@ -12,6 +12,7 @@
  */
 
 import { FileText, Link2, ScrollText } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,12 +33,6 @@ export interface EscalationEvidenceListProps {
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-600 dark:text-blue-400";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -67,7 +62,7 @@ export function EscalationEvidenceList({
         <div>
           <div className={`flex items-center gap-1.5 mb-1 ${MUT}`}>
             <Link2 size={10} />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
+            <span className="text-xs font-semibold uppercase tracking-wider">
               Evidence
             </span>
           </div>
@@ -75,7 +70,7 @@ export function EscalationEvidenceList({
             {evidenceRefs!.map((ref, i) => (
               <li
                 key={`ev-${i}`}
-                className={`flex items-start gap-1.5 text-[10px] ${ACC_TXT} break-all`}
+                className={`flex items-start gap-1.5 text-xs ${ACC_TXT} break-all`}
               >
                 <span className="mt-0.5 shrink-0">&#8226;</span>
                 <span className={`font-mono ${ACC_TXT}`}>{ref}</span>
@@ -90,7 +85,7 @@ export function EscalationEvidenceList({
         <div>
           <div className={`flex items-center gap-1.5 mb-1 ${MUT}`}>
             <ScrollText size={10} />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
+            <span className="text-xs font-semibold uppercase tracking-wider">
               Logs to Inspect
             </span>
           </div>
@@ -101,7 +96,7 @@ export function EscalationEvidenceList({
                 className="flex items-start gap-1.5"
               >
                 <FileText size={10} className={`mt-0.5 shrink-0 ${MUT}`} />
-                <span className={`text-[10px] font-mono ${TXT} break-all`}>
+                <span className={`text-xs font-mono ${TXT} break-all`}>
                   {logPath}
                 </span>
               </li>
@@ -117,7 +112,7 @@ export function EscalationEvidenceList({
             href={`/api/transcript/${planExecId}/${workspaceId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className={`inline-flex items-center gap-1 text-[10px] ${ACC_TXT} hover:underline`}
+            className={`inline-flex items-center gap-1 text-xs ${ACC_TXT} hover:underline`}
           >
             <ScrollText size={10} />
             View worker transcript

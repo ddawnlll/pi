@@ -326,9 +326,10 @@ function extractJsonQueue(planContent: string): string | null {
 	}
 	// 3. Scan all json blocks
 	const re = new RegExp(JSON_BLOCK.source, "g");
-	let jm: RegExpExecArray | null;
-	while ((jm = re.exec(planContent)) !== null) {
+	let jm: RegExpExecArray | null = re.exec(planContent);
+	while (jm !== null) {
 		if (looksLikeExecutionContract(jm[1].trim())) return jm[1].trim();
+		jm = re.exec(planContent);
 	}
 	return null;
 }
@@ -385,33 +386,34 @@ function parseMarkdownHeadings(planContent: string): { queue?: WorkspaceQueue; e
 	}
 
 	const rx = /(?:^|\n)(#{1,3})\s+([\w.-]+)[^\n]*\u2014\s*([^\n]+)\n([\s\S]*?)(?=\n#{1,3}\s+[\w.-]+[^\n]*\u2014|$)/gi;
-	let m: RegExpExecArray | null;
-	while ((m = rx.exec(wsContent)) !== null) {
+	let m: RegExpExecArray | null = rx.exec(wsContent);
+	while (m !== null) {
 		const id = m[2];
 		const wTitle = m[3].trim();
 		const body = m[4];
 		// Skip non-workspace headings (Goal, Allowed Files, etc.)
-		if (!/^(?:P?\d+(?:\.\d+)?|\w\d)$/i.test(id)) continue;
-
-		const deps: string[] = [];
-		const dm = body.match(/(?:Dependencies|Depends on):\s*([^\n]+)/i);
-		if (dm && dm[1] && !dm[1].match(/none|^\[\s*\]$/i)) {
-			deps.push(
-				...dm[1]
-					.split(/[,\s]+/)
-					.map((s: string) => s.trim())
-					.filter((s: string) => /^[\w.-]+$/.test(s)),
-			);
+		if (/^(?:P?\d+(?:\.\d+)?|\w\d)$/i.test(id)) {
+			const deps: string[] = [];
+			const dm = body.match(/(?:Dependencies|Depends on):\s*([^\n]+)/i);
+			if (dm?.[1] && !dm[1].match(/none|^\[\s*\]$/i)) {
+				deps.push(
+					...dm[1]
+						.split(/[,\s]+/)
+						.map((s: string) => s.trim())
+						.filter((s: string) => /^[\w.-]+$/.test(s)),
+				);
+			}
+			const rm = body.match(/(?:Role|Budget):\s*(\w+)/i);
+			const rr = body.match(/(?:Max\s*)?Retries:\s*(\d+)/i);
+			workspaces.push({
+				id,
+				title: wTitle,
+				dependencies: deps,
+				roleBudget: (rm?.[1]?.toLowerCase() || "worker") as any,
+				maxRetries: rr ? parseInt(rr[1], 10) : 3,
+			});
 		}
-		const rm = body.match(/(?:Role|Budget):\s*(\w+)/i);
-		const rr = body.match(/(?:Max\s*)?Retries:\s*(\d+)/i);
-		workspaces.push({
-			id,
-			title: wTitle,
-			dependencies: deps,
-			roleBudget: (rm?.[1]?.toLowerCase() || "worker") as any,
-			maxRetries: rr ? parseInt(rr[1]) : 3,
-		});
+		m = rx.exec(wsContent);
 	}
 
 	if (workspaces.length === 0) {

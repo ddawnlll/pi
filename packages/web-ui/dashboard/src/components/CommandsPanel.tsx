@@ -1,15 +1,11 @@
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { Terminal, Cpu, Timer, Clock, Filter, X, ChevronDown, Search } from "lucide-react";
 import type { ToolCallEvent } from "../hooks/useToolCallEvents";
 import { formatElapsed } from "../utils/format";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-700 dark:text-stone-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -201,7 +197,7 @@ export function CommandsPanel({ toolCalls, workspaceIds = [] }: CommandsPanelPro
 					<Terminal size={24} strokeWidth={1.2} />
 					<p className="text-xs">No commands found</p>
 					{toolCalls.length === 0 && (
-						<p className="text-[11px] text-stone-300 dark:text-stone-600">
+						<p className="text-xs text-stone-300 dark:text-stone-600">
 							Tool calls will appear here as the plan executes
 						</p>
 					)}
@@ -214,12 +210,12 @@ export function CommandsPanel({ toolCalls, workspaceIds = [] }: CommandsPanelPro
 					<table className="w-full text-xs">
 						<thead className={`sticky top-0 ${SURF} border-b ${BORD}`}>
 							<tr className="text-left">
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Time</th>
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Workspace</th>
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Tool</th>
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Summary</th>
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Status</th>
-								<th className={`px-3 py-2 font-medium ${MUT} text-[10px] uppercase tracking-wider`}>Duration</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Time</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Workspace</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Tool</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Summary</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Status</th>
+								<th className={`px-3 py-2 font-medium ${MUT} text-xs uppercase tracking-wider`}>Duration</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -241,7 +237,7 @@ export function CommandsPanel({ toolCalls, workspaceIds = [] }: CommandsPanelPro
 										{/* Workspace */}
 										<td className={`px-3 py-2.5 ${TXT}`}>
 											{tc.workspaceId ? (
-												<span className="font-mono text-[10px]">{tc.workspaceId.slice(0, 12)}</span>
+												<span className="font-mono text-xs">{tc.workspaceId.slice(0, 12)}</span>
 											) : (
 												<span className={MUT}>global</span>
 											)}
@@ -250,11 +246,11 @@ export function CommandsPanel({ toolCalls, workspaceIds = [] }: CommandsPanelPro
 										{/* Tool */}
 										<td className="px-3 py-2.5">
 											{tc.isMcp ? (
-												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
 													{displayToolName(tc.toolName)}
 												</span>
 											) : (
-												<span className={`font-mono text-[10px] ${TXT}`}>
+												<span className={`font-mono text-xs ${TXT}`}>
 													{tc.toolName}
 												</span>
 											)}
@@ -267,7 +263,7 @@ export function CommandsPanel({ toolCalls, workspaceIds = [] }: CommandsPanelPro
 
 										{/* Status */}
 										<td className="px-3 py-2.5">
-											<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${status.color} ${status.bg} ${status.darkColor} ${status.darkBg}`}>
+											<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${status.color} ${status.bg} ${status.darkColor} ${status.darkBg}`}>
 												{status.label}
 											</span>
 										</td>

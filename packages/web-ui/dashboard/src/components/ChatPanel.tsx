@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Send, Loader2, Bot, User, X, AlertCircle, Terminal, Code,
@@ -103,12 +104,6 @@ const DEFAULT_SAVED_PROMPTS: SavedPrompt[] = [
   { id: "summarize", name: "Summarize", description: "Summarize content", template: "Summarize the following in 3-5 bullet points:\n\n{{content}}", tags: ["writing"] },
 ];
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-800 dark:text-stone-200";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -162,7 +157,7 @@ function getToolBadge(name: string): ToolBadgeConfig {
 function ContextRefPill({ ctx, removable, onRemove, onClick }: { ctx: ContextRef; removable?: boolean; onRemove?: () => void; onClick?: () => void }) {
   const Icon = refKindIcon(ctx.kind);
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${ACC_BG} ${ACC_TXT} cursor-pointer hover:opacity-80 transition-opacity`}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${ACC_BG} ${ACC_TXT} cursor-pointer hover:opacity-80 transition-opacity`}
       onClick={onClick} title={`Go to ${ctx.kind}: ${ctx.label}`}>
       <Icon size={10} className="shrink-0" />
       <span className="truncate max-w-[100px]">{ctx.label}</span>
@@ -178,7 +173,7 @@ function ContextRefPill({ ctx, removable, onRemove, onClick }: { ctx: ContextRef
 function DiffViewer({ content }: { content: string }) {
   const lines = content.split("\n");
   return (
-    <div className="font-mono text-[10px] leading-5 overflow-x-auto">
+    <div className="font-mono text-xs leading-5 overflow-x-auto">
       {lines.map((line, i) => {
         const isAdd = line.startsWith("+") && !line.startsWith("+++");
         const isDel = line.startsWith("-") && !line.startsWith("---");
@@ -238,7 +233,7 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
     return (
       <button
         onClick={() => setExpanded(true)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity`}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity`}
         aria-label={`Expand ${tc.name} result`}
       >
         <Icon size={9} /><span>{tc.name}</span>
@@ -258,7 +253,7 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity ${isError ? "bg-red-100 dark:bg-red-900/40" : ""}`}
+        className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs ${cfg.bg} ${MUT} hover:opacity-80 transition-opacity ${isError ? "bg-red-100 dark:bg-red-900/40" : ""}`}
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${tc.name} result`}
       >
@@ -267,7 +262,7 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
         {tc.status === "running" && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse ml-auto shrink-0`} />}
         {tc.status === "success" && <CheckCircle2 size={10} className="text-green-500 ml-auto shrink-0" />}
         {tc.status === "error" && <XCircle size={10} className="text-red-500 ml-auto shrink-0" />}
-        {durationDisplay && <span className="ml-2 opacity-60 text-[9px]">{durationDisplay}</span>}
+        {durationDisplay && <span className="ml-2 opacity-60 text-xs">{durationDisplay}</span>}
         <ChevronDown size={10} className={`ml-auto shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
       
@@ -282,7 +277,7 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
           >
             <div className="max-h-80 overflow-y-auto bg-white dark:bg-[#1a1a1a] p-2">
               {isError && tc.result && (
-                <div className="text-red-600 dark:text-red-400 text-[10px] mb-2 font-medium">
+                <div className="text-red-600 dark:text-red-400 text-xs mb-2 font-medium">
                   <AlertCircle size={10} className="inline mr-1" />
                   {tc.result}
                 </div>
@@ -292,14 +287,14 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
                   {hasDiff ? (
                     <DiffViewer content={displayResult.content} />
                   ) : (
-                    <pre className="text-[10px] leading-relaxed whitespace-pre-wrap break-all font-mono text-stone-700 dark:text-stone-300">
+                    <pre className="text-xs leading-relaxed whitespace-pre-wrap break-all font-mono text-stone-800 dark:text-stone-200">
                       {displayResult.content}
                     </pre>
                   )}
                   {displayResult.truncated && !showAll && (
                     <button
                       onClick={() => setShowAll(true)}
-                      className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                      className="text-xs text-blue-700 dark:text-blue-300 hover:underline mt-1"
                     >
                       Show {displayResult.remaining} more lines
                     </button>
@@ -307,7 +302,7 @@ function ToolResultPanel({ tc, compact = false }: { tc: ToolCallEvent; compact?:
                 </>
               )}
               {!tc.result && tc.status === "running" && (
-                <span className="text-[10px] text-stone-400">Running...</span>
+                <span className="text-xs text-stone-400">Running...</span>
               )}
             </div>
           </motion.div>
@@ -329,7 +324,7 @@ function ToolTimeline({ toolCalls }: { toolCalls: ToolCallEvent[] }) {
   
   return (
     <div className="shrink-0 flex items-center gap-1 px-2 py-1.5 bg-stone-50 dark:bg-[#161616] rounded border border-[#E8E6E1] dark:border-[#333] overflow-x-auto">
-      <span className="text-[9px] text-stone-400 shrink-0 mr-1">Timeline:</span>
+      <span className="text-xs text-stone-400 shrink-0 mr-1">Timeline:</span>
       {toolCalls.map((tc, idx) => {
         const cfg = getToolBadge(tc.name);
         const widthPct = total > 0 ? ((tc.durationMs ?? 200) / total) * 100 : 100 / toolCalls.length;
@@ -340,7 +335,7 @@ function ToolTimeline({ toolCalls }: { toolCalls: ToolCallEvent[] }) {
             initial={{ width: 0 }}
             animate={{ width: `${Math.max(widthPct, 10)}%` }}
             transition={{ duration: 0.3, delay: idx * 0.05 }}
-            className={`h-5 min-w-[40px] rounded text-[8px] font-medium truncate px-1 relative ${cfg.bg} ${MUT} hover:opacity-80 text-center overflow-hidden`}
+            className={`h-5 min-w-[40px] rounded text-xs font-medium truncate px-1 relative ${cfg.bg} ${MUT} hover:opacity-80 text-center overflow-hidden`}
             title={`${tc.name}${tc.durationMs ? ` (${formatTotalDuration(tc.durationMs)})` : ""}`}
           >
             {tc.name.slice(0, 6)}
@@ -348,7 +343,7 @@ function ToolTimeline({ toolCalls }: { toolCalls: ToolCallEvent[] }) {
           </motion.button>
         );
       })}
-      <span className="text-[9px] text-stone-400 shrink-0 ml-2">
+      <span className="text-xs text-stone-400 shrink-0 ml-2">
         {toolCalls.length} tool{toolCalls.length !== 1 ? "s" : ""} · {formatTotalDuration(total)}
       </span>
     </div>
@@ -369,8 +364,8 @@ function StreamContent({ content, hasToolCalls }: { content: string; hasToolCall
   if (content.length > 0) {
     return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }}><MarkdownContent content={content} /></motion.div>;
   }
-  if (hasToolCalls) return <span className="inline-flex items-center gap-1 text-[10px] italic text-stone-400">Processing<ThinkingDots /></span>;
-  return <span className="inline-flex items-center gap-1 text-[10px] italic text-stone-400">Thinking<ThinkingDots /></span>;
+  if (hasToolCalls) return <span className="inline-flex items-center gap-1 text-xs italic text-stone-400">Processing<ThinkingDots /></span>;
+  return <span className="inline-flex items-center gap-1 text-xs italic text-stone-400">Thinking<ThinkingDots /></span>;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -405,9 +400,9 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   return (
     <div className="relative group mb-3 last:mb-0">
       <div className="flex items-center justify-between px-3 py-1 rounded-t-lg border border-b-0 border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#222]">
-        <span className="text-[9px] uppercase tracking-wider font-mono text-stone-400 dark:text-stone-500">{lang || "code"}</span>
+        <span className="text-xs uppercase tracking-wider font-mono text-stone-400 dark:text-stone-500">{lang || "code"}</span>
         <button onClick={handleCopy}
-          className={`inline-flex items-center gap-1 text-[9px] transition-colors ${copied ? "text-green-500" : "text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"}`}>
+          className={`inline-flex items-center gap-1 text-xs transition-colors ${copied ? "text-green-500" : "text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"}`}>
           {copied ? <><CheckCircle2 size={9} />Copied</> : <><Copy size={9} />Copy</>}
         </button>
       </div>
@@ -454,19 +449,19 @@ const MARKDOWN_COMPONENTS = {
   h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-xs font-semibold mb-1 mt-3 first:mt-0">{children}</h3>,
   code: ({ className, children }: React.ComponentPropsWithoutRef<"code">) => {
     const isInline = !className;
-    if (isInline) return <code className="px-1 py-0.5 rounded bg-stone-200/70 dark:bg-[#333] text-[10px] font-mono">{children}</code>;
+    if (isInline) return <code className="px-1 py-0.5 rounded bg-stone-200/70 dark:bg-[#333] text-xs font-mono">{children}</code>;
     return <CodeBlock className={className}>{children}</CodeBlock>;
   },
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold">{children}</strong>,
-  a: ({ href, children }: React.ComponentPropsWithoutRef<"a">) => <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+  a: ({ href, children }: React.ComponentPropsWithoutRef<"a">) => <a href={href} className="text-blue-700 dark:text-blue-300 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
   blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-stone-300 dark:border-stone-600 pl-3 my-2 text-stone-600 dark:text-stone-400 italic">{children}</blockquote>,
   table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto my-2"><table className="min-w-full text-xs border-collapse">{children}</table></div>,
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-stone-100 dark:bg-[#222]">{children}</thead>,
   tbody: ({ children }: { children?: React.ReactNode }) => <tbody>{children}</tbody>,
   tr: ({ children }: { children?: React.ReactNode }) => <tr className="border-b border-[#E8E6E1] dark:border-[#333]">{children}</tr>,
   th: ({ children }: { children?: React.ReactNode }) => <th className="text-left px-2 py-1 font-medium text-stone-600 dark:text-stone-400">{children}</th>,
-  td: ({ children }: { children?: React.ReactNode }) => <td className="px-2 py-1 text-stone-700 dark:text-stone-300">{children}</td>,
+  td: ({ children }: { children?: React.ReactNode }) => <td className="px-2 py-1 text-stone-800 dark:text-stone-200">{children}</td>,
   hr: () => <hr className="my-3 border-[#E8E6E1] dark:border-[#333]" />,
 };
 
@@ -528,7 +523,7 @@ function MessageBubble({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={`flex gap-2 group ${msg.role === "user" ? "justify-end" : "justify-start"} ${isPinned ? "border-l-2 border-amber-400 pl-1" : ""}`}
     >
-      {msg.role === "assistant" && <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />}
+      {msg.role === "assistant" && <Bot size={14} className="shrink-0 mt-1 text-blue-700 dark:text-blue-300" />}
       <div className="max-w-[85%] space-y-1.5">
         {msg.role === "user" && msg.contextRefs?.length ? (
           <div className="flex flex-wrap gap-1 mb-0.5">{msg.contextRefs.map((r) => <ContextRefPill key={`${r.kind}:${r.id}-${index}`} ctx={r} onClick={() => onContextRefClick?.(r)} />)}</div>
@@ -545,7 +540,7 @@ function MessageBubble({
           {msg.role === "assistant" ? <MarkdownContent content={msg.content} /> : <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
 
           {msg.createdAt && (
-            <div className={`text-[8px] mt-1.5 ${msg.role === "user" ? "text-blue-200" : MUT}`}>
+            <div className={`text-xs mt-1.5 ${msg.role === "user" ? "text-blue-200" : MUT}`}>
               {formatRelativeTime(msg.createdAt)}
             </div>
           )}
@@ -596,7 +591,7 @@ function MessageBubble({
 
         {msg.role === "assistant" && messageFeedback?.rating === -1 && !showFeedbackComment && (
           <div className="mt-1">
-            <button onClick={() => setShowFeedbackComment(true)} className={`text-[9px] ${MUT} hover:text-stone-600 underline`}>
+            <button onClick={() => setShowFeedbackComment(true)} className={`text-xs ${MUT} hover:text-stone-600 underline`}>
               Add feedback
             </button>
           </div>
@@ -608,11 +603,11 @@ function MessageBubble({
               value={feedbackComment}
               onChange={(e) => setFeedbackComment(e.target.value)}
               placeholder="What was wrong?"
-              className={`flex-1 text-[9px] px-2 py-1 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} resize-none`}
+              className={`flex-1 text-xs px-2 py-1 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} resize-none`}
               rows={2}
               aria-label="Feedback comment"
             />
-            <button onClick={handleSubmitFeedback} className={`text-[9px] px-2 py-1 rounded ${ACC_BG} ${ACC_TXT}`}>
+            <button onClick={handleSubmitFeedback} className={`text-xs px-2 py-1 rounded ${ACC_BG} ${ACC_TXT}`}>
               Submit
             </button>
           </div>
@@ -643,7 +638,7 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
   const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-blue-500";
 
   return (
-    <div className={`shrink-0 flex items-center gap-2 px-4 py-1.5 border-b ${BORD} bg-stone-50 dark:bg-[#161616] text-[9px] relative`}>
+    <div className={`shrink-0 flex items-center gap-2 px-4 py-1.5 border-b ${BORD} bg-stone-50 dark:bg-[#161616] text-xs relative`}>
       <button onClick={() => setMenuOpen(!menuOpen)} className={`inline-flex items-center gap-1 ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors shrink-0`} title="Change model">
         <Brain size={10} /><span className="font-medium">{provider}</span><span className="opacity-60">/</span><span className="opacity-80">{model}</span><ChevronDown size={8} className="opacity-50" />
       </button>
@@ -656,15 +651,15 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
               <Search size={10} className={`absolute left-2 top-1/2 -translate-y-1/2 ${MUT}`} />
               <input ref={searchRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search models..." autoFocus
-                className={`w-full pl-7 pr-2 py-1.5 text-[10px] bg-transparent ${TXT} placeholder-stone-400 focus:outline-none`} />
+                className={`w-full pl-7 pr-2 py-1.5 text-xs bg-transparent ${TXT} placeholder-stone-400 focus:outline-none`} />
             </div>
             <div className="flex-1 overflow-y-auto">
               {aiModels.map((p) => (
                 <div key={p.provider}>
-                  <div className={`px-2 py-1 text-[9px] font-semibold ${MUT} uppercase tracking-wider sticky top-0 bg-white dark:bg-[#1E1E1E]`}>{p.provider}</div>
+                  <div className={`px-2 py-1 text-xs font-semibold ${MUT} uppercase tracking-wider sticky top-0 bg-white dark:bg-[#1E1E1E]`}>{p.provider}</div>
                   {p.models.filter((m) => searchQuery === "" || m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m) => (
                     <button key={m.id} onClick={() => { onSelectModel(p.provider, m.id); setMenuOpen(false); setSearchQuery(""); }}
-                      className={`w-full text-left px-2 py-1.5 text-[10px] rounded ${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
+                      className={`w-full text-left px-2 py-1.5 text-xs rounded ${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}>
                       {m.name}
                     </button>
                   ))}
@@ -679,7 +674,7 @@ function ChatStatusBar({ provider, model, contextUsed, contextLimit, aiModels, o
       </div>
       <span className={MUT}>{contextUsed.toLocaleString()} / {contextLimit.toLocaleString()} tokens</span>
       <button onClick={onCompact} disabled={compacting}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] transition-colors ${compacting ? "opacity-50" : MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${compacting ? "opacity-50" : MUT} hover:text-stone-700 dark:hover:text-stone-300`}
         title="Compact context">
         {compacting ? <Loader2 size={9} className="animate-spin" /> : <Archive size={9} />}
         <span>Compact</span>
@@ -709,12 +704,12 @@ function PinnedMessagesPanel({ pinnedIndices, messages, onClose, onJump }: {
       className={`shrink-0 border-l ${BORD} flex flex-col overflow-hidden bg-white dark:bg-[#1E1E1E]`}
     >
       <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
-        <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Pinned Messages</span>
+        <span className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>Pinned Messages</span>
         <button onClick={onClose} className={`${MUT} hover:text-stone-600`}><X size={12} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
         {pinnedMsgs.length === 0 ? (
-          <div className={`text-[10px] ${MUT} text-center py-4`}>No pinned messages</div>
+          <div className={`text-xs ${MUT} text-center py-4`}>No pinned messages</div>
         ) : (
           pinnedMsgs.map(({ index, msg }) => (
             <button key={index} onClick={() => onJump(index)}
@@ -722,16 +717,16 @@ function PinnedMessagesPanel({ pinnedIndices, messages, onClose, onJump }: {
             >
               <div className="flex items-center gap-1 mb-1">
                 <Star size={9} className="text-amber-500 fill-amber-500" />
-                <span className={`text-[9px] ${MUT}`}>Message {index + 1}</span>
+                <span className={`text-xs ${MUT}`}>Message {index + 1}</span>
               </div>
-              <p className={`text-[10px] ${TXT} line-clamp-2`}>{msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}</p>
+              <p className={`text-xs ${TXT} line-clamp-2`}>{msg.content.slice(0, 100)}{msg.content.length > 100 ? "..." : ""}</p>
             </button>
           ))
         )}
       </div>
       {pinnedMsgs.length > 0 && (
         <div className={`shrink-0 px-3 py-2 border-t ${BORD}`}>
-          <button className={`text-[9px] ${MUT} hover:text-red-500 flex items-center gap-1`}>
+          <button className={`text-xs ${MUT} hover:text-red-500 flex items-center gap-1`}>
             <Trash2 size={9} /> Clear all pins
           </button>
         </div>
@@ -784,53 +779,53 @@ function SessionStatsPanel({ messages, onClose }: { messages: ChatMessage[]; onC
       className={`shrink-0 border-l ${BORD} flex flex-col overflow-hidden bg-white dark:bg-[#1E1E1E]`}
     >
       <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
-        <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Session Stats</span>
+        <span className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>Session Stats</span>
         <button onClick={onClose} className={`${MUT} hover:text-stone-600`}><X size={12} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <div className="grid grid-cols-2 gap-2">
           <div className={`p-2 rounded border ${BORD} text-center`}>
-            <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{stats.totalMessages}</div>
-            <div className={`text-[9px] ${MUT}`}>Messages</div>
+            <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{stats.totalMessages}</div>
+            <div className={`text-xs ${MUT}`}>Messages</div>
           </div>
           <div className={`p-2 rounded border ${BORD} text-center`}>
             <div className="text-sm font-bold text-green-600 dark:text-green-400">{stats.toolCalls}</div>
-            <div className={`text-[9px] ${MUT}`}>Tool Calls</div>
+            <div className={`text-xs ${MUT}`}>Tool Calls</div>
           </div>
           <div className={`p-2 rounded border ${BORD} text-center`}>
             <div className="text-sm font-bold text-amber-600 dark:text-amber-400">{stats.errorCount}</div>
-            <div className={`text-[9px] ${MUT}`}>Errors</div>
+            <div className={`text-xs ${MUT}`}>Errors</div>
           </div>
           <div className={`p-2 rounded border ${BORD} text-center`}>
             <div className="text-sm font-bold text-purple-600 dark:text-purple-400">{formatDuration(stats.durationMs)}</div>
-            <div className={`text-[9px] ${MUT}`}>Duration</div>
+            <div className={`text-xs ${MUT}`}>Duration</div>
           </div>
         </div>
 
         {stats.uniqueFiles.length > 0 && (
           <div>
-            <div className={`text-[9px] font-semibold ${MUT} mb-1`}>Files Touched ({stats.uniqueFiles.length})</div>
+            <div className={`text-xs font-semibold ${MUT} mb-1`}>Files Touched ({stats.uniqueFiles.length})</div>
             <div className="max-h-24 overflow-y-auto space-y-0.5">
               {stats.uniqueFiles.slice(0, 10).map((f, i) => (
-                <div key={i} className={`text-[9px] ${TXT} truncate`}>{f}</div>
+                <div key={i} className={`text-xs ${TXT} truncate`}>{f}</div>
               ))}
-              {stats.uniqueFiles.length > 10 && <div className={`text-[9px] ${MUT}`}>+{stats.uniqueFiles.length - 10} more</div>}
+              {stats.uniqueFiles.length > 10 && <div className={`text-xs ${MUT}`}>+{stats.uniqueFiles.length - 10} more</div>}
             </div>
           </div>
         )}
 
         {stats.toolCalls > 0 && (
           <div>
-            <div className={`text-[9px] font-semibold ${MUT} mb-1`}>Tool Call Breakdown</div>
+            <div className={`text-xs font-semibold ${MUT} mb-1`}>Tool Call Breakdown</div>
             <div className="space-y-1">
               {Object.entries(stats.byType).map(([name, count]) => {
                 return (
                   <div key={name} className="flex items-center gap-1">
-                    <span className={`text-[9px] w-12 truncate ${MUT}`}>{name}</span>
+                    <span className={`text-xs w-12 truncate ${MUT}`}>{name}</span>
                     <div className="flex-1 h-2 bg-stone-100 dark:bg-[#333] rounded overflow-hidden">
                       <div className="h-full bg-blue-100 dark:bg-blue-900/40" style={{ width: `${(count / maxTypeCount) * 100}%` }} />
                     </div>
-                    <span className={`text-[9px] w-4 text-right ${MUT}`}>{count}</span>
+                    <span className={`text-xs w-4 text-right ${MUT}`}>{count}</span>
                   </div>
                 );
               })}
@@ -1490,10 +1485,10 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
             {/* Header */}
             <div className={`shrink-0 flex items-center justify-between px-5 h-11 border-b ${BORD}`}>
               <div className="flex items-center gap-2 min-w-0">
-                <Bot size={15} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                <Bot size={15} className="text-blue-700 dark:text-blue-300 shrink-0" />
                 <span className={`text-xs font-semibold ${TXT} whitespace-nowrap`}>Project Chat</span>
                 {activeSessionId && sessions.length > 0 && (
-                  <span className={`text-[9px] ${MUT} truncate ml-1`}>
+                  <span className={`text-xs ${MUT} truncate ml-1`}>
                     &middot; {sessions.find((s) => s.id === activeSessionId)?.title?.slice(0, 40) ?? ""}
                   </span>
                 )}
@@ -1503,7 +1498,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   <div className="relative">
                     <input value={messageSearch} onChange={(e) => setMessageSearch(e.target.value)}
                       autoFocus placeholder="Search messages..."
-                      className={`w-32 text-[10px] pl-2 pr-6 py-1 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} focus:outline-none focus:border-blue-500`} />
+                      className={`w-32 text-xs pl-2 pr-6 py-1 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} focus:outline-none focus:border-blue-500`} />
                     <button onClick={() => { setShowSearch(false); setMessageSearch(""); }}
                       className={`absolute right-1 top-1/2 -translate-y-1/2 ${MUT} hover:text-stone-600`}>
                       <X size={10} />
@@ -1511,27 +1506,27 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   </div>
                 )}
                 <button onClick={() => setShowSearch(!showSearch)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showSearch ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs transition-colors ${showSearch ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
                   title="Search messages (Cmd+K)"><Filter size={11} /></button>
                 <button onClick={exportChat}
-                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs transition-colors ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
                   title="Export chat (Cmd+Shift+E)"><Download size={11} /></button>
                 <button onClick={() => setShowThreads(!showThreads)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showThreads ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs transition-colors ${showThreads ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
                   title="Threads">
                   <MessageSquare size={11} />
                   <span className="font-medium">{sessions.length}</span>
                 </button>
                 {/* Feature 4: Pins button */}
                 <button onClick={() => setShowPins(!showPins)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showPins ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs transition-colors ${showPins ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
                   title="Pinned messages">
                   <Star size={11} />
                   <span className="font-medium">{pinnedIndices.size}</span>
                 </button>
                 {/* Feature 7: Stats button */}
                 <button onClick={() => setShowStats(!showStats)}
-                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-[9px] transition-colors ${showStats ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-1 rounded text-xs transition-colors ${showStats ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`}`}
                   title="Session stats">
                   <BarChart2 size={11} />
                 </button>
@@ -1551,14 +1546,14 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                     transition={{ duration: 0.15, ease: "easeOut" }}
                     className={`shrink-0 border-r ${BORD} flex flex-col overflow-hidden`}>
                     <div className={`shrink-0 flex items-center justify-between px-3 h-10 border-b ${BORD}`}>
-                      <span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>Threads</span>
-                      <button className={`inline-flex items-center gap-0.5 text-[9px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`} title="New thread">
+                      <span className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>Threads</span>
+                      <button className={`inline-flex items-center gap-0.5 text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 transition-colors`} title="New thread">
                         <Plus size={10} /><span>New</span>
                       </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
                       {sessions.length === 0 && (
-                        <div className={`px-2 py-4 text-[10px] ${MUT} text-center`}>No threads yet</div>
+                        <div className={`px-2 py-4 text-xs ${MUT} text-center`}>No threads yet</div>
                       )}
                       {sessions.map((s) => (
                         <div key={s.id} className="group relative">
@@ -1567,14 +1562,14 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                               onBlur={() => { setRenamingSession(null); }}
                               onKeyDown={(e) => { if (e.key === "Enter") setRenamingSession(null); if (e.key === "Escape") setRenamingSession(null); }}
                               autoFocus
-                              className={`w-full text-[10px] px-2.5 py-2 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} focus:outline-none focus:border-blue-500`} />
+                              className={`w-full text-xs px-2.5 py-2 rounded border ${BORD} bg-white dark:bg-[#161616] ${TXT} focus:outline-none focus:border-blue-500`} />
                           ) : (
                             <button onClick={() => setActiveSessionId(s.id)}
-                              className={`w-full text-left px-2.5 py-2 rounded text-[10px] transition-colors ${
+                              className={`w-full text-left px-2.5 py-2 rounded text-xs transition-colors ${
                                 activeSessionId === s.id ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
                               }`}>
                               <div className="font-medium truncate pr-4">{s.title}</div>
-                              <div className={`text-[8px] ${MUT} mt-0.5`}>{s.messageCount} message{s.messageCount !== 1 ? "s" : ""}</div>
+                              <div className={`text-xs ${MUT} mt-0.5`}>{s.messageCount} message{s.messageCount !== 1 ? "s" : ""}</div>
                             </button>
                           )}
                           {renamingSession !== s.id && (
@@ -1595,16 +1590,16 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                 <ChatStatusBar provider={chatProvider} model={chatModel} contextUsed={contextUsed} contextLimit={contextLimit} aiModels={aiModels} onSelectModel={handleSelectModel} onCompact={handleCompact} compacting={compacting} />
                 {attachedRefs.length > 0 && (
                   <div className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 border-b ${BORD} flex-wrap`}>
-                    <span className={`text-[9px] uppercase tracking-widest ${MUT} font-semibold mr-1`}>Context</span>
+                    <span className={`text-xs uppercase tracking-widest ${MUT} font-semibold mr-1`}>Context</span>
                     {attachedRefs.map((r) => <ContextRefPill key={`${r.kind}:${r.id}`} ctx={r} removable onRemove={() => removeAttachedRef(`${r.kind}:${r.id}`)} onClick={() => onContextRefClick?.(r)} />)}
-                    <button onClick={() => setAttachedRefs([])} className={`ml-auto text-[10px] ${MUT} hover:text-red-500 dark:hover:text-red-400 transition-colors`}>Clear all</button>
+                    <button onClick={() => setAttachedRefs([])} className={`ml-auto text-xs ${MUT} hover:text-red-500 dark:hover:text-red-400 transition-colors`}>Clear all</button>
                   </div>
                 )}
                 {!streaming && availableQuickActions.length > 0 && (
                   <div className={`shrink-0 flex items-center gap-1.5 px-4 py-2 border-b ${BORD} overflow-x-auto`}>
                     {availableQuickActions.map((action) => {
                       const ActionIcon = action.icon;
-                      return <button key={action.id} onClick={() => handleQuickAction(action)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium whitespace-nowrap transition-colors border ${BORD} text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] hover:border-stone-300 dark:hover:border-[#555]`} title={action.prompt}><ActionIcon size={11} className="shrink-0" />{action.label}</button>;
+                      return <button key={action.id} onClick={() => handleQuickAction(action)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${BORD} text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-[#2A2A2A] hover:border-stone-300 dark:hover:border-[#555]`} title={action.prompt}><ActionIcon size={11} className="shrink-0" />{action.label}</button>;
                     })}
                   </div>
                 )}
@@ -1627,7 +1622,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                       ) : (
                         <><Bot size={24} strokeWidth={1.2} /><p className="text-xs text-center">Ask about the project, execution results,<br />or request changes.</p></>
                       )}
-                      {attachedRefs.length > 0 && <p className={`text-[10px] text-center mt-1 ${MUT}`}>{attachedRefs.length} context reference{attachedRefs.length !== 1 ? "s" : ""} attached</p>}
+                      {attachedRefs.length > 0 && <p className={`text-xs text-center mt-1 ${MUT}`}>{attachedRefs.length} context reference{attachedRefs.length !== 1 ? "s" : ""} attached</p>}
                     </motion.div>
                   )}
                   {filteredMessages.map((msg, i) => (
@@ -1644,7 +1639,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   ))}
                   {(streamBuffer || streaming) && (
                     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="flex gap-2 justify-start">
-                      <Bot size={14} className="shrink-0 mt-1 text-blue-600 dark:text-blue-400" />
+                      <Bot size={14} className="shrink-0 mt-1 text-blue-700 dark:text-blue-300" />
                       <div className={`max-w-[85%] rounded-lg px-3 py-2 leading-relaxed bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`}>
                         <StreamContent content={streamBuffer} hasToolCalls={activeToolCalls.length > 0} />
                         {streamBuffer.length > 0 && <motion.span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 align-text-bottom" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />}
@@ -1654,7 +1649,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                   {streaming && activeToolCalls.length > 0 && !streamBuffer && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap gap-1 pl-7">
                       {activeToolCalls.map((tc, j) => (
-                        <span key={j} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-blue-100 dark:bg-blue-900/40 ${MUT}`}>
+                        <span key={j} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono bg-blue-100 dark:bg-blue-900/40 ${MUT}`}>
                           {tc.name}
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse ml-0.5" />
                         </span>
@@ -1680,13 +1675,13 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 z-20 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-500 rounded-lg m-1 pointer-events-none"
                       >
-                        <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">Drop files to attach as context</span>
+                        <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">Drop files to attach as context</span>
                       </motion.div>
                     )}
                   </AnimatePresence>
 
                   {editingIndex !== null && (
-                    <div className={`text-[10px] ${MUT} flex items-center gap-1 mb-2`}>
+                    <div className={`text-xs ${MUT} flex items-center gap-1 mb-2`}>
                       <Pencil size={9} />
                       <span>Editing message {editingIndex + 1}. Press Enter to send or <button onClick={() => { setEditingIndex(null); setInput(""); }} className={`underline ${MUT} hover:text-stone-600`}>cancel</button></span>
                     </div>
@@ -1711,10 +1706,10 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                               onChange={(e) => setFileQuery(e.target.value)}
                               placeholder="Search files..."
                               autoFocus
-                              className={`w-full pl-8 pr-3 py-2 text-[11px] bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
+                              className={`w-full pl-8 pr-3 py-2 text-xs bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
                             />
                           </div>
-                          <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-[#E8E6E1] dark:border-[#333] text-[9px] ${MUT}`}>
+                          <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-[#E8E6E1] dark:border-[#333] text-xs ${MUT}`}>
                             {isSearching ? (
                               <><Search size={9} className="shrink-0" /><span className="font-medium truncate">Search results for &ldquo;{fileQuery}&rdquo;</span></>
                             ) : (
@@ -1726,30 +1721,30 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                             {!isSearching && fileBrowserParent !== undefined && fileBrowserPath && (
                               <button onClick={() => { fetchDirectory(fileBrowserParent); setFileSearchActiveIdx(-1); }}
                                 onMouseEnter={() => setFileSearchActiveIdx(-1)}
-                                className={`w-full text-left px-3 py-1.5 text-[10px] transition-colors flex items-center gap-2 ${
+                                className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
                                   fileSearchActiveIdx === -1
                                     ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
                                     : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
                                 }`}>
                                 <FolderOpen size={10} className="shrink-0" />
                                 <span className="font-medium">..</span>
-                                <span className={`ml-auto text-[9px] ${MUT}`}>parent</span>
+                                <span className={`ml-auto text-xs ${MUT}`}>parent</span>
                               </button>
                             )}
                             {fileSearchLoading && activeList.length === 0 && (
-                              <div className={`px-3 py-8 flex items-center justify-center text-[10px] ${MUT}`}>
+                              <div className={`px-3 py-8 flex items-center justify-center text-xs ${MUT}`}>
                                 <Loader2 size={10} className="animate-spin mr-1.5" />Searching...
                               </div>
                             )}
                             {!fileSearchLoading && activeList.length === 0 && (
-                              <div className={`px-3 py-8 text-[10px] ${MUT} text-center`}>
+                              <div className={`px-3 py-8 text-xs ${MUT} text-center`}>
                                 {isSearching ? `No files matching "${fileQuery}"` : "Empty directory"}
                               </div>
                             )}
                             {activeList.map((entry, i) => (
                               <button key={entry.path} onClick={() => selectFile(entry)}
                                 onMouseEnter={() => setFileSearchActiveIdx(i)}
-                                className={`w-full text-left px-3 py-1.5 text-[10px] transition-colors flex items-center gap-2 ${
+                                className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
                                   i === fileSearchActiveIdx
                                     ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}`
                                     : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -1761,7 +1756,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                                 )}
                                 <span className="font-medium truncate">{entry.name}</span>
                                 {'dir' in entry && entry.dir && isSearching && (
-                                  <span className={`${MUT} truncate ml-auto text-[9px]`}>{entry.dir}</span>
+                                  <span className={`${MUT} truncate ml-auto text-xs`}>{entry.dir}</span>
                                 )}
                                 {entry.isDir && <ChevronRight size={8} className={`ml-auto shrink-0 ${MUT}`} />}
                               </button>
@@ -1784,25 +1779,25 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                           <input ref={promptInputRef} type="text" value={promptQuery}
                             onChange={(e) => setPromptQuery(e.target.value)}
                             placeholder="Search prompts..."
-                            className={`w-full pl-8 pr-3 py-2 text-[11px] bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
+                            className={`w-full pl-8 pr-3 py-2 text-xs bg-white dark:bg-[#1E1E1E] ${TXT} placeholder-stone-400 focus:outline-none border-b border-[#E8E6E1] dark:border-[#333]`}
                           />
                         </div>
                         <div className="overflow-y-auto max-h-32">
                           {filteredSavedPrompts.length === 0 ? (
-                            <div className={`px-3 py-4 text-[10px] ${MUT} text-center`}>No prompts found</div>
+                            <div className={`px-3 py-4 text-xs ${MUT} text-center`}>No prompts found</div>
                           ) : (
                             filteredSavedPrompts.map((prompt, i) => (
                               <button key={prompt.id} onClick={() => selectPrompt(prompt)}
-                                className={`w-full text-left px-3 py-2 text-[10px] transition-colors ${
+                                className={`w-full text-left px-3 py-2 text-xs transition-colors ${
                                   promptPickerIdx === i ? `bg-stone-100 dark:bg-[#2A2A2A] ${TXT}` : `${TXT} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`
                                 }`}>
                                 <div className="font-medium">{prompt.name}</div>
-                                <div className={`${MUT} text-[9px]`}>{prompt.description}</div>
+                                <div className={`${MUT} text-xs`}>{prompt.description}</div>
                               </button>
                             ))
                           )}
                         </div>
-                        <div className={`shrink-0 px-3 py-1.5 border-t border-[#E8E6E1] dark:border-[#333] text-[9px] ${MUT}`}>
+                        <div className={`shrink-0 px-3 py-1.5 border-t border-[#E8E6E1] dark:border-[#333] text-xs ${MUT}`}>
                           <button className="hover:text-blue-500 underline">Manage prompts</button>
                         </div>
                       </motion.div>
@@ -1849,7 +1844,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                       />
                       {/* Feature 8: Live token counter */}
                       {input.trim() && (
-                        <span className={`absolute bottom-1 right-2 text-[9px] shrink-0 transition-colors ${
+                        <span className={`absolute bottom-1 right-2 text-xs shrink-0 transition-colors ${
                           estimateTokens(input) > 2000 ? "text-red-500" :
                           estimateTokens(input) > 500 ? "text-amber-500" :
                           MUT
@@ -1872,7 +1867,7 @@ export function ChatPanel({ isOpen, projectId, onClose, contextRefs: externalCon
                       {streaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                     </button>
                   </div>
-                  {!projectId && <p className={`text-[10px] ${MUT} mt-1`}>Select a project to enable chat</p>}
+                  {!projectId && <p className={`text-xs ${MUT} mt-1`}>Select a project to enable chat</p>}
                 </div>
               </div>
               {/* Pin panel (right side) */}

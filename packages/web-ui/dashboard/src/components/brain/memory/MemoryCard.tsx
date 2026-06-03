@@ -27,12 +27,12 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
 				</h4>
 				<div className="flex items-center gap-1.5 shrink-0">
 					<span className={`w-1.5 h-1.5 rounded-full ${lc.dot}`} />
-					<span className="text-[9px] text-stone-400">{lc.label}</span>
+					<span className="text-xs text-stone-400">{lc.label}</span>
 				</div>
 			</div>
 
 			{/* Type badge */}
-			<span className="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500">
+			<span className="inline-block px-1.5 py-0.5 text-xs font-medium rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500">
 				{memory.type.replace(/_/g, " ")}
 			</span>
 
@@ -44,7 +44,7 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
 						style={{ width: `${memory.confidence * 100}%` }}
 					/>
 				</div>
-				<span className="text-[9px] font-mono text-stone-400">
+				<span className="text-xs font-mono text-stone-400">
 					{Math.round(memory.confidence * 100)}%
 				</span>
 			</div>
@@ -55,13 +55,13 @@ export function MemoryCard({ memory, onClick }: MemoryCardProps) {
 					{memory.tags.slice(0, 4).map((tag) => (
 						<span
 							key={tag}
-							className="text-[8px] px-1.5 py-0.5 rounded-full bg-stone-50 dark:bg-stone-800 text-stone-400"
+							className="text-xs px-1.5 py-0.5 rounded-full bg-stone-50 dark:bg-stone-800 text-stone-400"
 						>
 							#{tag}
 						</span>
 					))}
 					{memory.tags.length > 4 && (
-						<span className="text-[8px] text-stone-400">+{memory.tags.length - 4}</span>
+						<span className="text-xs text-stone-400">+{memory.tags.length - 4}</span>
 					)}
 				</div>
 			)}

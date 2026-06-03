@@ -158,7 +158,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
           {lifecycleStages.map((stage, i) => (
             <div key={stage.id} className="flex items-center gap-1 flex-1">
               <div
-                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[10px] font-medium ${
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium ${
                   stage.status === "complete"
                     ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
                     : stage.status === "active"
@@ -215,7 +215,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
 
           {/* Not found in queue (common for non-scale workspaces) */}
           {!queueLoading && queueEntry && !queueEntry.found && (
-            <div className="text-stone-400 dark:text-stone-500 italic text-[10px]">
+            <div className="text-stone-400 dark:text-stone-500 italic text-xs">
               Workspace not found in the integration queue.
             </div>
           )}
@@ -225,14 +225,14 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <QueueStatusBadge status={queueEntry.entry.status} />
-                <span className="text-stone-500 dark:text-stone-400 text-[10px]">
+                <span className="text-stone-400 dark:text-stone-500 text-xs">
                   Queued at: {formatTs(queueEntry.entry.queuedAt)}
                 </span>
               </div>
               {queueEntry.entry.commitHash && (
                 <div className="flex">
                   <span className="text-stone-400 dark:text-stone-500 w-16 shrink-0">Commit:</span>
-                  <span className="font-mono text-stone-600 dark:text-stone-400 text-[10px]">
+                  <span className="font-mono text-stone-600 dark:text-stone-400 text-xs">
                     {queueEntry.entry.commitHash.slice(0, 12)}
                   </span>
                 </div>
@@ -240,7 +240,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
               {queueEntry.entry.processedAt && (
                 <div className="flex">
                   <span className="text-stone-400 dark:text-stone-500 w-16 shrink-0">Processed:</span>
-                  <span className="text-stone-600 dark:text-stone-400 text-[10px]">
+                  <span className="text-stone-600 dark:text-stone-400 text-xs">
                     {formatTs(queueEntry.entry.processedAt)}
                   </span>
                 </div>
@@ -267,7 +267,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
               <span className="text-emerald-600 dark:text-emerald-400 text-sm">&#10003;</span>
               <div>
                 <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Integrated</span>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   Workspace changes have been merged into the main branch.
                 </p>
               </div>
@@ -280,7 +280,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
               <span className="text-emerald-600 dark:text-emerald-400 text-sm">&#10003;</span>
               <div>
                 <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Merged</span>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   Integration queue reports this workspace as merged.
                 </p>
               </div>
@@ -297,12 +297,12 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
                 <div className="flex items-center gap-1.5 mb-1">
                   <span className="inline-block w-2 h-2 bg-amber-500 rounded-full shrink-0" />
                   <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Merge Conflict</span>
-                  <span className="text-[9px] text-amber-500 dark:text-amber-500 italic ml-auto">
+                  <span className="text-xs text-amber-500 dark:text-amber-500 italic ml-auto">
                     Click to open handoff panel
                   </span>
                 </div>
                 {queueEntry.mergeConflict.conflictedFiles.length > 0 && (
-                  <ul className="mt-1 text-[10px] font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
+                  <ul className="mt-1 text-xs font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
                     {queueEntry.mergeConflict.conflictedFiles.map((f) => (
                       <li key={f}>{f}</li>
                     ))}
@@ -319,7 +319,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
               <div>
                 <span className="text-xs font-semibold text-red-700 dark:text-red-400">Blocked in Queue</span>
                 {queueEntry?.entry?.error && (
-                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">{queueEntry.entry.error}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{queueEntry.entry.error}</p>
                 )}
               </div>
             </div>
@@ -332,7 +332,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
               <div>
                 <span className="text-xs font-semibold text-red-700 dark:text-red-400">Integration Failed</span>
                 {queueEntry?.entry?.error && (
-                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">{queueEntry.entry.error}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{queueEntry.entry.error}</p>
                 )}
               </div>
             </div>
@@ -357,11 +357,11 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
                 isQuarantined ? "bg-amber-500" : "bg-emerald-500"
               }`} />
               <div>
-                <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+                <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
                   {isQuarantined ? "In Quarantine" : "Not Quarantined"}
                 </span>
                 {quarantineState.reason && (
-                  <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState.reason}</p>
+                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">{quarantineState.reason}</p>
                 )}
               </div>
             </div>
@@ -373,12 +373,12 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
                 <div>
                   <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Cleanup Performed</span>
                   {quarantineState.cleanedAt && (
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
                       Cleaned at: {formatTs(quarantineState.cleanedAt)}
                     </p>
                   )}
                   {quarantineState.cleanupDetails && (
-                    <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">{quarantineState.cleanupDetails}</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">{quarantineState.cleanupDetails}</p>
                   )}
                 </div>
               </div>
@@ -407,7 +407,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
         <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400 mb-2">
           Worker Details
         </h3>
-        <div className="space-y-1 text-stone-500 dark:text-stone-400">
+        <div className="space-y-1 text-stone-400 dark:text-stone-500">
           <Row label="Stage" value={worker.stage} />
           <Row label="Attempt" value={String(worker.attempt)} />
           <Row label="Retries" value={String(worker.retries)} />
@@ -429,8 +429,8 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
         <h3 className="text-sm font-semibold text-stone-600 dark:text-stone-400 mb-2">
           Lifecycle Roles
         </h3>
-        <div className="space-y-1.5 text-stone-500 dark:text-stone-400">
-          <p className="text-[10px] text-stone-400 dark:text-stone-500">
+        <div className="space-y-1.5 text-stone-400 dark:text-stone-500">
+          <p className="text-xs text-stone-400 dark:text-stone-500">
             Each attempt in the P6 pipeline passes through the following roles:
           </p>
           <div className="flex items-center gap-2">
@@ -484,7 +484,7 @@ export function WorkerP6LifecycleTab({ worker, workspace, planExecId }: WorkerP6
           >
             <button
               onClick={() => setSelectedConflict(null)}
-              className="absolute top-2 right-2 z-10 flex items-center justify-center h-6 w-6 rounded-full bg-white dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#333] shadow-sm"
+              className="absolute top-2 right-2 z-10 flex items-center justify-center h-6 w-6 rounded-full bg-white dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#333] shadow-sm"
               aria-label="Close handoff panel"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -517,9 +517,9 @@ const QUEUE_STATUS_COLORS: Record<string, string> = {
 };
 
 function QueueStatusBadge({ status }: { status: string }) {
-  const colorClass = QUEUE_STATUS_COLORS[status] ?? "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+  const colorClass = QUEUE_STATUS_COLORS[status] ?? "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
   return (
-    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${colorClass}`}>
+    <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide ${colorClass}`}>
       {status}
     </span>
   );
@@ -531,7 +531,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex">
       <span className="text-stone-400 dark:text-stone-500 w-20 shrink-0">{label}:</span>
-      <span className="text-stone-700 dark:text-stone-300 truncate">{value}</span>
+      <span className="text-stone-800 dark:text-stone-200 truncate">{value}</span>
     </div>
   );
 }
@@ -545,7 +545,7 @@ function RoleBadge({ role }: { role: "worker" | "flash" | "reviewer" | "final" }
   };
   return (
     <span
-      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide shrink-0 ${
+      className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide shrink-0 ${
         colors[role] ?? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
       }`}
     >

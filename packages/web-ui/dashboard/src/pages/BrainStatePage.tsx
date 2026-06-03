@@ -94,7 +94,7 @@ export function BrainStatePage() {
 				<div className="flex items-center gap-3">
 					<button
 						onClick={() => setShowPromptEditor((p) => !p)}
-						className={`px-2.5 py-1 text-[10px] font-medium rounded-lg transition-colors ${
+						className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
 							showPromptEditor
 								? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
 								: "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
@@ -102,7 +102,7 @@ export function BrainStatePage() {
 					>
 						Brain Prompt
 					</button>
-					<label className="flex items-center gap-1.5 text-[10px] text-stone-400 cursor-pointer">
+					<label className="flex items-center gap-1.5 text-xs text-stone-400 cursor-pointer">
 						<input
 							type="checkbox"
 							checked={autoRefresh}
@@ -113,7 +113,7 @@ export function BrainStatePage() {
 					</label>
 					<button
 						onClick={refresh}
-						className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+						className="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
 					>
 						Refresh
 					</button>
@@ -122,7 +122,7 @@ export function BrainStatePage() {
 
 			{/* Daemon action error */}
 			{daemonActionError && (
-				<div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
+				<div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded px-3 py-2">
 					{daemonActionError}
 				</div>
 			)}
@@ -165,7 +165,7 @@ export function BrainStatePage() {
 					) : (
 						<button
 							onClick={() => setShowPromptEditor(true)}
-							className="w-full border border-dashed border-stone-200 dark:border-stone-700 rounded-lg p-4 text-[10px] text-stone-400 dark:text-stone-500 hover:border-stone-300 dark:hover:border-stone-600 transition-colors text-left"
+							className="w-full border border-dashed border-stone-200 dark:border-stone-700 rounded-lg p-4 text-xs text-stone-400 dark:text-stone-500 hover:border-stone-300 dark:hover:border-stone-600 transition-colors text-left"
 						>
 							Click to view and edit the brain prompt that guides how the daemon analyzes your project and generates proposals.
 						</button>
@@ -178,7 +178,7 @@ export function BrainStatePage() {
 
 			{/* Stats footer */}
 			{signalStats && (
-				<div className="flex items-center gap-4 text-[9px] text-stone-400">
+				<div className="flex items-center gap-4 text-xs text-stone-400">
 					<span>{signalStats.total} total signals</span>
 					<span>{signalStats.active} active</span>
 					<span>{signalStats.resolved} resolved</span>

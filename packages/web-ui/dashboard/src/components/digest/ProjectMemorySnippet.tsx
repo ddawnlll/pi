@@ -22,7 +22,7 @@ const TYPE_LABELS: Record<string, string> = {
 const TYPE_COLORS: Record<string, string> = {
 	failure_memory: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800",
 	success_memory: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800",
-	user_preference_memory: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+	user_preference_memory: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
 	workflow_memory: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800",
 	observation_memory: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
 	context_memory: "text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/30 border-stone-200 dark:border-stone-700",
@@ -38,14 +38,14 @@ function MemoryItem({ memory }: { memory: MemoryRecord }) {
 				<h3 className="text-xs font-medium text-stone-800 dark:text-stone-200 leading-snug truncate">
 					{memory.title}
 				</h3>
-				<span className={`shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded border ${typeColor}`}>
+				<span className={`shrink-0 text-xs font-medium px-1.5 py-0.5 rounded border ${typeColor}`}>
 					{typeLabel}
 				</span>
 			</div>
-			<p className="text-[10px] text-stone-400 dark:text-stone-500 line-clamp-2">
+			<p className="text-xs text-stone-400 dark:text-stone-500 line-clamp-2">
 				{memory.content}
 			</p>
-			<div className="flex items-center gap-2 text-[9px] text-stone-400">
+			<div className="flex items-center gap-2 text-xs text-stone-400">
 				{memory.tags.length > 0 && (
 					<div className="flex items-center gap-1 flex-wrap">
 						{memory.tags.slice(0, 3).map((tag) => (
@@ -86,7 +86,7 @@ export function ProjectMemorySnippet({
 
 	if (error && !memories) {
 		return (
-			<div className="text-[10px] text-red-400 dark:text-red-500 px-3 py-2 text-center">
+			<div className="text-xs text-red-400 dark:text-red-500 px-3 py-2 text-center">
 				Failed to load memories
 			</div>
 		);
@@ -98,7 +98,7 @@ export function ProjectMemorySnippet({
 		return (
 			<div className="flex flex-col items-center justify-center py-6 text-center">
 				<Database size={20} strokeWidth={1.2} className="text-stone-300 dark:text-stone-600 mb-2" />
-				<p className="text-[10px] text-stone-400 dark:text-stone-500">No memories yet</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500">No memories yet</p>
 			</div>
 		);
 	}
@@ -106,7 +106,7 @@ export function ProjectMemorySnippet({
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between">
-				<span className="text-[10px] text-stone-400 dark:text-stone-500">
+				<span className="text-xs text-stone-400 dark:text-stone-500">
 					{memories?.length ?? 0} total memories
 				</span>
 				<button

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { Terminal, Pause, ArrowDown, Sparkles, Cpu } from "lucide-react";
 import type { JournalEvent, WorkerInfo } from "../types";
 import {
@@ -12,10 +13,6 @@ import {
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Log line renderer ────────────────────────────────────────────────────────
 
@@ -39,15 +36,15 @@ function LogLine({ entry, index }: { entry: LogEntry; index: number }) {
 			}`}
 			style={isRecent ? { animationDelay: `${Math.min((index % 20) * 15, 300)}ms` } : undefined}
 		>
-			<span className="shrink-0 text-[10px] font-mono text-stone-400 dark:text-stone-500 w-16 select-none">
+			<span className="shrink-0 text-xs font-mono text-stone-400 dark:text-stone-500 w-16 select-none">
 				{time}
 			</span>
 			<span
-				className={`shrink-0 px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wide ${colors.text} ${colors.bg}`}
+				className={`shrink-0 px-1.5 py-px rounded text-xs font-semibold uppercase tracking-wide ${colors.text} ${colors.bg}`}
 			>
 				{entry.channel}
 			</span>
-			<span className="flex-1 text-xs font-mono text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words leading-relaxed">
+			<span className="flex-1 text-xs font-mono text-stone-800 dark:text-stone-200 whitespace-pre-wrap break-words leading-relaxed">
 				{entry.text}
 			</span>
 		</div>
@@ -99,7 +96,7 @@ function WorkerTab({
 			<span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
 			<span className="truncate max-w-[120px]">{worker.id}</span>
 			{lineCount > 0 && (
-				<span className="text-[9px] text-stone-400 dark:text-stone-500 tabular-nums">
+				<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
 					{lineCount > 999 ? `${Math.floor(lineCount / 1000)}k` : lineCount}
 				</span>
 			)}
@@ -122,10 +119,10 @@ function ChannelPill({
 	return (
 		<button
 			onClick={onClick}
-			className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${
+			className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
 				isActive
 					? `${colors.bg} ${colors.text} ring-1 ring-current/20`
-					: `bg-stone-100 dark:bg-[#2A2A2A] text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-[#333]`
+					: `bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-[#333]`
 			}`}
 		>
 			{CHANNEL_LABELS[channel]}
@@ -203,16 +200,16 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 	const selectedWorker = workers.find(w => w.id === selectedWorkerId);
 
 	return (
-		<div className={`flex flex-col h-full ${SURF} border ${BORD} rounded-lg overflow-hidden ${className ?? ""}`}>
+		<div className={`flex flex-col h-full ${SURF} border ${BORD} rounded-lg overflow-hidden ${className ?? ""}`} role="log" aria-live="polite" aria-label="Live execution log">
 			{/* ── Header ── */}
 			<div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD} bg-stone-50 dark:bg-[#1A1A1A]`}>
 				<div className="flex items-center gap-2">
 					<Terminal size={13} strokeWidth={1.8} className={MUT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Live Logs
 					</span>
 					{selectedWorkerId && (
-						<span className="text-[10px] text-stone-500 dark:text-stone-400 tabular-nums">
+						<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
 							{filteredLogs.length} line{filteredLogs.length !== 1 ? "s" : ""}
 						</span>
 					)}
@@ -227,10 +224,10 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 								scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
 							}
 						}}
-						className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded font-medium transition-colors ${
+						className={`flex items-center gap-1 px-2 py-1 text-xs rounded font-medium transition-colors ${
 							autoScroll
 								? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-								: "bg-stone-100 dark:bg-[#333] text-stone-500 dark:text-stone-400"
+								: "bg-stone-100 dark:bg-[#333] text-stone-400 dark:text-stone-500"
 						}`}
 						title={autoScroll ? "Auto-scroll enabled — click to pause" : "Auto-scroll paused — click to resume"}
 					>
@@ -260,10 +257,10 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 			<div className={`shrink-0 flex items-center gap-1 px-3 py-1.5 border-b ${BORD} bg-stone-50/50 dark:bg-[#1A1A1A]/50`}>
 				<button
 					onClick={() => setActiveChannel(null)}
-					className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${
+					className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
 						activeChannel === null
 							? "bg-stone-200 dark:bg-[#444] text-stone-800 dark:text-stone-200"
-							: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-[#333]"
+							: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-[#333]"
 					}`}
 				>
 					All
@@ -313,7 +310,7 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 									scrollContainerRef.current.scrollHeight;
 							}
 						}}
-						className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-600 text-white text-[10px] font-medium shadow-lg hover:bg-blue-500 transition-colors z-10"
+						className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-medium shadow-lg hover:bg-blue-500 transition-colors z-10"
 					>
 						<ArrowDown size={10} /> Resume auto-scroll
 					</button>
@@ -322,7 +319,7 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 
 			{/* ── Footer status bar ── */}
 			{selectedWorkerId && (
-				<div className={`shrink-0 flex items-center justify-between px-3 py-1 h-7 border-t ${BORD} bg-stone-50 dark:bg-[#1A1A1A] text-[9px] ${MUT}`}>
+				<div className={`shrink-0 flex items-center justify-between px-3 py-1 h-7 border-t ${BORD} bg-stone-50 dark:bg-[#1A1A1A] text-xs ${MUT}`}>
 					<span className="flex items-center gap-1.5">
 						{selectedWorker?.stage === "active" && (
 							<>

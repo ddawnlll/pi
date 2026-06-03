@@ -6,13 +6,12 @@
  */
 
 import type { GoalDriftReport, DriftSeverity } from "../../../hooks/useGoals";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../../tokens";
 
 // ---------------------------------------------------------------------------
 // Style constants
 // ---------------------------------------------------------------------------
 
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Severity colors
@@ -59,7 +58,7 @@ export function DriftAlertBadge({ reports, openCount, onClick, className = "" }:
 		return (
 			<div className={`flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/15 ${className}`}>
 				<span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-				<span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">No drift</span>
+				<span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">No drift</span>
 			</div>
 		);
 	}
@@ -80,7 +79,7 @@ export function DriftAlertBadge({ reports, openCount, onClick, className = "" }:
 			className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors ${severityStyle.bg} hover:opacity-80 ${className}`}
 		>
 			<span className={`w-1.5 h-1.5 rounded-full animate-pulse ${severityStyle.dot}`} />
-			<span className={`text-[10px] font-semibold ${severityStyle.text}`}>
+			<span className={`text-xs font-semibold ${severityStyle.text}`}>
 				{open} drift alert{open !== 1 ? "s" : ""}
 			</span>
 		</button>

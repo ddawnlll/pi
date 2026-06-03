@@ -67,15 +67,15 @@ export function ControlButtons({ planStatus, onControl }: ControlButtonsProps) {
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
 						transition={{ duration: 0.1 }}
-						className="absolute top-full right-0 mt-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-4 min-w-64"
+						className="absolute top-full right-0 mt-2 z-50 bg-[#F7F6F3] dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded-lg shadow-xl p-4 min-w-64"
 					>
-						<p className="text-sm text-gray-200 mb-3">
+						<p className="text-sm text-stone-800 dark:text-stone-200 mb-3">
 							Are you sure you want to {pendingAction} the plan execution?
 						</p>
 						<div className="flex gap-2 justify-end">
 							<button
 								onClick={() => setPendingAction(null)}
-								className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+								className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 							>
 								Cancel
 							</button>

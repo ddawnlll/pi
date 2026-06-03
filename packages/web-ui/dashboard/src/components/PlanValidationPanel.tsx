@@ -13,6 +13,7 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -41,11 +42,6 @@ import type {
 // Styles
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACCENT = "text-stone-600 dark:text-stone-400";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -483,7 +479,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 						<ClipboardCopy size={12} />
 					</button>
 					<OverallIcon size={14} className={overallStatus.color} />
-					<span className={`text-[10px] font-medium ${overallStatus.color}`}>
+					<span className={`text-xs font-medium ${overallStatus.color}`}>
 						{overallStatus.label}
 					</span>
 				</div>
@@ -529,7 +525,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 								<div className="flex-1 min-w-0">
 									<div className={`text-xs font-medium ${TXT}`}>{step.label}</div>
 									{!compact && (
-										<p className={`text-[10px] ${MUT} truncate mt-0.5`}>
+										<p className={`text-xs ${MUT} truncate mt-0.5`}>
 											{step.summary}
 										</p>
 									)}
@@ -565,12 +561,12 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 												>
 													<StatusIcon status={detail.status} />
 													<div className="flex-1 min-w-0">
-														<div className={`text-[10px] font-medium ${TXT}`}>
+														<div className={`text-xs font-medium ${TXT}`}>
 															{detail.label}
 														</div>
-														<p className={`text-[10px] ${MUT}`}>{detail.message}</p>
+														<p className={`text-xs ${MUT}`}>{detail.message}</p>
 														{detail.suggestion && (
-															<p className={`text-[10px] text-blue-500 mt-0.5`}>
+															<p className={`text-xs text-blue-500 mt-0.5`}>
 																Suggest: {detail.suggestion}
 															</p>
 														)}
@@ -583,7 +579,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 																	onChange={(e) => onSafetyOverride(detail.label, e.target.checked)}
 																	className="w-3 h-3 rounded border-stone-400"
 																/>
-																<span className="text-[9px] text-amber-500 font-medium">
+																<span className="text-xs text-amber-500 font-medium">
 																	Override: approve anyway
 																</span>
 															</label>
@@ -606,8 +602,8 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 					<div className="flex items-start gap-2 min-w-0">
 						<Search size={12} className={`${MUT} mt-0.5 shrink-0`} />
 						<div>
-							<p className={`text-[10px] font-medium ${TXT}`}>Checker Agent Report</p>
-							<p className={`text-[10px] ${MUT} mt-0.5`}>
+							<p className={`text-xs font-medium ${TXT}`}>Checker Agent Report</p>
+							<p className={`text-xs ${MUT} mt-0.5`}>
 								{overallStatus.label === "All Checks Passed"
 									? "Plan is safe to execute. All validation gates passed."
 									: overallStatus.label === "Passed with Warnings"
@@ -622,7 +618,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 					{onFixAll && !chatState?.sending && (
 						<button
 							onClick={onFixAll}
-							className="shrink-0 px-2.5 py-1 rounded text-[9px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+							className="shrink-0 px-2.5 py-1 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
 						>
 							{chatState?.sending ? "Fixing..." : "Fix All"}
 						</button>
@@ -635,7 +631,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 				<>
 					<button
 						onClick={() => setChatExpanded(!chatExpanded)}
-						className={`w-full flex items-center gap-2 px-4 py-2.5 border-t ${BORD} text-left text-[10px] font-medium ${TXT} hover:bg-stone-50 dark:hover:bg-[#252525] transition-colors`}
+						className={`w-full flex items-center gap-2 px-4 py-2.5 border-t ${BORD} text-left text-xs font-medium ${TXT} hover:bg-stone-50 dark:hover:bg-[#252525] transition-colors`}
 					>
 						<MessageSquare size={12} className={MUT} />
 						<span>Fix Plan with AI</span>
@@ -655,7 +651,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 									{chatState?.messages?.map((msg, i) => (
 										<div
 											key={i}
-											className={`p-2 rounded text-[10px] ${
+											className={`p-2 rounded text-xs ${
 												msg.role === "user"
 													? "bg-blue-50 dark:bg-blue-900/20 ml-4"
 													: "bg-stone-50 dark:bg-stone-800 mr-4"
@@ -665,7 +661,7 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 										</div>
 									))}
 									{chatState?.sending && (
-										<div className="flex items-center gap-2 text-[10px] text-blue-500">
+										<div className="flex items-center gap-2 text-xs text-blue-500">
 											<Loader2 size={10} className="animate-spin" />
 											<span>Analyzing and fixing plan...</span>
 										</div>
@@ -686,13 +682,13 @@ export const PlanValidationPanel: FC<PlanValidationPanelProps> = ({
 											value={chatInput}
 											onChange={(e) => setChatInput(e.target.value)}
 											placeholder="Ask AI to fix a specific issue..."
-											className={`flex-1 px-2.5 py-1.5 text-[10px] rounded border ${BORD} ${SURF} ${TXT} placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400`}
+											className={`flex-1 px-2.5 py-1.5 text-xs rounded border ${BORD} ${SURF} ${TXT} placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400`}
 											disabled={chatState?.sending}
 										/>
 										<button
 											type="submit"
 											disabled={!chatInput.trim() || chatState?.sending}
-											className="px-3 py-1.5 rounded text-[10px] font-medium bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-900 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-40 transition-colors"
+											className="px-3 py-1.5 rounded text-xs font-medium bg-stone-800 dark:bg-stone-200 text-white dark:text-stone-900 hover:bg-stone-700 dark:hover:bg-stone-300 disabled:opacity-40 transition-colors"
 										>
 											Send
 										</button>

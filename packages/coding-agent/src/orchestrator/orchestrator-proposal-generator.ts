@@ -113,7 +113,7 @@ export class OrchestratorProposalGenerator {
 		const generated: OrchestratorProposal[] = [];
 		let duplicateCount = 0;
 
-		log.info(`Generating proposals from scan result with ${scanResult.signals.length} signals`);
+		log.debug(`Generating proposals from scan result with ${scanResult.signals.length} signals`);
 
 		for (const signal of scanResult.signals) {
 			if (generated.length >= this.maxProposals) {
@@ -171,7 +171,7 @@ export class OrchestratorProposalGenerator {
 		const generated: OrchestratorProposal[] = [];
 		let duplicateCount = 0;
 
-		log.info(`Generating proposals from ${detections.length} detection(s)`);
+		log.debug(`Generating proposals from ${detections.length} detection(s)`);
 
 		for (const detection of detections) {
 			if (generated.length >= this.maxProposals) break;

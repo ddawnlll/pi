@@ -6,12 +6,10 @@
  */
 
 import { AlertTriangle, CheckCircle2, FileCheck, Loader2, XCircle, HelpCircle } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -113,7 +111,7 @@ export function ValidationStatusSummary({
 				role="alert"
 			>
 				<XCircle size={14} className="text-red-500 shrink-0" />
-				<p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
+				<p className="text-xs text-red-600 dark:text-red-400">{error}</p>
 			</div>
 		);
 	}
@@ -145,7 +143,7 @@ export function ValidationStatusSummary({
 			{/* Header */}
 			<div className={`flex items-center gap-1.5 px-3 py-1.5 border-b ${BORD}`}>
 				<FileCheck size={11} className={`shrink-0 ${statusColor(status)}`} />
-				<span className={`text-[9px] font-semibold uppercase tracking-wider ${statusColor(status)}`}>
+				<span className={`text-xs font-semibold uppercase tracking-wider ${statusColor(status)}`}>
 					{statusLabel(status)}
 				</span>
 			</div>
@@ -164,7 +162,7 @@ export function ValidationStatusSummary({
 								<p className={`text-xs text-red-600 dark:text-red-400`}>Blocked by:</p>
 								<ul className="mt-1 space-y-0.5">
 									{status.blockReasons.map((reason, i) => (
-										<li key={i} className="text-[10px] text-red-500 flex items-start gap-1">
+										<li key={i} className="text-xs text-red-500 flex items-start gap-1">
 											<span className="mt-0.5">•</span>
 											<span>{reason}</span>
 										</li>
@@ -207,9 +205,9 @@ export function ValidationStatusSummary({
 										<div key={i} className="flex items-start gap-1.5">
 											<DotIcon size={10} className={`shrink-0 mt-0.5 ${dotColor} ${v.status === "pending" ? "animate-spin" : ""}`} />
 											<div>
-												<span className={`text-[10px] font-medium ${TXT}`}>{v.name}</span>
+												<span className={`text-xs font-medium ${TXT}`}>{v.name}</span>
 												{v.message && (
-													<p className={`text-[9px] ${TXT_MUTED}`}>{v.message}</p>
+													<p className={`text-xs ${TXT_MUTED}`}>{v.message}</p>
 												)}
 											</div>
 										</div>
@@ -222,7 +220,7 @@ export function ValidationStatusSummary({
 						{onRerunValidation && (status.passed === false || status.passed === null) && (
 							<button
 								onClick={onRerunValidation}
-								className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors"
+								className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors"
 							>
 								<FileCheck size={10} />
 								Rerun validation

@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertTriangle,
@@ -30,9 +31,6 @@ import type { JournalEvent } from "../../types";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -135,15 +133,15 @@ function FeedSection({
 		<div>
 			<div className={`flex items-center gap-1.5 px-3 py-1.5 border-b ${BORD}`}>
 				<Icon size={11} className={color} />
-				<span className={`text-[9px] font-semibold uppercase tracking-wider ${color}`}>
+				<span className={`text-xs font-semibold uppercase tracking-wider ${color}`}>
 					{label}
 				</span>
-				<span className={`text-[9px] ${TXT_MUTED}`}>({events.length})</span>
+				<span className={`text-xs ${TXT_MUTED}`}>({events.length})</span>
 			</div>
 
 			{events.length === 0 ? (
 				<div className="px-3 py-4 text-center">
-					<p className={`text-[10px] ${TXT_MUTED}`}>{emptyMessage ?? "No events"}</p>
+					<p className={`text-xs ${TXT_MUTED}`}>{emptyMessage ?? "No events"}</p>
 				</div>
 			) : (
 				<div className="divide-y divide-stone-50 dark:divide-stone-800">
@@ -157,19 +155,19 @@ function FeedSection({
 							{eventIcon(event.type, event.severity)}
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center gap-1.5">
-									<span className={`text-[11px] ${TXT} truncate`}>
+									<span className={`text-xs ${TXT} truncate`}>
 										{event.message}
 									</span>
 								</div>
 								<div className="flex items-center gap-2 mt-0.5">
 									{event.workspaceId && (
-										<span className={`text-[9px] font-mono ${TXT_MUTED}`}>
+										<span className={`text-xs font-mono ${TXT_MUTED}`}>
 											{event.workspaceId.length > 12
 												? `${event.workspaceId.slice(0, 8)}..`
 												: event.workspaceId}
 										</span>
 									)}
-									<span className={`text-[9px] ${TXT_MUTED}`}>
+									<span className={`text-xs ${TXT_MUTED}`}>
 										{relativeTime(event.timestamp)}
 									</span>
 								</div>
@@ -182,7 +180,7 @@ function FeedSection({
 			{hasMore && (
 				<button
 					onClick={() => setExpanded(!expanded)}
-					className={`w-full flex items-center justify-center gap-1 py-1.5 text-[9px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border-t ${BORD} transition-colors`}
+					className={`w-full flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300 border-t ${BORD} transition-colors`}
 					aria-expanded={expanded}
 				>
 					{expanded ? (
@@ -248,7 +246,7 @@ export function PriorityFeed({
 					<FeedSection
 						label="Active"
 						icon={Activity}
-						color="text-blue-600 dark:text-blue-400"
+						color="text-blue-700 dark:text-blue-300"
 						events={activeEvents}
 						maxVisible={maxPerSection}
 						onEventClick={onEventClick}
@@ -271,7 +269,7 @@ export function PriorityFeed({
 				<>
 					<button
 						onClick={() => setDebugExpanded(!debugExpanded)}
-						className={`w-full flex items-center justify-between px-3 py-1.5 text-[9px] font-medium ${TXT_MUTED} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] border-t ${BORD} transition-colors`}
+						className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium ${TXT_MUTED} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] border-t ${BORD} transition-colors`}
 						aria-expanded={debugExpanded}
 						aria-label={debugExpanded ? "Hide raw events" : "Show raw events"}
 					>
@@ -287,7 +285,7 @@ export function PriorityFeed({
 							{rawJournalEvents.map((event, i) => (
 								<div
 									key={i}
-									className="flex items-start gap-2 text-[9px] font-mono text-stone-500 dark:text-stone-500"
+									className="flex items-start gap-2 text-xs font-mono text-stone-500 dark:text-stone-500"
 								>
 									<span className="shrink-0 text-stone-400">
 										{new Date(event.timestamp).toLocaleTimeString()}

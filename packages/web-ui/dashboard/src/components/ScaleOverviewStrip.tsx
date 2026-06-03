@@ -19,12 +19,10 @@ import {
   Cpu,
 } from "lucide-react";
 import { useWorktreeStatus, useIntegrationQueueStatus, useScaleModeReadiness } from "../hooks/useScaleStatus";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-800 dark:text-stone-200";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ─── Metric badge ───────────────────────────────────────────────────────────
 
@@ -58,7 +56,7 @@ function MetricBadge({ icon, label, value, accent = "none" }: MetricBadgeProps) 
         <p className={`text-lg font-bold tabular-nums leading-tight ${accentColors[accent]}`}>
           {value}
         </p>
-        <p className={`text-[9px] uppercase tracking-wider font-semibold ${MUT} leading-tight`}>
+        <p className={`text-xs uppercase tracking-wider font-semibold ${MUT} leading-tight`}>
           {label}
         </p>
       </div>

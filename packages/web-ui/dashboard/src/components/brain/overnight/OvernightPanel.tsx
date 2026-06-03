@@ -73,7 +73,7 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 		<div className="space-y-4">
 			{/* Queue selection */}
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">Queue Selection</h3>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">Queue Selection</h3>
 				<div className="space-y-1.5">
 					{AVAILABLE_PLANS.map((p) => (
 						<label key={p.id} className="flex items-center gap-2 cursor-pointer">
@@ -83,7 +83,7 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 								onChange={() => togglePlan(p.id)}
 								className="rounded border-stone-300 dark:border-stone-600"
 							/>
-							<span className="text-[10px] text-stone-600 dark:text-stone-300">{p.label}</span>
+							<span className="text-xs text-stone-600 dark:text-stone-300">{p.label}</span>
 						</label>
 					))}
 				</div>
@@ -91,7 +91,7 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 
 			{/* Autonomy level */}
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-2">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">Autonomy Level</h3>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">Autonomy Level</h3>
 				<select
 					value={autonomyLevel}
 					onChange={(e) => setAutonomyLevel(Number(e.target.value))}
@@ -105,7 +105,7 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 
 			{/* Duration */}
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-2">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">Max Duration</h3>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">Max Duration</h3>
 				<input
 					type="number"
 					value={maxDuration}
@@ -114,12 +114,12 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 					max={24}
 					className="w-20 px-3 py-1.5 text-xs rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200"
 				/>
-				<span className="text-[10px] text-stone-400 ml-2">hours</span>
+				<span className="text-xs text-stone-400 ml-2">hours</span>
 			</div>
 
 			{/* Stop conditions */}
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-2">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">Stop Conditions</h3>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">Stop Conditions</h3>
 				<div className="space-y-1.5">
 					{STOP_CONDITIONS.map((s) => (
 						<label key={s.id} className="flex items-center gap-2 cursor-pointer">
@@ -129,7 +129,7 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 								onChange={() => toggleStop(s.id)}
 								className="rounded border-stone-300 dark:border-stone-600"
 							/>
-							<span className="text-[10px] text-stone-600 dark:text-stone-300">{s.label}</span>
+							<span className="text-xs text-stone-600 dark:text-stone-300">{s.label}</span>
 						</label>
 					))}
 				</div>
@@ -145,14 +145,14 @@ export function OvernightPanel({ onRefresh }: OvernightPanelProps) {
 			</button>
 
 			{resultMsg && (
-				<p className={`text-[10px] text-center ${resultMsg.includes("Failed") ? "text-red-500" : "text-emerald-600"}`}>
+				<p className={`text-xs text-center ${resultMsg.includes("Failed") ? "text-red-500" : "text-emerald-600"}`}>
 					{resultMsg}
 				</p>
 			)}
 
 			{/* History */}
 			<div className="pt-4 border-t border-stone-100 dark:border-stone-800">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">Past Runs</h3>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">Past Runs</h3>
 				<RunHistoryTable sessions={history} loading={loading} error={error} />
 			</div>
 		</div>

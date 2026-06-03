@@ -15,10 +15,7 @@
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,6 +80,7 @@ export function StatusBarV3({
   tokenCount,
   cacheHitRate,
   burnRate,
+  onDebugEvents,
 }: StatusBarV3Props) {
   // Don't render if no execution data
   if (!runTitle && !status && !workspaceCounts) return null;
@@ -97,7 +95,7 @@ export function StatusBarV3({
 
   return (
     <footer
-      className={`hidden md:flex h-6 shrink-0 ${SURF} border-t ${BORD} items-center px-3 gap-3 text-[10px] ${MUT}`}
+      className={`hidden md:flex h-6 shrink-0 ${SURF} border-t ${BORD} items-center px-3 gap-3 text-xs ${MUT}`}
     >
       {/* Run ID */}
       {runTitle && (
@@ -177,7 +175,7 @@ export function StatusBarV3({
       {onDebugEvents && (
         <button
           onClick={onDebugEvents}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
           title="Open debug event drawer"
         >
           Debug

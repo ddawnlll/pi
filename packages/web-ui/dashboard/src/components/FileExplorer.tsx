@@ -80,7 +80,7 @@ function FileIcon({ ext, isDir, isOpen }: { ext: string; isDir: boolean; isOpen?
 		case "json":
 			return <FileJson size={16} className="text-green-400 shrink-0" />;
 		case "md":
-			return <FileText size={16} className="text-gray-400 shrink-0" />;
+			return <FileText size={16} className="text-stone-400 dark:text-stone-500 shrink-0" />;
 		case "css":
 		case "scss":
 		case "less":
@@ -97,7 +97,7 @@ function FileIcon({ ext, isDir, isOpen }: { ext: string; isDir: boolean; isOpen?
 		case "ico":
 			return <Image size={16} className="text-purple-400 shrink-0" />;
 		default:
-			return <File size={16} className="text-gray-500 shrink-0" />;
+			return <File size={16} className="text-stone-400 dark:text-stone-500 shrink-0" />;
 	}
 }
 
@@ -125,7 +125,7 @@ function truncate(str: string, maxLen: number): string {
 function diffStatusInfo(status: string): { label: string; color: string } {
 	switch (status) {
 		case "A":
-			return { label: "added", color: "text-emerald-400 bg-emerald-400/10" };
+			return { label: "added", color: "text-emerald-500 bg-emerald-500/10" };
 		case "M":
 			return { label: "modified", color: "text-blue-400 bg-blue-400/10" };
 		case "D":
@@ -133,7 +133,7 @@ function diffStatusInfo(status: string): { label: string; color: string } {
 		case "R":
 			return { label: "renamed", color: "text-purple-400 bg-purple-400/10" };
 		default:
-			return { label: status, color: "text-gray-400 bg-gray-400/10" };
+			return { label: status, color: "text-stone-400 dark:text-stone-500 bg-stone-400/10" };
 	}
 }
 
@@ -162,19 +162,19 @@ function TreeNode({
 			<div>
 				<button
 					type="button"
-					className="flex items-center gap-1 px-1 py-0.5 hover:bg-white/5 rounded w-full text-left transition-colors"
+					className="flex items-center gap-1 px-1 py-0.5 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] rounded w-full text-left transition-colors"
 					style={{ paddingLeft: `${depth * 16 + 4}px` }}
 					onClick={() => setIsOpen(!isOpen)}
 				>
 					{isOpen ? (
-						<ChevronDown size={14} className="text-gray-500 shrink-0" />
+						<ChevronDown size={14} className="text-stone-400 dark:text-stone-500 shrink-0" />
 					) : (
-						<ChevronRight size={14} className="text-gray-500 shrink-0" />
+						<ChevronRight size={14} className="text-stone-400 dark:text-stone-500 shrink-0" />
 					)}
 					<FileIcon ext="" isDir isOpen={isOpen} />
-					<span className="text-sm text-gray-300 truncate">{entry.name}</span>
+					<span className="text-sm text-stone-700 dark:text-stone-300 truncate">{entry.name}</span>
 					{entry.children && (
-						<span className="text-[10px] text-gray-600 ml-auto">
+						<span className="text-xs text-stone-400 dark:text-stone-500 ml-auto">
 							{entry.children.filter((c) => !c.isDir).length} files
 						</span>
 					)}
@@ -202,14 +202,14 @@ function TreeNode({
 		<button
 			type="button"
 			className={`flex items-center gap-1 px-1 py-0.5 rounded w-full text-left transition-colors ${
-				isSelected ? "bg-blue-500/20 text-blue-300" : "hover:bg-white/5 text-gray-400"
+				isSelected ? "bg-blue-500/20 text-blue-300" : "hover:bg-stone-100 dark:hover:bg-[#2A2A2A] text-stone-400 dark:text-stone-500"
 			}`}
 			style={{ paddingLeft: `${depth * 16 + 20}px` }}
 			onClick={() => onSelect(entry.path)}
 		>
 			<FileIcon ext={entry.ext} isDir={false} />
 			<span className="text-sm truncate flex-1">{entry.name}</span>
-			<span className="text-[10px] text-gray-600">{formatSize(entry.size)}</span>
+			<span className="text-xs text-stone-400 dark:text-stone-500">{formatSize(entry.size)}</span>
 		</button>
 	);
 }
@@ -222,7 +222,7 @@ function FilePreview({ content }: { content: FileContentResult }) {
 
 	if (content.isBinary) {
 		return (
-			<div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
+			<div className="flex flex-col items-center justify-center h-full text-stone-400 dark:text-stone-500 gap-2">
 				<Image size={32} />
 				<p className="text-sm">Binary file: {content.name}</p>
 				<p className="text-xs">{formatSize(content.size)}</p>
@@ -244,27 +244,27 @@ function FilePreview({ content }: { content: FileContentResult }) {
 	return (
 		<div className="h-full flex flex-col">
 			{/* Toolbar */}
-			<div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5 bg-white/5">
-				<div className="flex items-center gap-2 text-xs text-gray-500">
-					<span className="font-medium text-gray-300">{content.name}</span>
-					<span className="text-gray-600">|</span>
+			<div className="flex items-center justify-between px-3 py-1.5 border-b border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]">
+				<div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
+					<span className="font-medium text-stone-700 dark:text-stone-300">{content.name}</span>
+					<span className="text-stone-400 dark:text-stone-500">|</span>
 					<span>{lineCount} lines</span>
 					<span>{formatSize(content.size)}</span>
-					<span className="text-gray-600">|</span>
-					<span className="text-gray-500">{content.language}</span>
+					<span className="text-stone-400 dark:text-stone-500">|</span>
+					<span className="text-stone-400 dark:text-stone-500">{content.language}</span>
 				</div>
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
 						className={`text-xs px-2 py-0.5 rounded ${
-							isWrapped ? "bg-blue-500/20 text-blue-400" : "hover:bg-white/10 text-gray-500"
+							isWrapped ? "bg-blue-50 dark:bg-blue-900/20 text-blue-500" : "hover:bg-stone-100 dark:hover:bg-[#2A2A2A] text-stone-400 dark:text-stone-500"
 						}`}
 						onClick={() => setIsWrapped(!isWrapped)}
 					>
 						Wrap
 					</button>
 					{content.truncated && (
-						<span className="text-[10px] text-yellow-500 flex items-center gap-1">
+						<span className="text-xs text-amber-500 flex items-center gap-1">
 							<AlertTriangle size={10} />
 							Truncated ({formatSize(content.size)})
 						</span>
@@ -277,8 +277,8 @@ function FilePreview({ content }: { content: FileContentResult }) {
 				<table className="w-full font-mono text-xs leading-relaxed">
 					<tbody>
 						{lines.slice(0, 5000).map((line, i) => (
-							<tr key={i} className="hover:bg-white/[0.02]">
-								<td className="text-gray-600 text-right pr-4 select-none w-12 text-[10px] border-r border-white/5">
+							<tr key={i} className="hover:bg-stone-50 dark:bg-[#2A2A2A]">
+								<td className="text-stone-400 dark:text-stone-500 text-right pr-4 select-none w-12 text-xs border-r border-[#E8E6E1] dark:border-[#333]">
 									{i + 1}
 								</td>
 								<td
@@ -290,7 +290,7 @@ function FilePreview({ content }: { content: FileContentResult }) {
 						))}
 						{lines.length > 5000 && (
 							<tr>
-								<td colSpan={2} className="text-center text-gray-600 py-2 text-[10px]">
+								<td colSpan={2} className="text-center text-stone-400 dark:text-stone-500 py-2 text-xs">
 									File truncated to first 5000 lines
 								</td>
 							</tr>
@@ -320,7 +320,7 @@ function DiffView({
 		return (
 			<div className="flex items-center justify-center h-32">
 				<Loader2 size={20} className="animate-spin text-blue-400" />
-				<span className="ml-2 text-sm text-gray-400">Loading diff...</span>
+				<span className="ml-2 text-sm text-stone-400 dark:text-stone-500">Loading diff...</span>
 			</div>
 		);
 	}
@@ -328,11 +328,11 @@ function DiffView({
 	if (!diff) {
 		return (
 			<div className="flex flex-col items-center justify-center h-32 gap-2">
-				<Diff size={20} className="text-gray-600" />
-				<p className="text-sm text-gray-500">No diff data loaded</p>
+				<Diff size={20} className="text-stone-400 dark:text-stone-500" />
+				<p className="text-sm text-stone-400 dark:text-stone-500">No diff data loaded</p>
 				<button
 					type="button"
-					className="text-xs px-3 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition-colors"
+					className="text-xs px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded hover:bg-blue-500/30 transition-colors"
 					onClick={onLoadDiff}
 				>
 					Load diff
@@ -345,8 +345,8 @@ function DiffView({
 		return (
 			<div className="flex flex-col items-center justify-center h-32 gap-1">
 				<GitCommit size={20} className="text-emerald-500" />
-				<p className="text-sm text-gray-500">No uncommitted changes</p>
-				<p className="text-xs text-gray-600">Worktree is clean</p>
+				<p className="text-sm text-stone-400 dark:text-stone-500">No uncommitted changes</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500">Worktree is clean</p>
 			</div>
 		);
 	}
@@ -354,11 +354,11 @@ function DiffView({
 	return (
 		<div className="h-full flex flex-col">
 			{/* Summary bar */}
-			<div className="flex items-center gap-3 px-3 py-1.5 border-b border-white/5 bg-white/5 text-xs">
-				<span className="text-gray-400">
+			<div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#E8E6E1] dark:border-[#333] bg-white/5 text-xs">
+				<span className="text-stone-400 dark:text-stone-500">
 					{diff.fileCount} file{diff.fileCount !== 1 ? "s" : ""} changed
 				</span>
-				<span className="flex items-center gap-1 text-emerald-400">
+				<span className="flex items-center gap-1 text-emerald-500">
 					<Plus size={12} />
 					{diff.totalAdditions}
 				</span>
@@ -377,17 +377,17 @@ function DiffView({
 							<button
 								key={file.path}
 								type="button"
-								className="flex items-center gap-2 w-full px-2 py-1 rounded hover:bg-white/5 text-left transition-colors"
+								className="flex items-center gap-2 w-full px-2 py-1 rounded hover:bg-stone-100 dark:hover:bg-[#2A2A2A] text-left transition-colors"
 								onClick={() => onFileClick?.(file.path)}
 							>
 								<span
-									className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${statusInfo.color}`}
+									className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusInfo.color}`}
 								>
 									{statusInfo.label}
 								</span>
-								<span className="text-sm text-gray-300 truncate flex-1">{file.path}</span>
-								<span className="text-[10px] text-emerald-400 font-mono">+{file.additions}</span>
-								<span className="text-[10px] text-red-400 font-mono">-{file.deletions}</span>
+								<span className="text-sm text-stone-700 dark:text-stone-300 truncate flex-1">{file.path}</span>
+								<span className="text-xs text-emerald-500 font-mono">+{file.additions}</span>
+								<span className="text-xs text-red-400 font-mono">-{file.deletions}</span>
 							</button>
 						);
 					})}
@@ -395,19 +395,19 @@ function DiffView({
 
 				{/* Full diff output */}
 				{diff.diff && (
-					<div className="border-t border-white/5 mt-2">
-						<div className="px-3 py-1 text-[10px] text-gray-600 font-medium bg-white/[0.02]">
+					<div className="border-t border-[#E8E6E1] dark:border-[#333] mt-2">
+						<div className="px-3 py-1 text-xs text-stone-400 dark:text-stone-500 font-medium bg-stone-50 dark:bg-[#2A2A2A]">
 							Unified diff
 						</div>
-						<pre className="text-[11px] font-mono p-3 overflow-auto max-h-96 text-gray-400 leading-relaxed whitespace-pre-wrap">
+						<pre className="text-xs font-mono p-3 overflow-auto max-h-96 text-stone-400 dark:text-stone-500 leading-relaxed whitespace-pre-wrap">
 							{diff.diff.split("\n").slice(0, 500).map((line, i) => {
 								let className = "";
-								if (line.startsWith("+")) className = "text-emerald-400";
+								if (line.startsWith("+")) className = "text-emerald-500";
 								else if (line.startsWith("-")) className = "text-red-400";
 								else if (line.startsWith("@")) className = "text-cyan-400";
-								else if (line.startsWith("diff --git")) className = "text-gray-500 font-bold";
-								else if (line.startsWith("index")) className = "text-gray-600";
-								else if (line.startsWith("---") || line.startsWith("+++")) className = "text-gray-500";
+								else if (line.startsWith("diff --git")) className = "text-stone-400 dark:text-stone-500 font-bold";
+								else if (line.startsWith("index")) className = "text-stone-400 dark:text-stone-500";
+								else if (line.startsWith("---") || line.startsWith("+++")) className = "text-stone-400 dark:text-stone-500";
 								return (
 									<div key={i} className={className}>
 										{line}
@@ -415,7 +415,7 @@ function DiffView({
 								);
 							})}
 							{diff.diff.split("\n").length > 500 && (
-								<div className="text-center text-gray-600 py-1">Diff truncated to 500 lines</div>
+								<div className="text-center text-stone-400 dark:text-stone-500 py-1">Diff truncated to 500 lines</div>
 							)}
 						</pre>
 					</div>
@@ -439,15 +439,15 @@ function WorktreeSelector({
 }) {
 	if (worktrees.length === 0) {
 		return (
-			<div className="text-xs text-gray-600 px-3 py-2">
+			<div className="text-xs text-stone-400 dark:text-stone-500 px-3 py-2">
 				No active worktrees
 			</div>
 		);
 	}
 
 	return (
-		<div className="px-2 py-1.5 border-b border-white/5">
-			<label className="text-[10px] text-gray-600 font-medium uppercase tracking-wider px-1 mb-1 block">
+		<div className="px-2 py-1.5 border-b border-[#E8E6E1] dark:border-[#333]">
+			<label className="text-xs text-stone-400 dark:text-stone-500 font-semibold uppercase tracking-wider px-1 mb-1 block">
 				Worktree
 			</label>
 			<div className="flex flex-wrap gap-1">
@@ -457,15 +457,15 @@ function WorktreeSelector({
 						type="button"
 						className={`text-xs px-2 py-1 rounded transition-colors ${
 							selected === wt.workspaceId
-								? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-								: "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/5"
+								? "bg-blue-50 dark:bg-blue-900/20 text-blue-500 border border-blue-200 dark:border-blue-800"
+								: "bg-stone-50 dark:bg-stone-800/50 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333]"
 						}`}
 						onClick={() => onSelect(wt.workspaceId)}
 					>
 						<GitBranch size={10} className="inline mr-1" />
 						{wt.workspaceId}
 						{wt.fileCount > 0 && (
-							<span className="ml-1 text-[10px] text-gray-600">({wt.fileCount})</span>
+							<span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({wt.fileCount})</span>
 						)}
 					</button>
 				))}
@@ -487,19 +487,19 @@ function FilterBar({
 	onClear: () => void;
 }) {
 	return (
-		<div className="relative px-2 py-1.5 border-b border-white/5">
-			<Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+		<div className="relative px-2 py-1.5 border-b border-[#E8E6E1] dark:border-[#333]">
+			<Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
 			<input
 				type="text"
 				value={query}
 				onChange={(e) => onQueryChange(e.target.value)}
 				placeholder="Filter files..."
-				className="w-full bg-white/5 border border-white/10 rounded text-xs px-6 py-1 text-gray-300 placeholder-gray-600 outline-none focus:border-blue-500/40 transition-colors"
+				className="w-full bg-stone-100 dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] rounded-md text-xs px-6 py-1 text-stone-700 dark:text-stone-300 placeholder:text-stone-400 outline-none focus:border-blue-500/30 transition-colors"
 			/>
 			{query && (
 				<button
 					type="button"
-					className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400"
+					className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500 hover:text-stone-400 dark:text-stone-500"
 					onClick={onClear}
 				>
 					<X size={12} />
@@ -596,17 +596,17 @@ export function FileExplorer({
 
 	return (
 		<div
-			className="flex flex-col bg-gray-900 rounded-lg border border-white/5 overflow-hidden"
+			className="flex flex-col bg-white dark:bg-[#1E1E1E] rounded-lg border border-[#E8E6E1] dark:border-[#333] overflow-hidden"
 			style={{ height }}
 		>
 			{/* Header */}
-			<div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-gray-800/50">
+			<div className="flex items-center justify-between px-3 py-2 border-b border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]">
 				<div className="flex items-center gap-2">
 					<FolderOpen size={14} className="text-amber-400" />
-					<span className="text-xs font-medium text-gray-300">File Explorer</span>
+					<span className="text-xs font-medium text-stone-700 dark:text-stone-300">File Explorer</span>
 					{isLive && (
-						<span className="flex items-center gap-1 text-[10px] text-emerald-400">
-							<span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+						<span className="flex items-center gap-1 text-xs text-emerald-500">
+							<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
 							Live
 						</span>
 					)}
@@ -614,7 +614,7 @@ export function FileExplorer({
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
-						className="text-gray-500 hover:text-gray-300 transition-colors"
+						className="text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
 						onClick={refresh}
 						title="Refresh"
 					>
@@ -631,15 +631,15 @@ export function FileExplorer({
 			/>
 
 			{/* Tab bar */}
-			<div className="flex border-b border-white/5">
+			<div className="flex border-b border-[#E8E6E1] dark:border-[#333]">
 				{tabs.map((tab) => (
 					<button
 						key={tab.id}
 						type="button"
-						className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium transition-colors ${
+						className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
 							activeTab === tab.id
-								? "text-blue-400 border-b-2 border-blue-400 bg-blue-500/5"
-								: "text-gray-500 hover:text-gray-400 hover:bg-white/5"
+								? "text-blue-500 border-b-2 border-blue-500 bg-blue-50 dark:bg-blue-900/10"
+								: "text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]"
 						}`}
 						onClick={() => setActiveTab(tab.id)}
 					>
@@ -651,7 +651,7 @@ export function FileExplorer({
 
 			{/* Error banner */}
 			{error && (
-				<div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-[10px] text-red-400">
+				<div className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 border-b border-red-500/20 text-xs text-red-400">
 					<AlertTriangle size={10} />
 					{error}
 				</div>
@@ -661,10 +661,10 @@ export function FileExplorer({
 			<div className="flex-1 overflow-hidden">
 				{!selectedWorkspace ? (
 					<div className="flex flex-col items-center justify-center h-full gap-1">
-						<Folder size={24} className="text-gray-700" />
-						<p className="text-xs text-gray-600">No worktree selected</p>
+						<Folder size={24} className="text-stone-300 dark:text-stone-600" />
+						<p className="text-xs text-stone-400 dark:text-stone-500">No worktree selected</p>
 						{worktrees.length === 0 && (
-							<p className="text-[10px] text-gray-700">
+							<p className="text-xs text-stone-400 dark:text-stone-500">
 								No active worktrees found for this plan execution
 							</p>
 						)}
@@ -681,19 +681,19 @@ export function FileExplorer({
 								<div className="flex flex-col items-center justify-center h-full gap-1">
 									{filterQuery ? (
 										<>
-											<Search size={20} className="text-gray-700" />
-											<p className="text-xs text-gray-600">No files match &quot;{filterQuery}&quot;</p>
+											<Search size={20} className="text-stone-300 dark:text-stone-600" />
+											<p className="text-xs text-stone-400 dark:text-stone-500">No files match &quot;{filterQuery}&quot;</p>
 										</>
 									) : (
 										<>
-											<Folder size={24} className="text-gray-700" />
-											<p className="text-xs text-gray-600">Empty worktree</p>
+											<Folder size={24} className="text-stone-300 dark:text-stone-600" />
+											<p className="text-xs text-stone-400 dark:text-stone-500">Empty worktree</p>
 										</>
 									)}
 								</div>
 							) : (
 								<div>
-									<div className="text-[10px] text-gray-600 px-2 py-1">
+									<div className="text-xs text-stone-400 dark:text-stone-500 px-2 py-1">
 										{filterQuery
 											? `Filtered: ${countFiles(filteredFiles)} files`
 											: `${countFiles(filteredFiles)} files`}
@@ -728,9 +728,9 @@ export function FileExplorer({
 							<FilePreview content={fileContent} />
 						) : (
 							<div className="flex flex-col items-center justify-center h-full gap-1">
-								<FileText size={24} className="text-gray-700" />
-								<p className="text-xs text-gray-600">Select a file to preview</p>
-								<p className="text-[10px] text-gray-700">
+								<FileText size={24} className="text-stone-300 dark:text-stone-600" />
+								<p className="text-xs text-stone-400 dark:text-stone-500">Select a file to preview</p>
+								<p className="text-xs text-stone-400 dark:text-stone-500">
 									Click a file in the Files tab to view its contents
 								</p>
 							</div>
@@ -740,21 +740,21 @@ export function FileExplorer({
 			</div>
 
 			{/* Status bar */}
-			<div className="flex items-center justify-between px-3 py-1 border-t border-white/5 bg-gray-800/30 text-[10px] text-gray-600">
+			<div className="flex items-center justify-between px-3 py-1 border-t border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] text-xs text-stone-400 dark:text-stone-500">
 				<div className="flex items-center gap-2">
 					<span>
 						{worktrees.length} worktree{worktrees.length !== 1 ? "s" : ""}
 					</span>
 					{selectedWorkspace && (
 						<>
-							<span className="text-gray-700">|</span>
+							<span className="text-stone-300 dark:text-stone-600">|</span>
 							<span>WS: {selectedWorkspace}</span>
 						</>
 					)}
 				</div>
 				<div className="flex items-center gap-2">
 					{diff && diff.fileCount > 0 && (
-						<span className="text-yellow-500">
+						<span className="text-amber-500">
 							{diff.fileCount} changed
 						</span>
 					)}

@@ -31,7 +31,7 @@ function StatBox({ icon, label, value, accent }: { icon: React.ReactNode; label:
 				<div className={`text-sm font-semibold tabular-nums ${accent ?? "text-stone-800 dark:text-stone-200"}`}>
 					{value}
 				</div>
-				<div className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+				<div className="text-xs text-stone-400 dark:text-stone-500 truncate">
 					{label}
 				</div>
 			</div>
@@ -104,7 +104,7 @@ export function MorningCard({ digest, loading, error, onRefresh }: MorningCardPr
 			</div>
 
 			{/* Reflection & daemon info */}
-			<div className="flex items-center gap-4 px-4 py-2 border-t border-stone-100 dark:border-stone-800 text-[10px] text-stone-400">
+			<div className="flex items-center gap-4 px-4 py-2 border-t border-stone-100 dark:border-stone-800 text-xs text-stone-400">
 				<span>{reflectionCounts.today} reflections today</span>
 				<span>{reflectionCounts.newMemories} new memories</span>
 				<span className="ml-auto">Uptime: {summary.daemonUptime}</span>

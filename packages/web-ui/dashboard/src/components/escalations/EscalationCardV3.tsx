@@ -22,6 +22,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
   AlertTriangle,
   CheckCircle,
@@ -61,12 +62,6 @@ export interface EscalationCardV3Props {
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
@@ -82,7 +77,7 @@ const STATUS_META: Record<string, { label: string; icon: typeof CheckCircle; tex
   awaiting_user: { label: "Awaiting user", icon: AlertTriangle, text: WARN_TXT, bg: WARN_BG },
   user_responded: { label: "User responded", icon: CheckCircle, text: ACC_TXT, bg: ACC_BG },
   resolved: { label: "Resolved", icon: CheckCircle, text: GOOD_TXT, bg: GOOD_BG },
-  expired: { label: "Expired", icon: XCircle, text: MUT, bg: "bg-stone-50 dark:bg-[#2A2A2A]" },
+  expired: { label: "Expired", icon: XCircle, text: MUT, bg: "bg-stone-100 dark:bg-[#2A2A2A]" },
 };
 
 const SEV_META: Record<string, { text: string; bg: string }> = {
@@ -137,7 +132,7 @@ export function EscalationCardV3({
 
         {/* Severity badge */}
         <span
-          className={`text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 ${sev.text} ${sev.bg}`}
+          className={`text-xs font-semibold px-1 py-0.5 rounded shrink-0 ${sev.text} ${sev.bg}`}
         >
           {escalation.severity}
         </span>
@@ -148,18 +143,18 @@ export function EscalationCardV3({
         </span>
 
         {/* Workspace ID */}
-        <span className={`text-[10px] font-mono ${MUT} shrink-0 hidden sm:inline`}>
+        <span className={`text-xs font-mono ${MUT} shrink-0 hidden sm:inline`}>
           {escalation.workspaceId.slice(0, 8)}
         </span>
 
         {/* Timestamp */}
-        <span className={`text-[10px] ${MUT} shrink-0`}>
+        <span className={`text-xs ${MUT} shrink-0`}>
           {formatTime(escalation.createdAt)}
         </span>
 
         {/* Status badge */}
         <span
-          className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${status.text} ${status.bg}`}
+          className={`inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${status.text} ${status.bg}`}
         >
           {status.label}
         </span>
@@ -178,27 +173,27 @@ export function EscalationCardV3({
           {/* What happened */}
           {escalation.whatHappened && (
             <div className={`p-2 rounded border ${BORD} space-y-0.5`}>
-              <div className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+              <div className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wider ${MUT}`}>
                 <Info size={10} />
                 What Happened
               </div>
-              <p className={`text-[11px] ${TXT}`}>{escalation.whatHappened}</p>
+              <p className={`text-xs ${TXT}`}>{escalation.whatHappened}</p>
             </div>
           )}
 
           {/* Why stuck */}
           {escalation.whyStuck && (
             <div className={`p-2 rounded border ${BORD} space-y-0.5`}>
-              <div className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+              <div className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wider ${MUT}`}>
                 <AlertTriangle size={10} />
                 Why Stuck
               </div>
-              <p className={`text-[11px] ${TXT}`}>{escalation.whyStuck}</p>
+              <p className={`text-xs ${TXT}`}>{escalation.whyStuck}</p>
             </div>
           )}
 
           {/* Impact */}
-          <div className={`flex items-center gap-1.5 text-[10px] ${MUT}`}>
+          <div className={`flex items-center gap-1.5 text-xs ${MUT}`}>
             <Hash size={10} />
             <span className="font-semibold uppercase tracking-wider">Impact</span>
             <span className={`${TXT}`}>
@@ -220,11 +215,11 @@ export function EscalationCardV3({
 
           {/* Lead Agent diagnosis (retry budget info) */}
           <div className={`p-2 rounded border ${ACC_BG} border-blue-200 dark:border-blue-800 space-y-0.5`}>
-            <div className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${ACC_TXT}`}>
+            <div className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wider ${ACC_TXT}`}>
               <RotateCw size={10} />
               Lead Agent Diagnosis
             </div>
-            <p className={`text-[11px] ${TXT}`}>
+            <p className={`text-xs ${TXT}`}>
               {escalation.summary || "No diagnosis available"}
             </p>
           </div>
@@ -255,7 +250,7 @@ export function EscalationCardV3({
 
           {/* Resolved details */}
           {expanded && escalation.userChoice && (
-            <div className={`flex items-center gap-1.5 text-[10px] ${GOOD_TXT}`}>
+            <div className={`flex items-center gap-1.5 text-xs ${GOOD_TXT}`}>
               <CheckCircle size={10} />
               Resolved: {escalation.userChoice}
               {escalation.userResponse && (
@@ -265,7 +260,7 @@ export function EscalationCardV3({
           )}
 
           {/* Timestamps */}
-          <div className={`flex items-center gap-3 text-[10px] ${MUT}`}>
+          <div className={`flex items-center gap-3 text-xs ${MUT}`}>
             <span className="flex items-center gap-1">
               <Clock size={10} />
               Created: {formatTime(escalation.createdAt)}
@@ -279,7 +274,7 @@ export function EscalationCardV3({
           </div>
 
           {/* ID reference */}
-          <div className={`flex items-center gap-1 text-[9px] ${MUT}`}>
+          <div className={`flex items-center gap-1 text-xs ${MUT}`}>
             <Hash size={9} />
             <code className="font-mono">{escalation.escalationId.slice(0, 12)}...</code>
           </div>

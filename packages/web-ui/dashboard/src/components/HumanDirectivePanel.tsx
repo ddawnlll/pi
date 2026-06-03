@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	ChevronDown,
@@ -30,12 +31,6 @@ import {
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const GOOD_TXT = "text-emerald-600 dark:text-emerald-400";
@@ -133,11 +128,11 @@ export function HumanDirectivePanel({
 			<div className={`flex items-center justify-between px-3 py-2 border-b ${BORD}`}>
 				<div className="flex items-center gap-2">
 					<MessageSquare size={13} className={ACC_TXT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Human Directives
 					</span>
 					{hasDirectives && (
-						<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${ACC_BG} ${ACC_TXT}`}>
+						<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${ACC_BG} ${ACC_TXT}`}>
 							{directives!.length}
 						</span>
 					)}
@@ -151,7 +146,7 @@ export function HumanDirectivePanel({
 						placeholder="Issue a directive to this workspace..."
 						value={directiveText}
 						onChange={(e) => setDirectiveText(e.target.value)}
-						className={`w-full text-[11px] px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
+						className={`w-full text-xs px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
 						rows={2}
 						disabled={issueMutation.isPending}
 					/>
@@ -162,7 +157,7 @@ export function HumanDirectivePanel({
 								<button
 									key={s.value}
 									onClick={() => setSeverity(s.value)}
-									className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+									className={`text-xs px-1.5 py-0.5 rounded font-medium transition-colors ${
 										severity === s.value
 											? `${s.color} ${s.bg}`
 											: `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -175,7 +170,7 @@ export function HumanDirectivePanel({
 						<button
 							onClick={handleIssue}
 							disabled={!directiveText.trim() || issueMutation.isPending}
-							className={`ml-auto flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium transition-colors ${
+							className={`ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded font-medium transition-colors ${
 								directiveText.trim()
 									? `${ACC_BG} ${ACC_TXT} hover:opacity-80`
 									: `${MUT} cursor-not-allowed`
@@ -190,12 +185,12 @@ export function HumanDirectivePanel({
 						</button>
 					</div>
 					{issueMutation.isError && (
-						<p className={`text-[10px] ${ERR_TXT}`}>
+						<p className={`text-xs ${ERR_TXT}`}>
 							Failed to issue directive: {issueMutation.error?.message ?? "Unknown error"}
 						</p>
 					)}
 					{issueMutation.data?.success === false && (
-						<p className={`text-[10px] ${ERR_TXT}`}>
+						<p className={`text-xs ${ERR_TXT}`}>
 							{issueMutation.data.error ?? "Failed to issue directive"}
 						</p>
 					)}
@@ -204,7 +199,7 @@ export function HumanDirectivePanel({
 				{/* Existing directives */}
 				{hasDirectives ? (
 					<div className="space-y-1">
-						<p className={`text-[10px] font-medium ${MUT} uppercase tracking-wider`}>
+						<p className={`text-xs font-medium ${MUT} uppercase tracking-wider`}>
 							Active Directives
 						</p>
 						{directives!.map((d) => {
@@ -223,16 +218,16 @@ export function HumanDirectivePanel({
 										) : (
 											<ChevronRight size={10} className={`shrink-0 ${MUT}`} />
 										)}
-										<span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${meta.color} ${meta.bg}`}>
+										<span className={`text-xs font-semibold px-1 py-0.5 rounded ${meta.color} ${meta.bg}`}>
 											{d.severity}
 										</span>
-										<span className="flex-1 truncate text-[11px]">{d.directive}</span>
-										<span className={`text-[10px] ${MUT} shrink-0`}>
+										<span className="flex-1 truncate text-xs">{d.directive}</span>
+										<span className={`text-xs ${MUT} shrink-0`}>
 											{d.acknowledged ? "Acknowledged" : "Pending"}
 										</span>
 									</button>
 									{expandedIds.has(d.id) && (
-										<div className={`px-2.5 pb-2 text-[10px] ${MUT} space-y-0.5`}>
+										<div className={`px-2.5 pb-2 text-xs ${MUT} space-y-0.5`}>
 											<p>ID: {d.id.slice(0, 8)}...</p>
 											<p>
 												Issued: {new Date(d.issuedAt).toLocaleString()}

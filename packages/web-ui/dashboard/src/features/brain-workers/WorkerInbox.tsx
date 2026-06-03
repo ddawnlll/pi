@@ -19,6 +19,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertCircle,
 	ArrowRight,
@@ -48,13 +49,6 @@ import type { HandoffEntry, TriageRouterStatus } from "../../hooks/useBrainWorke
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,13 +93,13 @@ const PRIORITY_CONFIG = {
 	},
 	normal: {
 		label: "Normal",
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 		bg: "bg-blue-50 dark:bg-blue-900/30",
 		border: "border-blue-200 dark:border-blue-800",
 	},
 	low: {
 		label: "Low",
-		color: "text-stone-500 dark:text-stone-400",
+		color: "text-stone-400 dark:text-stone-500",
 		bg: "bg-stone-50 dark:bg-stone-900/30",
 		border: "border-stone-200 dark:border-stone-800",
 	},
@@ -125,7 +119,7 @@ const STATUS_CONFIG = {
 	routing: {
 		label: "Routing",
 		icon: ArrowRight,
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 		bg: "bg-blue-50 dark:bg-blue-900/30",
 	},
 	dispatched: {
@@ -149,7 +143,7 @@ const STATUS_CONFIG = {
 	cancelled: {
 		label: "Cancelled",
 		icon: XCircle,
-		color: "text-stone-500 dark:text-stone-400",
+		color: "text-stone-400 dark:text-stone-500",
 		bg: "bg-stone-50 dark:bg-stone-900/30",
 	},
 } as const;
@@ -161,12 +155,12 @@ const STATUS_CONFIG = {
 const TRIAGE_STATUS_CONFIG: Record<TriageRouterStatus, { label: string; color: string; bg: string }> = {
 	idle: {
 		label: "Idle",
-		color: "text-stone-500 dark:text-stone-400",
+		color: "text-stone-400 dark:text-stone-500",
 		bg: "bg-stone-100 dark:bg-stone-800",
 	},
 	processing: {
 		label: "Processing",
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 		bg: "bg-blue-100 dark:bg-blue-900/30",
 	},
 	cooling: {
@@ -270,7 +264,7 @@ function EntryCard({ entry }: { entry: HandoffEntry }) {
 							{entry.tags.map((tag) => (
 								<span
 									key={tag}
-									className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ACC_BG} ${ACC_TXT}`}
+									className={`px-1.5 py-0.5 rounded text-xs font-medium ${ACC_BG} ${ACC_TXT}`}
 								>
 									{tag}
 								</span>
@@ -289,13 +283,13 @@ function EntryCard({ entry }: { entry: HandoffEntry }) {
 					{/* Diagnostics */}
 					{entry.diagnostics.length > 0 && (
 						<div className="space-y-1">
-							<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>Diagnostics</span>
+							<span className={`text-xs uppercase tracking-wider ${MUT}`}>Diagnostics</span>
 							{entry.diagnostics.map((d, i) => (
 								<div
 									key={i}
 									className={`flex items-start gap-2 p-2 rounded text-xs ${BG} border ${BORD}`}
 								>
-									<span className={`font-mono text-[10px] ${MUT} shrink-0`}>{d.stopCondition}</span>
+									<span className={`font-mono text-xs ${MUT} shrink-0`}>{d.stopCondition}</span>
 									<span className={TXT}>{d.message}</span>
 								</div>
 							))}
@@ -401,7 +395,7 @@ function TriageControlPanel() {
 						</div>
 						<div>
 							<span className={MUT}>Routing</span>
-							<p className={`font-semibold text-blue-600 dark:text-blue-400`}>{inboxStats.routing}</p>
+							<p className={`font-semibold text-blue-700 dark:text-blue-300`}>{inboxStats.routing}</p>
 						</div>
 						<div>
 							<span className={MUT}>Dispatched</span>

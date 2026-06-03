@@ -16,7 +16,7 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 	if (loading) {
 		return (
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">
 					Timeline
 				</h3>
 				<LoadingSkeleton variant="row" count={5} />
@@ -27,7 +27,7 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 	if (error) {
 		return (
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">
 					Timeline
 				</h3>
 				<ErrorState message={error} />
@@ -40,7 +40,7 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 	if (displayEvents.length === 0) {
 		return (
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">
 					Timeline
 				</h3>
 				<EmptyState
@@ -54,7 +54,7 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 	return (
 		<div className="border border-stone-200 dark:border-stone-700 rounded-lg">
 			<div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">
 					Timeline
 				</h3>
 			</div>
@@ -65,16 +65,16 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 							<SeverityBadge severity={ev.severity} />
 						</div>
 						<div className="flex-1 min-w-0">
-							<p className="text-[10px] text-stone-600 dark:text-stone-300 truncate">
+							<p className="text-xs text-stone-600 dark:text-stone-300 truncate">
 								{ev.title}
 							</p>
 							{ev.description && (
-								<p className="text-[9px] text-stone-400 dark:text-stone-500 truncate mt-0.5">
+								<p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5">
 									{ev.description}
 								</p>
 							)}
 						</div>
-						<span className="shrink-0 text-[9px] text-stone-400 font-mono">
+						<span className="shrink-0 text-xs text-stone-400 font-mono">
 							{formatTime(ev.timestamp)}
 						</span>
 					</div>
@@ -82,7 +82,7 @@ export function TimelineList({ events, loading, error, maxItems = 50 }: Timeline
 			</div>
 			{events.length > maxItems && (
 				<div className="px-4 py-2 border-t border-stone-100 dark:border-stone-800 text-center">
-					<span className="text-[9px] text-stone-400">
+					<span className="text-xs text-stone-400">
 						Showing {maxItems} of {events.length} events
 					</span>
 				</div>

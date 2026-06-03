@@ -22,15 +22,15 @@ export function EventFeed({
 			: events.filter((e) => e.type === "failed" || e.type === "retry");
 
 	return (
-		<div className="w-80 border-l border-gray-700 flex flex-col overflow-hidden bg-gray-900">
-			<div className="p-4 border-b border-gray-700 flex items-center justify-between">
-				<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+		<div className="w-80 border-l border-[#E8E6E1] dark:border-[#333] flex flex-col overflow-hidden bg-[#F7F6F3] dark:bg-[#161616]">
+			<div className="p-4 border-b border-[#E8E6E1] dark:border-[#333] flex items-center justify-between">
+				<h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
 					Recent Events
 				</h2>
 				<select
 					value={filter}
 					onChange={(e) => onFilterChange(e.target.value as "all" | "errors")}
-					className="text-xs bg-gray-700 border border-gray-600 rounded px-2 py-1 text-gray-200"
+					className="text-xs bg-stone-100 dark:bg-[#2A2A2A] border border-[#E8E6E1] dark:border-[#333] rounded px-2 py-1 text-stone-800 dark:text-stone-200"
 				>
 					<option value="all">all</option>
 					<option value="errors">failed+retry only</option>
@@ -38,7 +38,7 @@ export function EventFeed({
 			</div>
 			<div className="flex-1 overflow-auto p-4">
 				{filteredEvents.length === 0 ? (
-					<div className="text-xs text-gray-500">No events yet</div>
+					<div className="text-xs text-stone-400 dark:text-stone-500">No events yet</div>
 				) : (
 					<div className="space-y-2">
 						<AnimatePresence initial={false}>
@@ -49,16 +49,16 @@ export function EventFeed({
 									animate={{ opacity: 1, y: 0 }}
 									exit={{ opacity: 0 }}
 									transition={{ duration: 0.1 }}
-									className="text-xs border-b border-gray-700 pb-2"
+									className="text-xs border-b border-[#E8E6E1] dark:border-[#333] pb-2"
 								>
-									<div className="text-gray-500 mb-0.5">{event.timestamp}</div>
+									<div className="text-stone-400 dark:text-stone-500 mb-0.5">{event.timestamp}</div>
 									<div
 										className={
 											event.type === "failed"
 												? "text-red-400"
 												: event.type === "completed"
 													? "text-green-400"
-													: "text-gray-300"
+													: "text-stone-700 dark:text-stone-300"
 										}
 									>
 										{eventIcon(event.type)} {event.message}

@@ -5,14 +5,11 @@
  */
 
 import { Activity, AlertTriangle, CheckCircle, Terminal, XCircle, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { WorkerTranscriptEvent } from "../../types";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Event type icon ───────────────────────────────────────────────────────
 
@@ -100,24 +97,24 @@ export function WorkspaceDetailTranscript({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <Activity size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             Transcript
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           {isReconnecting && (
-            <span className="text-[9px] text-amber-500 flex items-center gap-1">
+            <span className="text-xs text-amber-500 flex items-center gap-1">
               <Loader2 size={9} className="animate-spin" />
               Reconnecting
             </span>
           )}
           {isConnected && (
-            <span className="text-[9px] text-emerald-500 flex items-center gap-1">
+            <span className="text-xs text-emerald-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Live
             </span>
           )}
-          <span className={`text-[10px] tabular-nums ${MUT}`}>
+          <span className={`text-xs tabular-nums ${MUT}`}>
             {events.length} event{events.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -125,7 +122,7 @@ export function WorkspaceDetailTranscript({
 
       {/* Error banner */}
       {error && (
-        <div className="px-3 py-1.5 text-[9px] text-red-500 bg-red-50 dark:bg-red-900/20 border-b ${BORD}">
+        <div className="px-3 py-1.5 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 border-b ${BORD}">
           {error}
         </div>
       )}
@@ -144,20 +141,20 @@ export function WorkspaceDetailTranscript({
             <div className="shrink-0 mt-0.5">{eventIcon(ev.type)}</div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className={`text-[9px] font-medium uppercase tracking-wide ${MUT}`}>
+                <span className={`text-xs font-medium uppercase tracking-wide ${MUT}`}>
                   {eventLabel(ev.type)}
                 </span>
-                <span className={`text-[9px] tabular-nums ${MUT}`}>
+                <span className={`text-xs tabular-nums ${MUT}`}>
                   {formatTime(ev.timestamp)}
                 </span>
               </div>
-              <p className={`text-[10px] ${TXT} leading-relaxed mt-0.5`}>{ev.summary}</p>
+              <p className={`text-xs ${TXT} leading-relaxed mt-0.5`}>{ev.summary}</p>
               {ev.data && Object.keys(ev.data).length > 0 && (
                 <details>
-                  <summary className={`text-[9px] ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300 mt-0.5`}>
+                  <summary className={`text-xs ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300 mt-0.5`}>
                     Details
                   </summary>
-                  <pre className={`mt-1 p-1.5 rounded bg-stone-50 dark:bg-[#1A1A1A] text-[9px] font-mono ${TXT} whitespace-pre-wrap break-all overflow-x-auto`}>
+                  <pre className={`mt-1 p-1.5 rounded bg-stone-50 dark:bg-[#1A1A1A] text-xs font-mono ${TXT} whitespace-pre-wrap break-all overflow-x-auto`}>
                     {JSON.stringify(ev.data, null, 2)}
                   </pre>
                 </details>

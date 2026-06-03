@@ -1,4 +1,5 @@
 import React from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { Brain, AlertCircle, Loader2, X, RotateCw } from "lucide-react";
 import type { BrainSignal } from "../types-brain";
 import { useProjectBrainContext } from "../hooks/useProjectBrainContext";
@@ -9,9 +10,6 @@ import { ReflectionSnippet } from "./digest/ReflectionSnippet";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,7 +65,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 			<div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
 				<div className="flex items-center gap-2">
 					<Brain size={14} strokeWidth={1.5} className={MUT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Brain Context
 					</span>
 				</div>
@@ -106,7 +104,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 						<p className="text-xs text-red-400 dark:text-red-500">{error}</p>
 						<button
 							onClick={refresh}
-							className="px-3 py-1 text-[10px] font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+							className="px-3 py-1 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
 						>
 							Retry
 						</button>
@@ -115,7 +113,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 
 				{/* Inline error banner (data present but refresh failed) */}
 				{error && (memories.length > 0 || reflections.length > 0) && (
-					<div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-[10px] text-red-700 dark:text-red-300 flex items-center gap-2">
+					<div className="mx-3 mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
 						<AlertCircle size={10} />
 						<span className="flex-1">{error}</span>
 						<button onClick={refresh} className="underline hover:no-underline">Retry</button>
@@ -128,17 +126,17 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 						<div className="px-3 pt-3 pb-1">
 							<div className="flex items-center gap-1.5">
 								{signals.filter(s => s.severity === "critical").length > 0 && (
-									<span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+									<span className="text-xs font-medium px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
 										{signals.filter(s => s.severity === "critical").length} critical
 									</span>
 								)}
 								{signals.filter(s => s.severity === "warning").length > 0 && (
-									<span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+									<span className="text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
 										{signals.filter(s => s.severity === "warning").length} warnings
 									</span>
 								)}
 								{signals.filter(s => s.severity === "info").length > 0 && (
-									<span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+									<span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
 										{signals.filter(s => s.severity === "info").length} info
 									</span>
 								)}
@@ -150,7 +148,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 				{/* Memory stats summary */}
 				{memoryStats && (
 					<div className="px-3 pt-3 pb-1">
-						<div className="flex items-center gap-3 text-[9px] text-stone-400">
+						<div className="flex items-center gap-3 text-xs text-stone-400">
 							<span>{memoryStats.total} memories</span>
 							<span>{(memoryStats.averageConfidence * 100).toFixed(0)}% avg. confidence</span>
 						</div>
@@ -159,7 +157,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 
 				{/* Memories section */}
 				<div className="px-3 pt-3">
-					<h3 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+					<h3 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
 						Recent Memories
 					</h3>
 					<ProjectMemorySnippet
@@ -174,7 +172,7 @@ export function BrainContextPanel({ projectId, isOpen, onClose }: BrainContextPa
 				{/* Reflections section */}
 				<SectionDivider />
 				<div className="px-3 pt-3 pb-4">
-					<h3 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+					<h3 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
 						Recent Reflections
 					</h3>
 					<ReflectionSnippet

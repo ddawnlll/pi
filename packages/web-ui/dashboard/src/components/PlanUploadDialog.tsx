@@ -99,22 +99,22 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 										? "bg-emerald-600 text-white"
 										: isCurrent
 											? "bg-blue-600 text-white"
-											: "bg-gray-800 text-gray-500 border border-gray-700"
+											: "bg-white dark:bg-[#1E1E1E] text-stone-400 dark:text-stone-500 border border-[#E8E6E1] dark:border-[#333]"
 								}`}
 							>
 								{isPast ? (
 									<CheckCircle2 size={12} />
 								) : (
-									<span className="text-[10px] font-bold">{s.step}</span>
+									<span className="text-xs font-bold">{s.step}</span>
 								)}
 							</div>
 							<span
-								className={`text-[9px] font-medium whitespace-nowrap ${
+								className={`text-xs font-medium whitespace-nowrap ${
 									isCurrent
 										? "text-blue-400 font-semibold"
 										: isPast
-											? "text-gray-400"
-											: "text-gray-600"
+											? "text-stone-500 dark:text-stone-400"
+											: "text-stone-400 dark:text-stone-500"
 								}`}
 							>
 								{s.short}
@@ -125,7 +125,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 						{i < STEPS.length - 1 && (
 							<div
 								className={`w-8 h-px mx-1 mb-4 ${
-									isPast ? "bg-emerald-600" : "bg-gray-700"
+									isPast ? "bg-emerald-600" : "bg-stone-100 dark:bg-[#2A2A2A]"
 								}`}
 							/>
 						)}
@@ -142,7 +142,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 
 function StageBadge({ stage }: { stage: DialogStage }) {
 	const config: Record<DialogStage, { label: string; color: string }> = {
-		input: { label: "Input", color: "bg-gray-700 text-gray-300" },
+		input: { label: "Input", color: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-700 dark:text-stone-300" },
 		validating: { label: "Validating", color: "bg-blue-900/50 text-blue-300" },
 		preflight: { label: "Preflight", color: "bg-emerald-900/50 text-emerald-300" },
 		approval: { label: "Approval", color: "bg-amber-900/50 text-amber-300" },
@@ -150,7 +150,7 @@ function StageBadge({ stage }: { stage: DialogStage }) {
 	};
 	const { label, color } = config[stage];
 	return (
-		<span className={`text-[10px] px-2 py-0.5 rounded font-medium ${color}`}>
+		<span className={`text-xs px-2 py-0.5 rounded font-medium ${color}`}>
 			{label}
 		</span>
 	);
@@ -778,22 +778,22 @@ export function PlanUploadDialog({
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
 						transition={{ duration: 0.1 }}
-						className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-6 min-w-[640px] max-w-3xl max-h-[85vh] flex flex-col"
+						className="bg-[#F7F6F3] dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded-lg shadow-xl p-6 min-w-[640px] max-w-3xl max-h-[85vh] flex flex-col"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{/* ── Header ── */}
 						<div className="flex items-center justify-between mb-4">
-							<h2 className="text-lg font-semibold text-gray-100">
+							<h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">
 								Upload &amp; Run Plans
 							</h2>
 							<div className="flex items-center gap-2">
 								<StageBadge stage={dialogStage} />
-								<span className="text-[10px] text-gray-500">
+								<span className="text-xs text-stone-400 dark:text-stone-500">
 									Step {currentStep}/4
 								</span>
 								<button
 									onClick={handleClose}
-									className="text-gray-500 hover:text-gray-300 transition-colors p-0.5"
+									className="text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300 transition-colors p-0.5"
 								>
 									<X size={14} />
 								</button>
@@ -845,18 +845,18 @@ export function PlanUploadDialog({
 												onScaleModeChange={setScaleMode}
 											/>
 											{/* Phase name override (P22.E) */}
-											<div className="border border-gray-700 rounded-lg p-3 bg-gray-800/50">
-												<label className="block text-xs text-gray-400 mb-1.5 font-medium">
-													Phase name <span className="text-gray-500">(override)</span>
+											<div className="border border-[#E8E6E1] dark:border-[#333] rounded-lg p-3 bg-stone-100 dark:bg-[#2A2A2A]">
+												<label className="block text-xs text-stone-500 dark:text-stone-400 mb-1.5 font-medium">
+													Phase name <span className="text-stone-400 dark:text-stone-500">(override)</span>
 												</label>
 												<input
 													type="text"
 													value={phaseName}
 													onChange={(e) => setPhaseName(e.target.value)}
 													placeholder="Parsed from plan header, or type to override..."
-													className="w-full px-3 py-2 text-sm bg-gray-900 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+													className="w-full px-3 py-2 text-sm bg-[#F7F6F3] dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500"
 												/>
-												<p className="text-[10px] text-gray-500 mt-1">
+												<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 													Override the phase name shown throughout the dashboard. Can be changed after execution.
 												</p>
 											</div>
@@ -923,9 +923,9 @@ export function PlanUploadDialog({
 						</div>
 
 						{/* ── Footer ── */}
-						<div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-700 shrink-0">
+						<div className="flex items-center justify-between mt-4 pt-3 border-t border-[#E8E6E1] dark:border-[#333] shrink-0">
 							{/* Left side: status message */}
-							<div className="text-[10px] text-gray-500">{footerMessage}</div>
+							<div className="text-xs text-stone-400 dark:text-stone-500">{footerMessage}</div>
 
 							{/* Right side: action buttons */}
 							<div className="flex gap-2">
@@ -934,7 +934,7 @@ export function PlanUploadDialog({
 									<>
 										<button
 											onClick={handleClose}
-											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+											className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 										>
 											Cancel
 										</button>
@@ -955,7 +955,7 @@ export function PlanUploadDialog({
 									<>
 										<button
 											onClick={handleBack}
-											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+											className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 										>
 											Back
 										</button>
@@ -974,7 +974,7 @@ export function PlanUploadDialog({
 									<>
 										<button
 											onClick={handleBack}
-											className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+											className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 										>
 											Back
 										</button>
@@ -1000,7 +1000,7 @@ export function PlanUploadDialog({
 								{currentStep === 4 && (
 									<button
 										onClick={handleClose}
-										className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+										className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 									>
 										Close
 									</button>
@@ -1050,7 +1050,7 @@ function LegacyInputArea({
 
 	return (
 		<div className="flex flex-col flex-1">
-			<label className="text-xs text-gray-400 block mb-1.5">
+			<label className="text-xs text-stone-500 dark:text-stone-400 block mb-1.5">
 				Plan Content
 			</label>
 			<textarea
@@ -1058,7 +1058,7 @@ function LegacyInputArea({
 				value={planContent}
 				onChange={(e) => setPlanContent(e.target.value)}
 				placeholder="Paste your plan content here..."
-				className="w-full min-h-[200px] px-3 py-2 text-sm font-mono bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-y"
+				className="w-full min-h-[200px] px-3 py-2 text-sm font-mono bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500 resize-y"
 				spellCheck={false}
 			/>
 			<div className="flex items-center gap-3 mt-2">
@@ -1071,22 +1071,22 @@ function LegacyInputArea({
 				/>
 				<button
 					onClick={handleFileUpload}
-					className="text-xs px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+					className="text-xs px-2.5 py-1.5 rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-700 dark:text-stone-300 transition-colors"
 				>
 					<Upload size={12} className="inline mr-1" />
 					Browse File...
 				</button>
 				{planFileName && (
-					<span className="text-xs text-gray-500">{planFileName}</span>
+					<span className="text-xs text-stone-400 dark:text-stone-500">{planFileName}</span>
 				)}
-				<span className="text-xs text-gray-600 ml-auto">
+				<span className="text-xs text-stone-400 dark:text-stone-500 ml-auto">
 					{planContent.length} chars
 				</span>
 			</div>
 			<div className="flex gap-2 mt-3">
 				<button
 					onClick={onCancel}
-					className="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+					className="text-xs px-3 py-1.5 rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-800 dark:text-stone-200 transition-colors"
 				>
 					Cancel
 				</button>
@@ -1126,10 +1126,10 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 		diffData.changed.length > 0;
 
 	return (
-		<div className="border border-gray-700 rounded overflow-hidden">
+		<div className="border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className="w-full flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-750 text-xs text-gray-300 transition-colors"
+				className="w-full flex items-center gap-2 px-3 py-2 bg-white dark:bg-[#1E1E1E] hover:bg-stone-100 dark:bg-[#2A2A2A] text-xs text-stone-700 dark:text-stone-300 transition-colors"
 			>
 				{expanded ? (
 					<ChevronDown size={12} />
@@ -1138,7 +1138,7 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 				)}
 				<GitCompare size={12} className="text-blue-400" />
 				<span className="font-semibold">Dependency Graph Comparison</span>
-				<span className="ml-auto text-[10px] text-gray-500">
+				<span className="ml-auto text-xs text-stone-400 dark:text-stone-500">
 					Original vs Edited
 				</span>
 			</button>
@@ -1146,7 +1146,7 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 			{expanded && (
 				<div className="px-3 py-2 text-xs space-y-3">
 					{!hasDiffs && (
-						<div className="text-gray-500 text-center py-2">
+						<div className="text-stone-400 dark:text-stone-500 text-center py-2">
 							No differences between original and edited dependency graphs.
 						</div>
 					)}
@@ -1162,9 +1162,9 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 									className="ml-2 py-1 flex items-center gap-2 text-emerald-300"
 								>
 									<span className="font-mono font-medium">{node.id}</span>
-									<span className="text-gray-500">{node.title}</span>
+									<span className="text-stone-400 dark:text-stone-500">{node.title}</span>
 									{node.dependencies.length > 0 && (
-										<span className="text-gray-500">
+										<span className="text-stone-400 dark:text-stone-500">
 											deps: [{node.dependencies.join(", ")}]
 										</span>
 									)}
@@ -1184,7 +1184,7 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 									className="ml-2 py-1 flex items-center gap-2 text-red-300 line-through opacity-70"
 								>
 									<span className="font-mono font-medium">{node.id}</span>
-									<span className="text-gray-500">{node.title}</span>
+									<span className="text-stone-400 dark:text-stone-500">{node.title}</span>
 								</div>
 							))}
 						</div>
@@ -1209,13 +1209,13 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 									>
 										<div className="font-mono font-medium text-amber-300 mb-1">
 											{node.id}
-											<span className="text-gray-500 ml-1 font-normal">
+											<span className="text-stone-400 dark:text-stone-500 ml-1 font-normal">
 												{node.title}
 											</span>
 										</div>
-										<div className="flex items-start gap-3 text-[11px]">
+										<div className="flex items-start gap-3 text-xs">
 											<div className="flex-1">
-												<span className="text-gray-500 block mb-0.5">
+												<span className="text-stone-400 dark:text-stone-500 block mb-0.5">
 													Original
 												</span>
 												<div className="font-mono text-red-400 bg-red-900/20 px-2 py-1 rounded">
@@ -1226,10 +1226,10 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 											</div>
 											<ChevronRight
 												size={12}
-												className="text-gray-600 mt-4 shrink-0"
+												className="text-stone-400 dark:text-stone-500 mt-4 shrink-0"
 											/>
 											<div className="flex-1">
-												<span className="text-gray-500 block mb-0.5">
+												<span className="text-stone-400 dark:text-stone-500 block mb-0.5">
 													Edited
 												</span>
 												<div className="font-mono text-emerald-400 bg-emerald-900/20 px-2 py-1 rounded">
@@ -1240,12 +1240,12 @@ export function GraphDiffView({ diffData }: { diffData: GraphDiffData }) {
 											</div>
 										</div>
 										{addedDeps.length > 0 && (
-											<div className="mt-1 text-emerald-400 text-[10px]">
+											<div className="mt-1 text-emerald-400 text-xs">
 												+ Added: {addedDeps.join(", ")}
 											</div>
 										)}
 										{removedDeps.length > 0 && (
-											<div className="mt-0.5 text-red-400 text-[10px]">
+											<div className="mt-0.5 text-red-400 text-xs">
 												- Removed: {removedDeps.join(", ")}
 											</div>
 										)}

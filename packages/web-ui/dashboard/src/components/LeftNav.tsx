@@ -17,6 +17,7 @@
  * - Registry Settings → RegistrySettings
  */
 
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	Activity,
 	Bell,
@@ -39,11 +40,6 @@ import {
 // Style constants
 // ---------------------------------------------------------------------------
 
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -253,7 +249,7 @@ function renderEntries(
 					<div className={`text-[12px] font-medium leading-tight ${isActive ? ACC_TXT : TXT}`}>
 						{entry.label}
 					</div>
-					<div className={`text-[10px] leading-tight mt-0.5 ${MUT} truncate`}>
+					<div className={`text-xs leading-tight mt-0.5 ${MUT} truncate`}>
 						{entry.description}
 					</div>
 				</div>
@@ -269,7 +265,7 @@ function renderEntries(
 export function LeftNav({ activeItem, onNavigate }: LeftNavProps) {
 	return (
 		<div className="flex flex-col gap-0.5 px-2 pb-2">
-			<div className={`mt-0 mb-0.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+			<div className={`mt-0 mb-0.5 px-3 py-1 text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 				Platform
 			</div>
 			{renderEntries(PLATFORM_NAV_ENTRIES, activeItem, onNavigate)}
@@ -287,7 +283,7 @@ interface PlatformSectionHeaderProps {
 
 export function PlatformSectionHeader({ title }: PlatformSectionHeaderProps) {
 	return (
-		<div className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+		<div className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 			{title}
 		</div>
 	);

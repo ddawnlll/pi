@@ -98,7 +98,7 @@ function FileIcon({ ext, isDir, isOpen }: { ext: string; isDir: boolean; isOpen?
 		case "json":
 			return <FileJson size={16} className="text-green-400 shrink-0" />;
 		case "md":
-			return <FileText size={16} className="text-gray-400 shrink-0" />;
+			return <FileText size={16} className="text-stone-500 dark:text-stone-400 shrink-0" />;
 		case "css":
 		case "scss":
 		case "less":
@@ -115,7 +115,7 @@ function FileIcon({ ext, isDir, isOpen }: { ext: string; isDir: boolean; isOpen?
 		case "ico":
 			return <Image size={16} className="text-purple-400 shrink-0" />;
 		default:
-			return <File size={16} className="text-gray-500 shrink-0" />;
+			return <File size={16} className="text-stone-400 dark:text-stone-500 shrink-0" />;
 	}
 }
 
@@ -230,7 +230,7 @@ export function ExecutionFileTree({
 			<div className="flex flex-col items-center justify-center py-12 text-stone-400 dark:text-stone-500">
 				<GitBranch size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">No changed files detected for this execution</p>
-				<p className="text-[10px] mt-1 opacity-50">Files will appear here once workspaces start writing changes</p>
+				<p className="text-xs mt-1 opacity-50">Files will appear here once workspaces start writing changes</p>
 			</div>
 		);
 	}
@@ -244,16 +244,16 @@ export function ExecutionFileTree({
 					placeholder="Filter files..."
 					value={filter}
 					onChange={(e) => setFilter(e.target.value)}
-					className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-[#E8E6E1] dark:border-[#333] rounded px-2 py-1 text-xs text-stone-700 dark:text-stone-300 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:border-stone-400 dark:focus:border-stone-500"
+					className="w-full bg-stone-100 dark:bg-[#1a1a1a] border border-[#E8E6E1] dark:border-[#333] rounded px-2 py-1 text-xs text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:border-stone-400 dark:focus:border-stone-500"
 				/>
 			</div>
 
 			{/* Workspace selection info */}
 			{workspaces.length > 1 && !workspaceId && (
-				<div className="px-3 py-1.5 text-[10px] text-stone-400 dark:text-stone-500 border-b border-[#E8E6E1] dark:border-[#333]">
+				<div className="px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500 border-b border-[#E8E6E1] dark:border-[#333]">
 					Showing files from {workspaces.length} workspace{workspaces.length !== 1 ? "s" : ""}
 					{activeWorkspaceId && (
-						<span className="ml-1 text-stone-500 dark:text-stone-400">
+						<span className="ml-1 text-stone-400 dark:text-stone-500">
 							(active: {activeWorkspaceId.slice(0, 8)})
 						</span>
 					)}
@@ -315,14 +315,14 @@ function TreeNode({ node, depth, expandedDirs, onToggle, onFileSelect, selectedF
 						<span className="w-3 shrink-0" />
 					)}
 					<FileIcon ext={node.ext} isDir isOpen={isExpanded} />
-					<span className="text-xs text-stone-700 dark:text-stone-300 truncate">{node.name}</span>
+					<span className="text-xs text-stone-800 dark:text-stone-200 truncate">{node.name}</span>
 					{node.additions !== undefined && (
-						<span className="text-[10px] text-emerald-600 dark:text-emerald-400 ml-auto shrink-0">
+						<span className="text-xs text-emerald-600 dark:text-emerald-400 ml-auto shrink-0">
 							+{node.additions}
 						</span>
 					)}
 					{node.deletions !== undefined && (
-						<span className="text-[10px] text-red-600 dark:text-red-400 shrink-0 ml-1">-{node.deletions}</span>
+						<span className="text-xs text-red-600 dark:text-red-400 shrink-0 ml-1">-{node.deletions}</span>
 					)}
 				</button>
 				{isExpanded &&
@@ -353,20 +353,20 @@ function TreeNode({ node, depth, expandedDirs, onToggle, onFileSelect, selectedF
 		>
 			<span className="w-3 shrink-0" />
 			<FileIcon ext={node.ext} isDir={false} />
-			<span className={`text-xs truncate ${isSelected ? "text-blue-700 dark:text-blue-300" : "text-stone-700 dark:text-stone-300"}`}>
+			<span className={`text-xs truncate ${isSelected ? "text-blue-700 dark:text-blue-300" : "text-stone-800 dark:text-stone-200"}`}>
 				{node.name}
 			</span>
 			<span
-				className={`text-[9px] px-1 py-0.5 rounded ml-auto shrink-0 ${statusStyle.bg} ${statusStyle.text}`}
+				className={`text-xs px-1 py-0.5 rounded ml-auto shrink-0 ${statusStyle.bg} ${statusStyle.text}`}
 				title={`Status: ${statusStyle.label}`}
 			>
 				{statusStyle.label}
 			</span>
 			{node.additions !== undefined && (
-				<span className="text-[10px] text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">+{node.additions}</span>
+				<span className="text-xs text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">+{node.additions}</span>
 			)}
 			{node.deletions !== undefined && (
-				<span className="text-[10px] text-red-600 dark:text-red-400 shrink-0 ml-1">-{node.deletions}</span>
+				<span className="text-xs text-red-600 dark:text-red-400 shrink-0 ml-1">-{node.deletions}</span>
 			)}
 		</button>
 	);

@@ -645,11 +645,11 @@ export function MultiDagViewer({
 	if (nodes.length === 0) {
 		return (
 			<div
-				className={`flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-gray-700 bg-gray-900/40 ${className ?? ""}`}
+				className={`flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/40 ${className ?? ""}`}
 			>
-				<AlertCircle size={24} className="text-gray-600 mb-2" />
-				<p className="text-xs text-gray-400">No phases to display</p>
-				<p className="text-[10px] text-gray-600 mt-1">
+				<AlertCircle size={24} className="text-stone-400 dark:text-stone-500 mb-2" />
+				<p className="text-xs text-stone-500 dark:text-stone-400">No phases to display</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 					This task has no phases. Add plans to create a dependency graph.
 				</p>
 			</div>
@@ -659,16 +659,16 @@ export function MultiDagViewer({
 	return (
 		<div className={`relative ${className ?? ""}`}>
 			{/* Toolbar */}
-			<div className="flex items-center justify-between px-3 py-1.5 rounded-t-lg border border-gray-700 bg-gray-900/80">
+			<div className="flex items-center justify-between px-3 py-1.5 rounded-t-lg border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/80">
 				<div className="flex items-center gap-2">
-					<h3 className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+					<h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
 						Dependency Graph
 					</h3>
-					<span className="text-[9px] text-gray-600">
+					<span className="text-xs text-stone-400 dark:text-stone-500">
 						{nodes.length} phases / {edges.length} dependencies
 					</span>
 					{hasRunningPhases && (
-						<span className="flex items-center gap-1 text-[9px] text-blue-400">
+						<span className="flex items-center gap-1 text-xs text-blue-400">
 							<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
 							Live
 						</span>
@@ -676,39 +676,39 @@ export function MultiDagViewer({
 				</div>
 				<div className="flex items-center gap-1">
 					{fetchError && (
-						<span className="text-[9px] text-red-400 mr-2">{fetchError}</span>
+						<span className="text-xs text-red-400 mr-2">{fetchError}</span>
 					)}
 					<button
 						onClick={fetchTask}
 						disabled={isRefreshing}
-						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-800 transition-colors disabled:opacity-50"
+						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-white dark:bg-[#1E1E1E] transition-colors disabled:opacity-50"
 						title="Refresh"
 					>
-						<RefreshCw size={11} className={`text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
+						<RefreshCw size={11} className={`text-stone-500 dark:text-stone-400 ${isRefreshing ? "animate-spin" : ""}`} />
 					</button>
 					<button
 						onClick={zoomOut}
-						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-800 transition-colors"
+						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-white dark:bg-[#1E1E1E] transition-colors"
 						title="Zoom out"
 					>
-						<Minus size={11} className="text-gray-400" />
+						<Minus size={11} className="text-stone-500 dark:text-stone-400" />
 					</button>
-					<span className="text-[9px] text-gray-500 tabular-nums w-8 text-center">
+					<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums w-8 text-center">
 						{Math.round(viewTransform.scale * 100)}%
 					</span>
 					<button
 						onClick={zoomIn}
-						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-800 transition-colors"
+						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-white dark:bg-[#1E1E1E] transition-colors"
 						title="Zoom in"
 					>
-						<Plus size={11} className="text-gray-400" />
+						<Plus size={11} className="text-stone-500 dark:text-stone-400" />
 					</button>
 					<button
 						onClick={fitToView}
-						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-gray-800 transition-colors"
+						className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-white dark:bg-[#1E1E1E] transition-colors"
 						title="Fit to view"
 					>
-						<Maximize2 size={11} className="text-gray-400" />
+						<Maximize2 size={11} className="text-stone-500 dark:text-stone-400" />
 					</button>
 				</div>
 			</div>
@@ -716,7 +716,7 @@ export function MultiDagViewer({
 			{/* SVG Container */}
 			<div
 				ref={containerRef}
-				className="relative overflow-hidden rounded-b-lg border border-t-0 border-gray-700 bg-gray-900/20"
+				className="relative overflow-hidden rounded-b-lg border border-t-0 border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/20"
 				style={{ height: "360px" }}
 			>
 				<svg
@@ -829,7 +829,7 @@ export function MultiDagViewer({
 
 				{/* Mini-map */}
 				<div
-					className="absolute bottom-3 right-3 rounded border border-gray-700 bg-gray-900/90 overflow-hidden shadow-lg"
+					className="absolute bottom-3 right-3 rounded border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/90 overflow-hidden shadow-lg"
 					style={{ width: MINI_MAP_SIZE, height: MINI_MAP_SIZE }}
 				>
 					<svg width={MINI_MAP_SIZE} height={MINI_MAP_SIZE}>
@@ -882,7 +882,7 @@ export function MultiDagViewer({
 									className="w-2 h-2 rounded-full"
 									style={{ backgroundColor: colors.stroke }}
 								/>
-								<span className="text-[9px] text-gray-500">{label}</span>
+								<span className="text-xs text-stone-400 dark:text-stone-500">{label}</span>
 							</div>
 						);
 					})}

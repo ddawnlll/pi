@@ -8,25 +8,25 @@ export function PlanSummary({ planState }: PlanSummaryProps) {
   const statusColorMap: Record<string, string> = {
     running: "text-emerald-600 dark:text-emerald-400",
     paused: "text-amber-600 dark:text-amber-400",
-    complete: "text-blue-600 dark:text-blue-400",
+    complete: "text-blue-700 dark:text-blue-300",
     failed: "text-red-600 dark:text-red-400",
     stopped: "text-orange-600 dark:text-orange-400",
-    cancelled: "text-stone-500 dark:text-stone-400",
+    cancelled: "text-stone-400 dark:text-stone-500",
   };
 
   const elapsed = formatElapsed(planState);
 
   return (
-    <div className="bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded-xl p-4">
+    <div className="bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded-lg p-4">
       <h2 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-3">Plan Summary</h2>
-      <div className="text-xs space-y-2 text-stone-500 dark:text-stone-400">
+      <div className="text-xs space-y-2 text-stone-400 dark:text-stone-500">
         <div className="flex justify-between">
           <span>Title</span>
-          <span className="text-stone-700 dark:text-stone-300 font-medium truncate ml-2 max-w-[140px]">{planState.title}</span>
+          <span className="text-stone-800 dark:text-stone-200 font-medium truncate ml-2 max-w-[140px]">{planState.title}</span>
         </div>
         <div className="flex justify-between">
           <span>Phase</span>
-          <span className="text-stone-700 dark:text-stone-300">{planState.phase}</span>
+          <span className="text-stone-800 dark:text-stone-200">{planState.phase}</span>
         </div>
         <div className="flex justify-between">
           <span>Status</span>
@@ -34,7 +34,7 @@ export function PlanSummary({ planState }: PlanSummaryProps) {
         </div>
         <div className="flex justify-between">
           <span>Elapsed</span>
-          <span className="text-stone-700 dark:text-stone-300">{elapsed}</span>
+          <span className="text-stone-800 dark:text-stone-200">{elapsed}</span>
         </div>
       </div>
     </div>

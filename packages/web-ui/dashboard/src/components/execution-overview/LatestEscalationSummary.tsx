@@ -6,12 +6,10 @@
  */
 
 import { AlertTriangle, ArrowRight, MessageSquare, UserCheck } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ function severityColor(severity: EscalationSummaryData["severity"]): string {
 		case "critical": return "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900";
 		case "high": return "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900";
 		case "medium": return "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900";
-		case "low": return "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900";
+		case "low": return "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900";
 	}
 }
 
@@ -123,7 +121,7 @@ export function LatestEscalationSummary({
 			{/* Header */}
 			<div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-inherit">
 				<AlertTriangle size={11} className="shrink-0" />
-				<span className={`text-[9px] font-semibold uppercase tracking-wider`}>
+				<span className={`text-xs font-semibold uppercase tracking-wider`}>
 					{severityLabel(escalation.severity)} Escalation
 				</span>
 			</div>
@@ -134,12 +132,12 @@ export function LatestEscalationSummary({
 					<MessageSquare size={14} className="shrink-0 mt-0.5" />
 					<div className="flex-1 min-w-0">
 						<div className="flex items-center gap-2">
-							<span className={`text-[10px] font-mono ${TXT_MUTED}`}>
+							<span className={`text-xs font-mono ${TXT_MUTED}`}>
 								{escalation.workspaceId.length > 12
 									? `${escalation.workspaceId.slice(0, 8)}..`
 									: escalation.workspaceId}
 							</span>
-							<span className={`text-[9px] ${TXT_MUTED}`}>
+							<span className={`text-xs ${TXT_MUTED}`}>
 								{relativeTime(escalation.issuedAt)}
 							</span>
 						</div>
@@ -152,7 +150,7 @@ export function LatestEscalationSummary({
 									<button
 										key={option.id}
 										onClick={() => onResolve?.(escalation.id, option.id)}
-										className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium text-left bg-white dark:bg-[#2A2A2A] hover:bg-stone-50 dark:hover:bg-[#333] border ${BORD} transition-colors`}
+										className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-left bg-white dark:bg-[#2A2A2A] hover:bg-stone-50 dark:hover:bg-[#333] border ${BORD} transition-colors`}
 									>
 										<ArrowRight size={9} className="shrink-0" />
 										<span>{option.label}</span>
@@ -164,7 +162,7 @@ export function LatestEscalationSummary({
 						{onViewAll && (
 							<button
 								onClick={onViewAll}
-								className="inline-flex items-center gap-1 mt-2 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+								className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
 							>
 								View all escalations
 								<ArrowRight size={10} />

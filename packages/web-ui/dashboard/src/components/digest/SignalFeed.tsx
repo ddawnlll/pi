@@ -37,21 +37,21 @@ function SignalItem({ signal }: { signal: BrainSignal }) {
 					{signal.title}
 				</div>
 				{signal.details && (
-					<div className="text-[10px] text-stone-400 dark:text-stone-500 mt-0.5 line-clamp-2">
+					<div className="text-xs text-stone-400 dark:text-stone-500 mt-0.5 line-clamp-2">
 						{signal.details}
 					</div>
 				)}
 				<div className="flex items-center gap-2 mt-1">
-					<span className="text-[9px] text-stone-400 dark:text-stone-500 uppercase">
+					<span className="text-xs text-stone-400 dark:text-stone-500 uppercase">
 						{signal.type.replace(/_/g, " ")}
 					</span>
-					<span className="text-[9px] text-stone-400 dark:text-stone-500">
+					<span className="text-xs text-stone-400 dark:text-stone-500">
 						{new Date(signal.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 					</span>
 				</div>
 			</div>
 			{signal.resolved && (
-				<span className="shrink-0 text-[9px] text-emerald-500 font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20">
+				<span className="shrink-0 text-xs text-emerald-500 font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20">
 					Resolved
 				</span>
 			)}
@@ -84,7 +84,7 @@ export function SignalFeed({ signals, loading, error, onRefresh }: SignalFeedPro
 						Signal Feed
 					</h2>
 					{signals && signals.length > 0 && (
-						<span className="text-[10px] text-stone-400 dark:text-stone-500">
+						<span className="text-xs text-stone-400 dark:text-stone-500">
 							{signals.length} active
 						</span>
 					)}

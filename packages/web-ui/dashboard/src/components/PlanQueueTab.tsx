@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	Play, Pause, Square, SkipForward, Trash2, ArrowUpToLine,
 	GripVertical, Loader2, Upload, Clock, AlertCircle, CheckCircle2,
@@ -10,11 +11,6 @@ import { SectionHeader, Divider } from "./SectionHeader";
 
 // ── constants ──────────────────────────────────────────────────────────────
 
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -27,8 +23,8 @@ function formatTime(ts: number | null): string {
 function statusColor(status: PlanQueueEntry["status"]): string {
 	switch (status) {
 		case "active": return "text-emerald-600 dark:text-emerald-400";
-		case "pending": return "text-stone-500 dark:text-stone-400";
-		case "complete": return "text-blue-600 dark:text-blue-400";
+		case "pending": return "text-stone-400 dark:text-stone-500";
+		case "complete": return "text-blue-700 dark:text-blue-300";
 		case "failed": return "text-red-600 dark:text-red-400";
 		case "skipped": return "text-orange-500 dark:text-orange-400";
 		case "blocked": return "text-amber-600 dark:text-amber-400";
@@ -104,10 +100,10 @@ function QueueEntryRow({
 			</div>
 
 			{/* Position number */}
-			<span className={`text-[10px] font-mono ${MUT} w-5 text-center shrink-0`}>{index + 1}</span>
+			<span className={`text-xs font-mono ${MUT} w-5 text-center shrink-0`}>{index + 1}</span>
 
 			{/* Status indicator */}
-			<span className={`text-[10px] font-semibold uppercase tracking-wider shrink-0 ${statusColor(entry.status)}`}>
+			<span className={`text-xs font-semibold uppercase tracking-wider shrink-0 ${statusColor(entry.status)}`}>
 				{entry.status}
 			</span>
 
@@ -117,13 +113,13 @@ function QueueEntryRow({
 			</span>
 
 			{/* Time info */}
-			<span className={`text-[10px] ${MUT} shrink-0 tabular-nums`}>
+			<span className={`text-xs ${MUT} shrink-0 tabular-nums`}>
 				{entry.startedAt ? formatTime(entry.startedAt) : formatTime(entry.queuedAt)}
 			</span>
 
 			{/* Error */}
 			{entry.error && (
-				<span className="text-[10px] text-red-500 dark:text-red-400 truncate max-w-[100px]" title={entry.error}>
+				<span className="text-xs text-red-500 dark:text-red-400 truncate max-w-[100px]" title={entry.error}>
 					{entry.error}
 				</span>
 			)}
@@ -180,7 +176,7 @@ function QueueEntryRow({
 					</button>
 				)}
 				{isActive && (
-					<span className="flex items-center gap-1 text-[10px] text-emerald-500 dark:text-emerald-400">
+					<span className="flex items-center gap-1 text-xs text-emerald-500 dark:text-emerald-400">
 						<Loader2 size={10} className="animate-spin" /> running
 					</span>
 				)}
@@ -393,14 +389,14 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing, enqueueResult }: MultiPlanUp
 				<div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
 					<div className={`flex flex-col items-center gap-1 px-4 py-3 rounded-lg ${SURF} border-2 border-dashed border-blue-400 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 shadow-lg`}>
 						<FileUp size={20} className="text-blue-500 dark:text-blue-400" />
-						<span className="text-xs font-medium text-blue-600 dark:text-blue-400">Drop plan files here</span>
-						<span className="text-[10px] text-blue-400 dark:text-blue-500">.md, .json, .txt</span>
+						<span className="text-xs font-medium text-blue-700 dark:text-blue-300">Drop plan files here</span>
+						<span className="text-xs text-blue-400 dark:text-blue-500">.md, .json, .txt</span>
 					</div>
 				</div>
 			)}
 			<div className="flex items-center justify-between">
 				<span className={`text-xs font-semibold ${TXT}`}>Add Plans to Queue</span>
-				<span className={`text-[10px] ${MUT}`}>{plans.length} plan{plans.length !== 1 ? "s" : ""} · {totalChars} chars</span>
+				<span className={`text-xs ${MUT}`}>{plans.length} plan{plans.length !== 1 ? "s" : ""} · {totalChars} chars</span>
 			</div>
 
 			{plans.map((plan, index) => (
@@ -415,14 +411,14 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing, enqueueResult }: MultiPlanUp
 						/>
 						<button
 							onClick={() => handleFileUpload(index)}
-							className={`text-[10px] px-2 py-1 rounded ${SURF} border ${BORD} ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`}
+							className={`text-xs px-2 py-1 rounded ${SURF} border ${BORD} ${MUT} hover:text-stone-600 dark:hover:text-stone-300 transition-colors`}
 						>
 							<Upload size={10} className="inline mr-1" /> File
 						</button>
 						{plans.length > 1 && (
 							<button
 								onClick={() => removePlanSlot(index)}
-								className={`text-[10px] px-1.5 py-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors`}
+								className={`text-xs px-1.5 py-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors`}
 							>
 								<Trash2 size={10} />
 							</button>
@@ -448,7 +444,7 @@ function MultiPlanUpload({ onEnqueue, isEnqueueing, enqueueResult }: MultiPlanUp
 					{enqueueResult.safetyWarnings.map((sw, i) => (
 						<div key={i} className="space-y-0.5">
 							{sw.planFileName && (
-								<span className="text-amber-600 dark:text-amber-500 font-mono text-[10px]">{sw.planFileName}</span>
+								<span className="text-amber-600 dark:text-amber-500 font-mono text-xs">{sw.planFileName}</span>
 							)}
 							{sw.warnings.map((w, j) => (
 								<div key={j} className="ml-2 text-amber-700 dark:text-amber-400">{w}</div>
@@ -659,7 +655,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 			<div className={`shrink-0 flex items-center gap-1.5 px-3 py-2 border-b ${BORD} ${SURF}`}>
 				<StatusBadge status={isPaused ? "paused" : activeEntry ? "running" : "pending"} />
 				{willStopAfterCurrent && (
-					<span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+					<span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
 						stop after current
 					</span>
 				)}
@@ -668,7 +664,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 					onClick={() => runNext()}
 					disabled={isPaused || !!activeEntry || pendingEntries.length === 0}
 					title="Run next queued plan"
-					className={`h-7 px-2 rounded text-[10px] font-medium inline-flex items-center gap-1 transition-colors
+					className={`h-7 px-2 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors
 						bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800
 						hover:bg-emerald-100 dark:hover:bg-emerald-950/50 disabled:opacity-40 disabled:cursor-not-allowed`}
 				>
@@ -678,7 +674,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 					onClick={() => pause()}
 					disabled={isPaused || !activeEntry}
 					title="Pause queue"
-					className={`h-7 px-2 rounded text-[10px] font-medium inline-flex items-center gap-1 transition-colors
+					className={`h-7 px-2 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors
 						bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800
 						hover:bg-amber-100 dark:hover:bg-amber-950/50 disabled:opacity-40 disabled:cursor-not-allowed`}
 				>
@@ -688,7 +684,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 					onClick={() => resume()}
 					disabled={!isPaused}
 					title="Resume queue"
-					className={`h-7 px-2 rounded text-[10px] font-medium inline-flex items-center gap-1 transition-colors
+					className={`h-7 px-2 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors
 						bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800
 						hover:bg-emerald-100 dark:hover:bg-emerald-950/50 disabled:opacity-40 disabled:cursor-not-allowed`}
 				>
@@ -698,7 +694,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 					onClick={() => stopAfterCurrentFn()}
 					disabled={willStopAfterCurrent || !activeEntry}
 					title="Stop after current plan finishes"
-					className={`h-7 px-2 rounded text-[10px] font-medium inline-flex items-center gap-1 transition-colors
+					className={`h-7 px-2 rounded text-xs font-medium inline-flex items-center gap-1 transition-colors
 						bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800
 						hover:bg-orange-100 dark:hover:bg-orange-950/50 disabled:opacity-40 disabled:cursor-not-allowed`}
 				>
@@ -804,7 +800,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 								key={entry.entryId}
 								className={`flex items-center gap-2 px-3 py-2 border-b ${BORD} ${statusBg(entry.status)}`}
 							>
-								<span className={`text-[10px] font-semibold uppercase tracking-wider shrink-0 ${statusColor(entry.status)}`}>
+								<span className={`text-xs font-semibold uppercase tracking-wider shrink-0 ${statusColor(entry.status)}`}>
 									{entry.status === "complete" ? <CheckCircle2 size={10} className="inline mr-1" /> :
 									 entry.status === "failed" ? <AlertCircle size={10} className="inline mr-1" /> :
 									 <Ban size={10} className="inline mr-1" />}
@@ -813,7 +809,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 								<span className={`flex-1 min-w-0 text-xs font-medium truncate ${MUT}`}>
 									{entry.title}
 								</span>
-								<span className={`text-[10px] ${MUT} shrink-0 tabular-nums`}>
+								<span className={`text-xs ${MUT} shrink-0 tabular-nums`}>
 									{formatTime(entry.completedAt)}
 								</span>
 							</div>
@@ -826,7 +822,7 @@ export function PlanQueueTab({ projectId }: PlanQueueTabProps) {
 					<div className={`flex flex-col items-center justify-center py-12 gap-3 ${MUT}`}>
 						<Clock size={28} strokeWidth={1.2} />
 						<p className="text-xs">No plans in queue</p>
-						<p className="text-[10px] max-w-[200px] text-center">
+						<p className="text-xs max-w-[200px] text-center">
 							Upload plans above to add them to the execution queue.
 						</p>
 					</div>

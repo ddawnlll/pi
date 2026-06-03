@@ -73,7 +73,7 @@ export function BrainMemoryPage() {
 				<h1 className="text-base font-semibold text-stone-800 dark:text-stone-200">
 					Memory Explorer
 				</h1>
-				<button onClick={refresh} className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
+				<button onClick={refresh} className="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
 					Refresh
 				</button>
 			</div>
@@ -92,7 +92,7 @@ export function BrainMemoryPage() {
 
 			{/* Stats */}
 			{stats && (
-				<div className="flex items-center gap-4 text-[10px] text-stone-400">
+				<div className="flex items-center gap-4 text-xs text-stone-400">
 					<span>{stats.total} memories</span>
 					{Object.entries(stats.byType).map(([type, count]) => (
 						<span key={type}>{type.replace(/_/g, " ")}: {count}</span>

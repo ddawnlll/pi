@@ -6,12 +6,10 @@
  */
 
 import { ArrowRight, Lightbulb, Sparkles } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -51,7 +49,7 @@ function priorityColor(priority: NextAction["priority"]): string {
 		case "medium":
 			return "text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30";
 		case "low":
-			return "text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30";
+			return "text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30";
 	}
 }
 
@@ -105,11 +103,11 @@ export function NextActionCard({
 				</div>
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
-						<span className={`text-[10px] font-semibold uppercase tracking-wider ${action.priority === "high" ? "text-red-600 dark:text-red-400" : action.priority === "medium" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"}`}>
+						<span className={`text-xs font-semibold uppercase tracking-wider ${action.priority === "high" ? "text-red-600 dark:text-red-400" : action.priority === "medium" ? "text-amber-600 dark:text-amber-400" : "text-blue-700 dark:text-blue-300"}`}>
 							{priorityLabel(action.priority)}
 						</span>
 						{action.workspaceId && (
-							<span className={`text-[9px] font-mono ${TXT_MUTED}`}>
+							<span className={`text-xs font-mono ${TXT_MUTED}`}>
 								{action.workspaceId.length > 12
 									? `${action.workspaceId.slice(0, 8)}..`
 									: action.workspaceId}
@@ -117,10 +115,10 @@ export function NextActionCard({
 						)}
 					</div>
 					<h4 className={`text-sm font-medium ${TXT} mt-0.5`}>{action.title}</h4>
-					<p className={`text-[11px] ${TXT_MUTED} mt-0.5 line-clamp-2`}>{action.description}</p>
+					<p className={`text-xs ${TXT_MUTED} mt-0.5 line-clamp-2`}>{action.description}</p>
 					<button
 						onClick={action.onAction}
-						className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+						className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
 					>
 						<Sparkles size={11} />
 						{action.actionLabel ?? "Take Action"}

@@ -11,7 +11,7 @@ export function BrainReflectionsPage() {
 		<div className="p-6 max-w-3xl mx-auto space-y-4">
 			<div className="flex items-center justify-between">
 				<h1 className="text-base font-semibold text-stone-800 dark:text-stone-200">Reflections</h1>
-				<button onClick={refresh} className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
+				<button onClick={refresh} className="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700">
 					Refresh
 				</button>
 			</div>

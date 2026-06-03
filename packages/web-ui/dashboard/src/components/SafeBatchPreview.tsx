@@ -14,6 +14,7 @@
  * - Normal batch display with parallelism indicators
  */
 
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	AlertCircle,
@@ -25,12 +26,6 @@ import {
 // Style constants
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-blue-50 dark:bg-blue-900/20";
 const DANGER_BG = "bg-red-50 dark:bg-red-900/10";
 const DANGER_TXT = "text-red-600 dark:text-red-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/10";
@@ -111,14 +106,14 @@ function BatchCard({ batch, isEarliest, index }: {
 				"bg-stone-50 dark:bg-stone-800/30 border-b border-[#E8E6E1] dark:border-[#333]"
 			}`}>
 				<div className="flex items-center gap-2">
-					<span className={`text-[10px] font-semibold ${isEarliest ? "text-emerald-700 dark:text-emerald-300" : MUT}`}>
+					<span className={`text-xs font-semibold ${isEarliest ? "text-emerald-700 dark:text-emerald-300" : MUT}`}>
 						Batch {batch.batchIndex}
 					</span>
 					{isEarliest && (
-						<span className="text-[9px] text-emerald-600 dark:text-emerald-400">(runs first)</span>
+						<span className="text-xs text-emerald-600 dark:text-emerald-400">(runs first)</span>
 					)}
 				</div>
-				<span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+				<span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
 					batch.width > 1
 						? `${SUCCESS_BG} ${SUCCESS_TXT}`
 						: `${MUT}`
@@ -130,7 +125,7 @@ function BatchCard({ batch, isEarliest, index }: {
 				{batch.workspaceIds.map((wsId) => (
 					<span
 						key={wsId}
-						className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+						className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
 							${isEarliest
 								? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
 								: "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#333]"
@@ -167,7 +162,7 @@ export function SafeBatchPreview({
 				</div>
 				<div className="text-center">
 					<p className={`text-xs ${MUT}`}>Computing safe batch plan...</p>
-					<p className={`text-[10px] ${MUT} mt-1`}>Analyzing workspace dependency graph for optimal parallelism.</p>
+					<p className={`text-xs ${MUT} mt-1`}>Analyzing workspace dependency graph for optimal parallelism.</p>
 				</div>
 			</div>
 		);
@@ -181,7 +176,7 @@ export function SafeBatchPreview({
 					<AlertCircle size={14} className={`mt-0.5 shrink-0 ${DANGER_TXT}`} />
 					<div className="flex-1 min-w-0">
 						<p className={`text-xs font-medium ${DANGER_TXT}`}>Failed to compute batch plan</p>
-						<p className={`text-[11px] mt-1 ${MUT}`}>{error}</p>
+						<p className={`text-xs mt-1 ${MUT}`}>{error}</p>
 					</div>
 				</div>
 				{onRetry && (
@@ -204,7 +199,7 @@ export function SafeBatchPreview({
 				<div className="flex flex-col items-center justify-center py-6 gap-2">
 					<Layers size={24} className={`${MUT}`} strokeWidth={1.2} />
 					<p className={`text-xs ${MUT}`}>No batch plan available</p>
-					<p className={`text-[10px] ${MUT} text-center max-w-xs`}>
+					<p className={`text-xs ${MUT} text-center max-w-xs`}>
 						Upload and validate a plan to see the topological batch breakdown
 						and parallelism analysis.
 					</p>
@@ -224,7 +219,7 @@ export function SafeBatchPreview({
 					<Layers size={14} className={ACC_TXT} />
 					<h3 className={`text-sm font-semibold ${TXT}`}>Safe Batch Preview</h3>
 				</div>
-				<span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
+				<span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
 					hasErrors ? `${DANGER_BG} ${DANGER_TXT}` :
 					data.isOverSerialized ? `${WARN_BG} ${WARN_TXT}` :
 					`${SUCCESS_BG} ${SUCCESS_TXT}`
@@ -239,8 +234,8 @@ export function SafeBatchPreview({
 					<div className={`flex items-start gap-2 p-2.5 rounded-lg border ${WARN_BG} ${WARN_TXT} border-amber-200 dark:border-amber-800`}>
 						<AlertTriangle size={12} className="mt-0.5 shrink-0" />
 						<div className="flex-1 min-w-0">
-							<p className="text-[10px] font-medium">{staleReason}</p>
-							<p className="text-[9px] mt-0.5 opacity-70">Revalidate the plan to refresh the batch plan.</p>
+							<p className="text-xs font-medium">{staleReason}</p>
+							<p className="text-xs mt-0.5 opacity-70">Revalidate the plan to refresh the batch plan.</p>
 						</div>
 						{onRetry && (
 							<button onClick={onRetry} className="shrink-0 p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-800/50">
@@ -257,7 +252,7 @@ export function SafeBatchPreview({
 						{data.errors.map((err, idx) => (
 							<div key={idx} className="flex items-start gap-1.5">
 								<AlertCircle size={10} className={`mt-0.5 shrink-0 ${DANGER_TXT}`} />
-								<p className={`text-[10px] ${DANGER_TXT}`}>{err.message}</p>
+								<p className={`text-xs ${DANGER_TXT}`}>{err.message}</p>
 							</div>
 						))}
 					</div>
@@ -268,19 +263,19 @@ export function SafeBatchPreview({
 						{/* Metrics summary */}
 						<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
 							<div className={`${ACC_BG} rounded-lg p-2.5 text-center`}>
-								<p className={`text-[9px] ${MUT} uppercase tracking-wider`}>Batches</p>
+								<p className={`text-xs ${MUT} uppercase tracking-wider`}>Batches</p>
 								<p className={`text-sm font-bold ${ACC_TXT}`}>{data.totalBatches}</p>
 							</div>
 							<div className={`${SUCCESS_BG} rounded-lg p-2.5 text-center`}>
-								<p className={`text-[9px] ${MUT} uppercase tracking-wider`}>Parallelism</p>
+								<p className={`text-xs ${MUT} uppercase tracking-wider`}>Parallelism</p>
 								<p className={`text-sm font-bold ${SUCCESS_TXT}`}>{data.effectiveParallelism}</p>
 							</div>
 							<div className="bg-stone-50 dark:bg-stone-800/30 rounded-lg p-2.5 text-center">
-								<p className={`text-[9px] ${MUT} uppercase tracking-wider`}>Requested</p>
+								<p className={`text-xs ${MUT} uppercase tracking-wider`}>Requested</p>
 								<p className={`text-sm font-bold ${TXT}`}>{data.requestedParallelism}</p>
 							</div>
 							<div className="bg-stone-50 dark:bg-stone-800/30 rounded-lg p-2.5 text-center">
-								<p className={`text-[9px] ${MUT} uppercase tracking-wider`}>Delta</p>
+								<p className={`text-xs ${MUT} uppercase tracking-wider`}>Delta</p>
 								<p className={`text-sm font-bold ${data.parallelismDelta <= 0 ? DANGER_TXT : SUCCESS_TXT}`}>
 									{data.parallelismDelta > 0 ? `+${data.parallelismDelta}` : data.parallelismDelta}
 								</p>
@@ -292,8 +287,8 @@ export function SafeBatchPreview({
 							<div className={`flex items-start gap-2 p-2.5 rounded-lg border ${WARN_BG} ${WARN_TXT} border-amber-200 dark:border-amber-800`}>
 								<AlertTriangle size={12} className="mt-0.5 shrink-0" />
 								<div>
-									<p className="text-[10px] font-medium">Plan is over-serialized</p>
-									<p className="text-[9px] mt-0.5 opacity-70">
+									<p className="text-xs font-medium">Plan is over-serialized</p>
+									<p className="text-xs mt-0.5 opacity-70">
 										Requested parallelism ({data.requestedParallelism}) exceeds effective parallelism ({data.effectiveParallelism}).
 										Workspaces will execute sequentially despite requesting parallel workers.
 									</p>
@@ -307,7 +302,7 @@ export function SafeBatchPreview({
 								{data.warnings.map((warn, idx) => (
 									<div key={idx} className={`flex items-start gap-1.5 p-2 rounded-lg ${WARN_BG} border border-amber-200 dark:border-amber-800`}>
 										<AlertTriangle size={10} className={`mt-0.5 shrink-0 ${WARN_TXT}`} />
-										<p className={`text-[10px] ${WARN_TXT}`}>{warn.message}</p>
+										<p className={`text-xs ${WARN_TXT}`}>{warn.message}</p>
 									</div>
 								))}
 							</div>
@@ -329,7 +324,7 @@ export function SafeBatchPreview({
 						{data.blockExplanations.length > 0 && (
 							<div className={`rounded-lg border ${BORD} overflow-hidden`}>
 								<div className={`px-3 py-1.5 bg-stone-50 dark:bg-stone-800/30 border-b ${BORD}`}>
-									<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+									<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 										Blocked Workspace Explanations ({data.blockExplanations.length})
 									</span>
 								</div>
@@ -339,12 +334,12 @@ export function SafeBatchPreview({
 											<div className="flex items-start gap-1.5">
 												<AlertCircle size={10} className={`mt-0.5 shrink-0 ${WARN_TXT}`} />
 												<div>
-													<p className="text-[11px] font-medium text-stone-700 dark:text-stone-300">
+													<p className="text-xs font-medium text-stone-800 dark:text-stone-200">
 														{exp.workspaceId}
 													</p>
-													<p className="text-[10px] ${MUT} mt-0.5">{exp.reason}</p>
+													<p className="text-xs ${MUT} mt-0.5">{exp.reason}</p>
 													{exp.blockedBy.length > 0 && (
-														<p className={`text-[9px] ${MUT} mt-0.5`}>
+														<p className={`text-xs ${MUT} mt-0.5`}>
 															Blocked by: {exp.blockedBy.join(", ")}
 														</p>
 													)}

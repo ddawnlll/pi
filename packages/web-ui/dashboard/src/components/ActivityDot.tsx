@@ -26,12 +26,12 @@ function pulseColor(state: PulseState): string {
 	switch (state) {
 		case "streaming":
 		case "thinking":
-			return "bg-green-500 shadow-green-500/50";
+			return "bg-emerald-500";
 		case "idle":
 		case "blocked":
-			return "bg-yellow-500 shadow-yellow-500/50";
+			return "bg-amber-500";
 		case "retrying":
-			return "bg-red-500 shadow-red-500/50";
+			return "bg-red-500";
 	}
 }
 

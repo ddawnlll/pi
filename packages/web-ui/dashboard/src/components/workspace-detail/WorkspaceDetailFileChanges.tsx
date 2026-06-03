@@ -5,14 +5,11 @@
  */
 
 import { FileCode, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { ChangedFileEntry } from "../../hooks/useChangedFiles";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Status badge helpers ──────────────────────────────────────────────────
 
@@ -108,11 +105,11 @@ export function WorkspaceDetailFileChanges({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <FileCode size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             File Changes
           </span>
         </div>
-        <span className={`text-[10px] tabular-nums ${MUT}`}>
+        <span className={`text-xs tabular-nums ${MUT}`}>
           {files.length} file{files.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -126,19 +123,19 @@ export function WorkspaceDetailFileChanges({
           >
             {/* Status badge */}
             <span
-              className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-[9px] font-bold ${statusColor(f.status)}`}
+              className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold ${statusColor(f.status)}`}
               title={f.status}
             >
               {statusLabel(f.status)}
             </span>
 
             {/* Filename */}
-            <span className={`font-mono ${TXT} truncate flex-1 min-w-0 text-[10px]`} title={f.path}>
+            <span className={`font-mono ${TXT} truncate flex-1 min-w-0 text-xs`} title={f.path}>
               {f.name || f.path}
             </span>
 
             {/* Diff stats */}
-            <span className={`shrink-0 text-[9px] tabular-nums ${MUT}`}>
+            <span className={`shrink-0 text-xs tabular-nums ${MUT}`}>
               {formatDiff(f.additions, f.deletions)}
             </span>
           </div>

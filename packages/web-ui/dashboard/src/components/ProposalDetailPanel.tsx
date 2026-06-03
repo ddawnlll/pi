@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import type { ApprovalGateStatus, ProposalResponse } from "../types";
 import { useProposalActions } from "../hooks/useProposals";
 
@@ -20,11 +21,6 @@ import { useProposalActions } from "../hooks/useProposals";
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -107,7 +103,7 @@ function GateBadge({ status }: { status: ApprovalGateStatus }) {
 
 	return (
 		<span
-			className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.color} ${c.bg}`}
+			className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${c.color} ${c.bg}`}
 		>
 			<span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
 			{c.label}
@@ -118,7 +114,7 @@ function GateBadge({ status }: { status: ApprovalGateStatus }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
 		<div className="mb-4">
-			<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2 px-4`}>
+			<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2 px-4`}>
 				{title}
 			</h4>
 			{children}
@@ -143,7 +139,7 @@ function ActionButton({
 	loading = false,
 }: ActionButtonProps) {
 	const base =
-		"flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+		"flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 	const variants: Record<string, string> = {
 		primary:
 			"bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600",
@@ -152,7 +148,7 @@ function ActionButton({
 		warning:
 			"bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 border border-amber-200 dark:border-amber-800",
 		ghost:
-			"text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] border border-transparent",
+			"text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] border border-transparent",
 	};
 
 	return (
@@ -197,7 +193,7 @@ function KeyValue({
 	return (
 		<div className="flex items-center gap-2 px-4 py-1.5 text-xs">
 			<span className={`${MUT} shrink-0 w-28`}>{label}</span>
-			<span className={`${TXT} ${mono ? "font-mono text-[11px]" : ""} break-all`}>
+			<span className={`${TXT} ${mono ? "font-mono text-xs" : ""} break-all`}>
 				{String(value)}
 			</span>
 		</div>
@@ -314,7 +310,7 @@ export function ProposalDetailPanel({
 						<h2 className={`text-sm font-semibold ${TXT} truncate`}>
 							{proposal.title}
 						</h2>
-						<p className={`text-[11px] font-mono ${MUT} mt-0.5`}>
+						<p className={`text-xs font-mono ${MUT} mt-0.5`}>
 							{proposal.id}
 						</p>
 					</div>
@@ -322,25 +318,25 @@ export function ProposalDetailPanel({
 
 				{/* P9.F AC1: Separate planning and execution approval gates */}
 				<div className="flex items-center gap-2 mb-2">
-					<span className={`text-[10px] font-semibold ${MUT} uppercase tracking-wider`}>
+					<span className={`text-xs font-semibold ${MUT} uppercase tracking-wider`}>
 						Gates:
 					</span>
 					<div className="flex items-center gap-1.5">
-						<span className="text-[9px] font-medium text-stone-500">Plan</span>
+						<span className="text-xs font-medium text-stone-500">Plan</span>
 						<GateBadge status={proposal.planningApproval.status} />
 					</div>
 					<div className="flex items-center gap-1.5">
-						<span className="text-[9px] font-medium text-stone-500">Exec</span>
+						<span className="text-xs font-medium text-stone-500">Exec</span>
 						<GateBadge status={proposal.executionApproval.status} />
 					</div>
 					<div className="flex items-center gap-1.5">
-						<span className="text-[9px] font-medium text-stone-500">Self-mod</span>
+						<span className="text-xs font-medium text-stone-500">Self-mod</span>
 						<GateBadge status={proposal.selfModificationApproval.status} />
 					</div>
 				</div>
 
 				{/* Dry-run and Budget status */}
-				<div className="flex items-center gap-3 text-[10px]">
+				<div className="flex items-center gap-3 text-xs">
 					<span className={`${MUT}`}>
 						Phase: <span className={`${TXT} font-medium`}>{proposal.phase}</span>
 					</span>
@@ -381,7 +377,7 @@ export function ProposalDetailPanel({
 							</span>
 						</span>
 					)}
-					<span className={`text-[10px] ${MUT}`}>
+					<span className={`text-xs ${MUT}`}>
 						Submitted: {formatTimestamp(proposal.submittedAt)}
 					</span>
 				</div>
@@ -475,7 +471,7 @@ export function ProposalDetailPanel({
 						{proposal.planningApproval.status === "approved" &&
 							!canApproveForExecution && (
 								<div
-									className={`text-[10px] px-2 py-1.5 rounded ${BORD} border bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300`}
+									className={`text-xs px-2 py-1.5 rounded ${BORD} border bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300`}
 								>
 									Execution approval requires passed dry-run and valid budget.
 									Current: dry-run = {proposal.dryRunStatus}, budget ={" "}
@@ -570,60 +566,60 @@ export function ProposalDetailPanel({
 					<div className={`mx-3 rounded-lg border ${BORD} divide-y ${BORD}`}>
 						<div className={`px-4 py-2.5 ${SURF}`}>
 							<div className="flex items-center justify-between">
-								<span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+								<span className="text-xs font-medium text-stone-800 dark:text-stone-200">
 									Planning
 								</span>
 								<GateBadge status={proposal.planningApproval.status} />
 							</div>
 							{proposal.planningApproval.actionedBy && (
-								<p className={`text-[10px] ${MUT} mt-0.5`}>
+								<p className={`text-xs ${MUT} mt-0.5`}>
 									By: {proposal.planningApproval.actionedBy}
 									{proposal.planningApproval.actionedAt &&
 										` · ${formatTimestamp(proposal.planningApproval.actionedAt)}`}
 								</p>
 							)}
 							{proposal.planningApproval.reason && (
-								<p className={`text-[10px] ${MUT} mt-0.5 italic`}>
+								<p className={`text-xs ${MUT} mt-0.5 italic`}>
 									"{proposal.planningApproval.reason}"
 								</p>
 							)}
 						</div>
 						<div className={`px-4 py-2.5 ${SURF}`}>
 							<div className="flex items-center justify-between">
-								<span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+								<span className="text-xs font-medium text-stone-800 dark:text-stone-200">
 									Execution
 								</span>
 								<GateBadge status={proposal.executionApproval.status} />
 							</div>
 							{proposal.executionApproval.actionedBy && (
-								<p className={`text-[10px] ${MUT} mt-0.5`}>
+								<p className={`text-xs ${MUT} mt-0.5`}>
 									By: {proposal.executionApproval.actionedBy}
 									{proposal.executionApproval.actionedAt &&
 										` · ${formatTimestamp(proposal.executionApproval.actionedAt)}`}
 								</p>
 							)}
 							{proposal.executionApproval.reason && (
-								<p className={`text-[10px] ${MUT} mt-0.5 italic`}>
+								<p className={`text-xs ${MUT} mt-0.5 italic`}>
 									"{proposal.executionApproval.reason}"
 								</p>
 							)}
 						</div>
 						<div className={`px-4 py-2.5 ${SURF}`}>
 							<div className="flex items-center justify-between">
-								<span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+								<span className="text-xs font-medium text-stone-800 dark:text-stone-200">
 									Self-Modification
 								</span>
 								<GateBadge status={proposal.selfModificationApproval.status} />
 							</div>
 							{proposal.selfModificationApproval.actionedBy && (
-								<p className={`text-[10px] ${MUT} mt-0.5`}>
+								<p className={`text-xs ${MUT} mt-0.5`}>
 									By: {proposal.selfModificationApproval.actionedBy}
 									{proposal.selfModificationApproval.actionedAt &&
 										` · ${formatTimestamp(proposal.selfModificationApproval.actionedAt)}`}
 								</p>
 							)}
 							{proposal.selfModificationApproval.reason && (
-								<p className={`text-[10px] ${MUT} mt-0.5 italic`}>
+								<p className={`text-xs ${MUT} mt-0.5 italic`}>
 									"{proposal.selfModificationApproval.reason}"
 								</p>
 							)}
@@ -647,11 +643,11 @@ export function ProposalDetailPanel({
 												{String(ws.title ?? ws.id ?? `Workspace ${i + 1}`)}
 											</p>
 											<div className="flex gap-3 mt-0.5">
-												<span className={`text-[10px] ${MUT}`}>
+												<span className={`text-xs ${MUT}`}>
 													ID: {String(ws.id ?? "—")}
 												</span>
 												{(Boolean(ws.dependencies) && (
-													<span className={`text-[10px] ${MUT}`}>
+													<span className={`text-xs ${MUT}`}>
 														Deps:{" "}
 														{((ws.dependencies as unknown[]) || []).length > 0
 															? (ws.dependencies as unknown[]).join(", ")
@@ -680,7 +676,7 @@ export function ProposalDetailPanel({
 											{opt.description}
 										</p>
 										<span
-											className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+											className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
 												opt.approvalStatus === "approved"
 													? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
 													: opt.approvalStatus === "rejected"
@@ -691,7 +687,7 @@ export function ProposalDetailPanel({
 											{opt.approvalStatus}
 										</span>
 									</div>
-									<p className={`text-[10px] ${MUT} mt-0.5`}>
+									<p className={`text-xs ${MUT} mt-0.5`}>
 										Kind: {opt.kind}
 									</p>
 								</div>
@@ -704,7 +700,7 @@ export function ProposalDetailPanel({
 				<Section title="Planner Output (Raw)">
 					<div className={`mx-3 rounded-lg border ${BORD} overflow-hidden`}>
 						<pre
-							className={`px-4 py-3 text-[10px] font-mono leading-relaxed ${MUT} max-h-64 overflow-y-auto ${SURF}`}
+							className={`px-4 py-3 text-xs font-mono leading-relaxed ${MUT} max-h-64 overflow-y-auto ${SURF}`}
 						>
 							{formatJSON(plannerOutput)}
 						</pre>
@@ -725,7 +721,7 @@ export function ProposalDetailPanel({
 								<div key={i} className={`px-4 py-2.5 ${SURF}`}>
 									<div className="flex items-center gap-2">
 										<span
-											className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+											className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
 												entry.action === "approved" ||
 												entry.action === "approved_for_planning" ||
 												entry.action === "approved_for_execution" ||
@@ -735,7 +731,7 @@ export function ProposalDetailPanel({
 														? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
 														: entry.action === "changes_requested"
 															? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-															: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+															: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
 											}`}
 										>
 											{entry.action === "approved"
@@ -751,12 +747,12 @@ export function ProposalDetailPanel({
 																: entry.action}
 										</span>
 										<span className={`text-xs ${TXT}`}>{entry.actor}</span>
-										<span className={`text-[10px] ${MUT}`}>
+										<span className={`text-xs ${MUT}`}>
 											{formatTimestamp(entry.timestamp)}
 										</span>
 									</div>
 									{entry.reason && (
-										<p className={`text-[10px] ${MUT} mt-1 ml-1`}>
+										<p className={`text-xs ${MUT} mt-1 ml-1`}>
 											"{entry.reason}"
 										</p>
 									)}

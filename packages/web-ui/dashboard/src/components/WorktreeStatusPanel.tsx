@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	GitBranch,
 	Trash2,
@@ -28,11 +29,6 @@ import { WorktreeCleanupDialog, getWorktreeBlockReason } from "./WorktreeCleanup
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Status badge helper ───────────────────────────────────────────────────
 
@@ -45,27 +41,27 @@ interface BadgeProps {
 function StatusBadge({ dirty, locked, bare }: BadgeProps) {
 	if (bare) {
 		return (
-			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-[10px] font-medium text-stone-500 dark:text-stone-400">
+			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-xs font-medium text-stone-400 dark:text-stone-500">
 				bare
 			</span>
 		);
 	}
 	if (locked) {
 		return (
-			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-xs font-medium text-amber-700 dark:text-amber-300">
 				<Lock size={10} /> locked
 			</span>
 		);
 	}
 	if (dirty) {
 		return (
-			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-[10px] font-medium text-red-600 dark:text-red-400">
+			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-xs font-medium text-red-600 dark:text-red-400">
 				<XCircle size={10} /> dirty
 			</span>
 		);
 	}
 	return (
-		<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+		<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-xs font-medium text-emerald-600 dark:text-emerald-400">
 			<CheckCircle size={10} /> clean
 		</span>
 	);
@@ -126,7 +122,7 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 				<div className="flex items-center gap-2">
 					<GitBranch size={16} className={ACC_TXT} />
 					<h3 className={`text-sm font-semibold ${TXT}`}>Worktrees</h3>
-					<span className={`text-[10px] ${MUT}`}>({total})</span>
+					<span className={`text-xs ${MUT}`}>({total})</span>
 				</div>
 				<div className="flex items-center gap-1.5">
 					{/* Cleanup button */}
@@ -135,9 +131,9 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 							type="button"
 							onClick={() => setShowCleanupDialog(true)}
 							disabled={isCleaning || !canPruneAny}
-							className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium
+							className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium
 								bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700
-								text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#444]
+								text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#333] dark:border-[#444]
 								disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 							title={!canPruneAny ? "No worktrees eligible for pruning" : "Prune safe worktrees"}
 						>
@@ -159,7 +155,7 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 			{error && (
 				<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-2">
 					<AlertTriangle size={14} className="text-red-500 shrink-0" />
-					<p className="text-[11px] text-red-600 dark:text-red-400">
+					<p className="text-xs text-red-600 dark:text-red-400">
 						Failed to load worktree status: {String(error)}
 					</p>
 				</div>
@@ -167,7 +163,7 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 
 			{/* Cleanup result */}
 			{lastResult && !isCleaning && "removed" in lastResult && lastResult.removed > 0 && (
-				<div className="bg-emerald-50 dark:bg-emerald-900/10 rounded px-2.5 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+				<div className="bg-emerald-50 dark:bg-emerald-900/10 rounded px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
 					Removed {lastResult.removed} worktree(s): {lastResult.removedNames.join(", ")}
 				</div>
 			)}
@@ -182,10 +178,10 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 				<div className="space-y-1">
 					<div className="flex items-center gap-1.5 mb-1">
 						<Heart size={11} className={ACC_TXT} />
-						<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+						<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 							Lease Heartbeats
 						</span>
-						<span className={`text-[10px] ${MUT}`}>({(data as any).leases.length})</span>
+						<span className={`text-xs ${MUT}`}>({(data as any).leases.length})</span>
 					</div>
 					{(data as any).leases.map((lease: LeaseHeartbeatInfo) => {
 						const ageSeconds = lease.lastHeartbeatAt
@@ -199,21 +195,21 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 							>
 								<div className="min-w-0 flex-1">
 									<div className="flex items-center gap-2">
-										<span className={`text-[10px] font-medium ${TXT}`}>{lease.workspaceId}</span>
-										<span className={`text-[9px] font-mono ${MUT}`}>PID {lease.pid}</span>
+										<span className={`text-xs font-medium ${TXT}`}>{lease.workspaceId}</span>
+										<span className={`text-xs font-mono ${MUT}`}>PID {lease.pid}</span>
 									</div>
 									{lease.lastGitCommand && (
-										<p className={`text-[9px] font-mono ${MUT} truncate`}>{lease.lastGitCommand}</p>
+										<p className={`text-xs font-mono ${MUT} truncate`}>{lease.lastGitCommand}</p>
 									)}
 								</div>
 								<div className="flex items-center gap-1.5 shrink-0">
 									{isHealthy ? (
-										<span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
+										<span className="flex items-center gap-0.5 text-xs text-emerald-600 dark:text-emerald-400">
 											<Activity size={9} />
 											{ageSeconds}s
 										</span>
 									) : (
-										<span className="flex items-center gap-0.5 text-[9px] text-amber-600 dark:text-amber-400">
+										<span className="flex items-center gap-0.5 text-xs text-amber-600 dark:text-amber-400">
 											<AlertTriangle size={9} />
 											{ageSeconds !== null ? `${ageSeconds}s stale` : "no heartbeat"}
 										</span>
@@ -242,13 +238,13 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 									<div className="flex items-center gap-2">
 										<span className={`text-xs font-medium truncate ${TXT}`}>{wt.name}</span>
 										{wt.branch && (
-											<span className={`text-[10px] truncate ${MUT}`}>
+											<span className={`text-xs truncate ${MUT}`}>
 												{wt.branch}
 											</span>
 										)}
 									</div>
 									{/* Commit and path */}
-									<p className={`text-[10px] truncate mt-0.5 font-mono ${MUT}`}>
+									<p className={`text-xs truncate mt-0.5 font-mono ${MUT}`}>
 										{wt.commit ? wt.commit.substring(0, 8) : "——"}  {wt.path}
 									</p>
 								</div>
@@ -299,7 +295,7 @@ export function WorktreeStatusPanel({ className }: WorktreeStatusPanelProps) {
 			/>
 
 			{/* Help text */}
-			<p className={`text-[10px] leading-tight ${MUT}`}>
+			<p className={`text-xs leading-tight ${MUT}`}>
 				Git worktrees used by concurrent worker processes. Dirty, locked, bare,
 				main, and queue-active worktrees cannot be safely removed.{' '}
 				<strong>Prune Safe</strong> opens a confirmation dialog showing which

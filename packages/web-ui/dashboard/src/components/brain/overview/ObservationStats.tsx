@@ -12,17 +12,17 @@ export function ObservationStats({ total, bySeverity }: ObservationStatsProps) {
 	if (total === 0) {
 		return (
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-2">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-2">
 					Observations
 				</h3>
-				<p className="text-[10px] text-stone-400 dark:text-stone-500">0 observations</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500">0 observations</p>
 			</div>
 		);
 	}
 
 	return (
 		<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-			<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">
+			<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">
 				Observations
 			</h3>
 			<div className="space-y-2">
@@ -46,14 +46,14 @@ export function ObservationStats({ total, bySeverity }: ObservationStatsProps) {
 									style={{ width: `${pct}%` }}
 								/>
 							</div>
-							<span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 w-8 text-right">
+							<span className="text-xs font-mono text-stone-400 dark:text-stone-500 w-8 text-right">
 								{count}
 							</span>
 						</div>
 					);
 				})}
 			</div>
-			<div className="mt-2 pt-2 border-t border-stone-100 dark:border-stone-800 flex justify-between text-[10px]">
+			<div className="mt-2 pt-2 border-t border-stone-100 dark:border-stone-800 flex justify-between text-xs">
 				<span className="text-stone-400">Total</span>
 				<span className="font-mono text-stone-600 dark:text-stone-300">{total}</span>
 			</div>

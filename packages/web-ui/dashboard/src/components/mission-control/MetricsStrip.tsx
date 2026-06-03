@@ -6,6 +6,7 @@
  * explicit unavailable state.
  */
 
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	Clock,
@@ -17,9 +18,6 @@ import {
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -66,14 +64,14 @@ function MetricItem({ icon: Icon, label, value, unavailable }: MetricItemProps) 
 				className={unavailable ? "text-stone-300 dark:text-stone-600" : "text-stone-400 dark:text-stone-500"}
 			/>
 			<div className="flex items-baseline gap-1.5 min-w-0">
-				<span className={`text-[10px] font-medium leading-none whitespace-nowrap ${
+				<span className={`text-xs font-medium leading-none whitespace-nowrap ${
 					unavailable
 						? "text-stone-300 dark:text-stone-600"
 						: TXT
 				}`}>
 					{value}
 				</span>
-				<span className={`text-[9px] leading-none whitespace-nowrap ${
+				<span className={`text-xs leading-none whitespace-nowrap ${
 					unavailable
 						? "text-stone-200 dark:text-stone-700"
 						: TXT_MUTED
@@ -154,7 +152,7 @@ export function MetricsStrip({
 				aria-label="Metrics unavailable"
 			>
 				<Database size={12} className="text-stone-300 dark:text-stone-600" />
-				<span className="text-[10px] text-stone-300 dark:text-stone-600 italic">
+				<span className="text-xs text-stone-300 dark:text-stone-600 italic">
 					Metrics unavailable
 				</span>
 			</div>

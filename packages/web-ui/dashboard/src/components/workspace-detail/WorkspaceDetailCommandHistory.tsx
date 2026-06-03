@@ -5,14 +5,11 @@
  */
 
 import { Terminal, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { CommandHistoryEntry } from "../../hooks/useCommandHistory";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -79,11 +76,11 @@ export function WorkspaceDetailCommandHistory({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <Terminal size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             Command History
           </span>
         </div>
-        <span className={`text-[10px] tabular-nums ${MUT}`}>
+        <span className={`text-xs tabular-nums ${MUT}`}>
           {commands.length} command{commands.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -104,11 +101,11 @@ export function WorkspaceDetailCommandHistory({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <code className={`block text-[10px] font-mono ${TXT} break-all leading-relaxed`}>
+                <code className={`block text-xs font-mono ${TXT} break-all leading-relaxed`}>
                   {cmd.command}
                 </code>
                 {cmd.isTargetCommand && (
-                  <span className="inline-block mt-0.5 px-1 py-px rounded text-[8px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                  <span className="inline-block mt-0.5 px-1 py-px rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
                     TARGET
                   </span>
                 )}
@@ -117,13 +114,13 @@ export function WorkspaceDetailCommandHistory({
 
             {/* Meta */}
             <div className="flex items-center gap-2 pl-5">
-              <span className={`text-[9px] ${MUT}`}>{formatTimestamp(cmd.startedAt)}</span>
-              <span className={`text-[9px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>{formatTimestamp(cmd.startedAt)}</span>
+              <span className={`text-xs ${MUT}`}>
                 {durationMs(cmd.startedAt, cmd.finishedAt)}
               </span>
               {cmd.exitCode !== null && (
                 <span
-                  className={`text-[9px] font-medium tabular-nums ${
+                  className={`text-xs font-medium tabular-nums ${
                     cmd.exitCode === 0 ? "text-emerald-500" : "text-red-500"
                   }`}
                 >
@@ -131,7 +128,7 @@ export function WorkspaceDetailCommandHistory({
                 </span>
               )}
               {cmd.cwd && (
-                <span className={`text-[9px] ${MUT} truncate max-w-[160px]`} title={cmd.cwd}>
+                <span className={`text-xs ${MUT} truncate max-w-[160px]`} title={cmd.cwd}>
                   {cmd.cwd}
                 </span>
               )}
@@ -140,10 +137,10 @@ export function WorkspaceDetailCommandHistory({
             {/* Output summary */}
             {cmd.outputSummary && (
               <details className="pl-5">
-                <summary className={`text-[9px] ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300`}>
+                <summary className={`text-xs ${MUT} cursor-pointer hover:text-stone-600 dark:hover:text-stone-300`}>
                   Output summary
                 </summary>
-                <pre className={`mt-1 p-2 rounded bg-stone-50 dark:bg-[#1A1A1A] text-[9px] font-mono ${TXT} whitespace-pre-wrap break-all max-h-32 overflow-y-auto`}>
+                <pre className={`mt-1 p-2 rounded bg-stone-50 dark:bg-[#1A1A1A] text-xs font-mono ${TXT} whitespace-pre-wrap break-all max-h-32 overflow-y-auto`}>
                   {cmd.outputSummary}
                 </pre>
               </details>

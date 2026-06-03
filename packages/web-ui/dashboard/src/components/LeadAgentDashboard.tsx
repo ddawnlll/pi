@@ -22,6 +22,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	Bot,
@@ -50,13 +51,6 @@ import { ProposalDetailPanel } from "./ProposalDetailPanel";
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Status filter tabs
@@ -213,7 +207,7 @@ function FileTreeItem({
 						onToggle(node.path);
 					}
 				}}
-				className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-left transition-colors ${
+				className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs text-left transition-colors ${
 					isSelected ? `${ACC_BG} ${ACC_TXT}` : `${TXT} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`
 				}`}
 				style={{ paddingLeft: `${12 + depth * 14}px` }}
@@ -228,7 +222,7 @@ function FileTreeItem({
 					<FileText size={11} className="shrink-0 text-blue-500" />
 				)}
 				<span className="truncate">{node.name}</span>
-				{isSelected && <span className="ml-auto text-[8px] opacity-60">selected</span>}
+				{isSelected && <span className="ml-auto text-xs opacity-60">selected</span>}
 			</button>
 		</div>
 	);
@@ -361,31 +355,31 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 	const renderEvent = (ev: TranscriptEvent, i: number) => {
 		if (ev.type === "file_read") {
 			return (
-				<div key={i} className="flex items-start gap-2 text-[10px] leading-relaxed">
+				<div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
 					<span className="shrink-0 mt-0.5 text-blue-400"><File size={10} /></span>
 					<div className="flex-1 min-w-0">
-						<p className="text-blue-600 dark:text-blue-300 font-mono text-[10px]">
+						<p className="text-blue-600 dark:text-blue-300 font-mono text-xs">
 							{ev.content}
 						</p>
 						{ev.issues && (
-							<p className={`text-[9px] ${MUT} mt-0.5`}>
+							<p className={`text-xs ${MUT} mt-0.5`}>
 								{ev.issues.any ? `${ev.issues.any}x any ` : ""}
 								{ev.issues.todo ? `${ev.issues.todo}x TODO ` : ""}
 								{ev.issues.console ? `${ev.issues.console}x console.log` : ""}
 							</p>
 						)}
 						{ev.lines && (
-							<p className={`text-[9px] ${MUT}`}>{ev.lines} lines</p>
+							<p className={`text-xs ${MUT}`}>{ev.lines} lines</p>
 						)}
 						{ev.files && ev.files.length > 0 && (
 							<div className="flex flex-wrap gap-1 mt-0.5">
 								{ev.files.slice(0, 5).map((f, fi) => (
-									<span key={fi} className="text-[8px] px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300">
+									<span key={fi} className="text-xs px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300">
 										{f.split("/").pop()}
 									</span>
 								))}
 								{ev.files.length > 5 && (
-									<span className="text-[8px] text-stone-400">+{ev.files.length - 5} more</span>
+									<span className="text-xs text-stone-400">+{ev.files.length - 5} more</span>
 								)}
 							</div>
 						)}
@@ -416,7 +410,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 					>
 						{ev.content}
 					</p>
-					<p className={`text-[9px] ${MUT} mt-0.5`}>
+					<p className={`text-xs ${MUT} mt-0.5`}>
 						{new Date(ev.timestamp).toLocaleTimeString()}
 					</p>
 				</div>
@@ -480,7 +474,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 						<button
 							key={f.key}
 							onClick={() => { setStatusFilter(f.key); setSelectedProposalId(null); }}
-							className={`flex items-center gap-1 h-7 px-2.5 rounded text-[10px] font-medium transition-colors ${
+							className={`flex items-center gap-1 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
 								statusFilter === f.key
 									? `${ACC_BG} ${ACC_TXT}`
 									: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -492,7 +486,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 							{f.key === "all" && <Filter size={10} />}
 							{f.label}
 							{counts[f.key] > 0 && (
-								<span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+								<span className={`text-xs px-1.5 py-0.5 rounded-full ${
 									statusFilter === f.key
 										? "bg-white/50 dark:bg-black/20"
 										: "bg-stone-100 dark:bg-[#2A2A2A]"
@@ -511,7 +505,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 						<div>
 							<button
 								onClick={() => setFileTreeOpen(!fileTreeOpen)}
-								className={`w-full flex items-center gap-2 px-3 py-2 text-[10px] font-medium ${ACC_TXT} hover:opacity-80`}
+								className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium ${ACC_TXT} hover:opacity-80`}
 							>
 								{fileTreeOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 								<FolderOpen size={11} />
@@ -537,7 +531,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 						<div>
 							<button
 								onClick={() => setPlanDropdownOpen(!planDropdownOpen)}
-								className={`w-full flex items-center gap-2 px-3 py-2 text-[10px] font-medium ${ACC_TXT} hover:opacity-80`}
+								className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium ${ACC_TXT} hover:opacity-80`}
 							>
 								{planDropdownOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 								<Bot size={11} />
@@ -547,7 +541,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 								<div className="max-h-32 overflow-y-auto border-t border-[#E8E6E1] dark:border-[#333] pb-1">
 									<button
 										onClick={() => { setPlanExecId(""); setPlanDropdownOpen(false); }}
-										className={`w-full text-left px-3 py-1.5 text-[10px] ${MUT} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`}
+										className={`w-full text-left px-3 py-1.5 text-xs ${MUT} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`}
 									>
 										None
 									</button>
@@ -555,7 +549,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 										<button
 											key={ex.id}
 											onClick={() => { setPlanExecId(ex.id); setPlanDropdownOpen(false); }}
-											className={`w-full text-left px-3 py-1.5 text-[10px] truncate ${
+											className={`w-full text-left px-3 py-1.5 text-xs truncate ${
 												planExecId === ex.id ? `${ACC_BG} ${ACC_TXT}` : TXT
 											} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`}
 										>
@@ -563,7 +557,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 										</button>
 									))}
 									{executions.length === 0 && (
-										<p className={`px-3 py-2 text-[10px] ${MUT}`}>No plan executions found</p>
+										<p className={`px-3 py-2 text-xs ${MUT}`}>No plan executions found</p>
 									)}
 								</div>
 							)}
@@ -611,7 +605,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 							{analysisState === "running" && (
 								<button
 									onClick={pause}
-									className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[10px] font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:opacity-80"
+									className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:opacity-80"
 								>
 									<Pause size={12} /> Pause
 								</button>
@@ -619,14 +613,14 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 							{analysisState === "paused" && (
 								<button
 									onClick={resume}
-									className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:opacity-80"
+									className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:opacity-80"
 								>
 									<Play size={12} /> Resume
 								</button>
 							)}
 							<button
 								onClick={stop}
-								className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[10px] font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80"
+								className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80"
 							>
 								<Square size={12} /> Stop
 							</button>
@@ -643,7 +637,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 										? "bg-amber-500"
 										: "bg-stone-400"
 							}`} />
-							<span className={`text-[9px] font-medium ${
+							<span className={`text-xs font-medium ${
 								analysisState === "running"
 									? "text-emerald-600 dark:text-emerald-400"
 									: analysisState === "paused"
@@ -655,7 +649,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 								{analysisState === "stopped" && "Complete"}
 							</span>
 							{transcript.length > 0 && (
-								<span className={`text-[9px] ${MUT}`}>
+								<span className={`text-xs ${MUT}`}>
 									{transcript.length} events
 									{fileReadEventCount > 0 && ` (${fileReadEventCount} files)`}
 								</span>
@@ -664,7 +658,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 					)}
 
 					{triggerError && (
-						<p className="text-[10px] text-red-500 text-center">{triggerError}</p>
+						<p className="text-xs text-red-500 text-center">{triggerError}</p>
 					)}
 				</div>
 			</div>
@@ -676,7 +670,7 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 					<span className={`text-xs font-semibold ${TXT}`}>Live Transcript</span>
 					<div className="flex-1" />
 					{analysisState === "running" && (
-						<span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+						<span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
 							<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
 							Live
 						</span>
@@ -707,20 +701,20 @@ export function LeadAgentDashboard({ className = "" }: LeadAgentDashboardProps) 
 				{/* Pause/Stop footer in transcript panel */}
 				{analysisState === "running" && (
 					<div className={`shrink-0 border-t ${BORD} p-2 flex gap-2`}>
-						<button onClick={pause} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:opacity-80">
+						<button onClick={pause} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:opacity-80">
 							<Pause size={11} /> Pause
 						</button>
-						<button onClick={stop} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-[10px] font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80">
+						<button onClick={stop} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80">
 							<Square size={11} /> Stop
 						</button>
 					</div>
 				)}
 				{analysisState === "paused" && (
 					<div className={`shrink-0 border-t ${BORD} p-2 flex gap-2`}>
-						<button onClick={resume} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:opacity-80">
+						<button onClick={resume} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:opacity-80">
 							<Play size={11} /> Resume
 						</button>
-						<button onClick={stop} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-[10px] font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80">
+						<button onClick={stop} className="flex-1 flex items-center justify-center gap-1 h-7 rounded text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:opacity-80">
 							<Square size={11} /> Stop
 						</button>
 					</div>

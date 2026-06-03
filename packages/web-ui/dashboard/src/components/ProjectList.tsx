@@ -18,8 +18,8 @@ export function ProjectList({
 }: ProjectListProps) {
 	return (
 		<div className="flex flex-col h-full">
-			<div className="p-3 border-b border-gray-700 flex items-center justify-between">
-				<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+			<div className="p-3 border-b border-[#E8E6E1] dark:border-[#333] flex items-center justify-between">
+				<h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
 					Projects
 				</h2>
 				<button
@@ -32,9 +32,9 @@ export function ProjectList({
 
 			<div className="flex-1 overflow-auto">
 				{isLoading ? (
-					<div className="p-4 text-xs text-gray-500">Loading projects...</div>
+					<div className="p-4 text-xs text-stone-400 dark:text-stone-500">Loading projects...</div>
 				) : projects.length === 0 ? (
-					<div className="p-4 text-xs text-gray-500">
+					<div className="p-4 text-xs text-stone-400 dark:text-stone-500">
 						No projects yet. Create one to get started.
 					</div>
 				) : (
@@ -50,11 +50,11 @@ export function ProjectList({
 								className={`w-full text-left px-3 py-2 text-xs rounded transition-colors ${
 									selectedProjectId === project.id
 										? "bg-blue-700 text-white"
-										: "text-gray-300 hover:bg-gray-700"
+										: "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:bg-[#2A2A2A]"
 								}`}
 							>
 								<div className="font-medium truncate">{project.name}</div>
-								<div className="text-gray-500 truncate mt-0.5">
+								<div className="text-stone-400 dark:text-stone-500 truncate mt-0.5">
 									{project.rootPath ?? project.description ?? "No path"}
 								</div>
 							</motion.button>

@@ -10,14 +10,11 @@
  */
 
 import { X, Clock, Target, Terminal, AlertTriangle } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { CommandTimelineEntry } from "../../hooks/useCommandTimeline";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +64,7 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 			<div className={`flex items-center justify-between px-3 py-2 border-b ${BORD} bg-stone-50 dark:bg-[#1A1A1A]`}>
 				<div className="flex items-center gap-2 min-w-0">
 					<Terminal size={12} className={`shrink-0 ${MUT}`} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Command Detail
 					</span>
 				</div>
@@ -83,28 +80,28 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 			<div className="px-3 py-2 space-y-1.5">
 				{/* Command name */}
 				<div>
-					<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Command</span>
+					<span className={`text-xs uppercase tracking-wider ${MUT}`}>Command</span>
 					<p className={`text-xs font-mono ${TXT} break-all`}>{entry.command}</p>
 				</div>
 
 				{/* Metadata row */}
 				<div className="flex gap-4 flex-wrap">
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Workspace</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Workspace</span>
 						<p className={`text-xs font-mono ${TXT}`}>{entry.workspaceId}</p>
 					</div>
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>CWD</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>CWD</span>
 						<p className={`text-xs font-mono ${TXT} truncate max-w-[200px]`}>{entry.cwd}</p>
 					</div>
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Exit Code</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Exit Code</span>
 						<p className={`text-xs font-mono ${statusColor}`}>
 							{isRunning ? "\u2014" : entry.exitCode}
 						</p>
 					</div>
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Duration</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Duration</span>
 						<p className={`text-xs font-mono ${MUT}`}>{duration}</p>
 					</div>
 				</div>
@@ -112,11 +109,11 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 				{/* Timestamps */}
 				<div className="flex gap-4 flex-wrap">
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Started</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Started</span>
 						<p className={`text-xs font-mono ${MUT}`}>{formatTimestamp(entry.startedAt)}</p>
 					</div>
 					<div>
-						<span className={`text-[9px] uppercase tracking-wider ${MUT}`}>Finished</span>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Finished</span>
 						<p className={`text-xs font-mono ${MUT}`}>{isRunning ? "\u2014" : formatTimestamp(entry.finishedAt)}</p>
 					</div>
 				</div>
@@ -133,10 +130,10 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 			{/* ── Output Summary ── */}
 			{entry.outputSummary && (
 				<div className="px-3 py-2 border-t border-stone-100 dark:border-[#2A2A2A]">
-					<span className={`text-[9px] uppercase tracking-wider ${MUT} block mb-1`}>
+					<span className={`text-xs uppercase tracking-wider ${MUT} block mb-1`}>
 						Output Summary
 					</span>
-					<p className={`text-[10px] font-mono ${TXT} whitespace-pre-wrap break-words max-h-32 overflow-y-auto`}>
+					<p className={`text-xs font-mono ${TXT} whitespace-pre-wrap break-words max-h-32 overflow-y-auto`}>
 						{entry.outputSummary}
 					</p>
 				</div>
@@ -144,7 +141,7 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 
 			{/* ── Stdout / Stderr placeholders ── */}
 			{isFailed && (
-				<div className={`px-3 py-2 border-t ${BORD} flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400`}>
+				<div className={`px-3 py-2 border-t ${BORD} flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400`}>
 					<AlertTriangle size={10} />
 					<span>Full stdout/stderr available via raw log view. Toggle "Raw output" to inspect.</span>
 				</div>
@@ -152,7 +149,7 @@ export function CommandDetailPanel({ entry, onClose }: CommandDetailPanelProps) 
 
 			{/* ── Footer links ── */}
 			<div className={`px-3 py-2 border-t ${BORD} flex gap-3`}>
-				<button className={`text-[10px] text-blue-600 dark:text-blue-400 hover:underline`}>
+				<button className={`text-xs text-blue-700 dark:text-blue-300 hover:underline`}>
 					View in workspace detail &rarr;
 				</button>
 			</div>

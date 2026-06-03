@@ -15,7 +15,7 @@ function getStageColor(stage: string): string {
 		case "active":
 			return "text-green-400";
 		case "pending":
-			return "text-gray-400";
+			return "text-stone-500 dark:text-stone-400";
 		case "blocked":
 			return "text-yellow-400";
 		case "complete":
@@ -23,7 +23,7 @@ function getStageColor(stage: string): string {
 		case "failed":
 			return "text-red-400";
 		default:
-			return "text-gray-500";
+			return "text-stone-400 dark:text-stone-500";
 	}
 }
 
@@ -65,7 +65,7 @@ export function WorkerList({
 
 		return (
 			<div className="mb-3">
-				<h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 px-1">
+				<h3 className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5 px-1">
 					{title} ({groupWorkers.length})
 				</h3>
 				<div className="space-y-1">
@@ -82,7 +82,7 @@ export function WorkerList({
 								className={`w-full flex items-center gap-1.5 text-left px-3 py-2 text-xs rounded transition-colors ${
 									selectedWorkerId === worker.id
 										? "bg-blue-700 text-white"
-										: "text-gray-300 hover:bg-gray-700"
+										: "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:bg-[#2A2A2A]"
 								}`}
 							>
 								<ActivityDot state={stageToPulseState(worker.stage)} />
@@ -90,7 +90,7 @@ export function WorkerList({
 								<span className={getStageColor(worker.stage)}>
 									{worker.stage}
 								</span>
-								<span className="text-gray-500">
+								<span className="text-stone-400 dark:text-stone-500">
 									attempt: {worker.attempt}
 								</span>
 								{/* Force stop button for active/blocked workers */}
@@ -115,12 +115,12 @@ export function WorkerList({
 	};
 
 	return (
-		<div className="border-b border-gray-700 p-4 max-h-64 overflow-y-auto">
-			<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">
+		<div className="border-b border-[#E8E6E1] dark:border-[#333] p-4 max-h-64 overflow-y-auto">
+			<h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-3">
 				Workers
 			</h2>
 			{workers.length === 0 ? (
-				<div className="text-xs text-gray-500">No workers</div>
+				<div className="text-xs text-stone-400 dark:text-stone-500">No workers</div>
 			) : (
 				<>
 					{renderWorkerGroup("Active", activeWorkers)}

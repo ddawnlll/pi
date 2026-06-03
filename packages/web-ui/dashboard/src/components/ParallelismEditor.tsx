@@ -11,6 +11,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	AlertCircle,
@@ -34,12 +35,6 @@ import type {
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Batch lane colors (cycled by batch index) ────────────────────────────────
 
@@ -316,7 +311,7 @@ export function ParallelismEditor({
 	const selectedNode = selectedWorkspaceId ? nodeMap.get(selectedWorkspaceId) : null;
 
 	return (
-		<div className={`flex flex-col gap-3 ${SURF} rounded-xl border ${BORD} overflow-hidden`}>
+		<div className={`flex flex-col gap-3 ${SURF} rounded-lg border ${BORD} overflow-hidden`}>
 			{/* ── Header: Parallelism comparison ── */}
 			<ParallelismHeader
 				requested={requestedParallelism}
@@ -395,21 +390,21 @@ function ParallelismHeader({
 					Parallelism
 				</h3>
 				{isOverSerialized && (
-					<span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+					<span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
 						<AlertTriangle size={10} /> Over-serialized
 					</span>
 				)}
 			</div>
 			<div className="flex items-end gap-4 mt-2">
 				<div>
-					<p className={`text-[10px] ${MUT}`}>Requested</p>
+					<p className={`text-xs ${MUT}`}>Requested</p>
 					<p className={`text-2xl font-semibold tracking-tight ${TXT}`}>{requested}</p>
 				</div>
 				<div className="flex items-center pb-1">
 					<ChevronRight size={16} className={MUT} />
 				</div>
 				<div>
-					<p className={`text-[10px] ${MUT}`}>Effective</p>
+					<p className={`text-xs ${MUT}`}>Effective</p>
 					<p
 						className={`text-2xl font-semibold tracking-tight ${
 							delta > 0
@@ -422,7 +417,7 @@ function ParallelismHeader({
 				</div>
 				{delta > 0 && (
 					<div className="ml-auto pb-0.5">
-						<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300`}>
+						<span className={`text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300`}>
 							Δ {delta}
 						</span>
 					</div>
@@ -442,7 +437,7 @@ function ParallelismHeader({
 						}}
 					/>
 				</div>
-				<span className={`text-[9px] ${MUT} ml-1`}>
+				<span className={`text-xs ${MUT} ml-1`}>
 					{requested > 0 ? `${Math.round((effective / requested) * 100)}%` : "—"}
 				</span>
 			</div>
@@ -499,7 +494,7 @@ function WarningsPanel({
 					{showOverlapPanel && (
 						<div className="mt-1.5 space-y-1">
 							{fileOverlaps.map((overlap, i) => (
-								<div key={`overlap-${i}`} className="text-[10px] text-amber-800 dark:text-amber-200 pl-3">
+								<div key={`overlap-${i}`} className="text-xs text-amber-800 dark:text-amber-200 pl-3">
 									<span className="font-medium">{overlap.workspaceA}</span>
 									{" ↔ "}
 									<span className="font-medium">{overlap.workspaceB}</span>
@@ -541,7 +536,7 @@ function BatchLanes({
 
 	return (
 		<div className="px-4 py-3">
-			<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+			<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
 				Batch Lanes (DAG)
 			</h4>
 			<div className="flex flex-col gap-2">
@@ -554,7 +549,7 @@ function BatchLanes({
 						<div key={`batch-${batch.batchIndex}`} className="flex items-stretch gap-2">
 							{/* Batch index label */}
 							<div className={`w-8 flex items-center justify-center rounded-l-lg border ${color.border} ${color.bg} shrink-0`}>
-								<span className={`text-[10px] font-bold ${color.text}`}>B{batch.batchIndex}</span>
+								<span className={`text-xs font-bold ${color.text}`}>B{batch.batchIndex}</span>
 							</div>
 
 							{/* Workspace cards in this batch */}
@@ -588,7 +583,7 @@ function BatchLanes({
 
 											{/* Dependency count badge */}
 											{node && node.dependencies.length > 0 && (
-												<span className={`text-[9px] ${MUT}`}>
+												<span className={`text-xs ${MUT}`}>
 													({node.dependencies.length})
 												</span>
 											)}
@@ -606,7 +601,7 @@ function BatchLanes({
 
 							{/* Batch width badge */}
 							<div className={`w-8 flex items-center justify-center rounded-r-lg border ${isBlocked ? "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30" : isSerialized ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30" : `${color.border} ${color.bg}`} shrink-0`}>
-								<span className={`text-[10px] font-bold ${isBlocked ? "text-red-600 dark:text-red-400" : isSerialized ? "text-amber-600 dark:text-amber-400" : color.text}`}>
+								<span className={`text-xs font-bold ${isBlocked ? "text-red-600 dark:text-red-400" : isSerialized ? "text-amber-600 dark:text-amber-400" : color.text}`}>
 									×{batch.width}
 								</span>
 							</div>
@@ -623,7 +618,7 @@ function BatchLanes({
 			</div>
 
 			{/* Legend */}
-			<div className="flex items-center gap-4 mt-3 text-[9px] text-stone-400 dark:text-stone-500">
+			<div className="flex items-center gap-4 mt-3 text-xs text-stone-400 dark:text-stone-500">
 				<span className="flex items-center gap-1">
 					<span className="w-2 h-2 rounded-full bg-amber-400" />
 					Serialized tail
@@ -688,15 +683,15 @@ function DependencyEditorPanel({
 
 	return (
 		<div className={`px-4 py-3 border-t ${BORD}`}>
-			<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+			<h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
 				Edit dependencies: <span className={ACC_TXT}>{node.id}</span>
 			</h4>
 
 			{/* Current dependencies */}
 			<div className="mb-2">
-				<p className={`text-[10px] ${MUT} mb-1`}>Current dependencies:</p>
+				<p className={`text-xs ${MUT} mb-1`}>Current dependencies:</p>
 				{effectiveDeps.length === 0 ? (
-					<p className={`text-[10px] ${MUT} italic`}>No dependencies</p>
+					<p className={`text-xs ${MUT} italic`}>No dependencies</p>
 				) : (
 					<div className="flex flex-wrap gap-1.5">
 						{effectiveDeps.map((depId) => {
@@ -716,7 +711,7 @@ function DependencyEditorPanel({
 								>
 									<span className="font-medium">{depId}</span>
 									{depNode && (
-										<span className={`text-[9px] ${MUT}`}>
+										<span className={`text-xs ${MUT}`}>
 											({depNode.title || depId})
 										</span>
 									)}
@@ -759,7 +754,7 @@ function DependencyEditorPanel({
 			{/* Dependents info */}
 			{node.dependents.length > 0 && (
 				<div className="mb-2">
-					<p className={`text-[10px] ${MUT} mb-1`}>Depended on by:</p>
+					<p className={`text-xs ${MUT} mb-1`}>Depended on by:</p>
 					<div className="flex flex-wrap gap-1.5">
 						{node.dependents.map((depId) => (
 							<span key={depId} className={`inline-flex items-center px-2 py-1 rounded-md text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 ${MUT}`}>
@@ -775,7 +770,7 @@ function DependencyEditorPanel({
 				<div className="mt-2">
 					<button
 						onClick={() => onSetAddDepTarget(addDepTarget ? null : "select")}
-						className={`text-[10px] font-medium ${ACC_TXT} hover:underline flex items-center gap-1`}
+						className={`text-xs font-medium ${ACC_TXT} hover:underline flex items-center gap-1`}
 					>
 						<Plus size={10} /> Add dependency
 					</button>
@@ -823,10 +818,10 @@ function PendingEditsPanel({
 	return (
 		<div className={`px-4 py-3 border-t ${BORD} bg-blue-50/50 dark:bg-blue-950/20`}>
 			<div className="flex items-center justify-between mb-2">
-				<h4 className={`text-[10px] font-semibold uppercase tracking-widest ${ACC_TXT}`}>
+				<h4 className={`text-xs font-semibold uppercase tracking-widest ${ACC_TXT}`}>
 					Pending Changes ({edits.length})
 				</h4>
-				<span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">
+				<span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
 					Preview before save
 				</span>
 			</div>

@@ -92,14 +92,14 @@ export function ProposalInbox({
 						Proposal Inbox
 					</h1>
 					{stats && stats.pending > 0 && (
-						<span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+						<span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
 							{stats.pending} pending
 						</span>
 					)}
 				</div>
 				<button
 					onClick={onRefresh}
-					className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
+					className="px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
 				>
 					Refresh
 				</button>
@@ -107,7 +107,7 @@ export function ProposalInbox({
 
 			{/* Stats bar */}
 			{stats && (
-				<div className="flex items-center gap-4 text-[10px] text-stone-400">
+				<div className="flex items-center gap-4 text-xs text-stone-400">
 					<span>{stats.total} total</span>
 					<span className="text-amber-600 dark:text-amber-400">{stats.pending} pending</span>
 					<span className="text-emerald-600 dark:text-emerald-400">{stats.approved} accepted</span>

@@ -41,7 +41,7 @@ export function ProposalCard({
 						</button>
 					</div>
 					<span
-						className={`shrink-0 ml-2 px-1.5 py-0.5 text-[9px] font-medium rounded-full ${
+						className={`shrink-0 ml-2 px-1.5 py-0.5 text-xs font-medium rounded-full ${
 							RISK_COLORS[proposal.riskLevel] ?? RISK_COLORS.medium
 						}`}
 					>
@@ -51,16 +51,16 @@ export function ProposalCard({
 
 				{/* Score */}
 				<div className="flex items-center gap-2 mb-2">
-					<span className="text-[10px] font-mono text-stone-500">
+					<span className="text-xs font-mono text-stone-500">
 						Score: {proposal.score.toFixed(2)}
 					</span>
-					<span className="text-[9px] text-stone-400">
+					<span className="text-xs text-stone-400">
 						★ {Math.round(proposal.score * 5) / 5}/5
 					</span>
 				</div>
 
 				{/* Evidence */}
-				<div className="flex items-center gap-3 text-[10px] text-stone-400 mb-3">
+				<div className="flex items-center gap-3 text-xs text-stone-400 mb-3">
 					<span>{proposal.evidence.memories} memories</span>
 					<span>{proposal.evidence.observations} observations</span>
 				</div>
@@ -70,21 +70,21 @@ export function ProposalCard({
 					<button
 						onClick={onAccept}
 						disabled={actionLoading}
-						className="px-3 py-1 text-[10px] font-medium rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 transition-colors"
 					>
 						Accept
 					</button>
 					<button
 						onClick={onReject}
 						disabled={actionLoading}
-						className="px-3 py-1 text-[10px] font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
 					>
 						Reject
 					</button>
 					<button
 						onClick={onCorrect}
 						disabled={actionLoading}
-						className="px-3 py-1 text-[10px] font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors"
 					>
 						Correct
 					</button>
@@ -94,7 +94,7 @@ export function ProposalCard({
 			{/* Expanded description */}
 			{expanded && (
 				<div className="px-4 py-3 border-t border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/30">
-					<p className="text-[10px] text-stone-600 dark:text-stone-300 leading-relaxed">
+					<p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
 						{proposal.description}
 					</p>
 				</div>

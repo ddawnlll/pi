@@ -11,7 +11,7 @@ const PRIORITY_STYLES: Record<string, { bg: string; text: string }> = {
 	critical: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300" },
 	high: { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300" },
 	normal: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300" },
-	low: { bg: "bg-stone-100 dark:bg-stone-800", text: "text-stone-500 dark:text-stone-400" },
+	low: { bg: "bg-stone-100 dark:bg-stone-800", text: "text-stone-400 dark:text-stone-500" },
 };
 
 const PROGRESS_COLORS = ["bg-red-500", "bg-orange-500", "bg-amber-500", "bg-emerald-500"];
@@ -30,17 +30,17 @@ export function GoalCard({ goal, drifted, onClick }: GoalCardProps) {
 			}`}
 		>
 			<div className="flex items-start justify-between gap-1">
-				<span className="text-[10px] font-medium text-stone-700 dark:text-stone-300 truncate">
+				<span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
 					{goal.title}
 				</span>
-				{drifted && <span className="shrink-0 text-[9px] text-red-500 font-medium">Drifted</span>}
+				{drifted && <span className="shrink-0 text-xs text-red-500 font-medium">Drifted</span>}
 			</div>
 
 			<div className="flex items-center gap-1.5">
-				<span className={`px-1 py-0.5 text-[8px] rounded-full ${ps.bg} ${ps.text}`}>
+				<span className={`px-1 py-0.5 text-xs rounded-full ${ps.bg} ${ps.text}`}>
 					{goal.priority}
 				</span>
-				<span className="text-[9px] text-stone-400">
+				<span className="text-xs text-stone-400">
 					{goal.milestones.filter((m) => m.completed).length}/{goal.milestones.length} done
 				</span>
 			</div>

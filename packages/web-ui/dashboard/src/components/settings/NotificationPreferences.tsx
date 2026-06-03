@@ -37,12 +37,12 @@ import {
 // ─── Style constants (matching SettingsDialog) ────────────────────────────
 
 const inputClass =
-	"w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500";
-const labelClass = "text-xs text-gray-400 block mb-1";
+	"w-full px-3 py-2 text-sm bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500";
+const labelClass = "text-xs text-stone-500 dark:text-stone-400 block mb-1";
 const toggleClass =
 	"relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none";
 const toggleActiveClass = "bg-blue-600";
-const toggleInactiveClass = "bg-gray-700";
+const toggleInactiveClass = "bg-stone-100 dark:bg-[#2A2A2A]";
 
 // ─── Notification type display names ──────────────────────────────────────
 
@@ -129,12 +129,12 @@ interface ChannelRowProps {
 function ChannelRow({ channel, enabled, configured, onToggle }: ChannelRowProps) {
 	return (
 		<div className="flex items-center gap-3 py-2">
-			<span className="text-gray-400 shrink-0">{CHANNEL_ICONS[channel]}</span>
+			<span className="text-stone-500 dark:text-stone-400 shrink-0">{CHANNEL_ICONS[channel]}</span>
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2">
-					<span className="text-sm font-medium text-gray-200">{CHANNEL_LABELS[channel]}</span>
+					<span className="text-sm font-medium text-stone-800 dark:text-stone-200">{CHANNEL_LABELS[channel]}</span>
 					{!configured && (
-						<span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/30 text-yellow-400">
+						<span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-900/30 text-yellow-400">
 							not configured
 						</span>
 					)}
@@ -155,19 +155,19 @@ interface TypeRuleRowProps {
 
 function TypeRuleRow({ type, rules, onRuleChange }: TypeRuleRowProps) {
 	return (
-		<div className="py-2 border-b border-gray-700/50 last:border-b-0">
+		<div className="py-2 border-b border-[#E8E6E1] dark:border-[#333]/50 last:border-b-0">
 			<div className="flex items-center justify-between mb-1">
-				<span className="text-sm font-medium text-gray-200">{NOTIFICATION_TYPE_LABELS[type]}</span>
+				<span className="text-sm font-medium text-stone-800 dark:text-stone-200">{NOTIFICATION_TYPE_LABELS[type]}</span>
 			</div>
-			<p className="text-[11px] text-gray-500 mb-1.5">{NOTIFICATION_TYPE_DESCRIPTIONS[type]}</p>
+			<p className="text-xs text-stone-400 dark:text-stone-500 mb-1.5">{NOTIFICATION_TYPE_DESCRIPTIONS[type]}</p>
 			<div className="flex items-center gap-4">
 				{(Object.keys(CHANNEL_LABELS) as NotificationChannel[]).map((ch) => (
-					<label key={ch} className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer">
+					<label key={ch} className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 cursor-pointer">
 						<input
 							type="checkbox"
 							checked={rules[ch] ?? true}
 							onChange={() => onRuleChange(type, ch, !(rules[ch] ?? true))}
-							className="rounded border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 bg-gray-700"
+							className="rounded border-[#E8E6E1] dark:border-[#333] text-blue-500 focus:ring-blue-500 focus:ring-offset-0 bg-stone-100 dark:bg-[#2A2A2A]"
 						/>
 						{CHANNEL_LABELS[ch]}
 					</label>
@@ -288,12 +288,12 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 	if (isLoading && !preferences) {
 		return (
 			<div className={`space-y-4 ${className ?? ""}`}>
-				<p className="text-xs text-gray-500 mb-3">
+				<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 					Configure how and when you receive notifications from Pi.
 				</p>
 				<div className="flex items-center justify-center py-12">
-					<RefreshCw size={20} className="text-gray-500 animate-spin" />
-					<span className="ml-2 text-sm text-gray-500">Loading notification preferences...</span>
+					<RefreshCw size={20} className="text-stone-400 dark:text-stone-500 animate-spin" />
+					<span className="ml-2 text-sm text-stone-400 dark:text-stone-500">Loading notification preferences...</span>
 				</div>
 			</div>
 		);
@@ -303,14 +303,14 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 	if (error && !preferences) {
 		return (
 			<div className={`space-y-4 ${className ?? ""}`}>
-				<p className="text-xs text-gray-500 mb-3">
+				<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 					Configure how and when you receive notifications from Pi.
 				</p>
 				<div className="flex items-center gap-3 p-4 rounded border border-red-700 bg-red-900/10">
 					<AlertTriangle size={18} className="text-red-400 shrink-0" />
 					<div className="flex-1 min-w-0">
 						<p className="text-sm text-red-300">Failed to load notification preferences</p>
-						<p className="text-[11px] text-red-400 mt-0.5">{String(error)}</p>
+						<p className="text-xs text-red-400 mt-0.5">{String(error)}</p>
 					</div>
 					<button
 						onClick={() => refetch()}
@@ -327,12 +327,12 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 	if (!preferences) {
 		return (
 			<div className={`space-y-4 ${className ?? ""}`}>
-				<div className="flex flex-col items-center justify-center py-12 text-gray-500">
+				<div className="flex flex-col items-center justify-center py-12 text-stone-400 dark:text-stone-500">
 					<BellOff size={24} className="mb-2" />
 					<p className="text-sm">No notification preferences found.</p>
 					<button
 						onClick={() => refetch()}
-						className="mt-3 px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+						className="mt-3 px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-700 dark:text-stone-300 transition-colors"
 					>
 						Refresh
 					</button>
@@ -347,16 +347,16 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 
 	return (
 		<div className={`space-y-4 ${className ?? ""}`}>
-			<p className="text-xs text-gray-500 mb-3">
+			<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 				Configure how and when you receive notifications from Pi.
 			</p>
 
 			{/* Global enable */}
-			<div className="flex items-center gap-3 pb-3 border-b border-gray-700">
-				<Bell size={16} className="text-gray-400 shrink-0" />
+			<div className="flex items-center gap-3 pb-3 border-b border-[#E8E6E1] dark:border-[#333]">
+				<Bell size={16} className="text-stone-500 dark:text-stone-400 shrink-0" />
 				<div className="flex-1 min-w-0">
-					<span className="text-sm font-medium text-gray-200">Enable Notifications</span>
-					<p className="text-[11px] text-gray-500">
+					<span className="text-sm font-medium text-stone-800 dark:text-stone-200">Enable Notifications</span>
+					<p className="text-xs text-stone-400 dark:text-stone-500">
 						Master switch — when disabled, no notifications are sent
 					</p>
 				</div>
@@ -365,12 +365,12 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 
 			{/* Channel settings */}
 			<div className={enabled ? "" : "opacity-40 pointer-events-none"}>
-				<h4 className={`text-[10px] uppercase tracking-widest font-semibold mb-1 text-gray-500`}>
+				<h4 className={`text-xs uppercase tracking-widest font-semibold mb-1 text-stone-400 dark:text-stone-500`}>
 					Delivery Channels
 				</h4>
-				<div className="divide-y divide-gray-700">
+				<div className="divide-y divide-[#E8E6E1] dark:divide-[#333]">
 					{channels.length === 0 ? (
-						<p className="text-xs text-gray-500 py-2">No channels available.</p>
+						<p className="text-xs text-stone-400 dark:text-stone-500 py-2">No channels available.</p>
 					) : (
 						channels.map((ch) => (
 							<ChannelRow
@@ -388,7 +388,7 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 				{channelStates.email && channels.find((c) => c.channel === "email" && !c.configured) && (
 					<div className="flex items-start gap-2 mt-2 p-2 rounded bg-yellow-900/10 border border-yellow-900/30">
 						<AlertTriangle size={12} className="text-yellow-400 shrink-0 mt-0.5" />
-						<p className="text-[11px] text-yellow-300">
+						<p className="text-xs text-yellow-300">
 							Email channel is enabled but not configured. Configure SMTP settings to enable email delivery.
 						</p>
 					</div>
@@ -396,14 +396,14 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 
 				{/* Per-type routing rules */}
 				<div className="mt-4">
-					<h4 className={`text-[10px] uppercase tracking-widest font-semibold mb-1 text-gray-500`}>
+					<h4 className={`text-xs uppercase tracking-widest font-semibold mb-1 text-stone-400 dark:text-stone-500`}>
 						Per-Type Routing
 					</h4>
-					<p className="text-[11px] text-gray-500 mb-2">
+					<p className="text-xs text-stone-400 dark:text-stone-500 mb-2">
 						Control which channels each notification type is delivered through.
 						Uncheck a channel to mute that type for that channel.
 					</p>
-					<div className="divide-y divide-gray-700 border border-gray-700 rounded p-3 bg-gray-800/20 max-h-64 overflow-y-auto">
+					<div className="divide-y divide-[#E8E6E1] dark:divide-[#333] border border-[#E8E6E1] dark:border-[#333] rounded p-3 bg-white dark:bg-[#1E1E1E]/20 max-h-64 overflow-y-auto">
 						{allTypes.map((type) => (
 							<TypeRuleRow
 								key={type}
@@ -417,7 +417,7 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 			</div>
 
 			{/* Save / Reset */}
-			<div className="flex items-center justify-between pt-2 border-t border-gray-700">
+			<div className="flex items-center justify-between pt-2 border-t border-[#E8E6E1] dark:border-[#333]">
 				<div className="flex items-center gap-2">
 					{isDirty && (
 						<span className="text-xs text-yellow-500">Unsaved changes</span>
@@ -433,7 +433,7 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 					<button
 						onClick={handleReset}
 						disabled={isSaving}
-						className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-40 transition-colors"
+						className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-700 dark:text-stone-300 disabled:opacity-40 transition-colors"
 					>
 						<RotateCcw size={12} />
 						Reset
@@ -444,7 +444,7 @@ export function NotificationPreferences({ className }: NotificationPreferencesPr
 						className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 							isDirty
 								? "bg-blue-700 hover:bg-blue-600 text-white"
-								: "bg-gray-700 text-gray-500 cursor-not-allowed"
+								: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 						}`}
 					>
 						{isSaving ? "Saving..." : isDirty ? "Save" : "No changes"}

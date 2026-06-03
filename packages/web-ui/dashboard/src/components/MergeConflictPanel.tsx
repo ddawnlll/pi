@@ -109,17 +109,17 @@ export function MergeConflictPanel({
           Merge Conflict Handoff
         </h3>
         {isResolved && (
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
             Resolved
           </span>
         )}
         {isComplete && (
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
             Resume Complete
           </span>
         )}
         {hasFailed && (
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
             Resume Failed
           </span>
         )}
@@ -174,14 +174,14 @@ export function MergeConflictPanel({
                       : "bg-emerald-500"
                   }`}
                 />
-                <span className="font-mono text-stone-700 dark:text-stone-300 truncate flex-1">
+                <span className="font-mono text-stone-800 dark:text-stone-200 truncate flex-1">
                   {file.filePath}
                 </span>
-                <span className="text-stone-500 dark:text-stone-500 shrink-0 text-[10px]">
+                <span className="text-stone-500 dark:text-stone-500 shrink-0 text-xs">
                   {file.conflictType}
                 </span>
                 {!file.hasConflictMarkers && (
-                  <span className="text-emerald-600 dark:text-emerald-400 shrink-0 text-[10px]">
+                  <span className="text-emerald-600 dark:text-emerald-400 shrink-0 text-xs">
                     resolved
                   </span>
                 )}
@@ -206,13 +206,13 @@ export function MergeConflictPanel({
         <div>
           <button
             onClick={() => setShowDiff(!showDiff)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-xs text-blue-700 dark:text-blue-300 hover:underline"
           >
             {showDiff ? "Hide conflict diff" : "Show conflict diff"}
           </button>
           {showDiff && (
             <div className="mt-2 bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 max-h-48 overflow-y-auto">
-              <pre className="text-xs font-mono text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+              <pre className="text-xs font-mono text-stone-800 dark:text-stone-200 whitespace-pre-wrap">
                 {conflict.conflictDiff}
               </pre>
             </div>
@@ -225,13 +225,13 @@ export function MergeConflictPanel({
         <div>
           <button
             onClick={() => setShowStatus(!showStatus)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-xs text-blue-700 dark:text-blue-300 hover:underline"
           >
             {showStatus ? "Hide git status" : "Show git status"}
           </button>
           {showStatus && (
             <div className="mt-2 bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 max-h-32 overflow-y-auto">
-              <pre className="text-xs font-mono text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+              <pre className="text-xs font-mono text-stone-800 dark:text-stone-200 whitespace-pre-wrap">
                 {conflict.gitStatusOutput}
               </pre>
             </div>
@@ -243,7 +243,7 @@ export function MergeConflictPanel({
       {conflict.suggestedResolutionSteps.length > 0 && (
         <div className="bg-white dark:bg-[#1A1A1A] rounded border border-red-200 dark:border-red-900 p-2">
           <h4 className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Resolution Steps:</h4>
-          <div className="text-xs text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+          <div className="text-xs text-stone-800 dark:text-stone-200 whitespace-pre-wrap">
             {conflict.suggestedResolutionSteps.join("\n")}
           </div>
         </div>
@@ -253,7 +253,7 @@ export function MergeConflictPanel({
       {conflict.resolutionNotes && (
         <div className="bg-white dark:bg-[#1A1A1A] rounded border border-emerald-200 dark:border-emerald-900 p-2">
           <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Resolution notes: </span>
-          <span className="text-xs text-stone-700 dark:text-stone-300">{conflict.resolutionNotes}</span>
+          <span className="text-xs text-stone-800 dark:text-stone-200">{conflict.resolutionNotes}</span>
         </div>
       )}
 
@@ -262,7 +262,7 @@ export function MergeConflictPanel({
         {onAbort && !isResolved && (
           <button
             onClick={onAbort}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
           >
             Abort merge
           </button>
@@ -301,7 +301,7 @@ export function MergeConflictPanel({
                       setShowNotesInput(false);
                       setResolutionNotes("");
                     }}
-                    className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
                   >
                     Cancel
                   </button>

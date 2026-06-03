@@ -59,12 +59,12 @@ export function TaskList({ projectId, onSelectTask }: TaskListProps) {
 	}, [projectId, tasks]);
 
 	if (!projectId) {
-		return <p className="text-xs text-gray-500 px-3 py-2">Select a project to view tasks.</p>;
+		return <p className="text-xs text-stone-400 dark:text-stone-500 px-3 py-2">Select a project to view tasks.</p>;
 	}
 
 	if (isLoading && tasks.length === 0) {
 		return (
-			<div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
+			<div className="flex items-center gap-2 px-3 py-2 text-xs text-stone-400 dark:text-stone-500">
 				<Loader2 size={11} className="animate-spin" /> Loading tasks...
 			</div>
 		);
@@ -76,9 +76,9 @@ export function TaskList({ projectId, onSelectTask }: TaskListProps) {
 
 	if (tasks.length === 0) {
 		return (
-			<div className="flex flex-col items-center gap-2 px-3 py-6 text-xs text-gray-500">
+			<div className="flex flex-col items-center gap-2 px-3 py-6 text-xs text-stone-400 dark:text-stone-500">
 				<p>No tasks yet.</p>
-				<p className="text-gray-600">Upload a plan to create a task.</p>
+				<p className="text-stone-400 dark:text-stone-500">Upload a plan to create a task.</p>
 			</div>
 		);
 	}

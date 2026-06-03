@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -52,12 +53,6 @@ import type { ObservabilityEvent, ObservabilitySeverity } from "../../types-obse
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
@@ -65,7 +60,7 @@ const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const GOOD_BG = "bg-emerald-50 dark:bg-emerald-900/20";
 const GOOD_TXT = "text-emerald-600 dark:text-emerald-400";
 const INFO_BG = "bg-blue-50 dark:bg-blue-900/20";
-const INFO_TXT = "text-blue-600 dark:text-blue-400";
+const INFO_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Time range presets ───────────────────────────────────────────────────────
 
@@ -100,14 +95,14 @@ const SEVERITY_META: Record<ObservabilitySeverity, { bg: string; txt: string; la
 	critical: { bg: "bg-red-100 dark:bg-red-900/40", txt: "text-red-700 dark:text-red-300", label: "CRITICAL" },
 	error: { bg: "bg-red-50 dark:bg-red-900/20", txt: "text-red-600 dark:text-red-400", label: "ERROR" },
 	warning: { bg: "bg-amber-50 dark:bg-amber-900/20", txt: "text-amber-600 dark:text-amber-400", label: "WARN" },
-	info: { bg: "bg-blue-50 dark:bg-blue-900/20", txt: "text-blue-600 dark:text-blue-400", label: "INFO" },
-	debug: { bg: "bg-stone-100 dark:bg-stone-800/30", txt: "text-stone-500 dark:text-stone-400", label: "DEBUG" },
+	info: { bg: "bg-blue-50 dark:bg-blue-900/20", txt: "text-blue-700 dark:text-blue-300", label: "INFO" },
+	debug: { bg: "bg-stone-100 dark:bg-[#2A2A2A]", txt: "text-stone-400 dark:text-stone-500", label: "DEBUG" },
 };
 
 function SeverityBadge({ severity }: { severity: ObservabilitySeverity }) {
 	const m = SEVERITY_META[severity] ?? SEVERITY_META.info;
 	return (
-		<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${m.bg} ${m.txt}`}>
+		<span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider ${m.bg} ${m.txt}`}>
 			{m.label}
 		</span>
 	);
@@ -141,7 +136,7 @@ function StatCard({ icon, label, value, sub, accent, loading, error: err }: Stat
 		<div className={`${SURF} rounded-lg border ${BORD} p-3 space-y-1 min-h-[80px] ${accent ? "ring-1 ring-blue-200 dark:ring-blue-800" : ""}`}>
 			<div className="flex items-center gap-1.5">
 				<span className={`${accent ? ACC_TXT : MUT}`}>{icon}</span>
-				<span className={`text-[11px] font-medium uppercase tracking-wider ${MUT}`}>{label}</span>
+				<span className={`text-xs font-medium uppercase tracking-wider ${MUT}`}>{label}</span>
 			</div>
 			{loading ? (
 				<div className="flex items-center gap-2">
@@ -158,7 +153,7 @@ function StatCard({ icon, label, value, sub, accent, loading, error: err }: Stat
 					<div className={`text-lg font-semibold ${accent ? ACC_TXT : TXT}`}>
 						{value != null ? value : "\u2014"}
 					</div>
-					{sub && <div className={`text-[11px] ${MUT}`}>{sub}</div>}
+					{sub && <div className={`text-xs ${MUT}`}>{sub}</div>}
 				</>
 			)}
 		</div>
@@ -201,7 +196,7 @@ function SimpleBarChart({ data, height = 80, maxValue }: SimpleBarChartProps) {
 							style={{ height: `${Math.max(h, 2)}%` }}
 						/>
 						{data.length <= 12 && (
-							<span className={`text-[8px] ${MUT} truncate w-full text-center`}>
+							<span className={`text-xs ${MUT} truncate w-full text-center`}>
 								{d.label}
 							</span>
 						)}
@@ -247,7 +242,7 @@ function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
 	return (
 		<div className={`border-l ${BORD} ${SURF} flex flex-col overflow-hidden w-80 shrink-0`}>
 			<div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD}`}>
-				<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Event Detail</span>
+				<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>Event Detail</span>
 				<button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300 p-1`}>
 					<XCircle size={14} />
 				</button>
@@ -255,20 +250,20 @@ function EventDetailPanel({ event, onClose }: EventDetailPanelProps) {
 			<div className="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
 				<div className="flex items-center gap-2 mb-3">
 					<SeverityBadge severity={event.severity} />
-					<span className={`text-[11px] font-mono ${MUT}`}>{event.eventType}</span>
+					<span className={`text-xs font-mono ${MUT}`}>{event.eventType}</span>
 				</div>
 				{rows.map((row) => (
 					<div key={row.label} className="flex flex-col gap-0.5">
-						<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>{row.label}</span>
-						<span className={`${TXT} font-mono text-[11px] break-all`}>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>{row.label}</span>
+						<span className={`${TXT} font-mono text-xs break-all`}>
 							{row.value ?? "\u2014"}
 						</span>
 					</div>
 				))}
 				{Object.keys(event.data).length > 0 && (
 					<div className="flex flex-col gap-0.5">
-						<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>Data</span>
-						<pre className={`text-[11px] font-mono ${TXT} bg-stone-50 dark:bg-[#161616] rounded p-2 border ${BORD} overflow-x-auto max-h-48`}>
+						<span className={`text-xs uppercase tracking-wider ${MUT}`}>Data</span>
+						<pre className={`text-xs font-mono ${TXT} bg-stone-50 dark:bg-[#161616] rounded p-2 border ${BORD} overflow-x-auto max-h-48`}>
 							{JSON.stringify(event.data, null, 2)}
 						</pre>
 					</div>
@@ -451,7 +446,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 								const preset = TIME_PRESETS.find((p) => p.label === e.target.value);
 								if (preset) setTimePreset(preset);
 							}}
-							className={`text-[11px] px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none`}
+							className={`text-xs px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none`}
 						>
 							{TIME_PRESETS.map((p) => (
 								<option key={p.label} value={p.label}>{p.label}</option>
@@ -459,7 +454,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 						</select>
 						<button
 							onClick={handleRetry}
-							className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
+							className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
 							title="Retry data fetch"
 						>
 							<RefreshCw size={12} />
@@ -482,7 +477,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							<button
 								key={tab.id}
 								onClick={() => setActiveTab(tab.id)}
-								className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
+								className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
 									isActive
 										? "border-blue-500 text-blue-700 dark:text-blue-300"
 										: `border-transparent ${MUT} hover:text-stone-700 dark:hover:text-stone-300`
@@ -497,7 +492,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 					{/* Filter toggle */}
 					<button
 						onClick={() => setShowFilters(!showFilters)}
-						className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${
+						className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
 							showFilters ? `${ACC_BG} ${ACC_TXT}` : `${MUT} hover:text-stone-700 dark:hover:text-stone-300`
 						}`}
 					>
@@ -513,11 +508,11 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 				{showFilters && (
 					<div className={`shrink-0 flex items-center gap-3 px-3 py-2 border-b ${BORD} ${SURF}`}>
 						<div className="flex items-center gap-1.5">
-							<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>Severity</span>
+							<span className={`text-xs uppercase tracking-wider ${MUT}`}>Severity</span>
 							<select
 								value={severityFilter}
 								onChange={(e) => { setSeverityFilter(e.target.value); setEventsPage(0); }}
-								className={`text-[11px] px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none`}
+								className={`text-xs px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none`}
 							>
 								<option value="">All</option>
 								{SEVERITY_ORDER.map((s) => (
@@ -526,23 +521,23 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							</select>
 						</div>
 						<div className="flex items-center gap-1.5">
-							<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>Source</span>
+							<span className={`text-xs uppercase tracking-wider ${MUT}`}>Source</span>
 							<input
 								type="text"
 								value={sourceFilter}
 								onChange={(e) => { setSourceFilter(e.target.value); setEventsPage(0); }}
 								placeholder="Filter source..."
-								className={`text-[11px] px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none w-32`}
+								className={`text-xs px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none w-32`}
 							/>
 						</div>
 						<div className="flex items-center gap-1.5">
-							<span className={`text-[10px] uppercase tracking-wider ${MUT}`}>Event Type</span>
+							<span className={`text-xs uppercase tracking-wider ${MUT}`}>Event Type</span>
 							<input
 								type="text"
 								value={eventTypeFilter}
 								onChange={(e) => { setEventTypeFilter(e.target.value); setEventsPage(0); }}
 								placeholder="Filter type..."
-								className={`text-[11px] px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none w-32`}
+								className={`text-xs px-2 py-1 rounded border ${BORD} ${SURF} ${TXT} outline-none w-32`}
 							/>
 						</div>
 						{(severityFilter || sourceFilter || eventTypeFilter) && (
@@ -553,7 +548,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 									setEventTypeFilter("");
 									setEventsPage(0);
 								}}
-								className={`text-[11px] px-2 py-1 rounded ${ERR_TXT} hover:${ERR_BG}`}
+								className={`text-xs px-2 py-1 rounded ${ERR_TXT} hover:${ERR_BG}`}
 							>
 								Clear
 							</button>
@@ -603,7 +598,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							{/* Severity breakdown */}
 							{severityCards.length > 0 && (
 								<div className={`${SURF} rounded-lg border ${BORD} p-3`}>
-									<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT} mb-2`}>
+									<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-2`}>
 										Severity Breakdown
 									</h3>
 									<div className="flex gap-2">
@@ -614,7 +609,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 											>
 												<div className={`flex items-center gap-1.5 mb-1`}>
 													<SeverityDot severity={sc.severity} />
-													<span className={`text-[10px] font-semibold uppercase ${sc.meta.txt}`}>
+													<span className={`text-xs font-semibold uppercase ${sc.meta.txt}`}>
 														{sc.meta.label}
 													</span>
 												</div>
@@ -628,7 +623,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							{/* Time-series chart */}
 							<div className={`${SURF} rounded-lg border ${BORD} p-3`}>
 								<div className="flex items-center justify-between mb-2">
-									<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT}`}>
+									<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 										Events Over Time
 									</h3>
 									<div className="flex items-center gap-1">
@@ -636,7 +631,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 											<button
 												key={w}
 												onClick={() => setBucketWidthPreset(w)}
-												className={`text-[10px] px-1.5 py-0.5 rounded ${
+												className={`text-xs px-1.5 py-0.5 rounded ${
 													bucketWidthPreset === w
 														? `${ACC_BG} ${ACC_TXT}`
 														: `${MUT} hover:text-stone-700 dark:hover:text-stone-300`
@@ -665,7 +660,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 									<SimpleBarChart data={tsBarData} height={100} />
 								)}
 								{timeSeries?.buckets && (
-									<div className={`text-[10px] ${MUT} mt-1 text-right`}>
+									<div className={`text-xs ${MUT} mt-1 text-right`}>
 										{timeSeries.buckets.reduce((s, b) => s + b.count, 0)} total events
 										{timeSeries.buckets.length > 0 && ` in ${timeSeries.buckets.length} buckets`}
 									</div>
@@ -675,7 +670,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							{/* Top sources */}
 							{topSources.length > 0 && (
 								<div className={`${SURF} rounded-lg border ${BORD} p-3`}>
-									<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT} mb-2`}>
+									<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-2`}>
 										Top Sources
 									</h3>
 									<div className="space-y-1">
@@ -691,7 +686,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 															style={{ width: `${pct}%` }}
 														/>
 													</div>
-													<span className={`text-[11px] font-mono ${MUT} w-12 text-right`}>{s.count}</span>
+													<span className={`text-xs font-mono ${MUT} w-12 text-right`}>{s.count}</span>
 												</div>
 											);
 										})}
@@ -702,30 +697,30 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							{/* Retention policy */}
 							{policy && (
 								<div className={`${SURF} rounded-lg border ${BORD} p-3`}>
-									<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT} mb-2`}>
+									<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-2`}>
 										Retention Policy: {policy.name}
 									</h3>
 									<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
 										{policy.rules.map((rule) => (
 											<div key={rule.name} className={`rounded-md p-2 border ${BORD} ${SURF}`}>
-												<div className={`text-[10px] font-semibold uppercase ${rule.severity ? (SEVERITY_META[rule.severity as ObservabilitySeverity]?.txt ?? TXT) : TXT}`}>
+												<div className={`text-xs font-semibold uppercase ${rule.severity ? (SEVERITY_META[rule.severity as ObservabilitySeverity]?.txt ?? TXT) : TXT}`}>
 													{rule.name}
 												</div>
-												<div className={`text-[10px] ${MUT} mt-1`}>
+												<div className={`text-xs ${MUT} mt-1`}>
 													Max age: {rule.maxAgeMs >= 86_400_000
 														? `${Math.round(rule.maxAgeMs / 86_400_000)}d`
 														: rule.maxAgeMs >= 3_600_000
 															? `${Math.round(rule.maxAgeMs / 3_600_000)}h`
 															: `${Math.round(rule.maxAgeMs / 60_000)}m`}
 												</div>
-												<div className={`text-[10px] ${MUT}`}>
+												<div className={`text-xs ${MUT}`}>
 													Max count: {rule.maxCount.toLocaleString()}
 												</div>
 											</div>
 										))}
 									</div>
 									{policy.globalMaxCount && (
-										<div className={`text-[10px] ${MUT} mt-2`}>
+										<div className={`text-xs ${MUT} mt-2`}>
 											Global max: {policy.globalMaxCount.toLocaleString()} events
 										</div>
 									)}
@@ -770,7 +765,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 								) : (
 									<div className="divide-y divide-[#E8E6E1] dark:divide-[#333]">
 										{/* Header */}
-										<div className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider ${MUT} sticky top-0 ${SURF} border-b ${BORD}`}>
+										<div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${MUT} sticky top-0 ${SURF} border-b ${BORD}`}>
 											<span className="w-16">Severity</span>
 											<span className="w-28">Timestamp</span>
 											<span className="w-24">Type</span>
@@ -791,16 +786,16 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 													<span className="w-16 shrink-0">
 														<SeverityBadge severity={event.severity} />
 													</span>
-													<span className={`w-28 shrink-0 font-mono text-[10px] ${MUT}`}>
+													<span className={`w-28 shrink-0 font-mono text-xs ${MUT}`}>
 														{new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
 													</span>
-													<span className={`w-24 shrink-0 font-mono text-[10px] ${TXT} truncate`}>
+													<span className={`w-24 shrink-0 font-mono text-xs ${TXT} truncate`}>
 														{event.eventType}
 													</span>
-													<span className={`w-28 shrink-0 text-[10px] ${MUT} truncate`} title={event.source}>
+													<span className={`w-28 shrink-0 text-xs ${MUT} truncate`} title={event.source}>
 														{event.source}
 													</span>
-													<span className={`flex-1 text-[11px] ${TXT} truncate`}>
+													<span className={`flex-1 text-xs ${TXT} truncate`}>
 														{event.name}
 														{event.message && (
 															<span className={`${MUT} ml-1`}>
@@ -808,7 +803,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 															</span>
 														)}
 													</span>
-													<span className={`w-16 shrink-0 text-right font-mono text-[10px] ${MUT}`}>
+													<span className={`w-16 shrink-0 text-right font-mono text-xs ${MUT}`}>
 														{formatDuration(event.durationMs)}
 													</span>
 												</button>
@@ -821,14 +816,14 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 							{/* Pagination */}
 							{totalPages > 1 && (
 								<div className={`shrink-0 flex items-center justify-between px-3 py-2 border-t ${BORD} ${SURF}`}>
-									<span className={`text-[11px] ${MUT}`}>
+									<span className={`text-xs ${MUT}`}>
 										{eventsTotal} events total
 									</span>
 									<div className="flex items-center gap-1">
 										<button
 											onClick={() => setEventsPage((p) => Math.max(0, p - 1))}
 											disabled={eventsPage === 0}
-											className={`text-[11px] px-2 py-1 rounded ${
+											className={`text-xs px-2 py-1 rounded ${
 												eventsPage === 0
 													? `${MUT} cursor-not-allowed`
 													: `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -836,13 +831,13 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 										>
 											<ArrowUp size={12} />
 										</button>
-										<span className={`text-[11px] ${MUT} px-2`}>
+										<span className={`text-xs ${MUT} px-2`}>
 											{eventsPage + 1} / {totalPages}
 										</span>
 										<button
 											onClick={() => setEventsPage((p) => Math.min(totalPages - 1, p + 1))}
 											disabled={eventsPage >= totalPages - 1}
-											className={`text-[11px] px-2 py-1 rounded ${
+											className={`text-xs px-2 py-1 rounded ${
 												eventsPage >= totalPages - 1
 													? `${MUT} cursor-not-allowed`
 													: `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -888,7 +883,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 										</div>
 										<div className="grid grid-cols-2 gap-3">
 											<div>
-												<h4 className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} mb-1`}>
+												<h4 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-1`}>
 													By Source
 												</h4>
 												<div className="space-y-1">
@@ -901,7 +896,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 												</div>
 											</div>
 											<div>
-												<h4 className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} mb-1`}>
+												<h4 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-1`}>
 													By Event Type
 												</h4>
 												<div className="space-y-1">
@@ -918,7 +913,7 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 
 									{/* Recent errors */}
 									<div className={`${SURF} rounded-lg border ${BORD} overflow-hidden`}>
-										<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT} px-3 py-2 border-b ${BORD}`}>
+										<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} px-3 py-2 border-b ${BORD}`}>
 											Recent Errors
 										</h3>
 										<div className="divide-y divide-[#E8E6E1] dark:divide-[#333]">
@@ -931,16 +926,16 @@ export function ObservabilityCockpit({ className = "" }: ObservabilityCockpitPro
 													}`}
 												>
 													<SeverityDot severity={event.severity} />
-													<span className={`font-mono text-[10px] ${MUT} w-20 shrink-0`}>
+													<span className={`font-mono text-xs ${MUT} w-20 shrink-0`}>
 														{new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 													</span>
-													<span className={`font-mono text-[10px] ${MUT} w-20 shrink-0 truncate`}>
+													<span className={`font-mono text-xs ${MUT} w-20 shrink-0 truncate`}>
 														{event.eventType}
 													</span>
-													<span className={`text-[10px] ${MUT} w-24 shrink-0 truncate`}>
+													<span className={`text-xs ${MUT} w-24 shrink-0 truncate`}>
 														{event.source}
 													</span>
-													<span className={`flex-1 text-[11px] ${TXT} truncate`}>
+													<span className={`flex-1 text-xs ${TXT} truncate`}>
 														{event.message || event.name}
 													</span>
 													<ChevronRight size={12} className={`${MUT} shrink-0`} />

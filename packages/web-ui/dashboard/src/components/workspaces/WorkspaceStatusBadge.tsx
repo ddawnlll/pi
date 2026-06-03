@@ -54,7 +54,7 @@ export function WorkspaceStatusBadge({ stage, className = "" }: WorkspaceStatusB
 
 	return (
 		<span
-			className={`inline-flex items-center gap-1 text-[10px] font-medium ${color} ${className}`}
+			className={`inline-flex items-center gap-1 text-xs font-medium ${color} ${className}`}
 		>
 			<Icon size={12} className={pulse ? "animate-spin" : ""} />
 			{label}

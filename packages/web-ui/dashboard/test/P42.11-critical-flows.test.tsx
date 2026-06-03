@@ -272,7 +272,7 @@ describe("P42.11 CenterWorkSurface", () => {
         onUploadPlan={() => {}}
       />
     );
-    expect(screen.getByText("No execution selected")).toBeDefined();
+    expect(screen.getByText("Your Pi cockpit is ready.")).toBeDefined();
   });
 
   it("renders upload plan CTA in empty state", () => {

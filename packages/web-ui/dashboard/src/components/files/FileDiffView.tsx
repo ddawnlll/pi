@@ -131,7 +131,7 @@ export function FileDiffView({
 			<div className="flex flex-col items-center justify-center py-8 text-red-400">
 				<FileCode size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">Failed to load diff</p>
-				<p className="text-[10px] mt-1 opacity-70">{(error as Error).message}</p>
+				<p className="text-xs mt-1 opacity-70">{(error as Error).message}</p>
 			</div>
 		);
 	}
@@ -142,7 +142,7 @@ export function FileDiffView({
 			<div className="flex flex-col items-center justify-center py-8 text-stone-400 dark:text-stone-500">
 				<FileCode size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">No file changes to display</p>
-				<p className="text-[10px] mt-1 opacity-50">
+				<p className="text-xs mt-1 opacity-50">
 					Select a changed file from the tree to view its diff, or the diff may not yet be available
 				</p>
 			</div>
@@ -196,18 +196,18 @@ function DiffFileCard({ fileDiff, copied, onCopy, onDownload }: DiffFileCardProp
 						<ChevronDown size={14} className="text-stone-400" />
 					)}
 				</button>
-				<span className="font-mono text-xs text-stone-700 dark:text-stone-300 truncate flex-1">{fileDiff.path}</span>
+				<span className="font-mono text-xs text-stone-800 dark:text-stone-200 truncate flex-1">{fileDiff.path}</span>
 
 				{addCount > 0 && (
-					<span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono shrink-0">+{addCount}</span>
+					<span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono shrink-0">+{addCount}</span>
 				)}
 				{delCount > 0 && (
-					<span className="text-[11px] text-red-600 dark:text-red-400 font-mono shrink-0">-{delCount}</span>
+					<span className="text-xs text-red-600 dark:text-red-400 font-mono shrink-0">-{delCount}</span>
 				)}
 
 				{/* Status badge */}
 				<span
-					className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${
+					className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
 						fileDiff.status === "added"
 							? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
 							: fileDiff.status === "deleted"
@@ -226,7 +226,7 @@ function DiffFileCard({ fileDiff, copied, onCopy, onDownload }: DiffFileCardProp
 						title="Copy diff"
 					>
 						{copied ? (
-							<span className="text-[9px] text-emerald-600 dark:text-emerald-400">Copied</span>
+							<span className="text-xs text-emerald-600 dark:text-emerald-400">Copied</span>
 						) : (
 							<Copy size={12} className="text-stone-400" />
 						)}
@@ -251,7 +251,7 @@ function DiffFileCard({ fileDiff, copied, onCopy, onDownload }: DiffFileCardProp
 			{/* Diff content */}
 			{!collapsed && (
 				<div className="overflow-x-auto">
-					<div className="font-mono text-[11px] leading-[1.5]">
+					<div className="font-mono text-xs leading-[1.5]">
 						{parsedLines.map((line, idx) => (
 							<div
 								key={idx}
@@ -261,8 +261,8 @@ function DiffFileCard({ fileDiff, copied, onCopy, onDownload }: DiffFileCardProp
 										: line.type === "deletion"
 											? "bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300"
 											: line.type === "header"
-												? "bg-stone-50 dark:bg-[#1A1A1A] text-stone-500 dark:text-stone-400 font-semibold"
-												: "text-stone-700 dark:text-stone-300"
+												? "bg-stone-50 dark:bg-[#1A1A1A] text-stone-400 dark:text-stone-500 font-semibold"
+												: "text-stone-800 dark:text-stone-200"
 								}`}
 							>
 								{line.text || " "}

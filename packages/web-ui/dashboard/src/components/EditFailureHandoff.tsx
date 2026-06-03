@@ -112,7 +112,7 @@ export function EditFailureHandoffPanel({
           <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">Failed Attempts:</h4>
           <ul className="space-y-1">
             {handoff.failedStrategyList.map((attempt, i) => (
-              <li key={i} className="text-xs text-stone-700 dark:text-stone-300">
+              <li key={i} className="text-xs text-stone-800 dark:text-stone-200">
                 <span className="font-medium">{attempt.attemptType.replace(/_/g, " ")}</span>
                 <span className="text-amber-600 dark:text-amber-400 ml-1">
                   ({attempt.failureType.replace(/_/g, " ")})
@@ -141,13 +141,13 @@ export function EditFailureHandoffPanel({
         <div>
           <button
             onClick={() => setShowDiff(!showDiff)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-xs text-blue-700 dark:text-blue-300 hover:underline"
           >
             {showDiff ? "Hide diff" : "Show current diff"}
           </button>
           {showDiff && (
             <div className="mt-2 bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-2 max-h-48 overflow-y-auto">
-              <pre className="text-xs font-mono text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+              <pre className="text-xs font-mono text-stone-800 dark:text-stone-200 whitespace-pre-wrap">
                 {handoff.currentDiff}
               </pre>
             </div>
@@ -161,7 +161,7 @@ export function EditFailureHandoffPanel({
           <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">Suggested Fix Steps:</h4>
           <ol className="list-decimal list-inside space-y-1">
             {handoff.suggestedManualFixSteps.map((step, i) => (
-              <li key={i} className="text-xs text-stone-700 dark:text-stone-300">{step}</li>
+              <li key={i} className="text-xs text-stone-800 dark:text-stone-200">{step}</li>
             ))}
           </ol>
         </div>
@@ -177,7 +177,7 @@ export function EditFailureHandoffPanel({
         {handoff.preEditSnapshotPath && onRestore && (
           <button
             onClick={() => onRestore(handoff.preEditSnapshotPath!)}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-600 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
           >
             Restore snapshot
           </button>

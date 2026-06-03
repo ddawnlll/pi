@@ -6,15 +6,13 @@
  */
 
 import { ArrowRight, RefreshCw } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { useNavigation } from "../../navigation/NavigationState";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 import { WorkspaceCardActions } from "./WorkspaceCardActions";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -103,24 +101,24 @@ export function WorkspaceCardV3({
 
 				<div className="flex items-center gap-2 mt-1">
 					{workspace.attempts > 1 && (
-						<span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+						<span className="flex items-center gap-0.5 text-xs text-amber-500">
 							<RefreshCw size={9} />
 							{workspace.attempts}
 						</span>
 					)}
 					{workspace.startedAt && (
-						<span className={`text-[10px] ${TXT_MUTED}`}>
+						<span className={`text-xs ${TXT_MUTED}`}>
 							Started {relativeTime(workspace.startedAt)}
 						</span>
 					)}
 					{workspace.completedAt && workspace.stage === "complete" && (
-						<span className={`text-[10px] ${TXT_MUTED}`}>
+						<span className={`text-xs ${TXT_MUTED}`}>
 							Completed {relativeTime(workspace.completedAt)}
 						</span>
 					)}
 					{workspace.error && (
 						<span
-							className="text-[10px] text-red-500 truncate max-w-[160px]"
+							className="text-xs text-red-500 truncate max-w-[160px]"
 							title={workspace.error}
 						>
 							{workspace.error}

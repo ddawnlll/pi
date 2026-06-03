@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Loader2, Send, AlertTriangle, CheckCircle, MessageSquare } from "lucide-react";
 import { useIssueDirective } from "../../hooks/useHumanDirectives";
 
@@ -21,12 +22,6 @@ import { useIssueDirective } from "../../hooks/useHumanDirectives";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
@@ -105,7 +100,7 @@ export function HumanDirectiveInput({
   // ── Success state (self-clearing after 3s) ──
   if (issueMutation.isSuccess && issueMutation.data?.success && !showForm) {
     return (
-      <div className={`flex items-center gap-1.5 text-[10px] ${GOOD_TXT} py-1 ${className}`}>
+      <div className={`flex items-center gap-1.5 text-xs ${GOOD_TXT} py-1 ${className}`}>
         <CheckCircle size={10} />
         Directive issued
       </div>
@@ -117,7 +112,7 @@ export function HumanDirectiveInput({
     return (
       <button
         onClick={() => setShowForm(true)}
-        className={`inline-flex items-center gap-1 text-[10px] ${ACC_TXT} hover:underline py-1 ${className}`}
+        className={`inline-flex items-center gap-1 text-xs ${ACC_TXT} hover:underline py-1 ${className}`}
       >
         <MessageSquare size={10} />
         Issue directive
@@ -133,7 +128,7 @@ export function HumanDirectiveInput({
         placeholder="Enter a directive for the worker..."
         value={directiveText}
         onChange={(e) => setDirectiveText(e.target.value)}
-        className={`w-full text-[11px] px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
+        className={`w-full text-xs px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
         rows={2}
         disabled={issueMutation.isPending}
       />
@@ -146,7 +141,7 @@ export function HumanDirectiveInput({
             key={s.value}
             onClick={() => setSeverity(s.value)}
             disabled={issueMutation.isPending}
-            className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition-colors ${
+            className={`text-xs px-1.5 py-0.5 rounded font-medium transition-colors ${
               severity === s.value
                 ? `${s.color} ${s.bg}`
                 : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -160,7 +155,7 @@ export function HumanDirectiveInput({
         <button
           onClick={handleIssue}
           disabled={!canIssue || issueMutation.isPending}
-          className={`ml-auto inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-medium transition-colors ${
+          className={`ml-auto inline-flex items-center gap-1 text-xs px-2 py-1 rounded font-medium transition-colors ${
             canIssue
               ? `${ACC_BG} ${ACC_TXT} hover:opacity-80`
               : `${MUT} cursor-not-allowed opacity-50`
@@ -181,7 +176,7 @@ export function HumanDirectiveInput({
               setShowForm(false);
               setDirectiveText("");
             }}
-            className={`text-[10px] ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+            className={`text-xs ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
           >
             Cancel
           </button>
@@ -190,7 +185,7 @@ export function HumanDirectiveInput({
 
       {/* Error state */}
       {issueMutation.isError && (
-        <div className={`flex items-center gap-1 text-[10px] ${ERR_TXT}`}>
+        <div className={`flex items-center gap-1 text-xs ${ERR_TXT}`}>
           <AlertTriangle size={10} />
           {issueMutation.error?.message ?? "Failed to issue directive"}
         </div>
@@ -198,7 +193,7 @@ export function HumanDirectiveInput({
 
       {/* Server error */}
       {issueMutation.data?.success === false && (
-        <div className={`flex items-center gap-1 text-[10px] ${ERR_TXT}`}>
+        <div className={`flex items-center gap-1 text-xs ${ERR_TXT}`}>
           <AlertTriangle size={10} />
           {issueMutation.data.error ?? "Directive rejected"}
         </div>

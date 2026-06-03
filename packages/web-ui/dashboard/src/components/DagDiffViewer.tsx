@@ -15,6 +15,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	AlertCircle,
@@ -31,11 +32,6 @@ import {
 // Style constants
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const DANGER_BG = "bg-red-50 dark:bg-red-900/10";
 const DANGER_TXT = "text-red-600 dark:text-red-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/10";
@@ -128,7 +124,7 @@ function DeltaBadge({ delta, label, improvement }: {
 	const bg = isImprovement ? SUCCESS_BG : DANGER_BG;
 
 	return (
-		<span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${color} ${bg}`}>
+		<span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${color} ${bg}`}>
 			<Icon size={10} strokeWidth={2.5} />
 			{Math.abs(delta)}
 			<span className="sr-only">{isImprovement ? "improvement" : "regression"}</span>
@@ -145,12 +141,12 @@ function MetricRow({ label, before, after, delta, improvement }: {
 }) {
 	return (
 		<div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-stone-50 dark:hover:bg-stone-800/30">
-			<span className={`text-[11px] ${MUT}`}>{label}</span>
+			<span className={`text-xs ${MUT}`}>{label}</span>
 			<div className="flex items-center gap-2">
-				<span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 line-through decoration-stone-300 dark:decoration-stone-600">
+				<span className="text-xs font-medium text-stone-400 dark:text-stone-500 line-through decoration-stone-300 dark:decoration-stone-600">
 					{before}
 				</span>
-				<span className={`text-[11px] font-semibold ${TXT}`}>{after}</span>
+				<span className={`text-xs font-semibold ${TXT}`}>{after}</span>
 				<DeltaBadge delta={delta} label={label} improvement={improvement} />
 			</div>
 		</div>
@@ -210,7 +206,7 @@ export function DagDiffViewer({
 				return {
 					icon: <GitCompare size={12} />,
 					text: "Modified",
-					className: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400",
+					className: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
 				};
 			default:
 				return {
@@ -241,7 +237,7 @@ export function DagDiffViewer({
 					<AlertCircle size={14} className={`mt-0.5 shrink-0 ${DANGER_TXT}`} />
 					<div className="flex-1 min-w-0">
 						<p className={`text-xs font-medium ${DANGER_TXT}`}>Failed to compute DAG diff</p>
-						<p className={`text-[11px] mt-1 ${MUT}`}>{error}</p>
+						<p className={`text-xs mt-1 ${MUT}`}>{error}</p>
 					</div>
 				</div>
 				{onRetry && (
@@ -264,7 +260,7 @@ export function DagDiffViewer({
 				<div className="flex flex-col items-center justify-center py-6 gap-2">
 					<GitCompare size={24} className={`${MUT}`} strokeWidth={1.2} />
 					<p className={`text-xs ${MUT}`}>No DAG diff to display</p>
-					<p className={`text-[10px] ${MUT} text-center max-w-xs`}>
+					<p className={`text-xs ${MUT} text-center max-w-xs`}>
 						Upload and validate a plan to see the dependency graph analysis and
 						compare original vs optimized structure.
 					</p>
@@ -278,8 +274,8 @@ export function DagDiffViewer({
 		<div className={`flex items-start gap-2 p-2.5 rounded-lg border ${WARN_BG} ${WARN_TXT} border-amber-200 dark:border-amber-800`}>
 			<AlertTriangle size={12} className="mt-0.5 shrink-0" />
 			<div className="flex-1 min-w-0">
-				<p className="text-[10px] font-medium">{staleReason}</p>
-				<p className="text-[9px] mt-0.5 opacity-70">Revalidate the plan to get fresh data.</p>
+				<p className="text-xs font-medium">{staleReason}</p>
+				<p className="text-xs mt-0.5 opacity-70">Revalidate the plan to get fresh data.</p>
 			</div>
 			{onRetry && (
 				<button onClick={onRetry} className={`shrink-0 p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-800/50`}>
@@ -297,7 +293,7 @@ export function DagDiffViewer({
 				<div className="flex items-center gap-2">
 					<GitCompare size={14} className={ACC_TXT} />
 					<h3 className={`text-sm font-semibold ${TXT}`}>DAG Diff</h3>
-					<span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${statusBadge.className}`}>
+					<span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${statusBadge.className}`}>
 						{statusBadge.icon}
 						{statusBadge.text}
 					</span>
@@ -324,7 +320,7 @@ export function DagDiffViewer({
 						{/* Metrics comparison */}
 						<div className={`rounded-lg border ${BORD} overflow-hidden`}>
 							<div className={`px-3 py-1.5 bg-stone-50 dark:bg-stone-800/30 border-b ${BORD}`}>
-								<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+								<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 									Metrics
 								</span>
 							</div>
@@ -373,10 +369,10 @@ export function DagDiffViewer({
 								<AlertTriangle size={12} className="mt-0.5 shrink-0" />
 								<div>
 									{diff.metrics.before.isOverSerialized && (
-										<p className="text-[10px]">Before: Plan is over-serialized (requested &gt;1 worker but effective parallelism = 1)</p>
+										<p className="text-xs">Before: Plan is over-serialized (requested &gt;1 worker but effective parallelism = 1)</p>
 									)}
 									{diff.metrics.after.isOverSerialized && (
-										<p className="text-[10px]">After: Plan remains over-serialized</p>
+										<p className="text-xs">After: Plan remains over-serialized</p>
 									)}
 								</div>
 							</div>
@@ -389,23 +385,23 @@ export function DagDiffViewer({
 									onClick={() => setShowChanges(!showChanges)}
 									className={`w-full flex items-center justify-between px-3 py-1.5 bg-stone-50 dark:bg-stone-800/30 border-b ${BORD} hover:bg-stone-100 dark:hover:bg-stone-700/30 transition-colors`}
 								>
-									<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+									<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 										Dependency Changes ({diff.dependencyChanges.length})
 									</span>
-									<span className={`text-[10px] ${MUT}`}>{showChanges ? "Hide" : "Show"}</span>
+									<span className={`text-xs ${MUT}`}>{showChanges ? "Hide" : "Show"}</span>
 								</button>
 								{showChanges && (
 									<div className="max-h-48 overflow-y-auto divide-y divide-[#E8E6E1] dark:divide-[#333]">
 										{diff.dependencyChanges.map((change, idx) => (
 											<div key={idx} className="flex items-start gap-2 px-3 py-2">
 												{change.kind === "added" || change.kind === "workspace_added" ? (
-													<span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1 rounded ${SUCCESS_BG} ${SUCCESS_TXT}`}>+</span>
+													<span className={`shrink-0 mt-0.5 text-xs font-bold px-1 rounded ${SUCCESS_BG} ${SUCCESS_TXT}`}>+</span>
 												) : change.kind === "removed" || change.kind === "workspace_removed" ? (
-													<span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1 rounded ${DANGER_BG} ${DANGER_TXT}`}>-</span>
+													<span className={`shrink-0 mt-0.5 text-xs font-bold px-1 rounded ${DANGER_BG} ${DANGER_TXT}`}>-</span>
 												) : (
-													<span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1 rounded ${WARN_BG} ${WARN_TXT}`}>~</span>
+													<span className={`shrink-0 mt-0.5 text-xs font-bold px-1 rounded ${WARN_BG} ${WARN_TXT}`}>~</span>
 												)}
-												<p className="text-[11px] text-stone-600 dark:text-stone-300">{change.description}</p>
+												<p className="text-xs text-stone-600 dark:text-stone-300">{change.description}</p>
 											</div>
 										))}
 									</div>
@@ -417,14 +413,14 @@ export function DagDiffViewer({
 						{diff.batchChanges.length > 0 && (
 							<div className={`rounded-lg border ${BORD} overflow-hidden`}>
 								<div className={`px-3 py-1.5 bg-stone-50 dark:bg-stone-800/30 border-b ${BORD}`}>
-									<span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>
+									<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 										Batch Changes ({diff.batchChanges.length})
 									</span>
 								</div>
 								<div className="max-h-40 overflow-y-auto divide-y divide-[#E8E6E1] dark:divide-[#333]">
 									{diff.batchChanges.map((change, idx) => (
 										<div key={idx} className="px-3 py-2">
-											<p className="text-[11px] text-stone-600 dark:text-stone-300">{change.description}</p>
+											<p className="text-xs text-stone-600 dark:text-stone-300">{change.description}</p>
 										</div>
 									))}
 								</div>

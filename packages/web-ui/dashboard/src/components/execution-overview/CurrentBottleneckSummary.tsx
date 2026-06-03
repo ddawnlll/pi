@@ -6,12 +6,10 @@
  */
 
 import { AlertTriangle, ArrowRight, BarChart3, GitBranch } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
 const TXT_MUTED = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -128,7 +126,7 @@ export function CurrentBottleneckSummary({
 			{/* Header */}
 			<div className={`flex items-center gap-1.5 px-3 py-1.5 border-b ${BORD} bg-amber-50 dark:bg-amber-950/20`}>
 				<AlertTriangle size={11} className="text-amber-500" />
-				<span className="text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+				<span className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
 					Bottleneck
 				</span>
 			</div>
@@ -139,15 +137,15 @@ export function CurrentBottleneckSummary({
 					<GitBranch size={14} className={`shrink-0 mt-0.5 ${typeColor(bottleneck.type)}`} />
 					<div className="flex-1 min-w-0">
 						<div className="flex items-center gap-2">
-							<span className={`text-[10px] font-medium ${typeColor(bottleneck.type)}`}>
+							<span className={`text-xs font-medium ${typeColor(bottleneck.type)}`}>
 								{typeLabel(bottleneck.type)}
 							</span>
-							<span className={`text-[9px] font-mono ${TXT_MUTED}`}>
+							<span className={`text-xs font-mono ${TXT_MUTED}`}>
 								{bottleneck.workspaceId.length > 12
 									? `${bottleneck.workspaceId.slice(0, 8)}..`
 									: bottleneck.workspaceId}
 							</span>
-							<span className={`text-[9px] ${TXT_MUTED}`}>
+							<span className={`text-xs ${TXT_MUTED}`}>
 								{relativeTime(bottleneck.detectedAt)}
 							</span>
 						</div>
@@ -155,12 +153,12 @@ export function CurrentBottleneckSummary({
 
 						{bottleneck.blockedWorkspaceIds && bottleneck.blockedWorkspaceIds.length > 0 && (
 							<div className="flex items-center gap-1 mt-1.5">
-								<span className={`text-[9px] ${TXT_MUTED}`}>Blocks:</span>
+								<span className={`text-xs ${TXT_MUTED}`}>Blocks:</span>
 								<div className="flex flex-wrap gap-1">
 									{bottleneck.blockedWorkspaceIds.map((id) => (
 										<span
 											key={id}
-											className="text-[9px] font-mono px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+											className="text-xs font-mono px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500"
 										>
 											{id.length > 10 ? `${id.slice(0, 6)}..` : id}
 										</span>
@@ -170,7 +168,7 @@ export function CurrentBottleneckSummary({
 						)}
 
 						{bottleneck.suggestion && (
-							<p className={`text-[10px] ${TXT_MUTED} mt-1.5 italic`}>
+							<p className={`text-xs ${TXT_MUTED} mt-1.5 italic`}>
 								Suggestion: {bottleneck.suggestion}
 							</p>
 						)}
@@ -178,7 +176,7 @@ export function CurrentBottleneckSummary({
 						{onViewBottleneck && (
 							<button
 								onClick={() => onViewBottleneck(bottleneck.workspaceId)}
-								className="inline-flex items-center gap-1 mt-2 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+								className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
 							>
 								View workspace
 								<ArrowRight size={10} />

@@ -29,6 +29,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
   AlertTriangle,
   CheckCircle,
@@ -83,12 +84,6 @@ export interface EscalationCenterProps {
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
@@ -193,14 +188,14 @@ export function EscalationCenter({
         >
           <div className="flex items-center gap-2">
             <ShieldAlert size={13} className={GOOD_TXT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+            <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Escalation Center
             </span>
           </div>
           {onRefetch && (
             <button
               onClick={onRefetch}
-              className={`text-[10px] p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+              className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
               title="Refresh"
             >
               <RefreshCw size={12} />
@@ -233,18 +228,18 @@ export function EscalationCenter({
             ) : (
               <CheckCircle size={13} className={GOOD_TXT} />
             )}
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+            <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Escalation Center
             </span>
             {activeCount > 0 && (
               <span
-                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${WARN_BG} ${WARN_TXT}`}
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${WARN_BG} ${WARN_TXT}`}
               >
                 {activeCount} active
               </span>
             )}
             {resolvedCount > 0 && (
-              <span className={`text-[10px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>
                 {resolvedCount} resolved
               </span>
             )}
@@ -253,7 +248,7 @@ export function EscalationCenter({
             {onRefetch && (
               <button
                 onClick={onRefetch}
-                className={`text-[10px] p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+                className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
                 title="Refresh"
               >
                 <RefreshCw size={12} />
@@ -276,7 +271,7 @@ export function EscalationCenter({
                 <button
                   key={f}
                   onClick={() => setFilterStatus(f)}
-                  className={`text-[9px] font-medium px-2 py-1 rounded transition-colors ${
+                  className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
                     filterStatus === f
                       ? `${ACC_BG} ${ACC_TXT}`
                       : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -292,7 +287,7 @@ export function EscalationCenter({
           {/* Deadlock toggle */}
           <button
             onClick={() => setShowDeadlock(!showDeadlock)}
-            className={`flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded transition-colors ${
+            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${
               showDeadlock
                 ? `${WARN_BG} ${WARN_TXT}`
                 : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -310,7 +305,7 @@ export function EscalationCenter({
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-32 text-[10px] pl-5 pr-2 py-1 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400`}
+              className={`w-32 text-xs pl-5 pr-2 py-1 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400`}
             />
           </div>
         </div>

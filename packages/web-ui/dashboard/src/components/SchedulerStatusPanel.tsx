@@ -1,11 +1,10 @@
 import { Cpu, Loader2, CheckCircle, AlertTriangle, XCircle, Clock, AlertCircle, ArrowRight, Activity, Ban } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import type { ExecutionStats } from "../types";
 import type { ValidationLaneStatus } from "../hooks/useScaleStatus";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Scheduler status count badge ────────────────────────────────────────────
 
@@ -23,7 +22,7 @@ function StatusCount({ label, count, icon, color, bgColor }: StatusCountProps) {
 		<div className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg ${bgColor}`}>
 			<div className={`${color}`}>{icon}</div>
 			<span className={`text-lg font-bold tabular-nums ${color}`}>{count}</span>
-			<span className={`text-[9px] uppercase tracking-widest font-semibold ${MUT}`}>{label}</span>
+			<span className={`text-xs uppercase tracking-widest font-semibold ${MUT}`}>{label}</span>
 		</div>
 	);
 }
@@ -84,14 +83,14 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 			label: "Total",
 			count: stats.total,
 			icon: <Cpu size={16} />,
-			color: "text-stone-700 dark:text-stone-300",
+			color: "text-stone-800 dark:text-stone-200",
 			bgColor: "bg-stone-50 dark:bg-[#222]",
 		},
 		{
 			label: "Ready",
 			count: stats.pending,
 			icon: <Clock size={16} />,
-			color: "text-blue-600 dark:text-blue-400",
+			color: "text-blue-700 dark:text-blue-300",
 			bgColor: "bg-blue-50 dark:bg-blue-900/20",
 		},
 		{
@@ -105,7 +104,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 			label: "Complete",
 			count: stats.complete,
 			icon: <CheckCircle size={16} />,
-			color: "text-blue-600 dark:text-blue-400",
+			color: "text-blue-700 dark:text-blue-300",
 			bgColor: "bg-blue-50 dark:bg-blue-900/20",
 		},
 		{
@@ -147,7 +146,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 
 			{/* Worker parallelism info */}
 			{showParallelism && (
-				<div className="mt-2 flex items-center gap-3 text-[11px] text-stone-600 dark:text-stone-400">
+				<div className="mt-2 flex items-center gap-3 text-xs text-stone-600 dark:text-stone-400">
 					<div className="flex items-center gap-1">
 						<Cpu size={12} />
 						<span>Requested:</span>
@@ -168,16 +167,16 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 			{/* P23: Validation lane status */}
 			{(stats as any)?.validationLane && (
 				<div className="mt-2 space-y-1">
-					<div className="flex items-center gap-1.5 text-[11px] text-stone-600 dark:text-stone-400">
+					<div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-400">
 						<Activity size={12} />
 						<span className="font-semibold">Validation Lanes</span>
 					</div>
-					<div className="flex items-center gap-3 text-[10px] text-stone-500 dark:text-stone-400">
+					<div className="flex items-center gap-3 text-xs text-stone-400 dark:text-stone-500">
 						<span>Heavy: {(stats as any).validationLane.currentHeavyValidations}/{(stats as any).validationLane.maxConcurrentHeavyValidations}</span>
 						<span>Targeted: {(stats as any).validationLane.currentTargetedValidations}/{(stats as any).validationLane.maxConcurrentTargetedValidations}</span>
 					</div>
 					{(stats as any).validationLane.backpressureActive && (
-						<div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+						<div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-0.5">
 							<Ban size={10} />
 							<span>Backpressure active — heavy validation slot saturated</span>
 						</div>
@@ -185,7 +184,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 					{(stats as any).validationLane.deferredWorkspaceIds?.length > 0 && (
 						<div className="mt-0.5 space-y-0.5">
 							{(stats as any).validationLane.deferredWorkspaceIds.map((id: string) => (
-								<div key={id} className="flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400">
+								<div key={id} className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
 									<AlertCircle size={8} />
 									<span>Deferred: {id} — {(stats as any).validationLane.deferredReasons?.[id] ?? "heavy slot full"}</span>
 								</div>
@@ -197,7 +196,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 
 			{/* Safe effective parallelism */}
 			{showSafeParallelism && (
-				<div className="mt-1 flex items-center gap-1.5 text-[11px] text-stone-600 dark:text-stone-400">
+				<div className="mt-1 flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-400">
 					<Clock size={12} />
 					<span>Safe effective parallelism:</span>
 					<span className="font-semibold tabular-nums text-stone-800 dark:text-stone-200">
@@ -212,7 +211,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 					{stats.bottleneckReasons!.map((reason, idx) => (
 						<div
 							key={idx}
-							className="flex items-start gap-1.5 text-[10px] text-amber-600 dark:text-amber-400"
+							className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400"
 						>
 							<AlertCircle size={10} className="mt-0.5 shrink-0" />
 							<span>{reason}</span>
@@ -223,7 +222,7 @@ export function SchedulerStatusPanel({ stats, className }: SchedulerStatusPanelP
 
 			{/* Progress bar */}
 			<div className="mt-3">
-				<div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-stone-400 mb-1">
+				<div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 mb-1">
 					<span>Progress</span>
 					<span className="tabular-nums font-medium">
 						{stats.complete}/{stats.total} ({progressPct}%)

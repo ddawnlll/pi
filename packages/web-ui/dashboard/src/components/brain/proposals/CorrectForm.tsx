@@ -26,7 +26,7 @@ export function CorrectForm({ proposal, onSubmit, onCancel, loading }: CorrectFo
 				</h3>
 				<div className="space-y-3">
 					<div>
-						<label className="text-[10px] font-medium text-stone-500 block mb-1">Title</label>
+						<label className="text-xs font-medium text-stone-500 block mb-1">Title</label>
 						<input
 							type="text"
 							value={title}
@@ -35,7 +35,7 @@ export function CorrectForm({ proposal, onSubmit, onCancel, loading }: CorrectFo
 						/>
 					</div>
 					<div>
-						<label className="text-[10px] font-medium text-stone-500 block mb-1">Description</label>
+						<label className="text-xs font-medium text-stone-500 block mb-1">Description</label>
 						<textarea
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}

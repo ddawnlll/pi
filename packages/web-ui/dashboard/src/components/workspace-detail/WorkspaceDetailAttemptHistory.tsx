@@ -5,13 +5,10 @@
  */
 
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -41,15 +38,15 @@ function stageBadgeClass(stage: string): string {
     case "active":
       return "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400";
     case "complete":
-      return "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400";
+      return "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300";
     case "failed":
       return "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400";
     case "blocked":
       return "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400";
     case "pending":
-      return "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+      return "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
     default:
-      return "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+      return "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
   }
 }
 
@@ -94,11 +91,11 @@ export function WorkspaceDetailAttemptHistory({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <RefreshCw size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             Attempt History
           </span>
         </div>
-        <span className={`text-[10px] tabular-nums ${MUT}`}>
+        <span className={`text-xs tabular-nums ${MUT}`}>
           {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -126,17 +123,17 @@ export function WorkspaceDetailAttemptHistory({
               <span className={`${TXT} font-medium`}>
                 Attempt #{attempt.attemptNumber}
               </span>
-              <span className={`text-[9px] font-medium px-1 py-px rounded ${stageBadgeClass(attempt.stage)}`}>
+              <span className={`text-xs font-medium px-1 py-px rounded ${stageBadgeClass(attempt.stage)}`}>
                 {attempt.stage}
               </span>
             </div>
 
             {/* Timestamps */}
             <div className="flex items-center gap-2 pl-5">
-              <span className={`text-[9px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>
                 Started: {formatTime(attempt.startedAt)}
               </span>
-              <span className={`text-[9px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>
                 Completed: {formatTime(attempt.completedAt)}
               </span>
             </div>
@@ -145,7 +142,7 @@ export function WorkspaceDetailAttemptHistory({
             {attempt.error && (
               <div className="pl-5 flex items-start gap-1.5">
                 <AlertTriangle size={10} className="mt-0.5 shrink-0 text-red-400" />
-                <span className="text-[9px] text-red-600 dark:text-red-400 break-all">
+                <span className="text-xs text-red-600 dark:text-red-400 break-all">
                   {attempt.error}
                 </span>
               </div>

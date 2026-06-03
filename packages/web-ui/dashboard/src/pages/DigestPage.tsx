@@ -39,7 +39,7 @@ export function DigestPage() {
 				<h1 className="text-base font-semibold text-stone-800 dark:text-stone-200">
 					Morning Digest
 				</h1>
-				<span className="text-[10px] text-stone-400 dark:text-stone-500">
+				<span className="text-xs text-stone-400 dark:text-stone-500">
 					{new Date().toLocaleDateString([], {
 						weekday: "long",
 						month: "long",
@@ -50,7 +50,7 @@ export function DigestPage() {
 
 			{/* Inline error banner */}
 			{error && digest && (
-				<div className="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-[10px] text-amber-700 dark:text-amber-300">
+				<div className="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
 					Failed to refresh: {error}
 				</div>
 			)}
@@ -92,10 +92,10 @@ export function DigestPage() {
 							<div key={goal.id} className="flex items-center gap-3 px-4 py-2.5">
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center justify-between mb-1">
-										<span className="text-xs text-stone-700 dark:text-stone-300 truncate">
+										<span className="text-xs text-stone-800 dark:text-stone-200 truncate">
 											{goal.title}
 										</span>
-										<span className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums ml-2">
+										<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums ml-2">
 											{goal.progress}%
 										</span>
 									</div>
@@ -112,9 +112,9 @@ export function DigestPage() {
 										/>
 									</div>
 								</div>
-								<span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${
+								<span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
 									goal.status === "active"
-										? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+										? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20"
 										: goal.status === "complete"
 											? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20"
 											: goal.status === "paused"
@@ -131,7 +131,7 @@ export function DigestPage() {
 
 			{/* Reflection summary */}
 			{digest?.reflectionCounts && (
-				<div className="flex items-center gap-4 text-[9px] text-stone-400 dark:text-stone-500">
+				<div className="flex items-center gap-4 text-xs text-stone-400 dark:text-stone-500">
 					<span>{digest.reflectionCounts.total} total reflections</span>
 					<span>{digest.reflectionCounts.today} today</span>
 					<span>{digest.reflectionCounts.newMemories} new memories created</span>

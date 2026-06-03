@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { CheckCircle, XCircle, AlertTriangle, FileCode, Beaker, ListChecks, Sparkles, RotateCw, Heart, Activity } from "lucide-react";
 
 interface PlanSummaryData {
@@ -35,10 +36,6 @@ interface PlanSummaryPanelProps {
   className?: string;
 }
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-800 dark:text-stone-200";
 
 export function PlanSummaryPanel({ projectId, planExecId, className = "" }: PlanSummaryPanelProps) {
   const [data, setData] = useState<PlanSummaryData | null>(null);
@@ -133,26 +130,26 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         </div>
         <div className="flex items-center gap-2">
           {data.passed ? (
-            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
               <CheckCircle size={10} /> PASS
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
               <XCircle size={10} /> FAIL
             </span>
           )}
           {data.completedAt && (
-            <span className={`text-[10px] ${MUT} tabular-nums`}>
+            <span className={`text-xs ${MUT} tabular-nums`}>
               {new Date(data.completedAt).toLocaleTimeString()}
             </span>
           )}
           <button
             onClick={handleRerun}
             disabled={rerunning}
-            className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+            className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
               rerunning
                 ? "text-stone-400 dark:text-stone-600 cursor-not-allowed"
-                : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]"
+                : "text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]"
             }`}
             title="Rerun cleanup review"
           >
@@ -173,15 +170,15 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
           <div className={`text-sm font-semibold ${data.issueCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {data.issueCount}
           </div>
-          <div className={`text-[9px] uppercase tracking-wider ${MUT} font-medium`}>Issues</div>
+          <div className={`text-xs uppercase tracking-wider ${MUT} font-medium`}>Issues</div>
         </div>
         <div className={`${SURF} px-4 py-2.5 text-center`}>
           <div className={`text-sm font-semibold ${TXT}`}>{data.changedFiles.length}</div>
-          <div className={`text-[9px] uppercase tracking-wider ${MUT} font-medium`}>Files Changed</div>
+          <div className={`text-xs uppercase tracking-wider ${MUT} font-medium`}>Files Changed</div>
         </div>
         <div className={`${SURF} px-4 py-2.5 text-center`}>
           <div className={`text-sm font-semibold ${TXT}`}>{data.testResults.length}</div>
-          <div className={`text-[9px] uppercase tracking-wider ${MUT} font-medium`}>Tests Run</div>
+          <div className={`text-xs uppercase tracking-wider ${MUT} font-medium`}>Tests Run</div>
         </div>
       </div>
 
@@ -190,11 +187,11 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         <div className="border-t ${BORD} px-4 py-3">
           <div className="flex items-center gap-1.5 mb-2">
             <FileCode size={11} className={MUT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Changed Files</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Changed Files</span>
           </div>
           <div className="flex flex-wrap gap-1">
             {data.changedFiles.map((file, i) => (
-              <span key={i} className="inline-block px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 dark:bg-[#2A2A2A] text-stone-600 dark:text-stone-400 rounded">
+              <span key={i} className="inline-block px-1.5 py-0.5 text-xs font-mono bg-stone-100 dark:bg-[#2A2A2A] text-stone-600 dark:text-stone-400 rounded">
                 {file}
               </span>
             ))}
@@ -207,17 +204,17 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         <div className="border-t ${BORD} px-4 py-3">
           <div className="flex items-center gap-1.5 mb-2">
             <AlertTriangle size={11} className="text-amber-500" />
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Issues</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Issues</span>
           </div>
           <ul className="space-y-1">
             {data.issues.map((issue, i) => (
-              <li key={i} className={`flex items-start gap-1.5 text-xs ${i < 3 ? "text-stone-700 dark:text-stone-300" : "text-stone-400 dark:text-stone-500"}`}>
+              <li key={i} className={`flex items-start gap-1.5 text-xs ${i < 3 ? "text-stone-800 dark:text-stone-200" : "text-stone-400 dark:text-stone-500"}`}>
                 <span className="text-amber-500 shrink-0 mt-0.5">&bull;</span>
                 <span className="break-words">{issue}</span>
               </li>
             ))}
             {data.issues.length > 3 && (
-              <li className={`text-[10px] ${MUT} italic`}>...and {data.issues.length - 3} more</li>
+              <li className={`text-xs ${MUT} italic`}>...and {data.issues.length - 3} more</li>
             )}
           </ul>
         </div>
@@ -228,7 +225,7 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         <div className="border-t ${BORD} px-4 py-3">
           <div className="flex items-center gap-1.5 mb-2">
             <Beaker size={11} className={MUT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Test Results</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Test Results</span>
           </div>
           <div className="space-y-1">
             {data.testResults.map((test, i) => (
@@ -242,7 +239,7 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
                   {test.name}
                 </span>
                 {test.output && (
-                  <span className={`text-[10px] ${MUT} truncate max-w-[200px]`} title={test.output}>
+                  <span className={`text-xs ${MUT} truncate max-w-[200px]`} title={test.output}>
                     &mdash; {test.output.slice(0, 60)}
                   </span>
                 )}
@@ -257,28 +254,28 @@ export function PlanSummaryPanel({ projectId, planExecId, className = "" }: Plan
         <div className={`border-t ${BORD} px-4 py-3`}>
           <div className="flex items-center gap-1.5 mb-1.5">
             <Heart size={11} className={MUT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Lease Monitor</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Lease Monitor</span>
           </div>
           {(data as any).leaseMonitorHealth.enabled ? (
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
                 <Activity size={9} />
                 {(data as any).leaseMonitorHealth.healthy ? "Healthy" : "Unhealthy"}
               </span>
-              <span className={`text-[10px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>
                 Quarantines: {(data as any).leaseMonitorHealth.quarantineCount ?? 0}
               </span>
-              <span className={`text-[10px] ${MUT}`}>
+              <span className={`text-xs ${MUT}`}>
                 Reconciliations: {(data as any).leaseMonitorHealth.reconciliationEventCount ?? 0}
               </span>
             </div>
           ) : (
-            <span className={`text-[10px] ${MUT}`}>Disabled</span>
+            <span className={`text-xs ${MUT}`}>Disabled</span>
           )}
         </div>
       )}
       {/* Footer */}
-      <div className={`border-t ${BORD} px-4 py-2 bg-stone-50 dark:bg-[#1A1A1A] flex items-center gap-2 ${MUT} text-[9px]`}>
+      <div className={`border-t ${BORD} px-4 py-2 bg-stone-50 dark:bg-[#1A1A1A] flex items-center gap-2 ${MUT} text-xs`}>
         <ListChecks size={9} />
         <span>
           Cleanup review: {data.passed ? "All checks passed" : "Issues detected"}

@@ -13,6 +13,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
   FolderOpen, FolderClosed, FileText, FileJson, FileCode,
   ChevronRight, ChevronDown, AlertCircle, Loader2,
@@ -24,10 +25,6 @@ import { useArtifactList, useArtifactContent } from "../hooks/useArtifacts";
 // Constants
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-800 dark:text-stone-200";
 
 /** Max lines to show for artifact content before truncation UI hint */
 const MAX_DISPLAY_LINES = 500;
@@ -238,7 +235,7 @@ function TreeNode({
       <button
         onClick={handleClick}
         className={`w-full flex items-center gap-1.5 py-1 pr-2 text-left hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-colors text-xs ${
-          isSelected ? "bg-[#EBF2FF] dark:bg-[#1A2A44]" : ""
+          isSelected ? "bg-[#EBF2FF] dark:bg-[#1A2A44] dark:bg-[#EBF2FF] dark:bg-[#1A2A44]" : ""
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
@@ -253,7 +250,7 @@ function TreeNode({
           {meta ? meta.label : node.name}
         </span>
         {!node.isDirectory && node.size > 0 && (
-          <span className={`${MUT} text-[9px] shrink-0`}>{formatFileSize(node.size)}</span>
+          <span className={`${MUT} text-xs shrink-0`}>{formatFileSize(node.size)}</span>
         )}
       </button>
       {node.isDirectory && isExpanded && (
@@ -317,7 +314,7 @@ function ArtifactContentView({
       <div className="h-full flex flex-col items-center justify-center gap-2 text-red-500">
         <AlertCircle size={16} />
         <span className="text-xs">Failed to load artifact</span>
-        <span className="text-[10px] text-stone-400 dark:text-stone-500">{String(error)}</span>
+        <span className="text-xs text-stone-400 dark:text-stone-500">{String(error)}</span>
       </div>
     );
   }
@@ -336,7 +333,7 @@ function ArtifactContentView({
         <div className="flex items-center gap-2 min-w-0">
           <meta.icon size={14} className="shrink-0" />
           <span className={`text-xs font-medium ${TXT} truncate`}>{meta.label}</span>
-          <span className={`text-[10px] ${MUT} shrink-0`}>{formatFileSize(data.totalSize)}</span>
+          <span className={`text-xs ${MUT} shrink-0`}>{formatFileSize(data.totalSize)}</span>
         </div>
         <button
           onClick={onClose}
@@ -348,7 +345,7 @@ function ArtifactContentView({
 
       {/* Truncation notice */}
       {hasMore && (
-        <div className={`shrink-0 px-3 py-1.5 text-[10px] bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 flex items-center gap-1.5`}>
+        <div className={`shrink-0 px-3 py-1.5 text-xs bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 flex items-center gap-1.5`}>
           <AlertCircle size={11} className="shrink-0" />
           <span>
             Artifact is large ({formatFileSize(data.totalSize)}).
@@ -465,7 +462,7 @@ export function ArtifactBrowser({ planExecId }: ArtifactBrowserProps) {
       <div className={`h-full flex flex-col items-center justify-center gap-2 ${MUT}`}>
         <FileText size={28} strokeWidth={1.2} />
         <p className="text-xs">No artifacts found for this run</p>
-        <p className="text-[10px]">Artifacts are created when a plan execution completes</p>
+        <p className="text-xs">Artifacts are created when a plan execution completes</p>
       </div>
     );
   }

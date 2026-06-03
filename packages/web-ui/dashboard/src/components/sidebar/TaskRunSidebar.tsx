@@ -13,6 +13,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
   Brain,
   ChevronDown,
@@ -39,12 +40,6 @@ import type { TopbarV3BrainMode } from "../topbar/TopbarV3";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,7 +140,7 @@ function NavButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs transition-colors text-left ${
+      className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs transition-colors text-left ${FOCUS_RING} ${
         active
           ? `${ACC_BG} ${ACC_TXT}`
           : `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -162,12 +157,12 @@ function NavButton({
         {label}
       </span>
       {badge != null && badge > 0 && (
-        <span className="inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+        <span className="inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-xs font-bold px-1">
           {badge > 99 ? "99+" : badge}
         </span>
       )}
       {sublabel && (
-        <span className={`text-[10px] ${MUT} shrink-0`}>{sublabel}</span>
+        <span className={`text-xs ${MUT} shrink-0`}>{sublabel}</span>
       )}
     </button>
   );
@@ -199,7 +194,7 @@ function SectionHeader({
       )}
       <button
         onClick={onToggle}
-        className={`flex items-center gap-1 flex-1 text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+        className={`flex items-center gap-1 flex-1 text-xs font-semibold uppercase tracking-widest ${MUT}`}
       >
         {expanded ? (
           <ChevronDown size={10} strokeWidth={2} />
@@ -214,7 +209,7 @@ function SectionHeader({
             e.stopPropagation();
             onAction();
           }}
-          className={`text-[10px] ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+          className={`text-xs ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
         >
           {actionLabel}
         </button>
@@ -327,7 +322,7 @@ export function TaskRunSidebar({
                 {/* Completed tasks sub-section */}
                 {completedTasks.length > 0 && (
                   <>
-                    <div className={`px-3 py-1 mt-1 text-[9px] font-medium uppercase tracking-wider ${MUT}`}>
+                    <div className={`px-3 py-1 mt-1 text-xs font-medium uppercase tracking-wider ${MUT}`}>
                       Completed
                     </div>
                     {completedTasks.map((t) => (
@@ -409,7 +404,7 @@ export function TaskRunSidebar({
                 Brain is off.{" "}
                 <button
                   onClick={onCycleBrainMode}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-blue-700 dark:text-blue-300 hover:underline"
                 >
                   Enable
                 </button>

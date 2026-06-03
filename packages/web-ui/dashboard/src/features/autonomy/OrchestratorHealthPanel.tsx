@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -36,13 +37,6 @@ import type {
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,7 +90,7 @@ function statusColor(status: OrchestratorStatus): string {
 		case "error":
 			return "text-red-600 dark:text-red-400";
 		case "starting":
-			return "text-blue-600 dark:text-blue-400";
+			return "text-blue-700 dark:text-blue-300";
 		default:
 			return "text-stone-400";
 	}
@@ -137,7 +131,7 @@ function BudgetBar({
 		pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
 	return (
 		<div className="flex flex-col gap-0.5">
-			<div className="flex items-center justify-between text-[10px]">
+			<div className="flex items-center justify-between text-xs">
 				<span className={MUT}>{label}</span>
 				<span className={`font-mono tabular-nums ${TXT}`}>
 					{consumed.toLocaleString()} / {limit.toLocaleString()}
@@ -198,17 +192,17 @@ function ScanRow({ scan }: { scan: OrchestratorScan }) {
 				<div className="flex items-center gap-2">
 					<span className={`text-xs font-medium ${TXT}`}>{scan.label}</span>
 					{scan.skipped && (
-						<span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+						<span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
 							Skipped
 						</span>
 					)}
 					{isBackingOff && (
-						<span className="text-[9px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-800">
+						<span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-800">
 							Backoff
 						</span>
 					)}
 				</div>
-				<div className={`flex items-center gap-3 mt-0.5 text-[10px] ${MUT}`}>
+				<div className={`flex items-center gap-3 mt-0.5 text-xs ${MUT}`}>
 					<span>Last: {formatTimestamp(scan.lastScanAt)}</span>
 					<span>Next: {formatTimestamp(scan.nextScanAt)}</span>
 					{scan.lastDurationMs !== null && (
@@ -218,12 +212,12 @@ function ScanRow({ scan }: { scan: OrchestratorScan }) {
 					)}
 				</div>
 				{scan.skippedReason && (
-					<p className="text-[9px] text-amber-600 dark:text-amber-400 mt-0.5">
+					<p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
 						{scan.skippedReason}
 					</p>
 				)}
 				{scan.failureCount > 0 && (
-					<p className="text-[9px] text-red-500 mt-0.5">
+					<p className="text-xs text-red-500 mt-0.5">
 						{scan.failureCount} failure{scan.failureCount !== 1 ? "s" : ""}
 					</p>
 				)}
@@ -415,7 +409,7 @@ export function OrchestratorHealthPanel({
 				{/* Health summary row */}
 				<div className="flex items-center gap-3">
 					<div
-						className={`flex items-center justify-center w-10 h-10 rounded-xl ${
+						className={`flex items-center justify-center w-10 h-10 rounded-lg ${
 							health.health === "healthy"
 								? "bg-emerald-50 dark:bg-emerald-900/20"
 								: health.health === "degraded"
@@ -436,7 +430,7 @@ export function OrchestratorHealthPanel({
 							</h3>
 							<StatusBadge status={health.status} />
 						</div>
-						<div className={`flex items-center gap-3 mt-0.5 text-[10px] ${MUT}`}>
+						<div className={`flex items-center gap-3 mt-0.5 text-xs ${MUT}`}>
 							<span>
 								Health:{" "}
 								<span
@@ -468,7 +462,7 @@ export function OrchestratorHealthPanel({
 
 					{/* Stale badge */}
 					{isStale && (
-						<span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full border border-amber-200 dark:border-amber-800 shrink-0">
+						<span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full border border-amber-200 dark:border-amber-800 shrink-0">
 							Stale data
 						</span>
 					)}
@@ -551,7 +545,7 @@ export function OrchestratorHealthPanel({
 							key={scan.kind}
 							onClick={() => handleRequestScan(scan.kind)}
 							disabled={actionPending}
-							className={`flex items-center gap-1 h-7 px-2 rounded text-[10px] font-medium transition-colors
+							className={`flex items-center gap-1 h-7 px-2 rounded text-xs font-medium transition-colors
 								${MUT} hover:text-stone-700 dark:hover:text-stone-300 
 								hover:bg-stone-100 dark:hover:bg-[#2A2A2A]
 								border ${BORD}
@@ -564,7 +558,7 @@ export function OrchestratorHealthPanel({
 
 				{/* Action error */}
 				{actionError && (
-					<div className="flex items-center gap-1.5 text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-2 py-1 rounded border border-red-200 dark:border-red-900">
+					<div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-2 py-1 rounded border border-red-200 dark:border-red-900">
 						<AlertCircle size={10} />
 						{actionError}
 					</div>
@@ -589,7 +583,7 @@ export function OrchestratorHealthPanel({
 							<button
 								onClick={handlePause}
 								disabled={actionPending}
-								className={`flex items-center gap-1 h-7 px-3 rounded text-[10px] font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}
+								className={`flex items-center gap-1 h-7 px-3 rounded text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50`}
 							>
 								{actionPending ? (
 									<Loader2 size={10} className="animate-spin" />
@@ -604,7 +598,7 @@ export function OrchestratorHealthPanel({
 									setActionReason("");
 								}}
 								disabled={actionPending}
-								className={`h-7 px-3 rounded text-[10px] font-medium ${MUT} hover:text-stone-700 dark:hover:text-stone-300 border ${BORD}`}
+								className={`h-7 px-3 rounded text-xs font-medium ${MUT} hover:text-stone-700 dark:hover:text-stone-300 border ${BORD}`}
 							>
 								Cancel
 							</button>
@@ -618,14 +612,14 @@ export function OrchestratorHealthPanel({
 				<div
 					className={`shrink-0 border-b ${BORD} px-4 py-2 space-y-1 bg-red-50/30 dark:bg-red-950/10`}
 				>
-					<div className="flex items-center gap-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-widest">
+					<div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-widest">
 						<AlertCircle size={10} />
 						Recent errors ({health.recentErrors.length})
 					</div>
 					{health.recentErrors.map((err, i) => (
 						<div
 							key={i}
-							className="text-[10px] text-red-600 dark:text-red-400 font-mono px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded"
+							className="text-xs text-red-600 dark:text-red-400 font-mono px-2 py-1 bg-red-50 dark:bg-red-950/20 rounded"
 						>
 							{err}
 						</div>
@@ -638,7 +632,7 @@ export function OrchestratorHealthPanel({
 				<div className="flex items-center gap-1.5 mb-2">
 					<Clock size={12} strokeWidth={1.8} className={MUT} />
 					<span
-						className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+						className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}
 					>
 						Scan Schedules
 					</span>
@@ -661,7 +655,7 @@ export function OrchestratorHealthPanel({
 					<div className="flex items-center gap-1.5 mb-2">
 						<Shield size={12} strokeWidth={1.8} className={MUT} />
 						<span
-							className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+							className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}
 						>
 							Budget & Rate Limits
 						</span>
@@ -677,7 +671,7 @@ export function OrchestratorHealthPanel({
 						limit={health.budget.callLimit}
 						label="API Calls"
 					/>
-					<p className={`text-[9px] ${MUT} mt-1`}>
+					<p className={`text-xs ${MUT} mt-1`}>
 						Window resets{" "}
 						{formatTimestamp(health.budget.windowResetAt)}
 					</p>

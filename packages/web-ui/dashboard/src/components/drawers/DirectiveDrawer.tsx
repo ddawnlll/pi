@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
   Loader2, Send, MessageSquare, User, Clock,
   AlertCircle, CheckCircle, XCircle,
@@ -15,11 +16,6 @@ import {
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-700 dark:text-stone-300";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const INPUT = "bg-stone-50 dark:bg-[#161616]";
 
 // ---------------------------------------------------------------------------
@@ -53,31 +49,31 @@ function statusBadge(status: Directive["status"]) {
   switch (status) {
     case "pending":
       return (
-        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
           pending
         </span>
       );
     case "acknowledged":
       return (
-        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
           ack
         </span>
       );
     case "applied":
       return (
-        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
           applied
         </span>
       );
     case "rejected":
       return (
-        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
           rejected
         </span>
       );
     case "expired":
       return (
-        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 ${MUT}`}>
+        <span className={`text-xs font-medium px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 ${MUT}`}>
           expired
         </span>
       );
@@ -210,7 +206,7 @@ export function DirectiveDrawer({ projectId, planExecId, workspaceId }: Directiv
           <div className="flex flex-col items-center gap-2 px-4 py-8 text-xs">
             <MessageSquare size={16} strokeWidth={1.2} className={MUT} />
             <span className={MUT}>No directives yet</span>
-            <span className={`text-[10px] ${MUT}`}>
+            <span className={`text-xs ${MUT}`}>
               Send a directive to guide this workspace.
             </span>
           </div>
@@ -222,13 +218,13 @@ export function DirectiveDrawer({ projectId, planExecId, workspaceId }: Directiv
             >
               <div className="flex items-center gap-2 mb-1">
                 <User size={11} className="text-blue-500 dark:text-blue-400 shrink-0" />
-                <span className={`text-[10px] font-semibold uppercase ${MUT}`}>Human Directive</span>
+                <span className={`text-xs font-semibold uppercase ${MUT}`}>Human Directive</span>
                 <span className="ml-auto">{statusBadge(d.status)}</span>
               </div>
               <div className={`text-xs ${TXT} whitespace-pre-wrap`}>
                 {d.message}
               </div>
-              <div className={`flex items-center gap-2 mt-1 text-[9px] ${MUT}`}>
+              <div className={`flex items-center gap-2 mt-1 text-xs ${MUT}`}>
                 <Clock size={9} />
                 <span>{new Date(d.createdAt).toLocaleString()}</span>
                 {d.respondedAt && (
@@ -250,7 +246,7 @@ export function DirectiveDrawer({ projectId, planExecId, workspaceId }: Directiv
       {/* Send input */}
       <div className={`shrink-0 border-t ${BORD} p-3`}>
         {sendError && (
-          <div className="flex items-center gap-1 text-red-600 dark:text-red-400 text-[10px] mb-2">
+          <div className="flex items-center gap-1 text-red-600 dark:text-red-400 text-xs mb-2">
             <XCircle size={10} />
             {sendError}
           </div>
@@ -269,7 +265,7 @@ export function DirectiveDrawer({ projectId, planExecId, workspaceId }: Directiv
           }}
         />
         <div className="flex items-center justify-between mt-2">
-          <span className={`text-[9px] ${MUT}`}>⌘+Enter to send</span>
+          <span className={`text-xs ${MUT}`}>⌘+Enter to send</span>
           <button
             onClick={handleSend}
             disabled={!message.trim() || sending}

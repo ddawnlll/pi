@@ -17,7 +17,7 @@ export function PlanQueueSelector({ plans, selected, onToggle }: PlanQueueSelect
 						onChange={() => onToggle(p.id)}
 						className="rounded border-stone-300 dark:border-stone-600"
 					/>
-					<span className="text-[10px] text-stone-600 dark:text-stone-300">{p.label}</span>
+					<span className="text-xs text-stone-600 dark:text-stone-300">{p.label}</span>
 				</label>
 			))}
 		</div>

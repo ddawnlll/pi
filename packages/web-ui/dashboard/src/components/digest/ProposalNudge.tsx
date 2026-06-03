@@ -40,13 +40,13 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
 				<h3 className="text-xs font-medium text-stone-800 dark:text-stone-200 leading-snug">
 					{proposal.title}
 				</h3>
-				<span className={`shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded border ${riskClass}`}>
+				<span className={`shrink-0 text-xs font-medium px-1.5 py-0.5 rounded border ${riskClass}`}>
 					{proposal.riskLevel}
 				</span>
 			</div>
 
 			{proposal.description && (
-				<p className="text-[10px] text-stone-400 dark:text-stone-500 line-clamp-2">
+				<p className="text-xs text-stone-400 dark:text-stone-500 line-clamp-2">
 					{proposal.description}
 				</p>
 			)}
@@ -59,13 +59,13 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
 						style={{ width: `${Math.min(proposal.score, 100)}%` }}
 					/>
 				</div>
-				<span className="text-[10px] font-medium text-stone-500 dark:text-stone-400 tabular-nums">
+				<span className="text-xs font-medium text-stone-400 dark:text-stone-500 tabular-nums">
 					{proposal.score}%
 				</span>
 			</div>
 
 			{/* Evidence + time */}
-			<div className="flex items-center gap-3 text-[9px] text-stone-400">
+			<div className="flex items-center gap-3 text-xs text-stone-400">
 				<span>{proposal.evidence.memories} memories</span>
 				<span>{proposal.evidence.observations} observations</span>
 				<span className="ml-auto">
@@ -101,7 +101,7 @@ export function ProposalNudge({ proposals, loading, error, onRefresh }: Proposal
 						Proposal Nudges
 					</h2>
 					{proposals && proposals.length > 0 && (
-						<span className="text-[10px] text-stone-400 dark:text-stone-500">
+						<span className="text-xs text-stone-400 dark:text-stone-500">
 							{proposals.length} pending
 						</span>
 					)}

@@ -13,7 +13,7 @@ export function ReflectionDetail({ reflection, onClose }: ReflectionDetailProps)
 				<div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 dark:border-stone-700 shrink-0">
 					<div>
 						<h3 className="text-sm font-medium text-stone-800 dark:text-stone-200">{reflection.planTitle}</h3>
-						<p className="text-[10px] text-stone-400">{reflection.phase} — {new Date(reflection.timestamp).toLocaleString()}</p>
+						<p className="text-xs text-stone-400">{reflection.phase} — {new Date(reflection.timestamp).toLocaleString()}</p>
 					</div>
 					<button onClick={onClose} className="text-stone-400 hover:text-stone-600">✕</button>
 				</div>
@@ -23,12 +23,12 @@ export function ReflectionDetail({ reflection, onClose }: ReflectionDetailProps)
 
 					{reflection.worked.length > 0 && (
 						<div>
-							<h4 className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
+							<h4 className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
 								<span>&#10003;</span> What worked
 							</h4>
 							<ul className="space-y-1">
 								{reflection.worked.map((item, i) => (
-									<li key={i} className="text-[10px] text-stone-600 dark:text-stone-300 pl-4">&#8226; {item}</li>
+									<li key={i} className="text-xs text-stone-600 dark:text-stone-300 pl-4">&#8226; {item}</li>
 								))}
 							</ul>
 						</div>
@@ -36,18 +36,18 @@ export function ReflectionDetail({ reflection, onClose }: ReflectionDetailProps)
 
 					{reflection.failed.length > 0 && (
 						<div>
-							<h4 className="text-[10px] font-medium text-red-600 dark:text-red-400 mb-1.5 flex items-center gap-1">
+							<h4 className="text-xs font-medium text-red-600 dark:text-red-400 mb-1.5 flex items-center gap-1">
 								<span>&#10007;</span> What failed
 							</h4>
 							<ul className="space-y-1">
 								{reflection.failed.map((item, i) => (
-									<li key={i} className="text-[10px] text-stone-600 dark:text-stone-300 pl-4">&#8226; {item}</li>
+									<li key={i} className="text-xs text-stone-600 dark:text-stone-300 pl-4">&#8226; {item}</li>
 								))}
 							</ul>
 						</div>
 					)}
 
-					<div className="flex items-center gap-4 text-[10px] text-stone-400 pt-2 border-t border-stone-100 dark:border-stone-800">
+					<div className="flex items-center gap-4 text-xs text-stone-400 pt-2 border-t border-stone-100 dark:border-stone-800">
 						<span>{reflection.memoryProposals} memory proposals</span>
 						<span>{reflection.suggestions} suggestions</span>
 						<span>{reflection.memoriesCreated} memories created</span>
@@ -55,7 +55,7 @@ export function ReflectionDetail({ reflection, onClose }: ReflectionDetailProps)
 				</div>
 
 				<div className="flex justify-end px-5 py-3 border-t border-stone-100 dark:border-stone-700 shrink-0">
-					<button onClick={onClose} className="px-3 py-1.5 text-[10px] rounded-lg bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
+					<button onClick={onClose} className="px-3 py-1.5 text-xs rounded-lg bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
 						Close
 					</button>
 				</div>

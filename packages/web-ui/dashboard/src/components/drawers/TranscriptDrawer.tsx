@@ -6,15 +6,13 @@
  */
 
 import { useState, useEffect } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Loader2, MessageSquare, User, Bot, AlertCircle } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-700 dark:text-stone-300";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,7 +105,7 @@ export function TranscriptDrawer({ projectId, planExecId, workspaceId }: Transcr
       <div className="flex flex-col items-center gap-2 px-4 py-8 text-xs">
         <MessageSquare size={16} strokeWidth={1.2} className={MUT} />
         <span className={MUT}>No transcript events yet</span>
-        <span className={`text-[10px] ${MUT}`}>
+        <span className={`text-xs ${MUT}`}>
           Transcript becomes available after worker starts executing.
         </span>
       </div>
@@ -132,14 +130,14 @@ export function TranscriptDrawer({ projectId, planExecId, workspaceId }: Transcr
             ) : (
               <AlertCircle size={11} className={MUT} />
             )}
-            <span className={`text-[10px] font-semibold uppercase ${MUT}`}>
+            <span className={`text-xs font-semibold uppercase ${MUT}`}>
               {ev.role}
             </span>
             {ev.toolName && (
-              <span className={`text-[10px] ${MUT}`}>{ev.toolName}</span>
+              <span className={`text-xs ${MUT}`}>{ev.toolName}</span>
             )}
             {ev.timestamp && (
-              <span className={`text-[9px] ${MUT} ml-auto`}>
+              <span className={`text-xs ${MUT} ml-auto`}>
                 {new Date(ev.timestamp).toLocaleTimeString()}
               </span>
             )}
@@ -156,7 +154,7 @@ export function TranscriptDrawer({ projectId, planExecId, workspaceId }: Transcr
 
           {/* Tool output */}
           {ev.toolOutput && (
-            <div className={`mt-1 text-[10px] font-mono ${MUT} whitespace-pre-wrap break-all bg-stone-50 dark:bg-[#161616] rounded p-2 max-h-40 overflow-y-auto`}>
+            <div className={`mt-1 text-xs font-mono ${MUT} whitespace-pre-wrap break-all bg-stone-50 dark:bg-[#161616] rounded p-2 max-h-40 overflow-y-auto`}>
               {ev.toolOutput.length > 1000
                 ? `${ev.toolOutput.slice(0, 1000)}...`
                 : ev.toolOutput}

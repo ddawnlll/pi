@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -35,19 +36,13 @@ import type { MemorySource, MemoryProvenance, MemoryAuditEvent } from "../../typ
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const GOOD_BG = "bg-emerald-50 dark:bg-emerald-900/20";
 const GOOD_TXT = "text-emerald-600 dark:text-emerald-400";
-const STALE_BG = "bg-stone-100 dark:bg-stone-800/30";
+const STALE_BG = "bg-stone-100 dark:bg-[#2A2A2A]";
 const STALE_TXT = "text-stone-400 dark:text-stone-500";
 
 // ─── Helper components ───────────────────────────────────────────────────────
@@ -80,7 +75,7 @@ function StatCard({ icon, label, value, sub, loading, error }: {
 		<div className={`${SURF} rounded-lg border ${BORD} p-3 space-y-1 min-h-[80px]`}>
 			<div className="flex items-center gap-1.5">
 				<span className="text-stone-400 dark:text-stone-500">{icon}</span>
-				<span className={`text-[11px] font-medium uppercase tracking-wider ${MUT}`}>{label}</span>
+				<span className={`text-xs font-medium uppercase tracking-wider ${MUT}`}>{label}</span>
 			</div>
 			{loading ? (
 				<div className="flex items-center gap-2">
@@ -97,7 +92,7 @@ function StatCard({ icon, label, value, sub, loading, error }: {
 					<div className={`text-lg font-semibold ${TXT}`}>
 						{value != null ? value : "\u2014"}
 					</div>
-					{sub && <div className={`text-[11px] ${MUT}`}>{sub}</div>}
+					{sub && <div className={`text-xs ${MUT}`}>{sub}</div>}
 				</>
 			)}
 		</div>
@@ -116,7 +111,7 @@ function Badge({ children, variant = "default" }: {
 		info: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
 	};
 	return (
-		<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${variants[variant]}`}>
+		<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${variants[variant]}`}>
 			{children}
 		</span>
 	);
@@ -133,7 +128,7 @@ function SectionHeader({ icon, title, count, action }: {
 			<span className="text-stone-400 dark:text-stone-500">{icon}</span>
 			<h3 className={`text-sm font-semibold ${TXT}`}>{title}</h3>
 			{count != null && (
-				<span className={`text-[11px] font-medium ${MUT}`}>({count})</span>
+				<span className={`text-xs font-medium ${MUT}`}>({count})</span>
 			)}
 			{action && <div className="ml-auto">{action}</div>}
 		</div>
@@ -305,7 +300,7 @@ function SourceBreakdown({ sources, loading }: {
 					<AlertTriangle size={14} className={`mt-0.5 ${WARN_TXT}`} />
 					<div>
 						<p className={`text-xs font-medium ${WARN_TXT}`}>Blocked Sources</p>
-						<p className={`text-[11px] mt-0.5 ${WARN_TXT}`}>
+						<p className={`text-xs mt-0.5 ${WARN_TXT}`}>
 							Some sources are blocked. Reindex them or check the pipeline configuration.
 						</p>
 					</div>
@@ -374,14 +369,14 @@ function ProvenanceList({ memories, loading, error }: {
 					{/* Why-used explanation */}
 					{mem.whyUsed && (
 						<div className={`${ACC_BG} rounded px-2 py-1`}>
-							<p className={`text-[11px] ${ACC_TXT}`}>
+							<p className={`text-xs ${ACC_TXT}`}>
 								<span className="font-medium">Why used: </span>
 								{mem.whyUsed}
 							</p>
 						</div>
 					)}
 
-					<div className={`flex items-center gap-3 text-[11px] ${MUT}`}>
+					<div className={`flex items-center gap-3 text-xs ${MUT}`}>
 						<span>Created: {new Date(mem.createdAt).toLocaleDateString()}</span>
 						{mem.lastAccessedAt && (
 							<span>Last accessed: {new Date(mem.lastAccessedAt).toLocaleDateString()}</span>
@@ -390,7 +385,7 @@ function ProvenanceList({ memories, loading, error }: {
 
 					{/* Associated IDs - show without exposing forbidden content */}
 					{(mem.associatedPlanId || mem.associatedProposalId) && (
-						<div className={`flex items-center gap-2 text-[11px] ${MUT}`}>
+						<div className={`flex items-center gap-2 text-xs ${MUT}`}>
 							{mem.associatedPlanId && (
 								<span className="inline-flex items-center gap-1">
 									<FileText size={10} />
@@ -465,7 +460,7 @@ function AuditTimeline({ events, loading }: {
 								{new Date(event.timestamp).toLocaleString()}
 							</div>
 						</div>
-						<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${policyColor[event.policyResult]} ${policyBg[event.policyResult]}`}>
+						<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${policyColor[event.policyResult]} ${policyBg[event.policyResult]}`}>
 							{event.policyResult === "pending_approval" ? "Pending" : event.policyResult === "allowed" ? "Allowed" : "Denied"}
 						</span>
 					</div>
@@ -511,7 +506,7 @@ function ActionButton({ label, icon, action, target, onResult, disabled }: {
 			className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors
 				${isPending
 					? "bg-stone-100 dark:bg-stone-800 text-stone-400 cursor-not-allowed"
-					: "bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+					: "bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] text-stone-800 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800"
 				}
 				${disabled ? "opacity-50 cursor-not-allowed" : ""}
 			`}
@@ -701,7 +696,7 @@ export function MemoryCockpitPanel({ className }: MemoryCockpitPanelProps) {
 						/>
 						{/* Forget all is NOT provided as a bulk action - requires explicit approval */}
 					</div>
-					<div className={`mt-3 flex items-center gap-2 text-[11px] ${MUT}`}>
+					<div className={`mt-3 flex items-center gap-2 text-xs ${MUT}`}>
 						{healthMetrics?.compactionStatus === "running" && (
 							<span className="flex items-center gap-1">
 								<Loader2 size={10} className="animate-spin" />

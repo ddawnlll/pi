@@ -1315,7 +1315,7 @@ export function createExecutionReadModel(stateStore: {
 				// Apply maxDiffLines truncation
 				const maxLines = options?.maxDiffLines;
 				const truncated = maxLines !== undefined && lines.length > maxLines;
-				const truncatedDiff = truncated ? lines.slice(0, maxLines).join("\n") + "\n... (truncated)" : diffContent;
+				const truncatedDiff = truncated ? `${lines.slice(0, maxLines).join("\n")}\n... (truncated)` : diffContent;
 
 				if (filePath) {
 					// Return only the diff for a specific file.
@@ -1323,7 +1323,7 @@ export function createExecutionReadModel(stateStore: {
 					if (!fileDiff) return [];
 					const fileLines = fileDiff.diff.split("\n");
 					if (maxLines !== undefined && fileLines.length > maxLines) {
-						fileDiff.diff = fileLines.slice(0, maxLines).join("\n") + "\n... (truncated)";
+						fileDiff.diff = `${fileLines.slice(0, maxLines).join("\n")}\n... (truncated)`;
 						fileDiff.truncated = true;
 					}
 					return [fileDiff];

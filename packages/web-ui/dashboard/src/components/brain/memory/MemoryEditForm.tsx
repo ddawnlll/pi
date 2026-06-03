@@ -28,7 +28,7 @@ export function MemoryEditForm({ memory, onSubmit, onCancel, loading }: MemoryEd
 			<div className="bg-white dark:bg-stone-800 rounded-lg border border-stone-200 dark:border-stone-700 p-5 w-full max-w-md shadow-xl space-y-3">
 				<h3 className="text-sm font-medium text-stone-800 dark:text-stone-200">Edit Memory</h3>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Title</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Title</label>
 					<input
 						type="text"
 						value={title}
@@ -37,7 +37,7 @@ export function MemoryEditForm({ memory, onSubmit, onCancel, loading }: MemoryEd
 					/>
 				</div>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Content</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Content</label>
 					<textarea
 						value={content}
 						onChange={(e) => setContent(e.target.value)}
@@ -46,7 +46,7 @@ export function MemoryEditForm({ memory, onSubmit, onCancel, loading }: MemoryEd
 					/>
 				</div>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Tags (comma-separated)</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Tags (comma-separated)</label>
 					<input
 						type="text"
 						value={tagsInput}

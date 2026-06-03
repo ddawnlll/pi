@@ -15,6 +15,7 @@
  */
 
 import { AlertTriangle, ArrowRight, GitBranch, RotateCw } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,15 +42,10 @@ export interface DeadlockDependencyPanelProps {
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -149,11 +145,11 @@ export function DeadlockDependencyPanel({
       {/* Header */}
       <div className={`flex items-center gap-1.5 ${MUT}`}>
         <GitBranch size={11} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider">
+        <span className="text-xs font-semibold uppercase tracking-wider">
           Dependency Deadlock
         </span>
         {deadlockedIds.size > 0 && (
-          <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold ${ERR_BG} ${ERR_TXT}`}>
+          <span className={`inline-flex items-center px-1 py-0.5 rounded text-xs font-semibold ${ERR_BG} ${ERR_TXT}`}>
             {deadlockedIds.size} cycle{deadlockedIds.size !== 1 ? "s" : ""}
           </span>
         )}
@@ -180,16 +176,16 @@ export function DeadlockDependencyPanel({
             >
               {/* Workspace ID + badge */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`text-[10px] font-mono font-medium ${TXT}`}>
+                <span className={`text-xs font-mono font-medium ${TXT}`}>
                   {node.title ?? node.id.slice(0, 8)}
                 </span>
                 {isDeadlocked && (
-                  <span className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${ERR_TXT}`}>
+                  <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${ERR_TXT}`}>
                     <RotateCw size={9} />
                     Deadlock
                   </span>
                 )}
-                <span className={`text-[9px] ${MUT} ml-auto`}>
+                <span className={`text-xs ${MUT} ml-auto`}>
                   Batch {node.batch}
                 </span>
               </div>
@@ -203,7 +199,7 @@ export function DeadlockDependencyPanel({
                     return (
                       <div
                         key={depId}
-                        className={`flex items-center gap-1 text-[10px] ${
+                        className={`flex items-center gap-1 text-xs ${
                           isBlocking ? WARN_TXT : MUT
                         }`}
                       >
@@ -216,12 +212,12 @@ export function DeadlockDependencyPanel({
                           {depNode?.title ?? depId.slice(0, 8)}
                         </span>
                         {depNode && (
-                          <span className={`text-[9px] ${isBlocking ? WARN_TXT : MUT}`}>
+                          <span className={`text-xs ${isBlocking ? WARN_TXT : MUT}`}>
                             ({depNode.stage})
                           </span>
                         )}
                         {isBlocking && (
-                          <span className={`text-[9px] font-medium ${WARN_TXT}`}>
+                          <span className={`text-xs font-medium ${WARN_TXT}`}>
                             blocking
                           </span>
                         )}
@@ -233,7 +229,7 @@ export function DeadlockDependencyPanel({
 
               {/* No dependencies */}
               {node.dependsOn.length === 0 && (
-                <div className={`text-[10px] ${MUT} mt-1`}>
+                <div className={`text-xs ${MUT} mt-1`}>
                   No dependencies — blocked by internal condition
                 </div>
               )}

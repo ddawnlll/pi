@@ -103,7 +103,7 @@ export function FilePreview({
 			<div className="flex flex-col items-center justify-center py-8 text-stone-400 dark:text-stone-500">
 				<FileCode size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">Select a file to preview</p>
-				<p className="text-[10px] mt-1 opacity-50">Click a file from the tree to view its content</p>
+				<p className="text-xs mt-1 opacity-50">Click a file from the tree to view its content</p>
 			</div>
 		);
 	}
@@ -134,7 +134,7 @@ export function FilePreview({
 			<div className="flex flex-col items-center justify-center py-8 text-red-400">
 				<FileWarning size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">Failed to load file content</p>
-				<p className="text-[10px] mt-1 opacity-70">{(error as Error).message}</p>
+				<p className="text-xs mt-1 opacity-70">{(error as Error).message}</p>
 			</div>
 		);
 	}
@@ -145,7 +145,7 @@ export function FilePreview({
 			<div className="flex flex-col items-center justify-center py-8 text-stone-400 dark:text-stone-500">
 				<FileWarning size={24} className="mb-2 opacity-50" />
 				<p className="text-xs">File content not available</p>
-				<p className="text-[10px] mt-1 opacity-50">
+				<p className="text-xs mt-1 opacity-50">
 					The file content could not be retrieved. It may not exist in the execution archive or worktree.
 				</p>
 			</div>
@@ -159,7 +159,7 @@ export function FilePreview({
 				<FileCode size={24} className="mb-2 opacity-50" />
 				<p className="text-xs font-mono">{filePath}</p>
 				<p className="text-xs mt-1">Binary file</p>
-				<p className="text-[10px] mt-0.5 opacity-50">{content.size.toLocaleString()} bytes</p>
+				<p className="text-xs mt-0.5 opacity-50">{content.size.toLocaleString()} bytes</p>
 			</div>
 		);
 	}
@@ -172,10 +172,10 @@ export function FilePreview({
 	return (
 		<div className="flex flex-col h-full">
 			{/* File info header */}
-			<div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 dark:bg-[#222] border-b border-[#E8E6E1] dark:border-[#333] text-[11px] text-stone-500 dark:text-stone-400">
-				<span className="font-mono text-stone-700 dark:text-stone-300 truncate">{filePath}</span>
+			<div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 dark:bg-[#222] border-b border-[#E8E6E1] dark:border-[#333] text-xs text-stone-400 dark:text-stone-500">
+				<span className="font-mono text-stone-800 dark:text-stone-200 truncate">{filePath}</span>
 				{language !== "plaintext" && (
-					<span className="px-1.5 py-0.5 rounded bg-stone-200 dark:bg-[#333] text-[10px] shrink-0">
+					<span className="px-1.5 py-0.5 rounded bg-stone-200 dark:bg-[#333] text-xs shrink-0">
 						{language}
 					</span>
 				)}
@@ -197,7 +197,7 @@ export function FilePreview({
 						{displayedLines.map((_, idx) => (
 							<div
 								key={idx}
-								className="px-3 py-0 text-[10px] text-stone-300 dark:text-stone-600 leading-[1.6]"
+								className="px-3 py-0 text-xs text-stone-300 dark:text-stone-600 leading-[1.6]"
 							>
 								{idx + 1}
 							</div>
@@ -209,7 +209,7 @@ export function FilePreview({
 						{displayedLines.map((line, idx) => (
 							<div
 								key={idx}
-								className="px-3 py-0 whitespace-pre text-stone-700 dark:text-stone-300"
+								className="px-3 py-0 whitespace-pre text-stone-800 dark:text-stone-200"
 							>
 								{line || " "}
 							</div>

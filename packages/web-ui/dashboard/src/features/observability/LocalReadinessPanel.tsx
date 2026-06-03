@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -34,12 +35,6 @@ import {
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const ERR_BORD = "border-red-200 dark:border-red-800";
@@ -50,7 +45,7 @@ const GOOD_BG = "bg-emerald-50 dark:bg-emerald-900/20";
 const GOOD_TXT = "text-emerald-600 dark:text-emerald-400";
 const GOOD_BORD = "border-emerald-200 dark:border-emerald-800";
 const INFO_BG = "bg-blue-50 dark:bg-blue-900/20";
-const INFO_TXT = "text-blue-600 dark:text-blue-400";
+const INFO_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,21 +127,21 @@ function statusBadge(status: string) {
 	switch (status) {
 		case "PASS":
 			return (
-				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${GOOD_BG} ${GOOD_TXT} border ${GOOD_BORD}`}>
+				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${GOOD_BG} ${GOOD_TXT} border ${GOOD_BORD}`}>
 					<CheckCircle2 size={10} />
 					PASS
 				</span>
 			);
 		case "WARN":
 			return (
-				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${WARN_BG} ${WARN_TXT} border ${WARN_BORD}`}>
+				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${WARN_BG} ${WARN_TXT} border ${WARN_BORD}`}>
 					<AlertTriangle size={10} />
 					WARN
 				</span>
 			);
 		case "FAIL":
 			return (
-				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${ERR_BG} ${ERR_TXT} border ${ERR_BORD}`}>
+				<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${ERR_BG} ${ERR_TXT} border ${ERR_BORD}`}>
 					<AlertCircle size={10} />
 					FAIL
 				</span>
@@ -311,7 +306,7 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 					<button
 						onClick={refresh}
 						disabled={loading}
-						className={`text-[11px] flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+						className={`text-xs flex items-center gap-1 px-2 py-1 rounded transition-colors ${
 							loading
 								? `${MUT} cursor-not-allowed`
 								: `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -378,7 +373,7 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 								<VerdictIcon size={18} />
 								<div className="flex-1">
 									<div className="text-sm font-semibold">{verdict.label}</div>
-									<div className="text-[11px] opacity-80">
+									<div className="text-xs opacity-80">
 										{report.passCount} passed &middot; {report.warnCount} warnings &middot;{" "}
 										{report.failCount} failed
 									</div>
@@ -387,7 +382,7 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 									<div className={`text-xs font-semibold font-mono ${verdict.txt}`}>
 										{report.verdict}
 									</div>
-									<div className={`text-[10px] ${MUT}`}>
+									<div className={`text-xs ${MUT}`}>
 										{report.autoRunReady ? "Auto-run ready" : "Auto-run blocked"}
 									</div>
 								</div>
@@ -395,7 +390,7 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 						)}
 
 						{/* Timestamp */}
-						<div className={`flex items-center gap-1.5 text-[10px] ${MUT}`}>
+						<div className={`flex items-center gap-1.5 text-xs ${MUT}`}>
 							<Clock size={10} />
 							Last checked: {new Date(report.timestamp).toLocaleString()}
 						</div>
@@ -403,18 +398,18 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 						{/* Checks by category */}
 						{report.diagnostics.length > 0 && (
 							<div className={`rounded-md p-2 border ${WARN_BORD} ${WARN_BG}`}>
-								<div className={`text-[10px] font-semibold uppercase tracking-wider ${WARN_TXT} mb-1`}>
+								<div className={`text-xs font-semibold uppercase tracking-wider ${WARN_TXT} mb-1`}>
 									Diagnostics
 								</div>
 								<ul className="space-y-0.5">
 									{report.diagnostics.slice(0, 5).map((d, i) => (
-										<li key={i} className={`text-[10px] ${WARN_TXT} flex items-start gap-1`}>
+										<li key={i} className={`text-xs ${WARN_TXT} flex items-start gap-1`}>
 											<span>&bull;</span>
 											<span>{d.length > 120 ? d.slice(0, 120) + "..." : d}</span>
 										</li>
 									))}
 									{report.diagnostics.length > 5 && (
-										<li className={`text-[10px] ${MUT}`}>
+										<li className={`text-xs ${MUT}`}>
 											...and {report.diagnostics.length - 5} more diagnostic(s)
 										</li>
 									)}
@@ -440,12 +435,12 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 										{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
 										<span className="flex-1">{CATEGORY_LABELS[cat] ?? cat}</span>
 										{catFailCount > 0 && (
-											<span className={`text-[10px] font-semibold ${ERR_TXT} ml-1`}>
+											<span className={`text-xs font-semibold ${ERR_TXT} ml-1`}>
 												{catFailCount} fail
 											</span>
 										)}
 										{catWarnCount > 0 && (
-											<span className={`text-[10px] font-semibold ${WARN_TXT} ml-1`}>
+											<span className={`text-xs font-semibold ${WARN_TXT} ml-1`}>
 												{catWarnCount} warn
 											</span>
 										)}
@@ -464,25 +459,25 @@ export function LocalReadinessPanel({ className = "", autoPoll = false }: LocalR
 															{statusIcon(check.status)}
 														</div>
 														<div className="flex-1 min-w-0">
-															<div className={`text-[11px] font-medium ${TXT} flex items-center gap-1.5 flex-wrap`}>
+															<div className={`text-xs font-medium ${TXT} flex items-center gap-1.5 flex-wrap`}>
 																{check.name}
 																{statusBadge(check.status)}
 															</div>
-															<p className={`text-[10px] ${MUT} mt-0.5`}>
+															<p className={`text-xs ${MUT} mt-0.5`}>
 																{check.message}
 															</p>
 															{check.details && (
 																<details className="mt-1">
-																	<summary className={`text-[10px] ${ACC_TXT} cursor-pointer hover:underline`}>
+																	<summary className={`text-xs ${ACC_TXT} cursor-pointer hover:underline`}>
 																		Details
 																	</summary>
-																	<p className={`text-[10px] ${MUT} mt-1 whitespace-pre-wrap`}>
+																	<p className={`text-xs ${MUT} mt-1 whitespace-pre-wrap`}>
 																		{check.details}
 																	</p>
 																</details>
 															)}
 															{check.resolution && check.status !== "PASS" && (
-																<div className={`mt-1 text-[10px] ${ACC_TXT} flex items-start gap-1`}>
+																<div className={`mt-1 text-xs ${ACC_TXT} flex items-start gap-1`}>
 																	<ExternalLink size={9} className="mt-0.5 shrink-0" />
 																	<span>{check.resolution}</span>
 																</div>

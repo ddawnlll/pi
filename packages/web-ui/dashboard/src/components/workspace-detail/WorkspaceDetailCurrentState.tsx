@@ -5,14 +5,11 @@
  */
 
 import { Clock, AlertTriangle, Layers, Timer } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { WorkerContextView } from "../../hooks/useWorkerContext";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -21,15 +18,15 @@ function stageBadgeClass(stage: string): string {
     case "active":
       return "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400";
     case "complete":
-      return "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400";
+      return "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300";
     case "failed":
       return "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400";
     case "blocked":
       return "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400";
     case "pending":
-      return "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+      return "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
     default:
-      return "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400";
+      return "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500";
   }
 }
 
@@ -89,11 +86,11 @@ export function WorkspaceDetailCurrentState({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <Layers size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             Current State
           </span>
         </div>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${stageBadgeClass(stage)}`}>
+        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${stageBadgeClass(stage)}`}>
           {stage}
         </span>
       </div>

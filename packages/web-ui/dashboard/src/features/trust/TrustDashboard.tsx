@@ -22,13 +22,9 @@ import {
 	TrendingUp,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { FC } from "react";
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACCENT = "text-stone-600 dark:text-stone-400";
 const OK = "text-emerald-600 dark:text-emerald-400";
 const WARN = "text-amber-500";
 const ERR = "text-red-500";
@@ -233,7 +229,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 								{getTrustScoreLabel(metrics.trustScore)}
 							</span>
 						</div>
-						<p className={`text-[10px] ${MUT} mt-0.5`}>
+						<p className={`text-xs ${MUT} mt-0.5`}>
 							Based on {metrics.totalAuditEntries} audit entries
 						</p>
 					</div>
@@ -246,28 +242,28 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 					<div className={`p-3 rounded-lg border ${BORD}`}>
 						<div className="flex items-center gap-1.5 mb-1">
 							<Activity size={12} className={ACCENT} />
-							<span className={`text-[10px] ${MUT}`}>Audit Entries</span>
+							<span className={`text-xs ${MUT}`}>Audit Entries</span>
 						</div>
 						<p className={`text-lg font-semibold ${TXT}`}>{metrics.totalAuditEntries}</p>
 					</div>
 					<div className={`p-3 rounded-lg border ${BORD}`}>
 						<div className="flex items-center gap-1.5 mb-1">
 							<ShieldAlert size={12} className={ERR} />
-							<span className={`text-[10px] ${MUT}`}>Safety Interventions</span>
+							<span className={`text-xs ${MUT}`}>Safety Interventions</span>
 						</div>
 						<p className={`text-lg font-semibold ${ERR}`}>{metrics.safetyInterventions}</p>
 					</div>
 					<div className={`p-3 rounded-lg border ${BORD}`}>
 						<div className="flex items-center gap-1.5 mb-1">
 							<Shield size={12} className={WARN} />
-							<span className={`text-[10px] ${MUT}`}>Policy Stops</span>
+							<span className={`text-xs ${MUT}`}>Policy Stops</span>
 						</div>
 						<p className={`text-lg font-semibold ${WARN}`}>{metrics.policyStops}</p>
 					</div>
 					<div className={`p-3 rounded-lg border ${BORD}`}>
 						<div className="flex items-center gap-1.5 mb-1">
 							<ShieldCheck size={12} className={OK} />
-							<span className={`text-[10px] ${MUT}`}>Approvals</span>
+							<span className={`text-xs ${MUT}`}>Approvals</span>
 						</div>
 						<p className={`text-lg font-semibold ${OK}`}>{metrics.totalApproved}</p>
 					</div>
@@ -298,7 +294,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 						{/* Category breakdown */}
 						{categoryBreakdown.length > 0 && (
 							<div className={`p-3 border-b ${BORD}`}>
-								<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+								<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 									Events by Category
 								</h4>
 								<div className="space-y-1.5">
@@ -307,7 +303,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 										const pct = Math.round((count / total) * 100);
 										return (
 											<div key={category} className="flex items-center gap-2">
-												<span className={`text-[10px] ${MUT} w-28 truncate capitalize`}>
+												<span className={`text-xs ${MUT} w-28 truncate capitalize`}>
 													{category.replace(/_/g, " ")}
 												</span>
 												<div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-800 overflow-hidden">
@@ -316,7 +312,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 														style={{ width: `${pct}%` }}
 													/>
 												</div>
-												<span className={`text-[10px] font-medium ${TXT} w-8 text-right`}>
+												<span className={`text-xs font-medium ${TXT} w-8 text-right`}>
 													{count}
 												</span>
 											</div>
@@ -329,7 +325,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 						{/* Outcome breakdown */}
 						{outcomeBreakdown.length > 0 && (
 							<div className={`p-3 border-b ${BORD}`}>
-								<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+								<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 									Events by Outcome
 								</h4>
 								<div className="space-y-1.5">
@@ -375,24 +371,24 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 														<span className={`text-xs font-medium ${TXT}`}>
 															{event.category.replace(/_/g, " ")}
 														</span>
-														<span className={`text-[10px] ${MUT}`}>&middot;</span>
-														<span className={`text-[10px] ${getSeverityColor(event.severity)}`}>
+														<span className={`text-xs ${MUT}`}>&middot;</span>
+														<span className={`text-xs ${getSeverityColor(event.severity)}`}>
 															{event.severity}
 														</span>
 													</div>
 													<p className={`text-xs ${TXT} mt-0.5`}>{event.message}</p>
 													<div className="flex items-center gap-2 mt-1">
 														<User size={10} className={MUT} />
-														<span className={`text-[10px] ${MUT}`}>{event.actor}</span>
+														<span className={`text-xs ${MUT}`}>{event.actor}</span>
 														<Target size={10} className={MUT} />
-														<span className={`text-[10px] ${MUT}`}>{event.target}</span>
+														<span className={`text-xs ${MUT}`}>{event.target}</span>
 														<Activity size={10} className={MUT} />
-														<span className={`text-[10px] ${MUT}`}>
+														<span className={`text-xs ${MUT}`}>
 															{new Date(event.timestamp).toLocaleString()}
 														</span>
 													</div>
 												</div>
-												<span className={`text-[10px] px-1.5 py-0.5 rounded ${badge.color} ${badge.bg}`}>
+												<span className={`text-xs px-1.5 py-0.5 rounded ${badge.color} ${badge.bg}`}>
 													{event.outcome.replace(/_/g, " ")}
 												</span>
 											</div>
@@ -408,7 +404,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 				{activeTab === "history" && (
 					<div className="p-4 space-y-3">
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Trust Score History
 							</h4>
 							<p className={`text-xs ${MUT} mb-3`}>
@@ -436,7 +432,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 						</div>
 
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Summary
 							</h4>
 							{metrics && (
@@ -475,7 +471,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 				{activeTab === "actors" && (
 					<div className="p-4 space-y-3">
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Top Actors
 							</h4>
 							<p className={`text-xs ${MUT} mb-3`}>
@@ -488,7 +484,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 											key={actor}
 											className={`flex items-center gap-3 p-2 rounded-lg border ${BORD}`}
 										>
-											<span className={`text-[10px] font-mono font-bold ${MUT} w-5 text-right`}>
+											<span className={`text-xs font-mono font-bold ${MUT} w-5 text-right`}>
 												#{i + 1}
 											</span>
 											<User size={12} className={ACCENT} />
@@ -513,7 +509,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 				{activeTab === "protected" && (
 					<div className="p-4 space-y-3">
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Protected Systems
 							</h4>
 							<p className={`text-xs ${MUT} mb-3`}>
@@ -532,7 +528,7 @@ export const TrustDashboard: FC<TrustDashboardProps> = ({ className = "" }) => {
 										<ShieldAlert size={14} className={ERR} />
 										<div>
 											<p className={`text-xs font-medium ${TXT}`}>{sys}</p>
-											<p className={`text-[10px] ${MUT}`}>Self-modification approval required</p>
+											<p className={`text-xs ${MUT}`}>Self-modification approval required</p>
 										</div>
 									</div>
 								))}

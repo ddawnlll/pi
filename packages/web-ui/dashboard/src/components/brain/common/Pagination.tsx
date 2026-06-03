@@ -26,7 +26,7 @@ export function Pagination({ page, total, limit = 20, onPageChange }: Pagination
 			<button
 				onClick={() => onPageChange(page - 1)}
 				disabled={page <= 1}
-				className="px-2 py-1 text-xs rounded text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed"
+				className="px-2 py-1 text-xs rounded text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed"
 			>
 				Prev
 			</button>
@@ -42,7 +42,7 @@ export function Pagination({ page, total, limit = 20, onPageChange }: Pagination
 						className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
 							p === page
 								? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-								: "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
+								: "text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
 						}`}
 					>
 						{p}
@@ -52,7 +52,7 @@ export function Pagination({ page, total, limit = 20, onPageChange }: Pagination
 			<button
 				onClick={() => onPageChange(page + 1)}
 				disabled={page >= totalPages}
-				className="px-2 py-1 text-xs rounded text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed"
+				className="px-2 py-1 text-xs rounded text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-30 disabled:cursor-not-allowed"
 			>
 				Next
 			</button>

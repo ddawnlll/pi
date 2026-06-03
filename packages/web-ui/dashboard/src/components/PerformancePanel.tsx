@@ -22,7 +22,7 @@ interface PerformancePanelProps {
 export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 	if (loading || !metrics) {
 		return (
-			<div className="flex flex-col gap-3 p-4 rounded-xl border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E]">
+			<div className="flex flex-col gap-3 p-4 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E]">
 				<h3 className="text-xs font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
 					Performance
 				</h3>
@@ -43,14 +43,14 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 	const totalTokens = tokenSplit.totalTokenCount;
 
 	return (
-		<div className="flex flex-col gap-3 p-4 rounded-xl border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E]">
+		<div className="flex flex-col gap-3 p-4 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E]">
 			<h3 className="text-xs font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
 				Performance
 			</h3>
 
 			{/* Cache hit rate */}
 			<div className="flex items-baseline justify-between">
-				<span className="text-[10px] font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
+				<span className="text-xs font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
 					Cache Hit
 				</span>
 				<span
@@ -68,13 +68,13 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 				</span>
 			</div>
 			{cache.cacheCreationInputTokens != null && (
-				<div className="flex items-baseline justify-between text-[9px] text-stone-400 dark:text-stone-500">
+				<div className="flex items-baseline justify-between text-xs text-stone-400 dark:text-stone-500">
 					<span>Created</span>
 					<span>{formatTokens(cache.cacheCreationInputTokens)}</span>
 				</div>
 			)}
 			{cache.cacheReadInputTokens != null && (
-				<div className="flex items-baseline justify-between text-[9px] text-stone-400 dark:text-stone-500">
+				<div className="flex items-baseline justify-between text-xs text-stone-400 dark:text-stone-500">
 					<span>Read</span>
 					<span>{formatTokens(cache.cacheReadInputTokens)}</span>
 				</div>
@@ -83,7 +83,7 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 			{/* Token split */}
 			<div className="mt-1 border-t border-[#E8E6E1] dark:border-[#333] pt-2">
 				<div className="flex items-baseline justify-between">
-					<span className="text-[10px] font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
+					<span className="text-xs font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
 						Token Split
 					</span>
 					<span className="text-sm font-semibold text-stone-800 dark:text-stone-200">
@@ -98,7 +98,7 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 						/>
 					) : null}
 				</div>
-				<div className="flex justify-between text-[9px] text-stone-400 dark:text-stone-500 mt-0.5">
+				<div className="flex justify-between text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 					<span>Prefix: {prefixTokens != null ? formatTokens(prefixTokens) : "—"}</span>
 					<span>Suffix: {suffixTokens != null ? formatTokens(suffixTokens) : "—"}</span>
 				</div>
@@ -107,7 +107,7 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 			{/* Validation lock */}
 			<div className="mt-1 border-t border-[#E8E6E1] dark:border-[#333] pt-2">
 				<div className="flex items-baseline justify-between">
-					<span className="text-[10px] font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
+					<span className="text-xs font-semibold tracking-widest uppercase text-stone-400 dark:text-stone-500">
 						Validation Lock
 					</span>
 					<span className="text-sm font-semibold text-stone-800 dark:text-stone-200">
@@ -117,19 +117,19 @@ export function PerformancePanel({ metrics, loading }: PerformancePanelProps) {
 					</span>
 				</div>
 				{validationLock.totalLockWaitMs != null && (
-					<div className="flex items-baseline justify-between text-[9px] text-stone-400 dark:text-stone-500">
+					<div className="flex items-baseline justify-between text-xs text-stone-400 dark:text-stone-500">
 						<span>Total wait</span>
 						<span>{formatElapsed(validationLock.totalLockWaitMs)}</span>
 					</div>
 				)}
 				{validationLock.maxLockWaitMs != null && (
-					<div className="flex items-baseline justify-between text-[9px] text-stone-400 dark:text-stone-500">
+					<div className="flex items-baseline justify-between text-xs text-stone-400 dark:text-stone-500">
 						<span>Max wait</span>
 						<span>{formatElapsed(validationLock.maxLockWaitMs)}</span>
 					</div>
 				)}
 				{validationLock.avgLockWaitMs != null && (
-					<div className="flex items-baseline justify-between text-[9px] text-stone-400 dark:text-stone-500">
+					<div className="flex items-baseline justify-between text-xs text-stone-400 dark:text-stone-500">
 						<span>Avg wait</span>
 						<span>{formatElapsed(validationLock.avgLockWaitMs)}</span>
 					</div>

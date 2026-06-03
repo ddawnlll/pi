@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
   AlertCircle,
   AlertTriangle,
@@ -106,13 +107,6 @@ interface StatsResponse {
 // Styling tokens
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 const VERDICT_CONFIG: Record<AuditVerdict, { label: string; color: string; bg: string; icon: string }> = {
   allowed:         { label: "Allowed",    color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-100 dark:bg-emerald-900/40", icon: "check" },
@@ -226,7 +220,7 @@ function StatCard({ label, value, accent, className }: {
 }) {
   return (
     <div className={`${SURF} border ${BORD} rounded-lg px-3 py-2.5 ${className ?? ""}`}>
-      <p className={`text-[10px] font-medium uppercase tracking-widest ${MUT}`}>{label}</p>
+      <p className={`text-xs font-medium uppercase tracking-widest ${MUT}`}>{label}</p>
       <p className={`text-lg font-semibold ${accent ? ACC_TXT : TXT} mt-0.5`}>{value}</p>
     </div>
   );
@@ -245,7 +239,7 @@ function EventsFilterBar({ sources, verdicts, filters, onChange, onRefresh, load
       {/* First row: source filter + verdict filter */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Source filter */}
-        <div className="flex items-center gap-1 text-[10px]">
+        <div className="flex items-center gap-1 text-xs">
           <span className={`${MUT} font-medium mr-1`}>Source:</span>
           <button
             onClick={() => onChange({ ...filters, source: "" })}
@@ -264,7 +258,7 @@ function EventsFilterBar({ sources, verdicts, filters, onChange, onRefresh, load
               }`}
             >
               {s.label}
-              {s.count > 0 && <span className="text-[9px] opacity-60">({s.count})</span>}
+              {s.count > 0 && <span className="text-xs opacity-60">({s.count})</span>}
             </button>
           ))}
         </div>
@@ -273,7 +267,7 @@ function EventsFilterBar({ sources, verdicts, filters, onChange, onRefresh, load
       {/* Second row: verdict + protected-only toggle + search */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Verdict filter */}
-        <div className="flex items-center gap-1 text-[10px]">
+        <div className="flex items-center gap-1 text-xs">
           <span className={`${MUT} font-medium mr-1`}>Verdict:</span>
           <button
             onClick={() => onChange({ ...filters, verdict: "" })}
@@ -292,7 +286,7 @@ function EventsFilterBar({ sources, verdicts, filters, onChange, onRefresh, load
               }`}
             >
               {v.label}
-              {v.count > 0 && <span className="text-[9px] opacity-60">({v.count})</span>}
+              {v.count > 0 && <span className="text-xs opacity-60">({v.count})</span>}
             </button>
           ))}
         </div>
@@ -302,7 +296,7 @@ function EventsFilterBar({ sources, verdicts, filters, onChange, onRefresh, load
         {/* Protected-only toggle */}
         <button
           onClick={() => onChange({ ...filters, protectedOnly: !filters.protectedOnly })}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-colors border ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
             filters.protectedOnly
               ? "border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
               : `${BORD} ${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -351,47 +345,47 @@ function EventRow({ event, selected, onClick }: {
             <span className={`text-xs font-medium ${TXT} truncate`}>
               {event.resourceName ?? "Unknown"}
             </span>
-            <span className={`text-[9px] ${MUT} shrink-0`}>
+            <span className={`text-xs ${MUT} shrink-0`}>
               {formatTimestampShort(event.timestamp)}
             </span>
           </div>
 
           {/* Action and verdict */}
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${vc.color} ${vc.bg}`}>
+            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${vc.color} ${vc.bg}`}>
               {vc.label}
             </span>
-            <span className={`text-[10px] ${MUT}`}>{event.action}</span>
-            <span className={`text-[9px] ${MUT} flex items-center gap-0.5`}>
+            <span className={`text-xs ${MUT}`}>{event.action}</span>
+            <span className={`text-xs ${MUT} flex items-center gap-0.5`}>
               {getSourceIcon(event.source)}
               {SOURCE_CONFIG[event.source]?.label ?? event.source}
             </span>
           </div>
 
           {/* Reason */}
-          <p className={`text-[10px] ${MUT} mt-0.5 line-clamp-1`}>
+          <p className={`text-xs ${MUT} mt-0.5 line-clamp-1`}>
             {event.reason}
           </p>
 
           {/* Footer: actor + rollback pointer + protected badge */}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {event.actor && (
-              <span className={`text-[9px] ${MUT}`}>By: {event.actor}</span>
+              <span className={`text-xs ${MUT}`}>By: {event.actor}</span>
             )}
             {event.isProtectedSystemEvent && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
+              <span className="flex items-center gap-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
                 <ShieldAlert size={9} />
                 Protected
               </span>
             )}
             {event.hasRollbackPointer && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+              <span className="flex items-center gap-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
                 <Archive size={9} />
                 Rollback Available
               </span>
             )}
             {event.policyRuleId && (
-              <span className={`text-[9px] font-mono ${MUT}`}>
+              <span className={`text-xs font-mono ${MUT}`}>
                 Rule: {event.policyRuleId}
               </span>
             )}
@@ -426,7 +420,7 @@ function EventDetailPanel({ event, onClose }: {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD} ${SURF}`}>
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+        <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
           Event Detail
         </span>
         <button onClick={onClose} className={`${MUT} hover:text-stone-700 dark:hover:text-stone-300`}>
@@ -452,18 +446,18 @@ function EventDetailPanel({ event, onClose }: {
             <p className={`text-sm font-semibold ${TXT}`}>
               {event.resourceName ?? "Unknown Resource"}
             </p>
-            <p className={`text-[11px] ${MUT} mt-1`}>{event.reason}</p>
+            <p className={`text-xs ${MUT} mt-1`}>{event.reason}</p>
           </div>
 
           {/* Event properties */}
           <div className={`px-4 py-3 border-b ${BORD} space-y-2`}>
-            <h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+            <h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Properties
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <span className={MUT}>ID:</span>
-                <p className={`font-mono text-[10px] ${TXT} break-all`}>{event.id}</p>
+                <p className={`font-mono text-xs ${TXT} break-all`}>{event.id}</p>
               </div>
               <div>
                 <span className={MUT}>Source:</span>
@@ -483,15 +477,15 @@ function EventDetailPanel({ event, onClose }: {
               </div>
               <div>
                 <span className={MUT}>Policy Rule:</span>
-                <p className={`font-mono text-[10px] ${TXT}`}>{event.policyRuleId ?? "—"}</p>
+                <p className={`font-mono text-xs ${TXT}`}>{event.policyRuleId ?? "—"}</p>
               </div>
               <div>
                 <span className={MUT}>Plan Exec:</span>
-                <p className={`font-mono text-[10px] ${TXT} break-all`}>{event.planExecutionId ?? "—"}</p>
+                <p className={`font-mono text-xs ${TXT} break-all`}>{event.planExecutionId ?? "—"}</p>
               </div>
               <div>
                 <span className={MUT}>Workspace:</span>
-                <p className={`font-mono text-[10px] ${TXT}`}>{event.workspaceId ?? "—"}</p>
+                <p className={`font-mono text-xs ${TXT}`}>{event.workspaceId ?? "—"}</p>
               </div>
             </div>
           </div>
@@ -505,7 +499,7 @@ function EventDetailPanel({ event, onClose }: {
                   Protected System Event
                 </span>
               </div>
-              <p className={`text-[10px] ${MUT}`}>
+              <p className={`text-xs ${MUT}`}>
                 This action involved a protected system. Protection level: {event.protectionLevel ?? "unknown"}
               </p>
             </div>
@@ -515,15 +509,15 @@ function EventDetailPanel({ event, onClose }: {
           {event.hasRollbackPointer && event.rollbackPointer && (
             <div className={`mx-4 mt-3 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20`}>
               <div className="flex items-center gap-2 mb-1">
-                <Archive size={14} className="text-blue-600 dark:text-blue-400" />
+                <Archive size={14} className="text-blue-700 dark:text-blue-300" />
                 <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
                   Rollback Available
                 </span>
               </div>
-              <p className={`text-[10px] ${MUT}`}>
+              <p className={`text-xs ${MUT}`}>
                 {event.rollbackPointer.description}
               </p>
-              <p className={`text-[9px] font-mono ${MUT} mt-1`}>
+              <p className={`text-xs font-mono ${MUT} mt-1`}>
                 Type: {event.rollbackPointer.type} | Created: {formatTimestampShort(event.rollbackPointer.createdAt)}
               </p>
             </div>
@@ -532,10 +526,10 @@ function EventDetailPanel({ event, onClose }: {
           {/* Metadata */}
           {event.metadata && Object.keys(event.metadata).length > 0 && (
             <div className="px-4 py-3">
-              <h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+              <h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
                 Metadata
               </h4>
-              <pre className={`text-[10px] font-mono ${MUT} bg-stone-50 dark:bg-[#161616] border ${BORD} rounded p-2 max-h-32 overflow-y-auto`}>
+              <pre className={`text-xs font-mono ${MUT} bg-stone-50 dark:bg-[#161616] border ${BORD} rounded p-2 max-h-32 overflow-y-auto`}>
                 {JSON.stringify(event.metadata, null, 2)}
               </pre>
             </div>
@@ -544,7 +538,7 @@ function EventDetailPanel({ event, onClose }: {
           {/* Related events */}
           {detailData?.relatedEvents && detailData.relatedEvents.length > 0 && (
             <div className="px-4 py-3">
-              <h4 className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-2`}>
+              <h4 className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-2`}>
                 Related Events ({detailData.relatedEvents.length})
               </h4>
               <div className={`border ${BORD} rounded-lg overflow-hidden divide-y ${BORD}`}>
@@ -552,14 +546,14 @@ function EventDetailPanel({ event, onClose }: {
                   <div key={re.id} className={`px-3 py-2 ${SURF} flex items-center gap-2`}>
                     {getVerdictIcon(re.verdict)}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[10px] font-medium ${TXT} truncate`}>
+                      <p className={`text-xs font-medium ${TXT} truncate`}>
                         {re.resourceName ?? "—"}
                       </p>
-                      <p className={`text-[9px] ${MUT}`}>
+                      <p className={`text-xs ${MUT}`}>
                         {re.action} · {formatTimestampShort(re.timestamp)}
                       </p>
                     </div>
-                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${VERDICT_CONFIG[re.verdict]?.color ?? ""} ${VERDICT_CONFIG[re.verdict]?.bg ?? ""}`}>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${VERDICT_CONFIG[re.verdict]?.color ?? ""} ${VERDICT_CONFIG[re.verdict]?.bg ?? ""}`}>
                       {VERDICT_CONFIG[re.verdict]?.label ?? re.verdict}
                     </span>
                   </div>
@@ -715,7 +709,7 @@ export function PolicyAuditCenter({ className = "" }: PolicyAuditCenterProps) {
           <span className={`text-xs font-semibold ${TXT}`}>
             Policy & Audit Center
           </span>
-          <span className={`text-[9px] ${MUT} ml-auto`}>
+          <span className={`text-xs ${MUT} ml-auto`}>
             {totalEvents} events
           </span>
         </div>
@@ -733,25 +727,25 @@ export function PolicyAuditCenter({ className = "" }: PolicyAuditCenterProps) {
         <div className={`shrink-0 flex items-center border-b ${BORD}`}>
           <button
             onClick={() => setActiveTab("events")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold uppercase tracking-widest transition-colors ${
               activeTab === "events"
                 ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
                 : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
             }`}
           >
             <Filter size={12} /> Events
-            {stats && <span className="text-[9px] opacity-60">({stats.totalEvents})</span>}
+            {stats && <span className="text-xs opacity-60">({stats.totalEvents})</span>}
           </button>
           <button
             onClick={() => setActiveTab("rollback")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold uppercase tracking-widest transition-colors ${
               activeTab === "rollback"
                 ? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
                 : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
             }`}
           >
             <Archive size={12} /> Rollback Points
-            {rollbackPoints.length > 0 && <span className="text-[9px] opacity-60">({rollbackPoints.length})</span>}
+            {rollbackPoints.length > 0 && <span className="text-xs opacity-60">({rollbackPoints.length})</span>}
           </button>
         </div>
 
@@ -815,23 +809,23 @@ export function PolicyAuditCenter({ className = "" }: PolicyAuditCenterProps) {
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-medium ${TXT}`}>{point.description}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400`}>
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300`}>
                           {point.type}
                         </span>
-                        <span className={`text-[9px] ${MUT}`}>
+                        <span className={`text-xs ${MUT}`}>
                           Source: {SOURCE_CONFIG[point.source]?.label ?? point.source}
                         </span>
-                        <span className={`text-[9px] ${MUT}`}>
+                        <span className={`text-xs ${MUT}`}>
                           Created: {formatTimestampShort(point.createdAt)}
                         </span>
                       </div>
                       {point.targetId && (
-                        <p className={`text-[9px] font-mono ${MUT} mt-1`}>
+                        <p className={`text-xs font-mono ${MUT} mt-1`}>
                           Target: {point.targetId}
                         </p>
                       )}
                       {point.events && point.events.length > 0 && (
-                        <p className={`text-[9px] ${MUT} mt-1`}>
+                        <p className={`text-xs ${MUT} mt-1`}>
                           {point.events.length} related event(s)
                         </p>
                       )}

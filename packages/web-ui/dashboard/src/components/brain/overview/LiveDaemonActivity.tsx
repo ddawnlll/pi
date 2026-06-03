@@ -8,7 +8,7 @@ interface ActivityEntry {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-	info: "text-stone-500 dark:text-stone-400",
+	info: "text-stone-400 dark:text-stone-500",
 	warn: "text-amber-600 dark:text-amber-400",
 	error: "text-red-600 dark:text-red-400",
 	debug: "text-stone-400 dark:text-stone-500",
@@ -57,7 +57,7 @@ export function LiveDaemonActivity({ piDir }: { piDir?: string }) {
 	return (
 		<div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
 			<div className="flex items-center justify-between px-3 py-2 bg-stone-50 dark:bg-[#1E1E1E] border-b border-stone-200 dark:border-stone-700">
-				<h3 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400">
+				<h3 className="text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">
 					Daemon Activity
 				</h3>
 				<div className="flex items-center gap-2">
@@ -66,10 +66,10 @@ export function LiveDaemonActivity({ piDir }: { piDir?: string }) {
 							connected ? "bg-emerald-500" : "bg-red-500"
 						}`}
 					/>
-					<span className="text-[9px] text-stone-400">
+					<span className="text-xs text-stone-400">
 						{connected ? "Live" : "Disconnected"}
 					</span>
-					<span className="text-[9px] text-stone-400">
+					<span className="text-xs text-stone-400">
 						{entries.length > 0 ? `${entries.length} events` : ""}
 					</span>
 				</div>
@@ -81,7 +81,7 @@ export function LiveDaemonActivity({ piDir }: { piDir?: string }) {
 				style={{ scrollBehavior: "smooth" }}
 			>
 				{entries.length === 0 ? (
-					<div className="px-4 py-8 text-center text-[10px] text-stone-400 dark:text-stone-500">
+					<div className="px-4 py-8 text-center text-xs text-stone-400 dark:text-stone-500">
 						{connected
 							? "Waiting for daemon activity..."
 							: "Connecting to daemon stream..."}
@@ -93,7 +93,7 @@ export function LiveDaemonActivity({ piDir }: { piDir?: string }) {
 							return (
 								<div
 									key={`${entry.timestamp}-${i}`}
-									className={`px-3 py-1.5 border-l-2 text-[10px] leading-relaxed font-mono ${
+									className={`px-3 py-1.5 border-l-2 text-xs leading-relaxed font-mono ${
 										LEVEL_BG[entry.level] ?? LEVEL_BG.info
 									} ${
 										LEVEL_COLORS[entry.level] ?? LEVEL_COLORS.info

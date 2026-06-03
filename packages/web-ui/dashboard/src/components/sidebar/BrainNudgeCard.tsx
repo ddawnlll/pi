@@ -7,14 +7,12 @@
  */
 
 import { AlertCircle, FileText, ShieldAlert } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Style tokens (matching Sidebar.tsx conventions)
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const TXT = "text-stone-800 dark:text-stone-200";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,7 +46,7 @@ function NudgeRow({ icon: Icon, label, count, accent }: NudgeRowProps) {
 			? "text-red-600 dark:text-red-400"
 			: accent === "warning"
 				? "text-amber-600 dark:text-amber-400"
-				: "text-blue-600 dark:text-blue-400";
+				: "text-blue-700 dark:text-blue-300";
 	const bgAccent =
 		accent === "critical"
 			? "bg-red-50 dark:bg-red-900/20"
@@ -63,9 +61,9 @@ function NudgeRow({ icon: Icon, label, count, accent }: NudgeRowProps) {
 			>
 				<Icon size={12} strokeWidth={2} className={accentColor} />
 			</span>
-			<span className={`flex-1 text-[11px] ${TXT}`}>{label}</span>
+			<span className={`flex-1 text-xs ${TXT}`}>{label}</span>
 			<span
-				className={`text-[11px] font-semibold font-mono tabular-nums ${accentColor}`}
+				className={`text-xs font-semibold font-mono tabular-nums ${accentColor}`}
 			>
 				{count}
 			</span>
@@ -120,7 +118,7 @@ function NudgeEmpty() {
 function NudgeError() {
 	return (
 		<div className="flex flex-col items-center gap-1 px-3 py-3 text-center">
-			<span className="text-[10px] text-amber-600 dark:text-amber-400">
+			<span className="text-xs text-amber-600 dark:text-amber-400">
 				Could not load brain state
 			</span>
 		</div>
@@ -143,7 +141,7 @@ export function BrainNudgeCard({
 				className={`mx-1 mb-1 rounded-lg border ${BORD} bg-white dark:bg-[#1E1E1E] overflow-hidden`}
 			>
 				<div className={`px-3 py-1.5 border-b ${BORD}`}>
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Brain Activity
 					</span>
 				</div>
@@ -162,7 +160,7 @@ export function BrainNudgeCard({
 				className={`mx-1 mb-1 rounded-lg border ${BORD} bg-white dark:bg-[#1E1E1E] overflow-hidden`}
 			>
 				<div className={`px-3 py-1.5 border-b ${BORD}`}>
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Brain Activity
 					</span>
 				</div>
@@ -176,7 +174,7 @@ export function BrainNudgeCard({
 			className={`mx-1 mb-1 rounded-lg border ${BORD} bg-white dark:bg-[#1E1E1E] overflow-hidden`}
 		>
 			<div className={`px-3 py-1.5 border-b ${BORD}`}>
-				<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+				<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 					Brain Activity
 				</span>
 			</div>

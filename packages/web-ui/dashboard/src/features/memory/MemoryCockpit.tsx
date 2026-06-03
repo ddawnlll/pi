@@ -18,13 +18,9 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { FC } from "react";
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACCENT = "text-stone-600 dark:text-stone-400";
 const OK = "text-green-500";
 const WARN = "text-amber-500";
 const ERR = "text-red-500";
@@ -213,38 +209,38 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 					<>
 						{/* Health metrics grid */}
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Health
 							</h4>
 							<div className="grid grid-cols-2 gap-3">
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Total Memories</span>
+									<span className={`text-xs ${MUT}`}>Total Memories</span>
 									<p className={`text-sm font-semibold ${TXT}`}>{metrics.totalMemories}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Indexed Sources</span>
+									<span className={`text-xs ${MUT}`}>Indexed Sources</span>
 									<p className={`text-sm font-semibold ${TXT}`}>{metrics.indexedSources}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Retrieval Hit Rate</span>
+									<span className={`text-xs ${MUT}`}>Retrieval Hit Rate</span>
 									<p className={`text-sm font-semibold ${metrics.retrievalHitRate > 0.5 ? OK : WARN}`}>
 										{(metrics.retrievalHitRate * 100).toFixed(1)}%
 									</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Token Savings</span>
+									<span className={`text-xs ${MUT}`}>Token Savings</span>
 									<p className={`text-sm font-semibold ${OK}`}>
 										{metrics.tokenSavings.toLocaleString()}
 									</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Stale Memories</span>
+									<span className={`text-xs ${MUT}`}>Stale Memories</span>
 									<p className={`text-sm font-semibold ${metrics.staleMemoryCount > 0 ? WARN : OK}`}>
 										{metrics.staleMemoryCount}
 									</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Blocked Sources</span>
+									<span className={`text-xs ${MUT}`}>Blocked Sources</span>
 									<p className={`text-sm font-semibold ${metrics.blockedSourceCount > 0 ? WARN : MUT}`}>
 										{metrics.blockedSourceCount}
 									</p>
@@ -254,7 +250,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 
 						{/* Memory type breakdown */}
 						<div className={`p-3 rounded-lg border ${BORD}`}>
-							<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider mb-2`}>
+							<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider mb-2`}>
 								Memory Type Breakdown
 							</h4>
 							<div className="space-y-1.5">
@@ -294,7 +290,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 							<div key={i} className={`p-2.5 rounded-lg border ${BORD} flex items-center justify-between`}>
 								<div>
 									<p className={`text-xs font-medium ${TXT}`}>{src.name}</p>
-									<span className={`text-[10px] ${MUT}`}>
+									<span className={`text-xs ${MUT}`}>
 										{src.type} &middot; {src.count} memories
 									</span>
 								</div>
@@ -302,7 +298,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 									{src.blocked && (
 										<AlertTriangle size={12} className={WARN} />
 									)}
-									<span className={`text-[10px] ${MUT}`}>
+									<span className={`text-xs ${MUT}`}>
 										{src.lastIndexedAt
 											? new Date(src.lastIndexedAt).toLocaleDateString()
 											: "Never"}
@@ -327,16 +323,16 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 									<div className="flex-1 min-w-0">
 										<p className={`text-xs ${TXT} truncate`}>{entry.content.slice(0, 120)}</p>
 										<div className="flex items-center gap-2 mt-1">
-											<span className={`text-[10px] ${MUT}`}>{entry.source}</span>
-											<span className={`text-[10px] ${MUT}`}>{entry.type}</span>
-											<span className={`text-[10px] ${
+											<span className={`text-xs ${MUT}`}>{entry.source}</span>
+											<span className={`text-xs ${MUT}`}>{entry.type}</span>
+											<span className={`text-xs ${
 												entry.freshness === "fresh" ? OK : entry.freshness === "stale" ? WARN : ERR
 											}`}>
 												{entry.freshness}
 											</span>
 										</div>
 									</div>
-									<span className={`text-[10px] ${MUT} shrink-0`}>
+									<span className={`text-xs ${MUT} shrink-0`}>
 										{(entry.confidence * 100).toFixed(0)}%
 									</span>
 								</div>
@@ -355,7 +351,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 							<RefreshCw size={14} className={`${actionLoading === "reindex" ? "animate-spin" : ""} ${ACCENT}`} />
 							<div className="text-left">
 								<p className={`text-xs font-medium ${TXT}`}>Reindex All Sources</p>
-								<p className={`text-[10px] ${MUT}`}>Re-scan and re-index all memory sources</p>
+								<p className={`text-xs ${MUT}`}>Re-scan and re-index all memory sources</p>
 							</div>
 						</button>
 
@@ -367,7 +363,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 							<Database size={14} className={`${actionLoading === "compact" ? "animate-spin" : ""} ${ACCENT}`} />
 							<div className="text-left">
 								<p className={`text-xs font-medium ${TXT}`}>Compact &amp; Prune</p>
-								<p className={`text-[10px] ${MUT}`}>Remove stale and superseded memories</p>
+								<p className={`text-xs ${MUT}`}>Remove stale and superseded memories</p>
 							</div>
 						</button>
 
@@ -379,7 +375,7 @@ export const MemoryCockpit: FC<MemoryCockpitProps> = ({ className = "" }) => {
 							<Trash2 size={14} className={`${actionLoading === "prune" ? "animate-spin" : ""} ${WARN}`} />
 							<div className="text-left">
 								<p className={`text-xs font-medium ${TXT}`}>Prune Stale Memories</p>
-								<p className={`text-[10px] ${MUT}`}>
+								<p className={`text-xs ${MUT}`}>
 									{metrics.staleMemoryCount > 0
 										? `${metrics.staleMemoryCount} stale memories will be removed`
 										: "No stale memories to prune"}

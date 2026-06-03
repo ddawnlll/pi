@@ -16,19 +16,19 @@ export function PlanHistory({
 }: PlanHistoryProps) {
 	return (
 		<div className="flex flex-col h-full">
-			<div className="p-3 border-b border-gray-700">
-				<h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+			<div className="p-3 border-b border-[#E8E6E1] dark:border-[#333]">
+				<h2 className="text-sm font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
 					Plan History
 				</h2>
 			</div>
 
 			<div className="flex-1 overflow-auto">
 				{isLoading ? (
-					<div className="p-4 text-xs text-gray-500">
+					<div className="p-4 text-xs text-stone-400 dark:text-stone-500">
 						Loading executions...
 					</div>
 				) : executions.length === 0 ? (
-					<div className="p-4 text-xs text-gray-500">
+					<div className="p-4 text-xs text-stone-400 dark:text-stone-500">
 						No plan executions yet
 					</div>
 				) : (
@@ -43,7 +43,7 @@ export function PlanHistory({
 								className={`w-full text-left px-3 py-2 text-xs rounded transition-colors ${
 									selectedExecId === exec.id
 										? "bg-blue-700 text-white"
-										: "text-gray-300 hover:bg-gray-700"
+										: "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:bg-[#2A2A2A]"
 								}`}
 							>
 								<div className="flex items-center justify-between">
@@ -52,7 +52,7 @@ export function PlanHistory({
 									</span>
 									<StatusBadge status={exec.status} />
 								</div>
-								<div className="text-gray-500 mt-0.5 flex items-center gap-2">
+								<div className="text-stone-400 dark:text-stone-500 mt-0.5 flex items-center gap-2">
 									<span>Phase: {exec.phase}</span>
 									<span>&middot;</span>
 									<span>{formatDate(exec.startedAt)}</span>
@@ -73,13 +73,13 @@ function StatusBadge({ status }: { status: string }) {
 		failed: "bg-red-600",
 		paused: "bg-yellow-600",
 		stopped: "bg-orange-600",
-		cancelled: "bg-gray-600",
+		cancelled: "bg-stone-400 dark:bg-stone-500",
 	};
 
 	return (
 		<span
-			className={`px-1.5 py-0.5 rounded text-[10px] font-medium text-white whitespace-nowrap ${
-				colorMap[status] ?? "bg-gray-600"
+			className={`px-1.5 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${
+				colorMap[status] ?? "bg-stone-400 dark:bg-stone-500"
 			}`}
 		>
 			{status}

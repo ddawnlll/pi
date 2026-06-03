@@ -6,16 +6,12 @@
  */
 
 import { AlertTriangle, CheckCircle, MessageSquare, Loader2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { EscalationEntry } from "../../hooks/useEscalations";
 import type { HumanDirectiveEntry } from "../../hooks/useHumanDirectives";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -85,11 +81,11 @@ export function WorkspaceDetailEscalations({
       <div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
         <div className="flex items-center gap-2">
           <AlertTriangle size={13} className={MUT} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
             Escalations / Directives
           </span>
         </div>
-        <span className={`text-[10px] tabular-nums ${MUT}`}>
+        <span className={`text-xs tabular-nums ${MUT}`}>
           {(escalations?.length ?? 0) + (directives?.length ?? 0)} total
         </span>
       </div>
@@ -99,7 +95,7 @@ export function WorkspaceDetailEscalations({
         {/* Escalations */}
         {escalations && escalations.length > 0 && (
           <div>
-            <div className={`px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider ${WARN_TXT} bg-amber-50/50 dark:bg-amber-900/10`}>
+            <div className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${WARN_TXT} bg-amber-50/50 dark:bg-amber-900/10`}>
               Escalations ({escalations.length})
             </div>
             {escalations.map((esc) => (
@@ -109,9 +105,9 @@ export function WorkspaceDetailEscalations({
                   <div className="min-w-0 flex-1">
                     <p className={`${TXT} leading-relaxed`}>{esc.reason}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[9px] ${MUT}`}>{formatTime(esc.issuedAt)}</span>
+                      <span className={`text-xs ${MUT}`}>{formatTime(esc.issuedAt)}</span>
                       <span
-                        className={`text-[9px] font-medium px-1 py-px rounded ${
+                        className={`text-xs font-medium px-1 py-px rounded ${
                           esc.status === "awaiting_user"
                             ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
                             : esc.status === "resolved"
@@ -128,13 +124,13 @@ export function WorkspaceDetailEscalations({
                 {/* Options */}
                 {esc.options && esc.options.length > 0 && esc.status === "awaiting_user" && (
                   <div className="pl-5 space-y-1">
-                    <span className={`text-[9px] ${MUT}`}>Options:</span>
+                    <span className={`text-xs ${MUT}`}>Options:</span>
                     <div className="flex flex-wrap gap-1">
                       {esc.options.map((opt) => (
                         <button
                           key={opt.id}
                           onClick={() => onResolveEscalation?.(esc.escalationId, opt.id)}
-                          className="px-2 py-1 rounded text-[9px] font-medium border ${BORD} bg-stone-50 dark:bg-[#2A2A2A] hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          className="px-2 py-1 rounded text-xs font-medium border ${BORD} bg-stone-100 dark:bg-[#2A2A2A] hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                           title={opt.description}
                         >
                           {opt.label}
@@ -145,7 +141,7 @@ export function WorkspaceDetailEscalations({
                 )}
 
                 {esc.chosenOptionId && (
-                  <div className="pl-5 flex items-center gap-1.5 text-[9px]">
+                  <div className="pl-5 flex items-center gap-1.5 text-xs">
                     <CheckCircle size={9} className="text-emerald-400" />
                     <span className={MUT}>Resolved with: {esc.chosenOptionId}</span>
                   </div>
@@ -158,7 +154,7 @@ export function WorkspaceDetailEscalations({
         {/* Directives */}
         {directives && directives.length > 0 && (
           <div>
-            <div className={`px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider ${ACC_TXT} bg-blue-50/50 dark:bg-blue-900/10`}>
+            <div className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider ${ACC_TXT} bg-blue-50/50 dark:bg-blue-900/10`}>
               Directives ({directives.length})
             </div>
             {directives.map((dir) => (
@@ -168,20 +164,20 @@ export function WorkspaceDetailEscalations({
                   <div className="min-w-0 flex-1">
                     <p className={`${TXT} leading-relaxed`}>{dir.directive}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[9px] ${MUT}`}>{formatTime(dir.issuedAt)}</span>
+                      <span className={`text-xs ${MUT}`}>{formatTime(dir.issuedAt)}</span>
                       <span
-                        className={`text-[9px] font-medium px-1 py-px rounded ${
+                        className={`text-xs font-medium px-1 py-px rounded ${
                           dir.severity === "blocking"
                             ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
                             : dir.severity === "high"
                               ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
-                              : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                              : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                         }`}
                       >
                         {dir.severity}
                       </span>
                       {dir.acknowledged && (
-                        <span className="text-[9px] text-emerald-500 flex items-center gap-0.5">
+                        <span className="text-xs text-emerald-500 flex items-center gap-0.5">
                           <CheckCircle size={8} />
                           Ack'd
                         </span>

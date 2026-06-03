@@ -81,7 +81,7 @@ function ActionButton({
 	size: "sm" | "md";
 }) {
 	const isSmall = size === "sm";
-	const btnSize = isSmall ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs";
+	const btnSize = isSmall ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-xs";
 	const iconSize = isSmall ? 12 : 14;
 
 	const handleClick = useCallback(async () => {
@@ -108,7 +108,7 @@ function ActionButton({
 		return (
 			<div className="flex items-center gap-1.5">
 				<span
-					className="inline-flex items-center gap-1 text-[9px] text-red-500"
+					className="inline-flex items-center gap-1 text-xs text-red-500"
 					title={status.error ?? config.errorLabel}
 				>
 					{config.iconError}
@@ -117,7 +117,7 @@ function ActionButton({
 				<button
 					type="button"
 					onClick={handleClick}
-					className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium"
+					className="text-xs px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium"
 				>
 					Retry
 				</button>
@@ -283,7 +283,7 @@ export function DigestQuickActionsEmpty({ size = "sm" }: { size?: "sm" | "md" })
 		<div className="flex items-center gap-1.5">
 			<span
 				className={`inline-flex items-center gap-1 ${
-					isSmall ? "px-2 py-0.5 text-[9px]" : "px-3 py-1 text-[10px]"
+					isSmall ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-xs"
 				} rounded-full text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50 italic`}
 			>
 				<BellOff size={isSmall ? 10 : 12} strokeWidth={1.2} />
@@ -308,14 +308,14 @@ export function DigestQuickActionsError({
 	onRetry?: () => void;
 }) {
 	return (
-		<div className="flex items-center gap-1.5 text-[10px] text-red-500">
+		<div className="flex items-center gap-1.5 text-xs text-red-500">
 			<AlertCircle size={12} strokeWidth={1.5} />
 			<span className="truncate max-w-[140px]">{message}</span>
 			{onRetry && (
 				<button
 					type="button"
 					onClick={onRetry}
-					className="text-[9px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium"
+					className="text-xs px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium"
 				>
 					Retry
 				</button>

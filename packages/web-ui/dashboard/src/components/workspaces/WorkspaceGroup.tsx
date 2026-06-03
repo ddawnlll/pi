@@ -6,6 +6,7 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertTriangle,
 	Play,
@@ -17,7 +18,6 @@ import { WorkspaceCardV3, type WorkspaceCardV3Data } from "./WorkspaceCardV3";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Group definitions ─────────────────────────────────────────────────────
 
@@ -100,10 +100,10 @@ export function WorkspaceGroup({
 			{/* Group header */}
 			<div className="flex items-center gap-2 mb-2 px-1">
 				<Icon size={14} className={def.color} />
-				<h3 className={`text-[11px] font-semibold uppercase tracking-wider ${MUT}`}>
+				<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 					{def.label}
 				</h3>
-				<span className={`text-[10px] font-medium ${MUT}`}>
+				<span className={`text-xs font-medium ${MUT}`}>
 					({workspaces.length})
 				</span>
 			</div>

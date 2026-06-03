@@ -14,6 +14,7 @@
  */
 
 import { ArrowLeft, AlertTriangle, Maximize2 } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigation } from "../../navigation/NavigationState";
 import { useWorkerContext, type WorkerContextView } from "../../hooks/useWorkerContext";
@@ -42,10 +43,6 @@ import {
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -258,7 +255,7 @@ export function WorkspaceDetailPage({
   const errorBanner = context?.error;
 
   return (
-    <div className="flex flex-col h-full bg-stone-50 dark:bg-[#161616] overflow-y-auto">
+    <div className="flex flex-col h-full bg-[#F7F6F3] dark:bg-[#161616] overflow-y-auto">
       {/* ── Header ── */}
       <div className={`shrink-0 sticky top-0 z-10 ${SURF} border-b ${BORD} px-4 py-3`}>
         <div className="flex items-center gap-3">
@@ -284,16 +281,16 @@ export function WorkspaceDetailPage({
               {shortId(workspaceId)}
             </span>
             <span
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+              className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                 stage === "active"
                   ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
                   : stage === "complete"
-                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                     : stage === "failed"
                       ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
                       : stage === "blocked"
                         ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
-                        : "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+                        : "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500"
               }`}
             >
               {stage}
@@ -341,7 +338,7 @@ export function WorkspaceDetailPage({
         <div className="flex items-center justify-between">
           <button
             onClick={handleOpenTranscriptDrawer}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
             title="Open transcript in drawer"
           >
             <Maximize2 size={11} />
@@ -349,7 +346,7 @@ export function WorkspaceDetailPage({
           </button>
           <button
             onClick={handleOpenArtifactDrawer}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
             title="Open artifacts in drawer"
           >
             <Maximize2 size={11} />
@@ -381,7 +378,7 @@ export function WorkspaceDetailPage({
         <div className="flex items-center gap-2">
           <button
             onClick={handleOpenDirectiveDrawer}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
             title="Open directives in drawer"
           >
             <Maximize2 size={11} />
@@ -389,7 +386,7 @@ export function WorkspaceDetailPage({
           </button>
           <button
             onClick={handleOpenFileEvidenceDrawer}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors"
             title="Open file evidence in drawer"
           >
             <Maximize2 size={11} />

@@ -84,7 +84,7 @@ export function FileEvidencePanel({
 			<div className="flex flex-col items-center justify-center py-6 text-stone-400 dark:text-stone-500">
 				<FileText size={20} className="mb-2 opacity-50" />
 				<p className="text-xs">Select a file to view evidence</p>
-				<p className="text-[10px] mt-1 opacity-50">Evidence includes related workspace, commands, and validation</p>
+				<p className="text-xs mt-1 opacity-50">Evidence includes related workspace, commands, and validation</p>
 			</div>
 		);
 	}
@@ -113,15 +113,15 @@ export function FileEvidencePanel({
 			<div className="border border-[#E8E6E1] dark:border-[#333] rounded p-2.5">
 				<div className="flex items-center gap-1.5 mb-1.5">
 					<Box size={12} className="text-stone-400" />
-					<span className="font-medium text-stone-700 dark:text-stone-300">Related Workspace</span>
+					<span className="font-medium text-stone-800 dark:text-stone-200">Related Workspace</span>
 				</div>
 				{fileWorkspace ? (
 					<div className="space-y-1">
 						<div className="flex items-center justify-between">
-							<span className="font-mono text-[11px]">{fileWorkspace.id.slice(0, 8)}...</span>
+							<span className="font-mono text-xs">{fileWorkspace.id.slice(0, 8)}...</span>
 							<StatusBadge stage={fileWorkspace.stage} />
 						</div>
-						<div className="flex items-center justify-between text-[10px] text-stone-400">
+						<div className="flex items-center justify-between text-xs text-stone-400">
 							<span>
 								{fileWorkspace.attempts > 0 ? `${fileWorkspace.attempts} attempt${fileWorkspace.attempts !== 1 ? "s" : ""}` : "No attempts yet"}
 							</span>
@@ -135,7 +135,7 @@ export function FileEvidencePanel({
 							{onNavigateToWorkspace && (
 								<button
 									onClick={() => onNavigateToWorkspace(fileWorkspace.id)}
-									className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+									className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline"
 								>
 									<ExternalLink size={10} />
 									Workspace detail
@@ -144,7 +144,7 @@ export function FileEvidencePanel({
 							{onNavigateToLogs && (
 								<button
 									onClick={() => onNavigateToLogs(fileWorkspace.id)}
-									className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+									className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline"
 								>
 									<Terminal size={10} />
 									View logs
@@ -153,7 +153,7 @@ export function FileEvidencePanel({
 						</div>
 					</div>
 				) : (
-					<p className="text-[10px] text-stone-400">No workspace data available</p>
+					<p className="text-xs text-stone-400">No workspace data available</p>
 				)}
 			</div>
 
@@ -161,7 +161,7 @@ export function FileEvidencePanel({
 			<div className="border border-[#E8E6E1] dark:border-[#333] rounded p-2.5">
 				<div className="flex items-center gap-1.5 mb-1.5">
 					<Terminal size={12} className="text-stone-400" />
-					<span className="font-medium text-stone-700 dark:text-stone-300">Related Commands</span>
+					<span className="font-medium text-stone-800 dark:text-stone-200">Related Commands</span>
 				</div>
 				{commands && commands.length > 0 ? (
 					<div className="space-y-1.5">
@@ -178,13 +178,13 @@ export function FileEvidencePanel({
 									}`}
 								/>
 								<div className="min-w-0 flex-1">
-									<code className="text-[10px] font-mono text-stone-700 dark:text-stone-300 block truncate">
+									<code className="text-xs font-mono text-stone-800 dark:text-stone-200 block truncate">
 										{lastCommand.command}
 									</code>
-									<div className="flex items-center gap-2 text-[9px] text-stone-400 mt-0.5">
+									<div className="flex items-center gap-2 text-xs text-stone-400 mt-0.5">
 										<span>exit: {lastCommand.exitCode ?? "running"}</span>
 										{lastCommand.isTargetCommand && (
-											<span className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[8px]">
+											<span className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
 												target
 											</span>
 										)}
@@ -194,18 +194,18 @@ export function FileEvidencePanel({
 						)}
 						{/* Target commands count */}
 						{targetCommands.length > 0 && (
-							<p className="text-[10px] text-stone-400">
+							<p className="text-xs text-stone-400">
 								{targetCommands.length} target/validation command{targetCommands.length !== 1 ? "s" : ""} in this
 								workspace
 							</p>
 						)}
 						{/* All commands count */}
-						<p className="text-[10px] text-stone-400">
+						<p className="text-xs text-stone-400">
 							{commands.length} total command{commands.length !== 1 ? "s" : ""} executed
 						</p>
 					</div>
 				) : (
-					<p className="text-[10px] text-stone-400">No command history available</p>
+					<p className="text-xs text-stone-400">No command history available</p>
 				)}
 			</div>
 
@@ -219,13 +219,13 @@ export function FileEvidencePanel({
 					) : (
 						<AlertTriangle size={12} className="text-amber-400" />
 					)}
-					<span className="font-medium text-stone-700 dark:text-stone-300">Validation</span>
+					<span className="font-medium text-stone-800 dark:text-stone-200">Validation</span>
 				</div>
 				{validation ? (
 					<div className="space-y-1">
 						<div className="flex items-center gap-2">
 							<span
-								className={`text-[10px] px-1.5 py-0.5 rounded ${
+								className={`text-xs px-1.5 py-0.5 rounded ${
 									validation.passed === true
 										? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
 										: validation.blocked
@@ -242,13 +242,13 @@ export function FileEvidencePanel({
 											: "Pending"}
 							</span>
 							{!validation.required && (
-								<span className="text-[9px] text-stone-400">Not required</span>
+								<span className="text-xs text-stone-400">Not required</span>
 							)}
 						</div>
 						{validation.blockReasons.length > 0 && (
 							<div className="mt-1">
 								{validation.blockReasons.map((reason, idx) => (
-									<p key={idx} className="text-[10px] text-red-500 truncate" title={reason}>
+									<p key={idx} className="text-xs text-red-500 truncate" title={reason}>
 										{reason}
 									</p>
 								))}
@@ -256,7 +256,7 @@ export function FileEvidencePanel({
 						)}
 					</div>
 				) : (
-					<p className="text-[10px] text-stone-400">No validation data available</p>
+					<p className="text-xs text-stone-400">No validation data available</p>
 				)}
 			</div>
 
@@ -265,9 +265,9 @@ export function FileEvidencePanel({
 				<div className="border border-[#E8E6E1] dark:border-[#333] rounded p-2.5">
 					<div className="flex items-center gap-1.5 mb-1.5">
 						<FileText size={12} className="text-stone-400" />
-						<span className="font-medium text-stone-700 dark:text-stone-300">File Metadata</span>
+						<span className="font-medium text-stone-800 dark:text-stone-200">File Metadata</span>
 					</div>
-					<div className="space-y-0.5 text-[11px]">
+					<div className="space-y-0.5 text-xs">
 						<div className="flex justify-between">
 							<span className="text-stone-400">Status</span>
 							<span
@@ -324,7 +324,7 @@ function StatusBadge({ stage }: { stage: string }) {
 	const color = colors[stage] ?? colors.Pending;
 
 	return (
-		<span className={`text-[9px] px-1.5 py-0.5 rounded ${color}`}>
+		<span className={`text-xs px-1.5 py-0.5 rounded ${color}`}>
 			{stage}
 		</span>
 	);

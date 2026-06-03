@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Brain,
   ChevronRight,
+  Menu,
   Pause,
   Play,
   RefreshCw,
@@ -23,15 +24,7 @@ import {
   Square,
 } from "lucide-react";
 import type { BreadcrumbSegment } from "../../navigation/BreadcrumbModel";
-
-// ---------------------------------------------------------------------------
-// Style tokens
-// ---------------------------------------------------------------------------
-
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,6 +65,8 @@ export interface TopbarV3Props {
   onSettings: () => void;
   onSearch?: () => void;
   onBrainMenu?: () => void;
+  /** Toggle mobile sidebar navigation */
+  onToggleMobileNav?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +89,7 @@ function HealthPill({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-100 dark:bg-[#2A2A2A] border border-stone-200 dark:border-stone-700">
       <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-      <span className="text-[11px] font-medium text-stone-600 dark:text-stone-400 capitalize">
+      <span className="text-xs font-medium text-stone-600 dark:text-stone-400 capitalize">
         {status}
       </span>
     </span>
@@ -161,7 +156,7 @@ function TopbarIconBtn({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="relative inline-flex items-center justify-center h-8 w-8 rounded-lg text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
+      className="relative inline-flex items-center justify-center h-8 w-8 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
     >
       <Icon size={15} strokeWidth={1.8} />
       {badge && (
@@ -195,12 +190,12 @@ function LabeledActionBtn({
   let cls = base;
   if (disabled) {
     cls +=
-      " text-stone-300 dark:text-stone-600 border-[#E8E6E1]/50 dark:border-[#333]/50 cursor-not-allowed bg-stone-50 dark:bg-[#1A1A1A]";
+      " text-stone-300 dark:text-stone-600 border-[#E8E6E1] dark:border-[#333]/50 dark:border-[#333]/50 cursor-not-allowed bg-stone-50 dark:bg-[#1A1A1A]";
   } else if (accent) {
     cls += " bg-blue-600 text-white border-transparent hover:bg-blue-700 shadow-sm";
   } else if (danger) {
     cls +=
-      " text-stone-500 dark:text-stone-400 border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800";
+      " text-stone-400 dark:text-stone-500 border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800";
   } else {
     cls +=
       " text-stone-600 dark:text-stone-400 border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] hover:border-stone-300 dark:hover:border-[#555]";
@@ -236,18 +231,31 @@ export function TopbarV3({
   onSettings,
   onSearch,
   onBrainMenu,
+  onToggleMobileNav,
 }: TopbarV3Props) {
   return (
     <header
       className={`h-12 shrink-0 ${SURF} border-b ${BORD} flex items-center px-3 gap-2 z-10`}
     >
+      {/* Mobile hamburger menu */}
+      {onToggleMobileNav && (
+        <button
+          onClick={onToggleMobileNav}
+          className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:bg-[#2A2A2A] transition-colors"
+          aria-label="Toggle navigation"
+          title="Toggle navigation"
+        >
+          <Menu size={16} strokeWidth={1.8} />
+        </button>
+      )}
+
       {/* Pi logo */}
       <button
-        className="flex items-center justify-center h-8 w-8 rounded-lg text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors font-semibold text-sm"
+        className="hidden md:flex items-center justify-center h-8 w-8 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:bg-[#2A2A2A] transition-colors"
         aria-label="Home"
         title="Home"
       >
-        Pi
+        <img src="/pi-logo.svg" alt="Pi" className="h-5 w-5" />
       </button>
 
       {/* Breadcrumb */}
@@ -260,7 +268,7 @@ export function TopbarV3({
         <div className="flex items-center gap-2 shrink-0">
           <HealthPill status={status} />
           {statusText && (
-            <span className={`text-[11px] ${MUT} hidden sm:inline`}>
+            <span className={`text-xs ${MUT} hidden sm:inline`}>
               {statusText}
             </span>
           )}

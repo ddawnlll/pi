@@ -26,7 +26,7 @@ export function GoalForm({ onSubmit, onCancel, loading }: GoalFormProps) {
 			<div className="bg-white dark:bg-stone-800 rounded-lg border border-stone-200 dark:border-stone-700 p-5 w-full max-w-md shadow-xl space-y-3">
 				<h3 className="text-sm font-medium text-stone-800 dark:text-stone-200">Add Goal</h3>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Title *</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Title *</label>
 					<input
 						type="text"
 						value={title}
@@ -36,7 +36,7 @@ export function GoalForm({ onSubmit, onCancel, loading }: GoalFormProps) {
 					/>
 				</div>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Description</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Description</label>
 					<textarea
 						value={description}
 						onChange={(e) => setDescription(e.target.value)}
@@ -46,7 +46,7 @@ export function GoalForm({ onSubmit, onCancel, loading }: GoalFormProps) {
 					/>
 				</div>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Priority</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Priority</label>
 					<select
 						value={priority}
 						onChange={(e) => setPriority(e.target.value)}
@@ -59,7 +59,7 @@ export function GoalForm({ onSubmit, onCancel, loading }: GoalFormProps) {
 					</select>
 				</div>
 				<div>
-					<label className="text-[10px] font-medium text-stone-500 block mb-1">Milestones (one per line)</label>
+					<label className="text-xs font-medium text-stone-500 block mb-1">Milestones (one per line)</label>
 					<textarea
 						value={milestonesStr}
 						onChange={(e) => setMilestonesStr(e.target.value)}

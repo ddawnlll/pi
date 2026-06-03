@@ -11,14 +11,11 @@
  */
 
 import { CheckCircle, XCircle, Loader2, ChevronRight } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { CommandTimelineEntry } from "../../hooks/useCommandTimeline";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +64,7 @@ export function CommandRow({ entry, isSelected, onClick }: CommandRowProps) {
 	return (
 		<button
 			onClick={onClick}
-			className={`flex items-center gap-2 px-3 py-1.5 text-xs w-full text-left transition-colors group ${rowBg} border-b ${BORD} border-transparent hover:border-stone-200 dark:hover:border-[#333]`}
+			className={`flex items-center gap-2 px-3 py-1.5 text-xs w-full text-left transition-colors group ${rowBg} border-b ${BORD} border-transparent hover:border-stone-200 dark:hover:border-[#E8E6E1] dark:border-[#333]`}
 		>
 			{/* Status icon */}
 			<span className={`shrink-0 ${statusColor}`}>
@@ -81,7 +78,7 @@ export function CommandRow({ entry, isSelected, onClick }: CommandRowProps) {
 			</span>
 
 			{/* Workspace ID */}
-			<span className={`shrink-0 w-20 font-mono text-[10px] ${MUT} truncate`}>
+			<span className={`shrink-0 w-20 font-mono text-xs ${MUT} truncate`}>
 				{truncate(entry.workspaceId, 10)}
 			</span>
 
@@ -92,18 +89,18 @@ export function CommandRow({ entry, isSelected, onClick }: CommandRowProps) {
 
 			{/* Target command badge */}
 			{entry.isTargetCommand && (
-				<span className="shrink-0 px-1 py-px rounded text-[8px] font-semibold uppercase bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+				<span className="shrink-0 px-1 py-px rounded text-xs font-semibold uppercase bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
 					Target
 				</span>
 			)}
 
 			{/* Duration */}
-			<span className={`shrink-0 w-14 text-right tabular-nums text-[10px] ${MUT}`}>
+			<span className={`shrink-0 w-14 text-right tabular-nums text-xs ${MUT}`}>
 				{duration}
 			</span>
 
 			{/* Exit code */}
-			<span className={`shrink-0 w-14 text-right tabular-nums font-mono text-[10px] ${
+			<span className={`shrink-0 w-14 text-right tabular-nums font-mono text-xs ${
 				isRunning ? MUT : isSuccess ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
 			}`}>
 				{isRunning ? "\u2014" : `exit ${entry.exitCode}`}

@@ -12,12 +12,12 @@
  */
 
 import { Loader2, Layers } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { WorkspaceGroup, type WorkspaceGroupId } from "./WorkspaceGroup";
 import type { WorkspaceCardV3Data } from "./WorkspaceCardV3";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Group order ───────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ export function WorkspaceBoard({
 			<div className={`flex flex-col items-center justify-center gap-3 py-12 ${className}`}>
 				<Layers size={24} className="text-stone-300 dark:text-stone-600" />
 				<p className={`text-xs ${MUT}`}>No workspaces yet</p>
-				<p className={`text-[10px] ${MUT}`}>
+				<p className={`text-xs ${MUT}`}>
 					Workspaces will appear here as the plan executes.
 				</p>
 			</div>

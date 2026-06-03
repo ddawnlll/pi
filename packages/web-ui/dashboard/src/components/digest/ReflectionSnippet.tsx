@@ -41,14 +41,14 @@ function ReflectionItem({ reflection }: { reflection: ReflectionReport }) {
 				<h3 className="text-xs font-medium text-stone-800 dark:text-stone-200 leading-snug truncate flex-1">
 					{reflection.planTitle || `Reflection ${reflection.planExecId?.slice(0, 8)}`}
 				</h3>
-				<span className="shrink-0 text-[9px] text-stone-400">
+				<span className="shrink-0 text-xs text-stone-400">
 					{formatTimeAgo(reflection.timestamp)}
 				</span>
 			</div>
-			<p className="text-[10px] text-stone-400 dark:text-stone-500 line-clamp-2">
+			<p className="text-xs text-stone-400 dark:text-stone-500 line-clamp-2">
 				{reflection.summary}
 			</p>
-			<div className="flex items-center gap-3 text-[9px] text-stone-400">
+			<div className="flex items-center gap-3 text-xs text-stone-400">
 				{workedCount > 0 && (
 					<span className="text-emerald-500">
 						{workedCount} worked
@@ -95,7 +95,7 @@ export function ReflectionSnippet({
 
 	if (error && !reflections) {
 		return (
-			<div className="text-[10px] text-red-400 dark:text-red-500 px-3 py-2 text-center">
+			<div className="text-xs text-red-400 dark:text-red-500 px-3 py-2 text-center">
 				Failed to load reflections
 			</div>
 		);
@@ -107,7 +107,7 @@ export function ReflectionSnippet({
 		return (
 			<div className="flex flex-col items-center justify-center py-6 text-center">
 				<Lightbulb size={20} strokeWidth={1.2} className="text-stone-300 dark:text-stone-600 mb-2" />
-				<p className="text-[10px] text-stone-400 dark:text-stone-500">No reflections yet</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500">No reflections yet</p>
 			</div>
 		);
 	}
@@ -115,7 +115,7 @@ export function ReflectionSnippet({
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between">
-				<span className="text-[10px] text-stone-400 dark:text-stone-500">
+				<span className="text-xs text-stone-400 dark:text-stone-500">
 					{reflections?.length ?? 0} total reflections
 				</span>
 				<button

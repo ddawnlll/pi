@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -27,11 +28,6 @@ import type { ObservabilityEvent } from "../../types-observability";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 
 // ─── Severity colors ──────────────────────────────────────────────────────────
@@ -87,14 +83,14 @@ function SpanNodeRow({ span, children: directChildren, allSpans, depth, onSelect
 				)}
 				<span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${severityColor(span.severity)}`} />
 				<span className={`flex-1 truncate font-medium ${statusColor}`}>{span.name}</span>
-				<span className={`text-[10px] font-mono ${MUT} shrink-0 w-14 text-right`}>
+				<span className={`text-xs font-mono ${MUT} shrink-0 w-14 text-right`}>
 					{span.durationMs != null
 						? span.durationMs >= 1000
 							? `${(span.durationMs / 1000).toFixed(1)}s`
 							: `${span.durationMs}ms`
 						: "\u2014"}
 				</span>
-				<span className={`text-[10px] font-mono ${MUT} shrink-0 w-12 text-right capitalize`}>
+				<span className={`text-xs font-mono ${MUT} shrink-0 w-12 text-right capitalize`}>
 					{span.status}
 				</span>
 			</div>
@@ -183,10 +179,10 @@ export function TraceTimeline({ className = "", spans: directSpans, loading: dir
 			<div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD}`}>
 				<div className="flex items-center gap-1.5">
 					<Activity size={13} className={ACC_TXT} />
-					<span className={`text-[11px] font-semibold ${TXT}`}>Trace Timeline</span>
+					<span className={`text-xs font-semibold ${TXT}`}>Trace Timeline</span>
 				</div>
 				{!loading && !error && spans.length > 0 && (
-					<span className={`text-[10px] ${MUT}`}>
+					<span className={`text-xs ${MUT}`}>
 						{spans.length} span{spans.length !== 1 ? "s" : ""}
 					</span>
 				)}

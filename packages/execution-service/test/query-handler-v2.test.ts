@@ -449,7 +449,7 @@ describe("createExecutionReadModel — comprehensive", () => {
 
 		it("should use state store when available", async () => {
 			const model = createExecutionReadModel({
-				getWorkspaceState: async (pid: string, wsId: string) => ({
+				getWorkspaceState: async (_pid: string, _wsId: string) => ({
 					stage: "Complete",
 					attempts: 3,
 					startedAt: Date.now() - 10000,
@@ -1089,7 +1089,7 @@ describe("createExecutionReadModel — comprehensive", () => {
 	describe("getFileContent (archive-backed)", () => {
 		it("should return file content from readArchiveFile", async () => {
 			const model = createExecutionReadModel({
-				readArchiveFile: async (pid: string, path: string) => {
+				readArchiveFile: async (_pid: string, path: string) => {
 					expect(path).toBe("workspaces/ws-1/src/index.ts");
 					return "const x = 1;";
 				},
@@ -1135,7 +1135,7 @@ index abc..def 100644
 +new content`;
 
 			const model = createExecutionReadModel({
-				readArchiveFile: async (pid: string, path: string) => {
+				readArchiveFile: async (_pid: string, path: string) => {
 					expect(path).toBe("workspaces/ws-1/diff.patch");
 					return patchContent;
 				},
@@ -1282,7 +1282,7 @@ index abc..def 100644
 		it("should load touched files from archive when readArchiveFile available", async () => {
 			const model = createExecutionReadModel({
 				getJournalEvents: async () => [],
-				readArchiveFile: async (pid: string, path: string) => {
+				readArchiveFile: async (_pid: string, path: string) => {
 					if (path === "workspaces/ws-1/files-touched.json") {
 						return JSON.stringify([
 							{ path: "src/index.ts", change: "modified" },
@@ -1301,7 +1301,7 @@ index abc..def 100644
 		it("should load role packet from archive", async () => {
 			const model = createExecutionReadModel({
 				getJournalEvents: async () => [],
-				readArchiveFile: async (pid: string, path: string) => {
+				readArchiveFile: async (_pid: string, path: string) => {
 					if (path === "workspaces/ws-1/packet.md") {
 						return "# Role Packet\n\nYou are a coder.\n\nFiles to edit: src/index.ts";
 					}

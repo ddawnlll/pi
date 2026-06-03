@@ -69,11 +69,11 @@ export function GoalBoard({ className = "" }: GoalBoardProps) {
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
 					<h2 className="text-sm font-semibold text-stone-800 dark:text-stone-200">Goal Board</h2>
-					{hasDrift && <span className="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">Drift detected</span>}
+					{hasDrift && <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">Drift detected</span>}
 				</div>
 				<button
 					onClick={() => setShowForm(true)}
-					className="px-3 py-1 text-[10px] font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+					className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
 				>
 					+ Add Goal
 				</button>
@@ -81,7 +81,7 @@ export function GoalBoard({ className = "" }: GoalBoardProps) {
 
 			{/* Stats */}
 			{stats && (
-				<div className="flex items-center gap-4 text-[10px] text-stone-400">
+				<div className="flex items-center gap-4 text-xs text-stone-400">
 					<span>{stats.total} total</span>
 					{Object.entries(stats.byStatus).map(([status, count]) => (
 						<span key={status}>{status}: {count}</span>
@@ -100,7 +100,7 @@ export function GoalBoard({ className = "" }: GoalBoardProps) {
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
 					{COLUMNS.map((col) => (
 						<div key={col.status} className="space-y-2">
-							<h3 className="text-[10px] font-medium text-stone-500 uppercase tracking-wider px-1">
+							<h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider px-1">
 								{col.label}
 							</h3>
 							<div className="space-y-2 min-h-[100px]">

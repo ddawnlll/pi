@@ -17,6 +17,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	Archive,
@@ -78,12 +79,6 @@ export interface SidebarSection {
 // Style tokens (matching App.tsx conventions)
 // ---------------------------------------------------------------------------
 
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
 
 // ---------------------------------------------------------------------------
 // Brain section data — STATIC PLACEHOLDER (P42.11)
@@ -275,7 +270,7 @@ export function Sidebar({
 						>
 							{item.label}
 							{item.badge != null && item.badge > 0 && (
-								<span className="ml-2 inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+								<span className="ml-2 inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-xs font-bold px-1">
 									{item.badge}
 								</span>
 							)}
@@ -356,7 +351,7 @@ export function Sidebar({
 														setRenameValue(p.name || p.id);
 														setShowProjectDropdown(false);
 													}}
-													className={`text-[10px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+													className={`text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
 													title="Rename"
 												>
 													✎
@@ -366,7 +361,7 @@ export function Sidebar({
 														e.stopPropagation();
 														setConfirmDelete(p.id);
 													}}
-													className={`text-[10px] ${MUT} hover:text-red-600 dark:hover:text-red-400`}
+													className={`text-xs ${MUT} hover:text-red-600 dark:hover:text-red-400`}
 													title="Remove from dashboard"
 												>
 													<X size={10} />
@@ -413,7 +408,7 @@ export function Sidebar({
 					/>
 					<button
 						onClick={() => setRenamingProject(false)}
-						className={`text-[10px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+						className={`text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
 					>
 						Cancel
 					</button>
@@ -436,7 +431,7 @@ export function Sidebar({
 						className={`flex items-center gap-1.5 w-full px-3 py-1.5 rounded-md transition-colors hover:bg-stone-100 dark:hover:bg-[#2A2A2A] ${
 							section.type === "brain"
 								? "text-sm font-medium text-blue-500 dark:text-blue-400"
-								: "text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400"
+								: "text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500"
 						}`}
 						aria-expanded={isExpanded}
 					>
@@ -456,7 +451,7 @@ export function Sidebar({
 									e.stopPropagation();
 									onCycleBrainMode();
 								}}
-								className={`text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wide whitespace-nowrap ${
+								className={`text-xs px-1.5 py-0.5 rounded font-semibold tracking-wide whitespace-nowrap ${
 									brainMode !== "OFF"
 										? "text-emerald-600 dark:text-emerald-400"
 										: MUT
@@ -519,11 +514,11 @@ export function Sidebar({
 												<span className={`truncate ${activeItem === t.id ? ACC_TXT : TXT}`}>
 													{t.title || `Task ${t.id.slice(0, 6)}`}
 												</span>
-												<span className={`text-[10px] ml-auto ${
+												<span className={`text-xs ml-auto ${
 													t.status === "complete"
 														? "text-emerald-600 dark:text-emerald-400"
 														: t.status === "running"
-															? "text-blue-600 dark:text-blue-400"
+															? "text-blue-700 dark:text-blue-300"
 															: MUT
 												}`}>
 													{t.status}
@@ -549,7 +544,7 @@ export function Sidebar({
 									{onToggleArchived && (
 										<button
 											onClick={onToggleArchived}
-											className={`flex items-center gap-2 px-3 py-1.5 rounded text-[10px] w-full text-left ${
+											className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs w-full text-left ${
 												includeArchived
 													? `${ACC_BG} ${ACC_TXT}`
 													: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -587,7 +582,7 @@ export function Sidebar({
 																}
 															}}
 															onBlur={() => setRenamingExecId(null)}
-															className="flex-1 min-w-0 px-2 py-1 text-xs bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+															className="flex-1 min-w-0 px-2 py-1 text-xs bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500"
 															placeholder="Rename plan..."
 														/>
 													</div>
@@ -605,11 +600,11 @@ export function Sidebar({
 															<span className={`flex-1 truncate ${activeItem === ex.id ? ACC_TXT : TXT}`}>
 																{(ex as any).phaseTitle || ex.title || ex.phase || `Run ${ex.id.slice(0, 6)}`}
 															</span>
-															<span className={`text-[10px] ${
+															<span className={`text-xs ${
 																ex.status === "complete"
 																	? "text-emerald-600 dark:text-emerald-400"
 																	: ex.status === "running"
-																		? "text-blue-600 dark:text-blue-400"
+																		? "text-blue-700 dark:text-blue-300"
 																		: ex.status === "failed"
 																			? "text-red-600 dark:text-red-400"
 																			: MUT

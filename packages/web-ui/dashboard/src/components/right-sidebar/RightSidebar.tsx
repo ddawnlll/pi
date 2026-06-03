@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -28,9 +29,6 @@ import { PlanSummaryPanel } from "../PlanSummaryPanel";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,14 +100,14 @@ export function RightSidebar({
 				className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}
 			>
 				<span
-					className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+					className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}
 				>
 					Events
 				</span>
 				<div className="flex items-center gap-1">
 					<button
 						onClick={() => onEventFilterChange("all")}
-						className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
+						className={`h-6 px-2 rounded text-xs font-medium transition-colors ${
 							eventFilter === "all"
 								? "bg-stone-100 dark:bg-[#333] text-stone-700 dark:text-stone-200"
 								: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -119,7 +117,7 @@ export function RightSidebar({
 					</button>
 					<button
 						onClick={() => onEventFilterChange("errors")}
-						className={`h-6 px-2 rounded text-[10px] font-medium transition-colors flex items-center gap-1 ${
+						className={`h-6 px-2 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
 							eventFilter === "errors"
 								? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300"
 								: `${MUT} hover:text-red-600 dark:hover:text-red-400`
@@ -155,16 +153,16 @@ export function RightSidebar({
 						className={`${MUT} mr-1.5 shrink-0`}
 					/>
 					<span
-						className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+						className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}
 					>
 						Alerts
 					</span>
 					{totalAlertIssues > 0 && (
-						<span className="ml-auto h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+						<span className="ml-auto h-4 min-w-[16px] flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1">
 							{totalAlertIssues}
 						</span>
 					)}
-					<span className="ml-1.5 text-[9px] text-stone-400 dark:text-stone-500">
+					<span className="ml-1.5 text-xs text-stone-400 dark:text-stone-500">
 						{alertsCollapsed ? "▸" : "▾"}
 					</span>
 				</button>
@@ -178,7 +176,7 @@ export function RightSidebar({
 					<div className="max-h-40 overflow-y-auto">
 						{totalAlertIssues === 0 ? (
 							<div className="flex flex-col items-center justify-center py-6 gap-1 text-stone-300 dark:text-stone-600">
-								<p className="text-[10px]">No alerts</p>
+								<p className="text-xs">No alerts</p>
 							</div>
 						) : (
 							<>
@@ -197,7 +195,7 @@ export function RightSidebar({
 												{entry.workspaceId}
 											</span>
 											<span
-												className={`ml-auto text-[10px] ${MUT} shrink-0`}
+												className={`ml-auto text-xs ${MUT} shrink-0`}
 											>
 												failed
 											</span>
@@ -218,7 +216,7 @@ export function RightSidebar({
 												{entry.workspaceId}
 											</span>
 											<span
-												className={`ml-auto text-[10px] ${MUT} shrink-0`}
+												className={`ml-auto text-xs ${MUT} shrink-0`}
 											>
 												conflict
 											</span>
@@ -239,7 +237,7 @@ export function RightSidebar({
 												{entry.workspaceId}
 											</span>
 											<span
-												className={`ml-auto text-[10px] ${MUT} shrink-0`}
+												className={`ml-auto text-xs ${MUT} shrink-0`}
 											>
 												blocked
 											</span>
@@ -258,7 +256,7 @@ export function RightSidebar({
 					className={`shrink-0 flex items-center px-4 h-9 border-b ${BORD}`}
 				>
 					<span
-						className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}
+						className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}
 					>
 						CLEANUP REVIEW
 					</span>

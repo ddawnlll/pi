@@ -84,19 +84,19 @@ function PreflightTab({
 		<div className="space-y-4">
 			{/* Summary cards */}
 			<div className="grid grid-cols-3 gap-3">
-				<div className="flex flex-col gap-1 p-3 rounded-lg border border-gray-700 bg-gray-800/50">
-					<span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+				<div className="flex flex-col gap-1 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]">
+					<span className="text-xs text-stone-400 dark:text-stone-500 font-medium uppercase tracking-wider">
 						Total Batches
 					</span>
-					<span className="text-lg font-semibold text-gray-200">
+					<span className="text-lg font-semibold text-stone-800 dark:text-stone-200">
 						{totals.totalBatches}
 					</span>
 				</div>
-				<div className="flex flex-col gap-1 p-3 rounded-lg border border-gray-700 bg-gray-800/50">
-					<span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+				<div className="flex flex-col gap-1 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]">
+					<span className="text-xs text-stone-400 dark:text-stone-500 font-medium uppercase tracking-wider">
 						Avg Effective Parallelism
 					</span>
-					<span className="text-lg font-semibold text-gray-200">
+					<span className="text-lg font-semibold text-stone-800 dark:text-stone-200">
 						{totals.avgParallel}
 					</span>
 				</div>
@@ -104,10 +104,10 @@ function PreflightTab({
 					className={`flex flex-col gap-1 p-3 rounded-lg border ${
 						totals.needsReview > 0
 							? "border-amber-800 bg-amber-900/30"
-							: "border-gray-700 bg-gray-800/50"
+							: "border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]"
 					}`}
 				>
-					<span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+					<span className="text-xs text-stone-400 dark:text-stone-500 font-medium uppercase tracking-wider">
 						Needs Review
 					</span>
 					<span
@@ -128,12 +128,12 @@ function PreflightTab({
 					return (
 						<div
 							key={fileName}
-							className="p-3 rounded-lg border border-gray-700 bg-gray-800/30"
+							className="p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-50 dark:bg-[#2A2A2A]"
 						>
 							<div className="flex items-center justify-between mb-2">
-								<p className="text-xs font-medium text-gray-200">{fileName}</p>
+								<p className="text-xs font-medium text-stone-800 dark:text-stone-200">{fileName}</p>
 								{result.requiresApproval && (
-									<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-900/30 text-amber-300 border border-amber-800">
+									<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-300 border border-amber-800">
 										<AlertTriangle size={8} />
 										review
 									</span>
@@ -143,32 +143,32 @@ function PreflightTab({
 							{/* Parallelism metrics */}
 							<div className="grid grid-cols-4 gap-2 mb-2">
 								<div>
-									<span className="text-[9px] text-gray-500">Batches</span>
-									<p className="text-xs text-gray-200 font-medium">
+									<span className="text-xs text-stone-400 dark:text-stone-500">Batches</span>
+									<p className="text-xs text-stone-800 dark:text-stone-200 font-medium">
 										{bp.totalBatches}
 									</p>
 								</div>
 								<div>
-									<span className="text-[9px] text-gray-500">Effective</span>
-									<p className="text-xs text-gray-200 font-medium">
+									<span className="text-xs text-stone-400 dark:text-stone-500">Effective</span>
+									<p className="text-xs text-stone-800 dark:text-stone-200 font-medium">
 										{bp.effectiveParallelism}
 									</p>
 								</div>
 								<div>
-									<span className="text-[9px] text-gray-500">Requested</span>
-									<p className="text-xs text-gray-200 font-medium">
+									<span className="text-xs text-stone-400 dark:text-stone-500">Requested</span>
+									<p className="text-xs text-stone-800 dark:text-stone-200 font-medium">
 										{bp.requestedParallelism}
 									</p>
 								</div>
 								<div>
-									<span className="text-[9px] text-gray-500">
+									<span className="text-xs text-stone-400 dark:text-stone-500">
 										&Delta;
 									</span>
 									<p
 										className={`text-xs font-medium ${
 											bp.parallelismDelta > 0
 												? "text-amber-400"
-												: "text-gray-400"
+												: "text-stone-500 dark:text-stone-400"
 										}`}
 									>
 										{bp.parallelismDelta > 0
@@ -184,7 +184,7 @@ function PreflightTab({
 									{bp.batches.map((batch) => (
 										<div
 											key={batch.batchIndex}
-											className="flex items-center gap-1 px-1.5 py-1 rounded text-[9px] bg-blue-900/20 text-blue-300 border border-blue-800 font-mono"
+											className="flex items-center gap-1 px-1.5 py-1 rounded text-xs bg-blue-900/20 text-blue-300 border border-blue-800 font-mono"
 											title={`Batch ${batch.batchIndex}: ${batch.workspaceIds.join(", ")}`}
 										>
 											B{batch.batchIndex}
@@ -201,7 +201,7 @@ function PreflightTab({
 
 							{/* Over-serialized warning */}
 							{bp.isOverSerialized && (
-								<div className="mt-2 flex items-center gap-1 text-[10px] text-amber-400">
+								<div className="mt-2 flex items-center gap-1 text-xs text-amber-400">
 									<AlertTriangle size={10} />
 									Over-serialized &mdash; requested &gt; effective
 								</div>
@@ -243,9 +243,9 @@ function DepDiffTab({
 	if (!hasAnyDiffs) {
 		return (
 			<div className="flex flex-col items-center justify-center py-12 gap-3">
-				<GitCompare size={28} className="text-gray-600" strokeWidth={1.2} />
-				<p className="text-sm text-gray-500">No dependency changes</p>
-				<p className="text-[10px] text-gray-600 max-w-sm text-center">
+				<GitCompare size={28} className="text-stone-400 dark:text-stone-500" strokeWidth={1.2} />
+				<p className="text-sm text-stone-400 dark:text-stone-500">No dependency changes</p>
+				<p className="text-xs text-stone-400 dark:text-stone-500 max-w-sm text-center">
 					Apply dependency patches in the ParallelismEditor to see a diff
 					between the original and edited dependency graphs.
 				</p>
@@ -265,7 +265,7 @@ function DepDiffTab({
 				};
 				return (
 					<div key={fileName}>
-						<p className="text-xs font-medium text-gray-300 mb-2">
+						<p className="text-xs font-medium text-stone-700 dark:text-stone-300 mb-2">
 							{fileName}
 						</p>
 						<GraphDiffView diffData={diffData} />
@@ -331,7 +331,7 @@ function ApprovalTab({
 				<div className="flex flex-col items-center justify-center py-12 gap-3">
 					<ShieldCheck size={28} className="text-emerald-600" strokeWidth={1.2} />
 					<p className="text-sm text-emerald-400">No plans require approval</p>
-					<p className="text-[10px] text-gray-600 max-w-sm text-center">
+					<p className="text-xs text-stone-400 dark:text-stone-500 max-w-sm text-center">
 						All plans can be executed without review.
 					</p>
 				</div>
@@ -351,7 +351,7 @@ function ApprovalTab({
 							{plansNeedingReview.map(([fileName]) => (
 								<li
 									key={fileName}
-									className="text-[10px] text-amber-400 flex items-center gap-1"
+									className="text-xs text-amber-400 flex items-center gap-1"
 								>
 									<AlertCircle size={8} />
 									{fileName}
@@ -365,58 +365,58 @@ function ApprovalTab({
 			{/* Checklist — only shown when there are plans that need standard review approval */}
 			{plansNeedingReview.length > 0 && (
 				<div className="space-y-2">
-					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] cursor-pointer hover:bg-white dark:bg-[#1E1E1E] transition-colors">
 						<input
 							type="checkbox"
 							checked={approvalChecks["reviewed_preflight"] ?? false}
 							onChange={(e) =>
 								onApprovalCheckChange("reviewed_preflight", e.target.checked)
 							}
-							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+							className="mt-0.5 w-3.5 h-3.5 rounded border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] accent-blue-500"
 						/>
 						<div>
-							<p className="text-xs font-medium text-gray-200">
+							<p className="text-xs font-medium text-stone-800 dark:text-stone-200">
 								I have reviewed the preflight summary
 							</p>
-							<p className="text-[10px] text-gray-500 mt-0.5">
+							<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 								Batch plan, parallelism settings, and workspace dependencies
 							</p>
 						</div>
 					</label>
 
-					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] cursor-pointer hover:bg-white dark:bg-[#1E1E1E] transition-colors">
 						<input
 							type="checkbox"
 							checked={approvalChecks["acknowledged_warnings"] ?? false}
 							onChange={(e) =>
 								onApprovalCheckChange("acknowledged_warnings", e.target.checked)
 							}
-							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+							className="mt-0.5 w-3.5 h-3.5 rounded border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] accent-blue-500"
 						/>
 						<div>
-							<p className="text-xs font-medium text-gray-200">
+							<p className="text-xs font-medium text-stone-800 dark:text-stone-200">
 								I acknowledge the warnings
 							</p>
-							<p className="text-[10px] text-gray-500 mt-0.5">
+							<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 								Over-serialization, safety warnings, and other non-blocking issues
 							</p>
 						</div>
 					</label>
 
-					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-gray-700 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] cursor-pointer hover:bg-white dark:bg-[#1E1E1E] transition-colors">
 						<input
 							type="checkbox"
 							checked={approvalChecks["confirmed_patches"] ?? false}
 							onChange={(e) =>
 								onApprovalCheckChange("confirmed_patches", e.target.checked)
 							}
-							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-blue-500"
+							className="mt-0.5 w-3.5 h-3.5 rounded border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] accent-blue-500"
 						/>
 						<div>
-							<p className="text-xs font-medium text-gray-200">
+							<p className="text-xs font-medium text-stone-800 dark:text-stone-200">
 								I confirm dependency patches are correct
 							</p>
-							<p className="text-[10px] text-gray-500 mt-0.5">
+							<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 								Applied dependency graph modifications and batch adjustments
 							</p>
 						</div>
@@ -437,7 +437,7 @@ function ApprovalTab({
 								{selfModIssues.map((issue, i) => (
 									<li
 										key={i}
-										className="text-[10px] text-purple-400 flex items-start gap-1"
+										className="text-xs text-purple-400 flex items-start gap-1"
 									>
 										<AlertCircle size={8} className="mt-0.5 shrink-0" />
 										<span>{issue.message}</span>
@@ -446,20 +446,20 @@ function ApprovalTab({
 							</ul>
 						</div>
 					</div>
-					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-purple-800/50 bg-gray-800/50 cursor-pointer hover:bg-gray-800 transition-colors">
+					<label className="flex items-start gap-2.5 p-3 rounded-lg border border-purple-800/50 bg-stone-100 dark:bg-[#2A2A2A] cursor-pointer hover:bg-white dark:bg-[#1E1E1E] transition-colors">
 						<input
 							type="checkbox"
 							checked={selfModApproved}
 							onChange={(e) =>
 								onSafetyOverride?.("self_modification", e.target.checked)
 							}
-							className="mt-0.5 w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 accent-purple-500"
+							className="mt-0.5 w-3.5 h-3.5 rounded border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A] accent-purple-500"
 						/>
 						<div>
-							<p className="text-xs font-medium text-gray-200">
+							<p className="text-xs font-medium text-stone-800 dark:text-stone-200">
 								I approve self-modification
 							</p>
-							<p className="text-[10px] text-gray-500 mt-0.5">
+							<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 								This plan modifies files inside the project tooling itself
 								(system prompts, firewall, policies). Only approve if you
 								understand the consequences.
@@ -543,7 +543,7 @@ export function ReviewScreen(props: ReviewScreenProps) {
 	return (
 		<div className="flex flex-col gap-4">
 			{/* ── Tab bar ── */}
-			<div className="flex border-b border-gray-700">
+			<div className="flex border-b border-[#E8E6E1] dark:border-[#333]">
 				{tabs.map((tab) => {
 					const isActive = activeTab === tab.id;
 					const Icon = tab.icon;
@@ -554,7 +554,7 @@ export function ReviewScreen(props: ReviewScreenProps) {
 							className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
 								isActive
 									? "border-blue-500 text-blue-400"
-									: "border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-600"
+									: "border-transparent text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300 hover:border-[#E8E6E1] dark:border-[#333]"
 							}`}
 						>
 							<Icon size={12} />

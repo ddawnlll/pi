@@ -17,15 +17,11 @@
  */
 
 import { CheckCircle, XCircle, AlertTriangle, Cpu, Shield, GitBranch, Layers, Lock, RefreshCw } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { useScaleModeReadiness } from "../hooks/useScaleStatus";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Prerequisite icon map ──────────────────────────────────────────────────
 
@@ -63,7 +59,7 @@ function PrerequisiteRow({ status }: PrerequisiteRowProps) {
 				<span className={`shrink-0 ${MUT}`}>{icon}</span>
 				<div className="min-w-0">
 					<span className={`text-sm font-medium ${TXT}`}>{status.name}</span>
-					<p className={`text-[11px] leading-tight mt-0.5 ${MUT}`}>{status.message}</p>
+					<p className={`text-xs leading-tight mt-0.5 ${MUT}`}>{status.message}</p>
 				</div>
 			</div>
 		</div>
@@ -126,7 +122,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			return {
 				icon: <CheckCircle size={16} />,
 				label: "Stable (prerequisites met)",
-				color: "text-blue-600 dark:text-blue-400",
+				color: "text-blue-700 dark:text-blue-300",
 				bgColor: "bg-blue-50 dark:bg-blue-900/20",
 			};
 		}
@@ -150,7 +146,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 				</div>
 				{/* Mode badge */}
 				<span
-					className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${status.color} ${status.bgColor}`}
+					className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider ${status.color} ${status.bgColor}`}
 				>
 					{status.icon}
 					{status.label}
@@ -161,7 +157,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			{error && (
 				<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-2">
 					<AlertTriangle size={14} className="text-red-500 shrink-0" />
-					<p className="text-[11px] text-red-600 dark:text-red-400">
+					<p className="text-xs text-red-600 dark:text-red-400">
 						Failed to load scale mode: {String(error)}
 					</p>
 				</div>
@@ -174,7 +170,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 					{readiness?.requestedWorkers ?? 3}
 				</span>
 				{readiness?.experimentalModeEnabled && (
-					<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+					<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-xs font-medium text-amber-700 dark:text-amber-300">
 						scale enabled
 					</span>
 				)}
@@ -182,7 +178,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 
 			{/* Prerequisite checklist */}
 			<div className={`border-t ${BORD} pt-2`}>
-				<h4 className={`text-[10px] uppercase tracking-widest font-semibold mb-1 ${MUT}`}>
+				<h4 className={`text-xs uppercase tracking-widest font-semibold mb-1 ${MUT}`}>
 					Prerequisites
 				</h4>
 				<div className="divide-y divide-[#E8E6E1] dark:divide-[#333]">
@@ -199,12 +195,12 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			{/* Blocking reasons */}
 			{readiness && readiness.blockedReasons && readiness.blockedReasons.length > 0 && (
 				<div className="bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-1.5">
-					<p className={`text-[11px] font-medium text-red-700 dark:text-red-300 mb-1`}>
+					<p className={`text-xs font-medium text-red-700 dark:text-red-300 mb-1`}>
 						Blocking Issues:
 					</p>
 					<ul className="space-y-0.5">
 						{readiness.blockedReasons.map((reason, i) => (
-							<li key={i} className="text-[11px] text-red-600 dark:text-red-400 flex items-start gap-1">
+							<li key={i} className="text-xs text-red-600 dark:text-red-400 flex items-start gap-1">
 								<span className="shrink-0 mt-0.5">•</span>
 								<span>{reason}</span>
 							</li>
@@ -216,12 +212,12 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			{/* Warnings */}
 			{readiness && readiness.warnings && readiness.warnings.length > 0 && (
 				<div className="bg-amber-50 dark:bg-amber-900/10 rounded px-2.5 py-1.5">
-					<p className={`text-[11px] font-medium text-amber-700 dark:text-amber-300 mb-1`}>
+					<p className={`text-xs font-medium text-amber-700 dark:text-amber-300 mb-1`}>
 						Warnings:
 					</p>
 					<ul className="space-y-0.5">
 						{readiness.warnings.map((warn, i) => (
-							<li key={i} className="text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-1">
+							<li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1">
 								<span className="shrink-0 mt-0.5">•</span>
 								<span>{warn}</span>
 							</li>
@@ -231,7 +227,7 @@ export function ScaleModeSettings({ className }: ScaleModeSettingsProps) {
 			)}
 
 			{/* Help text */}
-			<p className={`text-[10px] leading-tight ${MUT}`}>
+			<p className={`text-xs leading-tight ${MUT}`}>
 				Scale mode (4-6 workers) requires worktree isolation, integration queue,
 				and global validation lock.{' '}
 				<strong>Stable default: 3 workers</strong>.

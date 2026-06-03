@@ -11,15 +11,12 @@
  */
 
 import { COCKPIT_TABS, type CockpitTabId } from "../navigation/NavigationState";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 
 // ---------------------------------------------------------------------------
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,7 +51,7 @@ export function CockpitTabs({ activeTab, onTabChange, tabBadges }: CockpitTabsPr
             role="tab"
             aria-selected={isActive}
             onClick={() => onTabChange(tab.id)}
-            className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${FOCUS_RING} ${
               isActive
                 ? `${ACC_BG} ${ACC_TXT}`
                 : `${MUT} hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -62,7 +59,7 @@ export function CockpitTabs({ activeTab, onTabChange, tabBadges }: CockpitTabsPr
           >
             {tab.label}
             {badge != null && badge > 0 && (
-              <span className="inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+              <span className="inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-red-500 text-white text-xs font-bold px-1">
                 {badge > 99 ? "99+" : badge}
               </span>
             )}

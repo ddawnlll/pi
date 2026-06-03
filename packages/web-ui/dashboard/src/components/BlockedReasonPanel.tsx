@@ -28,7 +28,7 @@ export function BlockedReasonPanel({ blockedBy, reason }: BlockedReasonPanelProp
 	return (
 		<div className="flex items-start gap-3 px-3 py-2.5 rounded border border-amber-700 bg-amber-900/20">
 			<Icon size={16} className="text-amber-400 shrink-0 mt-0.5" />
-			<div className="min-w-0 text-[11px]">
+			<div className="min-w-0 text-xs">
 				<p className="text-amber-300 font-medium">{cfg?.label ?? "Blocked"}</p>
 				{reason && <p className="text-amber-400/80 mt-0.5">{reason}</p>}
 				{cfg && <p className="text-amber-500 mt-1 italic">{cfg.hint}</p>}

@@ -10,14 +10,11 @@
  */
 
 import { Search, Filter } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import type { WorkerInfo } from "../../types";
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +61,7 @@ export function CommandTimelineFilters({
 			<select
 				value={filters.workspaceId ?? ""}
 				onChange={(e) => update({ workspaceId: e.target.value || null })}
-				className={`text-[10px] rounded px-2 py-1 ${SURF} border ${BORD} ${TXT} focus:outline-none focus:ring-1 focus:ring-blue-400`}
+				className={`text-xs rounded px-2 py-1 ${SURF} border ${BORD} ${TXT} focus:outline-none focus:ring-1 focus:ring-blue-400`}
 			>
 				<option value="">All workspaces</option>
 				{workers.map((w) => (
@@ -82,7 +79,7 @@ export function CommandTimelineFilters({
 					value={filters.commandName}
 					onChange={(e) => update({ commandName: e.target.value })}
 					placeholder="Search commands..."
-					className={`text-[10px] rounded pl-6 pr-2 py-1 w-36 ${SURF} border ${BORD} ${TXT} placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-blue-400`}
+					className={`text-xs rounded pl-6 pr-2 py-1 w-36 ${SURF} border ${BORD} ${TXT} placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-blue-400`}
 				/>
 			</div>
 
@@ -90,7 +87,7 @@ export function CommandTimelineFilters({
 			<select
 				value={filters.status}
 				onChange={(e) => update({ status: e.target.value as CommandStatus })}
-				className={`text-[10px] rounded px-2 py-1 ${SURF} border ${BORD} ${TXT} focus:outline-none focus:ring-1 focus:ring-blue-400`}
+				className={`text-xs rounded px-2 py-1 ${SURF} border ${BORD} ${TXT} focus:outline-none focus:ring-1 focus:ring-blue-400`}
 			>
 				<option value="all">All status</option>
 				<option value="done">Done (exit 0)</option>
@@ -99,7 +96,7 @@ export function CommandTimelineFilters({
 			</select>
 
 			{/* Target commands only toggle */}
-			<label className={`flex items-center gap-1.5 text-[10px] ${MUT} cursor-pointer select-none`}>
+			<label className={`flex items-center gap-1.5 text-xs ${MUT} cursor-pointer select-none`}>
 				<input
 					type="checkbox"
 					checked={filters.targetCommandsOnly}
@@ -112,7 +109,7 @@ export function CommandTimelineFilters({
 			<div className="flex-1" />
 
 			{/* Show raw output toggle */}
-			<label className={`flex items-center gap-1.5 text-[10px] ${MUT} cursor-pointer select-none`}>
+			<label className={`flex items-center gap-1.5 text-xs ${MUT} cursor-pointer select-none`}>
 				<Filter size={10} />
 				<input
 					type="checkbox"

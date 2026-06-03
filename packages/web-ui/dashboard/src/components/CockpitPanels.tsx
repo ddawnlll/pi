@@ -22,6 +22,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	Activity,
 	AlertTriangle,
@@ -46,12 +47,6 @@ import { FileExplorer } from "./FileExplorer";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
 
 // ─── Section definitions ───────────────────────────────────────────────────
 
@@ -126,7 +121,7 @@ export function CockpitPanels({
 			{/* Section header */}
 			<div className={`flex items-center gap-2 px-3 py-2 ${SURF} border-b ${BORD}`}>
 				<Activity size={14} className={ACC_TXT} />
-				<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+				<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 					Cockpit Panels
 				</span>
 			</div>

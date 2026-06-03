@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertCircle,
 	Bot,
@@ -36,13 +37,6 @@ import type { ProposalResponse } from "../../types";
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Status filter tabs
@@ -227,7 +221,7 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 								setStatusFilter(f.key);
 								setSelectedProposalId(null);
 							}}
-							className={`flex items-center gap-1 h-7 px-2.5 rounded text-[10px] font-medium transition-colors ${
+							className={`flex items-center gap-1 h-7 px-2.5 rounded text-xs font-medium transition-colors ${
 								statusFilter === f.key
 									? `${ACC_BG} ${ACC_TXT}`
 									: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -246,7 +240,7 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 							{f.label}
 							{counts[f.key] > 0 && (
 								<span
-									className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+									className={`text-xs px-1.5 py-0.5 rounded-full ${
 										statusFilter === f.key
 											? "bg-white/50 dark:bg-black/20"
 											: "bg-stone-100 dark:bg-[#2A2A2A]"
@@ -326,7 +320,7 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 					</span>
 					{health && (
 						<span
-							className={`text-[10px] font-medium ${
+							className={`text-xs font-medium ${
 								health.health === "healthy"
 									? "text-emerald-600"
 									: health.health === "degraded"
@@ -338,12 +332,12 @@ export function AutonomyCenter({ className = "" }: AutonomyCenterProps) {
 						</span>
 					)}
 					{health && (
-						<span className={`text-[10px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							· {health.status}
 						</span>
 					)}
 					{health?.paused && (
-						<span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+						<span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
 							Paused
 						</span>
 					)}

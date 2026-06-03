@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { AnimatePresence, motion } from "framer-motion";
 import {
 	AlertTriangle,
@@ -62,11 +63,6 @@ interface WorktreeCleanupDialogProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 export function WorktreeCleanupDialog({
 	isOpen,
@@ -148,7 +144,7 @@ export function WorktreeCleanupDialog({
 								<button
 									type="button"
 									onClick={handleClose}
-									className="w-full px-3 py-2 text-xs rounded bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#444] transition-colors"
+									className="w-full px-3 py-2 text-xs rounded bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#333] dark:border-[#444] transition-colors"
 								>
 									Close
 								</button>
@@ -165,7 +161,7 @@ export function WorktreeCleanupDialog({
 									{/* Safe to remove */}
 									{safeToRemove.length > 0 && (
 										<div>
-											<h3 className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} mb-1.5`}>
+											<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-1.5`}>
 												Will be removed ({safeToRemove.length})
 											</h3>
 											<div className="space-y-1">
@@ -178,9 +174,9 @@ export function WorktreeCleanupDialog({
 														<div className="min-w-0 flex-1">
 															<span className={`text-xs font-medium ${TXT}`}>{wt.name}</span>
 															{wt.branch && (
-																<span className={`text-[10px] ml-2 ${MUT}`}>{wt.branch}</span>
+																<span className={`text-xs ml-2 ${MUT}`}>{wt.branch}</span>
 															)}
-															<p className={`text-[10px] truncate font-mono ${MUT}`}>{wt.path}</p>
+															<p className={`text-xs truncate font-mono ${MUT}`}>{wt.path}</p>
 														</div>
 														<CheckCircle size={12} className="text-emerald-500 shrink-0" />
 													</div>
@@ -192,7 +188,7 @@ export function WorktreeCleanupDialog({
 									{/* Excluded */}
 									{excluded.length > 0 && (
 										<div>
-											<h3 className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} mb-1.5`}>
+											<h3 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-1.5`}>
 												Excluded ({excluded.length})
 											</h3>
 											<div className="space-y-1">
@@ -207,7 +203,7 @@ export function WorktreeCleanupDialog({
 																<span className={`text-xs font-medium ${TXT}`}>{wt.name}</span>
 																{wt.locked && <Lock size={10} className="text-amber-500" />}
 															</div>
-															<p className={`text-[10px] ${MUT}`}>{reason}</p>
+															<p className={`text-xs ${MUT}`}>{reason}</p>
 														</div>
 														{wt.dirty ? (
 															<XCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
@@ -235,7 +231,7 @@ export function WorktreeCleanupDialog({
 								{error && (
 									<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/10 rounded px-2.5 py-1.5 mt-2">
 										<ShieldX size={12} className="text-red-500 shrink-0" />
-										<p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
+										<p className="text-xs text-red-600 dark:text-red-400">{error}</p>
 									</div>
 								)}
 
@@ -245,7 +241,7 @@ export function WorktreeCleanupDialog({
 										type="button"
 										onClick={handleClose}
 										disabled={isCleaning}
-										className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#444] transition-colors disabled:opacity-50"
+										className="px-3 py-1.5 text-xs rounded bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 border border-[#E8E6E1] dark:border-[#333] dark:border-[#444] transition-colors disabled:opacity-50"
 									>
 										Cancel
 									</button>

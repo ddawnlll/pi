@@ -12,16 +12,13 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,7 +87,7 @@ export function ContextualRightDrawer({
     >
       {/* Header */}
       <div className={`shrink-0 flex items-center justify-between px-4 h-10 border-b ${BORD}`}>
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+        <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
           {panel.title}
         </span>
         <button

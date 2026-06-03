@@ -14,6 +14,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertCircle,
 	Archive,
@@ -55,13 +56,6 @@ import type { PiInboxMessage, PiInboxMessageType, PiInboxMessagePriority } from 
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BG = "bg-[#F7F6F3] dark:bg-[#161616]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Type config
@@ -71,7 +65,7 @@ const TYPE_CONFIG: Record<PiInboxMessageType, { label: string; icon: typeof Bell
 	system_notification: {
 		label: "System",
 		icon: Bell,
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 		bg: "bg-blue-50 dark:bg-blue-900/20",
 	},
 	daemon_alert: {
@@ -137,7 +131,7 @@ const TYPE_CONFIG: Record<PiInboxMessageType, { label: string; icon: typeof Bell
 	info: {
 		label: "Info",
 		icon: Info,
-		color: "text-blue-600 dark:text-blue-400",
+		color: "text-blue-700 dark:text-blue-300",
 		bg: "bg-blue-50 dark:bg-blue-900/20",
 	},
 };
@@ -150,12 +144,12 @@ const PRIORITY_STYLES: Record<PiInboxMessagePriority, { dot: string; label: stri
 	low: {
 		dot: "bg-stone-400 dark:bg-stone-500",
 		label: "Low",
-		badge: "bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400",
+		badge: "bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500",
 	},
 	normal: {
 		dot: "bg-blue-500 dark:bg-blue-400",
 		label: "Normal",
-		badge: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400",
+		badge: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300",
 	},
 	high: {
 		dot: "bg-amber-500 dark:bg-amber-400",
@@ -218,7 +212,7 @@ function TypeBadge({ type }: { type: PiInboxMessageType }) {
 	const cfg = TYPE_CONFIG[type];
 	return (
 		<span
-			className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full border ${BORD} ${cfg.color} ${cfg.bg}`}
+			className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full border ${BORD} ${cfg.color} ${cfg.bg}`}
 		>
 			<cfg.icon size={9} />
 			{cfg.label}
@@ -289,14 +283,14 @@ function MessageRow({
 					<div className="flex items-center gap-1.5 mb-1 flex-wrap">
 						<TypeBadge type={message.type} />
 						<span
-							className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${PRIORITY_STYLES[message.priority].badge}`}
+							className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full ${PRIORITY_STYLES[message.priority].badge}`}
 						>
 							<PriorityDot priority={message.priority} />
 							{PRIORITY_STYLES[message.priority].label}
 						</span>
 						{message.source && (
 							<span
-								className={`text-[9px] px-1.5 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border ${BORD}`}
+								className={`text-xs px-1.5 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 border ${BORD}`}
 							>
 								{message.source}
 							</span>
@@ -306,11 +300,11 @@ function MessageRow({
 					{/* Body snippet + time */}
 					<div className="flex items-center gap-2">
 						<p
-							className={`text-[10px] ${MUT} leading-relaxed line-clamp-1 flex-1`}
+							className={`text-xs ${MUT} leading-relaxed line-clamp-1 flex-1`}
 						>
 							{message.body}
 						</p>
-						<span className={`text-[9px] ${MUT} shrink-0`}>
+						<span className={`text-xs ${MUT} shrink-0`}>
 							{timeAgo(message.createdAt)}
 						</span>
 					</div>
@@ -323,7 +317,7 @@ function MessageRow({
 					{/* Body */}
 					<div className="mb-3">
 						<h4
-							className={`text-[10px] font-semibold uppercase tracking-widest ${MUT} mb-1`}
+							className={`text-xs font-semibold uppercase tracking-widest ${MUT} mb-1`}
 						>
 							Message
 						</h4>
@@ -335,7 +329,7 @@ function MessageRow({
 					</div>
 
 					{/* Metadata */}
-					<div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px]">
+					<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
 						<div>
 							<span className={MUT}>ID: </span>
 							<span className={`font-mono ${TXT}`}>
@@ -359,7 +353,7 @@ function MessageRow({
 						{message.actionUrl && (
 							<div>
 								<span className={MUT}>Action: </span>
-								<span className="text-blue-600 dark:text-blue-400 underline">
+								<span className="text-blue-700 dark:text-blue-300 underline">
 									{message.actionUrl}
 								</span>
 							</div>
@@ -374,7 +368,7 @@ function MessageRow({
 									e.stopPropagation();
 									onMarkRead(message.id);
 								}}
-								className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-600 dark:text-stone-400"
+								className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-600 dark:text-stone-400"
 							>
 								<MailOpen size={10} /> Mark Read
 							</button>
@@ -384,7 +378,7 @@ function MessageRow({
 								e.stopPropagation();
 								onDelete(message.id);
 							}}
-							className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400"
+							className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400"
 						>
 							<Trash2 size={10} /> Delete
 						</button>
@@ -457,7 +451,7 @@ function ErrorState({
 			<p className={`text-xs ${MUT} text-center max-w-sm`}>{error}</p>
 			<button
 				onClick={onRetry}
-				className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-700 dark:text-stone-300"
+				className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-800 dark:text-stone-200"
 			>
 				<RefreshCw size={12} /> Retry
 			</button>
@@ -509,9 +503,9 @@ function FilterBar({
 			{/* Unread toggle */}
 			<button
 				onClick={onToggleUnreadOnly}
-				className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border transition-colors ${
+				className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors ${
 					unreadOnly
-						? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+						? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
 						: `${BORD} ${MUT} hover:text-stone-700 dark:hover:text-stone-300`
 				}`}
 			>
@@ -523,7 +517,7 @@ function FilterBar({
 			<select
 				value={selectedType}
 				onChange={(e) => onTypeChange(e.target.value as PiInboxMessageType | "all")}
-				className={`text-[10px] px-2 py-1 rounded-lg border ${BORD} ${SURF} ${TXT} outline-none`}
+				className={`text-xs px-2 py-1 rounded-lg border ${BORD} ${SURF} ${TXT} outline-none`}
 			>
 				{TYPE_FILTER_OPTIONS.map((opt) => (
 					<option key={opt.value} value={opt.value}>
@@ -538,7 +532,7 @@ function FilterBar({
 				onChange={(e) =>
 					onPriorityChange(e.target.value as PiInboxMessagePriority | "all")
 				}
-				className={`text-[10px] px-2 py-1 rounded-lg border ${BORD} ${SURF} ${TXT} outline-none`}
+				className={`text-xs px-2 py-1 rounded-lg border ${BORD} ${SURF} ${TXT} outline-none`}
 			>
 				{PRIORITY_FILTER_OPTIONS.map((opt) => (
 					<option key={opt.value} value={opt.value}>
@@ -672,7 +666,7 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 
 				{/* Unread count badge */}
 				{unread > 0 && (
-					<span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+					<span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
 						<span className="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400" />
 						{unread} unread
 					</span>
@@ -685,7 +679,7 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 					<button
 						onClick={handleMarkAllRead}
 						disabled={markAllReadMutation.isPending}
-						className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-600 dark:text-stone-400 disabled:opacity-40 transition-colors"
+						className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-600 dark:text-stone-400 disabled:opacity-40 transition-colors"
 						title="Mark all as read"
 					>
 						<MailOpen size={10} /> Mark All Read
@@ -720,13 +714,13 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 			{/* Stale data warning */}
 			{isStale && messages.length > 0 && (
 				<div
-					className={`shrink-0 flex items-center gap-2 px-4 py-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b ${BORD}`}
+					className={`shrink-0 flex items-center gap-2 px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b ${BORD}`}
 				>
 					<Clock size={10} />
 					<span>Data may be stale.</span>
 					<button
 						onClick={() => refetch()}
-						className="ml-auto text-[10px] font-medium underline hover:no-underline"
+						className="ml-auto text-xs font-medium underline hover:no-underline"
 					>
 						Refresh
 					</button>
@@ -740,7 +734,7 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 					<div
 						className={`shrink-0 flex items-center gap-3 px-4 py-2 border-b ${BORD} ${SURF}`}
 					>
-						<span className={`text-[10px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							Showing {messages.length} of {total} messages
 							{unread > 0 && ` (${unread} unread)`}
 						</span>
@@ -752,7 +746,7 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 							<button
 								onClick={handlePurgeRead}
 								disabled={purgeReadMutation.isPending}
-								className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-500 dark:text-stone-400 disabled:opacity-40 transition-colors"
+								className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-stone-50 dark:hover:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 disabled:opacity-40 transition-colors"
 							>
 								<Archive size={9} /> Purge Read
 							</button>
@@ -762,13 +756,13 @@ export function PiInbox({ className = "" }: PiInboxProps) {
 						<button
 							onClick={handleClear}
 							disabled={clearMutation.isPending}
-							className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400 disabled:opacity-40 transition-colors"
+							className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-[#E8E6E1] dark:border-[#333] hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400 disabled:opacity-40 transition-colors"
 						>
 							<Trash2 size={9} /> Clear All
 						</button>
 
 						{isRefetching && (
-							<span className="flex items-center gap-1 text-[9px] text-blue-600 dark:text-blue-400">
+							<span className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300">
 								<Loader2 size={9} className="animate-spin" />
 								Refreshing...
 							</span>

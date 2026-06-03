@@ -21,7 +21,7 @@ export function StatusBadge({ status, mapping, className = "" }: StatusBadgeProp
 	if (!entry) {
 		return (
 			<span
-				className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-500 ${className}`}
+				className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 dark:bg-stone-800 text-stone-500 ${className}`}
 			>
 				<span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
 				{status}
@@ -33,7 +33,7 @@ export function StatusBadge({ status, mapping, className = "" }: StatusBadgeProp
 
 	return (
 		<span
-			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${className}`}
+			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${className}`}
 		>
 			<span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
 			{entry.label}

@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Activity, Filter, X } from "lucide-react";
 import { EventLine } from "../EventLine";
 
@@ -17,8 +18,6 @@ import { EventLine } from "../EventLine";
 // Style tokens
 // ---------------------------------------------------------------------------
 
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,13 +48,13 @@ export function DebugEventDrawer({ events, planExecId }: DebugEventDrawerProps) 
     <div className="flex flex-col h-full">
       {/* Filter bar */}
       <div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD}`}>
-        <span className={`text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+        <span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
           {filteredEvents.length} event{filteredEvents.length !== 1 ? "s" : ""}
         </span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setEventFilter("all")}
-            className={`h-5 px-2 rounded text-[9px] font-medium transition-colors ${
+            className={`h-5 px-2 rounded text-xs font-medium transition-colors ${
               eventFilter === "all"
                 ? "bg-stone-100 dark:bg-[#333] text-stone-700 dark:text-stone-200"
                 : `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -65,7 +64,7 @@ export function DebugEventDrawer({ events, planExecId }: DebugEventDrawerProps) 
           </button>
           <button
             onClick={() => setEventFilter("errors")}
-            className={`h-5 px-2 rounded text-[9px] font-medium transition-colors flex items-center gap-1 ${
+            className={`h-5 px-2 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
               eventFilter === "errors"
                 ? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300"
                 : `${MUT} hover:text-red-600 dark:hover:text-red-400`

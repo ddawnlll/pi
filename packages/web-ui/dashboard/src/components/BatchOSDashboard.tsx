@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
   Cpu,
   Layers,
@@ -49,12 +50,6 @@ import type { WorkspaceSummary } from "../types";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -104,9 +99,9 @@ function StatCard({ icon, label, value, sublabel, accent = "none" }: StatCardPro
       <span className={`mt-0.5 shrink-0 ${accentColors[accent]}`}>{icon}</span>
       <div className="min-w-0 flex-1">
         <p className={`text-lg font-bold tabular-nums leading-tight ${accentColors[accent]}`}>{value}</p>
-        <p className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} leading-tight mt-0.5`}>{label}</p>
+        <p className={`text-xs font-semibold uppercase tracking-wider ${MUT} leading-tight mt-0.5`}>{label}</p>
         {sublabel && (
-          <p className={`text-[9px] leading-tight mt-0.5 ${MUT}`}>{sublabel}</p>
+          <p className={`text-xs leading-tight mt-0.5 ${MUT}`}>{sublabel}</p>
         )}
       </div>
     </div>
@@ -128,13 +123,13 @@ function ParallelismBar({ dagWidth, safeRunnable, actualUtilization, workerCap }
     <div className="space-y-2">
       {/* DAG parallelism */}
       <div className="flex items-center gap-3">
-        <span className={`text-[10px] font-semibold w-28 shrink-0 text-right ${MUT}`}>DAG parallelism</span>
+        <span className={`text-xs font-semibold w-28 shrink-0 text-right ${MUT}`}>DAG parallelism</span>
         <div className="flex-1 h-5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden relative">
           <div
             className="h-full bg-blue-400 dark:bg-blue-500 rounded-full transition-all duration-500"
             style={{ width: `${(dagWidth / maxScale) * 100}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-bold text-stone-800 dark:text-stone-200 tabular-nums">
+          <span className="absolute inset-0 flex items-center justify-end pr-2 text-xs font-bold text-stone-800 dark:text-stone-200 tabular-nums">
             {dagWidth}
           </span>
         </div>
@@ -142,13 +137,13 @@ function ParallelismBar({ dagWidth, safeRunnable, actualUtilization, workerCap }
 
       {/* Safe effective parallelism */}
       <div className="flex items-center gap-3">
-        <span className={`text-[10px] font-semibold w-28 shrink-0 text-right ${MUT}`}>Safe effective</span>
+        <span className={`text-xs font-semibold w-28 shrink-0 text-right ${MUT}`}>Safe effective</span>
         <div className="flex-1 h-5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden relative">
           <div
             className="h-full bg-emerald-400 dark:bg-emerald-500 rounded-full transition-all duration-500"
             style={{ width: `${(safeRunnable / maxScale) * 100}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-bold text-stone-800 dark:text-stone-200 tabular-nums">
+          <span className="absolute inset-0 flex items-center justify-end pr-2 text-xs font-bold text-stone-800 dark:text-stone-200 tabular-nums">
             {safeRunnable}
           </span>
         </div>
@@ -156,13 +151,13 @@ function ParallelismBar({ dagWidth, safeRunnable, actualUtilization, workerCap }
 
       {/* Actual utilization */}
       <div className="flex items-center gap-3">
-        <span className={`text-[10px] font-semibold w-28 shrink-0 text-right ${MUT}`}>Actual active</span>
+        <span className={`text-xs font-semibold w-28 shrink-0 text-right ${MUT}`}>Actual active</span>
         <div className="flex-1 h-5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden relative">
           <div
             className="h-full bg-amber-400 dark:bg-amber-500 rounded-full transition-all duration-500"
             style={{ width: `${(actualUtilization / maxScale) * 100}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-bold text-stone-800 dark:text-stone-200 tabular-nums">
+          <span className="absolute inset-0 flex items-center justify-end pr-2 text-xs font-bold text-stone-800 dark:text-stone-200 tabular-nums">
             {actualUtilization}
           </span>
         </div>
@@ -170,13 +165,13 @@ function ParallelismBar({ dagWidth, safeRunnable, actualUtilization, workerCap }
 
       {/* Worker cap */}
       <div className="flex items-center gap-3">
-        <span className={`text-[10px] font-semibold w-28 shrink-0 text-right ${MUT}`}>Worker cap</span>
+        <span className={`text-xs font-semibold w-28 shrink-0 text-right ${MUT}`}>Worker cap</span>
         <div className="flex-1 h-5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden relative">
           <div
             className="h-full bg-purple-300 dark:bg-purple-600 rounded-full transition-all duration-500"
             style={{ width: `${(workerCap / maxScale) * 100}%` }}
           />
-          <span className="absolute inset-0 flex items-center justify-end pr-2 text-[10px] font-bold text-stone-800 dark:text-stone-200 tabular-nums">
+          <span className="absolute inset-0 flex items-center justify-end pr-2 text-xs font-bold text-stone-800 dark:text-stone-200 tabular-nums">
             {workerCap}
           </span>
         </div>
@@ -186,19 +181,19 @@ function ParallelismBar({ dagWidth, safeRunnable, actualUtilization, workerCap }
       <div className="flex items-center gap-4 pt-1">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-blue-400 dark:bg-blue-500" />
-          <span className={`text-[9px] ${MUT}`}>DAG parallelism</span>
+          <span className={`text-xs ${MUT}`}>DAG parallelism</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 dark:bg-emerald-500" />
-          <span className={`text-[9px] ${MUT}`}>Safe effective</span>
+          <span className={`text-xs ${MUT}`}>Safe effective</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 dark:bg-amber-500" />
-          <span className={`text-[9px] ${MUT}`}>Actual active</span>
+          <span className={`text-xs ${MUT}`}>Actual active</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-purple-300 dark:bg-purple-600" />
-          <span className={`text-[9px] ${MUT}`}>Worker cap</span>
+          <span className={`text-xs ${MUT}`}>Worker cap</span>
         </div>
       </div>
     </div>
@@ -219,7 +214,7 @@ function ComparisonRow({ label, dagValue, safeValue, icon }: ComparisonRowProps)
       <span className={`shrink-0 ${ACC_TXT}`}>{icon}</span>
       <span className={`text-xs font-medium ${TXT} flex-1`}>{label}</span>
       <div className="flex items-center gap-2">
-        <span className="text-xs tabular-nums font-semibold text-blue-600 dark:text-blue-400">{dagValue}</span>
+        <span className="text-xs tabular-nums font-semibold text-blue-700 dark:text-blue-300">{dagValue}</span>
         <ArrowRight size={12} className={`${MUT}`} />
         <span className="text-xs tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{safeValue}</span>
       </div>
@@ -264,8 +259,8 @@ function SuggestionCard({ suggestion }: SuggestionCardProps) {
     <div className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border ${cfg.bg} ${cfg.border}`}>
       <span className={`mt-0.5 shrink-0 ${cfg.text}`}>{cfg.icon}</span>
       <div className="min-w-0 flex-1">
-        <p className={`text-[11px] font-semibold ${TXT}`}>{suggestion.title}</p>
-        <p className={`text-[10px] leading-relaxed mt-0.5 ${MUT}`}>{suggestion.message}</p>
+        <p className={`text-xs font-semibold ${TXT}`}>{suggestion.title}</p>
+        <p className={`text-xs leading-relaxed mt-0.5 ${MUT}`}>{suggestion.message}</p>
       </div>
     </div>
   );
@@ -292,7 +287,7 @@ function ControlButton({ icon, label, onClick, disabled, variant = "ghost" }: Co
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[10px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${variantStyles[variant]}`}
+      className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${variantStyles[variant]}`}
     >
       {icon}
       <span>{label}</span>
@@ -309,14 +304,14 @@ const STATUS_STYLES: Record<string, string> = {
   idle: "text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50",
   running: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/15",
   paused: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/15",
-  complete: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/15",
+  complete: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/15",
   failed: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/15",
-  stopped: "text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800/50",
+  stopped: "text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50",
 };
 
 function StatusBadge({ status }: StatusBadgeProps) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLES[status] ?? STATUS_STYLES.idle}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[status] ?? STATUS_STYLES.idle}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${status === "running" ? "bg-emerald-400 animate-pulse" : ""}`} />
       {status}
     </span>
@@ -423,13 +418,13 @@ export function BatchOSDashboard({
 
         {/* Current / next batch indicators */}
         {activeBatchIdx > 0 && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Batch {activeBatchIdx}
           </span>
         )}
         {nextBatchIdx > 0 && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-[9px] font-semibold text-blue-700 dark:text-blue-300">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-xs font-semibold text-blue-700 dark:text-blue-300">
             Next: Batch {nextBatchIdx}
           </span>
         )}
@@ -479,7 +474,7 @@ export function BatchOSDashboard({
             <BarChart3 size={16} className={ACC_TXT} />
             <h2 className={`text-xs font-semibold uppercase tracking-wider ${TXT}`}>Parallelism Analysis</h2>
             <div className="flex-1" />
-            <span className={`text-[9px] ${MUT}`}>
+            <span className={`text-xs ${MUT}`}>
               DAG vs safe effective vs worker cap
             </span>
           </div>
@@ -514,7 +509,7 @@ export function BatchOSDashboard({
               {/* Terminology explanation */}
               <div className={`flex items-start gap-2 px-2.5 py-2 rounded bg-stone-50 dark:bg-stone-800/50 border ${BORD}`}>
                 <Info size={11} className={`mt-0.5 shrink-0 ${MUT}`} />
-                <div className={`text-[9px] leading-relaxed ${MUT}`}>
+                <div className={`text-xs leading-relaxed ${MUT}`}>
                   <p>
                     <strong>DAG parallelism</strong> is the maximum number of parallel branches
                     in the dependency graph — the structural limit of the plan.
@@ -535,7 +530,7 @@ export function BatchOSDashboard({
             <div className="flex items-center gap-2 mb-3">
               <Eye size={16} className={ACC_TXT} />
               <h2 className={`text-xs font-semibold uppercase tracking-wider ${TXT}`}>Batch Explorer</h2>
-              <span className={`text-[9px] ${MUT} ml-1`}>animated</span>
+              <span className={`text-xs ${MUT} ml-1`}>animated</span>
             </div>
             <BatchExplorer
               batchPlan={batchPlan ?? null}
@@ -591,7 +586,7 @@ export function BatchOSDashboard({
               <Layers size={16} className={ACC_TXT} />
               <h2 className={`text-xs font-semibold uppercase tracking-wider ${TXT}`}>Integration Queue</h2>
               <div className="flex-1" />
-              <span className={`text-[9px] ${MUT}`}>{queueData.totalEntries} entries total</span>
+              <span className={`text-xs ${MUT}`}>{queueData.totalEntries} entries total</span>
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
@@ -625,9 +620,9 @@ export function BatchOSDashboard({
           <div className="flex items-center gap-2">
             <Lightbulb size={16} className={ACC_TXT} />
             <h2 className={`text-xs font-semibold uppercase tracking-wider ${TXT}`}>Planner Suggestions</h2>
-            <span className={`text-[9px] ${MUT} ml-1`}>advisory</span>
+            <span className={`text-xs ${MUT} ml-1`}>advisory</span>
             {metrics && metrics.optimizerSuggestions.length > 0 && (
-              <span className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+              <span className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                 <Lightbulb size={10} />
                 {metrics.optimizerSuggestions.length}
               </span>
@@ -637,7 +632,7 @@ export function BatchOSDashboard({
           {/* Advisory disclaimer */}
           <div className={`flex items-start gap-1.5 px-2.5 py-1.5 rounded bg-stone-50 dark:bg-stone-800/50 border ${BORD}`}>
             <Info size={11} className={`mt-0.5 shrink-0 ${MUT}`} />
-            <p className={`text-[9px] leading-tight ${MUT}`}>
+            <p className={`text-xs leading-tight ${MUT}`}>
               <strong>Advisory only.</strong> Planner suggestions are informational and derived from
               queue metrics analysis. They are never auto-applied. Configure worker settings
               in <strong>Scale &amp; Safety</strong> settings.
@@ -659,7 +654,7 @@ export function BatchOSDashboard({
 
           {/* Summary line */}
           {metrics?.queueTiming && metrics.queueTiming.totalProcessed > 0 && (
-            <p className={`text-[9px] leading-tight ${MUT} border-t border-[#E8E6E1] dark:border-[#333] pt-2`}>
+            <p className={`text-xs leading-tight ${MUT} border-t border-[#E8E6E1] dark:border-[#333] pt-2`}>
               Based on {metrics.queueTiming.totalProcessed} processed queue entr{metrics.queueTiming.totalProcessed !== 1 ? "ies" : "y"}.
               Metrics refresh every 15s.
             </p>
@@ -670,9 +665,9 @@ export function BatchOSDashboard({
         <div className={`${SURF} rounded-lg border ${BORD} p-3`}>
           <div className="flex items-center gap-2">
             <Info size={14} className={ACC_TXT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>Operating Model</span>
+            <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>Operating Model</span>
           </div>
-          <p className={`text-[10px] leading-tight mt-1.5 ${MUT}`}>
+          <p className={`text-xs leading-tight mt-1.5 ${MUT}`}>
             This dashboard provides read-only visibility into batch execution. All control actions
             (pause, resume, stop) issue commands through the API and do not directly mutate execution
             state. Planner suggestions are advisory and derived from automated analysis of queue

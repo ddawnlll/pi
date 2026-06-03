@@ -9,6 +9,7 @@
  */
 
 import { useState, type FormEvent } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -31,10 +32,6 @@ import { useSkills, useSkillDetail, useAuditEvents, type SkillEntry, type SkillT
 // Style constants
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ---------------------------------------------------------------------------
 // Skill Test Result Modal
@@ -92,7 +89,7 @@ function TestResultModal({ result, logs, onClose }: TestResultModalProps) {
 				</div>
 
 				{/* Execution info */}
-				<div className="flex gap-4 text-xs text-stone-500 dark:text-stone-400 mb-4 shrink-0">
+				<div className="flex gap-4 text-xs text-stone-400 dark:text-stone-500 mb-4 shrink-0">
 					<span>Duration: {(result.executionTimeMs / 1000).toFixed(2)}s</span>
 					<span>Started: {new Date(result.startedAt).toLocaleTimeString()}</span>
 				</div>
@@ -106,8 +103,8 @@ function TestResultModal({ result, logs, onClose }: TestResultModalProps) {
 
 				{/* Output logs */}
 				<div className="flex-1 min-h-0 overflow-y-auto">
-					<label className={`block text-[10px] font-medium ${MUT} mb-1`}>Test Logs</label>
-					<pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-3 font-mono text-[10px] text-stone-700 dark:text-stone-300 whitespace-pre-wrap max-h-60 overflow-y-auto">
+					<label className={`block text-xs font-medium ${MUT} mb-1`}>Test Logs</label>
+					<pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-3 font-mono text-xs text-stone-800 dark:text-stone-200 whitespace-pre-wrap max-h-60 overflow-y-auto">
 						{logs || "No output"}
 					</pre>
 				</div>
@@ -117,7 +114,7 @@ function TestResultModal({ result, logs, onClose }: TestResultModalProps) {
 					<a
 						href="#"
 						onClick={(e) => { e.preventDefault(); onClose(); }}
-						className={`inline-flex items-center gap-1 text-[10px] ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+						className={`inline-flex items-center gap-1 text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
 					>
 						<ExternalLink size={10} /> View test in audit log
 					</a>
@@ -185,12 +182,12 @@ function SkillDetailModal({ name, onClose }: SkillDetailModalProps) {
 							</div>
 							<div className="col-span-2">
 								<span className={MUT}>File Path</span>
-								<p className={`font-mono text-[10px] ${TXT} break-all`}>{skill.filePath}</p>
+								<p className={`font-mono text-xs ${TXT} break-all`}>{skill.filePath}</p>
 							</div>
 							{skill.baseDir && (
 								<div className="col-span-2">
 									<span className={MUT}>Base Directory</span>
-									<p className={`font-mono text-[10px] ${TXT} break-all`}>{skill.baseDir}</p>
+									<p className={`font-mono text-xs ${TXT} break-all`}>{skill.baseDir}</p>
 								</div>
 							)}
 							<div>
@@ -217,7 +214,7 @@ function SkillDetailModal({ name, onClose }: SkillDetailModalProps) {
 									{skill.validationMessages.map((msg, i) => (
 										<div
 											key={i}
-											className={`p-2 rounded text-[10px] flex items-start gap-1.5 ${
+											className={`p-2 rounded text-xs flex items-start gap-1.5 ${
 												msg.toLowerCase().includes("error")
 													? "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300"
 													: msg.toLowerCase().includes("warn")
@@ -243,7 +240,7 @@ function SkillDetailModal({ name, onClose }: SkillDetailModalProps) {
 						{skill.content && (
 							<div>
 								<span className={`block text-xs font-medium ${MUT} mb-2`}>Content Preview</span>
-								<pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-3 font-mono text-[10px] text-stone-700 dark:text-stone-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+								<pre className="bg-stone-50 dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded p-3 font-mono text-xs text-stone-800 dark:text-stone-200 whitespace-pre-wrap max-h-48 overflow-y-auto">
 									{skill.content.length > 2000
 										? `${skill.content.slice(0, 2000)}\n... (${skill.content.length - 2000} more characters)`
 										: skill.content}
@@ -328,12 +325,12 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 					<div className="flex items-center gap-2">
 						<span className={`text-sm font-medium truncate ${TXT}`}>{skill.name}</span>
 						{skill.valid ? (
-							<span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">valid</span>
+							<span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">valid</span>
 						) : (
-							<span className="text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded">invalid</span>
+							<span className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded">invalid</span>
 						)}
 						{skill.required && (
-							<span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">required</span>
+							<span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">required</span>
 						)}
 					</div>
 					<p className={`text-xs truncate ${MUT} mt-0.5`}>{skill.description || "No description"}</p>
@@ -349,7 +346,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 					<div className="pt-3 space-y-1">
 						<div className="flex items-center justify-between py-1">
 							<span className={`text-xs ${MUT}`}>File</span>
-							<span className={`text-[10px] font-mono ${TXT} max-w-[200px] truncate`}>{skill.filePath}</span>
+							<span className={`text-xs font-mono ${TXT} max-w-[200px] truncate`}>{skill.filePath}</span>
 						</div>
 						{skill.manifestSource && (
 							<div className="flex items-center justify-between py-1">
@@ -376,7 +373,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 								<a
 									href="#"
 									onClick={(e) => { e.preventDefault(); }}
-									className={`inline-flex items-center gap-1 mt-1 text-[10px] underline ${
+									className={`inline-flex items-center gap-1 mt-1 text-xs underline ${
 										actionError ? "text-red-500 dark:text-red-400" : ""
 									}`}
 								>
@@ -391,7 +388,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 						<button
 							onClick={handleTest}
 							disabled={busy}
-							className={`h-7 px-2.5 rounded text-[10px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+							className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
 								${isTesting
 									? "bg-stone-200 dark:bg-stone-800 text-stone-400 dark:text-stone-600"
 									: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
@@ -404,7 +401,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 
 						<button
 							onClick={() => onViewDetail(skill.name)}
-							className="h-7 px-2.5 rounded text-[10px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors flex items-center gap-1"
+							className="h-7 px-2.5 rounded text-xs font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors flex items-center gap-1"
 						>
 							<FileCode size={11} /> View Details
 						</button>
@@ -412,7 +409,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 						<button
 							onClick={handleUninstall}
 							disabled={busy || skill.required}
-							className={`h-7 px-2.5 rounded text-[10px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto
+							className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto
 								${isUninstalling || skill.required
 									? "bg-stone-200 dark:bg-stone-800 text-stone-400 dark:text-stone-600"
 									: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50"
@@ -436,7 +433,7 @@ function SkillCard({ skill, onTest, onUninstall, onViewDetail, isTesting, isUnin
 									</p>
 									<button
 										onClick={() => onViewDetail(skill.name)}
-										className="mt-1.5 text-[10px] font-medium text-red-600 dark:text-red-400 underline hover:text-red-700 dark:hover:text-red-300"
+										className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 underline hover:text-red-700 dark:hover:text-red-300"
 									>
 										View validation details
 									</button>
@@ -563,7 +560,7 @@ function InstallSkillDialog({ isOpen, onClose, onInstall }: InstallSkillDialogPr
 							className={`w-full px-3 py-2 text-sm rounded-lg border ${BORD} ${TXT} bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500`}
 							disabled={installing}
 						/>
-						<p className={`text-[10px] ${MUT} mt-1`}>Lowercase letters, numbers, and hyphens only.</p>
+						<p className={`text-xs ${MUT} mt-1`}>Lowercase letters, numbers, and hyphens only.</p>
 					</div>
 
 					<div>
@@ -587,7 +584,7 @@ function InstallSkillDialog({ isOpen, onClose, onInstall }: InstallSkillDialogPr
 									key={type}
 									type="button"
 									onClick={() => setSourceType(type)}
-									className={`flex-1 h-7 rounded text-[10px] font-medium transition-colors ${
+									className={`flex-1 h-7 rounded text-xs font-medium transition-colors ${
 										sourceType === type
 											? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
 											: `${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -719,7 +716,7 @@ export function SkillsManager({ className = "" }: SkillsManagerProps) {
 				<p className="text-xs text-red-500">Failed to load skills: {error instanceof Error ? error.message : String(error)}</p>
 				<button
 					onClick={refetch}
-					className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1"
+					className="h-7 px-2.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1"
 				>
 					<RefreshCw size={11} /> Retry
 				</button>
@@ -752,14 +749,14 @@ export function SkillsManager({ className = "" }: SkillsManagerProps) {
 				<div className="flex items-center gap-2">
 					<BookOpen size={14} className={TXT} />
 					<span className={`text-xs font-semibold ${TXT}`}>Skills</span>
-					<span className={`text-[10px] ${MUT} ml-1`}>{count} installed</span>
+					<span className={`text-xs ${MUT} ml-1`}>{count} installed</span>
 					{invalidCount > 0 && (
-						<span className="text-[10px] font-medium text-red-500 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded flex items-center gap-1">
+						<span className="text-xs font-medium text-red-500 bg-red-50 dark:bg-red-950 px-1.5 py-0.5 rounded flex items-center gap-1">
 							<AlertTriangle size={9} /> {invalidCount} invalid
 						</span>
 					)}
 					{errorCount > 0 && (
-						<span className="text-[10px] font-medium text-amber-500 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded flex items-center gap-1">
+						<span className="text-xs font-medium text-amber-500 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded flex items-center gap-1">
 							<AlertTriangle size={9} /> {errorCount} errors
 						</span>
 					)}
@@ -767,14 +764,14 @@ export function SkillsManager({ className = "" }: SkillsManagerProps) {
 				<div className="flex items-center gap-1.5">
 					<button
 						onClick={refetch}
-						className="h-7 px-2 rounded text-[10px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors flex items-center gap-1"
+						className="h-7 px-2 rounded text-xs font-medium text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A] transition-colors flex items-center gap-1"
 					>
 						<RefreshCw size={11} /> Refresh
 					</button>
 					<button
 						onClick={() => setShowInstallDialog(true)}
 						disabled={isInstalling}
-						className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+						className="h-7 px-2.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1"
 					>
 						{isInstalling ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
 						Install
@@ -787,12 +784,12 @@ export function SkillsManager({ className = "" }: SkillsManagerProps) {
 				<div className={`shrink-0 px-4 py-2 border-b ${BORD} bg-amber-50/50 dark:bg-amber-950/20`}>
 					<div className="flex flex-col gap-1">
 						{diagnostics.map((d, i) => (
-							<div key={i} className={`text-[10px] flex items-start gap-1.5 ${
+							<div key={i} className={`text-xs flex items-start gap-1.5 ${
 								d.severity === "error"
 									? "text-red-600 dark:text-red-400"
 									: d.severity === "warning"
 										? "text-amber-600 dark:text-amber-400"
-										: "text-stone-500 dark:text-stone-400"
+										: "text-stone-400 dark:text-stone-500"
 							}`}>
 								{d.severity === "error" ? <AlertCircle size={9} className="shrink-0 mt-0.5" /> : <AlertTriangle size={9} className="shrink-0 mt-0.5" />}
 								<span>{d.skillName ? `[${d.skillName}] ` : ""}{d.message}</span>
@@ -810,7 +807,7 @@ export function SkillsManager({ className = "" }: SkillsManagerProps) {
 						<p className={`text-xs ${MUT}`}>No skills installed</p>
 						<button
 							onClick={() => setShowInstallDialog(true)}
-							className="h-7 px-2.5 rounded text-[10px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1"
+							className="h-7 px-2.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1"
 						>
 							<Plus size={11} /> Install your first skill
 						</button>
@@ -888,7 +885,7 @@ function AuditEventsBlock() {
 		<div className={`border-t ${BORD} pt-2 mt-2`}>
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className="flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
+				className="flex items-center gap-1.5 text-xs text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
 			>
 				{expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
 				Recent Audit Events ({count})
@@ -897,14 +894,14 @@ function AuditEventsBlock() {
 			{expanded && (
 				<div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
 					{events.map((ev) => (
-						<div key={ev.id} className={`p-2 rounded text-[10px] border ${BORD} flex items-start gap-1.5`}>
+						<div key={ev.id} className={`p-2 rounded text-xs border ${BORD} flex items-start gap-1.5`}>
 							<AlertCircle size={9} className={`shrink-0 mt-0.5 ${verdictColor(ev.verdict)}`} />
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center gap-1.5">
-									<span className="font-medium text-stone-700 dark:text-stone-300">{ev.skillName}</span>
+									<span className="font-medium text-stone-800 dark:text-stone-200">{ev.skillName}</span>
 									<span className={`${verdictColor(ev.verdict)} font-medium`}>{ev.verdict}</span>
 								</div>
-								<p className="text-stone-500 dark:text-stone-400 mt-0.5">{ev.reason}</p>
+								<p className="text-stone-400 dark:text-stone-500 mt-0.5">{ev.reason}</p>
 								<p className="text-stone-400 dark:text-stone-500 mt-0.5">{new Date(ev.occurredAt).toLocaleString()}</p>
 							</div>
 						</div>

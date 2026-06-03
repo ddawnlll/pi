@@ -431,12 +431,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 	];
 
 	const inputClass =
-		"w-full px-3 py-2 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500";
-	const labelClass = "text-xs text-gray-400 block mb-1";
+		"w-full px-3 py-2 text-sm bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500";
+	const labelClass = "text-xs text-stone-500 dark:text-stone-400 block mb-1";
 	const toggleClass =
 		"relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none";
 	const toggleActiveClass = "bg-blue-600";
-	const toggleInactiveClass = "bg-gray-700";
+	const toggleInactiveClass = "bg-stone-100 dark:bg-[#2A2A2A]";
 
 	return (
 		<AnimatePresence>
@@ -453,12 +453,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
 						transition={{ duration: 0.1 }}
-						className="bg-gray-900 border border-gray-700 rounded-lg shadow-xl min-w-[560px] max-w-2xl max-h-[80vh] flex flex-col"
+						className="bg-[#F7F6F3] dark:bg-[#161616] border border-[#E8E6E1] dark:border-[#333] rounded-lg shadow-xl min-w-[560px] max-w-2xl max-h-[80vh] flex flex-col"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{/* Header */}
-						<div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-							<h2 className="text-lg font-semibold text-gray-100">
+						<div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E6E1] dark:border-[#333]">
+							<h2 className="text-lg font-semibold text-stone-800 dark:text-stone-200">
 								Settings
 								{totalChanges > 0 && (
 									<span className="ml-2 text-xs font-normal text-yellow-400">
@@ -468,14 +468,14 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 							</h2>
 							<button
 								onClick={handleClose}
-								className="text-gray-500 hover:text-gray-300 text-sm"
+								className="text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300 text-sm"
 							>
 								Close
 							</button>
 						</div>
 
 						{/* Tabs */}
-						<div className="flex border-b border-gray-700 px-6">
+						<div className="flex border-b border-[#E8E6E1] dark:border-[#333] px-6">
 							{tabs.map((tab) => (
 								<button
 									key={tab.id}
@@ -483,12 +483,12 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
 										activeTab === tab.id
 											? "border-blue-500 text-blue-400"
-											: "border-transparent text-gray-500 hover:text-gray-300"
+											: "border-transparent text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300"
 									}`}
 								>
 									{tab.label}
 									{tab.changes !== undefined && tab.changes > 0 && (
-										<span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-yellow-600 text-[10px] text-white font-semibold">
+										<span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-yellow-600 text-xs text-white font-semibold">
 											{tab.changes}
 										</span>
 									)}
@@ -499,13 +499,13 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 						{/* Content */}
 						<div className="flex-1 overflow-y-auto px-6 py-4">
 							{isLoading ? (
-								<div className="text-gray-500 text-sm py-8 text-center">Loading settings...</div>
+								<div className="text-stone-400 dark:text-stone-500 text-sm py-8 text-center">Loading settings...</div>
 							) : (
 								<>
 									{/* General Tab */}
 									{activeTab === "general" && (
 										<div className="space-y-4">
-											<p className="text-xs text-gray-500 mb-3">
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 												General agent behavior settings. Provider and model are per-project (see Project tab).
 											</p>
 											<div>
@@ -546,10 +546,10 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													<option value="token_saving">Token Saving</option>
 													<option value="speed">Speed</option>
 												</select>
-												<p className="text-xs text-gray-600 mt-1">Controls full-file rewrites vs targeted patches. Hybrid allows rewrites for manageable files; Token Saving prefers patches; Speed disables token restrictions.</p>
+												<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Controls full-file rewrites vs targeted patches. Hybrid allows rewrites for manageable files; Token Saving prefers patches; Speed disables token restrictions.</p>
 											</div>
-											<hr className="border-gray-700 my-3" />
-											<p className="text-xs text-gray-500 mb-1">Dashboard appearance (does not affect agent settings)</p>
+											<hr className="border-[#E8E6E1] dark:border-[#333] my-3" />
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-1">Dashboard appearance (does not affect agent settings)</p>
 											<div>
 												<label className={labelClass}>Theme</label>
 												<select
@@ -575,7 +575,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 														generalDirty
 															? "bg-blue-700 hover:bg-blue-600 text-white"
-															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+															: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 													}`}
 												>
 													{isSaving ? "Saving..." : generalDirty ? "Save" : "No changes"}
@@ -587,7 +587,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{/* Context Budgets Tab */}
 									{activeTab === "budgets" && (
 										<div className="space-y-4">
-											<p className="text-xs text-gray-500 mb-3">
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 												Token budget limits per agent role. These prevent excessive token
 												consumption during plan execution (P1 Token Consumption feature).
 											</p>
@@ -685,7 +685,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														}`}
 													/>
 												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
+												<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 													Enable 1M Context
 												</label>
 											</div>
@@ -702,7 +702,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 														budgetsDirty
 															? "bg-blue-700 hover:bg-blue-600 text-white"
-															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+															: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 													}`}
 												>
 													{isSaving ? "Saving..." : budgetsDirty ? "Save" : "No changes"}
@@ -714,7 +714,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{/* Project Tab */}
 									{activeTab === "project" && (
 										<div className="space-y-4">
-											<p className="text-xs text-gray-500 mb-3">
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 												Project-specific settings. Provider and model apply to this project only.
 											</p>
 											<div>
@@ -742,7 +742,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 											<div>
 												<label className={labelClass}>Provider</label>
 												{modelsLoading ? (
-													<div className="text-xs text-gray-500 py-2">Loading providers...</div>
+													<div className="text-xs text-stone-400 dark:text-stone-500 py-2">Loading providers...</div>
 												) : (
 													<select
 														value={projectProvider}
@@ -763,7 +763,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 											<div>
 												<label className={labelClass}>Model</label>
 												{modelsLoading ? (
-													<div className="text-xs text-gray-500 py-2">Loading models...</div>
+													<div className="text-xs text-stone-400 dark:text-stone-500 py-2">Loading models...</div>
 												) : (
 													<select
 														value={projectModel}
@@ -780,7 +780,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													</select>
 												)}
 												{!projectProvider && (
-													<p className="text-xs text-gray-600 mt-1">
+													<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 														Select a provider first to see available models.
 													</p>
 												)}
@@ -793,7 +793,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 														projectDirty
 															? "bg-blue-700 hover:bg-blue-600 text-white"
-															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+															: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 													}`}
 												>
 													{isSaving || projectSaving
@@ -809,15 +809,15 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{/* Auth Tab */}
 									{activeTab === "auth" && (
 										<div className="space-y-4">
-											<p className="text-xs text-gray-500 mb-3">
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 												Configure API keys for each provider. Keys are stored in auth.json.
 											</p>
 											{authLoading ? (
-												<div className="text-gray-500 text-sm py-8 text-center">Loading providers...</div>
+												<div className="text-stone-400 dark:text-stone-500 text-sm py-8 text-center">Loading providers...</div>
 											) : (
 												<div className="space-y-2 max-h-96 overflow-y-auto">
 													{authProviders.length === 0 ? (
-														<p className="text-xs text-gray-500 py-4">No providers available.</p>
+														<p className="text-xs text-stone-400 dark:text-stone-500 py-4">No providers available.</p>
 													) : (
 														authProviders.map((p) => (
 															<AuthProviderRow
@@ -865,7 +865,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														}`}
 													/>
 												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
+												<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 													Quiet Startup
 												</label>
 											</div>
@@ -883,7 +883,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														}`}
 													/>
 												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
+												<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 													Collapse Changelog
 												</label>
 											</div>
@@ -903,7 +903,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														}`}
 													/>
 												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
+												<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 													Install Telemetry
 												</label>
 											</div>
@@ -923,7 +923,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														}`}
 													/>
 												</button>
-												<label className="text-xs text-gray-300 cursor-pointer">
+												<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 													Enable Skill Commands
 												</label>
 											</div>
@@ -938,7 +938,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 														advancedDirty
 															? "bg-blue-700 hover:bg-blue-600 text-white"
-															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+															: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 													}`}
 												>
 													{isSaving ? "Saving..." : advancedDirty ? "Save" : "No changes"}
@@ -950,7 +950,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 									{/* Scale & Safety Tab */}
 									{activeTab === "scale" && (
 										<div className="space-y-4">
-											<p className="text-xs text-gray-500 mb-3">
+											<p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
 												Scale mode controls how many worker agents run in parallel.
 												{" "}<strong>Stable default: 3 workers</strong>.
 											</p>
@@ -959,7 +959,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 											<div>
 												<label className={labelClass}>Scale Mode</label>
 												<div className="space-y-2">
-													<label className="flex items-center gap-3 p-3 rounded border border-gray-700 cursor-pointer hover:bg-gray-800/50 transition-colors">
+													<label className="flex items-center gap-3 p-3 rounded border border-[#E8E6E1] dark:border-[#333] cursor-pointer hover:bg-stone-100 dark:bg-[#2A2A2A] transition-colors">
 														<input
 															type="radio"
 															name="scaleMode"
@@ -969,14 +969,14 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 															className="text-blue-500"
 														/>
 														<div>
-															<span className="text-sm font-medium text-gray-200">Stable (3 workers)</span>
-															<p className="text-[11px] text-gray-500 mt-0.5">Default mode. Safe, well-tested parallel execution with 3 workers.</p>
+															<span className="text-sm font-medium text-stone-800 dark:text-stone-200">Stable (3 workers)</span>
+															<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">Default mode. Safe, well-tested parallel execution with 3 workers.</p>
 														</div>
 													</label>
 													<label className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-colors ${
 														scaleMode === "experimental_6"
 															? "border-amber-500 bg-amber-900/10"
-															: "border-gray-700 hover:bg-gray-800/50"
+															: "border-[#E8E6E1] dark:border-[#333] hover:bg-stone-100 dark:bg-[#2A2A2A]"
 													}`}>
 														<input
 															type="radio"
@@ -987,22 +987,22 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 															className="text-amber-500"
 														/>
 														<div>
-															<span className="text-sm font-medium text-gray-200">Experimental (6 workers)</span>
-															<p className="text-[11px] text-gray-500 mt-0.5">Up to 6 workers. Requires worktree isolation, integration queue, and validation lock.</p>
+															<span className="text-sm font-medium text-stone-800 dark:text-stone-200">Experimental (6 workers)</span>
+															<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">Up to 6 workers. Requires worktree isolation, integration queue, and validation lock.</p>
 														</div>
 													</label>
-													<label className="flex items-center gap-3 p-3 rounded border border-gray-700 opacity-50 cursor-not-allowed">
+													<label className="flex items-center gap-3 p-3 rounded border border-[#E8E6E1] dark:border-[#333] opacity-50 cursor-not-allowed">
 														<input
 															type="radio"
 															name="scaleMode"
 															value="scale_8"
 															checked={scaleMode === "scale_8"}
 															disabled
-															className="text-gray-500"
+															className="text-stone-400 dark:text-stone-500"
 														/>
 														<div>
-															<span className="text-sm font-medium text-gray-400">Scale (8 workers)</span>
-															<p className="text-[11px] text-gray-500 mt-0.5">
+															<span className="text-sm font-medium text-stone-500 dark:text-stone-400">Scale (8 workers)</span>
+															<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 																8 workers. Requires dogfood pass and explicit approval.
 																<span className="block text-red-400 mt-0.5">Disabled — dogfood pass and approval required.</span>
 															</p>
@@ -1023,7 +1023,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={inputClass}
 													disabled={scaleMode === "scale_8"}
 												/>
-												<p className="text-[11px] text-gray-500 mt-1">
+												<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 													{scaleMode === "stable_3"
 														? "1-3 workers in stable mode."
 														: scaleMode === "experimental_6"
@@ -1049,10 +1049,10 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														/>
 													</button>
 													<div>
-														<label className="text-xs text-gray-300 cursor-pointer">
+														<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer">
 															Enable Experimental Worker Mode
 														</label>
-														<p className="text-[11px] text-gray-500">
+														<p className="text-xs text-stone-400 dark:text-stone-500">
 															Explicit confirmation required to use {maxWorkers} workers in parallel.
 														</p>
 													</div>
@@ -1063,8 +1063,8 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 											<ScaleModeSettings />
 
 											{/* Memory Guard Settings */}
-											<div className="border-t border-gray-700 pt-4 mt-4">
-												<h4 className="text-xs font-medium text-gray-300 mb-3">Memory Guard</h4>
+											<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-4 mt-4">
+												<h4 className="text-xs font-medium text-stone-700 dark:text-stone-300 mb-3">Memory Guard</h4>
 
 												{/* Memory Limit */}
 												<div className="mb-3">
@@ -1077,7 +1077,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														onChange={(e) => setMemoryLimitGb(Number(e.target.value))}
 														className={inputClass}
 													/>
-													<p className="text-[11px] text-gray-500 mt-1">
+													<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 														System memory limit — new workers are blocked when exceeded.
 													</p>
 												</div>
@@ -1093,15 +1093,15 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														onChange={(e) => setMemoryWaitTimeoutSec(Number(e.target.value))}
 														className={inputClass}
 													/>
-													<p className="text-[11px] text-gray-500 mt-1">
+													<p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
 														Max time to wait for memory to become available (30–3600s).
 													</p>
 												</div>
 											</div>
 
 											{/* Safety Override: explicit approval */}
-											<div className="border-t border-gray-700 pt-4 mt-4">
-												<h4 className="text-xs font-medium text-gray-300 mb-3">Safety Override</h4>
+											<div className="border-t border-[#E8E6E1] dark:border-[#333] pt-4 mt-4">
+												<h4 className="text-xs font-medium text-stone-700 dark:text-stone-300 mb-3">Safety Override</h4>
 												<div className="flex items-center gap-3">
 													<button
 														type="button"
@@ -1117,10 +1117,10 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 														/>
 													</button>
 													<div>
-														<label className="text-xs text-gray-300 cursor-pointer" onClick={() => setExplicitApproval(!explicitApproval)}>
+														<label className="text-xs text-stone-700 dark:text-stone-300 cursor-pointer" onClick={() => setExplicitApproval(!explicitApproval)}>
 															Override Self-Modification Protection
 														</label>
-														<p className="text-[11px] text-gray-500">
+														<p className="text-xs text-stone-400 dark:text-stone-500">
 															When enabled, plans that target protected system paths (e.g. Pi source code)
 															will proceed without requiring per-plan approval. Use with caution.
 														</p>
@@ -1131,7 +1131,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 											{/* Warnings for experimental_6 */}
 											{scaleMode === "experimental_6" && (
 												<div className="bg-amber-50 dark:bg-amber-900/10 rounded px-3 py-2">
-													<p className="text-[11px] text-amber-700 dark:text-amber-300">
+													<p className="text-xs text-amber-700 dark:text-amber-300">
 														Experimental mode (6 workers) may cause instability if prerequisites are not fully met.
 														Ensure worktree isolation, integration queue, and validation lock are operational.
 													</p>
@@ -1151,7 +1151,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 													className={`px-4 py-2 text-xs rounded transition-colors disabled:opacity-40 ${
 														scaleDirty
 															? "bg-blue-700 hover:bg-blue-600 text-white"
-															: "bg-gray-700 text-gray-500 cursor-not-allowed"
+															: "bg-stone-100 dark:bg-[#2A2A2A] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 													}`}
 												>
 													{isSaving ? "Saving..." : scaleDirty ? "Save" : "No changes"}
@@ -1172,7 +1172,7 @@ export function SettingsDialog({ isOpen, onClose, project }: SettingsDialogProps
 
 						{/* Footer */}
 						{saved && (
-							<div className="px-6 py-2 border-t border-gray-700">
+							<div className="px-6 py-2 border-t border-[#E8E6E1] dark:border-[#333]">
 								<p className="text-xs text-green-400">Settings saved successfully.</p>
 							</div>
 						)}
@@ -1219,19 +1219,19 @@ function AuthProviderRow({ provider, onSave, onRemove, saving }: AuthProviderRow
 	};
 
 	const inputClass =
-		"flex-1 px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500";
+		"flex-1 px-3 py-1.5 text-sm bg-white dark:bg-[#1E1E1E] border border-[#E8E6E1] dark:border-[#333] rounded text-stone-800 dark:text-stone-200 placeholder:text-stone-400 focus:outline-none focus:border-blue-500";
 
 	return (
-		<div className="flex items-center gap-3 p-3 rounded border border-gray-700 bg-gray-800/30">
+		<div className="flex items-center gap-3 p-3 rounded border border-[#E8E6E1] dark:border-[#333] bg-stone-50 dark:bg-[#2A2A2A]">
 			<div className="flex-1 min-w-0">
-				<div className="text-sm font-medium text-gray-200 truncate">
+				<div className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
 					{provider.name}
 				</div>
-				<div className="text-[11px] text-gray-500 mt-0.5">
+				<div className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 					{provider.configured ? (
 						<span className="text-green-400">API key configured</span>
 					) : (
-						<span className="text-gray-500">No API key set</span>
+						<span className="text-stone-400 dark:text-stone-500">No API key set</span>
 					)}
 				</div>
 			</div>
@@ -1259,7 +1259,7 @@ function AuthProviderRow({ provider, onSave, onRemove, saving }: AuthProviderRow
 						</button>
 						<button
 							onClick={() => { setShowInput(false); setApiKey(""); }}
-							className="px-2.5 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+							className="px-2.5 py-1.5 text-xs rounded bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-700 dark:text-stone-300 transition-colors"
 						>
 							Cancel
 						</button>
@@ -1270,7 +1270,7 @@ function AuthProviderRow({ provider, onSave, onRemove, saving }: AuthProviderRow
 							onClick={() => setShowInput(true)}
 							className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
 								provider.configured
-									? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+									? "bg-stone-100 dark:bg-[#2A2A2A] hover:bg-stone-200 dark:hover:bg-[#333] text-stone-700 dark:text-stone-300"
 									: "bg-blue-700 hover:bg-blue-600 text-white"
 							}`}
 						>

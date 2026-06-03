@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertTriangle,
 	Info,
@@ -30,11 +31,6 @@ import { useParallelismPreview } from "../hooks/useParallelismPreview";
 // Style constants
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -324,7 +320,7 @@ export function PlanIntakePanel({
 					<Upload size={14} className={ACC_TXT} />
 					<h3 className={`text-sm font-semibold ${TXT}`}>Plan Intake</h3>
 					{isStale && (
-						<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400">
+						<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400">
 							<AlertTriangle size={9} /> Stale
 						</span>
 					)}
@@ -338,7 +334,7 @@ export function PlanIntakePanel({
 			<div className={`flex items-center border-b ${BORD}`}>
 				<button
 					onClick={() => setActiveTab("diff")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
 						activeTab === "diff"
 							? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
 							: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -348,7 +344,7 @@ export function PlanIntakePanel({
 				</button>
 				<button
 					onClick={() => setActiveTab("batches")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
 						activeTab === "batches"
 							? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
 							: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -358,7 +354,7 @@ export function PlanIntakePanel({
 				</button>
 				<button
 					onClick={() => setActiveTab("approval")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-widest transition-colors ${
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
 						activeTab === "approval"
 							? `${ACC_TXT} border-b-2 border-blue-500 dark:border-blue-400`
 							: `${MUT} hover:text-stone-600 dark:hover:text-stone-300`
@@ -366,7 +362,7 @@ export function PlanIntakePanel({
 				>
 					Approval
 					{optimizerApproval.state.proposals.filter((p) => p.approvalStatus === "pending" && !p.isUnsafe).length > 0 && (
-						<span className="inline-flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-blue-500 text-[8px] font-bold text-white px-1">
+						<span className="inline-flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-blue-500 text-xs font-bold text-white px-1">
 							{optimizerApproval.state.proposals.filter((p) => p.approvalStatus === "pending" && !p.isUnsafe).length}
 						</span>
 					)}
@@ -422,7 +418,7 @@ export function PlanIntakePanel({
 				)}
 
 				{/* Stage indicator */}
-				<span className={`ml-auto text-[9px] ${MUT}`}>
+				<span className={`ml-auto text-xs ${MUT}`}>
 					{previewState.stage === "validated" ? "Validated" :
 					 previewState.stage === "patched" ? "Patched" :
 					 previewState.stage === "approved" ? "Approved" :
@@ -469,7 +465,7 @@ export function PlanIntakePanel({
 			{/* Footer advisory */}
 			<div className={`flex items-start gap-1.5 px-3 py-2 border-t ${BORD} bg-stone-50 dark:bg-stone-800/30`}>
 				<Info size={10} className={`mt-0.5 shrink-0 ${MUT}`} />
-				<p className={`text-[8px] leading-tight ${MUT}`}>
+				<p className={`text-xs leading-tight ${MUT}`}>
 					Plan analysis and optimization approvals are processed through the backend API.
 					The executor uses the approved graph hash, not stale authored previews.
 					Hover over metrics and changes for detailed explanations.

@@ -61,20 +61,20 @@ function StatusIcon({ status }: { status: FileExecutionState["status"] }) {
 		case "failed":
 			return <XCircle size={14} className="text-red-400 shrink-0" />;
 		case "queued":
-			return <Clock size={14} className="text-gray-500 shrink-0" />;
+			return <Clock size={14} className="text-stone-400 dark:text-stone-500 shrink-0" />;
 	}
 }
 
 function StatusLabel({ status }: { status: FileExecutionState["status"] }) {
 	switch (status) {
 		case "running":
-			return <span className="text-[10px] text-blue-400 font-medium">running...</span>;
+			return <span className="text-xs text-blue-400 font-medium">running...</span>;
 		case "completed":
-			return <span className="text-[10px] text-emerald-400 font-medium">completed</span>;
+			return <span className="text-xs text-emerald-400 font-medium">completed</span>;
 		case "failed":
-			return <span className="text-[10px] text-red-400 font-medium">failed</span>;
+			return <span className="text-xs text-red-400 font-medium">failed</span>;
 		case "queued":
-			return <span className="text-[10px] text-gray-500">queued</span>;
+			return <span className="text-xs text-stone-400 dark:text-stone-500">queued</span>;
 	}
 }
 
@@ -119,7 +119,7 @@ function wsStatus(ws: WorkspaceSummary): "pending" | "active" | "complete" | "fa
 
 // Status color config with distinct border + dot colors
 const WS_STATUS = {
-	pending: { dot: "bg-gray-600", border: "border-gray-700", text: "text-gray-400", label: "pending" },
+	pending: { dot: "bg-stone-400 dark:bg-stone-500", border: "border-[#E8E6E1] dark:border-[#333]", text: "text-stone-500 dark:text-stone-400", label: "pending" },
 	active: { dot: "bg-blue-400", border: "border-blue-600", text: "text-blue-100", label: "active" },
 	complete: { dot: "bg-emerald-400", border: "border-emerald-700", text: "text-emerald-100", label: "done" },
 	failed: { dot: "bg-red-400", border: "border-red-700", text: "text-red-100", label: "failed" },
@@ -192,7 +192,7 @@ function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
 			{/* Step dots */}
 			<div className="flex items-center gap-0.5">
 				{batches.map((b) => {
-					let cls = "bg-gray-700";
+					let cls = "bg-stone-100 dark:bg-[#2A2A2A]";
 					let label = `Batch ${b.batchIndex}: pending`;
 					if (b.batchIndex === currentBatchIndex) {
 						cls = "bg-blue-500 ring-1 ring-blue-400";
@@ -216,16 +216,16 @@ function StepDots({ batchPlan, workspaces }: DagExecutionViewProps) {
 
 			{/* Current step label */}
 			{currentBatchIndex > 0 ? (
-				<span className="text-[9px] text-blue-400 font-medium">
+				<span className="text-xs text-blue-400 font-medium">
 					Batch {currentBatchIndex}/{batches.length}
 					{summary.active > 0 && (
-						<span className="text-gray-500 font-normal">
+						<span className="text-stone-400 dark:text-stone-500 font-normal">
 							· {summary.active} running
 						</span>
 					)}
 				</span>
 			) : batches.length > 0 ? (
-				<span className="text-[9px] text-gray-500">
+				<span className="text-xs text-stone-400 dark:text-stone-500">
 					{batches.length} batch{batches.length > 1 ? "es" : ""} · {pct}%
 				</span>
 			) : null}
@@ -250,28 +250,28 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 		: 0;
 
 	return (
-		<div className="mt-2 border border-gray-800 rounded bg-gray-900/50 p-2">
+		<div className="mt-2 border border-[#E8E6E1] dark:border-[#333] rounded bg-[#F7F6F3] dark:bg-[#161616]/50 p-2">
 			{/* Header */}
-			<div className="flex items-center gap-2 text-[10px] text-gray-500 mb-1.5 pb-1.5 border-b border-gray-800">
+			<div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500 mb-1.5 pb-1.5 border-b border-[#E8E6E1] dark:border-[#333]">
 				{batchPlan.effectiveParallelism > 1 ? (
 					<Layers size={10} className="text-blue-400 shrink-0" />
 				) : (
 					<GitMerge size={10} className="text-purple-400 shrink-0" />
 				)}
-				<span className="font-medium text-gray-300">
+				<span className="font-medium text-stone-700 dark:text-stone-300">
 					{batchPlan.effectiveParallelism > 1
 						? `${batchPlan.effectiveParallelism}-wide tiered`
 						: "Sequential"}
 				</span>
-				<span className="text-gray-600">·</span>
+				<span className="text-stone-400 dark:text-stone-500">·</span>
 				<span>{batches.length} step{batches.length > 1 ? "s" : ""}</span>
 				{currentBatchIndex > 0 && (
 					<>
-						<span className="text-gray-600">·</span>
+						<span className="text-stone-400 dark:text-stone-500">·</span>
 						<span className="text-blue-400 font-semibold">
 							Now: Batch {currentBatchIndex}/{batches.length}
 							{currentExpectedWorkers > 0 && (
-								<span className="text-gray-400 font-normal">
+								<span className="text-stone-500 dark:text-stone-400 font-normal">
 									{" "}({currentExpectedWorkers} worker{currentExpectedWorkers !== 1 ? "s" : ""} expected)
 								</span>
 							)}
@@ -279,12 +279,12 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 					</>
 				)}
 				{summary.active > 0 ? (
-					<span className="text-blue-400 ml-auto flex items-center gap-1 text-[9px]">
+					<span className="text-blue-400 ml-auto flex items-center gap-1 text-xs">
 						<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
 						{summary.active} active / {summary.done} done
 					</span>
 				) : summary.done > 0 ? (
-					<span className="text-emerald-400 ml-auto text-[9px]">
+					<span className="text-emerald-400 ml-auto text-xs">
 						{summary.done}/{summary.total} done
 					</span>
 				) : null}
@@ -304,28 +304,28 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 									? "border-blue-500 bg-blue-900/15 rounded-sm"
 									: batch.isComplete
 										? "border-emerald-700"
-										: "border-gray-700"
+										: "border-[#E8E6E1] dark:border-[#333]"
 							}`}
 						>
 							{/* Batch header */}
 							<div className="flex items-center gap-2 py-0.5">
 								<span
-									className={`text-[10px] font-bold shrink-0 ${
+									className={`text-xs font-bold shrink-0 ${
 										isCurrent
 											? "text-blue-300"
 											: batch.isComplete
 												? "text-emerald-400"
-												: "text-gray-500"
+												: "text-stone-400 dark:text-stone-500"
 									}`}
 								>
 									Batch {batch.batchIndex}
 								</span>
 
 								{/* Expected workers badge */}
-								<span className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${
+								<span className={`text-xs px-1 py-0.5 rounded shrink-0 ${
 									batchPlan.effectiveParallelism > 1 && totalInBatch > 1
 										? "bg-blue-900/30 text-blue-300 border border-blue-800"
-										: "bg-gray-800 text-gray-500 border border-gray-700"
+										: "bg-white dark:bg-[#1E1E1E] text-stone-400 dark:text-stone-500 border border-[#E8E6E1] dark:border-[#333]"
 								}`}>
 									{totalInBatch} worker{totalInBatch !== 1 ? "s" : ""}
 								</span>
@@ -333,7 +333,7 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 								{/* Mini progress bar */}
 								{batch.total > 0 && (
 									<>
-										<div className="w-16 h-1 rounded-full bg-gray-800 overflow-hidden">
+										<div className="w-16 h-1 rounded-full bg-white dark:bg-[#1E1E1E] overflow-hidden">
 											<div
 												className={`h-full rounded-full transition-all duration-500 ${
 													batch.failed > 0
@@ -342,27 +342,27 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 															? "bg-blue-500"
 															: batch.isComplete
 																? "bg-emerald-500"
-																: "bg-gray-700"
+																: "bg-stone-100 dark:bg-[#2A2A2A]"
 												}`}
 												style={{
 													width: `${((batch.done + batch.failed) / batch.total) * 100}%`,
 												}}
 											/>
 										</div>
-										<span className="text-[9px] text-gray-500 tabular-nums">
+										<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
 											{batch.done + batch.failed}/{batch.total}
 										</span>
 									</>
 								)}
 
 								{isCurrent && (
-									<span className="text-[9px] text-blue-400 font-semibold ml-auto flex items-center gap-1">
+									<span className="text-xs text-blue-400 font-semibold ml-auto flex items-center gap-1">
 										<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
 										Running
 									</span>
 								)}
 								{batch.isComplete && !isCurrent && (
-									<span className="text-[9px] text-emerald-500 ml-auto">
+									<span className="text-xs text-emerald-500 ml-auto">
 										Complete
 									</span>
 								)}
@@ -377,10 +377,10 @@ function DagExecutionView({ batchPlan, workspaces }: DagExecutionViewProps) {
 										return (
 											<React.Fragment key={item.wsId}>
 												{idx > 0 && batchPlan.effectiveParallelism === 1 && (
-													<ArrowRight size={5} className="text-gray-700 shrink-0" />
+													<ArrowRight size={5} className="text-stone-300 dark:text-stone-600 shrink-0" />
 												)}
 												<span
-													className={`inline-flex items-center gap-1 text-[9px] px-1 py-0.5 rounded-sm border ${
+													className={`inline-flex items-center gap-1 text-xs px-1 py-0.5 rounded-sm border ${
 														cfg.border
 													} ${cfg.text} ${
 														isRunning
@@ -443,13 +443,13 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 		const pct = (v: number) => (v / stats.total) * 100;
 		return (
 			<div className="flex items-center gap-1.5 mt-1">
-				<div className="flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden flex">
+				<div className="flex-1 h-1.5 rounded-full bg-white dark:bg-[#1E1E1E] overflow-hidden flex">
 					{stats.complete > 0 && <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct(stats.complete)}%` }} />}
 					{stats.active > 0 && <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct(stats.active)}%` }} />}
 					{stats.failed > 0 && <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${pct(stats.failed)}%` }} />}
 					{stats.blocked > 0 && <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${pct(stats.blocked)}%` }} />}
 				</div>
-				<span className="text-[9px] text-gray-500 tabular-nums shrink-0">
+				<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
 					{stats.complete + stats.failed}/{stats.total}
 				</span>
 			</div>
@@ -462,14 +462,14 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 		const tags: Array<{ label: string; count: number; cls: string }> = [];
 		if (stats.complete > 0) tags.push({ label: "done", count: stats.complete, cls: "text-emerald-400 border-emerald-800 bg-emerald-900/20" });
 		if (stats.active > 0) tags.push({ label: "active", count: stats.active, cls: "text-blue-400 border-blue-800 bg-blue-900/20" });
-		if (stats.pending > 0) tags.push({ label: "pending", count: stats.pending, cls: "text-gray-500 border-gray-700 bg-gray-800/50" });
+		if (stats.pending > 0) tags.push({ label: "pending", count: stats.pending, cls: "text-stone-400 dark:text-stone-500 border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]" });
 		if (stats.failed > 0) tags.push({ label: "failed", count: stats.failed, cls: "text-red-400 border-red-800 bg-red-900/20" });
 		if (stats.blocked > 0) tags.push({ label: "blocked", count: stats.blocked, cls: "text-amber-400 border-amber-800 bg-amber-900/20" });
 		if (tags.length === 0) return null;
 		return (
 			<div className="flex items-center gap-1 flex-wrap mt-1">
 				{tags.map((t) => (
-					<span key={t.label} className={`text-[9px] px-1.5 py-0.5 rounded border ${t.cls}`}>{t.count} {t.label}</span>
+					<span key={t.label} className={`text-xs px-1.5 py-0.5 rounded border ${t.cls}`}>{t.count} {t.label}</span>
 				))}
 			</div>
 		);
@@ -477,7 +477,7 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 
 	return (
 		<div
-			className={`border-b border-gray-700 last:border-b-0 transition-colors ${
+			className={`border-b border-[#E8E6E1] dark:border-[#333] last:border-b-0 transition-colors ${
 				exec.status === "running"
 					? "bg-blue-900/20"
 					: exec.status === "completed"
@@ -493,7 +493,7 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 				onClick={() => (hasWorkspaceData ? setExpanded(!expanded) : undefined)}
 			>
 				{hasWorkspaceData ? (
-					expanded ? <ChevronDown size={10} className="text-gray-500 shrink-0" /> : <ChevronRight size={10} className="text-gray-500 shrink-0" />
+					expanded ? <ChevronDown size={10} className="text-stone-400 dark:text-stone-500 shrink-0" /> : <ChevronRight size={10} className="text-stone-400 dark:text-stone-500 shrink-0" />
 				) : (
 					<div className="w-[10px] shrink-0" />
 				)}
@@ -502,12 +502,12 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
-						<p className="text-xs text-gray-200 truncate font-medium">{exec.fileName}</p>
+						<p className="text-xs text-stone-800 dark:text-stone-200 truncate font-medium">{exec.fileName}</p>
 						{exec.isSequential && (
-							<span className="text-[9px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 shrink-0">after prev</span>
+							<span className="text-xs text-stone-400 dark:text-stone-500 bg-white dark:bg-[#1E1E1E] px-1.5 py-0.5 rounded border border-[#E8E6E1] dark:border-[#333] shrink-0">after prev</span>
 						)}
 					</div>
-					{exec.error && <p className="text-[10px] text-red-400 mt-0.5">{exec.error}</p>}
+					{exec.error && <p className="text-xs text-red-400 mt-0.5">{exec.error}</p>}
 
 					{/* Collapsed: unified bar + step dots */}
 					{hasWorkspaceData && !expanded && (
@@ -531,9 +531,9 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 						<DagExecutionView batchPlan={exec.batchPlan!} workspaces={workspaces} />
 					) : (
 						<>
-							<div className="flex items-center gap-2 text-[10px] text-gray-500">
+							<div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
 								<span>{stats!.total} workspaces</span>
-								<span className="text-gray-700">|</span>
+								<span className="text-stone-300 dark:text-stone-600">|</span>
 								<div className="flex-1 max-w-[120px]"><SummaryBar /></div>
 							</div>
 							<StatusTags />
@@ -542,15 +542,15 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 
 					{/* Worker stats */}
 					{stats!.requestedWorkers !== undefined && (
-						<div className="flex items-center gap-2 text-[9px] text-gray-600 mt-1">
+						<div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500 mt-1">
 							<span>Requested workers: {stats!.requestedWorkers}</span>
-							{stats!.maxAllowedWorkers !== undefined && <><span className="text-gray-700">|</span><span>Max allowed: {stats!.maxAllowedWorkers}</span></>}
-							{stats!.safeEffectiveParallelism !== undefined && <><span className="text-gray-700">|</span><span>Effective: {stats!.safeEffectiveParallelism}</span></>}
+							{stats!.maxAllowedWorkers !== undefined && <><span className="text-stone-300 dark:text-stone-600">|</span><span>Max allowed: {stats!.maxAllowedWorkers}</span></>}
+							{stats!.safeEffectiveParallelism !== undefined && <><span className="text-stone-300 dark:text-stone-600">|</span><span>Effective: {stats!.safeEffectiveParallelism}</span></>}
 						</div>
 					)}
 					{/* Current batch info */}
 					{hasDagData && workspaces.some((w) => w.stage === "active" || w.stage === "running") && (
-						<div className="flex items-center gap-2 text-[9px] text-blue-400 mt-1">
+						<div className="flex items-center gap-2 text-xs text-blue-400 mt-1">
 							<span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
 							<span>Executing now</span>
 						</div>
@@ -559,7 +559,7 @@ function PlanExecutionRow({ exec, projectId }: PlanExecutionRowProps) {
 					{stats!.bottleneckReasons && stats!.bottleneckReasons.length > 0 && (
 						<div className="mt-1 space-y-0.5">
 							{stats!.bottleneckReasons.map((r, i) => (
-								<p key={i} className="text-[9px] text-amber-500 flex items-center gap-1">
+								<p key={i} className="text-xs text-amber-500 flex items-center gap-1">
 									<AlertTriangle size={8} className="shrink-0" />
 									{r}
 								</p>
@@ -640,24 +640,24 @@ function LiveTranscriptPanel({ planExecId }: LiveTranscriptPanelProps) {
 	}, [events]);
 
 	return (
-		<div className="border border-gray-700 rounded overflow-hidden">
+		<div className="border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
 			{/* Header */}
-			<div className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border-b border-gray-700">
+			<div className="flex items-center gap-2 px-3 py-2 bg-stone-100 dark:bg-[#2A2A2A] border-b border-[#E8E6E1] dark:border-[#333]">
 				<Brain size={12} className="text-purple-400 shrink-0" />
-				<span className="text-[11px] font-medium text-gray-300">
+				<span className="text-xs font-medium text-stone-700 dark:text-stone-300">
 					Agent Transcript
 				</span>
 				{isConnected ? (
-					<span className="text-[8px] text-emerald-500 uppercase tracking-wider font-semibold ml-auto">
+					<span className="text-xs text-emerald-500 uppercase tracking-wider font-semibold ml-auto">
 						Live
 					</span>
 				) : isReconnecting ? (
-					<span className="text-[8px] text-amber-500 uppercase tracking-wider font-semibold ml-auto flex items-center gap-1">
+					<span className="text-xs text-amber-500 uppercase tracking-wider font-semibold ml-auto flex items-center gap-1">
 						<Loader2 size={8} className="animate-spin" />
 						Reconnecting
 					</span>
 				) : (
-					<span className="text-[8px] text-gray-600 uppercase tracking-wider font-semibold ml-auto">
+					<span className="text-xs text-stone-400 dark:text-stone-500 uppercase tracking-wider font-semibold ml-auto">
 						Disconnected
 					</span>
 				)}
@@ -669,19 +669,19 @@ function LiveTranscriptPanel({ planExecId }: LiveTranscriptPanelProps) {
 					{displayEvents.map((evt, i) => (
 						<div
 							key={`${evt.timestamp}-${i}`}
-							className="flex items-start gap-2 px-3 py-1.5 border-b border-gray-800 last:border-b-0 hover:bg-gray-800/30 transition-colors"
+							className="flex items-start gap-2 px-3 py-1.5 border-b border-[#E8E6E1] dark:border-[#333] last:border-b-0 hover:bg-stone-50 dark:bg-[#2A2A2A] transition-colors"
 						>
 							<TranscriptEventIcon event={evt} />
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center gap-1.5">
-									<span className="text-[9px] text-gray-600 font-mono shrink-0">
+									<span className="text-xs text-stone-400 dark:text-stone-500 font-mono shrink-0">
 										{eventTypeLabel(evt.type)}
 									</span>
-									<span className="text-[9px] text-gray-500 font-mono shrink-0">
+									<span className="text-xs text-stone-400 dark:text-stone-500 font-mono shrink-0">
 										{evt.workspaceId !== "_plan" ? evt.workspaceId : ""}
 									</span>
 								</div>
-								<p className="text-[10px] text-gray-300 leading-relaxed mt-0.5 line-clamp-2">
+								<p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed mt-0.5 line-clamp-2">
 									{evt.summary}
 								</p>
 							</div>
@@ -689,7 +689,7 @@ function LiveTranscriptPanel({ planExecId }: LiveTranscriptPanelProps) {
 					))}
 				</div>
 			) : (
-				<div className="flex items-center justify-center py-6 text-[10px] text-gray-600 gap-2">
+				<div className="flex items-center justify-center py-6 text-xs text-stone-400 dark:text-stone-500 gap-2">
 					{isConnected ? (
 						<>Waiting for transcript events...</>
 					) : (
@@ -729,14 +729,14 @@ export function ExecuteScreen({
 		<div className="flex flex-col gap-4">
 			{/* ── Header ── */}
 			<div className="flex items-center justify-between">
-				<p className="text-sm font-medium text-gray-200">
+				<p className="text-sm font-medium text-stone-800 dark:text-stone-200">
 					Executing {total} plan{total !== 1 ? "s" : ""}
 				</p>
 			</div>
 
 			{/* ── Progress bar ── */}
 			<div className="flex flex-col gap-1">
-				<div className="w-full h-2 rounded-full bg-gray-800 overflow-hidden">
+				<div className="w-full h-2 rounded-full bg-white dark:bg-[#1E1E1E] overflow-hidden">
 					<div
 						className={`h-full rounded-full transition-all duration-500 ${
 							failed > 0
@@ -748,7 +748,7 @@ export function ExecuteScreen({
 						style={{ width: `${Math.min(progress, 100)}%` }}
 					/>
 				</div>
-				<div className="flex items-center justify-between text-[10px] text-gray-500">
+				<div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500">
 					<span>
 						{completed + failed} of {total} done
 					</span>
@@ -759,7 +759,7 @@ export function ExecuteScreen({
 			</div>
 
 			{/* ── Per-plan execution rows with workspace stats ── */}
-			<div className="border border-gray-700 rounded overflow-hidden">
+			<div className="border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
 				{executions.map((exec) => (
 					<PlanExecutionRow
 						key={exec.fileName}

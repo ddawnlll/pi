@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Cpu,
@@ -31,12 +32,6 @@ import type { WorkspaceSummary } from "../types";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -126,7 +121,7 @@ function WorkspaceCard({ id, stage, isInActiveBatch, onClick }: WorkspaceCardPro
 		pending: {
 			border: "border-stone-200 dark:border-stone-600",
 			bg: "bg-stone-50 dark:bg-stone-800/40",
-			text: "text-stone-500 dark:text-stone-400",
+			text: "text-stone-400 dark:text-stone-500",
 			icon: <Clock size={12} />,
 		},
 		blocked: {
@@ -138,7 +133,7 @@ function WorkspaceCard({ id, stage, isInActiveBatch, onClick }: WorkspaceCardPro
 		complete: {
 			border: "border-blue-300 dark:border-blue-600",
 			bg: "bg-blue-50 dark:bg-blue-900/15",
-			text: "text-blue-600 dark:text-blue-400",
+			text: "text-blue-700 dark:text-blue-300",
 			icon: <CheckCircle2 size={12} />,
 		},
 		failed: {
@@ -158,12 +153,12 @@ function WorkspaceCard({ id, stage, isInActiveBatch, onClick }: WorkspaceCardPro
 			whileHover={{ scale: 1.03 }}
 			whileTap={{ scale: 0.97 }}
 			className={`
-				flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-medium
-				border transition-shadow cursor-pointer
+				flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium
+				border transition-colors cursor-pointer
 				${colors.border} ${colors.bg} ${colors.text}
 				${isInActiveBatch && stage === "active"
-					? "shadow-[0_0_0_2px_rgba(52,211,153,0.4)] dark:shadow-[0_0_0_2px_rgba(52,211,153,0.3)]"
-					: "shadow-sm"}
+					? ""
+					: ""}
 			`}
 			initial={{ opacity: 0, y: -6 }}
 			animate={{
@@ -276,12 +271,12 @@ function BatchRow({ batch, workspaces, isActive, isNext, batchIndex, totalBatche
 				)}
 
 				<div className="flex items-center gap-2 min-w-0 flex-1">
-					<span className={`text-[11px] font-semibold ${TXT}`}>Batch {batch.batchIndex}</span>
-					<span className={`text-[9px] ${MUT}`}>
+					<span className={`text-xs font-semibold ${TXT}`}>Batch {batch.batchIndex}</span>
+					<span className={`text-xs ${MUT}`}>
 						{batch.width} workspace{batch.width !== 1 ? "s" : ""}
 					</span>
 					{progressLabel && (
-						<span className="text-[9px] font-medium text-blue-600 dark:text-blue-400">
+						<span className="text-xs font-medium text-blue-700 dark:text-blue-300">
 							{progressLabel} done
 						</span>
 					)}
@@ -289,18 +284,18 @@ function BatchRow({ batch, workspaces, isActive, isNext, batchIndex, totalBatche
 
 				{/* Status badge */}
 				{isActive && (
-					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300">
+					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
 						<span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
 						Running
 					</span>
 				)}
 				{isNext && (
-					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-[9px] font-semibold text-blue-700 dark:text-blue-300">
+					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-xs font-semibold text-blue-700 dark:text-blue-300">
 						Next up
 					</span>
 				)}
 				{allDone && !isActive && (
-					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-[9px] font-semibold text-blue-600 dark:text-blue-400">
+					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-xs font-semibold text-blue-700 dark:text-blue-300">
 						Complete
 					</span>
 				)}
@@ -368,7 +363,7 @@ export function BatchExplorer({ batchPlan, workspaces, onWorkspaceClick, classNa
 			<div className={`flex flex-col items-center justify-center py-8 gap-2 ${MUT} ${className ?? ""}`}>
 				<Layers size={24} strokeWidth={1.2} />
 				<p className="text-xs">No batch data available</p>
-				<p className="text-[10px]">Upload and validate a plan to see batch topology</p>
+				<p className="text-xs">Upload and validate a plan to see batch topology</p>
 			</div>
 		);
 	}
@@ -384,20 +379,20 @@ export function BatchExplorer({ batchPlan, workspaces, onWorkspaceClick, classNa
 			<div className="flex items-center gap-3 px-1 pb-1">
 				<div className="flex items-center gap-1.5">
 					<Cpu size={12} className={ACC_TXT} />
-					<span className={`text-[10px] font-semibold ${MUT}`}>
+					<span className={`text-xs font-semibold ${MUT}`}>
 						{batchPlan.totalBatches} batch{batchPlan.totalBatches !== 1 ? "es" : ""}
 					</span>
 				</div>
 				<div className="flex items-center gap-1.5">
 					<GitBranch size={12} className={ACC_TXT} />
-					<span className={`text-[10px] font-semibold ${MUT}`}>
+					<span className={`text-xs font-semibold ${MUT}`}>
 						Effective parallelism: {batchPlan.effectiveParallelism}
 					</span>
 				</div>
 				{activeBatchIdx > 0 && (
 					<div className="flex items-center gap-1.5">
 						<span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-						<span className={`text-[10px] font-semibold ${MUT}`}>
+						<span className={`text-xs font-semibold ${MUT}`}>
 							Batch {activeBatchIdx} active
 						</span>
 					</div>

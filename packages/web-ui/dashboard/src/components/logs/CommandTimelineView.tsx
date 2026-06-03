@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { Terminal, ListFilter } from "lucide-react";
 import type { WorkerInfo, JournalEvent } from "../../types";
 import { useCommandTimeline, type CommandTimelineEntry } from "../../hooks/useCommandTimeline";
@@ -26,10 +27,6 @@ import {
 
 // ─── tokens ──────────────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -114,13 +111,13 @@ export function CommandTimelineView({
 				<div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD} bg-stone-50 dark:bg-[#1A1A1A]`}>
 					<div className="flex items-center gap-2">
 						<Terminal size={13} strokeWidth={1.8} className={MUT} />
-						<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+						<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 							Raw Output
 						</span>
 					</div>
 					<button
 						onClick={() => setFilters({ ...filters, showRawOutput: false })}
-						className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors`}
+						className={`flex items-center gap-1 px-2 py-1 text-xs rounded font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors`}
 					>
 						<ListFilter size={10} />
 						Timeline
@@ -140,11 +137,11 @@ export function CommandTimelineView({
 			<div className={`shrink-0 flex items-center justify-between px-3 h-9 border-b ${BORD} bg-stone-50 dark:bg-[#1A1A1A]`}>
 				<div className="flex items-center gap-2">
 					<ListFilter size={13} strokeWidth={1.8} className={MUT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Command Timeline
 					</span>
 					{!isLoading && (
-						<span className={`text-[10px] ${MUT} tabular-nums`}>
+						<span className={`text-xs ${MUT} tabular-nums`}>
 							{filteredCommands.length} command{filteredCommands.length !== 1 ? "s" : ""}
 						</span>
 					)}
@@ -152,7 +149,7 @@ export function CommandTimelineView({
 				<div className="flex items-center gap-1.5">
 					<button
 						onClick={() => setFilters({ ...filters, showRawOutput: true })}
-						className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded font-medium bg-stone-100 dark:bg-[#333] text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-[#444] transition-colors`}
+						className={`flex items-center gap-1 px-2 py-1 text-xs rounded font-medium bg-stone-100 dark:bg-[#333] text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-[#444] transition-colors`}
 						title="Switch to raw output view"
 					>
 						<Terminal size={10} />
@@ -164,16 +161,16 @@ export function CommandTimelineView({
 			{/* ── Column headers ── */}
 			<div className={`shrink-0 flex items-center gap-2 px-3 py-1 border-b ${BORD} bg-stone-50/30 dark:bg-[#1A1A1A]/30`}>
 				<span className="w-3 shrink-0" />
-				<span className={`shrink-0 w-20 text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+				<span className={`shrink-0 w-20 text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 					Workspace
 				</span>
-				<span className={`flex-1 text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+				<span className={`flex-1 text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 					Command
 				</span>
-				<span className={`shrink-0 w-14 text-right text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+				<span className={`shrink-0 w-14 text-right text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 					Duration
 				</span>
-				<span className={`shrink-0 w-14 text-right text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+				<span className={`shrink-0 w-14 text-right text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 					Exit
 				</span>
 				<span className="w-3 shrink-0" />
@@ -246,7 +243,7 @@ export function CommandTimelineView({
 									active: "text-emerald-600 dark:text-emerald-400",
 									pending: "text-stone-400 dark:text-stone-500",
 									blocked: "text-amber-600 dark:text-amber-400",
-									complete: "text-blue-600 dark:text-blue-400",
+									complete: "text-blue-700 dark:text-blue-300",
 									failed: "text-red-600 dark:text-red-400",
 								};
 								const stageColor = stageColors[worker?.stage ?? ""] ?? MUT;
@@ -257,13 +254,13 @@ export function CommandTimelineView({
 										className={`flex items-center gap-1.5 px-3 py-1 border-b ${BORD} bg-stone-50 dark:bg-[#1A1A1A]`}
 									>
 										<span className={`w-1.5 h-1.5 rounded-full shrink-0 ${stageColor.replace("text-", "bg-")}`} />
-										<span className={`text-[9px] font-semibold uppercase tracking-wider ${MUT}`}>
+										<span className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>
 											{wsId}
 										</span>
-										<span className={`text-[9px] ${stageColor}`}>
+										<span className={`text-xs ${stageColor}`}>
 											({worker?.stage ?? "unknown"})
 										</span>
-										<span className={`text-[9px] ${MUT}`}>
+										<span className={`text-xs ${MUT}`}>
 											{cmds.length} command{cmds.length !== 1 ? "s" : ""}
 										</span>
 									</div>,
@@ -305,7 +302,7 @@ export function CommandTimelineView({
 
 			{/* ── Footer status bar ── */}
 			{workers.length > 0 && (
-				<div className={`shrink-0 flex items-center justify-between px-3 py-1 h-7 border-t ${BORD} bg-stone-50 dark:bg-[#1A1A1A] text-[9px] ${MUT}`}>
+				<div className={`shrink-0 flex items-center justify-between px-3 py-1 h-7 border-t ${BORD} bg-stone-50 dark:bg-[#1A1A1A] text-xs ${MUT}`}>
 					<span>
 						{workers.length} worker{workers.length !== 1 ? "s" : ""}
 						{!isLoading && ` · ${commands.length} total command${commands.length !== 1 ? "s" : ""}`}

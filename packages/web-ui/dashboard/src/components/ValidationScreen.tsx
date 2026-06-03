@@ -48,8 +48,8 @@ function getFileStatus(
 		return {
 			status: "pending",
 			label: "Pending",
-			color: "text-gray-500",
-			bg: "bg-gray-900/30 border-gray-800",
+			color: "text-stone-400 dark:text-stone-500",
+			bg: "bg-[#F7F6F3] dark:bg-[#161616]/30 border-[#E8E6E1] dark:border-[#333]",
 		};
 	}
 	if (!result.success) {
@@ -124,10 +124,10 @@ function StatCard({
 	color: string;
 }) {
 	return (
-		<div className="flex flex-col gap-1 p-3 rounded-lg border border-gray-700 bg-gray-800/50">
+		<div className="flex flex-col gap-1 p-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-stone-100 dark:bg-[#2A2A2A]">
 			<div className="flex items-center gap-1.5">
 				<Icon size={11} className={color} />
-				<span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+				<span className="text-xs text-stone-400 dark:text-stone-500 font-medium uppercase tracking-wider">
 					{label}
 				</span>
 			</div>
@@ -312,13 +312,13 @@ export function ValidationScreen({
 					icon={CheckCircle2}
 					label="Total"
 					value={summary.total}
-					color="text-gray-300"
+					color="text-stone-700 dark:text-stone-300"
 				/>
 			</div>
 
 			{/* ── Per-file rows ── */}
 			{summary.total === 0 && validatingFiles.size === 0 && (
-				<div className="text-center py-8 text-gray-500 text-xs">
+				<div className="text-center py-8 text-stone-400 dark:text-stone-500 text-xs">
 					No validation results yet. Click "Validate" to start.
 				</div>
 			)}
@@ -356,15 +356,15 @@ export function ValidationScreen({
 								className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition-colors"
 							>
 								{isExpanded ? (
-									<ChevronDown size={12} className="text-gray-500 shrink-0" />
+									<ChevronDown size={12} className="text-stone-400 dark:text-stone-500 shrink-0" />
 								) : (
-									<ChevronRight size={12} className="text-gray-500 shrink-0" />
+									<ChevronRight size={12} className="text-stone-400 dark:text-stone-500 shrink-0" />
 								)}
 								<div className="flex-1 min-w-0">
-									<p className="text-xs text-gray-200 truncate font-medium">
+									<p className="text-xs text-stone-800 dark:text-stone-200 truncate font-medium">
 										{fileName}
 									</p>
-									<p className="text-[10px] text-gray-500 mt-0.5">
+									<p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
 										{result.parseResult
 											? `${result.parseResult.workspaceCount} workspaces, ${result.parseResult.phase}`
 											: "Validation details"}
@@ -377,7 +377,7 @@ export function ValidationScreen({
 
 								{!isValidating && (
 									<span
-										className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 ${color} ${bg}`}
+										className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium shrink-0 ${color} ${bg}`}
 									>
 										{status === "passed" && <CheckCircle2 size={9} className="mr-0.5" />}
 										{status === "warning" && <AlertTriangle size={9} className="mr-0.5" />}
@@ -393,7 +393,7 @@ export function ValidationScreen({
 									{details.map((item, i) => (
 										<div
 											key={i}
-											className="flex items-start gap-2 py-1 px-2 rounded text-[10px] text-gray-300 group"
+											className="flex items-start gap-2 py-1 px-2 rounded text-xs text-stone-700 dark:text-stone-300 group"
 										>
 											<item.icon
 												size={10}
@@ -405,7 +405,7 @@ export function ValidationScreen({
 													e.stopPropagation();
 													navigator.clipboard.writeText(item.message);
 												}}
-												className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 shrink-0"
+												className="opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300 shrink-0"
 												title="Copy message"
 											>
 												<Copy size={10} />
@@ -421,7 +421,7 @@ export function ValidationScreen({
 												onFixWithAI(fileName);
 											}}
 											disabled={fixingFile === fileName}
-											className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium bg-amber-900/30 text-amber-300 border border-amber-800 hover:bg-amber-900/50 transition-colors disabled:opacity-50"
+											className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-amber-900/30 text-amber-300 border border-amber-800 hover:bg-amber-900/50 transition-colors disabled:opacity-50"
 										>
 											{fixingFile === fileName ? (
 												<Loader2 size={9} className="animate-spin" />
@@ -441,7 +441,7 @@ export function ValidationScreen({
 			{/* ── Footer message ── */}
 			{summary.total > 0 && (
 				<div className="flex items-center justify-between">
-					<span className="text-xs text-gray-500">
+					<span className="text-xs text-stone-400 dark:text-stone-500">
 						{hasErrors
 							? `${summary.errors} error${summary.errors !== 1 ? "s" : ""} — fix before continuing`
 							: hasWarnings

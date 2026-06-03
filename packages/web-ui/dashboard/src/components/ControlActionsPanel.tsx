@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import {
 	AlertCircle,
 	CheckCircle,
@@ -28,12 +29,6 @@ import { useInterveneWorkspace } from "../hooks/useHumanDirectives";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
@@ -146,7 +141,7 @@ export function ControlActionsPanel({
 			<div className={`flex items-center justify-between px-3 py-2 border-b ${BORD}`}>
 				<div className="flex items-center gap-2">
 					<StopCircle size={13} className={ACC_TXT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Control Actions
 					</span>
 				</div>
@@ -172,7 +167,7 @@ export function ControlActionsPanel({
 								title={action.confirm}
 							>
 								<Icon size={14} />
-								<span className="text-[10px] font-medium">
+								<span className="text-xs font-medium">
 									{isPending ? "Confirm?" : action.label}
 								</span>
 							</button>
@@ -184,7 +179,7 @@ export function ControlActionsPanel({
 				{pendingAction && (
 					<button
 						onClick={cancelPending}
-						className={`text-[10px] ${MUT} hover:text-stone-600 dark:hover:text-stone-300 underline`}
+						className={`text-xs ${MUT} hover:text-stone-600 dark:hover:text-stone-300 underline`}
 					>
 						Cancel
 					</button>
@@ -196,7 +191,7 @@ export function ControlActionsPanel({
 						placeholder="Reason for action (optional)..."
 						value={reason}
 						onChange={(e) => setReason(e.target.value)}
-						className={`w-full text-[10px] px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
+						className={`w-full text-xs px-2 py-1.5 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 resize-none`}
 						rows={2}
 					/>
 				)}

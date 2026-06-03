@@ -21,6 +21,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { useIntegrationQueueStatus } from "../hooks/useScaleStatus";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 import { WorktreeStatusPanel } from "./WorktreeStatusPanel";
 import { IntegrationQueuePanel } from "./IntegrationQueuePanel";
 import { QueueOptimizationPanel } from "./QueueOptimizationPanel";
@@ -28,11 +29,6 @@ import { ScaleModeSettings } from "./ScaleModeSettings";
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
@@ -77,7 +73,7 @@ export function ScaleCockpitPanel({ className }: ScaleCockpitPanelProps) {
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400" />
                 <h3 className={`text-sm font-semibold ${TXT}`}>Active Merge Conflicts</h3>
-                <span className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-[10px] font-medium text-amber-700 dark:text-amber-300`}>
+                <span className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-xs font-medium text-amber-700 dark:text-amber-300`}>
                   <AlertTriangle size={10} />
                   {mergeConflicts.length}
                 </span>
@@ -94,19 +90,19 @@ export function ScaleCockpitPanel({ className }: ScaleCockpitPanelProps) {
                       <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
                         {conflict.workspaceId}
                       </span>
-                      <span className={`text-[10px] ${MUT} ml-auto`}>
+                      <span className={`text-xs ${MUT} ml-auto`}>
                         {new Date(conflict.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
                     {conflict.conflictedFiles.length > 0 && (
-                      <ul className="mt-1 text-[10px] font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
+                      <ul className="mt-1 text-xs font-mono text-amber-600 dark:text-amber-400 list-disc list-inside">
                         {conflict.conflictedFiles.map((f) => (
                           <li key={f}>{f}</li>
                         ))}
                       </ul>
                     )}
                     {conflict.diff && (
-                      <pre className="mt-1 text-[9px] font-mono text-amber-600 dark:text-amber-400 whitespace-pre-wrap max-h-20 overflow-y-auto">
+                      <pre className="mt-1 text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-pre-wrap max-h-20 overflow-y-auto">
                         {conflict.diff.slice(0, 500)}
                       </pre>
                     )}
@@ -114,7 +110,7 @@ export function ScaleCockpitPanel({ className }: ScaleCockpitPanelProps) {
                 ))}
               </div>
 
-              <p className={`text-[10px] leading-tight ${MUT}`}>
+              <p className={`text-xs leading-tight ${MUT}`}>
                 Merge conflicts block the integration queue. Each conflict must be
                 resolved before processing can continue.
               </p>
@@ -128,11 +124,11 @@ export function ScaleCockpitPanel({ className }: ScaleCockpitPanelProps) {
         <div className={`${SURF} rounded-lg border ${BORD} p-3`}>
           <div className="flex items-center gap-2">
             <Cpu size={15} className={ACC_TXT} />
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+            <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Scale Cockpit
             </span>
           </div>
-          <p className={`text-[10px] leading-tight mt-1.5 ${MUT}`}>
+          <p className={`text-xs leading-tight mt-1.5 ${MUT}`}>
             The scale cockpit provides operational visibility into scaled multi-worker execution.
             Worktree isolation, integration queue, and validation lock must all be satisfied
             before scale mode can be enabled.{' '}

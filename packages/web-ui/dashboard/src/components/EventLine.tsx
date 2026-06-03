@@ -8,12 +8,12 @@ export function EventLine({ event }: { event: any }) {
         {isErr
           ? <AlertCircle size={11} className="text-red-500 dark:text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
           : <Activity size={11} className="text-stone-300 dark:text-stone-600 mt-0.5 shrink-0" strokeWidth={2} />}
-        <p className={`text-[11px] leading-snug flex-1 ${isErr ? "text-red-700 dark:text-red-300" : "text-stone-600 dark:text-stone-400"}`}>
+        <p className={`text-xs leading-snug flex-1 ${isErr ? "text-red-700 dark:text-red-300" : "text-stone-600 dark:text-stone-400"}`}>
           {event.message ?? event.msg ?? JSON.stringify(event)}
         </p>
       </div>
       {event.timestamp && (
-        <p className="text-[9px] text-stone-400 dark:text-stone-500 mt-1 pl-4 tracking-wide">
+        <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 pl-4 tracking-wide">
           {new Date(event.timestamp).toLocaleTimeString()}
         </p>
       )}

@@ -11,13 +11,13 @@ export function MilestoneTracker({ milestones }: MilestoneTrackerProps) {
 
 	return (
 		<div className="space-y-1.5">
-			<div className="flex items-center justify-between text-[10px]">
+			<div className="flex items-center justify-between text-xs">
 				<span className="font-medium text-stone-500">Milestones</span>
 				<span className="text-stone-400">{completed}/{milestones.length}</span>
 			</div>
 			<div className="space-y-1">
 				{milestones.map((m) => (
-					<div key={m.id} className="flex items-center gap-2 text-[10px]">
+					<div key={m.id} className="flex items-center gap-2 text-xs">
 						<span className={`w-3 h-3 rounded-full border flex items-center justify-center shrink-0 ${
 							m.completed ? "bg-emerald-500 border-emerald-500" : "border-stone-300 dark:border-stone-600"
 						}`}>

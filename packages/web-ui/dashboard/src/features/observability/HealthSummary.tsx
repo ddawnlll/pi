@@ -13,6 +13,7 @@
  */
 
 import { useMemo } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	Activity,
 	AlertCircle,
@@ -25,10 +26,6 @@ import type { EventStatistics, TelemetryDashboardSummary } from "../../types-obs
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
 const ERR_BG = "bg-red-50 dark:bg-red-900/20";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const WARN_BG = "bg-amber-50 dark:bg-amber-900/20";
@@ -39,7 +36,7 @@ const GOOD_BORD = "border-emerald-200 dark:border-emerald-800";
 const WARN_BORD = "border-amber-200 dark:border-amber-800";
 const ERR_BORD = "border-red-200 dark:border-red-800";
 const INFO_BG = "bg-blue-50 dark:bg-blue-900/20";
-const INFO_TXT = "text-blue-600 dark:text-blue-400";
+const INFO_TXT = "text-blue-700 dark:text-blue-300";
 
 // ─── Health status type ───────────────────────────────────────────────────────
 
@@ -63,10 +60,10 @@ export function HealthBadge({ status, reason }: HealthBadgeProps) {
 	const meta = config[status] ?? config.unknown;
 
 	return (
-		<div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold ${meta.bg} ${meta.txt} ${meta.bord} border`}>
+		<div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold ${meta.bg} ${meta.txt} ${meta.bord} border`}>
 			<span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} />
 			{meta.label}
-			{reason && <span className="text-[10px] opacity-75 ml-1">({reason})</span>}
+			{reason && <span className="text-xs opacity-75 ml-1">({reason})</span>}
 		</div>
 	);
 }
@@ -109,7 +106,7 @@ export function HealthSummary({ className = "", summary, stats, loading = false,
 			<div className="flex items-center justify-between mb-3">
 				<h3 className={`text-sm font-semibold ${TXT}`}>System Health</h3>
 				{loading ? (
-					<div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold ${INFO_BG} ${INFO_TXT} border border-blue-200 dark:border-blue-800`}>
+					<div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold ${INFO_BG} ${INFO_TXT} border border-blue-200 dark:border-blue-800`}>
 						<Loader2 size={11} className="animate-spin" />
 						Checking...
 					</div>
@@ -155,17 +152,17 @@ export function HealthSummary({ className = "", summary, stats, loading = false,
 					{/* Quick stats */}
 					<div className="grid grid-cols-2 gap-2">
 						<div className={`rounded-md p-2 border ${BORD}`}>
-							<div className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Total Events</div>
+							<div className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Total Events</div>
 							<div className={`text-base font-semibold ${TXT}`}>
 								{(summary?.totalEvents ?? stats?.totalCount ?? 0).toLocaleString()}
 							</div>
 						</div>
 						<div className={`rounded-md p-2 border ${BORD}`}>
-							<div className={`text-[10px] font-semibold uppercase tracking-wider ${MUT}`}>Errors</div>
+							<div className={`text-xs font-semibold uppercase tracking-wider ${MUT}`}>Errors</div>
 							<div className={`text-base font-semibold ${(stats?.errorCount ?? 0) > 0 ? ERR_TXT : GOOD_TXT}`}>
 								{stats?.errorCount?.toLocaleString() ?? "\u2014"}
 								{stats?.errorRate != null && (
-									<span className={`text-[11px] ${MUT} ml-1`}>({(stats.errorRate * 100).toFixed(1)}%)</span>
+									<span className={`text-xs ${MUT} ml-1`}>({(stats.errorRate * 100).toFixed(1)}%)</span>
 								)}
 							</div>
 						</div>
@@ -182,7 +179,7 @@ export function HealthSummary({ className = "", summary, stats, loading = false,
 					{/* Top error sources */}
 					{!healthy && stats && Object.keys(stats.bySource).length > 0 && (
 						<div>
-							<h4 className={`text-[10px] font-semibold uppercase tracking-wider ${MUT} mb-1`}>Top Sources</h4>
+							<h4 className={`text-xs font-semibold uppercase tracking-wider ${MUT} mb-1`}>Top Sources</h4>
 							<div className="space-y-0.5">
 								{Object.entries(stats.bySource)
 									.sort(([, a], [, b]) => (b as number) - (a as number))

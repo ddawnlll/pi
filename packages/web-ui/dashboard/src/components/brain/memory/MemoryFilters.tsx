@@ -29,7 +29,7 @@ export function MemoryFilters({ filters, onChange }: MemoryFiltersProps) {
 			<select
 				value={filters.type}
 				onChange={(e) => onChange({ type: e.target.value })}
-				className="px-2 py-1.5 text-[10px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				className="px-2 py-1.5 text-xs rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
 			>
 				{MEMORY_TYPES.map((t) => (
 					<option key={t.value} value={t.value}>{t.label}</option>
@@ -38,7 +38,7 @@ export function MemoryFilters({ filters, onChange }: MemoryFiltersProps) {
 			<select
 				value={filters.lifecycle}
 				onChange={(e) => onChange({ lifecycle: e.target.value })}
-				className="px-2 py-1.5 text-[10px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				className="px-2 py-1.5 text-xs rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
 			>
 				{LIFECYCLES.map((l) => (
 					<option key={l.value} value={l.value}>{l.label}</option>

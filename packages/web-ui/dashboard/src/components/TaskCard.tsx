@@ -27,18 +27,18 @@ interface TaskCardProps {
 }
 
 const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
-	draft: { icon: Clock, color: "text-gray-500", label: "Draft" },
+	draft: { icon: Clock, color: "text-stone-400 dark:text-stone-500", label: "Draft" },
 	validating: { icon: Loader2, color: "text-blue-400", label: "Validating" },
 	validation_failed: { icon: XCircle, color: "text-red-400", label: "Validation Failed" },
 	approval_required: { icon: UserCheck, color: "text-purple-400", label: "Approval Required" },
 	approved: { icon: CheckCircle2, color: "text-emerald-400", label: "Approved" },
-	queued: { icon: Clock, color: "text-gray-400", label: "Queued" },
+	queued: { icon: Clock, color: "text-stone-500 dark:text-stone-400", label: "Queued" },
 	blocked: { icon: Ban, color: "text-amber-400", label: "Blocked" },
 	running: { icon: Loader2, color: "text-blue-400", label: "Running" },
 	paused: { icon: Clock, color: "text-yellow-400", label: "Paused" },
 	complete: { icon: CheckCircle2, color: "text-emerald-400", label: "Complete" },
 	failed: { icon: XCircle, color: "text-red-400", label: "Failed" },
-	cancelled: { icon: XCircle, color: "text-gray-500", label: "Cancelled" },
+	cancelled: { icon: XCircle, color: "text-stone-400 dark:text-stone-500", label: "Cancelled" },
 	reflecting: { icon: Loader2, color: "text-purple-400", label: "Reflecting" },
 	reflected: { icon: CheckCircle2, color: "text-purple-400", label: "Reflected" },
 };
@@ -47,7 +47,7 @@ function PhaseDots({ phases }: { phases: MultiPhaseTask["phases"] }) {
 	return (
 		<div className="flex items-center gap-1">
 			{phases.map((p) => {
-				let cls = "bg-gray-700";
+				let cls = "bg-stone-100 dark:bg-[#2A2A2A]";
 				if (p.status === "complete") cls = "bg-emerald-600";
 				else if (p.status === "running") cls = "bg-blue-500 ring-1 ring-blue-400";
 				else if (p.status === "failed") cls = "bg-red-600";
@@ -70,7 +70,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 
 	return (
 		<div
-			className="flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-700 bg-gray-900/40 hover:bg-gray-800/60 cursor-pointer transition-colors group"
+			className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/40 hover:bg-white dark:bg-[#1E1E1E]/60 cursor-pointer transition-colors group"
 			onClick={() => onClick(task.id)}
 		>
 			{/* Status icon */}
@@ -79,8 +79,8 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 			{/* Title + meta */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2">
-					<p className="text-sm text-gray-200 font-medium truncate">{task.title}</p>
-					<span className={`text-[9px] font-semibold uppercase tracking-wider ${cfg.color}`}>
+					<p className="text-sm text-stone-800 dark:text-stone-200 font-medium truncate">{task.title}</p>
+					<span className={`text-xs font-semibold uppercase tracking-wider ${cfg.color}`}>
 						{cfg.label}
 					</span>
 				</div>
@@ -88,8 +88,8 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 				{/* Phase dots + compact aggregates */}
 				<div className="flex items-center gap-3 mt-1">
 					<PhaseDots phases={task.phases} />
-					<span className="text-[10px] text-gray-600">|</span>
-					<span className="text-[10px] text-gray-500 tabular-nums">
+					<span className="text-xs text-stone-400 dark:text-stone-500">|</span>
+					<span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
 						{task.aggregate.totalTokensIn > 0
 							? `${(task.aggregate.totalTokensIn / 1000).toFixed(1)}K tokens`
 							: "No tokens yet"}
@@ -98,7 +98,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 			</div>
 
 			{/* Chevron */}
-			<ChevronRight size={14} className="text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
+			<ChevronRight size={14} className="text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:text-stone-400 transition-colors shrink-0" />
 		</div>
 	);
 }

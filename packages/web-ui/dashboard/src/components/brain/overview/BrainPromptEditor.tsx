@@ -127,13 +127,13 @@ export function BrainPromptEditor() {
 	return (
 		<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
 			<div className="flex items-center justify-between">
-				<h3 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400">
+				<h3 className="text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">
 					Brain Prompt
 				</h3>
 				{!editMode && (
 					<button
 						onClick={handleEdit}
-						className="text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+						className="text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-300"
 					>
 						Edit
 					</button>
@@ -142,12 +142,12 @@ export function BrainPromptEditor() {
 
 			{/* Success/Error messages */}
 			{successMsg && (
-				<div className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
+				<div className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
 					{successMsg}
 				</div>
 			)}
 			{errorMsg && (
-				<div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
+				<div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
 					{errorMsg}
 				</div>
 			)}
@@ -156,25 +156,25 @@ export function BrainPromptEditor() {
 				<div className="space-y-3">
 					{/* System Prompt */}
 					<div>
-						<label className="text-[10px] font-medium text-stone-500 dark:text-stone-400 block mb-1">
+						<label className="text-xs font-medium text-stone-400 dark:text-stone-500 block mb-1">
 							System Prompt
 						</label>
 						<textarea
 							value={editPrompt}
 							onChange={(e) => setEditPrompt(e.target.value)}
-							className="w-full px-2.5 py-1.5 text-[10px] font-mono rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 resize-y min-h-[80px] outline-none focus:border-blue-500"
+							className="w-full px-2.5 py-1.5 text-xs font-mono rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 resize-y min-h-[80px] outline-none focus:border-blue-500"
 						/>
 					</div>
 
 					{/* Observation Rules */}
 					<div>
 						<div className="flex items-center justify-between mb-1">
-							<label className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
+							<label className="text-xs font-medium text-stone-400 dark:text-stone-500">
 								Observation Rules
 							</label>
 							<button
 								onClick={addRule}
-								className="text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-700"
+								className="text-xs text-blue-700 dark:text-blue-300 hover:text-blue-700"
 							>
 								+ Add rule
 							</button>
@@ -189,11 +189,11 @@ export function BrainPromptEditor() {
 											next[i] = e.target.value;
 											setEditRules(next);
 										}}
-										className="flex-1 px-2 py-1 text-[10px] rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 outline-none focus:border-blue-500"
+										className="flex-1 px-2 py-1 text-xs rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 outline-none focus:border-blue-500"
 									/>
 									<button
 										onClick={() => removeRule(i)}
-										className="text-stone-400 hover:text-red-500 text-[10px] px-1"
+										className="text-stone-400 hover:text-red-500 text-xs px-1"
 									>
 										&times;
 									</button>
@@ -205,12 +205,12 @@ export function BrainPromptEditor() {
 					{/* Scan Priorities */}
 					<div>
 						<div className="flex items-center justify-between mb-1">
-							<label className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
+							<label className="text-xs font-medium text-stone-400 dark:text-stone-500">
 								Scan Priorities
 							</label>
 							<button
 								onClick={addPriority}
-								className="text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-700"
+								className="text-xs text-blue-700 dark:text-blue-300 hover:text-blue-700"
 							>
 								+ Add priority
 							</button>
@@ -225,11 +225,11 @@ export function BrainPromptEditor() {
 											next[i] = e.target.value;
 											setEditPriorities(next);
 										}}
-										className="flex-1 px-2 py-1 text-[10px] rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 outline-none focus:border-blue-500"
+										className="flex-1 px-2 py-1 text-xs rounded border border-stone-200 dark:border-stone-700 bg-white dark:bg-[#1E1E1E] text-stone-800 dark:text-stone-200 outline-none focus:border-blue-500"
 									/>
 									<button
 										onClick={() => removePriority(i)}
-										className="text-stone-400 hover:text-red-500 text-[10px] px-1"
+										className="text-stone-400 hover:text-red-500 text-xs px-1"
 									>
 										&times;
 									</button>
@@ -243,14 +243,14 @@ export function BrainPromptEditor() {
 						<button
 							onClick={handleSave}
 							disabled={saving}
-							className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors disabled:opacity-50"
+							className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors disabled:opacity-50"
 						>
 							{saving && <Loader2 size={10} className="animate-spin" />}
 							Save
 						</button>
 						<button
 							onClick={handleCancel}
-							className="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
+							className="px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700"
 						>
 							Cancel
 						</button>
@@ -261,19 +261,19 @@ export function BrainPromptEditor() {
 				prompt && (
 					<div className="space-y-2">
 						<div>
-							<div className="text-[10px] font-medium text-stone-400 dark:text-stone-500 mb-0.5">
+							<div className="text-xs font-medium text-stone-400 dark:text-stone-500 mb-0.5">
 								System Prompt
 							</div>
-							<p className="text-[10px] text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-3">
+							<p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed line-clamp-3">
 								{prompt.systemPrompt}
 							</p>
 						</div>
 						{prompt.observationRules.length > 0 && (
 							<div>
-								<div className="text-[10px] font-medium text-stone-400 dark:text-stone-500 mb-0.5">
+								<div className="text-xs font-medium text-stone-400 dark:text-stone-500 mb-0.5">
 									Observation Rules ({prompt.observationRules.length})
 								</div>
-								<ul className="list-disc list-inside text-[10px] text-stone-600 dark:text-stone-400 space-y-0.5">
+								<ul className="list-disc list-inside text-xs text-stone-600 dark:text-stone-400 space-y-0.5">
 									{prompt.observationRules.slice(0, 3).map((r, i) => (
 										<li key={i} className="truncate">{r}</li>
 									))}
@@ -285,12 +285,12 @@ export function BrainPromptEditor() {
 						)}
 						{prompt.scanPriorities.length > 0 && (
 							<div>
-								<div className="text-[10px] font-medium text-stone-400 dark:text-stone-500 mb-0.5">
+								<div className="text-xs font-medium text-stone-400 dark:text-stone-500 mb-0.5">
 									Scan Priorities
 								</div>
 								<div className="flex flex-wrap gap-1">
 									{prompt.scanPriorities.map((p, i) => (
-										<span key={i} className="px-1.5 py-0.5 text-[9px] rounded bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+										<span key={i} className="px-1.5 py-0.5 text-xs rounded bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500">
 											{p}
 										</span>
 									))}

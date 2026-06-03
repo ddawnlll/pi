@@ -10,16 +10,12 @@
  */
 
 import type { ApprovalGateStatus, ProposalResponse } from "../../types";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 
 // ---------------------------------------------------------------------------
 // Styling tokens (matching App.tsx)
 // ---------------------------------------------------------------------------
 
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 
 // ---------------------------------------------------------------------------
 // Gate status badge config
@@ -154,7 +150,7 @@ function AuditTrailSummary({ entry }: { entry: import("../../types").ProposalAud
 			label = "";
 	}
 	return (
-		<div className={`text-[10px] ${MUT} flex items-center gap-1`}>
+		<div className={`text-xs ${MUT} flex items-center gap-1`}>
 			<span>
 				{label}{" "}
 				{entry.actor !== "system" ? `by ${entry.actor}` : ""}
@@ -245,7 +241,7 @@ export function AutonomyProposalCard({
 
 					{/* Self-mod badge */}
 					{isSelfMod && (
-						<span className="shrink-0 text-[9px] font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+						<span className="shrink-0 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
 							Self-modification
 						</span>
 					)}
@@ -254,18 +250,18 @@ export function AutonomyProposalCard({
 				{/* Approval gates row */}
 				<div className="flex items-center gap-2 mb-1.5">
 					<span
-						className={`inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${planCfg.color} ${planCfg.bg} ${planCfg.darkColor} ${planCfg.darkBg} border ${BORD}`}
+						className={`inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full ${planCfg.color} ${planCfg.bg} ${planCfg.darkColor} ${planCfg.darkBg} border ${BORD}`}
 					>
 						Plan: {planCfg.label}
 					</span>
 					<span
-						className={`inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${execCfg.color} ${execCfg.bg} ${execCfg.darkColor} ${execCfg.darkBg} border ${BORD}`}
+						className={`inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full ${execCfg.color} ${execCfg.bg} ${execCfg.darkColor} ${execCfg.darkBg} border ${BORD}`}
 					>
 						Exec: {execCfg.label}
 					</span>
 					{isSelfMod && (
 						<span
-							className={`inline-flex items-center gap-1 shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full border ${
+							className={`inline-flex items-center gap-1 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full border ${
 								proposal.selfModificationApproval.status === "approved"
 									? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
 									: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800"
@@ -283,19 +279,19 @@ export function AutonomyProposalCard({
 
 				{/* Phase + time + dry-run + budget */}
 				<div className="flex items-center gap-2 mb-1.5">
-					<span className={`text-[10px] font-mono ${MUT}`}>
+					<span className={`text-xs font-mono ${MUT}`}>
 						{proposal.phase}
 					</span>
-					<span className={`text-[10px] ${MUT}`}>
+					<span className={`text-xs ${MUT}`}>
 						{formatTimestamp(proposal.submittedAt)}
 					</span>
 					{proposal.actionedAt && (
-						<span className={`text-[10px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							· actioned {formatTimestamp(proposal.actionedAt)}
 						</span>
 					)}
 					<span
-						className={`text-[9px] ${
+						className={`text-xs ${
 							proposal.dryRunStatus === "passed"
 								? "text-emerald-500"
 								: MUT
@@ -304,7 +300,7 @@ export function AutonomyProposalCard({
 						Dry-run: {proposal.dryRunStatus}
 					</span>
 					<span
-						className={`text-[9px] ${
+						className={`text-xs ${
 							proposal.budgetState === "valid"
 								? "text-emerald-500"
 								: MUT
@@ -319,7 +315,7 @@ export function AutonomyProposalCard({
 					{tags.map((tag, i) => (
 						<span
 							key={i}
-							className={`text-[10px] px-1.5 py-0.5 rounded ${MUT} bg-stone-50 dark:bg-[#2A2A2A] border ${BORD}`}
+							className={`text-xs px-1.5 py-0.5 rounded ${MUT} bg-stone-100 dark:bg-[#2A2A2A] border ${BORD}`}
 						>
 							{tag}
 						</span>
@@ -332,7 +328,7 @@ export function AutonomyProposalCard({
 				{/* Approval requirements warning */}
 				{proposal.planningApproval.status !== "approved" && (
 					<div
-						className={`mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded ${BORD} border`}
+						className={`mt-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded ${BORD} border`}
 					>
 						Requires planning approval before execution
 					</div>
@@ -342,7 +338,7 @@ export function AutonomyProposalCard({
 				{proposal.planningApproval.status === "rejected" &&
 					proposal.rejectionReason && (
 						<div
-							className={`mt-1.5 text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded ${BORD} border`}
+							className={`mt-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded ${BORD} border`}
 						>
 							Reason: {proposal.rejectionReason}
 						</div>

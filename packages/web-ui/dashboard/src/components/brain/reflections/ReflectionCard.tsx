@@ -16,18 +16,18 @@ export function ReflectionCard({ reflection, onClick }: ReflectionCardProps) {
 		>
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
-					<span className="text-[10px] font-medium text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded">
+					<span className="text-xs font-medium text-stone-500 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded">
 						{reflection.phase}
 					</span>
-					<span className="text-[10px] text-stone-400">{date}</span>
+					<span className="text-xs text-stone-400">{date}</span>
 				</div>
 			</div>
 			<h4 className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
 				{reflection.planTitle}
 			</h4>
-			<p className="text-[10px] text-stone-500 line-clamp-2">{reflection.summary}</p>
+			<p className="text-xs text-stone-500 line-clamp-2">{reflection.summary}</p>
 
-			<div className="flex items-center gap-3 text-[9px] text-stone-400">
+			<div className="flex items-center gap-3 text-xs text-stone-400">
 				{reflection.worked.length > 0 && (
 					<span className="flex items-center gap-1">
 						<span className="text-emerald-500">&#10003;</span>

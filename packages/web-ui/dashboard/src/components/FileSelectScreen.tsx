@@ -218,14 +218,14 @@ export function FileSelectScreen({
 		switch (status) {
 			case "ready":
 				return (
-					<span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-900/30 text-emerald-300 border border-emerald-800">
+					<span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/30 text-emerald-300 border border-emerald-800">
 						ready
 					</span>
 				);
 			case "warn":
 				return (
 					<span
-						className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-900/30 text-amber-300 border border-amber-800 cursor-help"
+						className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-300 border border-amber-800 cursor-help"
 						title={message}
 					>
 						<AlertTriangle size={8} className="mr-0.5" />
@@ -235,7 +235,7 @@ export function FileSelectScreen({
 			case "error":
 				return (
 					<span
-						className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-300 border border-red-800 cursor-help"
+						className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-900/30 text-red-300 border border-red-800 cursor-help"
 						title={message}
 					>
 						error
@@ -259,14 +259,14 @@ export function FileSelectScreen({
 				className={`relative flex flex-col items-center justify-center gap-2 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
 					dragging
 						? "border-blue-500 bg-blue-900/20"
-						: "border-gray-600 hover:border-gray-500 bg-gray-800/50"
+						: "border-[#E8E6E1] dark:border-[#333] hover:border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-[#2A2A2A]"
 				}`}
 			>
-				<Upload size={32} className="text-gray-500" strokeWidth={1.2} />
-				<p className="text-sm text-gray-400 font-medium">
+				<Upload size={32} className="text-stone-400 dark:text-stone-500" strokeWidth={1.2} />
+				<p className="text-sm text-stone-500 dark:text-stone-400 font-medium">
 					Drop plan files here
 				</p>
-				<p className="text-[10px] text-gray-600">
+				<p className="text-xs text-stone-400 dark:text-stone-500">
 					.md &middot; .json &middot; .txt &middot; multiple OK
 				</p>
 				<input
@@ -282,7 +282,7 @@ export function FileSelectScreen({
 			{/* ── Sort header (only when files present) ── */}
 			{files.length > 0 && (
 				<div className="flex items-center justify-between">
-					<span className="text-xs text-gray-500">
+					<span className="text-xs text-stone-400 dark:text-stone-500">
 						{files.length} file{files.length !== 1 ? "s" : ""} selected
 						{errorCount > 0 && (
 							<span className="text-red-400 ml-1">
@@ -297,7 +297,7 @@ export function FileSelectScreen({
 					</span>
 					<button
 						onClick={cycleSort}
-						className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
+						className="text-xs text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:text-stone-300 flex items-center gap-1 transition-colors"
 					>
 						<ArrowUpDown size={10} />
 						Sort: {sortKey}
@@ -308,24 +308,24 @@ export function FileSelectScreen({
 
 			{/* ── File list ── */}
 			{files.length > 0 && (
-				<div className="border border-gray-700 rounded overflow-hidden">
+				<div className="border border-[#E8E6E1] dark:border-[#333] rounded overflow-hidden">
 					{sortedFiles.map((entry) => (
 						<div
 							key={entry.file.name}
-							className="flex items-center gap-3 px-3 py-2.5 border-b border-gray-700 last:border-b-0 hover:bg-gray-800/50 transition-colors"
+							className="flex items-center gap-3 px-3 py-2.5 border-b border-[#E8E6E1] dark:border-[#333] last:border-b-0 hover:bg-stone-100 dark:bg-[#2A2A2A] transition-colors"
 						>
 							{/* Checkbox (always checked since all are selected) */}
 							<CheckSquare size={14} className="text-blue-400 shrink-0" />
 
 							{/* Icon */}
-							<FileText size={14} className="text-gray-500 shrink-0" />
+							<FileText size={14} className="text-stone-400 dark:text-stone-500 shrink-0" />
 
 							{/* Name & details */}
 							<div className="flex-1 min-w-0">
-								<p className="text-xs text-gray-200 truncate font-medium">
+								<p className="text-xs text-stone-800 dark:text-stone-200 truncate font-medium">
 									{entry.file.name}
 								</p>
-								<p className="text-[10px] text-gray-500">
+								<p className="text-xs text-stone-400 dark:text-stone-500">
 									{formatSize(entry.file.size)}
 									{entry.statusMessage && (
 										<span className="ml-2 text-amber-400">
@@ -344,7 +344,7 @@ export function FileSelectScreen({
 									e.stopPropagation();
 									handleRemoveFile(entry.file.name);
 								}}
-								className="text-gray-600 hover:text-red-400 transition-colors p-0.5"
+								className="text-stone-400 dark:text-stone-500 hover:text-red-400 transition-colors p-0.5"
 								title="Remove file"
 							>
 								<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -360,16 +360,16 @@ export function FileSelectScreen({
 			{/* ── Execution mode toggle ── */}
 			{files.length > 0 && (
 				<div className="flex items-center gap-4">
-					<span className="text-xs text-gray-500 font-medium">
+					<span className="text-xs text-stone-400 dark:text-stone-500 font-medium">
 						Execution mode:
 					</span>
-					<div className="flex bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+					<div className="flex bg-white dark:bg-[#1E1E1E] rounded-lg border border-[#E8E6E1] dark:border-[#333] overflow-hidden">
 						<button
 							onClick={() => onExecutionModeChange("parallel")}
 							className={`px-3 py-1.5 text-xs font-medium transition-colors ${
 								executionMode === "parallel"
 									? "bg-blue-700 text-white"
-									: "text-gray-400 hover:text-gray-200"
+									: "text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:text-stone-200"
 							}`}
 						>
 							Parallel
@@ -379,13 +379,13 @@ export function FileSelectScreen({
 							className={`px-3 py-1.5 text-xs font-medium transition-colors ${
 								executionMode === "sequential"
 									? "bg-blue-700 text-white"
-									: "text-gray-400 hover:text-gray-200"
+									: "text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:text-stone-200"
 							}`}
 						>
 							Sequential
 						</button>
 					</div>
-					<span className="text-[10px] text-gray-600">
+					<span className="text-xs text-stone-400 dark:text-stone-500">
 						{executionMode === "parallel"
 							? "All plans run concurrently"
 							: "Each plan waits for the previous to finish"}
@@ -397,10 +397,10 @@ export function FileSelectScreen({
 			{files.length > 0 && (
 				<div className="flex flex-col gap-2">
 					<div className="flex items-center gap-4">
-						<span className="text-xs text-gray-500 font-medium">
+						<span className="text-xs text-stone-400 dark:text-stone-500 font-medium">
 							Scale mode override:
 						</span>
-						<span className="text-[10px] text-gray-600">
+						<span className="text-xs text-stone-400 dark:text-stone-500">
 							Overrides the plan's embedded scale mode for execution
 						</span>
 					</div>
@@ -412,11 +412,11 @@ export function FileSelectScreen({
 								className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-left ${
 									scaleMode === mode
 										? "bg-blue-700 text-white border-blue-600"
-										: "bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-gray-200"
+										: "bg-white dark:bg-[#1E1E1E] text-stone-500 dark:text-stone-400 border-[#E8E6E1] dark:border-[#333] hover:border-stone-200 dark:border-stone-700 hover:text-stone-800 dark:text-stone-200"
 								}`}
 							>
 								<span className="font-semibold">{mode.replace(/_/g, " ")}</span>
-								<span className="block text-[9px] opacity-70 mt-0.5">
+								<span className="block text-xs opacity-70 mt-0.5">
 									{SCALE_MODE_DESCRIPTIONS[mode]}
 								</span>
 							</button>

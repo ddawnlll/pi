@@ -7,14 +7,10 @@
  */
 
 import { CheckCircle, CircleAlert, Clock, GitBranch, Loader2, ScrollText, XCircle } from "lucide-react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import { useCallback, useEffect, useState } from "react";
 import type { FC } from "react";
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const ACCENT = "text-stone-600 dark:text-stone-400";
 const ERR = "text-red-500";
 const WARN = "text-amber-500";
 const OK = "text-green-500";
@@ -231,17 +227,17 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 					<ScrollText size={16} className={ACCENT} />
 					<h3 className={`text-xs font-semibold ${TXT}`}>Plan Intake</h3>
 					{plan.executionBlocked && (
-						<span className={`text-[10px] px-1.5 py-0.5 rounded ${WARN} bg-amber-50 dark:bg-amber-900/20`}>
+						<span className={`text-xs px-1.5 py-0.5 rounded ${WARN} bg-amber-50 dark:bg-amber-900/20`}>
 							Blocked
 						</span>
 					)}
 				</div>
 				<div className="flex items-center gap-2">
-					<span className={`text-[10px] ${statusColor(plan.status)}`}>
+					<span className={`text-xs ${statusColor(plan.status)}`}>
 						{statusLabel(plan.status)}
 					</span>
 					{plan.analyzedAt && (
-						<span className={`text-[10px] ${MUT}`}>
+						<span className={`text-xs ${MUT}`}>
 							{new Date(plan.analyzedAt).toLocaleTimeString()}
 						</span>
 					)}
@@ -272,26 +268,26 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 						{/* Status summary */}
 						<div className={`p-3 rounded-lg border ${BORD} space-y-2`}>
 							<div className="flex items-center justify-between">
-								<span className={`text-[10px] font-medium ${MUT}`}>Status</span>
+								<span className={`text-xs font-medium ${MUT}`}>Status</span>
 								<span className={`text-xs ${statusColor(plan.status)}`}>{statusLabel(plan.status)}</span>
 							</div>
 							<div className="grid grid-cols-2 gap-2">
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Batches</span>
+									<span className={`text-xs ${MUT}`}>Batches</span>
 									<p className={`text-sm font-semibold ${TXT}`}>{bp.totalBatches}</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Parallelism</span>
+									<span className={`text-xs ${MUT}`}>Parallelism</span>
 									<p className={`text-sm font-semibold ${TXT}`}>
 										{bp.effectiveParallelism} / {bp.requestedParallelism}
 									</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Critical Path</span>
+									<span className={`text-xs ${MUT}`}>Critical Path</span>
 									<p className={`text-sm font-semibold ${TXT}`}>{bp.criticalPathLength} steps</p>
 								</div>
 								<div>
-									<span className={`text-[10px] ${MUT}`}>Over-serialized</span>
+									<span className={`text-xs ${MUT}`}>Over-serialized</span>
 									<p className={`text-sm font-semibold ${bp.isOverSerialized ? ERR : OK}`}>
 										{bp.isOverSerialized ? "Yes" : "No"}
 									</p>
@@ -311,7 +307,7 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 						{/* Bottlenecks */}
 						{plan.bottlenecks.length > 0 && (
 							<div className="space-y-2">
-								<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider`}>
+								<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider`}>
 									Bottlenecks ({plan.bottlenecks.length})
 								</h4>
 								{plan.bottlenecks.map((b, i) => {
@@ -322,8 +318,8 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 												{severityIcon(b.severity)}
 												<div>
 													<p className={`text-xs font-medium ${TXT}`}>{label}{b.reason}</p>
-													<p className={`text-[10px] ${MUT} mt-0.5`}>{b.impact}</p>
-													<p className={`text-[10px] ${ACCENT} mt-0.5`}>{b.suggestion}</p>
+													<p className={`text-xs ${MUT} mt-0.5`}>{b.impact}</p>
+													<p className={`text-xs ${ACCENT} mt-0.5`}>{b.suggestion}</p>
 												</div>
 											</div>
 										</div>
@@ -335,13 +331,13 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 						{/* Proposals summary */}
 						{plan.proposals.length > 0 && (
 							<div className="space-y-2">
-								<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider`}>
+								<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider`}>
 									Proposals ({plan.proposals.length})
 								</h4>
 								{plan.proposals.filter((p) => p.approvalStatus === "pending").slice(0, 3).map((p) => (
 									<div key={p.id} className={`p-2.5 rounded-lg border ${BORD}`}>
 										<p className={`text-xs ${TXT}`}>{p.description}</p>
-										<span className={`text-[10px] ${WARN}`}>Requires approval</span>
+										<span className={`text-xs ${WARN}`}>Requires approval</span>
 									</div>
 								))}
 							</div>
@@ -351,16 +347,16 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 
 				{activeTab === "batches" && (
 					<div className="space-y-2">
-						<h4 className={`text-[10px] font-medium ${MUT} uppercase tracking-wider`}>
+						<h4 className={`text-xs font-medium ${MUT} uppercase tracking-wider`}>
 							Topological Batches ({bp.totalBatches})
 						</h4>
 						{bp.batches.map((batch) => (
 							<div key={batch.batchIndex} className={`p-2.5 rounded-lg border ${BORD}`}>
 								<div className="flex items-center justify-between mb-1">
-									<span className={`text-[10px] font-medium ${ACCENT}`}>
+									<span className={`text-xs font-medium ${ACCENT}`}>
 										Batch {batch.batchIndex}
 									</span>
-									<span className={`text-[10px] ${MUT}`}>
+									<span className={`text-xs ${MUT}`}>
 										{batch.width} workspace(s)
 									</span>
 								</div>
@@ -368,7 +364,7 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 									{batch.workspaceIds.map((wsId) => (
 										<span
 											key={wsId}
-											className={`text-[10px] px-1.5 py-0.5 rounded ${SURF} border ${BORD} ${TXT}`}
+											className={`text-xs px-1.5 py-0.5 rounded ${SURF} border ${BORD} ${TXT}`}
 										>
 											{wsId}
 										</span>
@@ -393,7 +389,7 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 										<div className="flex items-start justify-between gap-2">
 											<div className="flex-1">
 												<p className={`text-xs font-medium ${TXT}`}>{p.description}</p>
-												<span className={`text-[10px] ${statusColor(p.approvalStatus)}`}>
+												<span className={`text-xs ${statusColor(p.approvalStatus)}`}>
 													{statusLabel(p.approvalStatus)}
 												</span>
 											</div>
@@ -420,7 +416,7 @@ export const PlanIntakePanel: FC<PlanIntakePanelProps> = ({ className = "" }) =>
 										<div>
 											<p className={`text-xs ${TXT}`}>{d.message}</p>
 											{d.code && (
-												<span className={`text-[10px] ${MUT}`}>Code: {d.code}</span>
+												<span className={`text-xs ${MUT}`}>Code: {d.code}</span>
 											)}
 										</div>
 									</div>

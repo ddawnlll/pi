@@ -27,15 +27,10 @@ import {
 	User,
 } from "lucide-react";
 import { useWorkerContext } from "../hooks/useWorkerContext";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../tokens";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
 const ERR_TXT = "text-red-600 dark:text-red-400";
 const GOOD_TXT = "text-emerald-600 dark:text-emerald-400";
 const WARN_TXT = "text-amber-600 dark:text-amber-400";
@@ -111,16 +106,16 @@ export function WorkerContextInspector({
 			<div className="flex items-center justify-between px-3 py-2 border-b ${BORD}">
 				<div className="flex items-center gap-2">
 					<Activity size={13} className={ACC_TXT} />
-					<span className={`text-[10px] font-semibold uppercase tracking-widest ${MUT}`}>
+					<span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
 						Worker Context
 					</span>
 				</div>
 				{context.stage && (
-					<span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+					<span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
 						context.stage === "active" ? `${ACC_BG} ${ACC_TXT}` :
 						context.stage === "failed" ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" :
 						context.stage === "complete" ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400" :
-						"bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400"
+						"bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500"
 					}`}>
 						{context.stage}
 					</span>
@@ -138,7 +133,7 @@ export function WorkerContextInspector({
 							</p>
 						)}
 						{context.role && (
-							<p className={`text-[10px] ${MUT}`}>
+							<p className={`text-xs ${MUT}`}>
 								Role: {context.role} &middot; Attempt {context.attempts}
 							</p>
 						)}
@@ -150,11 +145,11 @@ export function WorkerContextInspector({
 					<div className="flex items-start gap-2">
 						<FileCode size={13} className={`mt-0.5 shrink-0 ${MUT}`} />
 						<div className="min-w-0 flex-1 space-y-0.5">
-							<span className={`text-[10px] ${MUT}`}>
+							<span className={`text-xs ${MUT}`}>
 								{context.touchedFiles.length} file{context.touchedFiles.length !== 1 ? "s" : ""} changed
 							</span>
 							{context.touchedFiles.slice(0, 5).map((f) => (
-								<div key={f.path} className="flex items-center gap-1 text-[10px] font-mono">
+								<div key={f.path} className="flex items-center gap-1 text-xs font-mono">
 									<span className={
 										f.change === "created" ? GOOD_TXT :
 										f.change === "modified" ? ACC_TXT :
@@ -166,7 +161,7 @@ export function WorkerContextInspector({
 								</div>
 							))}
 							{context.touchedFiles.length > 5 && (
-								<p className={`text-[10px] ${MUT}`}>
+								<p className={`text-xs ${MUT}`}>
 									...and {context.touchedFiles.length - 5} more
 								</p>
 							)}
@@ -179,7 +174,7 @@ export function WorkerContextInspector({
 					<div className="flex items-start gap-2">
 						<Terminal size={13} className={`mt-0.5 shrink-0 ${MUT}`} />
 						<div className="min-w-0 flex-1">
-							<p className={`text-[10px] font-mono ${TXT} truncate`} title={context.lastCommand}>
+							<p className={`text-xs font-mono ${TXT} truncate`} title={context.lastCommand}>
 								{context.lastCommand.length > 80
 									? context.lastCommand.slice(0, 80) + "..."
 									: context.lastCommand}
@@ -193,7 +188,7 @@ export function WorkerContextInspector({
 					{directiveCount > 0 && (
 						<div className="flex items-center gap-1">
 							<FileText size={11} className={ACC_TXT} />
-							<span className={`text-[10px] ${ACC_TXT}`}>
+							<span className={`text-xs ${ACC_TXT}`}>
 								{directiveCount} directive{directiveCount !== 1 ? "s" : ""}
 							</span>
 						</div>
@@ -201,7 +196,7 @@ export function WorkerContextInspector({
 					{escalationCount > 0 && (
 						<div className="flex items-center gap-1">
 							<AlertTriangle size={11} className={WARN_TXT} />
-							<span className={`text-[10px] ${WARN_TXT}`}>
+							<span className={`text-xs ${WARN_TXT}`}>
 								{escalationCount} escalation{escalationCount !== 1 ? "s" : ""}
 							</span>
 						</div>
@@ -209,7 +204,7 @@ export function WorkerContextInspector({
 					{context.humanDirective && (
 						<div className="flex items-center gap-1">
 							<AlertCircle size={11} className={ACC_TXT} />
-							<span className={`text-[10px] ${ACC_TXT}`}>Has human directive</span>
+							<span className={`text-xs ${ACC_TXT}`}>Has human directive</span>
 						</div>
 					)}
 				</div>
@@ -220,7 +215,7 @@ export function WorkerContextInspector({
 						<CheckCircle size={11} className={GOOD_TXT} />
 						<a
 							href={context.transcriptUrl}
-							className={`text-[10px] ${ACC_TXT} hover:underline`}
+							className={`text-xs ${ACC_TXT} hover:underline`}
 							target="_blank"
 							rel="noopener noreferrer"
 						>

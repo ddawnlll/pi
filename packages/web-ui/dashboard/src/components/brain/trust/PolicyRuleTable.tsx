@@ -11,8 +11,8 @@ export function PolicyRuleTable({ rules, onToggle, loading }: PolicyRuleTablePro
 	if (rules.length === 0) {
 		return (
 			<div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300 mb-3">Policy Rules</h3>
-				<p className="text-[10px] text-stone-400">No policy rules configured.</p>
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200 mb-3">Policy Rules</h3>
+				<p className="text-xs text-stone-400">No policy rules configured.</p>
 			</div>
 		);
 	}
@@ -20,7 +20,7 @@ export function PolicyRuleTable({ rules, onToggle, loading }: PolicyRuleTablePro
 	return (
 		<div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
 			<div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800">
-				<h3 className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+				<h3 className="text-xs font-semibold text-stone-800 dark:text-stone-200">
 					Policy Rules ({rules.length})
 				</h3>
 			</div>
@@ -41,12 +41,12 @@ export function PolicyRuleTable({ rules, onToggle, loading }: PolicyRuleTablePro
 							/>
 						</button>
 						<div className="flex-1 min-w-0">
-							<p className="text-[10px] font-medium text-stone-700 dark:text-stone-300 truncate">
+							<p className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
 								{rule.name}
 							</p>
-							<p className="text-[9px] text-stone-400 truncate">{rule.description}</p>
+							<p className="text-xs text-stone-400 truncate">{rule.description}</p>
 						</div>
-						<span className={`shrink-0 px-1.5 py-0.5 text-[8px] font-medium rounded-full ${
+						<span className={`shrink-0 px-1.5 py-0.5 text-xs font-medium rounded-full ${
 							rule.effect === "allow"
 								? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
 								: rule.effect === "deny"

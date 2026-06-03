@@ -33,7 +33,7 @@ export function ReflectionTimeline({ reflections, stats, loading, error, onSelec
 	return (
 		<div className="space-y-4">
 			{stats && (
-				<div className="flex items-center gap-4 text-[10px] text-stone-400">
+				<div className="flex items-center gap-4 text-xs text-stone-400">
 					<span>{stats.total} reflections</span>
 					<span>{stats.memoriesCreated} memories created</span>
 					<span>{stats.suggestionsGenerated} suggestions</span>

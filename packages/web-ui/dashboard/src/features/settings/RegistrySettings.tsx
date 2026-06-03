@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BG, SURF, SURF_ALT, BORD, BORD_B, TXT, MUT, ACC_BG, ACC_TXT, PRI, SHADOW_CARD, SHADOW_PANEL, SHADOW_ACTIVE, SHADOW_MODAL, FOCUS_RING } from "../../tokens";
 import {
 	AlertCircle,
 	Check,
@@ -31,12 +32,6 @@ import {
 // Style constants
 // ---------------------------------------------------------------------------
 
-const SURF = "bg-white dark:bg-[#1E1E1E]";
-const BORD = "border-[#E8E6E1] dark:border-[#333]";
-const TXT = "text-stone-800 dark:text-stone-200";
-const MUT = "text-stone-400 dark:text-stone-500";
-const ACC_BG = "bg-[#EBF2FF] dark:bg-[#1A2A44]";
-const ACC_TXT = "text-blue-700 dark:text-blue-300";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -318,18 +313,18 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 		<div className={`${SURF} h-full flex flex-col overflow-hidden ${className}`}>
 			{/* Header */}
 			<div className={`shrink-0 flex items-center justify-between px-5 h-11 border-b ${BORD}`}>
-				<h2 className={`text-[13px] font-semibold ${TXT}`}>Registry Settings</h2>
+				<h2 className={`text-sm font-semibold ${TXT}`}>Registry Settings</h2>
 				<div className="flex items-center gap-2">
 					<button
 						onClick={load}
-						className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-medium ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
+						className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
 					>
 						<RefreshCw size={12} /> Reset
 					</button>
 					<button
 						onClick={handleSave}
 						disabled={saving}
-						className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold transition-colors ${
+						className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold transition-colors ${
 							saving
 								? "bg-stone-200 dark:bg-[#333] text-stone-400 dark:text-stone-500 cursor-not-allowed"
 								: "bg-blue-600 text-white hover:bg-blue-700"
@@ -366,13 +361,13 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 						<div className={`flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-[#222] border-b ${BORD}`}>
 							<div className="flex items-center gap-2">
 								{sectionToggle("local")}
-								<h3 className={`text-[12px] font-semibold ${TXT}`}>Local Registry Paths</h3>
+								<h3 className={`text-xs font-semibold ${TXT}`}>Local Registry Paths</h3>
 							</div>
-							<span className={`text-[10px] ${MUT}`}>{settings.localRegistryPaths.length} path{settings.localRegistryPaths.length !== 1 ? "s" : ""}</span>
+							<span className={`text-xs ${MUT}`}>{settings.localRegistryPaths.length} path{settings.localRegistryPaths.length !== 1 ? "s" : ""}</span>
 						</div>
 						{expandedSection === "local" && (
 							<div className="p-4 space-y-2">
-								<p className={`text-[11px] ${MUT} mb-2`}>
+								<p className={`text-xs ${MUT} mb-2`}>
 									Directories where Pi scans for locally installed extensions and skills.
 								</p>
 								{settings.localRegistryPaths.length === 0 ? (
@@ -404,9 +399,9 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 									<button
 										onClick={addLocalPath}
 										disabled={!newLocalPath.trim()}
-										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-[11px] font-medium transition-colors ${
+										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
 											newLocalPath.trim()
-												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355}`
+												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355]`
 												: `${MUT} bg-stone-100 dark:bg-[#222] cursor-not-allowed`
 										}`}
 									>
@@ -422,15 +417,15 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 						<div className={`flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-[#222] border-b ${BORD}`}>
 							<div className="flex items-center gap-2">
 								{sectionToggle("remote")}
-								<h3 className={`text-[12px] font-semibold ${TXT}`}>Remote Registries</h3>
+								<h3 className={`text-xs font-semibold ${TXT}`}>Remote Registries</h3>
 							</div>
-							<span className={`text-[10px] ${MUT}`}>
+							<span className={`text-xs ${MUT}`}>
 								{settings.remoteRegistries.filter(r => r.enabled).length} / {settings.remoteRegistries.length} active
 							</span>
 						</div>
 						{expandedSection === "remote" && (
 							<div className="p-4 space-y-2">
-								<p className={`text-[11px] ${MUT} mb-2`}>
+								<p className={`text-xs ${MUT} mb-2`}>
 									Remote registries for discovering and installing community extensions and skills.
 								</p>
 								{settings.remoteRegistries.length === 0 ? (
@@ -450,7 +445,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 											</button>
 											<div className="flex-1 min-w-0">
 												<div className={`text-xs font-medium ${TXT}`}>{reg.name}</div>
-												<div className={`text-[10px] font-mono ${MUT} truncate`}>{reg.url}</div>
+												<div className={`text-xs font-mono ${MUT} truncate`}>{reg.url}</div>
 											</div>
 											<button
 												onClick={() => removeRemoteRegistry(reg.id)}
@@ -480,9 +475,9 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 									<button
 										onClick={addRemoteRegistry}
 										disabled={!newRemoteUrl.trim() || !newRemoteName.trim()}
-										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-[11px] font-medium transition-colors ${
+										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
 											newRemoteUrl.trim() && newRemoteName.trim()
-												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355}`
+												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355]`
 												: `${MUT} bg-stone-100 dark:bg-[#222] cursor-not-allowed`
 										}`}
 									>
@@ -498,13 +493,13 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 						<div className={`flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-[#222] border-b ${BORD}`}>
 							<div className="flex items-center gap-2">
 								{sectionToggle("channels")}
-								<h3 className={`text-[12px] font-semibold ${TXT}`}>Trusted Channels</h3>
+								<h3 className={`text-xs font-semibold ${TXT}`}>Trusted Channels</h3>
 							</div>
-							<span className={`text-[10px] ${MUT}`}>{settings.trustedChannels.length} channel{settings.trustedChannels.length !== 1 ? "s" : ""}</span>
+							<span className={`text-xs ${MUT}`}>{settings.trustedChannels.length} channel{settings.trustedChannels.length !== 1 ? "s" : ""}</span>
 						</div>
 						{expandedSection === "channels" && (
 							<div className="p-4 space-y-2">
-								<p className={`text-[11px] ${MUT} mb-2`}>
+								<p className={`text-xs ${MUT} mb-2`}>
 									Update channels that are trusted for automatic or approval-based installations.
 								</p>
 								{settings.trustedChannels.length === 0 ? (
@@ -512,7 +507,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 								) : (
 									<div className="flex flex-wrap gap-2">
 										{settings.trustedChannels.map((channel) => (
-											<div key={channel} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium border ${BORD} ${ACC_BG} ${ACC_TXT}`}>
+											<div key={channel} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium border ${BORD} ${ACC_BG} ${ACC_TXT}`}>
 												<span>{channel}</span>
 												<button
 													onClick={() => removeChannel(channel)}
@@ -536,9 +531,9 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 									<button
 										onClick={addChannel}
 										disabled={!newChannel.trim()}
-										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-[11px] font-medium transition-colors ${
+										className={`flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-medium transition-colors ${
 											newChannel.trim()
-												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355}`
+												? `${ACC_BG} ${ACC_TXT} hover:bg-blue-100 dark:hover:bg-[#1E3355]`
 												: `${MUT} bg-stone-100 dark:bg-[#222] cursor-not-allowed`
 										}`}
 									>
@@ -554,9 +549,9 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 						<div className={`flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-[#222] border-b ${BORD}`}>
 							<div className="flex items-center gap-2">
 								{sectionToggle("policy")}
-								<h3 className={`text-[12px] font-semibold ${TXT}`}>Update Policy</h3>
+								<h3 className={`text-xs font-semibold ${TXT}`}>Update Policy</h3>
 							</div>
-							<span className={`text-[10px] font-medium ${ACC_TXT}`}>
+							<span className={`text-xs font-medium ${ACC_TXT}`}>
 								{settings.updatePolicy.mode === "auto" ? "Automatic" : settings.updatePolicy.mode === "manual" ? "Manual" : "Approval required"}
 							</span>
 						</div>
@@ -564,13 +559,13 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 							<div className="p-4 space-y-4">
 								{/* Update mode */}
 								<div>
-									<label className={`block text-[11px] font-medium ${TXT} mb-1.5`}>Update Mode</label>
+									<label className={`block text-xs font-medium ${TXT} mb-1.5`}>Update Mode</label>
 									<div className="flex gap-2">
 										{(["auto", "manual", "approval"] as const).map((mode) => (
 											<button
 												key={mode}
 												onClick={() => setPolicyField("mode", mode)}
-												className={`flex-1 h-8 rounded-lg text-[11px] font-medium border transition-colors ${
+												className={`flex-1 h-8 rounded-lg text-xs font-medium border transition-colors ${
 													settings.updatePolicy.mode === mode
 														? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
 														: `${BORD} ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-[#222]`
@@ -580,7 +575,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 											</button>
 										))}
 									</div>
-									<p className={`text-[10px] ${MUT} mt-1`}>
+									<p className={`text-xs ${MUT} mt-1`}>
 										{settings.updatePolicy.mode === "auto"
 											? "Updates install automatically when available."
 											: settings.updatePolicy.mode === "manual"
@@ -592,7 +587,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 
 								{/* Check interval */}
 								<div>
-									<label className={`block text-[11px] font-medium ${TXT} mb-1.5`}>
+									<label className={`block text-xs font-medium ${TXT} mb-1.5`}>
 										Check Interval: every {settings.updatePolicy.checkIntervalHours} hour{settings.updatePolicy.checkIntervalHours !== 1 ? "s" : ""}
 									</label>
 									<input
@@ -603,7 +598,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 										onChange={(e) => setPolicyField("checkIntervalHours", Number(e.target.value))}
 										className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-stone-200 dark:bg-[#333] accent-blue-600"
 									/>
-									<div className="flex justify-between text-[9px] ${MUT} mt-0.5">
+									<div className="flex justify-between text-xs ${MUT} mt-0.5">
 										<span>1 hour</span>
 										<span>7 days</span>
 									</div>
@@ -643,7 +638,7 @@ export function RegistrySettings({ className = "" }: RegistrySettingsProps) {
 					</div>
 
 					{/* ── Footer info ── */}
-					<div className={`text-[10px] ${MUT} text-center pt-2 pb-4`}>
+					<div className={`text-xs ${MUT} text-center pt-2 pb-4`}>
 						Registry settings are persisted to the backend. <ExternalLink size={9} className="inline" /> Learn more
 					</div>
 				</div>

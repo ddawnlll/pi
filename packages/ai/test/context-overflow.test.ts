@@ -126,9 +126,9 @@ describe("Context overflow error handling", () => {
 	describe("GitHub Copilot (OAuth)", () => {
 		// OpenAI model via Copilot
 		it.skipIf(!githubCopilotToken)(
-			"gpt-4o - should detect overflow via isContextOverflow",
+			"gemini-2.5-pro - should detect overflow via isContextOverflow",
 			async () => {
-				const model = getModel("github-copilot", "gpt-4o");
+				const model = getModel("github-copilot", "gemini-2.5-pro");
 				const result = await testContextOverflow(model, githubCopilotToken!);
 				logResult(result);
 
@@ -174,7 +174,7 @@ describe("Context overflow error handling", () => {
 	});
 
 	describe.skipIf(!process.env.OPENAI_API_KEY)("OpenAI Responses", () => {
-		it("gpt-4o - should detect overflow via isContextOverflow", async () => {
+		it("gemini-2.5-pro - should detect overflow via isContextOverflow", async () => {
 			const model = getModel("openai", "gpt-4o");
 			const result = await testContextOverflow(model, process.env.OPENAI_API_KEY!);
 			logResult(result);

@@ -19,7 +19,7 @@ export function SchedulePicker({ value, onChange, customTime, onCustomTimeChange
 					<button
 						key={opt.value}
 						onClick={() => onChange(opt.value)}
-						className={`flex-1 px-3 py-1.5 text-[10px] font-medium rounded-lg transition-colors ${
+						className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
 							value === opt.value
 								? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
 								: "bg-stone-100 dark:bg-stone-800 text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700"
