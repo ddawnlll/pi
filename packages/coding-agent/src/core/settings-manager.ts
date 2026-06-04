@@ -155,7 +155,7 @@ export interface MemoryGuardSettings {
 }
 
 export interface TokenContextSettings {
-	/** Enable token context runtime (default: false) */
+	/** Enable token context runtime (default: true) */
 	enabled?: boolean;
 	/** Mode: disabled, observe_only, shadow, active_safe, active_experimental (default: observe_only) */
 	mode?: "disabled" | "observe_only" | "shadow" | "active_safe" | "active_experimental";

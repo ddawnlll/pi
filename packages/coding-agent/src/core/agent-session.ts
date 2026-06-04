@@ -343,7 +343,9 @@ export class AgentSession {
 		// Initialize self-modification firewall (non-autonomous by default unless overridden)
 		this._selfModFirewall = createSelfModificationFirewall(config.cwd, false);
 
-		// Initialize P43 Token Context Runtime if enabled
+		// Initialize P43 Token Context Runtime if enabled (before building runtime so
+		// tools get the runtime reference, but after extension runner is needed for RTK
+		// detection which can be updated later via a noop since extension sources are optional)
 		this._tokenContextRuntime = this._initTokenContextRuntime();
 
 		// Always subscribe to agent events for internal handling
@@ -375,6 +377,7 @@ export class AgentSession {
 		if (!isEnabled) return undefined;
 
 		const s = tcSettings ?? {};
+
 		const config: TokenContextConfig = {
 			...DEFAULT_TOKEN_CONTEXT_CONFIG,
 			enabled: true,
@@ -2506,6 +2509,10 @@ export class AgentSession {
 		const previousFlagValues = this._extensionRunner.getFlagValues();
 		await emitSessionShutdownEvent(this._extensionRunner, { type: "session_shutdown", reason: "reload" });
 		await this.settingsManager.reload();
+
+		// Reinitialize Token Context Runtime with new settings
+		this._tokenContextRuntime = this._initTokenContextRuntime();
+
 		resetApiProviders();
 		await this._resourceLoader.reload();
 		this._buildRuntime({

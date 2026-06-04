@@ -135,8 +135,8 @@ function ChannelPill({
 interface LiveLogTerminalProps {
 	/** Workers to show in the tab switcher. */
 	workers: WorkerInfo[];
-	/** Real journal events from SSE plan events stream. */
-	planEvents?: JournalEvent[];
+	/** Plan execution ID for transcript stream. */
+	planExecId: string | null;
 	/** Optional class name for outer container. */
 	className?: string;
 }
@@ -152,7 +152,7 @@ interface LiveLogTerminalProps {
  * - Auto-scroll can be paused
  * - UI remains responsive with capped logs
  */
-export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTerminalProps) {
+export function LiveLogTerminal({ workers, planExecId, className }: LiveLogTerminalProps) {
 	const {
 		filteredLogs,
 		activeChannel,
@@ -162,7 +162,7 @@ export function LiveLogTerminal({ workers, planEvents, className }: LiveLogTermi
 		autoScroll,
 		setAutoScroll,
 		logCounts,
-	} = useLiveLogTerminal(workers, planEvents);
+	} = useLiveLogTerminal(workers, planExecId);
 
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const userScrolledUpRef = useRef(false);

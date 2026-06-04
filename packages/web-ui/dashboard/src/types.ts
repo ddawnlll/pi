@@ -35,6 +35,7 @@ export interface WorkerInfo {
 	snapshotPath?: string;
 	reportPath?: string;
 	error?: string | null;
+	workspaceId?: string;
 }
 
 export interface ExecutionEvent {

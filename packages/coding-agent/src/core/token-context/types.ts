@@ -41,6 +41,8 @@ export interface TokenContextConfig {
 		minAutoApplySimilarity: number;
 		minCandidateSimilarity: number;
 	};
+	/** Extension source names for RTK detection */
+	extensionSources?: string[];
 }
 
 export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {

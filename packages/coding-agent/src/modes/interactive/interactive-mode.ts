@@ -3910,8 +3910,10 @@ export class InteractiveMode {
 					onShowTerminalProgressChange: (enabled) => {
 						this.settingsManager.setShowTerminalProgress(enabled);
 					},
-					onTokenContextModeChange: (mode) => {
+					onTokenContextModeChange: async (mode) => {
 						this.settingsManager.setTokenContextMode(mode);
+						// Reload session to apply new token context mode
+						await this.session.reload();
 					},
 					onWarningsChange: (warnings) => {
 						this.settingsManager.setWarnings(warnings);
@@ -5148,7 +5150,9 @@ export class InteractiveMode {
 	}
 
 	private generateSavingsReport(tcSettings?: TokenContextSettings): string {
-		if (!tcSettings?.enabled) {
+		// Default: enabled with observe_only mode
+		const isEnabled = tcSettings?.enabled ?? true;
+		if (!isEnabled) {
 			return (
 				"=== P43 Token Context Savings ===\n\n" +
 				"Token context runtime is not enabled. Set tokenContext.enabled=true in settings.\n\n" +
@@ -5156,21 +5160,40 @@ export class InteractiveMode {
 			);
 		}
 
+		// Normalize settings with defaults
+		const settings: Required<TokenContextSettings> = {
+			enabled: tcSettings?.enabled ?? true,
+			mode: (tcSettings?.mode as any) ?? "observe_only",
+			rawCache: {
+				maxBytes: tcSettings?.rawCache?.maxBytes ?? 52428800,
+			},
+			llmFallback: {
+				maxTokens: tcSettings?.llmFallback?.maxTokens ?? 2000,
+			},
+			changeLedger: {
+				maxDeltaChainBeforeCheckpoint: tcSettings?.changeLedger?.maxDeltaChainBeforeCheckpoint ?? 5,
+			},
+			providerCalibration: {
+				requiredForP44: tcSettings?.providerCalibration?.requiredForP44 ?? true,
+			},
+			tinyFileThresholdBytes: tcSettings?.tinyFileThresholdBytes ?? 256,
+		};
+
 		const lines: string[] = [];
 		lines.push("=== P43 Token Context Savings ===\n");
-		lines.push(`Mode: ${tcSettings.mode ?? "observe_only"}`);
+		lines.push(`Mode: ${settings.mode}`);
 		lines.push("P44 Eligible: NO (no provider calibration)");
 		lines.push("");
 		lines.push("Use the getSavingsReport() API to view detailed per-mechanism savings.");
 		lines.push("Set mode to 'active_safe' to enable read hash cache, smart read, and change ledger.");
 		lines.push("");
 		lines.push("Settings:");
-		lines.push(`  rawCache.maxBytes: ${tcSettings.rawCache?.maxBytes ?? 52428800}`);
-		lines.push(`  llmFallback.maxTokens: ${tcSettings.llmFallback?.maxTokens ?? 2000}`);
+		lines.push(`  rawCache.maxBytes: ${settings.rawCache.maxBytes}`);
+		lines.push(`  llmFallback.maxTokens: ${settings.llmFallback.maxTokens}`);
 		lines.push(
-			`  changeLedger.maxDeltaChainBeforeCheckpoint: ${tcSettings.changeLedger?.maxDeltaChainBeforeCheckpoint ?? 5}`,
+			`  changeLedger.maxDeltaChainBeforeCheckpoint: ${settings.changeLedger.maxDeltaChainBeforeCheckpoint}`,
 		);
-		lines.push(`  providerCalibration.requiredForP44: ${tcSettings.providerCalibration?.requiredForP44 ?? true}`);
+		lines.push(`  providerCalibration.requiredForP44: ${settings.providerCalibration.requiredForP44}`);
 
 		return lines.join("\n");
 	}

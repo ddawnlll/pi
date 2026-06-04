@@ -1171,6 +1171,27 @@ async function generateModels() {
 	}
 
 
+	// Add missing Qwen3.7 Plus for OpenCode Go (models.dev lists it but not yet generated)
+	if (!allModels.some((m) => m.provider === "opencode-go" && m.id === "qwen3.7-plus")) {
+		allModels.push({
+			id: "qwen3.7-plus",
+			name: "Qwen3.7 Plus",
+			api: "anthropic-messages",
+			baseUrl: "https://opencode.ai/zen/go",
+			provider: "opencode-go",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 0.4,
+				output: 1.6,
+				cacheRead: 0.04,
+				cacheWrite: 0.5,
+			},
+			contextWindow: 262144,
+			maxTokens: 65536,
+		});
+	}
+
 	// Add missing EU Opus 4.6 profile
 	if (!allModels.some((m) => m.provider === "amazon-bedrock" && m.id === "eu.anthropic.claude-opus-4-6-v1")) {
 		allModels.push({

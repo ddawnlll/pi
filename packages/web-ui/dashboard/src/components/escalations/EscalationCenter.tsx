@@ -149,8 +149,8 @@ export function EscalationCenter({
     return (
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${className}`}>
         <div className={`flex items-center justify-center gap-3 ${MUT} py-16`}>
-          <Loader2 size={18} className="animate-spin" />
-          <span className="text-sm">Loading escalations...</span>
+          <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+          <span className="text-sm">Loading Escalations…</span>
         </div>
       </div>
     );
@@ -161,15 +161,16 @@ export function EscalationCenter({
     return (
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${className}`}>
         <div className={`flex flex-col items-center justify-center gap-3 ${ERR_TXT} py-16`}>
-          <ShieldAlert size={24} />
-          <span className="text-sm font-medium">Failed to load escalations</span>
+          <ShieldAlert size={24} aria-hidden="true" />
+          <span className="text-sm font-medium">Failed To Load Escalations</span>
           <span className={`text-xs ${MUT}`}>{error.message}</span>
           {onRefetch && (
             <button
               onClick={onRefetch}
-              className={`inline-flex items-center gap-1 text-xs ${ACC_TXT} hover:underline`}
+              className={`inline-flex items-center gap-1 text-xs ${ACC_TXT} hover:underline focus-visible:ring-2 ${FOCUS_RING}`}
+              aria-label="Retry loading escalations"
             >
-              <RefreshCw size={12} />
+              <RefreshCw size={12} aria-hidden="true" />
               Retry
             </button>
           )}
@@ -187,7 +188,7 @@ export function EscalationCenter({
           className={`shrink-0 flex items-center justify-between px-3 py-2 border-b ${BORD} ${SURF}`}
         >
           <div className="flex items-center gap-2">
-            <ShieldAlert size={13} className={GOOD_TXT} />
+            <ShieldAlert size={13} className={GOOD_TXT} aria-hidden="true" />
             <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Escalation Center
             </span>
@@ -195,17 +196,18 @@ export function EscalationCenter({
           {onRefetch && (
             <button
               onClick={onRefetch}
-              className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+              className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 focus-visible:ring-2 ${FOCUS_RING}`}
               title="Refresh"
+              aria-label="Refresh escalations"
             >
-              <RefreshCw size={12} />
+              <RefreshCw size={12} aria-hidden="true" />
             </button>
           )}
         </div>
 
         <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${MUT}`}>
-          <CheckCircle size={28} className={GOOD_TXT} />
-          <p className="text-sm font-medium">No escalations</p>
+          <CheckCircle size={28} className={GOOD_TXT} aria-hidden="true" />
+          <p className="text-sm font-medium">No Escalations</p>
           <p className={`text-xs ${MUT} max-w-sm text-center`}>
             All workspaces are proceeding without escalation. Escalations appear here when a workspace is blocked and needs your attention.
           </p>
@@ -224,9 +226,9 @@ export function EscalationCenter({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {activeCount > 0 ? (
-              <AlertTriangle size={13} className={WARN_TXT} />
+              <AlertTriangle size={13} className={WARN_TXT} aria-hidden="true" />
             ) : (
-              <CheckCircle size={13} className={GOOD_TXT} />
+              <CheckCircle size={13} className={GOOD_TXT} aria-hidden="true" />
             )}
             <span className={`text-xs font-semibold uppercase tracking-widest ${MUT}`}>
               Escalation Center
@@ -248,10 +250,11 @@ export function EscalationCenter({
             {onRefetch && (
               <button
                 onClick={onRefetch}
-                className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300`}
+                className={`text-xs p-1 rounded ${MUT} hover:text-stone-600 dark:hover:text-stone-300 focus-visible:ring-2 ${FOCUS_RING}`}
                 title="Refresh"
+                aria-label="Refresh escalations"
               >
-                <RefreshCw size={12} />
+                <RefreshCw size={12} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -271,7 +274,7 @@ export function EscalationCenter({
                 <button
                   key={f}
                   onClick={() => setFilterStatus(f)}
-                  className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
+                  className={`text-xs font-medium px-2 py-1 rounded transition-colors focus-visible:ring-2 ${FOCUS_RING} ${
                     filterStatus === f
                       ? `${ACC_BG} ${ACC_TXT}`
                       : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
@@ -287,25 +290,27 @@ export function EscalationCenter({
           {/* Deadlock toggle */}
           <button
             onClick={() => setShowDeadlock(!showDeadlock)}
-            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${
+            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors focus-visible:ring-2 ${FOCUS_RING} ${
               showDeadlock
                 ? `${WARN_BG} ${WARN_TXT}`
                 : `${MUT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
             }`}
+            aria-label={showDeadlock ? "Hide deadlock dependencies" : "Show deadlock dependencies"}
           >
-            <GitBranch size={10} />
+            <GitBranch size={10} aria-hidden="true" />
             Deadlock
           </button>
 
           {/* Search */}
           <div className="ml-auto relative">
-            <Search size={11} className={`absolute left-1.5 top-1/2 -translate-y-1/2 ${MUT}`} />
+            <Search size={11} className={`absolute left-1.5 top-1/2 -translate-y-1/2 ${MUT}`} aria-hidden="true" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-32 text-xs pl-5 pr-2 py-1 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400`}
+              aria-label="Search escalations"
+              className={`w-32 text-xs pl-5 pr-2 py-1 rounded border ${BORD} bg-transparent ${TXT} placeholder:text-stone-400 focus-visible:ring-2 ${FOCUS_RING}`}
             />
           </div>
         </div>
@@ -338,8 +343,8 @@ export function EscalationCenter({
             </div>
           ) : (
             <div className={`flex flex-col items-center justify-center gap-2 ${MUT} py-8`}>
-              <Filter size={16} />
-              <p className="text-xs">No escalations match the current filter</p>
+              <Filter size={16} aria-hidden="true" />
+              <p className="text-xs">No Escalations Match The Current Filter</p>
             </div>
           )}
         </div>

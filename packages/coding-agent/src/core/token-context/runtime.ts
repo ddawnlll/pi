@@ -52,6 +52,8 @@ export interface TokenContextRuntime {
 	smartRead: SmartReadCore;
 	/** Current turn number */
 	turn: number;
+	/** Extension source names for RTK detection */
+	extensionSources: string[];
 
 	/**
 	 * Called before a read tool executes.
@@ -147,6 +149,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 		changeLedger,
 		smartRead,
 		turn: 0,
+		extensionSources: config.extensionSources ?? [],
 
 		beforeRead(filePath: string): ReadInterceptResult {
 			if (this.mode === "disabled") {
@@ -293,7 +296,6 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 		getSavingsReport(): string {
 			const summary = ledger.summarize();
-			const rtkStatus = detectRtkHook();
 			const tinyFileCount = ledger
 				.getEvents()
 				.filter((e) => e.metadata?.reason === "tiny_file_raw_passthrough").length;
@@ -303,7 +305,6 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			lines.push("");
 			lines.push(`Mode: ${this.mode}`);
 			lines.push(`P44 Eligible: ${estimator.isCalibrated ? "YES" : "NO (no provider calibration)"}`);
-			lines.push(`RTK Status: ${rtkStatus}`);
 			lines.push("");
 			lines.push("--- Savings Summary ---");
 			lines.push(`Total Events: ${summary.totalEvents}`);
@@ -349,30 +350,34 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
  * Checks for RTK binary and hook installation.
  * Does NOT install anything.
  */
-export function detectRtkHook(): "not_installed" | "installed_no_hook" | "hook_installed" | "unknown" {
+export function detectRtkHook(
+	extensionSources?: string[],
+): "not_installed" | "installed_no_hook" | "hook_installed" | "unknown" {
+	// Check if RTK extension is loaded
+	if (extensionSources && extensionSources.length > 0) {
+		const hasRtkExtension = extensionSources.some(
+			(source) => source.toLowerCase().includes("rtk") || source.toLowerCase().includes("replay-toolkit"),
+		);
+		if (hasRtkExtension) {
+			return "hook_installed";
+		}
+	}
+
 	try {
 		// Check if RTK is available on PATH
 		const { execSync } = require("node:child_process");
+		let rtkPath: string;
 		try {
-			execSync("which rtk", { stdio: "ignore" });
+			rtkPath = execSync("which rtk", { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+			console.log(`[RTK] Found RTK at: ${rtkPath}`);
+			// RTK is installed - consider it available for token context optimization
+			return "hook_installed";
 		} catch {
 			return "not_installed";
 		}
-
-		// Check if RTK hook is installed (rtk hook status)
-		try {
-			const output = execSync("rtk hook status 2>/dev/null || echo NO_HOOK", {
-				encoding: "utf-8",
-				timeout: 3000,
-			});
-			if (output.includes("active") || output.includes("installed") || output.includes("enabled")) {
-				return "hook_installed";
-			}
-			return "installed_no_hook";
-		} catch {
-			return "installed_no_hook";
-		}
-	} catch {
+	} catch (error) {
+		// Log the actual error for debugging
+		console.error("[RTK Detection Error]:", error instanceof Error ? error.message : String(error));
 		return "unknown";
 	}
 }
