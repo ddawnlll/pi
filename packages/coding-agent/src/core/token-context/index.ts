@@ -32,6 +32,12 @@ export type { FixtureClass, LabComparisonReport, LabFixture, LabOperation, LabRu
 export { GAUNTLET_FIXTURES, LabHarness } from "./lab-harness.js";
 export { JsonNativeProvider } from "./providers/json-native-provider.js";
 export { PyrightProvider } from "./providers/pyright-provider.js";
+export type {
+	TreeSitterParseResult,
+	TreeSitterSymbolInfo,
+	TreeSitterWasmLoaderOptions,
+} from "./providers/tree-sitter-wasm-loader.js";
+export { treeSitterWasmLoader } from "./providers/tree-sitter-wasm-loader.js";
 export { TreeSitterWasmProvider } from "./providers/tree-sitter-wasm-provider.js";
 // Providers (v2)
 export { TypeScriptCompilerProvider } from "./providers/typescript-compiler-provider.js";

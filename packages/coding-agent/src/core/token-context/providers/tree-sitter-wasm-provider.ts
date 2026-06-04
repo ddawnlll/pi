@@ -8,8 +8,9 @@
  * If packages are unavailable, provider reports as unavailable and falls through.
  * Never auto-installs. Never crashes.
  *
- * TODO: Implement full AST extraction once tree-sitter WASM integration is stable.
- * Current implementation: available detection and fail-open fallback.
+ * Tree-sitter gives syntax-level exact ranges.
+ * It does not provide type-semantic project-wide resolution.
+ * Therefore confidence is high for node boundaries, but below LSP/compiler semantic providers.
  */
 
 import type {
@@ -19,21 +20,48 @@ import type {
 	SmartReadResult,
 } from "../types.js";
 import { SMART_READ_CONFIDENCE } from "../types.js";
+import { treeSitterWasmLoader } from "./tree-sitter-wasm-loader.js";
 
-// Track availability status
-let _tsWasmAvailable: boolean | null = null;
+// Lazy-import extractors only when tree-sitter is available
+let _pythonExtractor: any = null;
+let _rustExtractor: any = null;
+let _typescriptExtractor: any = null;
 
-function checkTreeSitterWasmAvailability(): boolean {
-	if (_tsWasmAvailable !== null) return _tsWasmAvailable;
+async function ensureExtractors(): Promise<void> {
+	if (_pythonExtractor) return;
 	try {
-		// Try dynamic require to check if web-tree-sitter is installed
-		require.resolve("web-tree-sitter");
-		_tsWasmAvailable = true;
+		const py = await import("./tree-sitter-python-extractor.js");
+		_pythonExtractor = py;
+		const rs = await import("./tree-sitter-rust-extractor.js");
+		_rustExtractor = rs;
+		const ts = await import("./tree-sitter-typescript-extractor.js");
+		_typescriptExtractor = ts;
 	} catch {
-		_tsWasmAvailable = false;
+		// Extractors failed to load — will fall back
 	}
-	return _tsWasmAvailable;
 }
+
+// ============================================================================
+// Extension-to-language mapping
+// ============================================================================
+
+const EXT_TO_LANGUAGE: Record<string, { languageId: string; extractor: string }> = {
+	".py": { languageId: "python", extractor: "python" },
+	".pyw": { languageId: "python", extractor: "python" },
+	".rs": { languageId: "rust", extractor: "rust" },
+	".ts": { languageId: "typescript", extractor: "typescript" },
+	".tsx": { languageId: "typescript", extractor: "typescript" },
+	".mts": { languageId: "typescript", extractor: "typescript" },
+	".cts": { languageId: "typescript", extractor: "typescript" },
+	".js": { languageId: "javascript", extractor: "typescript" },
+	".jsx": { languageId: "javascript", extractor: "typescript" },
+	".mjs": { languageId: "javascript", extractor: "typescript" },
+	".cjs": { languageId: "javascript", extractor: "typescript" },
+	".json": { languageId: "json", extractor: "json" },
+	".jsonc": { languageId: "json", extractor: "json" },
+	".yaml": { languageId: "yaml", extractor: "yaml" },
+	".yml": { languageId: "yaml", extractor: "yaml" },
+};
 
 export class TreeSitterWasmProvider implements SmartReadProvider {
 	readonly name = "tree-sitter-wasm";
@@ -55,15 +83,29 @@ export class TreeSitterWasmProvider implements SmartReadProvider {
 		".yml",
 	];
 	readonly priority = 80;
-	private initialized = false;
 
-	isAvailable(): boolean {
-		return checkTreeSitterWasmAvailability();
+	/** Optional loader override for testing */
+	private readonly _loader: typeof treeSitterWasmLoader | undefined;
+	private _cachedCapabilities: SmartReadProviderCapabilities | null = null;
+
+	constructor(options?: { loader?: typeof treeSitterWasmLoader }) {
+		this._loader = options?.loader;
+	}
+
+	private get loader(): typeof treeSitterWasmLoader {
+		return this._loader ?? treeSitterWasmLoader;
+	}
+
+	isAvailable(): boolean | Promise<boolean> {
+		// Use sync detection; the loader caches the result from require.resolve
+		return this.loader.isAvailable();
 	}
 
 	getCapabilities(): SmartReadProviderCapabilities {
-		const available = this.isAvailable();
-		return {
+		if (this._cachedCapabilities) return this._cachedCapabilities;
+		// Use sync isAvailable check; async is fine here but sync is the interface
+		const available = typeof this.isAvailable() === "boolean" ? (this.isAvailable() as boolean) : false;
+		this._cachedCapabilities = {
 			outline: available,
 			symbols: available,
 			symbolExact: available,
@@ -74,82 +116,189 @@ export class TreeSitterWasmProvider implements SmartReadProvider {
 			semantic: false,
 			astBacked: available,
 		};
+		return this._cachedCapabilities;
 	}
 
-	private async ensureInitialized(): Promise<boolean> {
-		if (this.initialized) return true;
-		if (!this.isAvailable()) return false;
+	// ============================================================================
+	// Outline
+	// ============================================================================
 
-		try {
-			// Dynamic import of web-tree-sitter
-			const Parser = require("web-tree-sitter");
-			await Parser.init();
-			this.initialized = true;
-			return true;
-		} catch {
-			_tsWasmAvailable = false;
-			return false;
-		}
-	}
-
-	async outline(_content: string, filePath: string): Promise<SmartReadResult> {
-		if (!(await this.ensureInitialized())) {
+	async outline(content: string, filePath: string): Promise<SmartReadResult> {
+		await ensureExtractors();
+		const langInfo = this.getLanguageInfo(filePath);
+		if (!langInfo) {
 			return this.unavailableResult("outline", filePath);
 		}
 
-		// TODO: Full tree-sitter AST traversal for outline generation
-		// For now, return a basic structural outline
+		const parseResult = await this.loader.parse(langInfo.languageId, content);
+		if (!parseResult) {
+			return this.unavailableResult("outline", filePath, undefined, "parse failed");
+		}
+
+		const symbols = this.extractSymbolsForLanguage(parseResult, langInfo.extractor);
+		if (!symbols || symbols.length === 0) {
+			return {
+				content: "No symbols found.",
+				mode: "outline",
+				mutationSafe: false,
+				adapterConfidence: SMART_READ_CONFIDENCE.TREE_SITTER_OUTLINE,
+				adapterName: this.name,
+				parseSource: "tree_sitter_wasm" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: true,
+				fallbackError: "tree-sitter parsed content but no symbols extracted",
+			};
+		}
+
+		const outline = this.buildOutlineForLanguage(symbols, langInfo.extractor);
 		return {
-			content: `[Tree-sitter WASM outline not yet implemented for ${filePath}]`,
+			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: 0.1,
+			adapterConfidence: SMART_READ_CONFIDENCE.TREE_SITTER_OUTLINE,
 			adapterName: this.name,
 			parseSource: "tree_sitter_wasm" as SmartReadParseSource,
 			providerName: this.name,
 			providerPriority: this.priority,
-			isFallback: true,
-			fallbackError: "tree-sitter WASM outline not yet implemented",
+			isFallback: false,
 		};
 	}
 
-	async symbols(_content: string, filePath: string): Promise<SmartReadResult> {
-		if (!(await this.ensureInitialized())) {
+	// ============================================================================
+	// Symbols
+	// ============================================================================
+
+	async symbols(content: string, filePath: string): Promise<SmartReadResult> {
+		await ensureExtractors();
+		const langInfo = this.getLanguageInfo(filePath);
+		if (!langInfo) {
 			return this.unavailableResult("symbols", filePath);
 		}
 
+		const parseResult = await this.loader.parse(langInfo.languageId, content);
+		if (!parseResult) {
+			return this.unavailableResult("symbols", filePath, undefined, "parse failed");
+		}
+
+		const symbols = this.extractSymbolsForLanguage(parseResult, langInfo.extractor);
+		if (!symbols || symbols.length === 0) {
+			return {
+				content: "No symbols found.",
+				mode: "symbols",
+				mutationSafe: false,
+				adapterConfidence: 0.5,
+				adapterName: this.name,
+				parseSource: "tree_sitter_wasm" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: true,
+				fallbackError: "tree-sitter parsed content but no symbols extracted",
+			};
+		}
+
+		const symbolList = this.buildSymbolList(symbols);
 		return {
-			content: `[Tree-sitter WASM symbols not yet implemented for ${filePath}]`,
+			content: symbolList,
 			mode: "symbols",
 			mutationSafe: false,
-			adapterConfidence: 0.1,
+			adapterConfidence: SMART_READ_CONFIDENCE.TREE_SITTER_OUTLINE,
 			adapterName: this.name,
 			parseSource: "tree_sitter_wasm" as SmartReadParseSource,
 			providerName: this.name,
 			providerPriority: this.priority,
-			isFallback: true,
-			fallbackError: "tree-sitter WASM symbols not yet implemented",
+			isFallback: false,
 		};
 	}
 
-	async symbolExact(_content: string, filePath: string, symbol: string): Promise<SmartReadResult> {
-		if (!(await this.ensureInitialized())) {
+	// ============================================================================
+	// Symbol Exact
+	// ============================================================================
+
+	async symbolExact(content: string, filePath: string, symbol: string): Promise<SmartReadResult> {
+		await ensureExtractors();
+		const langInfo = this.getLanguageInfo(filePath);
+		if (!langInfo) {
 			return this.unavailableResult("symbol_exact", filePath, symbol);
 		}
 
+		const parseResult = await this.loader.parse(langInfo.languageId, content);
+		if (!parseResult) {
+			return this.unavailableResult("symbol_exact", filePath, symbol, "parse failed");
+		}
+
+		const symbols = this.extractSymbolsForLanguage(parseResult, langInfo.extractor);
+		if (!symbols || symbols.length === 0) {
+			return {
+				content: `[Symbol "${symbol}" not found via tree-sitter WASM]`,
+				mode: "symbol_exact",
+				mutationSafe: false,
+				adapterConfidence: 0.3,
+				adapterName: this.name,
+				parseSource: "tree_sitter_wasm" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: true,
+				fallbackError: `symbol "${symbol}" not found`,
+			};
+		}
+
+		const foundSymbol = this.findSymbolForLanguage(symbols, symbol, langInfo.extractor);
+		if (!foundSymbol) {
+			return {
+				content: `[Symbol "${symbol}" not found via tree-sitter WASM]`,
+				mode: "symbol_exact",
+				mutationSafe: false,
+				adapterConfidence: 0.3,
+				adapterName: this.name,
+				parseSource: "tree_sitter_wasm" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: true,
+				fallbackError: `symbol "${symbol}" not found`,
+			};
+		}
+
+		const exactContent = this.symbolExactForLanguage(parseResult, foundSymbol, langInfo.extractor);
+		if (!exactContent) {
+			return {
+				content: `[Symbol "${symbol}" found but exact range invalid]`,
+				mode: "symbol_exact",
+				mutationSafe: false,
+				adapterConfidence: 0.3,
+				adapterName: this.name,
+				parseSource: "tree_sitter_wasm" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: true,
+				fallbackError: "invalid exact tree-sitter range",
+			};
+		}
+
 		return {
-			content: `[Tree-sitter WASM symbol lookup not yet implemented for "${symbol}" in ${filePath}]`,
+			content: exactContent.content,
 			mode: "symbol_exact",
-			mutationSafe: false,
-			adapterConfidence: 0.1,
+			mutationSafe: true,
+			adapterConfidence: SMART_READ_CONFIDENCE.TREE_SITTER_EXACT,
 			adapterName: this.name,
 			parseSource: "tree_sitter_wasm" as SmartReadParseSource,
 			providerName: this.name,
 			providerPriority: this.priority,
-			isFallback: true,
-			fallbackError: "tree-sitter WASM symbol lookup not yet implemented",
+			isFallback: false,
+			exactRange: {
+				startLine: exactContent.startLine,
+				endLine: exactContent.endLine,
+				startColumn: exactContent.startColumn,
+				endColumn: exactContent.endColumn,
+				startOffset: exactContent.startOffset,
+				endOffset: exactContent.endOffset,
+			},
 		};
 	}
+
+	// ============================================================================
+	// Range Exact
+	// ============================================================================
 
 	async rangeExact(content: string, _filePath: string, startLine: number, endLine: number): Promise<SmartReadResult> {
 		const lines = content.split("\n");
@@ -168,6 +317,10 @@ export class TreeSitterWasmProvider implements SmartReadProvider {
 		};
 	}
 
+	// ============================================================================
+	// Changed
+	// ============================================================================
+
 	async changed(_content: string, filePath: string, delta: string): Promise<SmartReadResult> {
 		return {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
@@ -183,10 +336,88 @@ export class TreeSitterWasmProvider implements SmartReadProvider {
 	}
 
 	// ============================================================================
+	// Internal helpers
+	// ============================================================================
+
+	private getLanguageInfo(filePath: string): { languageId: string; extractor: string } | undefined {
+		const ext = this.getExtension(filePath);
+		return EXT_TO_LANGUAGE[ext];
+	}
+
+	private getExtension(filePath: string): string {
+		const dot = filePath.lastIndexOf(".");
+		if (dot === -1) return "";
+		const ext = filePath.slice(dot).toLowerCase();
+		return ext;
+	}
+
+	private extractSymbolsForLanguage(parseResult: any, extractor: string): any[] | undefined {
+		switch (extractor) {
+			case "python":
+				return _pythonExtractor?.extractPythonSymbols(parseResult);
+			case "rust":
+				return _rustExtractor?.extractRustSymbols(parseResult);
+			case "typescript":
+				return _typescriptExtractor?.extractTypeScriptSymbols(parseResult);
+			default:
+				return undefined;
+		}
+	}
+
+	private buildOutlineForLanguage(symbols: any[], extractor: string): string {
+		switch (extractor) {
+			case "python":
+				return _pythonExtractor?.buildPythonOutline(symbols);
+			case "rust":
+				return _rustExtractor?.buildRustOutline(symbols);
+			case "typescript":
+				return _typescriptExtractor?.buildTypeScriptOutline(symbols);
+			default:
+				return "No symbols found.";
+		}
+	}
+
+	private buildSymbolList(symbols: any[]): string {
+		return symbols
+			.map((s) => {
+				const range = s.startLine === s.endLine ? ` L${s.startLine}` : ` L${s.startLine}-${s.endLine}`;
+				const name = s.fullName || s.name;
+				return `[${s.kind}] ${name}${range}`;
+			})
+			.join("\n");
+	}
+
+	private findSymbolForLanguage(symbols: any[], symbolName: string, extractor: string): any | undefined {
+		switch (extractor) {
+			case "python":
+				return _pythonExtractor?.findPythonSymbol(symbols, symbolName);
+			case "rust":
+				return _rustExtractor?.findRustSymbol(symbols, symbolName);
+			case "typescript":
+				return _typescriptExtractor?.findTypeScriptSymbol(symbols, symbolName);
+			default:
+				return undefined;
+		}
+	}
+
+	private symbolExactForLanguage(parseResult: any, symbol: any, extractor: string): any | undefined {
+		switch (extractor) {
+			case "python":
+				return _pythonExtractor?.pythonSymbolExact(parseResult, symbol);
+			case "rust":
+				return _rustExtractor?.rustSymbolExact(parseResult, symbol);
+			case "typescript":
+				return _typescriptExtractor?.typeScriptSymbolExact(parseResult, symbol);
+			default:
+				return undefined;
+		}
+	}
+
+	// ============================================================================
 	// Fallback helpers
 	// ============================================================================
 
-	private unavailableResult(mode: string, filePath: string, symbol?: string): SmartReadResult {
+	private unavailableResult(mode: string, filePath: string, symbol?: string, error?: string): SmartReadResult {
 		const content = symbol
 			? `[Tree-sitter WASM unavailable for symbol "${symbol}" in ${filePath}]`
 			: `[Tree-sitter WASM unavailable for ${mode} in ${filePath}]`;
@@ -201,7 +432,7 @@ export class TreeSitterWasmProvider implements SmartReadProvider {
 			providerName: this.name,
 			providerPriority: this.priority,
 			isFallback: true,
-			fallbackError: "web-tree-sitter package not available",
+			fallbackError: error ?? "web-tree-sitter package not available",
 		};
 	}
 }

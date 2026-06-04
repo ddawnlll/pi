@@ -502,16 +502,16 @@ describe("SmartReadCore", () => {
 
 	it("gets correct adapter by extension", () => {
 		const tsAdapter = core.getAdapter("file.ts");
-		expect(tsAdapter?.name).toBe("typescript");
+		expect(tsAdapter?.name).toBe("typescript-regex-fallback");
 
 		const pyAdapter = core.getAdapter("file.py");
-		expect(pyAdapter?.name).toBe("python");
+		expect(pyAdapter?.name).toBe("python-regex-fallback");
 
 		const jsonAdapter = core.getAdapter("file.json");
-		expect(jsonAdapter?.name).toBe("json-yaml");
+		expect(jsonAdapter?.name).toBe("json-yaml-regex-fallback");
 
 		const rsAdapter = core.getAdapter("file.rs");
-		expect(rsAdapter?.name).toBe("rust");
+		expect(rsAdapter?.name).toBe("rust-regex-fallback");
 	});
 
 	it("falls back to generic for unknown extensions", () => {
@@ -599,9 +599,10 @@ export type ID = string;
 		expect(result.content).toContain("helper");
 	});
 
-	it("symbolExact returns exact content for a class", async () => {
+	it("symbolExact returns exact content for a class (regex, not mutation safe)", async () => {
 		const result = await adapter.symbolExact(tsContent, "test.ts", "MyClass");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("MyClass");
 	});
 
@@ -672,9 +673,10 @@ def decorated_func():
 		expect(result.mutationSafe).toBe(false);
 	});
 
-	it("symbolExact returns mutation-safe exact content", async () => {
+	it("symbolExact returns exact content (regex, not mutation safe)", async () => {
 		const result = await adapter.symbolExact(pyContent, "test.py", "MyClass");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("MyClass");
 	});
 
@@ -746,9 +748,10 @@ scripts:
 		expect(result.mutationSafe).toBe(false);
 	});
 
-	it("symbolExact returns exact path content", async () => {
+	it("symbolExact returns exact path content (regex, not mutation safe)", async () => {
 		const result = await adapter.symbolExact(jsonContent, "test.json", "name");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("test");
 	});
 
@@ -813,9 +816,10 @@ mod tests {
 		expect(result.mutationSafe).toBe(false);
 	});
 
-	it("symbolExact returns mutation-safe exact content", async () => {
+	it("symbolExact returns exact content (regex, not mutation safe)", async () => {
 		const result = await adapter.symbolExact(rsContent, "test.rs", "MyStruct");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("MyStruct");
 	});
 
@@ -846,7 +850,7 @@ describe("GenericFallbackAdapter", () => {
 	it("provides basic outline for unknown languages", async () => {
 		const content = "line1\nline2\nline3";
 		const result = await adapter.outline(content, "test.xyz");
-		expect(result.content).toContain("Generic Outline");
+		expect(result.content).toContain("Generic outline for");
 		expect(result.mutationSafe).toBe(false);
 	});
 
@@ -1460,10 +1464,11 @@ describe("P43.1 TypeScript Adapter Edge Cases", () => {
 		expect(result.content).toContain("function");
 	});
 
-	it("computes endLine for arrow functions", async () => {
+	it("computes endLine for arrow functions (regex, not mutation safe)", async () => {
 		const content = "export const myFunc = (x: number): number => {\n  const y = x * 2;\n  return y;\n};";
 		const result = await adapter.symbolExact(content, "test.ts", "myFunc");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("x * 2");
 	});
 
@@ -1473,11 +1478,12 @@ describe("P43.1 TypeScript Adapter Edge Cases", () => {
 		expect(result.content).toContain("constructor");
 	});
 
-	it("symbolExact does not over-read beyond symbol end", async () => {
+	it("symbolExact does not over-read beyond symbol end (regex, not mutation safe)", async () => {
 		const content =
 			"export class A {\n  methodA() { return 1; }\n}\n\nexport class B {\n  methodB() { return 2; }\n}";
 		const result = await adapter.symbolExact(content, "test.ts", "A");
-		expect(result.mutationSafe).toBe(true);
+		// Regex-backed symbol_exact is never mutation-safe
+		expect(result.mutationSafe).toBe(false);
 		expect(result.content).toContain("methodA");
 		expect(result.content).not.toContain("methodB");
 	});

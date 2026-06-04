@@ -47,6 +47,9 @@
 		"copy-assets": "shx mkdir -p dist/modes/interactive/theme && shx cp src/modes/interactive/theme/*.json dist/modes/interactive/theme/ && shx mkdir -p dist/modes/interactive/assets && shx cp src/modes/interactive/assets/*.png dist/modes/interactive/assets/ && shx mkdir -p dist/core/export-html/vendor && shx cp src/core/export-html/template.html src/core/export-html/template.css src/core/export-html/template.js dist/core/export-html/ && shx cp src/core/export-html/vendor/*.js dist/core/export-html/vendor/",
 		"copy-binary-assets": "shx cp package.json dist/ && shx cp README.md dist/ && shx cp CHANGELOG.md dist/ && shx mkdir -p dist/theme && shx cp src/modes/interactive/theme/*.json dist/theme/ && shx mkdir -p dist/assets && shx cp src/modes/interactive/assets/*.png dist/assets/ && shx mkdir -p dist/export-html/vendor && shx cp src/core/export-html/template.html dist/export-html/ && shx cp src/core/export-html/vendor/*.js dist/export-html/vendor/ && shx cp -r docs dist/ && shx cp -r examples dist/ && shx cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm dist/",
 		"test": "vitest --run",
+		"test:smart-read": "vitest run test/token-context/smart-read-v2.test.ts test/token-context/tree-sitter-v2.test.ts test/token-context/tree-sitter-real.test.ts",
+		"test:smart-read-real": "vitest run test/token-context/tree-sitter-real.test.ts",
+		"test:token-context": "vitest run test/token-context/",
 		"test:deterministic": "vitest run test/execution-gauntlet/",
 		"test:execution-gauntlet": "npx tsx ../../scripts/run-execution-stability-gauntlet.ts --mode fast --suite all --execution-modes stable_3,patch_transaction --iterations 100 --seed 1 --timeout-ms 300000",
 		"test:execution-gauntlet:lead": "npx tsx ../../scripts/run-execution-stability-gauntlet.ts --mode fast --suite lead-agent --execution-modes stable_3,patch_transaction --iterations 50 --seed 1 --timeout-ms 300000",
@@ -82,7 +85,10 @@
 		"undici": "^7.19.1",
 		"uuid": "^14.0.0",
 		"yaml": "^2.8.2",
-		"@earendil-works/pi-brain": "^0.74.0"
+		"@earendil-works/pi-brain": "^0.74.0",
+		"jsonc-parser": "^3.3.1",
+		"tree-sitter-wasms": "^0.1.0",
+		"web-tree-sitter": "^0.20.8"
 	},
 	"overrides": {
 		"rimraf": "6.1.2",

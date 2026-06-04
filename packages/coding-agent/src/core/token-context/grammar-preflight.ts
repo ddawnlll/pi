@@ -287,10 +287,15 @@ function buildDefaultProviderPlan(
 				? ["pyright (deferred)", "python-regex-fallback", "generic", "raw"]
 				: ["python-regex-fallback", "generic", "raw"],
 			npmOnly: true,
-			mutationSafeExact: false,
+			mutationSafeExact: treeSitterWasmAvailable,
 			warnings: [
 				...(!treeSitterWasmAvailable ? ["Tree-sitter WASM not available; Python uses regex fallback"] : []),
-				"Pyright LSP integration is deferred; Python symbol_exact is not mutation-safe",
+				...(treeSitterWasmAvailable
+					? [
+							"Tree-sitter WASM provides AST-backed exact ranges. symbol_exact is mutation-safe.",
+							"Pyright LSP integration is deferred.",
+						]
+					: ["Pyright LSP integration is deferred; Python symbol_exact is not mutation-safe"]),
 			],
 		},
 		rust: {
@@ -299,9 +304,12 @@ function buildDefaultProviderPlan(
 				? ["rust-analyzer (external, disabled by default)", "rust-regex-fallback", "generic", "raw"]
 				: ["rust-regex-fallback", "generic", "raw"],
 			npmOnly: true,
-			mutationSafeExact: false,
+			mutationSafeExact: treeSitterWasmAvailable,
 			warnings: [
 				...(!treeSitterWasmAvailable ? ["Tree-sitter WASM not available; Rust uses regex fallback"] : []),
+				...(treeSitterWasmAvailable
+					? ["Tree-sitter WASM provides AST-backed exact ranges. symbol_exact is mutation-safe."]
+					: []),
 				"rust-analyzer is not npm-only; disabled by default. Enable via explicit opt-in config.",
 			],
 		},
