@@ -43,6 +43,8 @@ export interface TokenContextConfig {
 	};
 	/** Extension source names for RTK detection */
 	extensionSources?: string[];
+	/** Global store path for persistent savings ledger across threads */
+	storeDir?: string;
 }
 
 export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
@@ -60,7 +62,7 @@ export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
 	providerCalibration: {
 		requiredForP44: true,
 	},
-	tinyFileThresholdBytes: 64,
+	tinyFileThresholdBytes: 256,
 	/** P43.3: Edit recovery config */
 	editRecovery: {
 		enabled: true,

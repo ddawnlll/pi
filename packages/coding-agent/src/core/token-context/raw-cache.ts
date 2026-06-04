@@ -16,8 +16,11 @@ export interface RawCacheOptions {
 }
 
 export class RawCache {
+	/**
+	 * Map insertion order doubles as LRU order.
+	 * delete(id) + set(id, handle) promotes to most-recent in O(1).
+	 */
 	private entries = new Map<string, RawCacheHandle>();
-	private lruOrder: string[] = [];
 	private totalBytes = 0;
 	private maxBytes: number;
 	private evictionCount = 0;
@@ -35,6 +38,7 @@ export class RawCache {
 
 	/**
 	 * Store raw content and return a handle.
+	 * Eviction uses Map insertion order (oldest-first) for O(1) LRU.
 	 */
 	store(filePath: string, content: string): RawCacheHandle {
 		const sizeBytes = Buffer.byteLength(content, "utf-8");
@@ -48,15 +52,21 @@ export class RawCache {
 			contentHash: this.hashContent(content),
 		};
 
-		// Evict if needed
-		while (this.totalBytes + sizeBytes > this.maxBytes && this.lruOrder.length > 0) {
-			const oldestId = this.lruOrder[0];
-			this.evictEntry(oldestId);
+		// Evict if needed — iterate Map in insertion order (oldest first), O(1) per eviction
+		let safetyGuard = 0;
+		while (this.totalBytes + sizeBytes > this.maxBytes && this.entries.size > 0) {
+			const firstEntry = this.entries.entries().next();
+			if (firstEntry.done) break;
+			const [evictId, evictHandle] = firstEntry.value;
+			this.onEviction?.(evictHandle);
+			this.entries.delete(evictId);
+			this.totalBytes -= evictHandle.sizeBytes;
+			this.evictionCount++;
+			if (++safetyGuard > 100000) break; // Safety: prevent infinite loop
 		}
 
-		// Still can't fit? Evict more aggressively.
+		// Still can't fit? Store anyway but warn
 		if (this.totalBytes + sizeBytes > this.maxBytes) {
-			// Store anyway but warn
 			if (!this.fullWarningEmitted) {
 				this.fullWarningEmitted = true;
 				this.onFull?.(this.getStats());
@@ -64,7 +74,6 @@ export class RawCache {
 		}
 
 		this.entries.set(id, handle);
-		this.lruOrder.push(id);
 		this.totalBytes += sizeBytes;
 
 		return handle;
@@ -72,12 +81,15 @@ export class RawCache {
 
 	/**
 	 * Look up raw content by handle ID.
+	 * O(1) — delete+set promotes to most-recent in Map insertion order.
 	 */
 	lookup(id: string): RawCacheHandle | undefined {
 		const handle = this.entries.get(id);
 		if (handle) {
 			this.hitCount++;
-			this.touch(id);
+			// Promote to MRU: delete+re-insert moves to end of insertion order
+			this.entries.delete(id);
+			this.entries.set(id, handle);
 		} else {
 			this.missCount++;
 		}
@@ -88,7 +100,6 @@ export class RawCache {
 	 * Look up raw content by file path (most recent).
 	 */
 	lookupByPath(filePath: string): RawCacheHandle | undefined {
-		// Find most recent entry for this path
 		let best: RawCacheHandle | undefined;
 		for (const handle of this.entries.values()) {
 			if (handle.filePath === filePath) {
@@ -99,7 +110,9 @@ export class RawCache {
 		}
 		if (best) {
 			this.hitCount++;
-			this.touch(best.id);
+			// Promote to MRU
+			this.entries.delete(best.id);
+			this.entries.set(best.id, best);
 		} else {
 			this.missCount++;
 		}
@@ -107,10 +120,16 @@ export class RawCache {
 	}
 
 	/**
-	 * Evict a specific entry.
+	 * Evict a specific entry (O(1)).
 	 */
 	evict(id: string): boolean {
-		return this.evictEntry(id);
+		const handle = this.entries.get(id);
+		if (!handle) return false;
+		this.onEviction?.(handle);
+		this.entries.delete(id);
+		this.totalBytes -= handle.sizeBytes;
+		this.evictionCount++;
+		return true;
 	}
 
 	/**
@@ -132,7 +151,6 @@ export class RawCache {
 	 */
 	clear(): void {
 		this.entries.clear();
-		this.lruOrder = [];
 		this.totalBytes = 0;
 		this.hitCount = 0;
 		this.missCount = 0;
@@ -140,7 +158,7 @@ export class RawCache {
 	}
 
 	/**
-	 * Check if an entry exists.
+	 * Check if an entry exists (O(1)).
 	 */
 	has(id: string): boolean {
 		return this.entries.has(id);
@@ -152,30 +170,5 @@ export class RawCache {
 
 	private hashContent(content: string): string {
 		return createHash("sha256").update(content, "utf-8").digest("hex");
-	}
-
-	private touch(id: string): void {
-		const idx = this.lruOrder.indexOf(id);
-		if (idx !== -1) {
-			this.lruOrder.splice(idx, 1);
-			this.lruOrder.push(id);
-		}
-	}
-
-	private evictEntry(id: string): boolean {
-		const handle = this.entries.get(id);
-		if (!handle) return false;
-
-		// Fire eviction callback before removing
-		this.onEviction?.(handle);
-
-		this.entries.delete(id);
-		const idx = this.lruOrder.indexOf(id);
-		if (idx !== -1) {
-			this.lruOrder.splice(idx, 1);
-		}
-		this.totalBytes -= handle.sizeBytes;
-		this.evictionCount++;
-		return true;
 	}
 }

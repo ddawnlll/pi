@@ -37,5 +37,6 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "resume", description: "Resume a different session" },
 	{ name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes" },
 	{ name: "savings", description: "Show P43 token context savings report" },
+	{ name: "savings-global", description: "Show cumulative P43 token context savings across all threads" },
 	{ name: "quit", description: `Quit ${APP_NAME}` },
 ];

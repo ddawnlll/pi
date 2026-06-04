@@ -31,15 +31,26 @@ export class ReadHashCache {
 
 	/**
 	 * Take a snapshot of a file at read time.
+	 * Fail-open on stat errors (file may have been deleted between read and snapshot).
 	 */
 	takeSnapshot(filePath: string, content: string): ReadSnapshot {
-		const stat = statSync(filePath);
+		let fileSize = 0;
+		let mtimeMs = 0;
+		try {
+			const stat = statSync(filePath);
+			fileSize = stat.size;
+			mtimeMs = stat.mtimeMs;
+		} catch {
+			// File may have been deleted or became inaccessible. Use content length + timestamp as fallback.
+			fileSize = Buffer.byteLength(content, "utf-8");
+			mtimeMs = Date.now();
+		}
 		const snapshot: ReadSnapshot = {
 			id: this.generateId(),
 			filePath,
 			contentHash: this.hashContent(content),
-			fileSize: stat.size,
-			mtimeMs: stat.mtimeMs,
+			fileSize,
+			mtimeMs,
 			rawContent: content,
 			timestamp: Date.now(),
 		};

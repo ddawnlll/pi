@@ -980,27 +980,27 @@ describe("TokenContextRuntime Mode Wiring", () => {
 		return { ...DEFAULT_TOKEN_CONTEXT_CONFIG, enabled: true, mode };
 	}
 
-	it("disabled mode preserves existing behavior", () => {
+	it("disabled mode preserves existing behavior", async () => {
 		const config = { ...makeConfig("disabled"), enabled: false, mode: "disabled" as const };
 		const runtime = createTokenContextRuntime(config);
-		const result = runtime.beforeRead("/test/file.ts");
+		const result = await runtime.beforeRead("/test/file.ts");
 		expect(result.intercept).toBe(false);
 	});
 
-	it("observe_only mode records but does not change behavior", () => {
+	it("observe_only mode records but does not change behavior", async () => {
 		const runtime = createTokenContextRuntime(makeConfig("observe_only"));
 		const filePath = createTempFile(tempDir, "test.ts", "content");
-		const result = runtime.beforeRead(filePath);
+		const result = await runtime.beforeRead(filePath);
 		expect(result.intercept).toBe(false);
 	});
 
-	it("shadow mode computes optimized but does not return optimized", () => {
+	it("shadow mode computes optimized but does not return optimized", async () => {
 		const runtime = createTokenContextRuntime(makeConfig("shadow"));
-		const result = runtime.beforeRead("/test/file.ts");
+		const result = await runtime.beforeRead("/test/file.ts");
 		expect(result.intercept).toBe(false);
 	});
 
-	it("active_safe mode enables caching", () => {
+	it("active_safe mode enables caching", async () => {
 		const runtime = createTokenContextRuntime(makeConfig("active_safe"));
 		const filePath = createTempFile(tempDir, "test.ts", "content");
 
@@ -1009,7 +1009,7 @@ describe("TokenContextRuntime Mode Wiring", () => {
 		runtime.acr.markActive(filePath);
 
 		// Second read: should hit cache
-		const result = runtime.beforeRead(filePath);
+		const result = await runtime.beforeRead(filePath);
 		// If ACR is active and ledger is known_unchanged, should return compact
 		if (result.policy?.returnUnchanged || result.policy?.returnCompactSummary) {
 			expect(result.intercept).toBe(true);

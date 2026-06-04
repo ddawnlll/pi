@@ -195,7 +195,14 @@ export class ChangeLedger {
 			const bLine = beforeLines[i] ?? "";
 			const aLine = afterLines[i] ?? "";
 			if (bLine !== aLine) {
-				changes.push(`L${i + 1}: ${bLine ? "-" : "+"}${bLine ? aLine : ""}`);
+				if (bLine && !aLine) {
+					changes.push(`L${i + 1}: -${bLine}`);
+				} else if (!bLine && aLine) {
+					changes.push(`L${i + 1}: +${aLine}`);
+				} else {
+					changes.push(`L${i + 1}: -${bLine}`);
+					changes.push(`L${i + 1}: +${aLine}`);
+				}
 			}
 		}
 

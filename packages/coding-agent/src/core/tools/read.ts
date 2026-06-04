@@ -289,6 +289,66 @@ export function createReadToolDefinition(
 								const allLines = textContent.split("\n");
 								const totalFileLines = allLines.length;
 
+								// P43: Token Context Runtime intercept — MUST run BEFORE file policy check
+								// to ensure smart read replaces content before any early-return path
+								// ESCAPE HATCH: If beforeRead or trySmartRead throw or return useless content,
+								// silently fall through to the normal raw read path below.
+								// Never let a smart-read failure hang the tool call.
+								const tcRuntime = options?.tokenContextRuntime;
+								if (tcRuntime) {
+									try {
+										const intercept = await tcRuntime.beforeRead(absolutePath, { offset, limit });
+										if (intercept.intercept && intercept.replacementContent) {
+											// Hash cache hit: replace content with compact marker
+											content = [{ type: "text", text: intercept.replacementContent }];
+											details = {
+												...details,
+												tokenContext: { mechanism: "read_hash_cache", compact: true },
+											} as any;
+											tcRuntime.afterRead(
+												absolutePath,
+												capturedTextContent,
+												Math.ceil(capturedTextContent.length / 4),
+											);
+											if (aborted) return;
+											signal?.removeEventListener("abort", onAbort);
+											resolve({ content, details });
+											return;
+										}
+
+										// No hash cache hit: try smart read for first read optimization
+										// Skip smart read for targeted reads (offset/limit specified)
+										const smartResult = await tcRuntime.trySmartRead(absolutePath, capturedTextContent, {
+											offset,
+											limit,
+										});
+										if (smartResult?.compactContent && smartResult.compactContent.length > 10) {
+											// Replace raw content with smart-read compact result
+											content = [{ type: "text", text: smartResult.compactContent }];
+											details = {
+												...details,
+												tokenContext: {
+													mechanism: smartResult.mechanism,
+													compact: true,
+													adapterName: smartResult.adapterName,
+												},
+											} as any;
+											tcRuntime.afterRead(
+												absolutePath,
+												capturedTextContent,
+												Math.ceil(capturedTextContent.length / 4),
+											);
+											if (aborted) return;
+											signal?.removeEventListener("abort", onAbort);
+											resolve({ content, details });
+											return;
+										}
+									} catch {
+										// Smart read threw or aborted — fall through to normal raw read.
+										// Never let a smart-read failure hang the tool call.
+									}
+								}
+
 								// File policy check - prevent large files from being fully injected
 								const filePolicy = createFilePolicy();
 								const policyCheck = filePolicy.checkPolicy(totalFileLines);
@@ -332,6 +392,12 @@ export function createReadToolDefinition(
 
 									content = [{ type: "text", text: policyMessage }];
 									details = undefined;
+									// Take snapshot even when policy blocks, so subsequent reads can use hash cache
+									options?.tokenContextRuntime?.afterRead(
+										absolutePath,
+										capturedTextContent,
+										Math.ceil(capturedTextContent.length / 4),
+									);
 									if (aborted) return;
 									signal?.removeEventListener("abort", onAbort);
 									resolve({ content, details });
@@ -384,20 +450,9 @@ export function createReadToolDefinition(
 									outputText = truncation.content;
 								}
 								content = [{ type: "text", text: outputText }];
-							}
 
-							// P43: Token Context Runtime intercept
-							const tcRuntime = options?.tokenContextRuntime;
-							if (tcRuntime) {
-								const intercept = tcRuntime.beforeRead(absolutePath);
-								if (intercept.intercept && intercept.replacementContent) {
-									content = [{ type: "text", text: intercept.replacementContent }];
-									details = {
-										...details,
-										tokenContext: { mechanism: "read_hash_cache", compact: true },
-									} as any;
-								}
-								tcRuntime.afterRead(
+								// P43: afterRead (snapshot for hash cache) — only after policy/truncation paths
+								tcRuntime?.afterRead(
 									absolutePath,
 									capturedTextContent,
 									Math.ceil(capturedTextContent.length / 4),

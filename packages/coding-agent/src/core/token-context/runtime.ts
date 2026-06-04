@@ -31,6 +31,59 @@ import type {
 } from "./types.js";
 import { getACRLedgerPolicy } from "./types.js";
 
+export interface SmartReadAuditTrace {
+	/** Settings mode at read time */
+	settingsMode: TokenContextMode;
+	/** Runtime mode at read time */
+	runtimeMode: TokenContextMode;
+	/** Token context enabled flag */
+	tokenContextEnabled: boolean;
+	/** Whether the read tool path is wrapped */
+	readPathWrapped: boolean;
+	/** Whether beforeRead was called */
+	beforeReadCalled: boolean;
+	/** Whether beforeRead returned intercept=true */
+	beforeReadIntercept: boolean;
+	/** Whether beforeRead produced compact output */
+	beforeReadIsCompact: boolean;
+	/** Mechanism used (read_hash_cache, smart_read, fallback) */
+	mechanism: string;
+	/** Adapter name if smart read was used */
+	adapterName?: string;
+	/** Adapter confidence (0.0-1.0) */
+	adapterConfidence?: number;
+	/** Whether result is mutationSafe */
+	mutationSafe?: boolean;
+	/** Whether tiny file passthrough was applied */
+	tinyFilePassthrough: boolean;
+	/** Cache status at read time */
+	cacheStatus: string;
+	/** Raw content token estimate (chars/4) */
+	rawTokensEstimate: number;
+	/** Optimized/intercepted content token estimate */
+	optimizedTokensEstimate: number;
+	/** Estimated savings in tokens */
+	savedTokensEstimate: number;
+	/** Token estimate of the actual returned tool result */
+	returnedToolResultTokensEstimate: number;
+	/** Provider payload estimate before (estimated) */
+	providerPayloadTokensEstimateBefore?: number;
+	/** Provider payload estimate after (estimated) */
+	providerPayloadTokensEstimateAfter?: number;
+	/** Whether provider payload contained raw file body */
+	providerPayloadContainsRawFileBody?: boolean;
+	/** Whether provider payload contained compact marker */
+	providerPayloadContainsCompactMarker?: boolean;
+	/** Whether raw content leaked to provider */
+	rawLeakDetected: boolean;
+	/** Fallback reason if applicable */
+	fallbackReason?: string;
+	/** Event ID */
+	eventId?: string;
+	/** File path */
+	filePath?: string;
+}
+
 export interface TokenContextRuntime {
 	/** Current mode */
 	mode: TokenContextMode;
@@ -54,17 +107,34 @@ export interface TokenContextRuntime {
 	turn: number;
 	/** Extension source names for RTK detection */
 	extensionSources: string[];
+	/** Last read audit trace */
+	lastReadAudit?: SmartReadAuditTrace;
+	/** Session ID for ledger scoping */
+	sessionId?: string;
 
 	/**
 	 * Called before a read tool executes.
 	 * May transform or replace the read result based on mode.
+	 * Pass options.offset/limit to skip cache intercept for targeted reads.
+	 * Returns a promise because hash cache may use smart read for better compact output.
 	 */
-	beforeRead(filePath: string): ReadInterceptResult;
+	beforeRead(filePath: string, options?: { offset?: number; limit?: number }): Promise<ReadInterceptResult>;
 
 	/**
-	 * Called after a read completes successfully.
+	 * Called after a read completes successfully with raw content.
+	 * In active_safe mode, may produce a smart-read compact result.
 	 */
 	afterRead(filePath: string, content: string, baselineTokens: number): AfterReadResult;
+
+	/**
+	 * Try to produce a smart-read compact result for a first read (no cache hit).
+	 * Returns the smart-read compact content or undefined if raw should be used.
+	 */
+	trySmartRead(
+		filePath: string,
+		rawContent: string,
+		options?: { offset?: number; limit?: number },
+	): Promise<SmartReadInterceptResult | undefined>;
 
 	/**
 	 * Called before an edit/write operation.
@@ -82,9 +152,25 @@ export interface TokenContextRuntime {
 	advanceTurn(): void;
 
 	/**
-	 * Get a savings summary report.
+	 * Get a savings summary report (default: current session).
 	 */
-	getSavingsReport(): string;
+	getSavingsReport(allTime?: boolean): string;
+
+	/**
+	 * Get the last read audit trace for /savings status.
+	 */
+	getLastReadAudit(): SmartReadAuditTrace | undefined;
+
+	/**
+	 * Get a provider payload token audit breakdown.
+	 */
+	getAuditStatus(): string;
+
+	/**
+	 * Audit a provider payload for raw content leak detection.
+	 * Called from onPayload hook before provider request.
+	 */
+	auditProviderPayload(payload: unknown): void;
 }
 
 export interface ReadInterceptResult {
@@ -100,6 +186,19 @@ export interface ReadInterceptResult {
 	snapshot?: ReadSnapshot;
 	/** Policy result from ACR × Change Ledger */
 	policy?: ACRLedgerPolicyResult;
+}
+
+export interface SmartReadInterceptResult {
+	/** Compact content to use instead of raw */
+	compactContent: string;
+	/** Mechanism used */
+	mechanism: string;
+	/** Adapter name */
+	adapterName: string;
+	/** Adapter confidence */
+	adapterConfidence: number;
+	/** Whether mutationSafe */
+	mutationSafe: boolean;
 }
 
 export interface AfterReadResult {
@@ -127,7 +226,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 	const changeLedger = new ChangeLedger({
 		maxDeltaChainBeforeCheckpoint: config.changeLedger.maxDeltaChainBeforeCheckpoint,
 	});
-	const ledger = new SavingsLedger();
+	const ledger = new SavingsLedger(config.storeDir);
 	const smartRead = new SmartReadCore();
 
 	// Register built-in adapters
@@ -137,6 +236,24 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 	smartRead.registerAdapter(new JsonYamlAdapter());
 	smartRead.registerAdapter(new RustAdapter());
 	smartRead.setFallbackAdapter(generic);
+
+	const audit: SmartReadAuditTrace = {
+		settingsMode: config.mode,
+		runtimeMode: config.mode,
+		tokenContextEnabled: config.enabled,
+		readPathWrapped: true,
+		beforeReadCalled: false,
+		beforeReadIntercept: false,
+		beforeReadIsCompact: false,
+		mechanism: "raw",
+		tinyFilePassthrough: false,
+		cacheStatus: "empty",
+		rawTokensEstimate: 0,
+		optimizedTokensEstimate: 0,
+		savedTokensEstimate: 0,
+		returnedToolResultTokensEstimate: 0,
+		rawLeakDetected: false,
+	};
 
 	return {
 		mode: config.mode,
@@ -150,9 +267,17 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 		smartRead,
 		turn: 0,
 		extensionSources: config.extensionSources ?? [],
+		lastReadAudit: audit,
 
-		beforeRead(filePath: string): ReadInterceptResult {
+		async beforeRead(filePath: string, options?: { offset?: number; limit?: number }): Promise<ReadInterceptResult> {
 			if (this.mode === "disabled") {
+				this.lastReadAudit = {
+					...audit,
+					beforeReadCalled: true,
+					mechanism: "raw",
+					cacheStatus: "disabled",
+					filePath,
+				};
 				return { intercept: false, isCompact: false };
 			}
 
@@ -179,26 +304,46 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					filePath,
 					metadata: { reason: "tiny_file_raw_passthrough" },
 				});
+				this.lastReadAudit = {
+					...audit,
+					beforeReadCalled: true,
+					mechanism: "fallback",
+					tinyFilePassthrough: true,
+					cacheStatus: "tiny_file",
+					filePath,
+				};
 				return { intercept: false, isCompact: false, policy };
 			}
 
 			// Try read hash cache for unchanged content
+			// Skip cache intercept when LLM explicitly asks for a specific range (offset/limit)
 			if (
 				this.mode === "active_safe" &&
 				(acrState === "active" || acrState === "inactive") &&
-				(ledgerState === "no_entry" || ledgerState === "known_unchanged")
+				(ledgerState === "no_entry" || ledgerState === "known_unchanged") &&
+				options?.offset === undefined &&
+				options?.limit === undefined
 			) {
 				const snap = readHashCache.getSnapshot(filePath);
 				if (snap && readHashCache.isUnchanged(snap)) {
 					const cachedContent = readHashCache.getRawContent(filePath);
 					if (cachedContent) {
 						const baselineEstimate = estimator.estimate(cachedContent);
-						// P43.1: improved compact message - shorter for active context
-						const compactContent = `[cached] ${filePath.split("/").pop() ?? filePath}`;
+						// Generate a useful compact response: try smart read outline if available, else cached marker
+						let compactContent: string;
+						try {
+							const sr = await smartRead.smartRead(cachedContent, filePath, "outline");
+							compactContent =
+								sr?.content && sr.content.length < cachedContent.length
+									? sr.content
+									: `[cached] ${filePath.split("/").pop() ?? filePath} (${(cachedContent.length / 4).toFixed(0)} est. tokens)`;
+						} catch {
+							compactContent = `[cached] ${filePath.split("/").pop() ?? filePath} (${(cachedContent.length / 4).toFixed(0)} est. tokens)`;
+						}
 
 						// Only intercept if compact is actually smaller
 						if (compactContent.length < cachedContent.length) {
-							ledger.record({
+							const eid = ledger.record({
 								mechanism: "read_hash_cache",
 								tool: "read",
 								estimatedBaselineTokens: baselineEstimate.charEstimate,
@@ -207,7 +352,24 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 									baselineEstimate.charEstimate - estimator.estimate(compactContent).charEstimate,
 								confidence: "estimated",
 								filePath,
+								metadata: { sessionId: this.sessionId },
 							});
+
+							this.lastReadAudit = {
+								...audit,
+								beforeReadCalled: true,
+								beforeReadIntercept: true,
+								beforeReadIsCompact: true,
+								mechanism: "read_hash_cache",
+								cacheStatus: "hit",
+								rawTokensEstimate: baselineEstimate.charEstimate,
+								optimizedTokensEstimate: estimator.estimate(compactContent).charEstimate,
+								savedTokensEstimate:
+									baselineEstimate.charEstimate - estimator.estimate(compactContent).charEstimate,
+								returnedToolResultTokensEstimate: estimator.estimate(compactContent).charEstimate,
+								eventId: eid.id,
+								filePath,
+							};
 
 							return {
 								intercept: true,
@@ -224,9 +386,25 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 			// For observe_only and shadow, just track
 			if (this.mode === "observe_only" || this.mode === "shadow") {
+				this.lastReadAudit = {
+					...audit,
+					beforeReadCalled: true,
+					mechanism: "raw",
+					cacheStatus: this.mode === "shadow" ? "shadow" : "observe",
+					filePath,
+				};
 				return { intercept: false, isCompact: false };
 			}
 
+			// active_safe first read: no cache hit, will try smart read after reading file
+			this.lastReadAudit = {
+				...audit,
+				beforeReadCalled: true,
+				mechanism: "raw",
+				cacheStatus: "miss",
+				fallbackReason: "no snapshot - first read, will attempt smart read",
+				filePath,
+			};
 			return { intercept: false, isCompact: false, policy };
 		},
 
@@ -238,7 +416,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			// Take snapshot for hash cache
 			const _snapshot = readHashCache.takeSnapshot(filePath, content);
 
-			// Estimate smart read saving
+			// Estimate tokens
 			const estimate = estimator.estimate(content);
 
 			if (this.mode === "observe_only") {
@@ -255,6 +433,93 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			}
 
 			return { estimatedSaving: 0, mechanism: "read_hash_cache" };
+		},
+
+		async trySmartRead(
+			filePath: string,
+			rawContent: string,
+			options?: { offset?: number; limit?: number },
+		): Promise<SmartReadInterceptResult | undefined> {
+			if (this.mode !== "active_safe") return undefined;
+
+			const isTiny = rawContent.length <= this.config.tinyFileThresholdBytes;
+			if (isTiny) return undefined;
+
+			// Don't intercept if user specified offset/limit (targeted read)
+			// Smart read assumes a full file overview, not a targeted slice
+			if (options?.offset !== undefined || options?.limit !== undefined) return undefined;
+
+			try {
+				const smartResult = await smartRead.smartRead(rawContent, filePath, "outline");
+
+				// ESCAPE HATCH: If adapter confidence is too low, content is tiny/useless,
+				// or it's a fallback — return undefined so the read tool serves raw content.
+				// Never get stuck serving a useless summary.
+				if (
+					!smartResult ||
+					smartResult.isFallback ||
+					smartResult.adapterConfidence < 0.4 ||
+					smartResult.content.length < 50 ||
+					smartResult.content.length >= rawContent.length
+				) {
+					this.lastReadAudit = {
+						...audit,
+						mechanism: "raw",
+						cacheStatus: "miss",
+						fallbackReason: "adapter confidence too low or no useful outline — returning raw",
+						filePath,
+					};
+					return undefined;
+				}
+
+				const rawEstimate = estimator.estimate(rawContent);
+				const compactEstimate = estimator.estimate(smartResult.content);
+				const saving = Math.max(0, rawEstimate.charEstimate - compactEstimate.charEstimate);
+
+				const eid = ledger.record({
+					mechanism: "smart_read",
+					tool: "read",
+					estimatedBaselineTokens: rawEstimate.charEstimate,
+					estimatedOptimizedTokens: compactEstimate.charEstimate,
+					estimatedSavingTokens: saving,
+					confidence: "estimated",
+					filePath,
+					metadata: { mechanism: "smart_read", adapter: smartResult.adapterName, sessionId: this.sessionId },
+				});
+
+				this.lastReadAudit = {
+					...audit,
+					mechanism: "smart_read",
+					adapterName: smartResult.adapterName,
+					adapterConfidence: smartResult.adapterConfidence,
+					mutationSafe: smartResult.mutationSafe,
+					cacheStatus: "miss",
+					rawTokensEstimate: rawEstimate.charEstimate,
+					optimizedTokensEstimate: compactEstimate.charEstimate,
+					savedTokensEstimate: saving,
+					returnedToolResultTokensEstimate: compactEstimate.charEstimate,
+					eventId: eid.id,
+					filePath,
+				};
+
+				return {
+					compactContent: smartResult.content,
+					mechanism: "smart_read",
+					adapterName: smartResult.adapterName,
+					adapterConfidence: smartResult.adapterConfidence,
+					mutationSafe: smartResult.mutationSafe,
+				};
+			} catch (error) {
+				// I008: fail-open, fall back to raw
+				this.lastReadAudit = {
+					...audit,
+					mechanism: "raw",
+					cacheStatus: "miss",
+					fallbackReason: `smart_read error: ${(error as Error).message}`,
+					filePath,
+				};
+				return undefined;
+			}
 		},
 
 		beforeMutation(filePath: string, _content: string): MutationCheckResult {
@@ -294,46 +559,223 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			acr.advanceTurn();
 		},
 
-		getSavingsReport(): string {
-			const summary = ledger.summarize();
-			const tinyFileCount = ledger
-				.getEvents()
-				.filter((e) => e.metadata?.reason === "tiny_file_raw_passthrough").length;
+		getLastReadAudit(): SmartReadAuditTrace | undefined {
+			return this.lastReadAudit;
+		},
+
+		getAuditStatus(): string {
+			const a = this.lastReadAudit;
+			const lines: string[] = [];
+			lines.push("=== P43 Read Audit Status ===");
+			if (!a) {
+				lines.push("No read audit data available.");
+			} else {
+				lines.push(`Mode: ${a.runtimeMode}`);
+				lines.push(`Settings Mode: ${a.settingsMode}`);
+				lines.push(`beforeRead Called: ${a.beforeReadCalled}`);
+				lines.push(`beforeRead Intercept: ${a.beforeReadIntercept}`);
+				lines.push(`Mechanism: ${a.mechanism}`);
+				if (a.adapterName) lines.push(`Adapter: ${a.adapterName} (confidence: ${a.adapterConfidence ?? "?"})`);
+				lines.push(`Cache: ${a.cacheStatus}`);
+				lines.push(
+					`Raw Est: ${a.rawTokensEstimate} | Optimized Est: ${a.optimizedTokensEstimate} | Saved: ${a.savedTokensEstimate}`,
+				);
+				lines.push(`Returned Result Est: ${a.returnedToolResultTokensEstimate}`);
+				const pct =
+					a.rawTokensEstimate > 0 ? Math.round((a.savedTokensEstimate / a.rawTokensEstimate) * 1000) / 10 : 0;
+				lines.push(`Token Reduction: ${pct}%`);
+				lines.push(`Raw Leak Detected: ${a.rawLeakDetected}`);
+				if (a.providerPayloadContainsRawFileBody !== undefined) {
+					lines.push(`Provider Payload Has Raw: ${a.providerPayloadContainsRawFileBody}`);
+				}
+				if (a.providerPayloadContainsCompactMarker !== undefined) {
+					lines.push(`Provider Payload Has Compact: ${a.providerPayloadContainsCompactMarker}`);
+				}
+				if (a.fallbackReason) lines.push(`Fallback: ${a.fallbackReason}`);
+				if (a.filePath) lines.push(`File: ${a.filePath}`);
+				if (a.eventId) lines.push(`Event ID: ${a.eventId}`);
+			}
+
+			// Add calibration report
+			const cal = estimator.generateCalibrationReport(config.providerCalibration.requiredForP44 ? 0.8 : 0.5);
+			lines.push("");
+			lines.push("--- Provider Calibration ---");
+			lines.push(`P44 Eligible: ${estimator.isCalibrated ? "YES" : "NO (no provider calibration)"}`);
+			if (estimator.isCalibrated) {
+				lines.push(`Total Provider Tokens: ${cal.totalActual}`);
+				for (const [key, status] of Object.entries(cal.byProvider)) {
+					lines.push(
+						`  ${key}: ${status.actualInputTokens} in / ${status.actualOutputTokens} out (${status.sampleCount} calls)`,
+					);
+				}
+				if (cal.divergenceRatio !== null) {
+					lines.push(`Estimate vs Actual Divergence: ${cal.divergenceRatio}%`);
+				}
+				lines.push(
+					`Coverage Ratio: ${Math.round(cal.coverageRatio * 100)}%${cal.isPromotionGrade ? " (PROMOTION GRADE)" : " (below threshold)"}`,
+				);
+			}
+			for (const w of cal.warnings) {
+				lines.push(`  Warning: ${w}`);
+			}
+
+			return lines.join("\n");
+		},
+
+		auditProviderPayload(payload: unknown): void {
+			const a = this.lastReadAudit;
+			if (!a || !a.filePath) return;
+
+			// Only audit when a smart read or cache intercept happened (non-raw reads)
+			if (a.mechanism !== "smart_read" && a.mechanism !== "read_hash_cache") return;
+
+			try {
+				// Serialize payload to string for inspection
+				const payloadStr = typeof payload === "string" ? payload : JSON.stringify(payload);
+
+				// Estimate total provider input tokens
+				a.providerPayloadTokensEstimateBefore = estimator.estimate(payloadStr).charEstimate;
+
+				// Check if raw content leaked: the audit trace stores the rawTokensEstimate
+				// We detect a leak if the payload is significantly larger than the compact result
+				const _hasRawBodyLarge =
+					a.returnedToolResultTokensEstimate > 0 &&
+					a.providerPayloadTokensEstimateBefore > a.returnedToolResultTokensEstimate * 2;
+
+				// Check for compact markers in payload
+				const hasCompactMarker =
+					payloadStr.includes("lines total") ||
+					payloadStr.includes("[cached]") ||
+					payloadStr.includes("smart read");
+
+				// Check for raw file body: look for large contiguous text that matches typical raw read patterns
+				a.providerPayloadContainsCompactMarker = hasCompactMarker;
+				a.providerPayloadContainsRawFileBody =
+					!hasCompactMarker &&
+					a.rawTokensEstimate > 0 &&
+					a.providerPayloadTokensEstimateBefore > a.rawTokensEstimate * 0.5;
+
+				// Leak detection: compact result chosen but raw content is in provider payload
+				a.rawLeakDetected =
+					(a.mechanism === "smart_read" || a.mechanism === "read_hash_cache") &&
+					a.providerPayloadTokensEstimateBefore > a.returnedToolResultTokensEstimate * 5;
+
+				// Updated estimate after
+				a.providerPayloadTokensEstimateAfter = a.providerPayloadTokensEstimateBefore;
+			} catch {
+				// I008: fail-open
+			}
+		},
+
+		getSavingsReport(allTime = false): string {
+			const allEvents = ledger.getEvents();
+			// Filter to current session if not all-time
+			const events =
+				this.sessionId && !allTime ? allEvents.filter((e) => e.metadata?.sessionId === this.sessionId) : allEvents;
+
+			const tinyFileCount = events.filter((e) => e.metadata?.reason === "tiny_file_raw_passthrough").length;
+
+			// Compute totals from actual events (no fake baselines)
+			let totalEstimBaseline = 0;
+			let totalEstimOptimized = 0;
+			let totalEstimSaving = 0;
+			let totalActualSaving = 0;
+			const byMechanism: Record<string, { saving: number; count: number }> = {};
+			const byTool: Record<string, { saving: number; count: number }> = {};
+			let fallbackCount = 0;
+
+			for (const e of events) {
+				totalEstimBaseline += e.estimatedBaselineTokens;
+				totalEstimOptimized += e.estimatedOptimizedTokens;
+				totalEstimSaving += e.estimatedSavingTokens;
+				totalActualSaving += e.actualSavingTokens ?? 0;
+
+				const mech = e.mechanism;
+				if (!byMechanism[mech]) byMechanism[mech] = { saving: 0, count: 0 };
+				byMechanism[mech].saving += e.estimatedSavingTokens;
+				byMechanism[mech].count++;
+
+				const tool = e.tool;
+				if (!byTool[tool]) byTool[tool] = { saving: 0, count: 0 };
+				byTool[tool].saving += e.estimatedSavingTokens;
+				byTool[tool].count++;
+
+				if (e.mechanism === "fallback" || e.mechanism === "llm_fallback") fallbackCount++;
+			}
+
+			const pct = totalEstimBaseline > 0 ? Math.round((totalEstimSaving / totalEstimBaseline) * 1000) / 10 : 0;
+			const barLen = 20;
+			const filledBars = Math.round((Math.min(pct, 100) / 100) * barLen);
+			const emptyBars = barLen - filledBars;
+			const bar = `[${"█".repeat(filledBars)}${"░".repeat(emptyBars)}]`;
+
+			let effectiveness: string;
+			if (pct >= 80) effectiveness = "Excellent";
+			else if (pct >= 50) effectiveness = "Good";
+			else if (pct >= 20) effectiveness = "Moderate";
+			else if (pct > 0) effectiveness = "Low";
+			else effectiveness = "None";
+
+			// Distinguish actual vs estimated savings
+			const actualSavingPct =
+				totalEstimBaseline > 0 ? Math.round((totalActualSaving / totalEstimBaseline) * 1000) / 10 : undefined;
 
 			const lines: string[] = [];
-			lines.push("=== P43 Token Context Savings Report ===");
+			const scope = this.sessionId && !allTime ? " (current session)" : " (all time)";
+			lines.push(`=== P43 Token Context Savings Report${scope} ===`);
 			lines.push("");
 			lines.push(`Mode: ${this.mode}`);
 			lines.push(`P44 Eligible: ${estimator.isCalibrated ? "YES" : "NO (no provider calibration)"}`);
+			const rtkStatus = detectRtkHook(this.extensionSources);
+			lines.push(`RTK Status: ${rtkStatus}`);
+			if (this.sessionId) lines.push(`Session: ${this.sessionId.slice(0, 8)}`);
 			lines.push("");
 			lines.push("--- Savings Summary ---");
-			lines.push(`Total Events: ${summary.totalEvents}`);
-			lines.push(`Estimated Saving: ${summary.estimatedSavingPercent}%`);
-			if (summary.actualSavingPercent !== undefined) {
-				lines.push(`Actual Saving: ${summary.actualSavingPercent}%`);
+			lines.push(`Total Events: ${events.length}`);
+			lines.push(`Estimated Saving: ${pct}% ${bar}`);
+			lines.push(`Effectiveness: ${effectiveness}`);
+			if (actualSavingPct !== undefined && actualSavingPct > 0) {
+				lines.push(`Actual Saving (provider-backed): ${actualSavingPct}%`);
 			}
-			lines.push(`Fallback Count: ${summary.fallbackCount}`);
+			lines.push(`Estimated Tokens Saved: ${totalEstimSaving.toLocaleString()}`);
+			lines.push(`Estimated Baseline: ${totalEstimBaseline.toLocaleString()}`);
+			lines.push(`Estimated Optimized: ${totalEstimOptimized.toLocaleString()}`);
+			if (totalActualSaving > 0) {
+				lines.push(`Actual Provider Tokens Saved: ${totalActualSaving.toLocaleString()}`);
+			}
+			lines.push(`Fallback Count: ${fallbackCount}`);
 			lines.push(`Tiny-File Passthrough: ${tinyFileCount}`);
-			lines.push(`Hard Safety Count: ${summary.hardSafetyCount}`);
 			lines.push("");
 			lines.push("--- By Mechanism ---");
-			for (const [mech, stats] of Object.entries(summary.byMechanism)) {
-				lines.push(`  ${mech}: ${stats.estimatedSaving} est. tokens (${stats.eventCount} events)`);
+			if (Object.keys(byMechanism).length === 0) {
+				lines.push("  (no events)");
+			} else {
+				for (const [mech, stats] of Object.entries(byMechanism)) {
+					lines.push(`  ${mech}: ${stats.saving.toLocaleString()} est. tokens (${stats.count} events)`);
+				}
 			}
 			lines.push("");
 			lines.push("--- By Tool ---");
-			for (const [tool, stats] of Object.entries(summary.byTool)) {
-				lines.push(`  ${tool}: ${stats.estimatedSaving} est. tokens (${stats.eventCount} events)`);
+			if (Object.keys(byTool).length === 0) {
+				lines.push("  (no events)");
+			} else {
+				for (const [tool, stats] of Object.entries(byTool)) {
+					lines.push(`  ${tool}: ${stats.saving.toLocaleString()} est. tokens (${stats.count} events)`);
+				}
 			}
 			lines.push("");
-			lines.push("--- Confidence Breakdown ---");
-			lines.push(`  actual: ${summary.confidenceBreakdown.actual ?? 0}`);
-			lines.push(`  estimated: ${summary.confidenceBreakdown.estimated ?? 0}`);
-			lines.push(`  synthetic: ${summary.confidenceBreakdown.synthetic ?? 0}`);
-			lines.push("");
+			lines.push(`--- Mode Report ---`);
+			if (this.mode === "observe_only") {
+				lines.push("  Actual provider savings: 0 (observe_only records only, no interception)");
+			} else if (this.mode === "shadow") {
+				lines.push("  Actual provider savings: 0 (shadow computes but returns raw)");
+			} else if (this.mode === "active_safe") {
+				lines.push("  Savings are estimated unless provider-backed (actual).");
+			}
 
 			// Raw cache stats
 			const cacheStats = rawCache.getStats();
+			lines.push("");
 			lines.push("--- Raw Cache ---");
 			lines.push(`  Entries: ${cacheStats.entryCount}`);
 			lines.push(`  Size: ${cacheStats.totalBytes} / ${cacheStats.maxBytes} bytes`);
@@ -345,20 +787,29 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 	};
 }
 
+let _rtkCachedResult: ReturnType<typeof detectRtkHook> | null = null;
+
 /**
  * P43.1: Detect RTK hook status.
  * Checks for RTK binary and hook installation.
  * Does NOT install anything.
+ * Caches result after first call to avoid execSync on every report.
  */
 export function detectRtkHook(
 	extensionSources?: string[],
+	invalidateCache = false,
 ): "not_installed" | "installed_no_hook" | "hook_installed" | "unknown" {
+	if (_rtkCachedResult !== null && !invalidateCache) {
+		return _rtkCachedResult;
+	}
+
 	// Check if RTK extension is loaded
 	if (extensionSources && extensionSources.length > 0) {
 		const hasRtkExtension = extensionSources.some(
 			(source) => source.toLowerCase().includes("rtk") || source.toLowerCase().includes("replay-toolkit"),
 		);
 		if (hasRtkExtension) {
+			_rtkCachedResult = "hook_installed";
 			return "hook_installed";
 		}
 	}
@@ -370,14 +821,16 @@ export function detectRtkHook(
 		try {
 			rtkPath = execSync("which rtk", { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] }).trim();
 			console.log(`[RTK] Found RTK at: ${rtkPath}`);
-			// RTK is installed - consider it available for token context optimization
+			_rtkCachedResult = "hook_installed";
 			return "hook_installed";
 		} catch {
+			_rtkCachedResult = "not_installed";
 			return "not_installed";
 		}
 	} catch (error) {
 		// Log the actual error for debugging
 		console.error("[RTK Detection Error]:", error instanceof Error ? error.message : String(error));
+		_rtkCachedResult = "unknown";
 		return "unknown";
 	}
 }

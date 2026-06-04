@@ -14,7 +14,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import type {
 	Agent,
 	AgentEvent,
@@ -32,6 +32,7 @@ import {
 	modelsAreEqual,
 	resetApiProviders,
 } from "@earendil-works/pi-ai";
+import { getAgentDir } from "../config.js";
 import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
@@ -398,8 +399,11 @@ export class AgentSession {
 					s.providerCalibration?.requiredForP44 ?? DEFAULT_TOKEN_CONTEXT_CONFIG.providerCalibration.requiredForP44,
 			},
 			tinyFileThresholdBytes: s.tinyFileThresholdBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.tinyFileThresholdBytes,
+			storeDir: join(getAgentDir(), "token-context"),
 		};
-		return createTokenContextRuntime(config);
+		const runtime = createTokenContextRuntime(config);
+		runtime.sessionId = this.sessionManager.getSessionId();
+		return runtime;
 	}
 
 	private async _getRequiredRequestAuth(model: Model<any>): Promise<{
@@ -660,6 +664,19 @@ export class AgentSession {
 				const assistantMsg = event.message as AssistantMessage;
 				if (assistantMsg.stopReason !== "error") {
 					this._overflowRecoveryAttempted = false;
+				}
+
+				// P44: Record provider usage for token estimation calibration
+				if (assistantMsg.usage && assistantMsg.usage.totalTokens > 0) {
+					this._tokenContextRuntime?.estimator.recordProviderUsage({
+						provider: assistantMsg.provider,
+						model: assistantMsg.model,
+						actualInputTokens: assistantMsg.usage.input,
+						actualOutputTokens: assistantMsg.usage.output,
+						totalTokens: assistantMsg.usage.totalTokens,
+						timestamp: Date.now(),
+						requestId: assistantMsg.responseId || `turn_${this._turnIndex}`,
+					});
 				}
 
 				// Reset retry counter immediately on successful assistant response

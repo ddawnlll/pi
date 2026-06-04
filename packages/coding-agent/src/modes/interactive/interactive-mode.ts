@@ -83,6 +83,7 @@ import type { TokenContextSettings } from "../../core/settings-manager.js";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.js";
 import type { SourceInfo } from "../../core/source-info.js";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.js";
+import { SavingsLedger } from "../../core/token-context/savings-ledger.js";
 import type { TruncationResult } from "../../core/tools/truncate.js";
 import { getChangelogPath, getNewEntries, parseChangelog } from "../../utils/changelog.js";
 import { copyToClipboard } from "../../utils/clipboard.js";
@@ -2560,6 +2561,11 @@ export class InteractiveMode {
 			}
 			if (text === "/savings") {
 				this.handleSavingsCommand();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/savings-global") {
+				this.handleSavingsGlobalCommand();
 				this.editor.setText("");
 				return;
 			}
@@ -5137,15 +5143,72 @@ export class InteractiveMode {
 	private handleSavingsCommand(): void {
 		const runtime = this.session.tokenContextRuntime;
 		if (runtime) {
-			const report = runtime.getSavingsReport();
+			const report = runtime.getSavingsReport(false);
+			const audit = runtime.getAuditStatus();
+			const combined = `${report}\n\n${audit}`;
 			this.chatContainer.addChild(new Spacer(1));
-			this.chatContainer.addChild(new Text(report, 1, 0));
+			this.chatContainer.addChild(new Text(combined, 1, 0));
 		} else {
 			const settings = this.session.settingsManager.getGlobalSettings();
 			const report = this.generateSavingsReport(settings.tokenContext);
 			this.chatContainer.addChild(new Spacer(1));
 			this.chatContainer.addChild(new Text(report, 1, 0));
 		}
+		this.ui.requestRender();
+	}
+
+	private handleSavingsGlobalCommand(): void {
+		const runtime = this.session.tokenContextRuntime;
+		if (runtime) {
+			const report = runtime.getSavingsReport(true);
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Text(report, 1, 0));
+			this.ui.requestRender();
+			return;
+		}
+		const storePath = path.join(getAgentDir(), "token-context");
+		const globalLedger = new SavingsLedger(storePath);
+		const summary = globalLedger.summarize();
+
+		const totalSavingsTokens = Object.values(summary.byMechanism).reduce((sum, s) => sum + s.estimatedSaving, 0);
+		const pct = summary.estimatedSavingPercent;
+		const barLen = 20;
+		const filledBars = Math.round((pct / 100) * barLen);
+		const emptyBars = barLen - filledBars;
+		const bar = `[${"█".repeat(filledBars)}${"░".repeat(emptyBars)}]`;
+
+		let effectiveness: string;
+		if (pct >= 80) effectiveness = "Excellent";
+		else if (pct >= 50) effectiveness = "Good";
+		else if (pct >= 20) effectiveness = "Moderate";
+		else if (pct > 0) effectiveness = "Low";
+		else effectiveness = "None";
+
+		const lines: string[] = [];
+		lines.push("=== P43 Token Context Global Savings Report ===");
+		lines.push("");
+		lines.push("Cumulative savings across all threads and sessions.");
+		lines.push("");
+		lines.push("--- Savings Summary ---");
+		lines.push(`Total Events: ${summary.totalEvents}`);
+		lines.push(`Estimated Saving: ${pct}% ${bar}`);
+		lines.push(`Effectiveness: ${effectiveness}`);
+		lines.push(`Total Tokens Saved: ${totalSavingsTokens.toLocaleString()} est.`);
+		lines.push(`Fallback Count: ${summary.fallbackCount}`);
+		lines.push(`Tiny-File Passthrough: ${summary.hardSafetyCount}`);
+		lines.push("");
+		lines.push("--- By Mechanism ---");
+		for (const [mech, stats] of Object.entries(summary.byMechanism)) {
+			lines.push(`  ${mech}: ${stats.estimatedSaving} est. tokens (${stats.eventCount} events)`);
+		}
+		lines.push("");
+		lines.push("--- By Tool ---");
+		for (const [tool, stats] of Object.entries(summary.byTool)) {
+			lines.push(`  ${tool}: ${stats.estimatedSaving} est. tokens (${stats.eventCount} events)`);
+		}
+
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new Text(lines.join("\n"), 1, 0));
 		this.ui.requestRender();
 	}
 

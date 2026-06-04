@@ -222,7 +222,24 @@ export class SelfModificationFirewall {
 	 * @param args - Tool call arguments
 	 * @returns Self-modification report
 	 */
+	/**
+	 * Read-only tools (read, grep, find, ls) don't modify files.
+	 * Skip firewall check for them to avoid noise.
+	 */
+	private readonly READ_ONLY_TOOLS = new Set(["read", "grep", "find", "ls"]);
+
 	checkToolCall(toolName: string, args: Record<string, unknown>): SelfModificationReport {
+		// Read-only tools don't modify files — skip firewall check entirely
+		if (this.READ_ONLY_TOOLS.has(toolName)) {
+			return {
+				hasSelfModification: false,
+				protectedPaths: [],
+				affectedSystems: [],
+				summary: "",
+				anyBlocked: false,
+			};
+		}
+
 		const protectedPaths: string[] = [];
 		const affectedSystems: ProtectedSystem[] = [];
 

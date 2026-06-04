@@ -21,32 +21,111 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 	async outline(content: string, filePath: string): Promise<SmartReadResult> {
 		const lines = content.split("\n");
 		const totalLines = lines.length;
-		const heading = `Generic Outline for ${filePath} (${totalLines} lines):\n`;
-		const preview = lines
-			.slice(0, 20)
-			.map((l, i) => `  L${i + 1}: ${l.length > 80 ? `${l.slice(0, 77)}...` : l}`)
-			.join("\n");
 
-		const result = heading + preview;
-		if (totalLines > 20) {
-			return {
-				content: `${result}\n  ... (${totalLines - 20} more lines)`,
-				mode: "outline",
-				mutationSafe: false,
-				adapterConfidence: 0.3,
-				adapterName: this.name,
-				isFallback: true,
-				suggestedNextReads: [`range_exact:1-20`, `range_exact:21-40`],
-			};
+		// Detect structural markers: markdown headings, all-caps section headers,
+		// setext headings (underlined with === or ---), shebang, XML/HTML root tags
+		const structure: Array<{ kind: string; title: string; line: number }> = [];
+		// ToC detection: consecutive lines of - [text](#anchor) or - text pattern
+		let inToc = false;
+
+		for (let i = 0; i < lines.length; i++) {
+			const l = lines[i];
+			const trimmed = l.trim();
+
+			// ATX headings: ## Title
+			const atx = trimmed.match(/^(#{1,6})\s+(.+)/);
+			if (atx) {
+				structure.push({
+					kind: `h${atx[1].length}`,
+					title: atx[2].replace(/\s*\{#.*\}\s*$/, "").trim(),
+					line: i + 1,
+				});
+				inToc = false;
+				continue;
+			}
+
+			// Setext headings: line followed by === or ---
+			const nextLine = lines[i + 1]?.trim() ?? "";
+			if (trimmed && /^={3,}$/.test(nextLine)) {
+				structure.push({ kind: "h1", title: trimmed, line: i + 1 });
+				i++; // skip the === line
+				inToc = false;
+				continue;
+			}
+			if (trimmed && /^-{3,}$/.test(nextLine) && !inToc) {
+				structure.push({ kind: "h2", title: trimmed, line: i + 1 });
+				i++; // skip the --- line
+				inToc = false;
+				continue;
+			}
+
+			// ALL-CAPS section headers (e.g., "INSTALLATION", "USAGE")
+			if (/^[A-Z][A-Z\s]{2,50}$/.test(trimmed) && trimmed.length > 4) {
+				structure.push({ kind: "section", title: trimmed, line: i + 1 });
+				inToc = false;
+				continue;
+			}
+
+			// ToC line detection: - [text](#anchor) or - text
+			const isTocLine = /^\s*-\s+\[.+\]\(#/.test(trimmed) || /^\s*\d+\.\s+\[.+\]\(#/.test(trimmed);
+			if (isTocLine) {
+				if (!inToc) {
+					structure.push({ kind: "toc", title: "(Table of Contents)", line: i + 1 });
+					inToc = true;
+				}
+				continue;
+			}
+			if (inToc && trimmed === "") {
+				inToc = false;
+			}
 		}
+
+		const hasStructure = structure.length > 0;
+		const confidence = hasStructure ? 0.65 : 0.3;
+
+		// Build outline
+		let result: string;
+		if (hasStructure) {
+			result = `Structural outline for ${filePath} (${totalLines} lines):\n`;
+			for (const s of structure) {
+				if (s.kind === "toc") {
+					const tocEnd = structure.find((x) => x.line > s.line)?.line ?? totalLines;
+					result += `  [toc] Skipped ToC block (L${s.line}-L${tocEnd - 1})\n`;
+				} else {
+					result += `  [${s.kind}] ${s.title} @ L${s.line}\n`;
+				}
+			}
+			const lastStruct = structure[structure.length - 1];
+			if (lastStruct.kind !== "toc" && lastStruct.line < totalLines) {
+				result += `  ... (${totalLines - lastStruct.line} more lines after last heading)\n`;
+			}
+		} else {
+			// No structure detected — fall back to first 20 lines as preview
+			result = `Generic outline for ${filePath} (${totalLines} lines, no headings detected):\n`;
+			for (let i = 0; i < Math.min(20, totalLines); i++) {
+				const l = lines[i];
+				result += `  L${i + 1}: ${l.length > 80 ? `${l.slice(0, 77)}...` : l}\n`;
+			}
+			if (totalLines > 20) {
+				result += `  ... (${totalLines - 20} more lines)\n`;
+			}
+		}
+
+		const suggestedNextReads = hasStructure
+			? structure
+					.filter((s) => s.kind !== "toc")
+					.slice(0, 3)
+					.map((s) => `range_exact:${s.line}-${s.line + 20}`)
+			: [`range_exact:1-20`, `range_exact:21-40`];
 
 		return {
 			content: result,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: 0.3,
+			adapterConfidence: confidence,
 			adapterName: this.name,
-			isFallback: true,
+			isFallback: !hasStructure,
+			suggestedNextReads,
 		};
 	}
 

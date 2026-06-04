@@ -16,6 +16,7 @@ import { getDefaultSessionDir, SessionManager } from "./session-manager.js";
 import { SettingsManager } from "./settings-manager.js";
 import { isInstallTelemetryEnabled } from "./telemetry.js";
 import { time } from "./timings.js";
+import type { TokenContextRuntime } from "./token-context/runtime.js";
 import {
 	createBashTool,
 	createCodingTools,
@@ -316,6 +317,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	};
 
 	const extensionRunnerRef: { current?: ExtensionRunner } = {};
+	const tcRuntimeRef: { current?: TokenContextRuntime } = {};
 
 	agent = new Agent({
 		initialState: {
@@ -345,6 +347,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			});
 		},
 		onPayload: async (payload, _model) => {
+			// P43 provider payload audit: detect raw content leaks
+			tcRuntimeRef.current?.auditProviderPayload(payload);
 			const runner = extensionRunnerRef.current;
 			if (!runner?.hasHandlers("before_provider_request")) {
 				return payload;
@@ -403,6 +407,10 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		extensionRunnerRef,
 		sessionStartEvent: options.sessionStartEvent,
 	});
+
+	// Wire P43 audit to onPayload via ref
+	tcRuntimeRef.current = session.tokenContextRuntime ?? undefined;
+
 	const extensionsResult = resourceLoader.getExtensions();
 
 	return {

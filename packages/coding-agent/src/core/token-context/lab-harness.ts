@@ -400,7 +400,7 @@ export class LabHarness {
 	/**
 	 * Run a fixture in a given mode and return the result.
 	 */
-	runFixture(fixture: LabFixture, mode: TokenContextMode): LabRunResult {
+	async runFixture(fixture: LabFixture, mode: TokenContextMode): Promise<LabRunResult> {
 		const errors: string[] = [];
 		const startTime = Date.now();
 
@@ -435,7 +435,7 @@ export class LabHarness {
 							const estimate = runtime.estimator.estimate(content);
 
 							// Intercept
-							const intercept = runtime.beforeRead(fullPath);
+							const intercept = await runtime.beforeRead(fullPath);
 							if (intercept.intercept && mode === "active_safe" && intercept.replacementContent) {
 								// Use compact result
 								runtime.afterRead(fullPath, content, estimate.charEstimate);
@@ -521,9 +521,9 @@ export class LabHarness {
 		}
 	}
 
-	compareFixture(fixture: LabFixture): LabComparisonReport {
-		const baseline = this.runFixture(fixture, "disabled");
-		const optimized = this.runFixture(fixture, "active_safe");
+	async compareFixture(fixture: LabFixture): Promise<LabComparisonReport> {
+		const baseline = await this.runFixture(fixture, "disabled");
+		const optimized = await this.runFixture(fixture, "active_safe");
 
 		const fixtureClass = this.classifyFixture(fixture.name, optimized);
 		const estimatedSavingPercent = optimized.savingsSummary.estimatedSavingPercent;
@@ -594,11 +594,11 @@ export class LabHarness {
 	/**
 	 * Run all gauntlet fixtures and produce a full report.
 	 */
-	runGauntlet(): { comparisons: LabComparisonReport[]; summary: string } {
+	async runGauntlet(): Promise<{ comparisons: LabComparisonReport[]; summary: string }> {
 		const comparisons: LabComparisonReport[] = [];
 
 		for (const fixture of GAUNTLET_FIXTURES) {
-			comparisons.push(this.compareFixture(fixture));
+			comparisons.push(await this.compareFixture(fixture));
 		}
 
 		const optimizationTargets = comparisons.filter((c) => c.fixtureClass === "optimization_target");
