@@ -1,14 +1,16 @@
 /**
- * P43 Python Smart Read Adapter - W012
+ * P43 Python Smart Read Regex Fallback Adapter - W012
  *
- * Detects classes, functions, methods, decorators, and exact ranges.
- * Regex-based, reports confidence.
+ * v2: Demoted to regex fallback. Confidence capped at 0.45.
+ * symbol_exact is never mutation-safe.
+ * Primary Python provider is tree-sitter WASM or deferred Pyright.
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
+import { SMART_READ_CONFIDENCE } from "../types.js";
 
 export class PythonAdapter implements SmartReadAdapter {
-	readonly name = "python";
+	readonly name = "python-regex-fallback";
 	readonly extensions = [".py", ".pyw", ".pyx", ".pxd", ".pxi"];
 
 	async outline(content: string, _filePath: string): Promise<SmartReadResult> {
@@ -18,9 +20,11 @@ export class PythonAdapter implements SmartReadAdapter {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: 0.85,
+			adapterConfidence: symbols.length > 0 ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.3,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: Python outline is approximate",
 			suggestedNextReads: symbols.slice(0, 10).map((s) => s.name),
 		};
 	}
@@ -32,9 +36,11 @@ export class PythonAdapter implements SmartReadAdapter {
 			content: symbolList,
 			mode: "symbols",
 			mutationSafe: false,
-			adapterConfidence: 0.85,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: Python symbol list is approximate",
 			suggestedNextReads: symbols.map((s) => s.name),
 		};
 	}
@@ -52,7 +58,8 @@ export class PythonAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
-				fallbackError: `symbol "${symbol}" not found`,
+				parseSource: "regex_fallback",
+				fallbackError: `symbol "${symbol}" not found via regex`,
 			};
 		}
 
@@ -62,10 +69,12 @@ export class PythonAdapter implements SmartReadAdapter {
 		return {
 			content: exactContent,
 			mode: "symbol_exact",
-			mutationSafe: true,
-			adapterConfidence: 0.95,
+			mutationSafe: false, // I005: regex fallback never mutation-safe for symbol_exact
+			adapterConfidence: match.endLine ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.35,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback cannot guarantee exact symbol boundaries",
 		};
 	}
 
@@ -79,6 +88,7 @@ export class PythonAdapter implements SmartReadAdapter {
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
+			parseSource: "raw",
 		};
 	}
 
@@ -87,9 +97,11 @@ export class PythonAdapter implements SmartReadAdapter {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
 			mode: "changed",
 			mutationSafe: false,
-			adapterConfidence: 0.7,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback changed detection is unreliable",
 		};
 	}
 
@@ -119,7 +131,7 @@ export class PythonAdapter implements SmartReadAdapter {
 				continue;
 			}
 
-			// Function/method definition (async def too)
+			// Function/method definition
 			const funcMatch = trimmed.match(/^(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*\S+)?\s*:/);
 			if (funcMatch) {
 				const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
@@ -173,9 +185,7 @@ export class PythonAdapter implements SmartReadAdapter {
 	}
 
 	private findBlockEnd(lines: string[], startIdx: number, baseIndent: number): number | undefined {
-		// Python blocks end when indentation returns to base level
 		let i = startIdx + 1;
-		// Skip the ":" line - the block starts at the next line
 		while (i < lines.length) {
 			const line = lines[i];
 			if (line.trim() === "") {
@@ -184,7 +194,7 @@ export class PythonAdapter implements SmartReadAdapter {
 			}
 			const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
 			if (indent <= baseIndent) {
-				return i; // end line is exclusive (line number)
+				return i;
 			}
 			i++;
 		}

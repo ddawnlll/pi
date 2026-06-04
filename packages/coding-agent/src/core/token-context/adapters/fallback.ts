@@ -1,6 +1,13 @@
 /**
  * P43 Generic & LLM-Assisted Fallback Adapter - W015
  *
+ * v2: Confidence caps enforced:
+ *   - Generic fallback outline: <= 0.30 (SMART_READ_CONFIDENCE.GENERIC_FALLBACK_MAX)
+ *   - Generic fallback symbol_exact: <= 0.20
+ *   - LLM fallback: <= 0.55 (SMART_READ_CONFIDENCE.LLM_FALLBACK_MAX)
+ *   - symbol_exact from generic/LLM is never mutation-safe
+ *   - range_exact is always raw-backed and mutation-safe
+ *
  * Handles unknown languages safely.
  * Generic outline first, then LLM-assisted if configured and within budget.
  * LLM fallback output always mutationSafe=false (I002).
@@ -8,11 +15,12 @@
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
+import { SMART_READ_CONFIDENCE } from "../types.js";
 
 /**
  * Generic fallback adapter for unknown languages.
  * Provides basic line-based outline and range extraction.
- * Never produces mutation-safe results (I002).
+ * Never produces mutation-safe results (I002) for symbol_exact/outline/symbols.
  */
 export class GenericFallbackAdapter implements SmartReadAdapter {
 	readonly name = "generic";
@@ -25,7 +33,6 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 		// Detect structural markers: markdown headings, all-caps section headers,
 		// setext headings (underlined with === or ---), shebang, XML/HTML root tags
 		const structure: Array<{ kind: string; title: string; line: number }> = [];
-		// ToC detection: consecutive lines of - [text](#anchor) or - text pattern
 		let inToc = false;
 
 		for (let i = 0; i < lines.length; i++) {
@@ -48,13 +55,13 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 			const nextLine = lines[i + 1]?.trim() ?? "";
 			if (trimmed && /^={3,}$/.test(nextLine)) {
 				structure.push({ kind: "h1", title: trimmed, line: i + 1 });
-				i++; // skip the === line
+				i++;
 				inToc = false;
 				continue;
 			}
 			if (trimmed && /^-{3,}$/.test(nextLine) && !inToc) {
 				structure.push({ kind: "h2", title: trimmed, line: i + 1 });
-				i++; // skip the --- line
+				i++;
 				inToc = false;
 				continue;
 			}
@@ -81,7 +88,7 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 		}
 
 		const hasStructure = structure.length > 0;
-		const confidence = hasStructure ? 0.65 : 0.3;
+		const confidence = hasStructure ? SMART_READ_CONFIDENCE.GENERIC_FALLBACK_MAX : 0.2;
 
 		// Build outline
 		let result: string;
@@ -100,7 +107,6 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 				result += `  ... (${totalLines - lastStruct.line} more lines after last heading)\n`;
 			}
 		} else {
-			// No structure detected — fall back to first 20 lines as preview
 			result = `Generic outline for ${filePath} (${totalLines} lines, no headings detected):\n`;
 			for (let i = 0; i < Math.min(20, totalLines); i++) {
 				const l = lines[i];
@@ -125,6 +131,8 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 			adapterConfidence: confidence,
 			adapterName: this.name,
 			isFallback: !hasStructure,
+			parseSource: "generic_fallback",
+			fallbackError: hasStructure ? undefined : "no structure detected",
 			suggestedNextReads,
 		};
 	}
@@ -147,6 +155,8 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 					adapterConfidence: 0.2,
 					adapterName: this.name,
 					isFallback: true,
+					parseSource: "generic_fallback",
+					fallbackError: "generic fallback cannot resolve exact symbol boundaries",
 				};
 			}
 		}
@@ -158,6 +168,7 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 			adapterConfidence: 0.1,
 			adapterName: this.name,
 			isFallback: true,
+			parseSource: "generic_fallback",
 			fallbackError: `generic adapter cannot resolve symbols`,
 		};
 	}
@@ -172,6 +183,7 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
+			parseSource: "raw",
 		};
 	}
 
@@ -180,9 +192,11 @@ export class GenericFallbackAdapter implements SmartReadAdapter {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
 			mode: "changed",
 			mutationSafe: false,
-			adapterConfidence: 0.5,
+			adapterConfidence: SMART_READ_CONFIDENCE.GENERIC_FALLBACK_MAX,
 			adapterName: this.name,
 			isFallback: true,
+			parseSource: "generic_fallback",
+			fallbackError: "generic fallback changed detection is unreliable",
 		};
 	}
 }
@@ -207,7 +221,6 @@ export class LLMFallbackAdapter implements SmartReadAdapter {
 
 	async outline(content: string, filePath: string): Promise<SmartReadResult> {
 		if (!this.llmCallFn) {
-			// No LLM configured, fall through to generic
 			const generic = new GenericFallbackAdapter();
 			return generic.outline(content, filePath);
 		}
@@ -222,6 +235,7 @@ export class LLMFallbackAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
+				parseSource: "llm_fallback",
 				fallbackError: `over budget: ${estimatedTokens} > ${this.maxTokens}`,
 			};
 		}
@@ -234,9 +248,11 @@ export class LLMFallbackAdapter implements SmartReadAdapter {
 				content: result,
 				mode: "outline",
 				mutationSafe: false, // I002: LLM output is never mutation-safe
-				adapterConfidence: 0.5,
+				adapterConfidence: SMART_READ_CONFIDENCE.LLM_FALLBACK_MAX,
 				adapterName: this.name,
-				isFallback: false,
+				isFallback: true,
+				parseSource: "llm_fallback",
+				fallbackError: "LLM fallback output is approximate",
 			};
 		} catch {
 			const generic = new GenericFallbackAdapter();
@@ -259,6 +275,7 @@ export class LLMFallbackAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
+				parseSource: "llm_fallback",
 				fallbackError: `over budget`,
 			};
 		}

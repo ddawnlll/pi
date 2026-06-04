@@ -32,6 +32,26 @@ function createTempFile(dir: string, name: string, content: string): string {
 	return path;
 }
 
+/** Minimal mock ExtensionContext for tool execute calls */
+function mockExtensionContext(): any {
+	return {
+		ui: {} as any,
+		hasUI: false,
+		cwd: process.cwd(),
+		sessionManager: {} as any,
+		modelRegistry: {} as any,
+		model: undefined,
+		isIdle: () => true,
+		signal: undefined,
+		abort: () => {},
+		hasPendingMessages: () => false,
+		shutdown: () => {},
+		getContextUsage: () => undefined,
+		compact: () => {},
+		getSystemPrompt: () => "",
+	};
+}
+
 /** Assert escape hatch fired: non-null, non-empty result */
 function assertEscaped(result: unknown): asserts result is NonNullable<typeof result> {
 	expect(result).not.toBeNull();
@@ -116,7 +136,13 @@ async function executeRead(
 ): Promise<{ content: string; details?: any }> {
 	// Use the read tool definition to execute a real read
 	const readTool = createReadToolDefinition(cwd, { tokenContextRuntime: runtime });
-	const result = await readTool.execute("test-call-id", { path, offset, limit }, undefined, undefined, undefined);
+	const result = await readTool.execute(
+		"test-call-id",
+		{ path, offset, limit },
+		undefined,
+		undefined,
+		mockExtensionContext(),
+	);
 	const textContent = result.content
 		.filter((c: any) => c.type === "text")
 		.map((c: any) => c.text)
@@ -333,7 +359,7 @@ describe("SmartRead Marco Polo Stuck Scenarios", () => {
 		const repoRoot = join(tmpdir(), "..", "..", "..", "..", "..", "..", "..", "..", "..", "..");
 		// Try multiple possible paths
 		const possiblePaths = [join(repoRoot, "packages", "ai", "README.md")];
-		let readmeContent: string;
+		let readmeContent = "";
 		let found = false;
 		for (const p of possiblePaths) {
 			try {
@@ -408,7 +434,13 @@ describe("SmartRead Marco Polo Stuck Scenarios", () => {
 
 		// Full read via tool should return content
 		const readTool = createReadToolDefinition(tempDir, { tokenContextRuntime: runtime });
-		const readResult = await readTool.execute("test-call-id", { path: "test.xyz" }, undefined, undefined, undefined);
+		const readResult = await readTool.execute(
+			"test-call-id",
+			{ path: "test.xyz" },
+			undefined,
+			undefined,
+			mockExtensionContext(),
+		);
 		expect(readResult).toBeDefined();
 		const text = readResult.content
 			.filter((c: any) => c.type === "text")

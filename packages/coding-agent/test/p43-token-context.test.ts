@@ -1349,91 +1349,91 @@ describe("P43.01/P43.17 Lab Harness & Gauntlet", () => {
 		expect(GAUNTLET_FIXTURES[0].name).toBeDefined();
 	});
 
-	it("runs a single fixture in disabled mode", () => {
+	it("runs a single fixture in disabled mode", async () => {
 		const harness = new LabHarness();
-		const result = harness.runFixture(GAUNTLET_FIXTURES[0], "disabled");
+		const result = await harness.runFixture(GAUNTLET_FIXTURES[0], "disabled");
 		expect(result.errors).toHaveLength(0);
 		expect(result.operations).toBe(GAUNTLET_FIXTURES[0].operations.length);
 	});
 
-	it("runs a single fixture in active_safe mode", () => {
+	it("runs a single fixture in active_safe mode", async () => {
 		const harness = new LabHarness({ mode: "active_safe", enabled: true });
-		const result = harness.runFixture(GAUNTLET_FIXTURES[0], "active_safe");
+		const result = await harness.runFixture(GAUNTLET_FIXTURES[0], "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs a fixture in observe_only mode", () => {
+	it("runs a fixture in observe_only mode", async () => {
 		const harness = new LabHarness();
-		const result = harness.runFixture(GAUNTLET_FIXTURES[0], "observe_only");
+		const result = await harness.runFixture(GAUNTLET_FIXTURES[0], "observe_only");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs a fixture in shadow mode", () => {
+	it("runs a fixture in shadow mode", async () => {
 		const harness = new LabHarness();
-		const result = harness.runFixture(GAUNTLET_FIXTURES[0], "shadow");
+		const result = await harness.runFixture(GAUNTLET_FIXTURES[0], "shadow");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("compares baseline vs optimized", () => {
+	it("compares baseline vs optimized", async () => {
 		const harness = new LabHarness();
-		const comparison = harness.compareFixture(GAUNTLET_FIXTURES[0]);
+		const comparison = await harness.compareFixture(GAUNTLET_FIXTURES[0]);
 		expect(comparison.baseline.mode).toBe("disabled");
 		expect(comparison.optimized.mode).toBe("active_safe");
 	});
 
-	it("runs Python fixture without errors", () => {
+	it("runs Python fixture without errors", async () => {
 		const harness = new LabHarness();
 		const pyFixture = GAUNTLET_FIXTURES.find((f) => f.name === "py-class-hierarchy")!;
-		const result = harness.runFixture(pyFixture, "active_safe");
+		const result = await harness.runFixture(pyFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs JSON config fixture without errors", () => {
+	it("runs JSON config fixture without errors", async () => {
 		const harness = new LabHarness();
 		const jsonFixture = GAUNTLET_FIXTURES.find((f) => f.name === "json-config-large")!;
-		const result = harness.runFixture(jsonFixture, "active_safe");
+		const result = await harness.runFixture(jsonFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs Rust fixture without errors", () => {
+	it("runs Rust fixture without errors", async () => {
 		const harness = new LabHarness();
 		const rsFixture = GAUNTLET_FIXTURES.find((f) => f.name === "rust-structs-enums")!;
-		const result = harness.runFixture(rsFixture, "active_safe");
+		const result = await harness.runFixture(rsFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs unknown language fixture without errors", () => {
+	it("runs unknown language fixture without errors", async () => {
 		const harness = new LabHarness();
 		const unknownFixture = GAUNTLET_FIXTURES.find((f) => f.name === "unknown-language-fallback")!;
-		const result = harness.runFixture(unknownFixture, "active_safe");
+		const result = await harness.runFixture(unknownFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs mixed project fixture without errors", () => {
+	it("runs mixed project fixture without errors", async () => {
 		const harness = new LabHarness();
 		const mixedFixture = GAUNTLET_FIXTURES.find((f) => f.name === "mixed-project-many-reads")!;
-		const result = harness.runFixture(mixedFixture, "active_safe");
+		const result = await harness.runFixture(mixedFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs external mutation fixture without errors", () => {
+	it("runs external mutation fixture without errors", async () => {
 		const harness = new LabHarness();
 		const extFixture = GAUNTLET_FIXTURES.find((f) => f.name === "external-mutation-detection")!;
-		const result = harness.runFixture(extFixture, "active_safe");
+		const result = await harness.runFixture(extFixture, "active_safe");
 		expect(result.errors).toHaveLength(0);
 	});
 
-	it("runs full gauntlet", () => {
+	it("runs full gauntlet", async () => {
 		const harness = new LabHarness();
-		const { comparisons, summary } = harness.runGauntlet();
+		const { comparisons, summary } = await harness.runGauntlet();
 		expect(comparisons.length).toBe(GAUNTLET_FIXTURES.length);
 		expect(summary).toContain("Gauntlet Report");
 	});
 
-	it("all gauntlet fixtures complete without errors in active_safe mode", () => {
+	it("all gauntlet fixtures complete without errors in active_safe mode", async () => {
 		const harness = new LabHarness({ mode: "active_safe", enabled: true });
 		for (const fixture of GAUNTLET_FIXTURES) {
-			const result = harness.runFixture(fixture, "active_safe");
+			const result = await harness.runFixture(fixture, "active_safe");
 			expect(result.errors).toEqual([]);
 		}
 	});
@@ -1536,28 +1536,28 @@ describe("P43.1 RTK Hook Detection", () => {
 // ============================================================================
 
 describe("P43.1 New Gauntlet Fixtures", () => {
-	it("runs ts-edge-symbol-ranges fixture without errors", () => {
+	it("runs ts-edge-symbol-ranges fixture without errors", async () => {
 		const harness = new LabHarness({ mode: "active_safe", enabled: true });
 		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "ts-edge-symbol-ranges");
 		expect(fixture).toBeDefined();
-		const result = harness.runFixture(fixture!, "active_safe");
+		const result = await harness.runFixture(fixture!, "active_safe");
 		expect(result.errors).toEqual([]);
 	});
 
-	it("runs large-repeated-read fixture with savings", () => {
+	it("runs large-repeated-read fixture with savings", async () => {
 		const harness = new LabHarness({ mode: "active_safe", enabled: true });
 		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "large-repeated-read");
 		expect(fixture).toBeDefined();
-		const comparison = harness.compareFixture(fixture!);
+		const comparison = await harness.compareFixture(fixture!);
 		expect(comparison.optimized.errors).toEqual([]);
 		expect(comparison.estimatedSavingPercent).toBeGreaterThan(0);
 	});
 
-	it("runs long-edit-session fixture without errors", () => {
+	it("runs long-edit-session fixture without errors", async () => {
 		const harness = new LabHarness({ mode: "active_safe", enabled: true });
 		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "long-edit-session");
 		expect(fixture).toBeDefined();
-		const result = harness.runFixture(fixture!, "active_safe");
+		const result = await harness.runFixture(fixture!, "active_safe");
 		expect(result.errors).toEqual([]);
 	});
 

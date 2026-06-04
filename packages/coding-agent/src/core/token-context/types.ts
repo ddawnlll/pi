@@ -129,6 +129,156 @@ export interface TokenSavingEvent {
 
 export type SmartReadMode = "outline" | "symbols" | "symbol_exact" | "range_exact" | "changed" | "raw";
 
+// ============================================================================
+// Smart Read V2 — Parse Source Metadata
+// ============================================================================
+
+/**
+ * P43 Smart Read v2: Identifies the parser/source that produced a result.
+ * This is critical for confidence and mutation safety decisions.
+ */
+export type SmartReadParseSource =
+	| "typescript_compiler"
+	| "language_service"
+	| "lsp"
+	| "tree_sitter_wasm"
+	| "native_parser"
+	| "regex_fallback"
+	| "generic_fallback"
+	| "llm_fallback"
+	| "raw";
+
+// ============================================================================
+// Smart Read V2 — Provider Capabilities
+// ============================================================================
+
+export interface SmartReadProviderCapabilities {
+	outline: boolean;
+	symbols: boolean;
+	symbolExact: boolean;
+	rangeExact: boolean;
+	changed: boolean;
+	exactRanges: boolean;
+	mutationSafeExact: boolean;
+	semantic: boolean;
+	astBacked: boolean;
+}
+
+// ============================================================================
+// Smart Read V2 — Provider Interface
+// ============================================================================
+
+/**
+ * P43 Smart Read v2: Provider interface for language-aware content extraction.
+ * Providers are ordered by priority and selected based on availability.
+ */
+export interface SmartReadProvider {
+	/** Provider name (e.g., "typescript-compiler", "tree-sitter-wasm") */
+	readonly name: string;
+	/** Language IDs this provider handles */
+	readonly languageIds: string[];
+	/** File extensions this provider handles */
+	readonly extensions: string[];
+	/** Priority (higher = preferred). TypeScript compiler: 100, tree-sitter: 80, regex: 20, generic: 10, raw: 0 */
+	readonly priority: number;
+
+	/** Check if this provider is available (packages loaded, etc.) */
+	isAvailable(): boolean | Promise<boolean>;
+
+	/** Return capabilities of this provider */
+	getCapabilities(): SmartReadProviderCapabilities;
+
+	/** Get a structural outline of the file */
+	outline(content: string, filePath: string): Promise<SmartReadResult>;
+
+	/** Get a full symbols listing */
+	symbols(content: string, filePath: string): Promise<SmartReadResult>;
+
+	/** Get exact content for a named symbol */
+	symbolExact(content: string, filePath: string, symbol: string): Promise<SmartReadResult>;
+
+	/** Get exact content for a line range */
+	rangeExact(content: string, filePath: string, startLine: number, endLine: number): Promise<SmartReadResult>;
+
+	/** Get changed content based on a delta */
+	changed(content: string, filePath: string, delta: string): Promise<SmartReadResult>;
+}
+
+// ============================================================================
+// Smart Read V2 — Provider Plan
+// ============================================================================
+
+export interface SmartReadProviderPlanEntry {
+	name: string;
+	priority: number;
+	available: boolean;
+	parseSource: SmartReadParseSource;
+	capabilities: SmartReadProviderCapabilities;
+}
+
+export interface SmartReadProviderPlan {
+	filePath: string;
+	extension: string;
+	providers: SmartReadProviderPlanEntry[];
+	selectedProvider?: string;
+	fallbackReason?: string;
+}
+
+// ============================================================================
+// Smart Read V2 — Confidence Constants
+// ============================================================================
+
+export const SMART_READ_CONFIDENCE = {
+	LSP_EXACT: 0.98,
+	TYPESCRIPT_COMPILER_EXACT: 0.96,
+	LANGUAGE_SERVICE_EXACT: 0.96,
+	TREE_SITTER_EXACT: 0.9,
+	NATIVE_PARSER_EXACT: 0.92,
+	TREE_SITTER_OUTLINE: 0.85,
+	NATIVE_PARSER_OUTLINE: 0.88,
+	REGEX_FALLBACK_MAX: 0.45,
+	GENERIC_FALLBACK_MAX: 0.3,
+	LLM_FALLBACK_MAX: 0.55,
+	RAW: 1.0,
+} as const;
+
+// ============================================================================
+// Mutation Safety Policy
+// ============================================================================
+
+/**
+ * Determine whether a SmartReadResult is mutation-safe.
+ *
+ * Truth table:
+ *   raw:                                    mutationSafe=true
+ *   range_exact:                            mutationSafe=true
+ *   symbol_exact from compiler/tree-sitter/parser exact AST range: mutationSafe=true
+ *   symbol_exact from regex/generic/LLM:    mutationSafe=false
+ *   outline/symbols/changed:                mutationSafe=false
+ */
+export function isMutationSafeSmartReadResult(result: SmartReadResult): boolean {
+	if (result.mode === "raw") return true;
+	if (result.mode === "range_exact") return true;
+
+	if (result.mode === "symbol_exact") {
+		return (
+			!!result.exactRange &&
+			result.isFallback === false &&
+			(result.parseSource === "typescript_compiler" ||
+				result.parseSource === "language_service" ||
+				result.parseSource === "lsp" ||
+				result.parseSource === "tree_sitter_wasm" ||
+				result.parseSource === "native_parser")
+		);
+	}
+
+	return false;
+}
+
+// ============================================================================
+// Smart Read Result
+// ============================================================================
+
 export interface SmartReadResult {
 	/** The text content to return */
 	content: string;
@@ -150,7 +300,31 @@ export interface SmartReadResult {
 	isFallback: boolean;
 	/** Error message if fallback was due to error */
 	fallbackError?: string;
+
+	// === Smart Read v2 fields ===
+
+	/** Parse source identifier indicating what parser/engine produced this result */
+	parseSource?: SmartReadParseSource;
+	/** Provider name (e.g., "typescript-compiler", "tree-sitter-wasm", "json-native") */
+	providerName?: string;
+	/** Provider priority rank */
+	providerPriority?: number;
+	/** Whether the provider was available at time of read */
+	providerAvailable?: boolean;
+	/** Exact range information for mutation-safe reads */
+	exactRange?: {
+		startLine: number;
+		endLine: number;
+		startColumn?: number;
+		endColumn?: number;
+		startOffset?: number;
+		endOffset?: number;
+	};
 }
+
+// ============================================================================
+// Smart Read Adapter (legacy compatibility interface)
+// ============================================================================
 
 export interface SmartReadAdapter {
 	/** Adapter name (e.g., "typescript", "python", "generic") */
@@ -167,6 +341,28 @@ export interface SmartReadAdapter {
 	rangeExact(content: string, filePath: string, startLine: number, endLine: number): Promise<SmartReadResult>;
 	/** Get changed content based on a delta */
 	changed(content: string, filePath: string, delta: string): Promise<SmartReadResult>;
+}
+
+// ============================================================================
+// Timeout Helper
+// ============================================================================
+
+/**
+ * Execute a promise with a timeout. If it exceeds the timeout, the promise is rejected.
+ */
+export async function withProviderTimeout<T>(promise: Promise<T>, timeoutMs: number, providerName: string): Promise<T> {
+	let timer: NodeJS.Timeout | undefined;
+	try {
+		const result = await Promise.race([
+			promise,
+			new Promise<T>((_, reject) => {
+				timer = setTimeout(() => reject(new Error(`${providerName} timed out after ${timeoutMs}ms`)), timeoutMs);
+			}),
+		]);
+		return result;
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }
 
 // ============================================================================

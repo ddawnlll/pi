@@ -1,24 +1,18 @@
 /**
- * P43 TypeScript/JavaScript Smart Read Adapter - W011 / P43.1 optimized
+ * P43 TypeScript/JavaScript Smart Read Regex Fallback Adapter - W011
  *
- * Detects imports, exports, classes, methods, functions, arrow functions,
- * interfaces, types, enums with accurate endLine computation.
- * Uses regex-based parsing with bracket-aware range scanning.
- * Reports confidence level based on match quality.
+ * v2: Demoted to regex fallback. Confidence capped at 0.45.
+ * symbol_exact is never mutation-safe.
+ * Primary provider for TypeScript is now TypeScriptCompilerProvider.
  *
- * P43.1 improvements:
- * - Exports classified by real declaration kind (class/function/interface not generic "export")
- * - Arrow functions compute endLine via bracket scan
- * - Constructor/getter/setter/#private method detection
- * - JSX component detection
- * - Multiline declaration handling
- * - Avoids naive line+20 fallback
+ * Kept as fallback when TypeScript compiler is unavailable.
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
+import { SMART_READ_CONFIDENCE } from "../types.js";
 
 export class TypeScriptAdapter implements SmartReadAdapter {
-	readonly name = "typescript";
+	readonly name = "typescript-regex-fallback";
 	readonly extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
 
 	async outline(content: string, _filePath: string): Promise<SmartReadResult> {
@@ -28,9 +22,11 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: symbols.length > 0 ? 0.92 : 0.5,
+			adapterConfidence: symbols.length > 0 ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.3,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: cannot guarantee exact symbol boundaries",
 			suggestedNextReads: symbols.slice(0, 10).map((s) => s.name),
 		};
 	}
@@ -48,9 +44,11 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 			content: symbolList,
 			mode: "symbols",
 			mutationSafe: false,
-			adapterConfidence: 0.92,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: cannot guarantee exact symbol boundaries",
 			suggestedNextReads: symbols.map((s) => s.name),
 		};
 	}
@@ -68,7 +66,8 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
-				fallbackError: `symbol "${symbol}" not found`,
+				parseSource: "regex_fallback",
+				fallbackError: `symbol "${symbol}" not found via regex`,
 			};
 		}
 
@@ -77,11 +76,9 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		if (!endLine) {
 			endLine = this.findClosingBrace(lines, match.line - 1, "{", "}");
 			if (!endLine) {
-				// Try to find next blank-line-separated block
 				endLine = this.findNextBlankLine(lines, match.line - 1);
 			}
 			if (!endLine) {
-				// Last resort: small window around the declaration
 				endLine = Math.min(match.line + 15, lines.length);
 			}
 		}
@@ -91,10 +88,12 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		return {
 			content: exactContent,
 			mode: "symbol_exact",
-			mutationSafe: true,
-			adapterConfidence: match.endLine ? 0.95 : 0.7,
+			mutationSafe: false, // I005: regex fallback is never mutation-safe for symbol_exact
+			adapterConfidence: match.endLine ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.35,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback cannot guarantee exact symbol boundaries",
 			suggestedNextReads: endLine < lines.length ? [`offset=${endLine + 1}`] : undefined,
 		};
 	}
@@ -105,10 +104,11 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		return {
 			content: range,
 			mode: "range_exact",
-			mutationSafe: true,
+			mutationSafe: true, // range_exact is always safe
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
+			parseSource: "raw",
 		};
 	}
 
@@ -117,14 +117,16 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
 			mode: "changed",
 			mutationSafe: false,
-			adapterConfidence: 0.7,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback changed detection is unreliable",
 		};
 	}
 
 	// ============================================================================
-	// Symbol Extraction - P43.1 optimized
+	// Symbol Extraction - P43.1 optimized (kept for fallback)
 	// ============================================================================
 
 	private extractSymbols(content: string): SymbolInfo[] {
@@ -185,7 +187,6 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 				continue;
 			}
 			if (trimmed === "export default" && i + 1 < lines.length) {
-				// export default followed by declaration - handled by next line
 				continue;
 			}
 
@@ -276,9 +277,6 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 			}
 
 			// --- Arrow functions assigned to const/let/var ---
-			// Pattern: const name = (args) => { body }
-			// Pattern: const name = (args): Type => { body }
-			// Pattern: const name: Type = (args) => { body }
 			const arrowMatch = decl.match(
 				/^(?:const|let|var)\s+(\w+)\s*(?::\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*=\s*(?:async\s*)?\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*=>\s*\{/,
 			);
@@ -294,8 +292,7 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 				continue;
 			}
 
-			// --- JSX component: const Name: React.FC<Props> = (props) => { ... } ---
-			// --- or: function Name(props: Props): JSX.Element { ... } ---
+			// --- JSX component ---
 			const jsxFuncMatch = decl.match(
 				/^(?:async\s+)?function\s+([A-Z]\w*)\s*\([^)]*\)(?:\s*:\s*(?:React\.)?(?:JSX\.Element|ReactNode|ReactElement))?\s*\{/,
 			);
@@ -310,8 +307,7 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 				continue;
 			}
 
-			// --- Method declarations (indented, within class) ---
-			// Supports: public/private/protected, static, async, get/set, #private, generic returns
+			// --- Method declarations ---
 			const methodMatch = decl.match(
 				/^(?:(?:public|private|protected)\s+)?(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?(#?\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*\{/,
 			);
@@ -388,10 +384,8 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 
 	private findClosingBrace(lines: string[], startIdx: number, open: string, close: string): number | undefined {
 		let depth = 0;
-		// Start from startIdx + 1 if the first line contains the opening brace
 		for (let i = startIdx; i < lines.length; i++) {
 			const line = lines[i];
-			// Simple string literal skip (rough)
 			const cleaned = line
 				.replace(/(["'`])(?:(?!\1).)*?\1/g, "")
 				.replace(/\/\/.*$/, "")
@@ -408,18 +402,14 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 	}
 
 	private findTypeAliasEnd(lines: string[], startIdx: number): number | undefined {
-		// Type aliases can span multiple lines with union types
-		// Look for the end of the type expression
 		let depth = 0;
 		for (let i = startIdx; i < lines.length; i++) {
 			const trimmed = lines[i].trim();
 			const cleaned = trimmed.replace(/(["'`])(?:(?!\1).)*?\1/g, "").replace(/\/\/.*$/, "");
-			// Count angle brackets, parens, braces
 			for (const ch of cleaned) {
 				if ("<({[".includes(ch)) depth++;
 				if (">)}]".includes(ch)) depth--;
 			}
-			// End when we hit a semicolon at depth 0, or a blank line with no continuation
 			if (depth <= 0 && (cleaned.endsWith(";") || (trimmed === "" && i > startIdx))) {
 				return i + 1;
 			}
@@ -428,7 +418,6 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 	}
 
 	private findNextBlankLine(lines: string[], startIdx: number): number | undefined {
-		// Find the next blank line (paragraph boundary) after startIdx
 		for (let i = startIdx + 1; i < lines.length; i++) {
 			if (lines[i].trim() === "") {
 				return i;

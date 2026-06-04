@@ -1,14 +1,17 @@
 /**
- * P43 Rust Smart Read Adapter - W014
+ * P43 Rust Smart Read Regex Fallback Adapter - W014
  *
- * Detects structs, enums, traits, impl blocks, functions, mod declarations,
- * macros, and test modules.
+ * v2: Demoted to regex fallback. Confidence capped at 0.45.
+ * symbol_exact is never mutation-safe.
+ * Primary Rust provider is tree-sitter WASM (or rust-analyzer if explicitly configured).
+ * No rust-analyzer required by default.
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
+import { SMART_READ_CONFIDENCE } from "../types.js";
 
 export class RustAdapter implements SmartReadAdapter {
-	readonly name = "rust";
+	readonly name = "rust-regex-fallback";
 	readonly extensions = [".rs"];
 
 	async outline(content: string, _filePath: string): Promise<SmartReadResult> {
@@ -18,9 +21,11 @@ export class RustAdapter implements SmartReadAdapter {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: 0.85,
+			adapterConfidence: symbols.length > 0 ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.3,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: Rust outline is approximate",
 			suggestedNextReads: symbols.slice(0, 10).map((s) => s.name),
 		};
 	}
@@ -34,9 +39,11 @@ export class RustAdapter implements SmartReadAdapter {
 			content: symbolList,
 			mode: "symbols",
 			mutationSafe: false,
-			adapterConfidence: 0.85,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: Rust symbol list is approximate",
 			suggestedNextReads: symbols.map((s) => s.name),
 		};
 	}
@@ -54,7 +61,8 @@ export class RustAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
-				fallbackError: `symbol "${symbol}" not found`,
+				parseSource: "regex_fallback",
+				fallbackError: `symbol "${symbol}" not found via regex`,
 			};
 		}
 
@@ -64,10 +72,12 @@ export class RustAdapter implements SmartReadAdapter {
 		return {
 			content: exactContent,
 			mode: "symbol_exact",
-			mutationSafe: true,
-			adapterConfidence: 0.95,
+			mutationSafe: false, // I005: regex fallback never mutation-safe for symbol_exact
+			adapterConfidence: match.endLine ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.35,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback cannot guarantee exact symbol boundaries",
 		};
 	}
 
@@ -81,6 +91,7 @@ export class RustAdapter implements SmartReadAdapter {
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
+			parseSource: "raw",
 		};
 	}
 
@@ -89,9 +100,11 @@ export class RustAdapter implements SmartReadAdapter {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
 			mode: "changed",
 			mutationSafe: false,
-			adapterConfidence: 0.7,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback changed detection is unreliable",
 		};
 	}
 
@@ -251,7 +264,6 @@ export class RustAdapter implements SmartReadAdapter {
 			// Test module
 			const testModuleMatch = trimmed.match(/^#\[cfg\(test\)\]/);
 			if (testModuleMatch) {
-				// Look ahead for mod tests
 				for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
 					const nextTrimmed = lines[j].trim();
 					const modMatch = nextTrimmed.match(/^mod\s+(\w+)\s*\{/);
@@ -286,7 +298,6 @@ export class RustAdapter implements SmartReadAdapter {
 		let depth = 0;
 		for (let i = startIdx; i < lines.length; i++) {
 			const line = lines[i];
-			// Skip string literals
 			const cleaned = line.replace(/(["'])(?:(?!\1).)*?\1/g, "").replace(/\/\/.*$/, "");
 			for (let j = 0; j < cleaned.length; j++) {
 				if (cleaned[j] === open) depth++;

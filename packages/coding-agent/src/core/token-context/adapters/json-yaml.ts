@@ -1,15 +1,18 @@
 /**
- * P43 JSON/YAML Smart Read Adapter - W013
+ * P43 JSON/YAML Smart Read Regex Fallback Adapter - W013
  *
- * Detects key paths, summarizes large arrays/objects,
- * and supports exact path/range reads.
- * JSON and YAML support via regex parsing.
+ * v2: Demoted to regex fallback. Confidence capped at 0.45.
+ * symbol_exact is never mutation-safe.
+ * Primary providers for JSON/YAML are JsonNativeProvider and YamlNativeProvider.
+ *
+ * Kept as regex fallback when native parsers are unavailable.
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
+import { SMART_READ_CONFIDENCE } from "../types.js";
 
 export class JsonYamlAdapter implements SmartReadAdapter {
-	readonly name = "json-yaml";
+	readonly name = "json-yaml-regex-fallback";
 	readonly extensions = [".json", ".yaml", ".yml", ".jsonc", ".json5"];
 
 	async outline(content: string, filePath: string): Promise<SmartReadResult> {
@@ -29,9 +32,11 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence: 0.9,
+			adapterConfidence: keys.length > 0 ? SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX : 0.3,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: key paths are approximate",
 			suggestedNextReads: keys.slice(0, 10).map((k) => k.path),
 		};
 	}
@@ -45,9 +50,11 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 			content: symbolList,
 			mode: "symbols",
 			mutationSafe: false,
-			adapterConfidence: 0.85,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback: key paths are approximate",
 			suggestedNextReads: keys.map((k) => k.path),
 		};
 	}
@@ -62,7 +69,8 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 				adapterConfidence: 0.1,
 				adapterName: this.name,
 				isFallback: true,
-				fallbackError: `path "${symbol}" not found`,
+				parseSource: "regex_fallback",
+				fallbackError: `path "${symbol}" not found via regex`,
 			};
 		}
 
@@ -72,10 +80,12 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 		return {
 			content: exactContent,
 			mode: "symbol_exact",
-			mutationSafe: true,
-			adapterConfidence: 0.95,
+			mutationSafe: false, // I005: regex fallback never mutation-safe for symbol_exact
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback cannot guarantee exact path boundaries",
 		};
 	}
 
@@ -89,6 +99,7 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
+			parseSource: "raw",
 		};
 	}
 
@@ -97,14 +108,16 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 			content: `[Changed content based on delta for ${filePath}]\n${delta}`,
 			mode: "changed",
 			mutationSafe: false,
-			adapterConfidence: 0.7,
+			adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
 			adapterName: this.name,
-			isFallback: false,
+			isFallback: true,
+			parseSource: "regex_fallback",
+			fallbackError: "regex fallback changed detection is unreliable",
 		};
 	}
 
 	// ============================================================================
-	// JSON Key Extraction
+	// JSON Key Extraction (regex)
 	// ============================================================================
 
 	private extractJsonKeys(content: string): KeyInfo[] {
@@ -140,7 +153,7 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 	}
 
 	// ============================================================================
-	// YAML Key Extraction
+	// YAML Key Extraction (regex)
 	// ============================================================================
 
 	private extractYamlKeys(content: string): KeyInfo[] {
@@ -151,7 +164,6 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 			const lineNum = i + 1;
 			const line = lines[i];
 
-			// Skip comments and empty lines
 			const trimmed = line.trim();
 			if (!trimmed || trimmed.startsWith("#") || trimmed === "---" || trimmed === "...") continue;
 
@@ -166,7 +178,6 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 				});
 			}
 
-			// List items
 			const listMatch = line.match(/^(\s*)-\s+/);
 			if (listMatch) {
 				const indent = listMatch[1].length;
@@ -190,7 +201,6 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 		if (trimmed.match(/:\s*\d/)) return "number";
 		if (trimmed.match(/:\s*null|:\s*~/)) return "null";
 		if (trimmed.match(/:\s*["']/)) return "string";
-		// Check next line indentation for nested content
 		if (idx + 1 < lines.length) {
 			const nextLine = lines[idx + 1];
 			const nextTrimmed = nextLine.trim();
@@ -221,7 +231,6 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 		const lines = content.split("\n");
 		for (let i = 0; i < lines.length; i++) {
 			const trimmed = lines[i].trim();
-			// Match key in JSON or YAML
 			const keyMatch =
 				trimmed.match(new RegExp(`^"${this.escapeRegExp(path)}"\\s*:`)) ??
 				trimmed.match(new RegExp(`^${this.escapeRegExp(path)}\\s*:`));
@@ -230,14 +239,12 @@ export class JsonYamlAdapter implements SmartReadAdapter {
 				const start = i + 1;
 				const indent = lines[i].match(/^(\s*)/)?.[1].length ?? 0;
 
-				// Find the end of this block
 				let end = lines.length;
 				for (let j = i + 1; j < lines.length; j++) {
 					const nextLine = lines[j].trim();
 					if (!nextLine) continue;
 					const nextIndent = lines[j].match(/^(\s*)/)?.[1].length ?? 0;
 					if (nextIndent <= indent && !nextLine.startsWith(",")) {
-						// Don't stop at trailing commas or closing braces at same indent
 						if (!nextLine.match(/^[}\]]/) && !nextLine.trim().startsWith(",")) {
 							end = j;
 							break;

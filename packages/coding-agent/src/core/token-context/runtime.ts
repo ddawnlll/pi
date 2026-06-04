@@ -17,6 +17,11 @@ import { PythonAdapter } from "./adapters/python.js";
 import { RustAdapter } from "./adapters/rust.js";
 import { TypeScriptAdapter } from "./adapters/typescript.js";
 import { ChangeLedger } from "./change-ledger.js";
+import { JsonNativeProvider } from "./providers/json-native-provider.js";
+import { PyrightProvider } from "./providers/pyright-provider.js";
+import { TreeSitterWasmProvider } from "./providers/tree-sitter-wasm-provider.js";
+import { TypeScriptCompilerProvider } from "./providers/typescript-compiler-provider.js";
+import { YamlNativeProvider } from "./providers/yaml-native-provider.js";
 import { RawCache } from "./raw-cache.js";
 import { ReadHashCache } from "./read-hash-cache.js";
 import { SavingsLedger } from "./savings-ledger.js";
@@ -26,6 +31,8 @@ import type {
 	ACRLedgerPolicyResult,
 	ReadSnapshot,
 	SavingsMechanism,
+	SmartReadParseSource,
+	SmartReadResult,
 	TokenContextConfig,
 	TokenContextMode,
 } from "./types.js";
@@ -199,6 +206,8 @@ export interface SmartReadInterceptResult {
 	adapterConfidence: number;
 	/** Whether mutationSafe */
 	mutationSafe: boolean;
+	/** Parse source (v2) */
+	parseSource?: SmartReadParseSource;
 }
 
 export interface AfterReadResult {
@@ -229,7 +238,14 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 	const ledger = new SavingsLedger(config.storeDir);
 	const smartRead = new SmartReadCore();
 
-	// Register built-in adapters
+	// Register v2 providers (high priority first)
+	smartRead.registerProvider(new TypeScriptCompilerProvider());
+	smartRead.registerProvider(new JsonNativeProvider());
+	smartRead.registerProvider(new YamlNativeProvider());
+	smartRead.registerProvider(new TreeSitterWasmProvider());
+	smartRead.registerProvider(new PyrightProvider());
+
+	// Register legacy adapters (as fallback when providers unavailable)
 	const generic = new GenericFallbackAdapter();
 	smartRead.registerAdapter(new TypeScriptAdapter());
 	smartRead.registerAdapter(new PythonAdapter());
@@ -452,21 +468,14 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			try {
 				const smartResult = await smartRead.smartRead(rawContent, filePath, "outline");
 
-				// ESCAPE HATCH: If adapter confidence is too low, content is tiny/useless,
-				// or it's a fallback — return undefined so the read tool serves raw content.
-				// Never get stuck serving a useless summary.
-				if (
-					!smartResult ||
-					smartResult.isFallback ||
-					smartResult.adapterConfidence < 0.4 ||
-					smartResult.content.length < 50 ||
-					smartResult.content.length >= rawContent.length
-				) {
+				// P43 v2: Acceptance gate for compact smart read output
+				const acceptance = isSmartReadCompactAcceptable(smartResult, rawContent, filePath);
+				if (!acceptance.ok) {
 					this.lastReadAudit = {
 						...audit,
 						mechanism: "raw",
 						cacheStatus: "miss",
-						fallbackReason: "adapter confidence too low or no useful outline — returning raw",
+						fallbackReason: `smart_read compact rejected: ${acceptance.reason}`,
 						filePath,
 					};
 					return undefined;
@@ -508,6 +517,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					adapterName: smartResult.adapterName,
 					adapterConfidence: smartResult.adapterConfidence,
 					mutationSafe: smartResult.mutationSafe,
+					parseSource: smartResult.parseSource,
 				};
 			} catch (error) {
 				// I008: fail-open, fall back to raw
@@ -833,4 +843,86 @@ export function detectRtkHook(
 		_rtkCachedResult = "unknown";
 		return "unknown";
 	}
+}
+
+// ============================================================================
+// P43 v2: Smart Read Compact Acceptance Gates
+// ============================================================================
+
+function isCodeFile(filePath: string): boolean {
+	return /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py|pyw|rs)$/i.test(filePath);
+}
+
+function isDataFile(filePath: string): boolean {
+	return /\.(json|jsonc|json5|yaml|yml|toml|xml|html|css|scss|less)$/i.test(filePath);
+}
+
+function isSmartReadCompactAcceptable(
+	result: SmartReadResult,
+	rawContent: string,
+	filePath: string,
+): { ok: boolean; reason?: string } {
+	// Null/undefined result
+	if (!result) {
+		return { ok: false, reason: "result is null/undefined" };
+	}
+
+	// Fallback results are never acceptable as compact
+	if (result.isFallback === true) {
+		return { ok: false, reason: "result is fallback" };
+	}
+
+	// Content too short to be useful
+	if (result.content.length < 50) {
+		return { ok: false, reason: "compact content too short (< 50 chars)" };
+	}
+
+	// Compact must be actually shorter than raw
+	if (result.content.length >= rawContent.length) {
+		return { ok: false, reason: "compact content not shorter than raw" };
+	}
+
+	// Check for error/not-found markers
+	if (
+		result.content.includes('[Symbol "') ||
+		result.content.includes("not found via") ||
+		result.content.includes("[Error:") ||
+		result.content.includes("not found in")
+	) {
+		return { ok: false, reason: "compact content contains error/not-found marker" };
+	}
+
+	// For code files, must have high confidence and proper parse source
+	if (isCodeFile(filePath)) {
+		const parseSource = result.parseSource;
+
+		// Reject regex/generic/LLM fallback parse sources
+		if (parseSource === "regex_fallback" || parseSource === "generic_fallback" || parseSource === "llm_fallback") {
+			return { ok: false, reason: `code file rejected ${parseSource} compact` };
+		}
+
+		// Require high confidence for code files
+		if (result.adapterConfidence < 0.75) {
+			return { ok: false, reason: `code file confidence ${result.adapterConfidence} < 0.75` };
+		}
+
+		// Must have meaningful parse source for code
+		if (!parseSource || parseSource === "raw") {
+			return { ok: false, reason: "code file missing meaningful parse source" };
+		}
+	}
+
+	// For data files (JSON/YAML), require native parser or tree-sitter
+	if (isDataFile(filePath)) {
+		const parseSource = result.parseSource;
+		if (parseSource === "regex_fallback" || parseSource === "generic_fallback") {
+			return { ok: false, reason: `data file rejected ${parseSource} compact` };
+		}
+
+		if (result.adapterConfidence < 0.75) {
+			return { ok: false, reason: `data file confidence ${result.adapterConfidence} < 0.75` };
+		}
+	}
+
+	return { ok: true };
 }

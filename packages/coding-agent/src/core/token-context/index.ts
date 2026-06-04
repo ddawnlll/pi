@@ -21,10 +21,21 @@ export type {
 	EditRecoveryPacket,
 } from "./edit-recovery-types.js";
 export { DEFAULT_EDIT_RECOVERY_CONFIG, EditRecoveryMetricsTracker } from "./edit-recovery-types.js";
-export type { GrammarCapability, GrammarPreflightReport } from "./grammar-preflight.js";
-export { runGrammarPreflight } from "./grammar-preflight.js";
+export type {
+	GrammarCapability,
+	GrammarPreflightReport,
+	SmartReadProviderPreflightEntry,
+	SmartReadProviderPreflightReport,
+} from "./grammar-preflight.js";
+export { runGrammarPreflight, runSmartReadProviderPreflight } from "./grammar-preflight.js";
 export type { FixtureClass, LabComparisonReport, LabFixture, LabOperation, LabRunResult } from "./lab-harness.js";
 export { GAUNTLET_FIXTURES, LabHarness } from "./lab-harness.js";
+export { JsonNativeProvider } from "./providers/json-native-provider.js";
+export { PyrightProvider } from "./providers/pyright-provider.js";
+export { TreeSitterWasmProvider } from "./providers/tree-sitter-wasm-provider.js";
+// Providers (v2)
+export { TypeScriptCompilerProvider } from "./providers/typescript-compiler-provider.js";
+export { YamlNativeProvider } from "./providers/yaml-native-provider.js";
 export type { RawCacheOptions } from "./raw-cache.js";
 export { RawCache } from "./raw-cache.js";
 export type { ReadHashCacheOptions } from "./read-hash-cache.js";
@@ -41,6 +52,7 @@ export { SavingsLedger } from "./savings-ledger.js";
 export { SmartReadCore } from "./smart-read-core.js";
 export type { CalibrationReport, ProviderCalibrationStatus } from "./token-estimator.js";
 export { TokenEstimator } from "./token-estimator.js";
+
 export type {
 	ACRLedgerPolicyResult,
 	ACRState,
@@ -55,6 +67,11 @@ export type {
 	SavingsMechanism,
 	SmartReadAdapter,
 	SmartReadMode,
+	SmartReadParseSource,
+	SmartReadProvider,
+	SmartReadProviderCapabilities,
+	SmartReadProviderPlan,
+	SmartReadProviderPlanEntry,
 	SmartReadResult,
 	TokenContextConfig,
 	TokenContextMode,
@@ -65,4 +82,7 @@ export {
 	ACR_LEDGER_POLICY,
 	DEFAULT_TOKEN_CONTEXT_CONFIG,
 	getACRLedgerPolicy,
+	isMutationSafeSmartReadResult,
+	SMART_READ_CONFIDENCE,
+	withProviderTimeout,
 } from "./types.js";
