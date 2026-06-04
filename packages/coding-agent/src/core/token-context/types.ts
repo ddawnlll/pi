@@ -27,6 +27,8 @@ export interface TokenContextConfig {
 	providerCalibration: {
 		requiredForP44: boolean;
 	};
+	/** P43.1: Minimum file size in bytes for smart read optimization. Files below this are returned raw. */
+	tinyFileThresholdBytes: number;
 }
 
 export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
@@ -44,6 +46,7 @@ export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
 	providerCalibration: {
 		requiredForP44: true,
 	},
+	tinyFileThresholdBytes: 64,
 };
 
 // ============================================================================

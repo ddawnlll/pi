@@ -179,6 +179,8 @@ export interface TokenContextSettings {
 		/** Whether provider calibration is required for P44 (default: true) */
 		requiredForP44?: boolean;
 	};
+	/** P43.1: Minimum file size in bytes to attempt optimization. Files smaller than this always return raw. (default: 256) */
+	tinyFileThresholdBytes?: number;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */

@@ -1,9 +1,18 @@
 /**
- * P43 TypeScript/JavaScript Smart Read Adapter - W011
+ * P43 TypeScript/JavaScript Smart Read Adapter - W011 / P43.1 optimized
  *
- * Detects imports, exports, classes, methods, functions, and symbol ranges.
- * Uses regex-based parsing (no tree-sitter dependency).
+ * Detects imports, exports, classes, methods, functions, arrow functions,
+ * interfaces, types, enums with accurate endLine computation.
+ * Uses regex-based parsing with bracket-aware range scanning.
  * Reports confidence level based on match quality.
+ *
+ * P43.1 improvements:
+ * - Exports classified by real declaration kind (class/function/interface not generic "export")
+ * - Arrow functions compute endLine via bracket scan
+ * - Constructor/getter/setter/#private method detection
+ * - JSX component detection
+ * - Multiline declaration handling
+ * - Avoids naive line+20 fallback
  */
 
 import type { SmartReadAdapter, SmartReadResult } from "../types.js";
@@ -18,8 +27,8 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		return {
 			content: outline,
 			mode: "outline",
-			mutationSafe: false, // I002: outline is not mutation-safe
-			adapterConfidence: 0.9,
+			mutationSafe: false,
+			adapterConfidence: symbols.length > 0 ? 0.92 : 0.5,
 			adapterName: this.name,
 			isFallback: false,
 			suggestedNextReads: symbols.slice(0, 10).map((s) => s.name),
@@ -28,12 +37,18 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 
 	async symbols(content: string, _filePath: string): Promise<SmartReadResult> {
 		const symbols = this.extractSymbols(content);
-		const symbolList = symbols.map((s) => `${s.kind}: ${s.name} (${s.signature ?? ""}) [L${s.line}]`).join("\n");
+		const symbolList = symbols
+			.map((s) => {
+				const exp = s.isExported ? "export " : "";
+				const range = s.endLine ? ` L${s.line}-${s.endLine}` : ` L${s.line}`;
+				return `${exp}${s.kind}: ${s.name}(${s.signature ?? ""})${range}`;
+			})
+			.join("\n");
 		return {
 			content: symbolList,
 			mode: "symbols",
-			mutationSafe: false, // I002
-			adapterConfidence: 0.9,
+			mutationSafe: false,
+			adapterConfidence: 0.92,
 			adapterName: this.name,
 			isFallback: false,
 			suggestedNextReads: symbols.map((s) => s.name),
@@ -57,28 +72,40 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 			};
 		}
 
-		// Extract exact lines for this symbol
-		const endLine = match.endLine ?? match.line + 20;
+		// Use computed endLine if available, otherwise scan for closing brace
+		let endLine = match.endLine;
+		if (!endLine) {
+			endLine = this.findClosingBrace(lines, match.line - 1, "{", "}");
+			if (!endLine) {
+				// Try to find next blank-line-separated block
+				endLine = this.findNextBlankLine(lines, match.line - 1);
+			}
+			if (!endLine) {
+				// Last resort: small window around the declaration
+				endLine = Math.min(match.line + 15, lines.length);
+			}
+		}
+
 		const exactContent = lines.slice(match.line - 1, endLine).join("\n");
 
 		return {
 			content: exactContent,
 			mode: "symbol_exact",
-			mutationSafe: true, // I003: exact symbol read is mutation-safe
-			adapterConfidence: 0.95,
+			mutationSafe: true,
+			adapterConfidence: match.endLine ? 0.95 : 0.7,
 			adapterName: this.name,
 			isFallback: false,
+			suggestedNextReads: endLine < lines.length ? [`offset=${endLine + 1}`] : undefined,
 		};
 	}
 
 	async rangeExact(content: string, _filePath: string, startLine: number, endLine: number): Promise<SmartReadResult> {
 		const lines = content.split("\n");
 		const range = lines.slice(startLine - 1, endLine).join("\n");
-
 		return {
 			content: range,
 			mode: "range_exact",
-			mutationSafe: true, // I003: exact range is mutation-safe
+			mutationSafe: true,
 			adapterConfidence: 1.0,
 			adapterName: this.name,
 			isFallback: false,
@@ -97,7 +124,7 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 	}
 
 	// ============================================================================
-	// Symbol Extraction (regex-based)
+	// Symbol Extraction - P43.1 optimized
 	// ============================================================================
 
 	private extractSymbols(content: string): SymbolInfo[] {
@@ -107,154 +134,235 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		for (let i = 0; i < lines.length; i++) {
 			const lineNum = i + 1;
 			const line = lines[i];
+			const trimmed = line.trim();
 
 			// Skip comments and empty lines
-			const trimmed = line.trim();
 			if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")) {
 				continue;
 			}
 
-			// Import statements
-			const importMatch = trimmed.match(
-				/^import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*]+|\*\s+as\s+\w+)\s+from\s+['"]([^'"]+)['"]/,
-			);
-			if (importMatch) {
+			// Strip leading export to classify by real kind
+			const isExported = trimmed.startsWith("export ");
+			const decl = isExported
+				? trimmed
+						.slice(7)
+						.trim()
+						.replace(/^default\s+/, "")
+						.replace(/^type\s+/, "")
+				: trimmed;
+
+			// --- Imports ---
+			if (trimmed.startsWith("import ")) {
+				const name = trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed;
+				const fromMatch = trimmed.match(/from\s+['"]([^'"]+)['"]/);
 				symbols.push({
-					name: trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed,
+					name,
 					kind: "import",
 					line: lineNum,
-					signature: `from "${importMatch[1]}"`,
+					signature: fromMatch ? `from "${fromMatch[1]}"` : undefined,
+					isExported: false,
 				});
 				continue;
 			}
 
-			// Export statements
-			if (trimmed.startsWith("export ")) {
-				const exportMatch = trimmed.match(
-					/^export\s+(?:default\s+)?(?:class|function|const|let|var|type|interface|enum|async\s+function)\s+(\w+)/,
-				);
-				if (exportMatch) {
-					symbols.push({
-						name: exportMatch[1],
-						kind: "export",
-						line: lineNum,
-					});
-					continue;
-				}
-				if (trimmed.match(/^export\s+\{[^}]+\}/)) {
-					symbols.push({
-						name: trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed,
-						kind: "export",
-						line: lineNum,
-					});
-					continue;
-				}
-				if (trimmed.startsWith("export default ")) {
-					symbols.push({
-						name: "default",
-						kind: "export",
-						line: lineNum,
-					});
-					continue;
-				}
+			// --- Export re-exports ---
+			if (trimmed.match(/^export\s+\{[^}]*\}\s*;/)) {
+				symbols.push({
+					name: trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed,
+					kind: "export",
+					line: lineNum,
+					isExported: true,
+				});
+				continue;
+			}
+			if (trimmed.match(/^export\s+\*\s+from/)) {
+				symbols.push({
+					name: trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed,
+					kind: "export",
+					line: lineNum,
+					isExported: true,
+				});
+				continue;
+			}
+			if (trimmed === "export default" && i + 1 < lines.length) {
+				// export default followed by declaration - handled by next line
+				continue;
 			}
 
-			// Class declarations
-			const classMatch = trimmed.match(
-				/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+(\w+(?:\.\w+)*))?(?:\s+implements\s+.+)?\s*\{/,
+			// --- Class declarations ---
+			const classMatch = decl.match(
+				/^(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+([\w.]+(?:<[^>]+>)?))?(?:\s+implements\s+.+?)?\s*\{/,
 			);
 			if (classMatch) {
+				const endLine = this.findClosingBrace(lines, i, "{", "}");
 				symbols.push({
 					name: classMatch[1],
 					kind: "class",
 					line: lineNum,
 					signature: classMatch[2] ? `extends ${classMatch[2]}` : undefined,
-					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					endLine,
+					isExported,
 				});
 				continue;
 			}
 
-			// Interface declarations
-			const interfaceMatch = trimmed.match(/^(?:export\s+)?interface\s+(\w+)(?:\s+extends\s+.+)?\s*\{/);
-			if (interfaceMatch) {
+			// --- Interface declarations ---
+			const ifaceMatch = decl.match(/^interface\s+(\w+)(?:<[^>]+>)?(?:\s+extends\s+.+?)?\s*\{/);
+			if (ifaceMatch) {
 				symbols.push({
-					name: interfaceMatch[1],
+					name: ifaceMatch[1],
 					kind: "interface",
 					line: lineNum,
 					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					isExported,
 				});
 				continue;
 			}
 
-			// Type aliases
-			const typeMatch = trimmed.match(/^(?:export\s+)?type\s+(\w+)(?:<[^>]+>)?\s*=/);
+			// --- Type aliases ---
+			const typeMatch = decl.match(/^type\s+(\w+)(?:<[^>]+>)?\s*=/);
 			if (typeMatch) {
 				symbols.push({
 					name: typeMatch[1],
 					kind: "type",
 					line: lineNum,
+					endLine: this.findTypeAliasEnd(lines, i),
+					isExported,
 				});
 				continue;
 			}
 
-			// Enum declarations
-			const enumMatch = trimmed.match(/^(?:export\s+)?(?:const\s+)?enum\s+(\w+)\s*\{/);
+			// --- Enum declarations ---
+			const enumMatch = decl.match(/^(?:const\s+)?enum\s+(\w+)\s*\{/);
 			if (enumMatch) {
 				symbols.push({
 					name: enumMatch[1],
 					kind: "enum",
 					line: lineNum,
 					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					isExported,
 				});
 				continue;
 			}
 
-			// Function declarations (including async)
-			const funcMatch = trimmed.match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)/);
+			// --- Function declarations ---
+			const funcMatch = decl.match(
+				/^(?:async\s+)?function\s+(\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*\{/,
+			);
 			if (funcMatch) {
 				symbols.push({
 					name: funcMatch[1],
 					kind: "function",
 					line: lineNum,
-					endLine: this.findClosingBrace(lines, i, "{", "}") ?? lineNum + 5,
+					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					isExported,
 				});
 				continue;
 			}
 
-			// Arrow functions assigned to const
-			const arrowMatch = trimmed.match(
-				/^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*(?:=\s*(?:async\s*)?\([^)]*\)(?:\s*:\s*[^=]+)?\s*=>|:\s*(?:[^=]+)\s*=>)/,
+			// --- Function declaration (body on next line) ---
+			const funcMatch2 = decl.match(
+				/^(?:async\s+)?function\s+(\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*$/,
+			);
+			if (funcMatch2 && i + 1 < lines.length && lines[i + 1].trim() === "{") {
+				symbols.push({
+					name: funcMatch2[1],
+					kind: "function",
+					line: lineNum,
+					endLine: this.findClosingBrace(lines, i + 1, "{", "}"),
+					isExported,
+				});
+				continue;
+			}
+
+			// --- Arrow functions assigned to const/let/var ---
+			// Pattern: const name = (args) => { body }
+			// Pattern: const name = (args): Type => { body }
+			// Pattern: const name: Type = (args) => { body }
+			const arrowMatch = decl.match(
+				/^(?:const|let|var)\s+(\w+)\s*(?::\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*=\s*(?:async\s*)?\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*=>\s*\{/,
 			);
 			if (arrowMatch) {
+				const endLine = this.findClosingBrace(lines, i, "{", "}");
 				symbols.push({
 					name: arrowMatch[1],
 					kind: "function",
 					line: lineNum,
+					endLine: endLine || this.findNextBlankLine(lines, i),
+					isExported,
 				});
 				continue;
 			}
 
-			// Method declarations (within class body, detect by indentation)
-			const methodMatch = trimmed.match(
-				/^(?:\s{2,})?(?:public|private|protected|static|async|abstract)?\s*(?:static\s+)?(?:async\s+)?(\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)\s*(?::\s*\w+(?:<[^>]+>)?(?:\s*\|\s*\w+(?:<[^>]+>)?)*)?\s*\{/,
+			// --- JSX component: const Name: React.FC<Props> = (props) => { ... } ---
+			// --- or: function Name(props: Props): JSX.Element { ... } ---
+			const jsxFuncMatch = decl.match(
+				/^(?:async\s+)?function\s+([A-Z]\w*)\s*\([^)]*\)(?:\s*:\s*(?:React\.)?(?:JSX\.Element|ReactNode|ReactElement))?\s*\{/,
 			);
-			if (methodMatch && !["if", "for", "while", "switch", "catch", "try"].includes(methodMatch[1])) {
+			if (jsxFuncMatch && !classMatch) {
 				symbols.push({
-					name: methodMatch[1],
-					kind: "method",
+					name: jsxFuncMatch[1],
+					kind: "component",
 					line: lineNum,
 					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					isExported,
 				});
 				continue;
 			}
 
-			// Variable declarations with type annotations
-			const varMatch = trimmed.match(/^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*(?::\s*[^=]+)?\s*=\s*(?!\{)/);
-			if (varMatch) {
+			// --- Method declarations (indented, within class) ---
+			// Supports: public/private/protected, static, async, get/set, #private, generic returns
+			const methodMatch = decl.match(
+				/^(?:(?:public|private|protected)\s+)?(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?(#?\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*\{/,
+			);
+			if (
+				methodMatch &&
+				!["if", "for", "while", "switch", "catch", "try", "return", "throw", "new", "delete"].includes(
+					methodMatch[1],
+				)
+			) {
+				const isConstructor = methodMatch[1] === "constructor";
+				const kind = isConstructor ? "constructor" : "method";
+				symbols.push({
+					name: methodMatch[1],
+					kind,
+					line: lineNum,
+					endLine: this.findClosingBrace(lines, i, "{", "}"),
+					isExported: false,
+				});
+				continue;
+			}
+
+			// --- Method with opening brace on next line ---
+			const methodMatch2 = decl.match(
+				/^(?:(?:public|private|protected)\s+)?(?:static\s+)?(?:async\s+)?(?:get\s+|set\s+)?(#?\w+)\s*(?:<[^>]+>)?\s*\([^)]*\)(?:\s*:\s*[\w<>.|&[\]]+(?:\s*\|\s*[\w<>.|&[\]]+)*)?\s*$/,
+			);
+			if (
+				methodMatch2 &&
+				!["if", "for", "while", "switch", "catch", "try", "return"].includes(methodMatch2[1]) &&
+				i + 1 < lines.length &&
+				lines[i + 1].trim() === "{"
+			) {
+				const isConstructor = methodMatch2[1] === "constructor";
+				const kind = isConstructor ? "constructor" : "method";
+				symbols.push({
+					name: methodMatch2[1],
+					kind,
+					line: lineNum,
+					endLine: this.findClosingBrace(lines, i + 1, "{", "}"),
+					isExported: false,
+				});
+				continue;
+			}
+
+			// --- Variable/constant declarations ---
+			const varMatch = decl.match(/^(?:const|let|var)\s+(\w+)\s*(?::\s*[^=]+)?\s*=\s*(?!\{)/);
+			if (varMatch && !arrowMatch) {
 				symbols.push({
 					name: varMatch[1],
 					kind: "variable",
 					line: lineNum,
+					isExported,
 				});
 			}
 		}
@@ -262,27 +370,68 @@ export class TypeScriptAdapter implements SmartReadAdapter {
 		return symbols;
 	}
 
+	// ============================================================================
+	// Helpers
+	// ============================================================================
+
 	private buildOutline(symbols: SymbolInfo[]): string {
 		const lines: string[] = [];
 		lines.push("Symbol Outline:");
 		lines.push("==============");
 		for (const sym of symbols) {
+			const exp = sym.isExported ? "export " : "";
 			const sig = sym.signature ? ` ${sym.signature}` : "";
-			lines.push(`  [${sym.kind}] ${sym.name}${sig} @ L${sym.line}`);
+			lines.push(`  ${exp}[${sym.kind}] ${sym.name}${sig} @ L${sym.line}`);
 		}
 		return lines.join("\n");
 	}
 
 	private findClosingBrace(lines: string[], startIdx: number, open: string, close: string): number | undefined {
 		let depth = 0;
+		// Start from startIdx + 1 if the first line contains the opening brace
 		for (let i = startIdx; i < lines.length; i++) {
 			const line = lines[i];
-			for (let j = 0; j < line.length; j++) {
-				if (line[j] === open) depth++;
-				if (line[j] === close) {
+			// Simple string literal skip (rough)
+			const cleaned = line
+				.replace(/(["'`])(?:(?!\1).)*?\1/g, "")
+				.replace(/\/\/.*$/, "")
+				.replace(/\/\*[\s\S]*?\*\//g, "");
+			for (let j = 0; j < cleaned.length; j++) {
+				if (cleaned[j] === open) depth++;
+				if (cleaned[j] === close) {
 					depth--;
 					if (depth === 0) return i + 1;
 				}
+			}
+		}
+		return undefined;
+	}
+
+	private findTypeAliasEnd(lines: string[], startIdx: number): number | undefined {
+		// Type aliases can span multiple lines with union types
+		// Look for the end of the type expression
+		let depth = 0;
+		for (let i = startIdx; i < lines.length; i++) {
+			const trimmed = lines[i].trim();
+			const cleaned = trimmed.replace(/(["'`])(?:(?!\1).)*?\1/g, "").replace(/\/\/.*$/, "");
+			// Count angle brackets, parens, braces
+			for (const ch of cleaned) {
+				if ("<({[".includes(ch)) depth++;
+				if (">)}]".includes(ch)) depth--;
+			}
+			// End when we hit a semicolon at depth 0, or a blank line with no continuation
+			if (depth <= 0 && (cleaned.endsWith(";") || (trimmed === "" && i > startIdx))) {
+				return i + 1;
+			}
+		}
+		return undefined;
+	}
+
+	private findNextBlankLine(lines: string[], startIdx: number): number | undefined {
+		// Find the next blank line (paragraph boundary) after startIdx
+		for (let i = startIdx + 1; i < lines.length; i++) {
+			if (lines[i].trim() === "") {
+				return i;
 			}
 		}
 		return undefined;
@@ -295,4 +444,5 @@ interface SymbolInfo {
 	line: number;
 	endLine?: number;
 	signature?: string;
+	isExported: boolean;
 }

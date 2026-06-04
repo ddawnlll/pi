@@ -15,7 +15,7 @@ export { ChangeLedger } from "./change-ledger.js";
 export { CONTRACT_GOLDEN, checkContractCompatibility, P43_CONTRACT_VERSION } from "./contract-version.js";
 export type { GrammarCapability, GrammarPreflightReport } from "./grammar-preflight.js";
 export { runGrammarPreflight } from "./grammar-preflight.js";
-export type { LabComparisonReport, LabFixture, LabOperation, LabRunResult } from "./lab-harness.js";
+export type { FixtureClass, LabComparisonReport, LabFixture, LabOperation, LabRunResult } from "./lab-harness.js";
 export { GAUNTLET_FIXTURES, LabHarness } from "./lab-harness.js";
 export type { RawCacheOptions } from "./raw-cache.js";
 export { RawCache } from "./raw-cache.js";

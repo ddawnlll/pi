@@ -158,18 +158,40 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			const ledgerState = changeLedger.getState(filePath);
 			const policy = getACRLedgerPolicy(acrState, ledgerState);
 
+			// P43.1: Tiny-file threshold - small files return raw directly
+			// Only check if we have a snapshot to measure
+			const snapshot = readHashCache.getSnapshot(filePath);
+			if (
+				snapshot &&
+				snapshot.fileSize <= this.config.tinyFileThresholdBytes &&
+				(this.mode === "active_safe" || this.mode === "shadow")
+			) {
+				ledger.record({
+					mechanism: "fallback",
+					tool: "read",
+					estimatedBaselineTokens: estimator.estimate(snapshot.rawContent ?? "").charEstimate,
+					estimatedOptimizedTokens: estimator.estimate(snapshot.rawContent ?? "").charEstimate,
+					estimatedSavingTokens: 0,
+					confidence: "estimated",
+					filePath,
+					metadata: { reason: "tiny_file_raw_passthrough" },
+				});
+				return { intercept: false, isCompact: false, policy };
+			}
+
 			// Try read hash cache for unchanged content
 			if (
 				this.mode === "active_safe" &&
 				(acrState === "active" || acrState === "inactive") &&
 				(ledgerState === "no_entry" || ledgerState === "known_unchanged")
 			) {
-				const snapshot = readHashCache.getSnapshot(filePath);
-				if (snapshot && readHashCache.isUnchanged(snapshot)) {
+				const snap = readHashCache.getSnapshot(filePath);
+				if (snap && readHashCache.isUnchanged(snap)) {
 					const cachedContent = readHashCache.getRawContent(filePath);
 					if (cachedContent) {
 						const baselineEstimate = estimator.estimate(cachedContent);
-						const compactContent = `[File unchanged. ${cachedContent.length} chars, ${baselineEstimate.charEstimate} est. tokens in active context.]`;
+						// P43.1: improved compact message - shorter for active context
+						const compactContent = `[cached] ${filePath.split("/").pop() ?? filePath}`;
 
 						// Only intercept if compact is actually smaller
 						if (compactContent.length < cachedContent.length) {
@@ -189,7 +211,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 								replacementContent: compactContent,
 								isCompact: true,
 								rawContent: cachedContent,
-								snapshot,
+								snapshot: snap,
 								policy,
 							};
 						}
@@ -271,11 +293,17 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 		getSavingsReport(): string {
 			const summary = ledger.summarize();
+			const rtkStatus = detectRtkHook();
+			const tinyFileCount = ledger
+				.getEvents()
+				.filter((e) => e.metadata?.reason === "tiny_file_raw_passthrough").length;
+
 			const lines: string[] = [];
 			lines.push("=== P43 Token Context Savings Report ===");
 			lines.push("");
 			lines.push(`Mode: ${this.mode}`);
 			lines.push(`P44 Eligible: ${estimator.isCalibrated ? "YES" : "NO (no provider calibration)"}`);
+			lines.push(`RTK Status: ${rtkStatus}`);
 			lines.push("");
 			lines.push("--- Savings Summary ---");
 			lines.push(`Total Events: ${summary.totalEvents}`);
@@ -284,6 +312,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 				lines.push(`Actual Saving: ${summary.actualSavingPercent}%`);
 			}
 			lines.push(`Fallback Count: ${summary.fallbackCount}`);
+			lines.push(`Tiny-File Passthrough: ${tinyFileCount}`);
 			lines.push(`Hard Safety Count: ${summary.hardSafetyCount}`);
 			lines.push("");
 			lines.push("--- By Mechanism ---");
@@ -313,4 +342,37 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			return lines.join("\n");
 		},
 	};
+}
+
+/**
+ * P43.1: Detect RTK hook status.
+ * Checks for RTK binary and hook installation.
+ * Does NOT install anything.
+ */
+export function detectRtkHook(): "not_installed" | "installed_no_hook" | "hook_installed" | "unknown" {
+	try {
+		// Check if RTK is available on PATH
+		const { execSync } = require("node:child_process");
+		try {
+			execSync("which rtk", { stdio: "ignore" });
+		} catch {
+			return "not_installed";
+		}
+
+		// Check if RTK hook is installed (rtk hook status)
+		try {
+			const output = execSync("rtk hook status 2>/dev/null || echo NO_HOOK", {
+				encoding: "utf-8",
+				timeout: 3000,
+			});
+			if (output.includes("active") || output.includes("installed") || output.includes("enabled")) {
+				return "hook_installed";
+			}
+			return "installed_no_hook";
+		} catch {
+			return "installed_no_hook";
+		}
+	} catch {
+		return "unknown";
+	}
 }

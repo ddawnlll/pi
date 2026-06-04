@@ -24,7 +24,7 @@ import { runGrammarPreflight } from "../src/core/token-context/grammar-preflight
 import { GAUNTLET_FIXTURES, LabHarness } from "../src/core/token-context/lab-harness.js";
 import { RawCache } from "../src/core/token-context/raw-cache.js";
 import { ReadHashCache } from "../src/core/token-context/read-hash-cache.js";
-import { createTokenContextRuntime } from "../src/core/token-context/runtime.js";
+import { createTokenContextRuntime, detectRtkHook } from "../src/core/token-context/runtime.js";
 import { SavingsLedger } from "../src/core/token-context/savings-ledger.js";
 import { SmartReadCore } from "../src/core/token-context/smart-read-core.js";
 import { TokenEstimator } from "../src/core/token-context/token-estimator.js";
@@ -1432,5 +1432,135 @@ describe("P43.01/P43.17 Lab Harness & Gauntlet", () => {
 			const result = harness.runFixture(fixture, "active_safe");
 			expect(result.errors).toEqual([]);
 		}
+	});
+});
+
+// ============================================================================
+// P43.1: TypeScript Adapter Edge Cases (W002)
+// ============================================================================
+
+describe("P43.1 TypeScript Adapter Edge Cases", () => {
+	const adapter = new TypeScriptAdapter();
+
+	it("detects exported class as class kind", async () => {
+		const content = "export class MyService { getData() { return 1; } }";
+		const result = await adapter.symbols(content, "test.ts");
+		expect(result.content).toContain("MyService");
+		expect(result.content).toContain("class");
+	});
+
+	it("detects exported function as function kind", async () => {
+		const content = "export function handler(req: Request): Response { return new Response(); }";
+		const result = await adapter.symbols(content, "test.ts");
+		expect(result.content).toContain("handler");
+		expect(result.content).toContain("function");
+	});
+
+	it("computes endLine for arrow functions", async () => {
+		const content = "export const myFunc = (x: number): number => {\n  const y = x * 2;\n  return y;\n};";
+		const result = await adapter.symbolExact(content, "test.ts", "myFunc");
+		expect(result.mutationSafe).toBe(true);
+		expect(result.content).toContain("x * 2");
+	});
+
+	it("detects constructor as method", async () => {
+		const content = "class Service {\n  constructor(private url: string) {}\n  fetch() { return 1; }\n}";
+		const result = await adapter.symbols(content, "test.ts");
+		expect(result.content).toContain("constructor");
+	});
+
+	it("symbolExact does not over-read beyond symbol end", async () => {
+		const content =
+			"export class A {\n  methodA() { return 1; }\n}\n\nexport class B {\n  methodB() { return 2; }\n}";
+		const result = await adapter.symbolExact(content, "test.ts", "A");
+		expect(result.mutationSafe).toBe(true);
+		expect(result.content).toContain("methodA");
+		expect(result.content).not.toContain("methodB");
+	});
+
+	it("symbolExact does not under-read function body", async () => {
+		const content =
+			"export function compute(x: number): number {\n  const a = x + 1;\n  const b = a * 2;\n  return b;\n}";
+		const result = await adapter.symbolExact(content, "test.ts", "compute");
+		expect(result.content).toContain("x + 1");
+		expect(result.content).toContain("return b");
+	});
+});
+
+// ============================================================================
+// P43.1: Tiny-File Threshold (W003)
+// ============================================================================
+
+describe("P43.1 Tiny-File Threshold", () => {
+	it("savings report includes tiny file passthrough count", () => {
+		const config: TokenContextConfig = {
+			...DEFAULT_TOKEN_CONTEXT_CONFIG,
+			enabled: true,
+			mode: "observe_only",
+			tinyFileThresholdBytes: 256,
+		};
+		const runtime = createTokenContextRuntime(config);
+		const report = runtime.getSavingsReport();
+		expect(report).toContain("Tiny-File Passthrough");
+	});
+});
+
+// ============================================================================
+// P43.1: RTK Hook Detection (W006)
+// ============================================================================
+
+describe("P43.1 RTK Hook Detection", () => {
+	it("detectRtkHook returns a valid status string", () => {
+		const status = detectRtkHook();
+		expect(["not_installed", "installed_no_hook", "hook_installed", "unknown"]).toContain(status);
+	});
+
+	it("savings report includes RTK status", () => {
+		const config: TokenContextConfig = {
+			...DEFAULT_TOKEN_CONTEXT_CONFIG,
+			enabled: true,
+			mode: "observe_only",
+		};
+		const runtime = createTokenContextRuntime(config);
+		const report = runtime.getSavingsReport();
+		expect(report).toContain("RTK Status:");
+	});
+});
+
+// ============================================================================
+// P43.1: New Gauntlet Fixtures (W007)
+// ============================================================================
+
+describe("P43.1 New Gauntlet Fixtures", () => {
+	it("runs ts-edge-symbol-ranges fixture without errors", () => {
+		const harness = new LabHarness({ mode: "active_safe", enabled: true });
+		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "ts-edge-symbol-ranges");
+		expect(fixture).toBeDefined();
+		const result = harness.runFixture(fixture!, "active_safe");
+		expect(result.errors).toEqual([]);
+	});
+
+	it("runs large-repeated-read fixture with savings", () => {
+		const harness = new LabHarness({ mode: "active_safe", enabled: true });
+		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "large-repeated-read");
+		expect(fixture).toBeDefined();
+		const comparison = harness.compareFixture(fixture!);
+		expect(comparison.optimized.errors).toEqual([]);
+		expect(comparison.estimatedSavingPercent).toBeGreaterThan(0);
+	});
+
+	it("runs long-edit-session fixture without errors", () => {
+		const harness = new LabHarness({ mode: "active_safe", enabled: true });
+		const fixture = GAUNTLET_FIXTURES.find((f) => f.name === "long-edit-session");
+		expect(fixture).toBeDefined();
+		const result = harness.runFixture(fixture!, "active_safe");
+		expect(result.errors).toEqual([]);
+	});
+
+	it("all new fixtures are in the gauntlet", () => {
+		const names = GAUNTLET_FIXTURES.map((f) => f.name);
+		expect(names).toContain("ts-edge-symbol-ranges");
+		expect(names).toContain("large-repeated-read");
+		expect(names).toContain("long-edit-session");
 	});
 });
