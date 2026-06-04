@@ -21,6 +21,7 @@ import type { TopbarV3BrainMode } from "./components/topbar/TopbarV3";
 import { useTheme } from "./hooks/useTheme";
 import { useProjects } from "./hooks/useProjects";
 import { usePlanExecutions, usePlanExecutionDetail } from "./hooks/usePlanExecutions";
+import { usePlanEvents } from "./hooks/usePlanEvents";
 import { useUnreadCount } from "./hooks/useUnreadCount";
 
 // ─── Shell ────────────────────────────────────────────────────────────────
@@ -90,6 +91,10 @@ function AppShellWiring() {
 	const [includeArchivedPlans, setIncludeArchivedPlans] = useState(false);
 	const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId, includeArchivedPlans);
 	const { data: executionDetail } = usePlanExecutionDetail(selectedProjectId, selectedPlanExecId);
+	const { events: planEvents } = usePlanEvents({
+		projectId: selectedProjectId,
+		planExecId: selectedPlanExecId,
+	});
 	const { observations, proposals, approvals } = useUnreadCount();
 
 	// Brain mode
@@ -330,6 +335,7 @@ function AppShellWiring() {
 					onSearch={() => {}}
 					onToggleMobileNav={() => ui.setMobileNav(ui.mobileNav === "left" ? null : "left")}
 					onBrainMenu={() => nav.navigateToPlatform("brain_overview")}
+					onToggleRightSidebar={() => ui.toggleRight()}
 				/>
 			}
 			leftSidebar={
@@ -365,9 +371,9 @@ function AppShellWiring() {
 			leftSidebarWidth={230}
 			mobileNav={ui.mobileNav}
 			onMobileNavClose={() => ui.setMobileNav(null)}
-			legacyRightSidebar={
+						legacyRightSidebar={
 				<RightSidebar
-					events={[]}
+					events={planEvents}
 					eventFilter={ui.eventFilter}
 					onEventFilterChange={ui.setEventFilter}
 					alertEntries={[

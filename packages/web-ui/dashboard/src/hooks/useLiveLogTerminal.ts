@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WorkerInfo, WorkerTranscriptEvent } from "../types";
+import type { WorkerInfo } from "../types";
 
 // ─── Log channel types ────────────────────────────────────────────────────────
 
@@ -45,66 +45,18 @@ export interface LogEntry {
 	workerId: string;
 }
 
-// ─── Transcript event → log channel classification ────────────────────────────────
+// ─── Log line classifier ────────────────────────────────────────────────────
 
 /**
- * Classify a transcript event type into a log channel.
- *
- * Maps transcript event types to the terminal's channel model:
- * - tool_call → tool
- * - validation → test
- * - blocker → errors
- * - workspace_failed → errors
- * - workspace_start/complete/blocked → action
- * - retry_attempt → action
- * - worker_status → stdout or stderr based on content
- * - worker_decision_summary → stdout
+ * Classify a raw log line into a channel based on content.
  */
-function classifyChannel(event: WorkerTranscriptEvent): LogChannel {
-	const t = event.type;
-
-	// Tool calls
-	if (t === "tool_call") return "tool";
-
-	// Errors and blockers
-	if (t === "blocker" || t === "workspace_failed") return "errors";
-
-	// Validation results (pass/fail)
-	if (t === "validation") return "test";
-
-	// Workspace lifecycle actions
-	if (
-		t === "workspace_start" ||
-		t === "workspace_complete" ||
-		t === "workspace_blocked" ||
-		t === "retry_attempt"
-	) {
-		return "action";
-	}
-
-	// Worker status — check summary content for hints
-	if (t === "worker_status") {
-		const msg = (event.summary ?? "").toLowerCase();
-		if (msg.includes("error") || msg.includes("fail") || msg.includes("warning")) {
-			return "stderr";
-		}
-		if (msg.startsWith("tool:")) return "tool";
-		return "stdout";
-	}
-
-	// worker_decision_summary → stdout
-	if (t === "worker_decision_summary") return "stdout";
-
-	// Default to stdout
+function classifyLogLine(line: string): LogChannel {
+	const lower = line.toLowerCase();
+	if (lower.includes("error") || lower.includes("fail") || lower.includes("stderr")) return "errors";
+	if (lower.includes("test") || lower.includes("vitest") || lower.includes("validation")) return "test";
+	if (lower.includes("tool:")) return "tool";
+	if (lower.includes("running") || lower.includes("executing") || lower.includes("completed")) return "stdout";
 	return "stdout";
-}
-
-/**
- * Format a transcript event into a human-readable log line.
- * Uses the summary field which is already formatted.
- */
-function formatEventText(event: WorkerTranscriptEvent): string {
-	return event.summary || `[${event.type}]`;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -114,12 +66,11 @@ const MAX_LOG_ENTRIES_PER_WORKER = 2000;
 const API_BASE = "";
 
 /**
- * Hook: manages live log entries for multiple workers using transcript SSE stream.
+ * Hook: manages live log entries for multiple workers using v2 log streams.
  *
- * Connects to /api/transcript/:planExecId which provides aggregated transcript
- * events from all workspaces in chronological order.
- * Events are classified into channels and routed to the correct worker.
- * The hook caps logs at MAX_LOG_ENTRIES_PER_WORKER per worker to keep the UI responsive.
+ * Connects to /api/logs/v2/:planExecId/:workspaceId/raw which reads from
+ * raw.log files on disk (always available, even for older executions).
+ * Falls back to structured.ndjson and other log formats as needed.
  */
 export function useLiveLogTerminal(
 	workers: WorkerInfo[],
@@ -135,6 +86,8 @@ export function useLiveLogTerminal(
 	const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 	/** Whether auto-scroll is enabled. */
 	const [autoScroll, setAutoScroll] = useState(true);
+	/** Per-worker SSE connection refs for cleanup. */
+	const sseSourcesRef = useRef<Map<string, EventSource>>(new Map());
 
 	// Auto-select first active worker if none selected
 	useEffect(() => {
@@ -151,7 +104,6 @@ export function useLiveLogTerminal(
 		setLogMap(prev => {
 			const existing = prev[workerId] ?? [];
 			const updated = [...existing, entry];
-			// Cap at MAX_LOG_ENTRIES_PER_WORKER — trim oldest
 			if (updated.length > MAX_LOG_ENTRIES_PER_WORKER) {
 				return { ...prev, [workerId]: updated.slice(updated.length - MAX_LOG_ENTRIES_PER_WORKER) };
 			}
@@ -159,79 +111,45 @@ export function useLiveLogTerminal(
 		});
 	}, []);
 
-	// Build a map from workspaceId to workerId for routing events to the correct worker
-	const wsToWorkerMap = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const w of workers) {
-			if (w.workspaceId) {
-				map.set(w.workspaceId, w.id);
-			}
-		}
-		console.log('[LiveLogTerminal] Built wsToWorkerMap:', {
-			size: map.size,
-			entries: Array.from(map.entries()),
-			workers: workers.map(w => ({ id: w.id, workspaceId: w.workspaceId })),
-		});
-		return map;
-	}, [workers]);
-
-	// Connect to transcript SSE stream
+	// Connect to v2 log SSE stream for each worker
 	useEffect(() => {
-		if (!planExecId) {
-			console.log('[LiveLogTerminal] No planExecId provided');
-			return;
+		if (!planExecId) return;
+
+		// Clean up previous connections
+		for (const [wid, source] of sseSourcesRef.current) {
+			source.close();
 		}
+		sseSourcesRef.current.clear();
+		setLogMap({});
 
-		console.log('[LiveLogTerminal] Connecting to transcript stream for plan:', planExecId);
+		// Connect to raw log stream for each worker
+		for (const worker of workers) {
+			const workerId = worker.id;
+			const workspaceId = worker.workspaceId ?? worker.id;
+			const url = `${API_BASE}/api/logs/v2/${encodeURIComponent(planExecId)}/${encodeURIComponent(workspaceId)}/raw`;
 
-		const url = `${API_BASE}/api/transcript/${encodeURIComponent(planExecId)}`;
-		console.log('[LiveLogTerminal] Full URL:', url);
-		
-		const source = new EventSource(url);
+			const source = new EventSource(url);
+			sseSourcesRef.current.set(workerId, source);
 
-		source.onopen = () => {
-			console.log('[LiveLogTerminal] ✓ Transcript stream connected successfully');
-		};
+			source.onmessage = (event) => {
+				if (event.data === "__NO_LOGS__") return;
 
-		source.onmessage = (event) => {
-			if (event.data === "__NO_TRANSCRIPT__") {
-				console.log('[LiveLogTerminal] No transcript data available yet');
-				return;
-			}
+				const channel = classifyLogLine(event.data);
+				addLog(workerId, channel, event.data);
+			};
 
-			try {
-				const transcriptEvent: WorkerTranscriptEvent = JSON.parse(event.data);
-				
-				console.log('[LiveLogTerminal] Received transcript event:', {
-					type: transcriptEvent.type,
-					workspaceId: transcriptEvent.workspaceId,
-					summary: transcriptEvent.summary?.substring(0, 100),
-				});
-
-				const channel = classifyChannel(transcriptEvent);
-				const text = formatEventText(transcriptEvent);
-
-				// Route to the correct worker using workspaceId
-				const workerId = wsToWorkerMap.get(transcriptEvent.workspaceId) ?? transcriptEvent.workspaceId;
-
-				console.log('[LiveLogTerminal] Routing to worker:', workerId);
-				addLog(workerId, channel, text);
-			} catch (err) {
-				console.error("[LiveLogTerminal] Failed to parse transcript event:", err);
-			}
-		};
-
-		source.onerror = (error) => {
-			console.error("[LiveLogTerminal] ✗ Transcript stream error:", error);
-			console.error("[LiveLogTerminal] ReadyState:", source.readyState);
-			console.error("[LiveLogTerminal] URL was:", url);
-		};
+			source.onerror = () => {
+				// Connection closed or error - this is normal for completed executions
+			};
+		}
 
 		return () => {
-			console.log('[LiveLogTerminal] Closing transcript stream');
-			source.close();
+			for (const [wid, source] of sseSourcesRef.current) {
+				source.close();
+			}
+			sseSourcesRef.current.clear();
 		};
-	}, [planExecId, wsToWorkerMap, addLog]);
+	}, [planExecId, workers, addLog]);
 
 	/** Logs for the currently selected worker, filtered by active channel. */
 	const filteredLogs = useMemo(() => {

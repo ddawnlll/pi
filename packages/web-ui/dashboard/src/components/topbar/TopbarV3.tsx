@@ -12,6 +12,7 @@
  */
 
 import {
+  Activity,
   AlertTriangle,
   Brain,
   ChevronRight,
@@ -67,6 +68,8 @@ export interface TopbarV3Props {
   onBrainMenu?: () => void;
   /** Toggle mobile sidebar navigation */
   onToggleMobileNav?: () => void;
+  /** Toggle right sidebar */
+  onToggleRightSidebar?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +235,7 @@ export function TopbarV3({
   onSearch,
   onBrainMenu,
   onToggleMobileNav,
+  onToggleRightSidebar,
 }: TopbarV3Props) {
   return (
     <header
@@ -343,6 +347,15 @@ export function TopbarV3({
           label="Settings"
           onClick={onSettings}
         />
+
+        {/* Right sidebar toggle */}
+        {onToggleRightSidebar && (
+          <TopbarIconBtn
+            icon={Activity}
+            label="Events & Alerts"
+            onClick={onToggleRightSidebar}
+          />
+        )}
       </div>
     </header>
   );
