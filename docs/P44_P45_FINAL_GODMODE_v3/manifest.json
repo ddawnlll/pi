@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-06-04",
+  "package": "P44/P45 FINAL GODMODE v3",
+  "description": "Long GODMODE package combining revised breadth, executable v2 gates, and P44 commit-scope safety.",
+  "files": [
+    "P44_Verified_Completion_and_Commit_Safety_FINAL_GODMODE_v3.md",
+    "P45_Predictive_Spec_Async_Assembly_FINAL_GODMODE_v3.md",
+    "P44_Vision_Verified_Completion_and_Commit_Safety.md",
+    "P45_Vision_Predictive_Spec_Async_Assembly.md",
+    "README.md",
+    "manifest.json"
+  ],
+  "recommendation": [
+    "Implement P44 first.",
+    "Do not start P45 until P44 fake-complete and commit-scope gauntlets pass.",
+    "P45 remains the speed/parallelism layer after the trust layer is green."
+  ]
+}
