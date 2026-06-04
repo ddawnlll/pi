@@ -39,6 +39,12 @@ export interface SmartReadProviderPreflightReport {
 	warnings: string[];
 	providerPlan: Record<string, SmartReadProviderPreflightEntry>;
 	confidenceAdjustments: Record<string, number>;
+	treeSitterLanguages?: Record<
+		string,
+		{ available: boolean; grammarSource?: string; realParserValidated?: boolean; unavailableReason?: string }
+	>;
+	pyright?: { available: boolean; reason?: string };
+	rustAnalyzer?: { enabled: false; reason: string };
 }
 
 export interface GrammarPreflightReport {
@@ -152,6 +158,32 @@ export function runSmartReadProviderPreflight(): SmartReadProviderPreflightRepor
 		yamlParserAvailable,
 	);
 
+	const treeSitterLanguageMap: Record<
+		string,
+		{ available: boolean; grammarSource?: string; realParserValidated?: boolean; unavailableReason?: string }
+	> = {
+		python: { available: treeSitterWasmAvailable, grammarSource: "tree-sitter-wasms", realParserValidated: false },
+		rust: { available: treeSitterWasmAvailable, grammarSource: "tree-sitter-wasms", realParserValidated: false },
+		typescript: {
+			available: treeSitterWasmAvailable,
+			grammarSource: "tree-sitter-wasms",
+			realParserValidated: false,
+		},
+		javascript: {
+			available: treeSitterWasmAvailable,
+			grammarSource: "tree-sitter-wasms",
+			realParserValidated: false,
+		},
+		json: { available: treeSitterWasmAvailable, grammarSource: "tree-sitter-wasms", realParserValidated: false },
+		yaml: { available: treeSitterWasmAvailable, grammarSource: "tree-sitter-wasms", realParserValidated: false },
+	};
+
+	if (!treeSitterWasmAvailable) {
+		for (const key of Object.keys(treeSitterLanguageMap)) {
+			treeSitterLanguageMap[key].unavailableReason = "web-tree-sitter package not installed";
+		}
+	}
+
 	return {
 		capabilities: caps,
 		treeSitterWasmAvailable,
@@ -162,6 +194,12 @@ export function runSmartReadProviderPreflight(): SmartReadProviderPreflightRepor
 		warnings: report.warnings,
 		providerPlan,
 		confidenceAdjustments: report.confidenceAdjustments,
+		treeSitterLanguages: treeSitterLanguageMap,
+		pyright: {
+			available: false,
+			reason: "Pyright LSP requires system Python or global npm binary; deferred in npm-only mode",
+		},
+		rustAnalyzer: { enabled: false, reason: "external binary disabled by default" },
 	};
 }
 

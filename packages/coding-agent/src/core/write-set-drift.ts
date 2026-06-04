@@ -43,8 +43,8 @@ export interface WriteSetDriftConfig {
  */
 export const DEFAULT_WRITE_SET_DRIFT_CONFIG: WriteSetDriftConfig = {
 	enabled: true,
-	driftThresholdFiles: 3,
-	onDriftDetected: "warn_and_flag_integration",
+	driftThresholdFiles: 0,
+	onDriftDetected: "block_integration",
 	compareAfterExecution: true,
 	feedToOptimizer: true,
 };

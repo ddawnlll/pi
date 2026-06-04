@@ -315,10 +315,17 @@ describe("AC1: Stale hash guard", () => {
 	it("should fail when baseSha is a different branch head (not ancestor)", async () => {
 		initGitRepo(tempDir);
 
-		// Rename default branch to 'main'
-		execSync("git branch -m master main", { cwd: tempDir, stdio: "pipe" });
+		// Use current default branch name (main or master)
+		const defaultBranch =
+			execSync("git rev-parse --abbrev-ref HEAD", {
+				cwd: tempDir,
+				encoding: "utf-8",
+				stdio: ["pipe", "pipe", "ignore"],
+			})
+				.toString()
+				.trim() || "main";
 
-		// Commit on main first
+		// Commit on default branch first
 		writeFileSync(join(tempDir, "on-main.ts"), "// on main\n", "utf-8");
 		execSync("git add -A", { cwd: tempDir, stdio: "pipe" });
 		execSync("git commit -m 'main commit'", { cwd: tempDir, stdio: "pipe" });
@@ -332,10 +339,10 @@ describe("AC1: Stale hash guard", () => {
 
 		const otherSha = execSync("git rev-parse other-branch", { cwd: tempDir, stdio: "pipe" }).toString().trim();
 
-		// Switch back to main
-		execSync("git checkout main", { cwd: tempDir, stdio: "pipe" });
+		// Switch back to default branch
+		execSync(`git checkout ${defaultBranch}`, { cwd: tempDir, stdio: "pipe" });
 
-		// other-branch's HEAD is NOT an ancestor of main's HEAD
+		// other-branch's HEAD is NOT an ancestor of default branch's HEAD
 		const artifact = createTestArtifact({ baseSha: otherSha });
 		const result = await checkStaleHash(artifact, tempDir);
 		expect(result.passed).toBe(false);

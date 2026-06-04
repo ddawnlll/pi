@@ -48,8 +48,8 @@ export interface TokenContextConfig {
 }
 
 export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
-	enabled: false,
-	mode: "observe_only",
+	enabled: true,
+	mode: "active_safe",
 	rawCache: {
 		maxBytes: 50 * 1024 * 1024, // 50MB
 	},

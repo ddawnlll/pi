@@ -366,7 +366,7 @@ describe("Real TypeScript/JS tree-sitter fallback extraction", () => {
 	});
 
 	it("extracts components from JSX fixture", async () => {
-		const { extractTypeScriptSymbols, buildTypeScriptOutline } = await import(
+		const { extractTypeScriptSymbols } = await import(
 			"../../src/core/token-context/providers/tree-sitter-typescript-extractor.js"
 		);
 		const parseResult = await treeSitterWasmLoader.parse("javascript", JSX_FIXTURE);

@@ -105,4 +105,94 @@ describe("admission-gate", () => {
 			}),
 		).toBe("reject");
 	});
+
+	// --- P44 active_safe admission tests ---
+
+	it("rejects when tokenContext enabled=false", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+				tokenContextEnabled: false,
+				tokenContextMode: "active_safe",
+			}),
+		).toBe("reject");
+	});
+
+	it("rejects when tokenContext mode=observe_only", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+				tokenContextEnabled: true,
+				tokenContextMode: "observe_only",
+			}),
+		).toBe("reject");
+	});
+
+	it("rejects when tokenContext mode=shadow", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+				tokenContextEnabled: true,
+				tokenContextMode: "shadow",
+			}),
+		).toBe("reject");
+	});
+
+	it("rejects when tokenContext mode=disabled", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+				tokenContextEnabled: true,
+				tokenContextMode: "disabled",
+			}),
+		).toBe("reject");
+	});
+
+	it("accepts when tokenContext enabled=true mode=active_safe", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+				tokenContextEnabled: true,
+				tokenContextMode: "active_safe",
+			}),
+		).toBe("allow");
+	});
+
+	it("accepts when tokenContext not provided (defaults to enabled active_safe)", () => {
+		expect(
+			admitExecution({
+				postgresAvailable: true,
+				production: false,
+				jsonFallback: false,
+				repairMode: false,
+				autonomousMode: false,
+				promotionGateSatisfied: true,
+			}),
+		).toBe("allow");
+	});
 });

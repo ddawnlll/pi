@@ -70,8 +70,9 @@ describe("WriteSetDriftDetector", () => {
 			const result = await detector.recordAndCompare("plan-2", "ws-2", repoDir, ["src/scheduler/"], baseCommit);
 			expect(result.undeclaredWriteCount).toBeGreaterThan(3);
 			expect(result.driftFlagged).toBe(true);
-			expect(result.requiresHumanReview).toBe(true);
-			expect(result.integrationBlocked).toBe(false);
+			// Block mode: no human review needed since integration is automatically blocked
+			expect(result.requiresHumanReview).toBe(false);
+			expect(result.integrationBlocked).toBe(true);
 		});
 
 		it("clean workspace passes without drift", async () => {

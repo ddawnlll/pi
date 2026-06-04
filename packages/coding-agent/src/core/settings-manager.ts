@@ -157,7 +157,7 @@ export interface MemoryGuardSettings {
 export interface TokenContextSettings {
 	/** Enable token context runtime (default: true) */
 	enabled?: boolean;
-	/** Mode: disabled, observe_only, shadow, active_safe, active_experimental (default: observe_only) */
+	/** Mode: disabled, observe_only, shadow, active_safe, active_experimental (default: active_safe) */
 	mode?: "disabled" | "observe_only" | "shadow" | "active_safe" | "active_experimental";
 	/** Raw cache settings */
 	rawCache?: {
@@ -1164,7 +1164,7 @@ export class SettingsManager {
 	getTokenContextMode(): "disabled" | "observe_only" | "shadow" | "active_safe" {
 		const mode = this.settings.tokenContext?.mode;
 		if (mode === "active_experimental") return "active_safe";
-		return (mode as "disabled" | "observe_only" | "shadow" | "active_safe") ?? "observe_only";
+		return (mode as "disabled" | "observe_only" | "shadow" | "active_safe") ?? "active_safe";
 	}
 
 	setTokenContextMode(mode: "disabled" | "observe_only" | "shadow" | "active_safe"): void {
