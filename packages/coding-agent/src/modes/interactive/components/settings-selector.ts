@@ -56,8 +56,8 @@ export interface SettingsConfig {
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
 	warnings: WarningSettings;
+	tokenContextMode: "disabled" | "observe_only" | "shadow" | "active_safe";
 }
-
 export interface SettingsCallbacks {
 	onAutoCompactChange: (enabled: boolean) => void;
 	onShowImagesChange: (enabled: boolean) => void;
@@ -79,6 +79,7 @@ export interface SettingsCallbacks {
 	onShowHardwareCursorChange: (enabled: boolean) => void;
 	onEditorPaddingXChange: (padding: number) => void;
 	onAutocompleteMaxVisibleChange: (maxVisible: number) => void;
+	onTokenContextModeChange: (mode: "disabled" | "observe_only" | "shadow" | "active_safe") => void;
 	onQuietStartupChange: (enabled: boolean) => void;
 	onClearOnShrinkChange: (enabled: boolean) => void;
 	onShowTerminalProgressChange: (enabled: boolean) => void;
@@ -446,6 +447,17 @@ export class SettingsSelectorComponent extends Container {
 			values: ["true", "false"],
 		});
 
+		// Token Context mode (insert after terminal-progress)
+		const terminalProgressIndex = items.findIndex((item) => item.id === "terminal-progress");
+		items.splice(terminalProgressIndex + 1, 0, {
+			id: "token-context-mode",
+			label: "Token context",
+			description:
+				"P43 Token Context Runtime mode: observe_only (safe), shadow, active_safe (optimized), or disabled",
+			currentValue: config.tokenContextMode ?? "observe_only",
+			values: ["disabled", "observe_only", "shadow", "active_safe"],
+		});
+
 		// Add borders
 		this.addChild(new DynamicBorder());
 
@@ -516,6 +528,11 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "terminal-progress":
 						callbacks.onShowTerminalProgressChange(newValue === "true");
+						break;
+					case "token-context-mode":
+						callbacks.onTokenContextModeChange(
+							newValue as "disabled" | "observe_only" | "shadow" | "active_safe",
+						);
 						break;
 				}
 			},

@@ -1161,6 +1161,22 @@ export class SettingsManager {
 		this.save();
 	}
 
+	getTokenContextMode(): "disabled" | "observe_only" | "shadow" | "active_safe" {
+		const mode = this.settings.tokenContext?.mode;
+		if (mode === "active_experimental") return "active_safe";
+		return (mode as "disabled" | "observe_only" | "shadow" | "active_safe") ?? "observe_only";
+	}
+
+	setTokenContextMode(mode: "disabled" | "observe_only" | "shadow" | "active_safe"): void {
+		if (!this.globalSettings.tokenContext) {
+			this.globalSettings.tokenContext = {};
+		}
+		this.globalSettings.tokenContext.mode = mode;
+		this.globalSettings.tokenContext.enabled = mode !== "disabled";
+		this.markModified("tokenContext", "mode");
+		this.save();
+	}
+
 	getImageAutoResize(): boolean {
 		return this.settings.images?.autoResize ?? true;
 	}

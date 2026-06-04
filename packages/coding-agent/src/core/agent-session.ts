@@ -370,30 +370,31 @@ export class AgentSession {
 	/** Initialize Token Context Runtime from settings */
 	private _initTokenContextRuntime(): TokenContextRuntime | undefined {
 		const tcSettings = this.settingsManager.getGlobalSettings().tokenContext;
-		if (!tcSettings?.enabled) return undefined;
+		// Default: enabled with observe_only mode (safe, records telemetry only)
+		const isEnabled = tcSettings?.enabled ?? true;
+		if (!isEnabled) return undefined;
 
+		const s = tcSettings ?? {};
 		const config: TokenContextConfig = {
 			...DEFAULT_TOKEN_CONTEXT_CONFIG,
 			enabled: true,
-			mode: tcSettings.mode ?? DEFAULT_TOKEN_CONTEXT_CONFIG.mode,
+			mode: s.mode ?? DEFAULT_TOKEN_CONTEXT_CONFIG.mode,
 			rawCache: {
-				maxBytes: tcSettings.rawCache?.maxBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.rawCache.maxBytes,
+				maxBytes: s.rawCache?.maxBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.rawCache.maxBytes,
 			},
 			llmFallback: {
-				maxTokens: tcSettings.llmFallback?.maxTokens ?? DEFAULT_TOKEN_CONTEXT_CONFIG.llmFallback.maxTokens,
+				maxTokens: s.llmFallback?.maxTokens ?? DEFAULT_TOKEN_CONTEXT_CONFIG.llmFallback.maxTokens,
 			},
 			changeLedger: {
 				maxDeltaChainBeforeCheckpoint:
-					tcSettings.changeLedger?.maxDeltaChainBeforeCheckpoint ??
+					s.changeLedger?.maxDeltaChainBeforeCheckpoint ??
 					DEFAULT_TOKEN_CONTEXT_CONFIG.changeLedger.maxDeltaChainBeforeCheckpoint,
 			},
 			providerCalibration: {
 				requiredForP44:
-					tcSettings.providerCalibration?.requiredForP44 ??
-					DEFAULT_TOKEN_CONTEXT_CONFIG.providerCalibration.requiredForP44,
+					s.providerCalibration?.requiredForP44 ?? DEFAULT_TOKEN_CONTEXT_CONFIG.providerCalibration.requiredForP44,
 			},
-			tinyFileThresholdBytes:
-				tcSettings.tinyFileThresholdBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.tinyFileThresholdBytes,
+			tinyFileThresholdBytes: s.tinyFileThresholdBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.tinyFileThresholdBytes,
 		};
 		return createTokenContextRuntime(config);
 	}
@@ -2462,6 +2463,9 @@ export class AgentSession {
 			: createAllToolDefinitions(this._cwd, {
 					read: { autoResizeImages, tokenContextRuntime: this._tokenContextRuntime },
 					bash: { commandPrefix: shellCommandPrefix, shellPath },
+					edit: this._tokenContextRuntime?.config.editRecovery.enabled
+						? { editRecoveryConfig: this._tokenContextRuntime.config.editRecovery }
+						: undefined,
 				});
 
 		this._baseToolDefinitions = new Map(

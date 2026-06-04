@@ -3789,6 +3789,13 @@ export class InteractiveMode {
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
+					tokenContextMode:
+						(this.settingsManager.getGlobalSettings().tokenContext?.mode as
+							| "disabled"
+							| "observe_only"
+							| "shadow"
+							| "active_safe"
+							| undefined) ?? "observe_only",
 					warnings: this.settingsManager.getWarnings(),
 				},
 				{
@@ -3902,6 +3909,9 @@ export class InteractiveMode {
 					},
 					onShowTerminalProgressChange: (enabled) => {
 						this.settingsManager.setShowTerminalProgress(enabled);
+					},
+					onTokenContextModeChange: (mode) => {
+						this.settingsManager.setTokenContextMode(mode);
 					},
 					onWarningsChange: (warnings) => {
 						this.settingsManager.setWarnings(warnings);
