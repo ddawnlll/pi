@@ -5123,11 +5123,17 @@ export class InteractiveMode {
 	}
 
 	private handleSavingsCommand(): void {
-		const settings = this.session.settingsManager.getGlobalSettings();
-		const tcSettings = settings.tokenContext;
-		const report = this.generateSavingsReport(tcSettings);
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(report, 1, 0));
+		const runtime = this.session.tokenContextRuntime;
+		if (runtime) {
+			const report = runtime.getSavingsReport();
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Text(report, 1, 0));
+		} else {
+			const settings = this.session.settingsManager.getGlobalSettings();
+			const report = this.generateSavingsReport(settings.tokenContext);
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Text(report, 1, 0));
+		}
 		this.ui.requestRender();
 	}
 

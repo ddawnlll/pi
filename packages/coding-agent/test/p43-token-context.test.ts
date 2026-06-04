@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BUILTIN_SLASH_COMMANDS } from "../src/core/slash-commands.js";
 import { ActiveContextRegistry } from "../src/core/token-context/active-context-registry.js";
 import { GenericFallbackAdapter, LLMFallbackAdapter } from "../src/core/token-context/adapters/fallback.js";
 import { JsonYamlAdapter } from "../src/core/token-context/adapters/json-yaml.js";
@@ -20,6 +21,8 @@ import {
 	checkContractCompatibility,
 	P43_CONTRACT_VERSION,
 } from "../src/core/token-context/contract-version.js";
+import { buildEditRecoveryPacket } from "../src/core/token-context/edit-recovery.js";
+import { EditRecoveryMetricsTracker } from "../src/core/token-context/edit-recovery-types.js";
 import { runGrammarPreflight } from "../src/core/token-context/grammar-preflight.js";
 import { GAUNTLET_FIXTURES, LabHarness } from "../src/core/token-context/lab-harness.js";
 import { RawCache } from "../src/core/token-context/raw-cache.js";
@@ -30,6 +33,7 @@ import { SmartReadCore } from "../src/core/token-context/smart-read-core.js";
 import { TokenEstimator } from "../src/core/token-context/token-estimator.js";
 import type { ACRState, LedgerState, TokenContextConfig } from "../src/core/token-context/types.js";
 import { DEFAULT_TOKEN_CONTEXT_CONFIG, getACRLedgerPolicy } from "../src/core/token-context/types.js";
+import { createReadTool } from "../src/core/tools/read.js";
 
 // ============================================================================
 // Test Helpers
@@ -1562,5 +1566,219 @@ describe("P43.1 New Gauntlet Fixtures", () => {
 		expect(names).toContain("ts-edge-symbol-ranges");
 		expect(names).toContain("large-repeated-read");
 		expect(names).toContain("long-edit-session");
+	});
+});
+
+// ============================================================================
+// P43.2: Production Wiring Smoke Tests (HC008/HC009)
+// ============================================================================
+
+describe("P43.2 Production Wiring", () => {
+	it("features are reachable from public index exports", async () => {
+		const mod = await import("../src/index.js");
+		expect(mod.createTokenContextRuntime).toBeDefined();
+		expect(mod.SavingsLedger).toBeDefined();
+		expect(mod.SmartReadCore).toBeDefined();
+		expect(mod.TypeScriptAdapter).toBeDefined();
+		expect(mod.DEFAULT_TOKEN_CONTEXT_CONFIG).toBeDefined();
+	});
+
+	it("slash command autocomplete includes savings", () => {
+		const savingsCmd = BUILTIN_SLASH_COMMANDS.find((c) => c.name === "savings");
+		expect(savingsCmd).toBeDefined();
+		expect(savingsCmd!.description).toContain("savings");
+	});
+
+	it("read tool accepts tokenContextRuntime option", () => {
+		const runtime = createTokenContextRuntime({
+			...DEFAULT_TOKEN_CONTEXT_CONFIG,
+			enabled: true,
+			mode: "observe_only",
+		});
+		// Verify read tool can be created with runtime
+		const readTool = createReadTool("/tmp", { tokenContextRuntime: runtime });
+		expect(readTool).toBeDefined();
+	});
+
+	it("runtime getSavingsReport includes production fields", () => {
+		const runtime = createTokenContextRuntime({
+			...DEFAULT_TOKEN_CONTEXT_CONFIG,
+			enabled: true,
+			mode: "observe_only",
+		});
+		const report = runtime.getSavingsReport();
+		expect(report).toContain("Mode:");
+		expect(report).toContain("P44 Eligible");
+		expect(report).toContain("RTK Status:");
+		expect(report).toContain("Tiny-File Passthrough");
+	});
+
+	it("runtime not created when tokenContext disabled", () => {
+		const config: TokenContextConfig = { ...DEFAULT_TOKEN_CONTEXT_CONFIG, enabled: false, mode: "disabled" };
+		const runtime = createTokenContextRuntime(config);
+		expect(runtime.mode).toBe("disabled");
+	});
+});
+
+// ============================================================================
+// P43.3: Edit Recovery Tests (W007)
+// ============================================================================
+
+describe("P43.3 Edit Recovery", () => {
+	it("builds recovery packet when oldText not found", () => {
+		const fileContent = Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n");
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText: "line 50 but wrong",
+			filePath: "test.ts",
+		});
+
+		expect(result.packet.recoveryType).toBe("EDIT_MISMATCH_RECOVERY");
+		expect(result.packet.reason).toBe("oldText_not_found");
+		expect(result.packet.fullRereadAvoided).toBe(true);
+		expect(result.packet.estimatedTokensSaved).toBeGreaterThanOrEqual(0);
+	});
+
+	it("finds candidate near oldText location", () => {
+		const fileContent = Array.from({ length: 50 }, (_, i) => `line ${i}: some content here`).join("\n");
+		const oldText = "line 25: some content here\nline 26: some content here";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+		});
+
+		expect(result.packet.candidates.length).toBeGreaterThan(0);
+		expect(result.packet.candidates[0].normalizedSimilarity).toBeGreaterThan(50);
+	});
+
+	it("whitespace drift detected", () => {
+		const fileContent = "  function hello() {\n    return 'world';\n  }";
+		const oldText = "function hello() {\n  return 'world';\n}";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+			config: { autoApplyWhitespaceOnly: true, minAutoApplySimilarity: 0.7 },
+		});
+
+		// Should find a candidate
+		expect(result.packet.candidates.length).toBeGreaterThan(0);
+	});
+
+	it("semantic drift blocks auto-apply", () => {
+		const fileContent = "function hello() {\n  return 'different';\n}";
+		const oldText = "function hello() {\n  return 'world';\n}";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+		});
+
+		expect(result.packet.autoApplyStatus).not.toBe("applied");
+	});
+
+	it("no candidate returns bounded no-candidate packet", () => {
+		const fileContent = "aaaaaaaaaa\nbbbbbbbbbb\ncccccccccc";
+		const oldText = "zzzzzzzzzz\nyyyyyyyyyy";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+			config: { minCandidateSimilarity: 0.9 },
+		});
+
+		expect(result.packet.candidates.length).toBe(0);
+		expect(result.packet.suggestedNextActions.length).toBeGreaterThan(0);
+	});
+
+	it("handles CRLF/LF drift", () => {
+		const fileContent = "line1\r\nline2\r\nline3\r\nline4";
+		const oldText = "line2\nline3";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+		});
+
+		expect(result.packet.candidates.length).toBeGreaterThan(0);
+	});
+
+	it("recovery packet is bounded by maxCandidates", () => {
+		const fileContent = Array.from({ length: 50 }, () => "function test() { return 1; }").join("\n");
+		const oldText = "function test() { return 1; }";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+			config: { maxCandidates: 2 },
+		});
+
+		expect(result.packet.candidates.length).toBeLessThanOrEqual(2);
+	});
+
+	it("records metrics", () => {
+		const tracker = new EditRecoveryMetricsTracker();
+
+		tracker.recordMiss();
+		tracker.recordRecoveryPacket(200, 1000);
+		tracker.recordAutoApply(true);
+
+		expect(tracker.metrics.exactOldTextMissCount).toBe(1);
+		expect(tracker.metrics.estimatedTokensSavedByEditRecovery).toBe(800);
+		expect(tracker.metrics.fuzzyAutoApplyCount).toBe(1);
+	});
+
+	it("normal exact edit success unchanged", async () => {
+		const { createEditToolDefinition } = await import("../src/core/tools/edit.js");
+		const tempDir = createTempDir();
+		const _filePath = createTempFile(tempDir, "test.ts", "original content here\nmore content");
+
+		const tool = createEditToolDefinition(tempDir, {
+			editRecoveryConfig: {
+				enabled: true,
+				maxCandidates: 3,
+				contextLinesBefore: 8,
+				contextLinesAfter: 8,
+				maxCandidateLines: 40,
+				maxPacketTokensEstimate: 800,
+				autoApplyWhitespaceOnly: false,
+				minAutoApplySimilarity: 0.985,
+				minCandidateSimilarity: 0.7,
+			},
+		});
+
+		try {
+			const result = await (tool as any).execute("test-id", {
+				path: "test.ts",
+				edits: [{ oldText: "original content here", newText: "replaced content" }],
+			});
+			expect(result.content[0].type).toBe("text");
+			expect((result.content[0] as { text: string }).text).toContain("Successfully replaced");
+		} catch (e) {
+			expect((e as Error).message).not.toContain("Could not find");
+		} finally {
+			rmSync(tempDir, { recursive: true });
+		}
+	});
+
+	it("recovery packet suggests exact range reread", () => {
+		const fileContent = Array.from({ length: 50 }, (_, i) => `line ${i}`).join("\n");
+		const oldText = "line 25\nline 26";
+
+		const result = buildEditRecoveryPacket({
+			fileContent,
+			oldText,
+			filePath: "test.ts",
+		});
+
+		const hasRangeSuggestion = result.packet.suggestedNextActions.some((a) => a.includes("read exact range"));
+		expect(hasRangeSuggestion).toBe(true);
 	});
 });

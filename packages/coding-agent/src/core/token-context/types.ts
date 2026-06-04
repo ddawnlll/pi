@@ -29,6 +29,18 @@ export interface TokenContextConfig {
 	};
 	/** P43.1: Minimum file size in bytes for smart read optimization. Files below this are returned raw. */
 	tinyFileThresholdBytes: number;
+	/** P43.3: Edit recovery config */
+	editRecovery: {
+		enabled: boolean;
+		maxCandidates: number;
+		contextLinesBefore: number;
+		contextLinesAfter: number;
+		maxCandidateLines: number;
+		maxPacketTokensEstimate: number;
+		autoApplyWhitespaceOnly: boolean;
+		minAutoApplySimilarity: number;
+		minCandidateSimilarity: number;
+	};
 }
 
 export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
@@ -47,6 +59,18 @@ export const DEFAULT_TOKEN_CONTEXT_CONFIG: TokenContextConfig = {
 		requiredForP44: true,
 	},
 	tinyFileThresholdBytes: 64,
+	/** P43.3: Edit recovery config */
+	editRecovery: {
+		enabled: true,
+		maxCandidates: 3,
+		contextLinesBefore: 8,
+		contextLinesAfter: 8,
+		maxCandidateLines: 40,
+		maxPacketTokensEstimate: 800,
+		autoApplyWhitespaceOnly: true,
+		minAutoApplySimilarity: 0.985,
+		minCandidateSimilarity: 0.7,
+	},
 };
 
 // ============================================================================

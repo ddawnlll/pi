@@ -5,6 +5,8 @@ import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } 
 import { type Static, Type } from "typebox";
 import { renderDiff } from "../../modes/interactive/components/diff.js";
 import type { ToolDefinition } from "../extensions/types.js";
+import { buildEditRecoveryPacket, formatRecoveryPacket } from "../token-context/edit-recovery.js";
+import type { EditRecoveryConfig } from "../token-context/edit-recovery-types.js";
 import {
 	applyEditsToNormalizedContent,
 	computeEditsDiff,
@@ -85,6 +87,8 @@ const defaultEditOperations: EditOperations = {
 export interface EditToolOptions {
 	/** Custom operations for file editing. Default: local filesystem */
 	operations?: EditOperations;
+	/** P43.3 Edit recovery config for mismatched oldText */
+	editRecoveryConfig?: EditRecoveryConfig;
 }
 
 function prepareEditArguments(input: unknown): EditToolInput {
@@ -369,11 +373,31 @@ export function createEditToolDefinition(
 								const { bom, text: content } = stripBom(rawContent);
 								const originalEnding = detectLineEnding(content);
 								const normalizedContent = normalizeToLF(content);
-								const { baseContent, newContent } = applyEditsToNormalizedContent(
-									normalizedContent,
-									edits,
-									path,
-								);
+								const normalizeResult = (() => {
+									try {
+										return applyEditsToNormalizedContent(normalizedContent, edits, path);
+									} catch (err: any) {
+										// P43.3: Edit recovery - intercept oldText_not_found errors
+										const recoveryCfg = options?.editRecoveryConfig;
+										if (recoveryCfg?.enabled && err?.message?.includes("Could not find")) {
+											const result = buildEditRecoveryPacket({
+												fileContent: normalizedContent,
+												oldText: edits[0]?.oldText ?? "",
+												config: recoveryCfg,
+												filePath: path,
+											});
+											const formatted = formatRecoveryPacket(result.packet);
+											const recoveryError = new Error(
+												`${err.message}\n\n--- Edit Recovery ---\n${formatted}`,
+											);
+											(recoveryError as any).isRecoveryPacket = true;
+											(recoveryError as any).recoveryPacket = result.packet;
+											throw recoveryError;
+										}
+										throw err;
+									}
+								})();
+								const { baseContent, newContent } = normalizeResult;
 
 								// Check if aborted before writing.
 								if (aborted) {

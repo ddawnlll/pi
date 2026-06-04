@@ -13,6 +13,14 @@ export { TypeScriptAdapter } from "./adapters/typescript.js";
 export type { ChangeLedgerOptions } from "./change-ledger.js";
 export { ChangeLedger } from "./change-ledger.js";
 export { CONTRACT_GOLDEN, checkContractCompatibility, P43_CONTRACT_VERSION } from "./contract-version.js";
+export { buildEditRecoveryPacket, formatRecoveryPacket } from "./edit-recovery.js";
+export type {
+	EditRecoveryCandidate,
+	EditRecoveryConfig,
+	EditRecoveryMetrics,
+	EditRecoveryPacket,
+} from "./edit-recovery-types.js";
+export { DEFAULT_EDIT_RECOVERY_CONFIG, EditRecoveryMetricsTracker } from "./edit-recovery-types.js";
 export type { GrammarCapability, GrammarPreflightReport } from "./grammar-preflight.js";
 export { runGrammarPreflight } from "./grammar-preflight.js";
 export type { FixtureClass, LabComparisonReport, LabFixture, LabOperation, LabRunResult } from "./lab-harness.js";
@@ -27,7 +35,7 @@ export type {
 	ReadInterceptResult,
 	TokenContextRuntime,
 } from "./runtime.js";
-export { createTokenContextRuntime } from "./runtime.js";
+export { createTokenContextRuntime, detectRtkHook } from "./runtime.js";
 export type { MechanismSavingsSummary, SavingsSummary, ToolSavingsSummary } from "./savings-ledger.js";
 export { SavingsLedger } from "./savings-ledger.js";
 export { SmartReadCore } from "./smart-read-core.js";

@@ -13,6 +13,7 @@ import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../../utils/paths.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
 import { createFilePolicy } from "../file-policy.js";
+import type { TokenContextRuntime } from "../token-context/runtime.js";
 import { resolveReadPath } from "./path-utils.js";
 import { getTextOutput, invalidArgText, replaceTabs, shortenPath, str } from "./render-utils.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";
@@ -61,6 +62,8 @@ export interface ReadToolOptions {
 	autoResizeImages?: boolean;
 	/** Custom operations for file reading. Default: local filesystem */
 	operations?: ReadOperations;
+	/** P43 Token Context Runtime for smart read/cache/ledger */
+	tokenContextRuntime?: TokenContextRuntime;
 }
 
 type ReadRenderArgs = { path?: string; file_path?: string; offset?: number; limit?: number };
@@ -72,12 +75,13 @@ function formatReadLineRange(args: ReadRenderArgs | undefined, theme: Theme): st
 	return theme.fg("warning", `:${startLine}${endLine ? `-${endLine}` : ""}`);
 }
 
-function formatReadCall(args: ReadRenderArgs | undefined, theme: Theme): string {
+function formatReadCall(args: ReadRenderArgs | undefined, theme: Theme, label?: string): string {
 	const rawPath = str(args?.file_path ?? args?.path);
 	const path = rawPath !== null ? shortenPath(rawPath) : null;
 	const invalidArg = invalidArgText(theme);
 	const pathDisplay = path === null ? invalidArg : path ? theme.fg("accent", path) : theme.fg("toolOutput", "...");
-	return `${theme.fg("toolTitle", theme.bold("read"))} ${pathDisplay}${formatReadLineRange(args, theme)}`;
+	const toolLabel = label ?? "read";
+	return `${theme.fg("toolTitle", theme.bold(toolLabel))} ${pathDisplay}${formatReadLineRange(args, theme)}`;
 }
 
 function trimTrailingEmptyLines(lines: string[]): string[] {
@@ -157,7 +161,7 @@ function formatCompactReadCall(
 	}
 
 	return (
-		theme.fg("toolTitle", theme.bold(`read ${classification.kind}`)) +
+		theme.fg("toolTitle", theme.bold(`smart read ${classification.kind}`)) +
 		" " +
 		theme.fg("accent", classification.label) +
 		formatReadLineRange(args, theme) +
@@ -212,8 +216,8 @@ export function createReadToolDefinition(
 	const ops = options?.operations ?? defaultReadOperations;
 	return {
 		name: "read",
-		label: "read",
-		description: `Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.`,
+		label: options?.tokenContextRuntime && options.tokenContextRuntime.mode !== "disabled" ? "smart read" : "read",
+		description: `Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, output is truncated to ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.${options?.tokenContextRuntime ? " P43 smart read active: cache, hash, and compact responses enabled." : ""}`,
 		promptSnippet: "Read file contents",
 		promptGuidelines: ["Use read to examine files instead of cat or sed."],
 		parameters: readSchema,
@@ -240,6 +244,7 @@ export function createReadToolDefinition(
 
 					(async () => {
 						try {
+							let capturedTextContent = "";
 							// Check if file exists and is readable.
 							await ops.access(absolutePath);
 							if (aborted) return;
@@ -280,6 +285,7 @@ export function createReadToolDefinition(
 								// Read text content.
 								const buffer = await ops.readFile(absolutePath);
 								const textContent = buffer.toString("utf-8");
+								capturedTextContent = textContent;
 								const allLines = textContent.split("\n");
 								const totalFileLines = allLines.length;
 
@@ -380,6 +386,24 @@ export function createReadToolDefinition(
 								content = [{ type: "text", text: outputText }];
 							}
 
+							// P43: Token Context Runtime intercept
+							const tcRuntime = options?.tokenContextRuntime;
+							if (tcRuntime) {
+								const intercept = tcRuntime.beforeRead(absolutePath);
+								if (intercept.intercept && intercept.replacementContent) {
+									content = [{ type: "text", text: intercept.replacementContent }];
+									details = {
+										...details,
+										tokenContext: { mechanism: "read_hash_cache", compact: true },
+									} as any;
+								}
+								tcRuntime.afterRead(
+									absolutePath,
+									capturedTextContent,
+									Math.ceil(capturedTextContent.length / 4),
+								);
+							}
+
 							if (aborted) return;
 							signal?.removeEventListener("abort", onAbort);
 							resolve({ content, details });
@@ -395,7 +419,9 @@ export function createReadToolDefinition(
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 			const classification = !context.expanded ? getCompactReadClassification(args, context.cwd) : undefined;
 			text.setText(
-				classification ? formatCompactReadCall(classification, args, theme) : formatReadCall(args, theme),
+				classification
+					? formatCompactReadCall(classification, args, theme)
+					: formatReadCall(args, theme, options?.tokenContextRuntime ? "smart read" : undefined),
 			);
 			return text;
 		},

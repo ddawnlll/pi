@@ -92,6 +92,9 @@ import type { SettingsManager } from "./settings-manager.js";
 import type { SlashCommandInfo } from "./slash-commands.js";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.js";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.js";
+import { createTokenContextRuntime, type TokenContextRuntime } from "./token-context/runtime.js";
+import type { TokenContextConfig } from "./token-context/types.js";
+import { DEFAULT_TOKEN_CONTEXT_CONFIG } from "./token-context/types.js";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.js";
 import { createAllToolDefinitions } from "./tools/index.js";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.js";
@@ -315,6 +318,9 @@ export class AgentSession {
 	private _toolPromptSnippets: Map<string, string> = new Map();
 	private _toolPromptGuidelines: Map<string, string[]> = new Map();
 
+	// P43 Token Context Runtime
+	private _tokenContextRuntime?: TokenContextRuntime;
+
 	// Base system prompt (without extension appends) - used to apply fresh appends each turn
 	private _baseSystemPrompt = "";
 	private _baseSystemPromptOptions!: BuildSystemPromptOptions;
@@ -337,6 +343,9 @@ export class AgentSession {
 		// Initialize self-modification firewall (non-autonomous by default unless overridden)
 		this._selfModFirewall = createSelfModificationFirewall(config.cwd, false);
 
+		// Initialize P43 Token Context Runtime if enabled
+		this._tokenContextRuntime = this._initTokenContextRuntime();
+
 		// Always subscribe to agent events for internal handling
 		// (session persistence, extensions, auto-compaction, retry logic)
 		this._unsubscribeAgent = this.agent.subscribe(this._handleAgentEvent);
@@ -351,6 +360,42 @@ export class AgentSession {
 	/** Model registry for API key resolution and model discovery */
 	get modelRegistry(): ModelRegistry {
 		return this._modelRegistry;
+	}
+
+	/** P43 Token Context Runtime (undefined if disabled) */
+	get tokenContextRuntime(): TokenContextRuntime | undefined {
+		return this._tokenContextRuntime;
+	}
+
+	/** Initialize Token Context Runtime from settings */
+	private _initTokenContextRuntime(): TokenContextRuntime | undefined {
+		const tcSettings = this.settingsManager.getGlobalSettings().tokenContext;
+		if (!tcSettings?.enabled) return undefined;
+
+		const config: TokenContextConfig = {
+			...DEFAULT_TOKEN_CONTEXT_CONFIG,
+			enabled: true,
+			mode: tcSettings.mode ?? DEFAULT_TOKEN_CONTEXT_CONFIG.mode,
+			rawCache: {
+				maxBytes: tcSettings.rawCache?.maxBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.rawCache.maxBytes,
+			},
+			llmFallback: {
+				maxTokens: tcSettings.llmFallback?.maxTokens ?? DEFAULT_TOKEN_CONTEXT_CONFIG.llmFallback.maxTokens,
+			},
+			changeLedger: {
+				maxDeltaChainBeforeCheckpoint:
+					tcSettings.changeLedger?.maxDeltaChainBeforeCheckpoint ??
+					DEFAULT_TOKEN_CONTEXT_CONFIG.changeLedger.maxDeltaChainBeforeCheckpoint,
+			},
+			providerCalibration: {
+				requiredForP44:
+					tcSettings.providerCalibration?.requiredForP44 ??
+					DEFAULT_TOKEN_CONTEXT_CONFIG.providerCalibration.requiredForP44,
+			},
+			tinyFileThresholdBytes:
+				tcSettings.tinyFileThresholdBytes ?? DEFAULT_TOKEN_CONTEXT_CONFIG.tinyFileThresholdBytes,
+		};
+		return createTokenContextRuntime(config);
 	}
 
 	private async _getRequiredRequestAuth(model: Model<any>): Promise<{
@@ -696,6 +741,9 @@ export class AgentSession {
 		} else if (event.type === "agent_end") {
 			await this._extensionRunner.emit({ type: "agent_end", messages: event.messages });
 		} else if (event.type === "turn_start") {
+			// Advance P43 Token Context Runtime turn
+			this._tokenContextRuntime?.advanceTurn();
+
 			const extensionEvent: TurnStartEvent = {
 				type: "turn_start",
 				turnIndex: this._turnIndex,
@@ -2412,7 +2460,7 @@ export class AgentSession {
 					]),
 				)
 			: createAllToolDefinitions(this._cwd, {
-					read: { autoResizeImages },
+					read: { autoResizeImages, tokenContextRuntime: this._tokenContextRuntime },
 					bash: { commandPrefix: shellCommandPrefix, shellPath },
 				});
 
