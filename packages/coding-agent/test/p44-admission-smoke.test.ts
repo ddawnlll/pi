@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_TOKEN_CONTEXT_CONFIG } from "../src/core/token-context/types.js";
 import { WorkspaceCommitGate } from "../src/core/workspace-commit-gate.js";
 import { DEFAULT_WRITE_SET_DRIFT_CONFIG } from "../src/core/write-set-drift.js";
-import { admitExecution } from "../src/execution-kernel/admission-gate.js";
+import { admitExecution } from "../src/execution-runtime/admission-gate.js";
 
 // ===========================================================================
 // Helpers

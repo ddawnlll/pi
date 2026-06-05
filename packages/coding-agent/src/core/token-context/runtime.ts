@@ -144,6 +144,16 @@ export interface TokenContextRuntime {
 	): Promise<SmartReadInterceptResult | undefined>;
 
 	/**
+	 * Record a smart read skip event for savings analysis.
+	 */
+	recordSmartReadSkip(filePath: string, rawContent: string, reason: string): void;
+
+	/**
+	 * Get smart read skip statistics for savings report.
+	 */
+	getSmartReadSkips(): Array<{ filePath: string; reason: string; charLength: number }>;
+
+	/**
 	 * Called before an edit/write operation.
 	 */
 	beforeMutation(filePath: string, content: string): MutationCheckResult;
@@ -271,6 +281,8 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 		rawLeakDetected: false,
 	};
 
+	const smartReadSkips: Array<{ filePath: string; reason: string; charLength: number }> = [];
+
 	return {
 		mode: config.mode,
 		config,
@@ -284,6 +296,14 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 		turn: 0,
 		extensionSources: config.extensionSources ?? [],
 		lastReadAudit: audit,
+
+		recordSmartReadSkip(filePath: string, rawContent: string, reason: string): void {
+			smartReadSkips.push({ filePath, reason, charLength: rawContent.length });
+		},
+
+		getSmartReadSkips() {
+			return smartReadSkips;
+		},
 
 		async beforeRead(filePath: string, options?: { offset?: number; limit?: number }): Promise<ReadInterceptResult> {
 			if (this.mode === "disabled") {
@@ -328,6 +348,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					cacheStatus: "tiny_file",
 					filePath,
 				};
+				this.recordSmartReadSkip(filePath, snapshot.rawContent ?? "", "tiny_file_raw_passthrough");
 				return { intercept: false, isCompact: false, policy };
 			}
 
@@ -456,14 +477,23 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			rawContent: string,
 			options?: { offset?: number; limit?: number },
 		): Promise<SmartReadInterceptResult | undefined> {
-			if (this.mode !== "active_safe") return undefined;
+			if (this.mode !== "active_safe") {
+				this.recordSmartReadSkip(filePath, rawContent, "mode_not_active_safe");
+				return undefined;
+			}
 
 			const isTiny = rawContent.length <= this.config.tinyFileThresholdBytes;
-			if (isTiny) return undefined;
+			if (isTiny) {
+				this.recordSmartReadSkip(filePath, rawContent, "tiny_file_below_threshold");
+				return undefined;
+			}
 
 			// Don't intercept if user specified offset/limit (targeted read)
 			// Smart read assumes a full file overview, not a targeted slice
-			if (options?.offset !== undefined || options?.limit !== undefined) return undefined;
+			if (options?.offset !== undefined || options?.limit !== undefined) {
+				this.recordSmartReadSkip(filePath, rawContent, "targeted_read_offset_limit_specified");
+				return undefined;
+			}
 
 			try {
 				const smartResult = await smartRead.smartRead(rawContent, filePath, "outline");
@@ -478,6 +508,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 						fallbackReason: `smart_read compact rejected: ${acceptance.reason}`,
 						filePath,
 					};
+					this.recordSmartReadSkip(filePath, rawContent, acceptance.reason ?? "acceptance_gate_rejected");
 					return undefined;
 				}
 
@@ -528,6 +559,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					fallbackReason: `smart_read error: ${(error as Error).message}`,
 					filePath,
 				};
+				this.recordSmartReadSkip(filePath, rawContent, `error: ${(error as Error).message}`);
 				return undefined;
 			}
 		},
@@ -792,6 +824,33 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			lines.push(`  Hits: ${cacheStats.hitCount}, Misses: ${cacheStats.missCount}`);
 			lines.push(`  Evictions: ${cacheStats.evictionCount}`);
 
+			// Smart read skip analysis
+			const skips = smartReadSkips;
+			if (skips.length > 0) {
+				lines.push("");
+				lines.push("--- Skipped Reads (raw fallback) ---");
+				lines.push(`  Total skipped: ${skips.length}`);
+				const totalSkippedBytes = skips.reduce((sum, s) => sum + s.charLength, 0);
+				lines.push(`  Total raw bytes skipped: ${totalSkippedBytes.toLocaleString()}`);
+
+				// Group by reason
+				const byReason: Record<string, { count: number; bytes: number }> = {};
+				for (const s of skips) {
+					if (!byReason[s.reason]) byReason[s.reason] = { count: 0, bytes: 0 };
+					byReason[s.reason].count++;
+					byReason[s.reason].bytes += s.charLength;
+				}
+				lines.push("");
+				lines.push("  By reason:");
+				for (const [reason, stats] of Object.entries(byReason)) {
+					lines.push(`    ${reason}: ${stats.count}x (${stats.bytes.toLocaleString()} bytes)`);
+				}
+			} else {
+				lines.push("");
+				lines.push("--- Skipped Reads ---");
+				lines.push("  (none)");
+			}
+
 			return lines.join("\n");
 		},
 	};
@@ -887,9 +946,22 @@ function isSmartReadCompactAcceptable(
 		result.content.includes('[Symbol "') ||
 		result.content.includes("not found via") ||
 		result.content.includes("[Error:") ||
-		result.content.includes("not found in")
+		result.content.includes("not found in") ||
+		result.content.includes("(no symbols detected)") ||
+		result.content.includes("(no symbols found)")
 	) {
 		return { ok: false, reason: "compact content contains error/not-found marker" };
+	}
+
+	// For code files, reject outlines with too few symbols relative to file size.
+	// A 1000-byte file with only 1-2 symbols is better served as raw content.
+	if (isCodeFile(filePath)) {
+		const symbolLineCount = result.content
+			.split("\n")
+			.filter((l) => !l.startsWith("Symbol Outline:") && !l.startsWith("==============") && l.trim() !== "").length;
+		if (symbolLineCount === 0 && result.content.length < 100) {
+			return { ok: false, reason: "code file outline has zero symbols" };
+		}
 	}
 
 	// For code files, must have high confidence and proper parse source

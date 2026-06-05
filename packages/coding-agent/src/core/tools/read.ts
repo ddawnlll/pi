@@ -29,6 +29,8 @@ export type ReadToolInput = Static<typeof readSchema>;
 
 export interface ReadToolDetails {
 	truncation?: TruncationResult;
+	/** Reason smart read was skipped, if raw content was returned instead */
+	smartReadSkip?: string;
 }
 
 interface CompactReadClassification {
@@ -205,6 +207,13 @@ function formatReadResult(
 			text += `\n${theme.fg("warning", `[Truncated: ${truncation.outputLines} lines shown (${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit)]`)}`;
 		}
 	}
+
+	// Show smart read skip reason when raw content was returned instead of compact
+	const smartReadSkip = result.details?.smartReadSkip;
+	if (smartReadSkip) {
+		text += `\n${theme.fg("dim", `[smart read skipped: ${smartReadSkip}]`)}`;
+	}
+
 	return text;
 }
 
@@ -294,6 +303,7 @@ export function createReadToolDefinition(
 								// ESCAPE HATCH: If beforeRead or trySmartRead throw or return useless content,
 								// silently fall through to the normal raw read path below.
 								// Never let a smart-read failure hang the tool call.
+								let smartReadSkipReason: string | undefined;
 								const tcRuntime = options?.tokenContextRuntime;
 								if (tcRuntime) {
 									try {
@@ -343,9 +353,20 @@ export function createReadToolDefinition(
 											resolve({ content, details });
 											return;
 										}
+
+										// Smart read skipped — capture the reason from the audit
+										const audit = tcRuntime.getLastReadAudit();
+										if (audit?.fallbackReason) {
+											smartReadSkipReason = audit.fallbackReason;
+										} else if (!smartResult) {
+											smartReadSkipReason = "smart_read unavailable (mode or threshold)";
+										} else {
+											smartReadSkipReason = "smart_read compact rejected by acceptance gate";
+										}
 									} catch {
 										// Smart read threw or aborted — fall through to normal raw read.
 										// Never let a smart-read failure hang the tool call.
+										smartReadSkipReason = "smart_read threw an exception";
 									}
 								}
 
@@ -428,7 +449,7 @@ export function createReadToolDefinition(
 									// First line alone exceeds the byte limit. Point the model at a bash fallback.
 									const firstLineSize = formatSize(Buffer.byteLength(allLines[startLine], "utf-8"));
 									outputText = `[Line ${startLineDisplay} is ${firstLineSize}, exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use bash: sed -n '${startLineDisplay}p' ${path} | head -c ${DEFAULT_MAX_BYTES}]`;
-									details = { truncation };
+									details = { truncation, smartReadSkip: smartReadSkipReason };
 								} else if (truncation.truncated) {
 									// Truncation occurred. Build an actionable continuation notice.
 									const endLineDisplay = startLineDisplay + truncation.outputLines - 1;
@@ -439,15 +460,17 @@ export function createReadToolDefinition(
 									} else {
 										outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Use offset=${nextOffset} to continue.]`;
 									}
-									details = { truncation };
+									details = { truncation, smartReadSkip: smartReadSkipReason };
 								} else if (userLimitedLines !== undefined && startLine + userLimitedLines < allLines.length) {
 									// User-specified limit stopped early, but the file still has more content.
 									const remaining = allLines.length - (startLine + userLimitedLines);
 									const nextOffset = startLine + userLimitedLines + 1;
 									outputText = `${truncation.content}\n\n[${remaining} more lines in file. Use offset=${nextOffset} to continue.]`;
+									details = { smartReadSkip: smartReadSkipReason };
 								} else {
 									// No truncation and no remaining user-limited content.
 									outputText = truncation.content;
+									details = { smartReadSkip: smartReadSkipReason };
 								}
 								content = [{ type: "text", text: outputText }];
 

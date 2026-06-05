@@ -43,6 +43,7 @@
 
 - Fixed keybinding hints to show Option instead of Alt on macOS ([#4289](https://github.com/earendil-works/pi/issues/4289)).
 - Fixed the interactive update notification to render the changelog as an OSC 8 hyperlink when the terminal supports hyperlinks ([#4280](https://github.com/earendil-works/pi/issues/4280)).
+- **Smart Read Skip Display**: When smart read is skipped and raw content is returned instead, the TUI now shows a `[smart read skipped: <reason>]` note at the end of the read result. The savings report (`/savings`) includes a new "Skipped Reads" section with per-reason breakdown showing count and byte sizes. Skip reasons are recorded through `recordSmartReadSkip()` and accessible via `getSmartReadSkips()`. See `packages/coding-agent/src/core/token-context/runtime.ts` and `packages/coding-agent/src/core/tools/read.ts`.
 - Fixed `JsonStateStore.appendJournal` not setting the plan execution ID on `PlanStateStore`, causing transcript events from journal events to be silently dropped and the dashboard live transcript to show nothing.
 - Fixed Fix Strategist Worker module exports and resolved `RootCauseFinding` type name conflict with the debugger worker.
 - Fixed Fix Strategist Worker `checkStopCondition` to use the configured `maxConsecutiveFailures` instead of a hardcoded default of 3.

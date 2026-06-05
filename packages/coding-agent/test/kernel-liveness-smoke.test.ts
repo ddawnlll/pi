@@ -7,8 +7,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { DeadlineWatchdog } from "../src/execution-kernel/deadline-watchdog.js";
-import { HandoffQueue } from "../src/execution-kernel/handoff-queue.js";
+import { DeadlineWatchdog } from "../src/execution-runtime/deadline-watchdog.js";
+import { HandoffQueue } from "../src/execution-runtime/handoff-queue.js";
 
 // ===========================================================================
 // Mock DB helper
