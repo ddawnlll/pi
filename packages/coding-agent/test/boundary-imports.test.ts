@@ -2,19 +2,19 @@
  * Boundary Import Guards — P40 Platform / Agent Separation
  *
  * These tests enforce package-level boundaries:
- * - execution-core must NOT import from coding-agent
- * - WorkerAdapter must come from @earendil-works/pi-execution-core
+ * - execution-contracts must NOT import from coding-agent
+ * - WorkerAdapter must come from @earendil-works/pi-execution-contracts
  * - LocalPiWorkerAdapter must come from @earendil-works/pi-worker-adapters
  * - execution-service must have real runtime callers
  * - web-server must use execution-service for key control paths
- * - coding-agent internal execution-core/execution-service paths must be shim-only
+ * - coding-agent internal execution-contracts/execution-service paths must be shim-only
  */
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC_DIR = path.resolve(import.meta.dirname, "../src");
-const EXECUTION_CORE_DIR = path.resolve(import.meta.dirname, "../../execution-core/src");
+const EXECUTION_CORE_DIR = path.resolve(import.meta.dirname, "../../execution-contracts/src");
 const EXECUTION_SERVICE_DIR = path.resolve(import.meta.dirname, "../../execution-service/src");
 const WORKER_ADAPTERS_DIR = path.resolve(import.meta.dirname, "../../worker-adapters/src");
 const WEB_SERVER_DIR = path.resolve(import.meta.dirname, "../../web-server/src");
@@ -24,10 +24,10 @@ async function readFile(baseDir: string, relPath: string): Promise<string> {
 }
 
 // ===========================================================================
-// 1. execution-core boundary: MUST NOT import from coding-agent
+// 1. execution-contracts boundary: MUST NOT import from coding-agent
 // ===========================================================================
 
-describe("execution-core package boundary", () => {
+describe("execution-contracts package boundary", () => {
 	const files = ["index.ts", "types.ts", "commands.ts", "read-model.ts", "events.ts", "worker-adapter.ts"];
 
 	for (const file of files) {
@@ -68,23 +68,23 @@ describe("execution-service package boundary", () => {
 });
 
 // ===========================================================================
-// 3. WorkerAdapter must be defined in execution-core, not coding-agent
+// 3. WorkerAdapter must be defined in execution-contracts, not coding-agent
 // ===========================================================================
 
 describe("WorkerAdapter canonical location", () => {
-	it("WorkerAdapter is defined in @earendil-works/pi-execution-core", async () => {
+	it("WorkerAdapter is defined in @earendil-works/pi-execution-contracts", async () => {
 		const content = await readFile(EXECUTION_CORE_DIR, "worker-adapter.ts");
 		expect(content).toContain("export interface WorkerAdapter");
 	});
 
-	it("WorkerAdapter is exported from execution-core index", async () => {
+	it("WorkerAdapter is exported from execution-contracts index", async () => {
 		const content = await readFile(EXECUTION_CORE_DIR, "index.ts");
 		expect(content).toContain("WorkerAdapter");
 	});
 
-	it("autonomous-executor imports WorkerAdapter from @earendil-works/pi-execution-core", async () => {
+	it("autonomous-executor imports WorkerAdapter from @earendil-works/pi-execution-contracts", async () => {
 		const content = await readFile(SRC_DIR, "core/autonomous-executor.ts");
-		expect(content).toContain("@earendil-works/pi-execution-core");
+		expect(content).toContain("@earendil-works/pi-execution-contracts");
 		expect(content).toContain("WorkerAdapter");
 	});
 });
@@ -130,19 +130,19 @@ describe("execution-service has real callers", () => {
 });
 
 // ===========================================================================
-// 6. coding-agent execution-core paths are shim-only
+// 6. coding-agent execution-contracts paths are shim-only
 // ===========================================================================
 
-describe("coding-agent execution-core paths are shims", () => {
-	it("execution-core/index.ts re-exports from @earendil-works/pi-execution-core", async () => {
-		const content = await readFile(SRC_DIR, "execution-core/index.ts");
-		expect(content).toContain("@earendil-works/pi-execution-core");
+describe("coding-agent execution-contracts paths are shims", () => {
+	it("execution-contracts/index.ts re-exports from @earendil-works/pi-execution-contracts", async () => {
+		const content = await readFile(SRC_DIR, "execution-contracts/index.ts");
+		expect(content).toContain("@earendil-works/pi-execution-contracts");
 		expect(content).toContain("deprecated");
 	});
 
-	it("execution-core/types.ts re-exports from @earendil-works/pi-execution-core", async () => {
-		const content = await readFile(SRC_DIR, "execution-core/types.ts");
-		expect(content).toContain("@earendil-works/pi-execution-core");
+	it("execution-contracts/types.ts re-exports from @earendil-works/pi-execution-contracts", async () => {
+		const content = await readFile(SRC_DIR, "execution-contracts/types.ts");
+		expect(content).toContain("@earendil-works/pi-execution-contracts");
 		expect(content).toContain("deprecated");
 	});
 
@@ -158,9 +158,9 @@ describe("coding-agent execution-core paths are shims", () => {
 		expect(content).toContain("deprecated");
 	});
 
-	it("worker-adapter/types.ts re-exports from @earendil-works/pi-execution-core", async () => {
+	it("worker-adapter/types.ts re-exports from @earendil-works/pi-execution-contracts", async () => {
 		const content = await readFile(SRC_DIR, "worker-adapter/types.ts");
-		expect(content).toContain("@earendil-works/pi-execution-core");
+		expect(content).toContain("@earendil-works/pi-execution-contracts");
 		expect(content).toContain("deprecated");
 	});
 

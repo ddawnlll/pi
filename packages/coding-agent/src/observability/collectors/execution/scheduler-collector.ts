@@ -766,7 +766,7 @@ export class SchedulerCollector {
 
 		return createObservabilityEvent(ctx, {
 			eventType: `execution_${event.type}`,
-			source: "execution-kernel/workspace-scheduler",
+			source: "execution-runtime/workspace-scheduler",
 			severity,
 			status,
 			name: `scheduler:${event.type}`,
@@ -852,7 +852,7 @@ export class SchedulerCollector {
 		const entry: SchedulerCollectorBufferEntry = {
 			event,
 			schedulerEventType,
-			source: "execution-kernel/workspace-scheduler",
+			source: "execution-runtime/workspace-scheduler",
 			collectedAt: new Date().toISOString(),
 			planExecutionId,
 		};

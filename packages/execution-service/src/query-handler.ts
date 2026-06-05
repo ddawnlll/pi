@@ -33,8 +33,8 @@ import type {
 	WorkerContextView,
 	WorkerTranscriptEvent,
 	WorkspaceExecutionSummary,
-} from "@earendil-works/pi-execution-core";
-import { buildFileTreeFromEntries, getFileExt } from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
+import { buildFileTreeFromEntries, getFileExt } from "@earendil-works/pi-execution-contracts";
 
 // ---------------------------------------------------------------------------
 // Extraction helpers

@@ -7,7 +7,7 @@
  * - Delegation to underlying ExecutionReadModel
  */
 
-import type { ExecutionReadModel, LeadDirectiveView, LeadEscalationView } from "@earendil-works/pi-execution-core";
+import type { ExecutionReadModel, LeadDirectiveView, LeadEscalationView } from "@earendil-works/pi-execution-contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrainExecutionReadClient } from "../src/execution-read-client.js";
 

@@ -2,7 +2,7 @@
  * Command Handler Tests — P41.11 Control Actions API
  *
  * Tests for the full set of ExecutionCommand handlers.
- * Every command type defined in execution-core's commands.ts must be handled.
+ * Every command type defined in execution-contracts's commands.ts must be handled.
  */
 import { describe, expect, it, vi } from "vitest";
 import { handleExecutionCommand } from "../src/command-handler.js";

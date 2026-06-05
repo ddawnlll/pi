@@ -5,7 +5,7 @@
  * External consumers (Brain, Web, CLI) send commands through this handler.
  * Only Execution may transition state.
  */
-import type { ExecutionCommand } from "@earendil-works/pi-execution-core";
+import type { ExecutionCommand } from "@earendil-works/pi-execution-contracts";
 
 export interface CommandHandlerResult {
 	accepted: boolean;

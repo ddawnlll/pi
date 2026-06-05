@@ -1,7 +1,7 @@
 /**
  * Local Pi Worker Adapter — P40 Platform / Agent Separation
  *
- * Bridges execution-core WorkerAdapter contract to the current Pi coding-agent
+ * Bridges execution-contracts WorkerAdapter contract to the current Pi coding-agent
  * worker implementation (WorkspaceAgentExecutor).
  *
  * This is the default local worker adapter for Pi.
@@ -15,7 +15,7 @@ import type {
 	WorkerCommandHistoryEntry,
 	WorkerRunRequest,
 	WorkerRunResult,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 
 export interface LocalPiWorkerAdapterConfig {
 	createExecutor: (request: WorkerRunRequest) => WorkspaceAgentExecutor;

@@ -61,7 +61,7 @@
 		"@earendil-works/pi-agent-core": "^0.74.0",
 		"@earendil-works/pi-ai": "^0.74.0",
 		"@earendil-works/pi-db": "^0.74.0",
-		"@earendil-works/pi-execution-core": "^0.74.0",
+		"@earendil-works/pi-execution-contracts": "^0.74.0",
 		"@earendil-works/pi-execution-service": "^0.74.0",
 		"@earendil-works/pi-tui": "^0.74.0",
 		"@earendil-works/pi-worker-adapters": "^0.74.0",

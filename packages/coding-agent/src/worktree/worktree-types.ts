@@ -1,4 +1,4 @@
-/** @deprecated Import from @earendil-works/pi-execution-core */
+/** @deprecated Import from @earendil-works/pi-execution-contracts */
 export type {
 	WorktreeCleanupResult,
 	WorktreeConfig,
@@ -9,5 +9,5 @@ export type {
 	WorktreeListEntry,
 	WorktreeState,
 	WorktreeStatus,
-} from "@earendil-works/pi-execution-core";
-export { DEFAULT_WORKTREE_CONFIG, DEFAULT_WORKTREE_ROOT } from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
+export { DEFAULT_WORKTREE_CONFIG, DEFAULT_WORKTREE_ROOT } from "@earendil-works/pi-execution-contracts";

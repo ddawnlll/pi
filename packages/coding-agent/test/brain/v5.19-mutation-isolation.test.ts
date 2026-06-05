@@ -35,7 +35,7 @@ import { InMemoryBrainTimelineStore } from "../../src/brain/timeline-store.js";
 import type { BrainObservation } from "../../src/brain/types.js";
 import { V5MutationGuard } from "../../src/brain/v5/mutation-guard.js";
 import type { BrainV5Config } from "../../src/brain/v5/types.js";
-import { InMemoryActorEventSink } from "../../src/execution-kernel/actor-events.js";
+import { InMemoryActorEventSink } from "../../src/execution-runtime/actor-events.js";
 
 // =========================================================================
 // Mock helpers for testing
@@ -683,7 +683,7 @@ describe("AC7.11 — Cross-module execution state mutation prevention", () => {
 		// This is a compile-time guarantee: brain modules never import
 		// StateWriter, MutationGuard.tryMutate, or execution-graph modules.
 		// Runtime check: verify the modules can be imported without any
-		// execution-kernel dependencies.
+		// execution-runtime dependencies.
 		const brainExports = [
 			"../../src/brain/v5/index.js",
 			"../../src/brain/scanner/scanner.js",

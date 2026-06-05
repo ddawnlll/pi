@@ -20,7 +20,7 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { IStateStore } from "@earendil-works/pi-coding-agent";
-import type { JournalEventEnvelope } from "@earendil-works/pi-execution-core";
+import type { JournalEventEnvelope } from "@earendil-works/pi-execution-contracts";
 import { isForbiddenPath, listArchiveFiles, readArchiveArtifact } from "./execution-archive.js";
 
 // ---------------------------------------------------------------------------

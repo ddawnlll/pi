@@ -508,7 +508,7 @@ function generateFinalSummary(
 	lines.push("## P41 Acceptance Criteria Status");
 	lines.push("");
 	const acItems: Array<{ name: string; condition: boolean }> = [
-		{ name: "Event schema exists in execution-core", condition: true },
+		{ name: "Event schema exists in execution-contracts", condition: true },
 		{ name: "Event spine can append/read/stream events", condition: vis.eventStreamWritten },
 		{ name: "Worker transcript artifacts are written", condition: vis.transcriptsWritten },
 		{ name: "Command stdout/stderr logs are visible", condition: vis.commandLogsWritten },

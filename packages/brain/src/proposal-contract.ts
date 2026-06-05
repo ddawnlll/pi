@@ -4,7 +4,7 @@
  * Proposal contract helpers for the Lead Agent (Brain).
  * Includes escalation and directive proposal creation (P41.09).
  */
-import type { BrainProposal, ExecutionCommand } from "@earendil-works/pi-execution-core";
+import type { BrainProposal, ExecutionCommand } from "@earendil-works/pi-execution-contracts";
 
 // ---------------------------------------------------------------------------
 // Proposal ID generation

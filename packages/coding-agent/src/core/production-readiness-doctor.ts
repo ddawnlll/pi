@@ -629,7 +629,7 @@ export class ProductionReadinessDoctor {
 			name: "Execution Platform Packages",
 			category: "boundary",
 			status: "PASS",
-			message: "execution-core, execution-service, and worker-adapters are real workspace packages",
+			message: "execution-contracts, execution-service, and worker-adapters are real workspace packages",
 			details: "P40 extracted execution contracts from coding-agent into separate packages",
 		});
 		checks.push({
@@ -637,7 +637,7 @@ export class ProductionReadinessDoctor {
 			category: "boundary",
 			status: "PASS",
 			message: "All 8 coding-agent scaffold paths are deprecated shims re-exporting from canonical packages",
-			details: "Old paths under execution-core/, execution-service/, worker-adapter/ are shim-only",
+			details: "Old paths under execution-contracts/, execution-service/, worker-adapter/ are shim-only",
 		});
 		return checks;
 	}

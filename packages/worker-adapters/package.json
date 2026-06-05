@@ -1,7 +1,7 @@
 {
 	"name": "@earendil-works/pi-worker-adapters",
 	"version": "0.74.0",
-	"description": "Worker adapter implementations bridging execution-core contracts to agent workers",
+	"description": "Worker adapter implementations bridging execution contracts to agent workers",
 	"type": "module",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -22,7 +22,7 @@
 		"check": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@earendil-works/pi-execution-core": "^0.74.0",
+		"@earendil-works/pi-execution-contracts": "^0.74.0",
 		"@earendil-works/pi-coding-agent": "^0.74.0"
 	},
 	"devDependencies": {

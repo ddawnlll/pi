@@ -37,12 +37,7 @@ export const WORKER_REPORT_SCHEMA_VERSION = "1.0.0" as const;
 /**
  * Overall verdict of a worker's workspace execution.
  */
-export type WorkerVerdict =
-	| "pass"
-	| "fail"
-	| "inconclusive"
-	| "not_started"
-	| "in_progress";
+export type WorkerVerdict = "pass" | "fail" | "inconclusive" | "not_started" | "in_progress";
 
 /**
  * Summary of mutations performed by the worker.

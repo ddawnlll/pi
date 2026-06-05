@@ -1,0 +1,45 @@
+{
+	"name": "@earendil-works/pi-execution-contracts",
+	"version": "0.74.0",
+	"description": "Execution platform contracts — commands, read model, events, WorkerAdapter interface",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "vitest --run",
+		"check": "tsgo --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"keywords": [
+		"execution",
+		"platform",
+		"contracts",
+		"worker-adapter"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/earendil-works/pi-mono.git",
+		"directory": "packages/execution-contracts"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

@@ -41,7 +41,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type { AttemptEvent, AttemptEventTypeV4, EventSource } from "../../../execution-kernel/event-schema.js";
+import type { AttemptEvent, AttemptEventTypeV4, EventSource } from "../../../execution-runtime/event-schema.js";
 
 import { createObservabilityEvent, createTraceContext } from "../../schema.js";
 import type { ObservabilityEvent, ObservabilitySeverity, ObservabilityStatus } from "../../types.js";
@@ -604,7 +604,7 @@ export class ExecutionCollector {
 
 		return createObservabilityEvent(ctx, {
 			eventType: `execution_${event.type}`,
-			source: `execution-kernel/${event.source}`,
+			source: `execution-runtime/${event.source}`,
 			severity,
 			status,
 			name: `attempt:${event.type}`,

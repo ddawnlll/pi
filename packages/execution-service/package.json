@@ -22,7 +22,7 @@
 		"check": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@earendil-works/pi-execution-core": "^0.74.0"
+		"@earendil-works/pi-execution-contracts": "^0.74.0"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.5",

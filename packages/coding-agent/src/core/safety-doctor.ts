@@ -5,7 +5,7 @@
  * Detects placeholders, forbidden files, destructive commands, and security issues.
  */
 
-import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "@earendil-works/pi-execution-core";
+import { validateWorkerConcurrency, type WorkerConcurrencySettings } from "@earendil-works/pi-execution-contracts";
 import { computeBatchPlan } from "./dag-analyzer.js";
 import { ExecutionSimulator } from "./execution-simulator.js";
 import type { RetryPolicy } from "./retry-handler.js";

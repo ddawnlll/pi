@@ -13,7 +13,7 @@
  */
 
 import { FailureCategory } from "@earendil-works/pi-execution-service";
-import type { ActorEvent } from "../execution-kernel/actor-events.js";
+import type { ActorEvent } from "../execution-runtime/actor-events.js";
 
 /**
  * Retry strategy type.

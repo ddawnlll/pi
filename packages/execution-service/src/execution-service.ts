@@ -4,8 +4,8 @@
  * Higher-level service facade combining command and query handling.
  * External consumers interact with execution through this service.
  */
-import type { ExecutionCommand, ExecutionReadModel, ICommandLogStream } from "@earendil-works/pi-execution-core";
-import { InMemoryCommandLogStream } from "@earendil-works/pi-execution-core";
+import type { ExecutionCommand, ExecutionReadModel, ICommandLogStream } from "@earendil-works/pi-execution-contracts";
+import { InMemoryCommandLogStream } from "@earendil-works/pi-execution-contracts";
 import { type CommandHandlerResult, handleExecutionCommand } from "./command-handler.js";
 import { createExecutionReadModel } from "./query-handler.js";
 

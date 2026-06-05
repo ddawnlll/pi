@@ -10,7 +10,7 @@ import type {
 	ExecutionReadModel,
 	LeadDirectiveView,
 	LeadEscalationView,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 
 export interface BrainBoundaryConfig {
 	executionReadModel: ExecutionReadModel;

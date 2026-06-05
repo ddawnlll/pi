@@ -25,7 +25,7 @@ import {
 	PROMOTION_GATES,
 	validateWorkerConcurrency,
 	type WorkerConcurrencySettings,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 import chalk from "chalk";
 import { AutoCommit } from "../core/auto-commit.js";
 import { createAutonomousExecutor } from "../core/autonomous-executor.js";

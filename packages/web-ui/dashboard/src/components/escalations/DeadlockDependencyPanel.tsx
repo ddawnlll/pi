@@ -5,7 +5,7 @@
  * deadlock cycles or dependency chains that prevent progress.
  * Each node shows the workspace ID, stage, and dependency relationships.
  *
- * Uses the DependencyGraphNode format from execution-core read model.
+ * Uses the DependencyGraphNode format from execution-contracts read model.
  *
  * Acceptance Criteria:
  * - Shows dependency nodes for blocked workspaces

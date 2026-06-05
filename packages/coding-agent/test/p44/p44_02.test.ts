@@ -6,22 +6,19 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { EvidenceLedger } from "../src/core/completion/evidence-ledger.js";
-import type { EvidenceLedgerEntry } from "../src/core/completion/evidence-types.js";
+import { EvidenceLedger } from "../../src/core/completion/evidence-ledger.js";
+import type { EvidenceLedgerEntry } from "../../src/core/completion/evidence-types.js";
 import {
-	formatEvidenceId,
 	computeEvidenceSummary,
+	formatEvidenceId,
 	meetsMinConfidence,
-} from "../src/core/completion/evidence-types.js";
+} from "../../src/core/completion/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeEntry(
-	id: string,
-	overrides: Partial<EvidenceLedgerEntry> = {},
-): EvidenceLedgerEntry {
+function makeEntry(id: string, overrides: Partial<EvidenceLedgerEntry> = {}): EvidenceLedgerEntry {
 	return {
 		id,
 		type: "test_run",
@@ -129,30 +126,21 @@ describe("P44.02 — EvidenceLedger", () => {
 		describe("query", () => {
 			it("should filter by type", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001", { type: "test_run" }),
-					makeEntry("EV-002", { type: "source_file" }),
-				);
+				ledger.add(makeEntry("EV-001", { type: "test_run" }), makeEntry("EV-002", { type: "source_file" }));
 				expect(ledger.query({ type: "test_run" })).toHaveLength(1);
 				expect(ledger.query({ type: "source_file" })).toHaveLength(1);
 			});
 
 			it("should filter by verdict", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001", { verdict: "pass" }),
-					makeEntry("EV-002", { verdict: "fail" }),
-				);
+				ledger.add(makeEntry("EV-001", { verdict: "pass" }), makeEntry("EV-002", { verdict: "fail" }));
 				expect(ledger.query({ verdict: "pass" })).toHaveLength(1);
 				expect(ledger.query({ verdict: "fail" })).toHaveLength(1);
 			});
 
 			it("should filter by minimum confidence", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001", { confidence: "high" }),
-					makeEntry("EV-002", { confidence: "low" }),
-				);
+				ledger.add(makeEntry("EV-001", { confidence: "high" }), makeEntry("EV-002", { confidence: "low" }));
 				expect(ledger.query({ minConfidence: "high" })).toHaveLength(1);
 				expect(ledger.query({ minConfidence: "low" })).toHaveLength(2);
 			});
@@ -189,11 +177,7 @@ describe("P44.02 — EvidenceLedger", () => {
 
 			it("should support pagination", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001"),
-					makeEntry("EV-002"),
-					makeEntry("EV-003"),
-				);
+				ledger.add(makeEntry("EV-001"), makeEntry("EV-002"), makeEntry("EV-003"));
 				expect(ledger.query({ offset: 0, limit: 2 })).toHaveLength(2);
 				expect(ledger.query({ offset: 2, limit: 10 })).toHaveLength(1);
 			});
@@ -227,20 +211,14 @@ describe("P44.02 — EvidenceLedger", () => {
 
 			it("getByVerdict", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001", { verdict: "pass" }),
-					makeEntry("EV-002", { verdict: "fail" }),
-				);
+				ledger.add(makeEntry("EV-001", { verdict: "pass" }), makeEntry("EV-002", { verdict: "fail" }));
 				expect(ledger.getByVerdict("pass")).toHaveLength(1);
 				expect(ledger.getByVerdict("fail")).toHaveLength(1);
 			});
 
 			it("getByType", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(
-					makeEntry("EV-001", { type: "test_run" }),
-					makeEntry("EV-002", { type: "manual_review" }),
-				);
+				ledger.add(makeEntry("EV-001", { type: "test_run" }), makeEntry("EV-002", { type: "manual_review" }));
 				expect(ledger.getByType("test_run")).toHaveLength(1);
 			});
 		});
@@ -278,20 +256,14 @@ describe("P44.02 — EvidenceLedger", () => {
 
 		it("getFailures should return failed entries", () => {
 			const ledger = new EvidenceLedger("P44.02");
-			ledger.add(
-				makeEntry("EV-001", { verdict: "pass" }),
-				makeEntry("EV-002", { verdict: "fail" }),
-			);
+			ledger.add(makeEntry("EV-001", { verdict: "pass" }), makeEntry("EV-002", { verdict: "fail" }));
 			expect(ledger.getFailures()).toHaveLength(1);
 			expect(ledger.getFailures()[0].id).toBe("EV-002");
 		});
 
 		it("getHighConfidenceEvidence should return high confidence entries", () => {
 			const ledger = new EvidenceLedger("P44.02");
-			ledger.add(
-				makeEntry("EV-001", { confidence: "high" }),
-				makeEntry("EV-002", { confidence: "medium" }),
-			);
+			ledger.add(makeEntry("EV-001", { confidence: "high" }), makeEntry("EV-002", { confidence: "medium" }));
 			expect(ledger.getHighConfidenceEvidence()).toHaveLength(1);
 		});
 
@@ -328,11 +300,13 @@ describe("P44.02 — EvidenceLedger", () => {
 		describe("buildReport", () => {
 			it("should generate a human-readable report", () => {
 				const ledger = new EvidenceLedger("P44.02");
-				ledger.add(makeEntry("EV-001", {
-					description: "Test run passed",
-					type: "test_run",
-					verdict: "pass",
-				}));
+				ledger.add(
+					makeEntry("EV-001", {
+						description: "Test run passed",
+						type: "test_run",
+						verdict: "pass",
+					}),
+				);
 				const report = ledger.buildReport();
 				expect(report).toContain("Evidence Ledger Report");
 				expect(report).toContain("EV-001");

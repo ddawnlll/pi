@@ -55,12 +55,7 @@ export type CriterionCategory =
 /**
  * Verification status of a criterion.
  */
-export type CriterionVerificationStatus =
-	| "unverified"
-	| "in_progress"
-	| "satisfied"
-	| "failed"
-	| "skipped";
+export type CriterionVerificationStatus = "unverified" | "in_progress" | "satisfied" | "failed" | "skipped";
 
 /**
  * Normalized acceptance criterion with full schema.
@@ -589,10 +584,7 @@ export interface AcceptanceCriteriaReport {
  * @param criteriaIds - Array of criterion IDs or strings to register
  * @returns A populated AcceptanceCriteriaRegistry
  */
-export function createRegistryFromPlan(
-	scopeId: string,
-	criteriaIds: string[],
-): AcceptanceCriteriaRegistry {
+export function createRegistryFromPlan(scopeId: string, criteriaIds: string[]): AcceptanceCriteriaRegistry {
 	const registry = new AcceptanceCriteriaRegistry(scopeId);
 	for (let i = 0; i < criteriaIds.length; i++) {
 		const raw = criteriaIds[i];
@@ -618,10 +610,7 @@ export function parseRawCriteria(
 ): AcceptanceCriterion[] {
 	return rawCriteria.map((raw, idx) => {
 		if (typeof raw === "string") {
-			return createCriterion(
-				formatCriterionId(scopeId, startSequence + idx),
-				raw,
-			);
+			return createCriterion(formatCriterionId(scopeId, startSequence + idx), raw);
 		}
 		return createCriterion(
 			raw.id || formatCriterionId(scopeId, startSequence + idx),

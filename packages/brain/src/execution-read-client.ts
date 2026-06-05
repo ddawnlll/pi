@@ -11,7 +11,7 @@ import type {
 	LeadEscalationView,
 	PlanExecutionSummary,
 	WorkspaceExecutionSummary,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 
 export class BrainExecutionReadClient {
 	private readonly readModel: ExecutionReadModel;

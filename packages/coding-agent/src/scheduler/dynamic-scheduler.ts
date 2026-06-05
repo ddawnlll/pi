@@ -17,7 +17,7 @@
  *   AC5: Same-file conflicts are not run unsafely
  */
 
-import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-core";
+import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-contracts";
 import type { PlanState } from "../core/plan-state.js";
 import type {
 	FileLockConflict,

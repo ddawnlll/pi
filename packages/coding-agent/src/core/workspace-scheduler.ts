@@ -5,7 +5,7 @@
  * and bounded parallelism with stable (1-3) and experimental (4-6) worker modes.
  */
 
-import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-core";
+import { DEFAULT_WORKERS, MAX_EXPERIMENTAL_WORKERS, MIN_STABLE_WORKERS } from "@earendil-works/pi-execution-contracts";
 import type { PlanState } from "./plan-state.js";
 import type {
 	FileLockConflict,

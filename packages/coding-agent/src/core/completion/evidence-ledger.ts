@@ -13,11 +13,7 @@
  * Contract Schema: 4.1.1
  */
 
-import type {
-	EvidenceLedgerEntry,
-	EvidenceFilter,
-	EvidenceSummary,
-} from "./evidence-types.js";
+import type { EvidenceFilter, EvidenceLedgerEntry, EvidenceSummary } from "./evidence-types.js";
 import { computeEvidenceSummary, meetsMinConfidence } from "./evidence-types.js";
 
 // ---------------------------------------------------------------------------
@@ -288,9 +284,7 @@ export class EvidenceLedger {
 			}
 			if (entry.content) {
 				// Truncate content for readability in reports
-				const truncated = entry.content.length > 200
-					? entry.content.slice(0, 200) + "..."
-					: entry.content;
+				const truncated = entry.content.length > 200 ? `${entry.content.slice(0, 200)}...` : entry.content;
 				lines.push(`- Content: ${truncated}`);
 			}
 			lines.push("");

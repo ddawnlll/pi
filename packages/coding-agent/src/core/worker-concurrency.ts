@@ -1,12 +1,12 @@
 /**
  * Compatibility shim — P40.2
- * @deprecated Import from @earendil-works/pi-execution-core
+ * @deprecated Import from @earendil-works/pi-execution-contracts
  */
 
 export type {
 	WorkerConcurrencySettings,
 	WorkerConcurrencyValidationResult,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 export {
 	checkPromotionGates,
 	DEFAULT_WORKERS,
@@ -21,4 +21,4 @@ export {
 	requiresExperimentalMode,
 	resolveEffectiveWorkerCount,
 	validateWorkerConcurrency,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";

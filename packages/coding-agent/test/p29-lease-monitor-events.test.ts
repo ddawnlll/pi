@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createLeaseMonitor } from "../src/core/lease-monitor.js";
-import { InMemoryActorEventSink } from "../src/execution-kernel/actor-events.js";
+import { InMemoryActorEventSink } from "../src/execution-runtime/actor-events.js";
 
 describe("P29 lease monitor event-only", () => {
 	let tempDir: string;

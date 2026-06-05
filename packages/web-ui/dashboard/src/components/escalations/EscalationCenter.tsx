@@ -49,7 +49,7 @@ import { DeadlockDependencyPanel } from "./DeadlockDependencyPanel";
 // Types
 // ---------------------------------------------------------------------------
 
-import type { LeadEscalationView } from "@earendil-works/pi-execution-core";
+import type { LeadEscalationView } from "@earendil-works/pi-execution-contracts";
 
 export interface EscalationCenterProps {
   /** Plan execution ID */

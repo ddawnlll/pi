@@ -24,7 +24,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createStateStore, detectStateStoreBackend } from "../src/core/state-store.js";
 import { assertUuid, assertNullableUuid } from "../src/core/state-store.js";
-import { createTransitionRouter, DirectTransitionRouter, KernelTransitionRouter } from "../src/execution-kernel/transition-router.js";
+import { createTransitionRouter, DirectTransitionRouter, KernelTransitionRouter } from "../src/execution-runtime/transition-router.js";
 import { getKysely } from "@earendil-works/pi-db";
 import { randomUUID } from "node:crypto";
 
@@ -152,7 +152,7 @@ async function testAttemptStartedUuid(): Promise<void> {
 
 	// Verify the source code of workspace-attempt-controller.ts
 	const controllerContent = await fs.readFile(
-		path.resolve("packages/coding-agent/src/execution-kernel/workspace-attempt-controller.ts"),
+		path.resolve("packages/coding-agent/src/execution-runtime/workspace-attempt-controller.ts"),
 		"utf-8",
 	);
 
@@ -180,7 +180,7 @@ async function testAttemptStartedUuid(): Promise<void> {
 
 	// Verify legacy-write-adapter.ts
 	const legacyAdapterContent = await fs.readFile(
-		path.resolve("packages/coding-agent/src/execution-kernel/legacy-write-adapter.ts"),
+		path.resolve("packages/coding-agent/src/execution-runtime/legacy-write-adapter.ts"),
 		"utf-8",
 	);
 	if (legacyAdapterContent.includes("eventId: crypto.randomUUID()")) {
@@ -191,7 +191,7 @@ async function testAttemptStartedUuid(): Promise<void> {
 
 	// Verify shadow-attempt-journal.ts
 	const shadowJournalContent = await fs.readFile(
-		path.resolve("packages/coding-agent/src/execution-kernel/shadow-attempt-journal.ts"),
+		path.resolve("packages/coding-agent/src/execution-runtime/shadow-attempt-journal.ts"),
 		"utf-8",
 	);
 	if (shadowJournalContent.includes("eventId: crypto.randomUUID()")) {
@@ -378,7 +378,7 @@ async function testFromStateInTransition(): Promise<void> {
 	console.log("\n--- Test 7: from_state in attempt_transitions ---");
 
 	const controllerContent = await fs.readFile(
-		path.resolve("packages/coding-agent/src/execution-kernel/workspace-attempt-controller.ts"),
+		path.resolve("packages/coding-agent/src/execution-runtime/workspace-attempt-controller.ts"),
 		"utf-8",
 	);
 

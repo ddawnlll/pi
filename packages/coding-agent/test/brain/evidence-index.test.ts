@@ -42,10 +42,10 @@ describe("Evidence Index — AC #4 (Read-Only)", () => {
 	});
 
 	it("should not reference execution kernel types", () => {
-		// Verify the evidence module source doesn't import from execution-kernel
+		// Verify the evidence module source doesn't import from execution-runtime
 		const fs = require("fs");
 		const source = fs.readFileSync(require.resolve("../../src/brain/evidence/index.ts"), "utf-8");
-		expect(source).not.toContain("execution-kernel");
+		expect(source).not.toContain("execution-runtime");
 		expect(source).not.toContain("state-writer");
 		expect(source).not.toContain("StateWriter");
 	});

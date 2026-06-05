@@ -43,7 +43,7 @@ import { HumanDirectiveInput } from "./HumanDirectiveInput";
 // Types
 // ---------------------------------------------------------------------------
 
-import type { LeadEscalationView } from "@earendil-works/pi-execution-core";
+import type { LeadEscalationView } from "@earendil-works/pi-execution-contracts";
 
 export type { LeadEscalationView };
 

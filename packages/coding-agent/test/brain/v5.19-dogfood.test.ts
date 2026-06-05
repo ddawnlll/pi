@@ -31,7 +31,7 @@ import { InMemoryBrainTimelineStore } from "../../src/brain/timeline-store.js";
 import type { BrainObservation } from "../../src/brain/types.js";
 import { V5MutationGuard } from "../../src/brain/v5/mutation-guard.js";
 import type { BrainV5Config } from "../../src/brain/v5/types.js";
-import { InMemoryActorEventSink } from "../../src/execution-kernel/actor-events.js";
+import { InMemoryActorEventSink } from "../../src/execution-runtime/actor-events.js";
 
 // =========================================================================
 // Helpers

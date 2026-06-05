@@ -7,21 +7,19 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { type AcceptanceCriterion, createCriterion } from "../../src/core/completion/acceptance-criteria.js";
+import type { EvidenceLedgerEntry } from "../../src/core/completion/evidence-types.js";
 import {
-	WorkerReportBuilder,
-	WorkerReport,
-	WorkerVerdict,
-	CriterionReportItem,
-	MutationSummary,
-	determineVerdict,
 	buildReportFromCriteria,
+	type CriterionReportItem,
+	determineVerdict,
 	formatReport,
-	isReportSuccessful,
-	getReportBlockingReasons,
 	generateReportId,
-} from "../src/core/completion/worker-report-contract.js";
-import { createCriterion, AcceptanceCriterion } from "../src/core/completion/acceptance-criteria.js";
-import type { EvidenceLedgerEntry } from "../src/core/completion/evidence-types.js";
+	getReportBlockingReasons,
+	isReportSuccessful,
+	type MutationSummary,
+	WorkerReportBuilder,
+} from "../../src/core/completion/worker-report-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,9 +101,7 @@ describe("P44.06 — Worker Report Contract", () => {
 
 	describe("WorkerReportBuilder", () => {
 		it("should build a report with default values", () => {
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withSummary("Test run completed")
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withSummary("Test run completed").build();
 
 			expect(report.workerId).toBe("worker-1");
 			expect(report.workspaceId).toBe("P44.01");
@@ -116,9 +112,7 @@ describe("P44.06 — Worker Report Contract", () => {
 		});
 
 		it("should accept explicit verdict", () => {
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withVerdict("pass")
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withVerdict("pass").build();
 			expect(report.verdict).toBe("pass");
 		});
 
@@ -142,9 +136,7 @@ describe("P44.06 — Worker Report Contract", () => {
 				{ id: "AC-001", description: "A", status: "satisfied", evidenceIds: [], notes: "" },
 				{ id: "AC-002", description: "B", status: "failed", evidenceIds: [], notes: "" },
 			];
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withCriteriaStatuses(items)
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withCriteriaStatuses(items).build();
 
 			expect(report.criteriaStatus).toHaveLength(2);
 		});
@@ -157,9 +149,7 @@ describe("P44.06 — Worker Report Contract", () => {
 				commandsExecuted: ["npm test"],
 				editCount: 3,
 			};
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withMutation(mutations)
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withMutation(mutations).build();
 
 			expect(report.mutations.created).toEqual(["file1.ts"]);
 			expect(report.mutations.editCount).toBe(3);
@@ -182,9 +172,7 @@ describe("P44.06 — Worker Report Contract", () => {
 		});
 
 		it("should set evidence summary", () => {
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withEvidenceSummary(10, 8, 2)
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withEvidenceSummary(10, 8, 2).build();
 
 			expect(report.evidenceSummary.total).toBe(10);
 			expect(report.evidenceSummary.passed).toBe(8);
@@ -197,9 +185,7 @@ describe("P44.06 — Worker Report Contract", () => {
 				makeEvidenceEntry("EV-002", "pass"),
 				makeEvidenceEntry("EV-003", "fail"),
 			];
-			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44")
-				.withEvidenceFromEntries(entries)
-				.build();
+			const report = new WorkerReportBuilder("worker-1", "P44.01", "P44").withEvidenceFromEntries(entries).build();
 
 			expect(report.evidenceSummary.total).toBe(3);
 			expect(report.evidenceSummary.passed).toBe(2);
@@ -239,14 +225,8 @@ describe("P44.06 — Worker Report Contract", () => {
 
 	describe("buildReportFromCriteria", () => {
 		it("should build a report from criteria and evidence", () => {
-			const criteria = [
-				makeCriterion("AC-P4401-001", "satisfied"),
-				makeCriterion("AC-P4401-002", "failed"),
-			];
-			const evidence = [
-				makeEvidenceEntry("EV-P4401-001", "pass"),
-				makeEvidenceEntry("EV-P4401-002", "fail"),
-			];
+			const criteria = [makeCriterion("AC-P4401-001", "satisfied"), makeCriterion("AC-P4401-002", "failed")];
+			const evidence = [makeEvidenceEntry("EV-P4401-001", "pass"), makeEvidenceEntry("EV-P4401-002", "fail")];
 			const mutations: MutationSummary = {
 				created: [],
 				modified: ["file.ts"],
@@ -346,9 +326,7 @@ describe("P44.06 — Worker Report Contract", () => {
 		});
 
 		it("should return empty for successful report", () => {
-			const report = new WorkerReportBuilder("w", "ws", "p")
-				.withVerdict("pass")
-				.build();
+			const report = new WorkerReportBuilder("w", "ws", "p").withVerdict("pass").build();
 			expect(getReportBlockingReasons(report)).toHaveLength(0);
 		});
 	});

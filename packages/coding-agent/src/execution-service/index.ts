@@ -19,6 +19,6 @@ export type {
 	PlanExecutionSummary,
 	PlanStatus,
 	WorkspaceExecutionSummary,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 export type { CommandHandlerResult } from "@earendil-works/pi-execution-service";
 export { createExecutionReadModel, handleExecutionCommand } from "@earendil-works/pi-execution-service";

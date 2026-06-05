@@ -12,18 +12,18 @@ import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
-import type { WorkerAdapter, WorktreeConfig } from "@earendil-works/pi-execution-core";
+import type { WorkerAdapter, WorktreeConfig } from "@earendil-works/pi-execution-contracts";
 import {
 	DEFAULT_WORKERS,
 	resolveEffectiveWorkerCount,
 	type WorkerConcurrencySettings,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 import { createGitRunner, handleExecutionCommand } from "@earendil-works/pi-execution-service";
 import { LocalPiWorkerAdapter } from "@earendil-works/pi-worker-adapters";
 import { getBrainStore } from "../brain/api.js";
 import type { Severity, TimelineEventType } from "../brain/types.js";
-import type { TransitionRouter } from "../execution-kernel/transition-router.js";
-import { createTransitionRouter } from "../execution-kernel/transition-router.js";
+import type { TransitionRouter } from "../execution-runtime/transition-router.js";
+import { createTransitionRouter } from "../execution-runtime/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import { AutoCommit } from "./auto-commit.js";

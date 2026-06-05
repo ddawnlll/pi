@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { ActorEventSink } from "../../execution-kernel/actor-events.js";
+import type { ActorEventSink } from "../../execution-runtime/actor-events.js";
 import type { BrainTimelineStore } from "../timeline-store.js";
 import { canV5EmitEvents, canV5Push } from "./config.js";
 import type { BrainV5Config, V5AllowedEvent, V5EmitResult, V5RejectCode } from "./types.js";
@@ -34,7 +34,7 @@ import { V5_ALLOWED_ACTOR_EVENT_TYPES } from "./types.js";
  * Following V4 doctrine, this guard NEVER directly mutates execution
  * state. It validates and forwards events to the appropriate sinks
  * (timeline store for observation/signal events, actor event sink
- * for execution-kernel-bound events).
+ * for execution-runtime-bound events).
  */
 export class V5MutationGuard {
 	private readonly _timelineStore: BrainTimelineStore;

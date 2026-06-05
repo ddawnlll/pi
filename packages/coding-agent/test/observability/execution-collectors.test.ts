@@ -22,7 +22,7 @@ import type {
 	AttemptEventPayload,
 	AttemptEventTypeV4,
 	EventSource,
-} from "../../src/execution-kernel/event-schema.js";
+} from "../../src/execution-runtime/event-schema.js";
 import { ExecutionCollector } from "../../src/observability/collectors/execution/execution-collector.js";
 import { SchedulerCollector } from "../../src/observability/collectors/execution/scheduler-collector.js";
 import { ValidationCollector } from "../../src/observability/collectors/execution/validation-collector.js";

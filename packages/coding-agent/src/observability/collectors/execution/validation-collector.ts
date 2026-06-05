@@ -3,7 +3,7 @@
  *
  * Collects validation-specific events from the execution engine: validation
  * lane state changes, validation lock events, validation lane saturation
- * events, and execution-kernel validation attempt events. Converts them
+ * events, and execution-runtime validation attempt events. Converts them
  * into standardized ObservabilityEvent records for the telemetry store.
  *
  * Tracks:
@@ -40,7 +40,7 @@ import type {
 	ValidationProcessKilledPayload,
 	ValidationStartedPayload,
 	ValidationTimedOutPayload,
-} from "../../../execution-kernel/event-schema.js";
+} from "../../../execution-runtime/event-schema.js";
 import { createObservabilityEvent, createTraceContext } from "../../schema.js";
 import type { ObservabilityEvent, ObservabilitySeverity, ObservabilityStatus } from "../../types.js";
 
@@ -372,7 +372,7 @@ export interface ValidationCollectorBufferEntry {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Set of execution-kernel validation event types.
+ * Set of execution-runtime validation event types.
  */
 export const VALIDATION_EVENT_TYPES: ReadonlySet<string> = new Set([
 	"validation_lane_requested",
@@ -396,7 +396,7 @@ export function isValidationEventType(type: string): boolean {
 /**
  * Collects validation-specific events as observability events.
  *
- * Handles validation lane state, lock lifecycle, execution-kernel
+ * Handles validation lane state, lock lifecycle, execution-runtime
  * validation attempt events, and aggregate statistics.
  *
  * All autonomous behavior respects budget, cooldown, dedupe, and
@@ -882,7 +882,7 @@ export class ValidationCollector {
 
 		return createObservabilityEvent(ctx, {
 			eventType: `validation_${event.type}`,
-			source: "execution-kernel/validation",
+			source: "execution-runtime/validation",
 			severity,
 			status,
 			name: `validation:${event.type}`,
@@ -1181,7 +1181,7 @@ export class ValidationCollector {
 		const entry: ValidationCollectorBufferEntry = {
 			event,
 			validationEventType,
-			source: "execution-kernel/validation",
+			source: "execution-runtime/validation",
 			collectedAt: new Date().toISOString(),
 			planExecutionId,
 		};

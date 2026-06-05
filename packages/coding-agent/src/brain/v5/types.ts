@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import type { ActorEvent, ActorEventType } from "../../execution-kernel/actor-events.js";
+import type { ActorEvent, ActorEventType } from "../../execution-runtime/actor-events.js";
 import type { BrainTimelineEvent } from "../types.js";
 
 // =========================================================================
@@ -87,7 +87,7 @@ export interface BrainV5Config {
  *
  * The V5 boundary allows:
  * - Timeline observation/signal events (brain-level awareness)
- * - Actor events (execution-kernel-level communication via actor event stream)
+ * - Actor events (execution-runtime-level communication via actor event stream)
  *
  * Direct state mutation (StateWriter.transition, etc.) is forbidden.
  */

@@ -8,19 +8,18 @@
 import { describe, expect, it } from "vitest";
 import {
 	AcceptanceCriteriaRegistry,
-	AcceptanceCriterion,
-	createCriterion,
-	formatCriterionId,
-	isCriterionBlocking,
 	aggregateCriterionStatus,
-	getBlockingCriteria,
-	formatBlockingReasons,
 	buildTraceabilityReport,
+	createCriterion,
 	createRegistryFromPlan,
-	parseRawCriteria,
 	createTraceabilityLink,
-} from "../src/core/completion/acceptance-criteria.js";
-import type { EvidenceLedgerEntry } from "../src/core/completion/evidence-types.js";
+	formatBlockingReasons,
+	formatCriterionId,
+	getBlockingCriteria,
+	isCriterionBlocking,
+	parseRawCriteria,
+} from "../../src/core/completion/acceptance-criteria.js";
+import type { EvidenceLedgerEntry } from "../../src/core/completion/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -143,9 +142,7 @@ describe("P44.01 — Acceptance Criteria & Traceability Schema", () => {
 		});
 
 		it("should return unverified if any evidence-required criterion is unverified", () => {
-			const criteria = [
-				createCriterion("AC-P4401-001", "Unverified", { verificationStatus: "unverified" }),
-			];
+			const criteria = [createCriterion("AC-P4401-001", "Unverified", { verificationStatus: "unverified" })];
 			expect(aggregateCriterionStatus(criteria)).toBe("unverified");
 		});
 
@@ -294,9 +291,7 @@ describe("P44.01 — Acceptance Criteria & Traceability Schema", () => {
 
 		it("should serialize to JSON", () => {
 			const registry = new AcceptanceCriteriaRegistry("P44.01");
-			registry.register(
-				createCriterion("AC-P4401-001", "Test", { verificationStatus: "satisfied" }),
-			);
+			registry.register(createCriterion("AC-P4401-001", "Test", { verificationStatus: "satisfied" }));
 			const json = registry.toJSON();
 			expect(json.scopeId).toBe("P44.01");
 			expect(json.total).toBe(1);
@@ -317,10 +312,7 @@ describe("P44.01 — Acceptance Criteria & Traceability Schema", () => {
 
 	describe("createRegistryFromPlan", () => {
 		it("should create a registry from string criteria", () => {
-			const registry = createRegistryFromPlan("P44.01", [
-				"Acceptance criterion 1",
-				"Acceptance criterion 2",
-			]);
+			const registry = createRegistryFromPlan("P44.01", ["Acceptance criterion 1", "Acceptance criterion 2"]);
 			const all = registry.getAll();
 			expect(all).toHaveLength(2);
 			expect(all[0].description).toBe("Acceptance criterion 1");
@@ -337,9 +329,7 @@ describe("P44.01 — Acceptance Criteria & Traceability Schema", () => {
 		});
 
 		it("should parse partial object criteria", () => {
-			const criteria = parseRawCriteria("P44.01", [
-				{ description: "Custom", level: "blocking" },
-			]);
+			const criteria = parseRawCriteria("P44.01", [{ description: "Custom", level: "blocking" }]);
 			expect(criteria).toHaveLength(1);
 			expect(criteria[0].level).toBe("blocking");
 		});

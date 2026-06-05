@@ -8,7 +8,7 @@
  * - getDirectives / getEscalations
  */
 
-import type { ExecutionReadModel, LeadDirectiveView, LeadEscalationView } from "@earendil-works/pi-execution-core";
+import type { ExecutionReadModel, LeadDirectiveView, LeadEscalationView } from "@earendil-works/pi-execution-contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrainBoundary } from "../src/boundary.js";
 

@@ -1,8 +1,8 @@
 import {
 	type ExecutionIntent,
 	deriveExecutionProfile as kernelDerive,
-} from "../execution-kernel/execution-profile-deriver.js";
-import { normalizeLegacyPlanToIntent as kernelNormalize } from "../execution-kernel/legacy-normalizer.js";
+} from "../execution-runtime/execution-profile-deriver.js";
+import { normalizeLegacyPlanToIntent as kernelNormalize } from "../execution-runtime/legacy-normalizer.js";
 import type { PlanExecutionConfig, WorkspaceQueue } from "./workspace-schema.js";
 
 export type IntentSafetyLevel = "relaxed" | "normal" | "strict";
@@ -22,7 +22,7 @@ export interface IntentV4 {
  *
  * This type is backward-compatible with stored plan files. For the canonical
  * derivation logic and the authoritative DerivedExecutionProfile used by the
- * ExecutionKernel, see execution-kernel/execution-profile-deriver.ts.
+ * ExecutionKernel, see execution-runtime/execution-profile-deriver.ts.
  *
  * Derivation LOGIC is unified: deriveExecutionProfile below delegates to the
  * kernel deriver. These core types remain separate only to preserve backward

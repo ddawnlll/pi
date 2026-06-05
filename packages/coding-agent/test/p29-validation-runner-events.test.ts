@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ValidationRunner } from "../src/core/validation-runner.js";
-import { InMemoryActorEventSink } from "../src/execution-kernel/actor-events.js";
+import { InMemoryActorEventSink } from "../src/execution-runtime/actor-events.js";
 
 describe("P29 validation runner event-only", () => {
 	let tmpDir: string;

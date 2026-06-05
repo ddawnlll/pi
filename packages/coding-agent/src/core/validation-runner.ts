@@ -16,7 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
-import type { ActorEventSink } from "../execution-kernel/actor-events.js";
+import type { ActorEventSink } from "../execution-runtime/actor-events.js";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

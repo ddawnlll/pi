@@ -39,7 +39,7 @@ export {
 	validateWorkerConcurrency,
 	type WorkerConcurrencySettings,
 	type WorkerConcurrencyValidationResult,
-} from "@earendil-works/pi-execution-core";
+} from "@earendil-works/pi-execution-contracts";
 export {
 	AutoCommit,
 	type CommitResult,
@@ -1211,15 +1211,15 @@ export {
 // =============================================================================
 
 export { createExecutionReadModel, handleExecutionCommand } from "@earendil-works/pi-execution-service";
-export type { AttemptState, StateAuthorityToken } from "./execution-core/index.js";
+export type { AttemptState, StateAuthorityToken } from "./execution-contracts/index.js";
 export {
 	type AdmissionDecision,
 	admitExecution,
-} from "./execution-kernel/admission-gate.js";
+} from "./execution-runtime/admission-gate.js";
 export {
 	type AdmissionDecisionRecord,
 	type AdmissionEntrypoint,
 	guardExecutionEntrypoint,
-} from "./execution-kernel/admission-guard.js";
-export { assertLegalTransition, assertRetryAllowed, getDeadlinePolicy } from "./execution-kernel/attempt-fsm.js";
-export { createStateAuthorityToken } from "./execution-kernel/state-authority.js";
+} from "./execution-runtime/admission-guard.js";
+export { assertLegalTransition, assertRetryAllowed, getDeadlinePolicy } from "./execution-runtime/attempt-fsm.js";
+export { createStateAuthorityToken } from "./execution-runtime/state-authority.js";

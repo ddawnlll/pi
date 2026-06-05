@@ -131,7 +131,7 @@ report: ACCP-Lite v1.0 IPR
       "title": "Workspace Two",
       "dependencies": ["P41.00"],
       "capabilities": {
-        "canEdit": ["packages/execution-core/src/events/**"]
+        "canEdit": ["packages/execution-contracts/src/events/**"]
       }
     }
   ]
@@ -148,7 +148,7 @@ report: ACCP-Lite v1.0 IPR
 		expect(parsed.detectedWorkspaces).toContain("P41.01");
 		expect(parsed.detectedDependencies).toContain("P41.00");
 		expect(parsed.detectedAllowedFiles).toContain("docs/pi/p41/**");
-		expect(parsed.detectedAllowedFiles).toContain("packages/execution-core/src/events/**");
+		expect(parsed.detectedAllowedFiles).toContain("packages/execution-contracts/src/events/**");
 	});
 
 	it("parses the real docs/P41_Execution_Visibility_Control_Cockpit.md file", () => {
@@ -171,7 +171,7 @@ report: ACCP-Lite v1.0 IPR
 		expect(parsed.detectedDependencies).toContain("P41.02");
 		expect(parsed.detectedAllowedFiles.length).toBeGreaterThan(0);
 		expect(parsed.detectedAllowedFiles).toContain("docs/pi/p41/**");
-		expect(parsed.detectedAllowedFiles).toContain("packages/execution-core/src/events/**");
+		expect(parsed.detectedAllowedFiles).toContain("packages/execution-contracts/src/events/**");
 		expect(parsed.parseStatus).toBe("ok");
 	});
 
