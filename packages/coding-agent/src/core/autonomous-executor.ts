@@ -1285,6 +1285,43 @@ export class AutonomousExecutor {
 			// tool and left running — even if the agent reported COMPLETE. Run on
 			// both success and failure, not only when result.verdict === "COMPLETE".
 			killTrackedDetachedChildren();
+
+			// P43.8A: Validate commit safety via WorkspaceCommitGate before completion gate
+			if (workspace.writeSet && workspace.writeSet.length > 0 && this.workspaceRoot) {
+				const commitSafetyReasons = await this.completionGate.validateCommitSafety({
+					repoRoot: this.workspaceRoot,
+					workspaceId: workspace.id,
+					allowedWriteSet: workspace.writeSet,
+					allowDeletedOwnedFiles: true,
+					allowGeneratedArtifacts: false,
+					forbidBulkGitAdd: true,
+					forbidCommitAll: true,
+				});
+				if (commitSafetyReasons.length > 0) {
+					console.error(
+						`[autonomous-executor] Workspace ${workspace.id} commit safety blocked: ${commitSafetyReasons.join("; ")}`,
+					);
+					// Block completion
+					const blockMsg = commitSafetyReasons.join("; ");
+					await this.appendControlPlaneEvent(planExecutionId, "workspace_blocked", {
+						reason: blockMsg,
+						blockType: "workspace_commit_gate",
+					});
+					await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Blocked, {
+						commitGateBlock: blockMsg,
+					});
+					this.activeAgentExecutors.delete(workspace.id);
+					this.inFlightAttemptNos.delete(workspace.id);
+					return {
+						workspaceId: workspace.id,
+						success: false,
+						verdict: "FAILED",
+						error: blockMsg,
+						report: `Workspace blocked: ${blockMsg}`,
+					};
+				}
+			}
+
 			// Evaluate via registry to get the live state after mutations above
 			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
 

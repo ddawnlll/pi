@@ -22,8 +22,45 @@ import type { FailureSignal } from "./log-failure-detector.js";
 import { FailureSignalCategory } from "./log-failure-detector.js";
 import type { WorkspaceState } from "./plan-state.js";
 import { isWatchModeCommand } from "./watch-mode-guard.js";
+import type { WorkspaceCommitGateConfig } from "./workspace-commit-gate.js";
+import { WorkspaceCommitGate } from "./workspace-commit-gate.js";
 import type { Workspace } from "./workspace-schema.js";
 import { WorkspaceStage } from "./workspace-schema.js";
+
+// ---------------------------------------------------------------------------
+// Dangerous git command patterns (matching WorkspaceCommitGate semantics)
+// ---------------------------------------------------------------------------
+
+const DANGEROUS_GIT_COMMAND_PATTERNS = [
+	/^git\s+add\s*\.\s*$/,
+	/^git\s+add\s+-A\s*$/,
+	/^git\s+add\s+--all\s*$/,
+	/^git\s+add\s+--\s*\.\s*$/,
+	/^git\s+add\s+--\s+'?:\/'?\s*$/,
+	/^git\s+add\s+'?:\/'?\s*$/,
+	/^git\s+commit\s+-a\b/,
+	/^git\s+commit\s+--all\b/,
+	/^git\s+commit\s+-am\b/,
+	// Chained forms
+	/^git\s+add\s*\.\s*&&\s*git\s+commit/,
+	/^git\s+add\s+-A\s*&&\s*git\s+commit/,
+	/^git\s+add\s+--all\s*;\s*git\s+commit/,
+];
+
+/**
+ * Check whether a command is a dangerous git command.
+ */
+export function isDangerousGitCommand(command: string): boolean {
+	const trimmed = command.trim().replace(/\s+/g, " ");
+	return DANGEROUS_GIT_COMMAND_PATTERNS.some((p) => p.test(trimmed));
+}
+
+/**
+ * Check whether a command history contains any dangerous git command.
+ */
+export function hasDangerousGitCommandInHistory(commands: string[]): boolean {
+	return commands.some((cmd) => isDangerousGitCommand(cmd));
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -95,12 +132,15 @@ export interface WorkspaceValidationState {
 	validationCommandRunning: boolean;
 	/** Most recent command exit code (null if no command run or still running) */
 	lastCommandExitCode: number | null;
-	/**
-	 * Bounded command history (last MAX_COMMAND_HISTORY commands).
-	 * P37.HOTFIX: used by equivalent validation to determine whether
-	 * an equivalent command satisfied the validation requirement.
-	 */
+	/** Bounded command history (last MAX_COMMAND_HISTORY commands) */
 	commandHistory: CommandHistoryEntry[];
+	/**
+	 * Whether a dangerous git command was detected in command history.
+	 * Set by recordCommand / evaluateWorkspaceCompletion.
+	 */
+	dangerousGitCommandDetected: boolean;
+	/** The dangerous git command, if any */
+	dangerousGitCommand: string | null;
 }
 
 /**
@@ -411,6 +451,13 @@ export function evaluateWorkspaceCompletion(
 		blockReasons.push(`Forbidden watch-mode command used: ${validationState.watchModeCommand ?? "unknown"}`);
 	}
 
+	// 7b. No dangerous git command
+	if (validationState.dangerousGitCommandDetected) {
+		blockReasons.push(
+			`Dangerous git command detected: ${validationState.dangerousGitCommand ?? "git add . / git commit -a"}. Use scoped 'git add <file>' instead.`,
+		);
+	}
+
 	// 8. Non-zero exit code from last command
 	if (validationState.lastCommandExitCode !== null && validationState.lastCommandExitCode !== 0) {
 		blockReasons.push(`Last command exited with non-zero code: ${validationState.lastCommandExitCode}`);
@@ -482,6 +529,8 @@ export function createWorkspaceValidationState(planExecId: string, workspaceId: 
 		validationCommandRunning: false,
 		lastCommandExitCode: null,
 		commandHistory: [],
+		dangerousGitCommandDetected: false,
+		dangerousGitCommand: null,
 	};
 }
 
@@ -573,6 +622,12 @@ export function recordValidationCommand(
 	}
 
 	// Record in command history
+	// Check for dangerous git command
+	if (isDangerousGitCommand(command)) {
+		update.dangerousGitCommandDetected = true;
+		update.dangerousGitCommand = command;
+	}
+
 	const historyEntry: CommandHistoryEntry = {
 		command,
 		exitCode: null,
@@ -622,6 +677,12 @@ export function recordCommandCompletion(
 	if (isTargetCommand) {
 		update.targetCommandRunning = false;
 		update.targetCommandPassed = exitCode === 0;
+	}
+
+	// Check for dangerous git command in the completed command
+	if (command && isDangerousGitCommand(command)) {
+		update.dangerousGitCommandDetected = true;
+		update.dangerousGitCommand = command;
 	}
 
 	// Update command history: find the last entry with null exitCode and update it
@@ -1197,16 +1258,39 @@ export class CompletionGateRegistry {
 	 */
 	evaluateWorkspace(planExecId: string, workspaceId: string, workspace: Workspace): WorkspaceCompletionResult {
 		const state = this.getOrCreate(planExecId, workspaceId);
+		let result: WorkspaceCompletionResult;
 		if (this._governanceLedger) {
-			const result = evaluateWorkspaceCompletionWithGovernance(state, workspace, this._governanceLedger);
+			result = evaluateWorkspaceCompletionWithGovernance(state, workspace, this._governanceLedger);
 			// Record the gate evaluation in the ledger
 			this._governanceLedger.recordCompletionGate(result.canComplete, result.blockReasons, {
 				planExecId,
 				workspaceId,
 			});
-			return result;
+		} else {
+			result = evaluateWorkspaceCompletion(state, workspace);
 		}
-		return evaluateWorkspaceCompletion(state, workspace);
+		return result;
+	}
+
+	/**
+	 * Validate commit safety for a workspace using WorkspaceCommitGate.
+	 * Inspects actual git staged files and returns block reasons.
+	 * Must be called before evaluateWorkspace for production execution.
+	 *
+	 * @param commitGateOpts - WorkspaceCommitGate configuration
+	 * @returns Block reasons (empty if safe)
+	 */
+	async validateCommitSafety(commitGateOpts: WorkspaceCommitGateConfig): Promise<string[]> {
+		try {
+			const gate = new WorkspaceCommitGate(commitGateOpts);
+			const commitResult = await gate.inspectGitState();
+			if (!commitResult.allowed) {
+				return [`WorkspaceCommitGate: ${commitResult.reason ?? "unexpected staged files"}`];
+			}
+			return [];
+		} catch (error) {
+			return [`WorkspaceCommitGate inspection error: ${error instanceof Error ? error.message : String(error)}`];
+		}
 	}
 
 	/**

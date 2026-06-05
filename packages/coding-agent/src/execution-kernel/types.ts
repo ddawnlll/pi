@@ -93,6 +93,12 @@ export interface HandoffQueueRow {
 	status: string;
 	reason: string | null;
 	required: boolean;
+	resolved_at: string | null;
+	resolution: string | null;
+	rejected_at: string | null;
+	rejection_reason: string | null;
+	expired_at: string | null;
+	expires_at: string | null;
 	created_at: string;
 	updated_at: string;
 }

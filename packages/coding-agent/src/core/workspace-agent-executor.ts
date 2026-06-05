@@ -94,6 +94,13 @@ export interface WorkspaceAgentExecutorConfig {
 	 */
 	llmStreamIdleTimeoutMs?: number;
 	/**
+	 * LLM stream absolute wall-clock timeout in milliseconds.
+	 * Independent of event activity. If the provider stream runs longer
+	 * than this (even with keep-alive events), it is aborted.
+	 * Defaults to 10 minutes.
+	 */
+	llmStreamWallClockTimeoutMs?: number;
+	/**
 	 * First event timeout in milliseconds.
 	 * Defaults to PI_FIRST_AGENT_EVENT_TIMEOUT_MS or 30 seconds.
 	 */
@@ -144,6 +151,8 @@ interface ExecutionContext {
 	lastLLMEventTime: number;
 	/** Whether any agent event has been observed for this execution. */
 	firstAgentEventSeen: boolean;
+	/** LLM stream wall-clock timeout handle (aborts on absolute timeout) */
+	llmWallClockHandle: ReturnType<typeof setTimeout> | null;
 	/** When session.prompt() dispatch started. */
 	promptDispatchStartedAt: number | null;
 	/** When session.prompt() resolved. */
@@ -202,6 +211,12 @@ export class WorkspaceAgentExecutor {
 	private readonly llmStreamIdleTimeoutMs: number;
 
 	/**
+	 * LLM stream absolute wall-clock timeout in milliseconds.
+	 * Independent of event frequency: fires even if events keep arriving.
+	 */
+	private readonly llmStreamWallClockTimeoutMs: number;
+
+	/**
 	 * Maximum time to wait for the first agent event after prompt dispatch.
 	 */
 	private readonly firstAgentEventTimeoutMs: number;
@@ -218,6 +233,9 @@ export class WorkspaceAgentExecutor {
 		this.timeoutMs = config.timeoutMs ?? 30 * 60 * 1000; // 30 minutes
 		this.llmStreamIdleTimeoutMs =
 			config.llmStreamIdleTimeoutMs ?? parsePositiveTimeoutEnv("PI_LLM_STREAM_IDLE_TIMEOUT_MS", 300 * 1000);
+		this.llmStreamWallClockTimeoutMs =
+			config.llmStreamWallClockTimeoutMs ??
+			parsePositiveTimeoutEnv("PI_LLM_STREAM_WALL_CLOCK_TIMEOUT_MS", 10 * 60 * 1000);
 		this.firstAgentEventTimeoutMs =
 			config.firstAgentEventTimeoutMs ?? parsePositiveTimeoutEnv("PI_FIRST_AGENT_EVENT_TIMEOUT_MS", 30 * 1000);
 		this.actorEventSink = config.actorEventSink;
@@ -492,6 +510,7 @@ export class WorkspaceAgentExecutor {
 			abortController,
 			timeoutHandle,
 			llmIdleHandle: null,
+			llmWallClockHandle: null,
 			firstEventHandle: null,
 			lastLLMEventTime: 0,
 			firstAgentEventSeen: false,
@@ -545,6 +564,9 @@ export class WorkspaceAgentExecutor {
 			clearTimeout(ctx.timeoutHandle);
 			if (ctx.llmIdleHandle) {
 				clearTimeout(ctx.llmIdleHandle);
+			}
+			if (ctx.llmWallClockHandle) {
+				clearTimeout(ctx.llmWallClockHandle);
 			}
 			if (ctx.firstEventHandle) {
 				clearTimeout(ctx.firstEventHandle);
@@ -776,6 +798,27 @@ export class WorkspaceAgentExecutor {
 				}
 			};
 
+			// LLM stream wall-clock watchdog: fires once regardless of event activity
+			const startWallClockWatchdog = () => {
+				if (ctx.llmWallClockHandle) {
+					clearTimeout(ctx.llmWallClockHandle);
+				}
+				ctx.llmWallClockHandle = setTimeout(() => {
+					if (ctx.abortController && !ctx.abortController.signal.aborted) {
+						const elapsed = Date.now() - (ctx.promptDispatchStartedAt ?? Date.now());
+						console.error(
+							`[workspace-agent-executor] LLM stream wall-clock timeout after ${Math.round(elapsed / 1000)}s (limit ${this.llmStreamWallClockTimeoutMs / 1000}s) — aborting workspace ${workspaceId} to trigger retry`,
+						);
+						emitDiagnosticStatus("executing", "llm_wall_clock_timeout");
+						if (ctx.logPath && logs.length > 0) {
+							fs.writeFile(ctx.logPath, logs.join("\n"), "utf-8").catch(() => {});
+						}
+						ctx.abortController.abort();
+					}
+				}, this.llmStreamWallClockTimeoutMs);
+				ctx.llmWallClockHandle.unref();
+			};
+
 			// LLM stream idle watchdog: reset on every agent event
 			const resetIdleWatchdog = () => {
 				ctx.lastLLMEventTime = Date.now();
@@ -805,6 +848,10 @@ export class WorkspaceAgentExecutor {
 			const completionPromise = new Promise<void>((resolve) => {
 				const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
 					markAgentEventSeen(event.type);
+					// Start wall-clock watchdog on first event (stream is actually running)
+					if (ctx.firstAgentEventSeen && !ctx.llmWallClockHandle) {
+						startWallClockWatchdog();
+					}
 					// Reset idle watchdog on every agent event (any event = stream is alive)
 					resetIdleWatchdog();
 
