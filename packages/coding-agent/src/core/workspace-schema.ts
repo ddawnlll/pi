@@ -1316,8 +1316,8 @@ export function canEditFile(capabilities: WorkspaceCapabilityManifest | undefine
 	}
 
 	// Check if explicitly allowed
-	if (capabilities.canEdit.length > 0) {
-		return capabilities.canEdit.some((pattern) => matchesPattern(filePath, pattern));
+	if ((capabilities.canEdit ?? []).length > 0) {
+		return capabilities.canEdit!.some((pattern) => matchesPattern(filePath, pattern));
 	}
 
 	// No explicit restrictions
@@ -1342,8 +1342,8 @@ export function canRunCommand(capabilities: WorkspaceCapabilityManifest | undefi
 	}
 
 	// Check if explicitly allowed
-	if (capabilities.canRun.length > 0) {
-		return capabilities.canRun.some((pattern) => matchesPattern(command, pattern));
+	if ((capabilities.canRun ?? []).length > 0) {
+		return capabilities.canRun!.some((pattern) => matchesPattern(command, pattern));
 	}
 
 	// No explicit restrictions

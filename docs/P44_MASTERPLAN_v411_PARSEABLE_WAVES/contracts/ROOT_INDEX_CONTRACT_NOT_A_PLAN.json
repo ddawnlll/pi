@@ -1,0 +1,73 @@
+{
+  "contractVersion": "4.1.1",
+  "templateVersion": "4.1.1",
+  "phase": "P44",
+  "note": "This is an index contract only; parse wave markdown files as plans.",
+  "waves": [
+    {
+      "id": "W1",
+      "file": "waves/W1_FOUNDATION_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.01",
+        "P44.02",
+        "P44.06"
+      ]
+    },
+    {
+      "id": "W2",
+      "file": "waves/W2_GATE_CORE_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.03",
+        "P44.04",
+        "P44.05"
+      ]
+    },
+    {
+      "id": "W3",
+      "file": "waves/W3_COMMIT_SAFETY_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.08",
+        "P44.09"
+      ]
+    },
+    {
+      "id": "W4",
+      "file": "waves/W4_AUDIT_MUTATION_WIRING_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.07",
+        "P44.WG"
+      ]
+    },
+    {
+      "id": "W5",
+      "file": "waves/W5_VISIBILITY_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.10"
+      ]
+    },
+    {
+      "id": "W6",
+      "file": "waves/W6_GAUNTLETS_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.11"
+      ]
+    },
+    {
+      "id": "W7",
+      "file": "waves/W7_BRIDGE_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.12",
+        "P45.B1",
+        "P45.B2",
+        "P45.B3"
+      ]
+    },
+    {
+      "id": "W8",
+      "file": "waves/W8_FINAL_PROMOTION_MASTER_PLAN_v4_1_1.md",
+      "workspaces": [
+        "P44.13"
+      ]
+    }
+  ]
+}
