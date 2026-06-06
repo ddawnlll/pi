@@ -16,6 +16,8 @@ import {
 	trackProcess,
 	untrackDetachedChildPid,
 } from "../../utils/shell.js";
+import type { CommandPolicyDecision } from "../command-policy-types.js";
+import type { CommandPolicyEngine } from "../command-policy-engine.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
 import { isLongRunningCommand, isValidationCommand, withValidationLock } from "../validation-lock.js";
 import { OutputAccumulator } from "./output-accumulator.js";
@@ -185,6 +187,12 @@ export interface BashToolOptions {
 	 * all parallel workers. Default: true.
 	 */
 	validationLock?: boolean;
+	/**
+	 * Optional command policy engine for policy-aware command execution.
+	 * When set, every command is evaluated against policy before execution.
+	 * Denied commands throw immediately without running.
+	 */
+	commandPolicy?: CommandPolicyEngine;
 }
 
 const BASH_PREVIEW_LINES = 5;
@@ -321,6 +329,20 @@ export function createBashToolDefinition(
 		) {
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook);
+
+			// Command policy check: evaluate before execution
+			if (options?.commandPolicy) {
+				const policyDecision: CommandPolicyDecision = options.commandPolicy.evaluate(
+					spawnContext.command,
+					spawnContext.cwd,
+				);
+				if (policyDecision.decision === "deny" || policyDecision.decision === "requires_human_approval") {
+					throw new Error(
+						`Command rejected by policy: ${policyDecision.reason}` +
+							(policyDecision.blockCode ? ` (${policyDecision.blockCode})` : ""),
+					);
+				}
+			}
 
 			// Guard: reject long-running dev/watch commands that have no explicit timeout.
 			// If a timeout is provided, the command is allowed but process-scope cleanup

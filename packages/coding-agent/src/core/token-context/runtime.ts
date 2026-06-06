@@ -519,7 +519,12 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 						estimatedSavingTokens: saving,
 						confidence: "estimated",
 						filePath,
-						metadata: { mechanism: "smart_read", adapter: cachedEntry.adapterName, cacheHit: "disk", sessionId: this.sessionId },
+						metadata: {
+							mechanism: "smart_read",
+							adapter: cachedEntry.adapterName,
+							cacheHit: "disk",
+							sessionId: this.sessionId,
+						},
 					});
 
 					this.lastReadAudit = {
@@ -578,7 +583,12 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					estimatedSavingTokens: saving,
 					confidence: "estimated",
 					filePath,
-					metadata: { mechanism: "smart_read", adapter: smartResult.adapterName, cacheHit: "miss", sessionId: this.sessionId },
+					metadata: {
+						mechanism: "smart_read",
+						adapter: smartResult.adapterName,
+						cacheHit: "miss",
+						sessionId: this.sessionId,
+					},
 				});
 
 				this.lastReadAudit = {
