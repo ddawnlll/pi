@@ -26,6 +26,7 @@ import { RawCache } from "./raw-cache.js";
 import { ReadHashCache } from "./read-hash-cache.js";
 import { SavingsLedger } from "./savings-ledger.js";
 import { SmartReadCore } from "./smart-read-core.js";
+import { SmartReadDiskCache } from "./smart-read-disk-cache.js";
 import { TokenEstimator } from "./token-estimator.js";
 import type {
 	ACRLedgerPolicyResult,
@@ -110,6 +111,8 @@ export interface TokenContextRuntime {
 	changeLedger: ChangeLedger;
 	/** Smart read core */
 	smartRead: SmartReadCore;
+	/** Global smart read disk cache (persistent across sessions) */
+	globalSmartReadCache: SmartReadDiskCache;
 	/** Current turn number */
 	turn: number;
 	/** Extension source names for RTK detection */
@@ -283,6 +286,9 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 	const smartReadSkips: Array<{ filePath: string; reason: string; charLength: number }> = [];
 
+	// Global smart read disk cache — persistent across sessions
+	const globalSmartReadCache = new SmartReadDiskCache();
+
 	return {
 		mode: config.mode,
 		config,
@@ -293,6 +299,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 		acr,
 		changeLedger,
 		smartRead,
+		globalSmartReadCache,
 		turn: 0,
 		extensionSources: config.extensionSources ?? [],
 		lastReadAudit: audit,
@@ -496,6 +503,50 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			}
 
 			try {
+				// Check global disk cache first
+				const cachedEntry = globalSmartReadCache.get(filePath, rawContent);
+				if (cachedEntry) {
+					// Disk cache hit — skip the parse entirely
+					const rawEstimate = estimator.estimate(rawContent);
+					const compactEstimate = estimator.estimate(cachedEntry.outline);
+					const saving = Math.max(0, rawEstimate.charEstimate - compactEstimate.charEstimate);
+
+					const eid = ledger.record({
+						mechanism: "smart_read",
+						tool: "read",
+						estimatedBaselineTokens: rawEstimate.charEstimate,
+						estimatedOptimizedTokens: compactEstimate.charEstimate,
+						estimatedSavingTokens: saving,
+						confidence: "estimated",
+						filePath,
+						metadata: { mechanism: "smart_read", adapter: cachedEntry.adapterName, cacheHit: "disk", sessionId: this.sessionId },
+					});
+
+					this.lastReadAudit = {
+						...audit,
+						mechanism: "smart_read",
+						adapterName: cachedEntry.adapterName,
+						adapterConfidence: cachedEntry.adapterConfidence,
+						mutationSafe: false,
+						cacheStatus: "disk_hit",
+						rawTokensEstimate: rawEstimate.charEstimate,
+						optimizedTokensEstimate: compactEstimate.charEstimate,
+						savedTokensEstimate: saving,
+						returnedToolResultTokensEstimate: compactEstimate.charEstimate,
+						eventId: eid.id,
+						filePath,
+					};
+
+					return {
+						compactContent: cachedEntry.outline,
+						mechanism: "smart_read",
+						adapterName: cachedEntry.adapterName,
+						adapterConfidence: cachedEntry.adapterConfidence,
+						mutationSafe: false,
+						parseSource: cachedEntry.parseSource,
+					};
+				}
+
 				const smartResult = await smartRead.smartRead(rawContent, filePath, "outline");
 
 				// P43 v2: Acceptance gate for compact smart read output
@@ -512,6 +563,9 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					return undefined;
 				}
 
+				// Persist to global disk cache for future sessions
+				globalSmartReadCache.set(filePath, rawContent, smartResult);
+
 				const rawEstimate = estimator.estimate(rawContent);
 				const compactEstimate = estimator.estimate(smartResult.content);
 				const saving = Math.max(0, rawEstimate.charEstimate - compactEstimate.charEstimate);
@@ -524,7 +578,7 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					estimatedSavingTokens: saving,
 					confidence: "estimated",
 					filePath,
-					metadata: { mechanism: "smart_read", adapter: smartResult.adapterName, sessionId: this.sessionId },
+					metadata: { mechanism: "smart_read", adapter: smartResult.adapterName, cacheHit: "miss", sessionId: this.sessionId },
 				});
 
 				this.lastReadAudit = {
@@ -594,6 +648,9 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 			// Invalidate read hash cache
 			readHashCache.invalidate(filePath);
+
+			// Invalidate global smart read disk cache
+			globalSmartReadCache.invalidate(filePath);
 		},
 
 		advanceTurn(): void {
@@ -823,6 +880,14 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 			lines.push(`  Size: ${cacheStats.totalBytes} / ${cacheStats.maxBytes} bytes`);
 			lines.push(`  Hits: ${cacheStats.hitCount}, Misses: ${cacheStats.missCount}`);
 			lines.push(`  Evictions: ${cacheStats.evictionCount}`);
+
+			// Global smart read disk cache stats
+			const diskCacheStats = globalSmartReadCache.getStats();
+			lines.push("");
+			lines.push("--- Global Smart Read Disk Cache ---");
+			lines.push(`  Cached entries: ${diskCacheStats.entryCount}`);
+			lines.push(`  Cache dir: ${diskCacheStats.cacheDir}`);
+			lines.push(`  Disk files exist: ${diskCacheStats.diskFilesExist ? "yes" : "no"}`);
 
 			// Smart read skip analysis
 			const skips = smartReadSkips;

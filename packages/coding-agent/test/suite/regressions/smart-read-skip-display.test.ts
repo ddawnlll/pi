@@ -31,6 +31,7 @@ describe("smart read skip display", () => {
 	});
 
 	afterEach(() => {
+		runtime.globalSmartReadCache.clear();
 		rmSync(tempRoot, { recursive: true, force: true });
 	});
 
@@ -132,5 +133,148 @@ describe("smart read skip display", () => {
 		expect(report).toContain("compact content not shorter than raw");
 		expect(report).toContain("tiny_file_below_threshold");
 		expect(report).toContain(largeContent.length.toLocaleString());
+	});
+
+	describe("global smart read disk cache", () => {
+		let cacheRoot: string;
+
+		beforeEach(() => {
+			cacheRoot = mkdtempSync(join(tmpdir(), "pi-smart-read-cache-"));
+			const config = {
+				...DEFAULT_TOKEN_CONTEXT_CONFIG,
+				mode: "active_safe" as const,
+				tinyFileThresholdBytes: 256,
+				storeDir: cacheRoot,
+			};
+			runtime = createTokenContextRuntime(config);
+		});
+
+		afterEach(() => {
+			runtime.globalSmartReadCache.clear();
+			rmSync(cacheRoot, { recursive: true, force: true });
+		});
+
+		it("caches smart read outline to disk and retrieves it", async () => {
+			const file = join(cacheRoot, "module.ts");
+			// Content large enough to pass tiny threshold
+			const content = `
+import { foo } from "./foo.js";
+import { bar } from "./bar.js";
+
+/** Doc comment */
+export function calculate(x: number, y: number): number {
+	return x + y;
+}
+
+/** Another doc */
+export interface Result {
+	value: number;
+	label: string;
+}
+
+export class Calculator {
+	private result: Result = { value: 0, label: "" };
+
+	add(a: number, b: number): number {
+		return a + b;
+	}
+
+	getResult(): Result {
+		return this.result;
+	}
+}
+`;
+			writeFileSync(file, content, "utf-8");
+			expect(content.length).toBeGreaterThan(256);
+
+			// First read: should parse and cache
+			const result1 = await runtime.trySmartRead(file, content);
+			expect(result1).toBeDefined();
+			expect(result1!.compactContent.length).toBeGreaterThan(0);
+			expect(result1!.compactContent.length).toBeLessThan(content.length);
+
+			// Second read: should hit disk cache (same content, no parse)
+			const result2 = await runtime.trySmartRead(file, content);
+			expect(result2).toBeDefined();
+			expect(result2!.compactContent).toBe(result1!.compactContent);
+
+			// Stats should show cached entry
+			const stats = runtime.globalSmartReadCache.getStats();
+			expect(stats.entryCount).toBeGreaterThanOrEqual(1);
+			expect(stats.diskFilesExist).toBe(true);
+		});
+
+		it("invalidates cache after mutation", async () => {
+			const file = join(cacheRoot, "mutated.ts");
+			const originalContent = `
+export function hello() {
+	return "hello";
+}
+`.repeat(10);
+			writeFileSync(file, originalContent, "utf-8");
+
+			// First read: caches the outline
+			const result1 = await runtime.trySmartRead(file, originalContent);
+			expect(result1).toBeDefined();
+
+			// Simulate mutation
+			const newContent = `
+export function goodbye() {
+	return "goodbye";
+}
+`.repeat(10);
+			writeFileSync(file, newContent, "utf-8");
+			runtime.afterMutation(file, originalContent, newContent);
+
+			// Cache should be invalidated — get with old content should miss
+			const cachedWithOld = runtime.globalSmartReadCache.get(file, originalContent);
+			expect(cachedWithOld).toBeUndefined();
+		});
+
+		it("disk cache survives new runtime instance", async () => {
+			const file = join(cacheRoot, "persist.ts");
+			const content = `
+export const VERSION = "1.0.0";
+export function greet(name: string): string {
+	return \`Hello \${name}\`;
+}
+`.repeat(8);
+			writeFileSync(file, content, "utf-8");
+
+			// Read with first runtime
+			const result = await runtime.trySmartRead(file, content);
+			expect(result).toBeDefined();
+
+			// Create a second runtime (different instance, should hit disk)
+			const runtime2 = createTokenContextRuntime({
+				...DEFAULT_TOKEN_CONTEXT_CONFIG,
+				mode: "active_safe" as const,
+				tinyFileThresholdBytes: 256,
+				storeDir: cacheRoot,
+			});
+
+			const result2 = await runtime2.trySmartRead(file, content);
+			expect(result2).toBeDefined();
+			expect(result2!.compactContent.length).toBeGreaterThan(0);
+			expect(result2!.compactContent).toBe(result!.compactContent);
+
+			runtime2.globalSmartReadCache.clear();
+		});
+
+		it("savings report includes disk cache stats", async () => {
+			const file = join(cacheRoot, "reportable.ts");
+			const content = `
+export const x = 1;
+export type Foo = string;
+export interface Bar { baz: number }
+`.repeat(10);
+			writeFileSync(file, content, "utf-8");
+
+			await runtime.trySmartRead(file, content);
+
+			const report = runtime.getSavingsReport(true);
+			expect(report).toContain("Global Smart Read Disk Cache");
+			expect(report).toContain("Cached entries");
+		});
 	});
 });
