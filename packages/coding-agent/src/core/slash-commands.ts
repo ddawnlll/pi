@@ -38,5 +38,7 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes" },
 	{ name: "savings", description: "Show P43 token context savings report" },
 	{ name: "savings-global", description: "Show cumulative P43 token context savings across all threads" },
+	{ name: "snapshot", description: "Pre-cache smart read outlines for all source files in the project" },
+	{ name: "adapter-doctor", description: "Check smart read provider status for all languages" },
 	{ name: "quit", description: `Quit ${APP_NAME}` },
 ];

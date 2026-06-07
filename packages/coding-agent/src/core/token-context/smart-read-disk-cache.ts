@@ -23,7 +23,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { SmartReadMode, SmartReadParseSource, SmartReadResult } from "./types.js";
 
@@ -61,7 +61,8 @@ export interface SmartReadDiskCacheOptions {
 
 export class SmartReadDiskCache {
 	private entries = new Map<string, SmartReadCacheEntry>();
-	private cacheDir: string;
+	/** Cache directory path (public for snapshot service) */
+	cacheDir: string;
 
 	constructor(options: SmartReadDiskCacheOptions = {}) {
 		if (options.cacheDir) {
@@ -84,6 +85,21 @@ export class SmartReadDiskCache {
 		}
 
 		this.loadAllEntries();
+	}
+
+	/**
+	 * Check if a cache entry exists and is valid for the given content.
+	 */
+	has(filePath: string, content: string): boolean {
+		const hash = this.hashContent(content);
+		const entry = this.entries.get(hash) ?? this.loadEntry(hash);
+		if (!entry) return false;
+		if (!this.isFileUnchanged(filePath, entry)) {
+			this.entries.delete(hash);
+			this.deleteCacheFile(hash);
+			return false;
+		}
+		return true;
 	}
 
 	/**
@@ -187,7 +203,6 @@ export class SmartReadDiskCache {
 				if (f.endsWith(".json")) {
 					try {
 						const fp = join(this.cacheDir, f);
-						const { rmSync } = require("node:fs");
 						rmSync(fp);
 					} catch {
 						// best-effort
@@ -288,7 +303,6 @@ export class SmartReadDiskCache {
 		try {
 			const fp = this.cacheFilePath(hash);
 			if (existsSync(fp)) {
-				const { rmSync } = require("node:fs");
 				rmSync(fp);
 			}
 		} catch {
@@ -302,7 +316,6 @@ export class SmartReadDiskCache {
  */
 function readdirSafe(dir: string): string[] {
 	try {
-		const { readdirSync } = require("node:fs");
 		return readdirSync(dir);
 	} catch {
 		return [];

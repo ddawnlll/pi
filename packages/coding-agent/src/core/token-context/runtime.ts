@@ -10,6 +10,11 @@
  * - write/edit: telemetry-only for P43 (except no_full_rewrite estimation)
  */
 
+import {
+	type SmartReadSnapshotOptions,
+	type SmartReadSnapshotResult,
+	SmartReadSnapshotService,
+} from "../smart-read-snapshot.js";
 import { ActiveContextRegistry } from "./active-context-registry.js";
 import { GenericFallbackAdapter } from "./adapters/fallback.js";
 import { JsonYamlAdapter } from "./adapters/json-yaml.js";
@@ -191,6 +196,12 @@ export interface TokenContextRuntime {
 	 * Called from onPayload hook before provider request.
 	 */
 	auditProviderPayload(payload: unknown): void;
+
+	/**
+	 * Run a snapshot warm-cache operation for the given directory.
+	 * Scans all eligible source files and pre-caches smart read outlines.
+	 */
+	snapshotDirectory(options: SmartReadSnapshotOptions): Promise<SmartReadSnapshotResult>;
 }
 
 export interface ReadInterceptResult {
@@ -373,14 +384,24 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 					const cachedContent = readHashCache.getRawContent(filePath);
 					if (cachedContent) {
 						const baselineEstimate = estimator.estimate(cachedContent);
-						// Generate a useful compact response: try smart read outline if available, else cached marker
+						// Generate a useful compact response: try global disk cache first, then parse
 						let compactContent: string;
 						try {
-							const sr = await smartRead.smartRead(cachedContent, filePath, "outline");
-							compactContent =
-								sr?.content && sr.content.length < cachedContent.length
-									? sr.content
-									: `[cached] ${filePath.split("/").pop() ?? filePath} (${(cachedContent.length / 4).toFixed(0)} est. tokens)`;
+							// Check global disk cache first
+							const diskEntry = globalSmartReadCache.get(filePath, cachedContent);
+							if (diskEntry) {
+								compactContent = diskEntry.outline;
+							} else {
+								const sr = await smartRead.smartRead(cachedContent, filePath, "outline");
+								compactContent =
+									sr?.content && sr.content.length < cachedContent.length
+										? sr.content
+										: `[cached] ${filePath.split("/").pop() ?? filePath} (${(cachedContent.length / 4).toFixed(0)} est. tokens)`;
+								// Persist to disk cache if parse succeeded
+								if (sr && sr.content.length < cachedContent.length) {
+									globalSmartReadCache.set(filePath, cachedContent, sr);
+								}
+							}
 						} catch {
 							compactContent = `[cached] ${filePath.split("/").pop() ?? filePath} (${(cachedContent.length / 4).toFixed(0)} est. tokens)`;
 						}
@@ -446,7 +467,6 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 				beforeReadCalled: true,
 				mechanism: "raw",
 				cacheStatus: "miss",
-				fallbackReason: "no snapshot - first read, will attempt smart read",
 				filePath,
 			};
 			return { intercept: false, isCompact: false, policy };
@@ -670,6 +690,14 @@ export function createTokenContextRuntime(config: TokenContextConfig): TokenCont
 
 		getLastReadAudit(): SmartReadAuditTrace | undefined {
 			return this.lastReadAudit;
+		},
+
+		async snapshotDirectory(options: SmartReadSnapshotOptions): Promise<SmartReadSnapshotResult> {
+			const snapshotService = new SmartReadSnapshotService({
+				diskCache: globalSmartReadCache,
+				smartReadCore: smartRead,
+			});
+			return snapshotService.run(options);
 		},
 
 		getAuditStatus(): string {

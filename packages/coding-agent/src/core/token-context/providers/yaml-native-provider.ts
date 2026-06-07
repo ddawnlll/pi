@@ -1,14 +1,18 @@
 /**
  * P43 Smart Read v2 — YAML Native Parser Provider
  *
- * Uses the "yaml" npm package (already a dependency) for AST-backed reads.
+ * Uses the "yaml" npm package (Eemeli Aro) for AST-backed reads.
  * Priority: 90 for YAML files.
  *
- * npm-only: depends on "yaml" which is already in package.json dependencies.
- * Exact ranges are available when the parser provides them; otherwise,
- * mutation safety is not claimed for symbol_exact.
+ * Optimizations:
+ * - Full AST traversal via yaml.parseDocument()
+ * - Line ranges from node.lineRange (no regex fallback needed)
+ * - mutationSafe=true for symbol_exact when exact range is available
+ * - Tree cache to avoid double parse
  */
 
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import type {
 	SmartReadParseSource,
 	SmartReadProvider,
@@ -21,16 +25,18 @@ interface YamlKeyInfo {
 	path: string;
 	type: string;
 	line: number;
-	endLine?: number;
+	endLine: number;
 }
 
 let _yamlModule: any = null;
 let _yamlAvailable: boolean | null = null;
 
+const _require = typeof require !== "undefined" ? require : createRequire(import.meta.url);
+
 function getYaml(): any {
 	if (_yamlAvailable !== null) return _yamlModule;
 	try {
-		_yamlModule = require("yaml");
+		_yamlModule = _require("yaml");
 		_yamlAvailable = true;
 	} catch {
 		_yamlAvailable = false;
@@ -44,6 +50,10 @@ export class YamlNativeProvider implements SmartReadProvider {
 	readonly extensions = [".yaml", ".yml"];
 	readonly priority = 90;
 
+	// Tree cache: key is content hash, value is parsed document
+	private _docCache = new Map<string, any>();
+	private _cacheMaxSize = 10;
+
 	isAvailable(): boolean {
 		return getYaml() !== null;
 	}
@@ -55,31 +65,161 @@ export class YamlNativeProvider implements SmartReadProvider {
 			symbolExact: true,
 			rangeExact: true,
 			changed: true,
-			exactRanges: true, // May not have exact ranges for all nodes
-			mutationSafeExact: false, // Only true when exact range is available
+			exactRanges: true,
+			mutationSafeExact: true, // True when exact range is available from AST
 			semantic: false,
 			astBacked: true,
 		};
 	}
 
-	async outline(content: string, filePath: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const threshold = 20;
-		let outline: string;
+	// ============================================================================
+	// Document Cache — avoid double parse
+	// ============================================================================
 
-		if (keys.length > threshold) {
-			const summary = keys.slice(0, threshold);
-			outline = this.buildOutline(filePath, summary, keys.length);
-		} else {
-			outline = this.buildOutline(filePath, keys, keys.length);
+	private getContentKey(content: string): string {
+		if (content.length < 128) return `${content.length}:${content}`;
+		const prefix = content.slice(0, 64);
+		const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
+		return `${content.length}:${prefix}:${hash}`;
+	}
+
+	private getDocument(content: string): any {
+		const yaml = getYaml();
+		if (!yaml) return null;
+
+		const key = this.getContentKey(content);
+		if (this._docCache.has(key)) {
+			return this._docCache.get(key);
 		}
+
+		try {
+			const doc = yaml.parseDocument(content);
+			this._docCache.set(key, doc);
+
+			// Evict oldest if cache is full
+			if (this._docCache.size > this._cacheMaxSize) {
+				const firstKey = this._docCache.keys().next().value;
+				if (firstKey) this._docCache.delete(firstKey);
+			}
+
+			return doc;
+		} catch {
+			return null;
+		}
+	}
+
+	// ============================================================================
+	// Key Collection — single pass with AST
+	// ============================================================================
+
+	private collectKeys(content: string): YamlKeyInfo[] {
+		const yaml = getYaml();
+		if (!yaml) return [];
+
+		const keys: YamlKeyInfo[] = [];
+
+		try {
+			const doc = this.getDocument(content);
+			if (!doc || !doc.contents) return [];
+
+			this.visitNode(doc.contents, [], keys);
+		} catch {
+			// Parser error
+		}
+
+		return keys;
+	}
+
+	private visitNode(node: any, parentPath: string[], keys: YamlKeyInfo[]): void {
+		if (!node || typeof node !== "object") return;
+
+		// YAML mapping (key-value pairs)
+		if (node.items && Array.isArray(node.items)) {
+			for (const item of node.items) {
+				if (!item.key) continue;
+
+				const keyStr = String(item.key.value ?? item.key);
+				const currentPath = [...parentPath, keyStr];
+				const pathStr = currentPath.join(".");
+
+				// Get line information from node.lineRange
+				const keyLine = (item.key.lineRange?.[0] ?? 0) + 1;
+				let endLine = keyLine;
+
+				if (item.value) {
+					if (item.value.lineRange) {
+						endLine = (item.value.lineRange[1] ?? 0) + 1;
+					} else if (item.value.items && Array.isArray(item.value.items)) {
+						// For nested mappings/sequences, find the last child's end line
+						for (const child of item.value.items) {
+							if (child.value?.lineRange) {
+								endLine = Math.max(endLine, (child.value.lineRange[1] ?? 0) + 1);
+							} else if (child.lineRange) {
+								endLine = Math.max(endLine, (child.lineRange[1] ?? 0) + 1);
+							}
+						}
+					}
+				}
+
+				// Ensure endLine is at least keyLine
+				if (endLine < keyLine) endLine = keyLine;
+
+				let type = "value";
+				if (item.value) {
+					if (item.value.items && Array.isArray(item.value.items)) {
+						type = item.value.items.some((i: any) => i.key) ? "object" : "array";
+					}
+				}
+
+				keys.push({
+					path: pathStr,
+					type,
+					line: keyLine,
+					endLine,
+				});
+
+				// Recurse into child values that are mappings/sequences
+				if (item.value) {
+					this.visitNode(item.value, currentPath, keys);
+				}
+			}
+		}
+	}
+
+	// ============================================================================
+	// Public API
+	// ============================================================================
+
+	async outline(content: string, filePath: string): Promise<SmartReadResult> {
+		const yaml = getYaml();
+		if (!yaml) {
+			return this.makeFallbackResult(filePath, "yaml parser not available");
+		}
+
+		const keys = this.collectKeys(content);
+		if (keys.length === 0) {
+			return {
+				content: `[No YAML keys found in ${filePath}]`,
+				mode: "outline",
+				mutationSafe: false,
+				adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
+				adapterName: this.name,
+				parseSource: "native_parser" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: false,
+			};
+		}
+
+		const threshold = 20;
+		const displayKeys = keys.length > threshold ? keys.slice(0, threshold) : keys;
+		const outline = this.buildOutline(filePath, displayKeys, keys.length);
 
 		return {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence:
-				keys.length > 0 ? SMART_READ_CONFIDENCE.NATIVE_PARSER_OUTLINE : SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
+			adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_OUTLINE,
 			adapterName: this.name,
 			parseSource: "native_parser" as SmartReadParseSource,
 			providerName: this.name,
@@ -90,16 +230,16 @@ export class YamlNativeProvider implements SmartReadProvider {
 	}
 
 	async symbols(content: string, _filePath: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const symbolList = keys
-			.map((k) => {
-				const range = k.endLine ? ` L${k.line}-${k.endLine}` : ` L${k.line}`;
-				return `${k.type}: ${k.path}${range}`;
-			})
-			.join("\n");
+		const yaml = getYaml();
+		if (!yaml) {
+			return this.makeFallbackResult(_filePath, "yaml parser not available");
+		}
+
+		const keys = this.collectKeys(content);
+		const symbolList = keys.map((k) => `${k.type}: ${k.path} [L${k.line}-${k.endLine}]`).join("\n");
 
 		return {
-			content: symbolList,
+			content: symbolList || "[No symbols found]",
 			mode: "symbols",
 			mutationSafe: false,
 			adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT - 0.05,
@@ -113,43 +253,73 @@ export class YamlNativeProvider implements SmartReadProvider {
 	}
 
 	async symbolExact(content: string, filePath: string, symbol: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const match = keys.find((k) => k.path === symbol);
+		const yaml = getYaml();
+		if (!yaml) {
+			return this.makeNotFoundResult(symbol, filePath, "yaml parser not available");
+		}
 
-		if (!match) {
+		try {
+			const doc = this.getDocument(content);
+			if (!doc || !doc.contents) {
+				return this.makeNotFoundResult(symbol, filePath, "parse failed");
+			}
+
+			// Split path by dots — note: keys containing literal dots will be split incorrectly.
+			const pathSegments = symbol.split(".");
+
+			// Navigate the AST manually since yaml doesn't have findNodeAtLocation
+			let currentNode: any = doc.contents;
+			for (const segment of pathSegments) {
+				if (!currentNode || !currentNode.items || !Array.isArray(currentNode.items)) {
+					return this.makeNotFoundResult(symbol, filePath, `path segment "${segment}" not found`);
+				}
+
+				const found = currentNode.items.find((item: any) => {
+					const keyVal = item.key?.value ?? item.key;
+					return String(keyVal) === segment;
+				});
+
+				if (!found) {
+					return this.makeNotFoundResult(symbol, filePath, `path segment "${segment}" not found`);
+				}
+
+				currentNode = found.value;
+			}
+
+			if (!currentNode) {
+				return this.makeNotFoundResult(symbol, filePath, "value is null");
+			}
+
+			// Get exact line range from the node
+			const startLine = (currentNode.lineRange?.[0] ?? 0) + 1;
+			const endLine = (currentNode.lineRange?.[1] ?? 0) + 1;
+
+			if (startLine === 0 || endLine === 0) {
+				return this.makeNotFoundResult(symbol, filePath, "no line range available");
+			}
+
+			// Extract exact content
+			const lines = content.split("\n");
+			const exactContent = lines.slice(startLine - 1, endLine).join("\n");
+
 			return {
-				content: `[Path "${symbol}" not found in ${filePath}]`,
+				content: exactContent,
 				mode: "symbol_exact",
-				mutationSafe: false,
-				adapterConfidence: 0.1,
+				mutationSafe: true, // True because yaml parser gives us exact line ranges
+				adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT,
 				adapterName: this.name,
 				parseSource: "native_parser" as SmartReadParseSource,
 				providerName: this.name,
-				isFallback: true,
-				fallbackError: `path "${symbol}" not found via YAML parser`,
+				providerPriority: this.priority,
+				isFallback: false,
+				exactRange: {
+					startLine,
+					endLine,
+				},
 			};
+		} catch (err) {
+			return this.makeNotFoundResult(symbol, filePath, (err as Error).message);
 		}
-
-		const lines = content.split("\n");
-		const endLine = match.endLine ?? Math.min(match.line + 20, lines.length);
-		const exactContent = lines.slice(match.line - 1, endLine).join("\n");
-
-		// YAML exact range is only mutation-safe if we have a verified endLine
-		const exactRangeKnown = !!match.endLine && match.endLine > match.line;
-
-		return {
-			content: exactContent,
-			mode: "symbol_exact",
-			mutationSafe: exactRangeKnown,
-			adapterConfidence: exactRangeKnown ? SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT : 0.7,
-			adapterName: this.name,
-			parseSource: "native_parser" as SmartReadParseSource,
-			providerName: this.name,
-			providerPriority: this.priority,
-			isFallback: !exactRangeKnown,
-			exactRange: exactRangeKnown ? { startLine: match.line, endLine } : undefined,
-			fallbackError: exactRangeKnown ? undefined : "exact YAML range unavailable",
-		};
 	}
 
 	async rangeExact(content: string, _filePath: string, startLine: number, endLine: number): Promise<SmartReadResult> {
@@ -184,159 +354,38 @@ export class YamlNativeProvider implements SmartReadProvider {
 	}
 
 	// ============================================================================
-	// Key extraction using yaml parser
+	// Helpers
 	// ============================================================================
 
-	private extractKeys(content: string): YamlKeyInfo[] {
-		const yaml = getYaml();
-		if (!yaml) return [];
-
-		const keys: YamlKeyInfo[] = [];
-		const _lines = content.split("\n");
-
-		try {
-			const doc = yaml.parseDocument(content);
-			const root = doc.contents;
-			if (!root) return [];
-
-			function visit(node: any, path: string[], depth: number) {
-				if (!node || typeof node !== "object") return;
-
-				// YAML mapping (key-value pairs)
-				if (node.items && Array.isArray(node.items)) {
-					let maxEndLine = 0;
-					const entries: Array<{ key: any; value: any }> = [];
-
-					for (const item of node.items) {
-						if (item.key) {
-							const keyStr = String(item.key.value ?? item.key);
-							const currentPath = [...path, keyStr];
-							const pathStr = currentPath.join(".");
-
-							// Try to get line information
-							const keyLine = (item.key.lineRange?.[0] ?? 0) + 1;
-							let valueEndLine = keyLine;
-
-							if (item.value) {
-								if (item.value.lineRange) {
-									valueEndLine = (item.value.lineRange[1] ?? 0) + 1;
-								} else if (item.value.items && Array.isArray(item.value.items)) {
-									// For nested mappings/sequences, find the last child's end line
-									for (const child of item.value.items) {
-										if (child.value?.lineRange) {
-											valueEndLine = Math.max(valueEndLine, (child.value.lineRange[1] ?? 0) + 1);
-										}
-									}
-								}
-							}
-
-							let type = "value";
-							if (item.value) {
-								if (item.value.items && Array.isArray(item.value.items)) {
-									type = item.value.items.some((i: any) => i.key) ? "object" : "array";
-								}
-							}
-
-							maxEndLine = Math.max(maxEndLine, valueEndLine);
-
-							keys.push({
-								path: pathStr,
-								type,
-								line: keyLine,
-								endLine: valueEndLine > keyLine ? valueEndLine : undefined,
-							});
-
-							entries.push({ key: item.key, value: item.value });
-						}
-					}
-
-					// Recurse into child values that are mappings/sequences
-					for (const entry of entries) {
-						if (entry.value) {
-							const currentPath = [...path, String(entry.key.value ?? entry.key)];
-							visit(entry.value, currentPath, depth + 1);
-						}
-					}
-				}
-
-				// YAML sequence (list items)
-				if (node.items && Array.isArray(node.items) && !node.items.some((i: any) => i.key)) {
-					for (let i = 0; i < node.items.length; i++) {
-						const item = node.items[i];
-						const currentPath = [...path, `${i}`];
-						visit(item, currentPath, depth + 1);
-					}
-				}
-			}
-
-			visit(root, [], 0);
-		} catch {
-			// Parser error - fall back to regex extraction
-			return this.extractKeysRegex(content);
-		}
-
-		return keys;
+	private makeFallbackResult(_filePath: string, error: string): SmartReadResult {
+		return {
+			content: `[yaml parser error]\n${error}`,
+			mode: "raw",
+			mutationSafe: true,
+			adapterConfidence: 0.1,
+			adapterName: this.name,
+			parseSource: "regex_fallback" as SmartReadParseSource,
+			providerName: this.name,
+			providerPriority: this.priority,
+			isFallback: true,
+			fallbackError: error,
+		};
 	}
 
-	private extractKeysRegex(content: string): YamlKeyInfo[] {
-		const keys: YamlKeyInfo[] = [];
-		const lines = content.split("\n");
-
-		for (let i = 0; i < lines.length; i++) {
-			const lineNum = i + 1;
-			const line = lines[i];
-			const trimmed = line.trim();
-
-			if (!trimmed || trimmed.startsWith("#") || trimmed === "---" || trimmed === "...") continue;
-
-			// Top-level key: value
-			const keyMatch = line.match(/^(\s*)([\w.-]+)\s*:/);
-			if (keyMatch) {
-				const _indent = keyMatch[1].length;
-				const key = keyMatch[2];
-				keys.push({
-					path: key,
-					type: this.inferYamlType(lines, i),
-					line: lineNum,
-				});
-			}
-
-			// List items
-			const listMatch = line.match(/^(\s*)-\s+/);
-			if (listMatch) {
-				const _indent = listMatch[1].length;
-				const value = trimmed.slice(2).trim().slice(0, 40);
-				keys.push({
-					path: value,
-					type: "list-item",
-					line: lineNum,
-				});
-			}
-		}
-
-		return keys;
-	}
-
-	private inferYamlType(lines: string[], idx: number): string {
-		const trimmed = lines[idx].trim();
-		if (trimmed.match(/:\s*\{/)) return "object";
-		if (trimmed.match(/:\s*\[/)) return "array";
-		if (trimmed.match(/:\s*(true|false)/)) return "boolean";
-		if (trimmed.match(/:\s*\d/)) return "number";
-		if (trimmed.match(/:\s*null|:\s*~/)) return "null";
-		if (trimmed.match(/:\s*["']/)) return "string";
-		// Check next line indentation for nested content
-		if (idx + 1 < lines.length) {
-			const nextLine = lines[idx + 1];
-			const nextTrimmed = nextLine.trim();
-			const currentIndent = lines[idx].match(/^(\s*)/)?.[1].length ?? 0;
-			const nextIndent = nextLine.match(/^(\s*)/)?.[1].length ?? 0;
-			if (nextIndent > currentIndent && nextTrimmed) {
-				if (nextTrimmed.startsWith("- ")) return "array";
-				return "object";
-			}
-		}
-		return "value";
+	private makeNotFoundResult(symbol: string, filePath: string, extraError?: string): SmartReadResult {
+		const errorMsg = extraError ? ` (${extraError})` : "";
+		return {
+			content: `[Path "${symbol}" not found in ${filePath}${errorMsg}]`,
+			mode: "symbol_exact",
+			mutationSafe: false,
+			adapterConfidence: 0.1,
+			adapterName: this.name,
+			parseSource: "native_parser" as SmartReadParseSource,
+			providerName: this.name,
+			providerPriority: this.priority,
+			isFallback: true,
+			fallbackError: `path "${symbol}" not found via yaml parser${errorMsg}`,
+		};
 	}
 
 	private buildOutline(filePath: string, keys: YamlKeyInfo[], totalKeys: number): string {
@@ -344,8 +393,7 @@ export class YamlNativeProvider implements SmartReadProvider {
 		lines.push(`Key Path Outline (${filePath}):`);
 		lines.push("=".repeat(40));
 		for (const key of keys) {
-			const range = key.endLine ? ` @ L${key.line}-${key.endLine}` : ` @ L${key.line}`;
-			lines.push(`  [${key.type}] ${key.path}${range}`);
+			lines.push(`  [${key.type}] ${key.path} @ L${key.line}-${key.endLine}`);
 		}
 		if (totalKeys > keys.length) {
 			lines.push(`  ... (${totalKeys - keys.length} more keys, use symbols mode for full list)`);

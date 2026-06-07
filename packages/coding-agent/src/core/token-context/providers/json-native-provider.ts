@@ -1,13 +1,18 @@
 /**
  * P43 Smart Read v2 — JSON/JSONC Native Parser Provider
  *
- * Uses jsonc-parser for AST-backed exact path reads when available.
- * Falls back to basic JSON.parse for simple cases.
+ * Uses jsonc-parser (Microsoft) for AST-backed exact path reads.
  * Priority: 95 (highest for JSON files).
  *
- * npm-only: depends on "jsonc-parser" (already available in many projects).
+ * Optimizations:
+ * - Line index built once per file (binary search for offset→line)
+ * - Parse tree cached by content hash (avoids double parse)
+ * - Single-pass offsetToLine via line index
+ * - visit() extracted as private method
  */
 
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import type {
 	SmartReadParseSource,
 	SmartReadProvider,
@@ -16,28 +21,28 @@ import type {
 } from "../types.js";
 import { SMART_READ_CONFIDENCE } from "../types.js";
 
-interface JsonKeyInfo {
-	path: string;
-	type: string;
-	line: number;
-	endLine?: number;
-	startOffset?: number;
-	endOffset?: number;
-}
-
-// Try to load jsonc-parser dynamically
-let _jsoncParser: any = null;
+// Load jsonc-parser once
+let _jsonc: any = null;
 let _jsoncAvailable: boolean | null = null;
 
-function getJsoncParser(): any {
-	if (_jsoncAvailable !== null) return _jsoncParser;
+const _require = typeof require !== "undefined" ? require : createRequire(import.meta.url);
+
+function getJsonc(): any {
+	if (_jsoncAvailable !== null) return _jsonc;
 	try {
-		_jsoncParser = require("jsonc-parser");
+		_jsonc = _require("jsonc-parser");
 		_jsoncAvailable = true;
 	} catch {
 		_jsoncAvailable = false;
 	}
-	return _jsoncParser;
+	return _jsonc;
+}
+
+interface JsonKeyInfo {
+	path: string;
+	type: string;
+	line: number;
+	endLine: number;
 }
 
 export class JsonNativeProvider implements SmartReadProvider {
@@ -46,8 +51,12 @@ export class JsonNativeProvider implements SmartReadProvider {
 	readonly extensions = [".json", ".jsonc", ".json5"];
 	readonly priority = 95;
 
+	// Tree cache: key is content hash, value is parsed tree
+	private _treeCache = new Map<string, any>();
+	private _cacheMaxSize = 10;
+
 	isAvailable(): boolean {
-		return getJsoncParser() !== null;
+		return getJsonc() !== null;
 	}
 
 	getCapabilities(): SmartReadProviderCapabilities {
@@ -64,24 +73,161 @@ export class JsonNativeProvider implements SmartReadProvider {
 		};
 	}
 
-	async outline(content: string, filePath: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const threshold = 20;
-		let outline: string;
+	// ============================================================================
+	// Line Index — build once, binary search for offset→line
+	// ============================================================================
 
-		if (keys.length > threshold) {
-			const summary = keys.slice(0, threshold);
-			outline = this.buildOutline(filePath, summary, keys.length);
-		} else {
-			outline = this.buildOutline(filePath, keys, keys.length);
+	private buildLineIndex(content: string): number[] {
+		const offsets: number[] = [0];
+		for (let i = 0; i < content.length; i++) {
+			if (content[i] === "\n") offsets.push(i + 1);
 		}
+		return offsets;
+	}
+
+	private offsetToLineFast(lineIndex: number[], offset: number): number {
+		let lo = 0;
+		let hi = lineIndex.length - 1;
+		while (lo < hi) {
+			const mid = (lo + hi + 1) >> 1;
+			if (lineIndex[mid] <= offset) lo = mid;
+			else hi = mid - 1;
+		}
+		return lo + 1; // 1-indexed
+	}
+
+	// ============================================================================
+	// Tree Cache — avoid double parse
+	// ============================================================================
+
+	private getContentKey(content: string): string {
+		// Cheap but reasonably unique key: length + first 64 chars hash
+		if (content.length < 128) return `${content.length}:${content}`;
+		const prefix = content.slice(0, 64);
+		const hash = createHash("sha256").update(content).digest("hex").slice(0, 16);
+		return `${content.length}:${prefix}:${hash}`;
+	}
+
+	private getTree(content: string): any {
+		const jsonc = getJsonc();
+		if (!jsonc) return null;
+
+		const key = this.getContentKey(content);
+		if (this._treeCache.has(key)) {
+			return this._treeCache.get(key);
+		}
+
+		const tree = jsonc.parseTree(content);
+		this._treeCache.set(key, tree);
+
+		// Evict oldest if cache is full
+		if (this._treeCache.size > this._cacheMaxSize) {
+			const firstKey = this._treeCache.keys().next().value;
+			if (firstKey) this._treeCache.delete(firstKey);
+		}
+
+		return tree;
+	}
+
+	// ============================================================================
+	// Key Collection — single pass with line index
+	// ============================================================================
+
+	private collectKeys(content: string): JsonKeyInfo[] {
+		const jsonc = getJsonc();
+		if (!jsonc) return [];
+
+		const keys: JsonKeyInfo[] = [];
+		const lineIndex = this.buildLineIndex(content);
+
+		try {
+			const tree = this.getTree(content);
+			if (!tree) return [];
+
+			this.visitNode(tree, [], content, lineIndex, keys);
+		} catch {
+			// jsonc-parser failure
+		}
+
+		return keys;
+	}
+
+	private visitNode(node: any, parentPath: string[], content: string, lineIndex: number[], keys: JsonKeyInfo[]): void {
+		if (!node || typeof node !== "object") return;
+
+		if (node.type === "property" && node.children && node.children.length >= 2) {
+			const keyNode = node.children[0];
+			const valueNode = node.children[1];
+			const key = keyNode.value;
+
+			if (typeof key === "string") {
+				const currentPath = [...parentPath, key];
+				const pathStr = currentPath.join(".");
+
+				let type = "value";
+				if (valueNode.type === "object") type = "object";
+				else if (valueNode.type === "array") type = "array";
+				else if (valueNode.type === "string") type = "string";
+				else if (valueNode.type === "number") type = "number";
+				else if (valueNode.type === "boolean") type = "boolean";
+				else if (valueNode.type === "null") type = "null";
+
+				const startLine = this.offsetToLineFast(lineIndex, keyNode.offset);
+				const endOffset = valueNode.offset + (valueNode.length ?? 0);
+				const endLine = this.offsetToLineFast(lineIndex, endOffset);
+
+				keys.push({
+					path: pathStr,
+					type,
+					line: startLine,
+					endLine,
+				});
+
+				if (valueNode.children) {
+					this.visitNode(valueNode, currentPath, content, lineIndex, keys);
+				}
+			}
+		} else if (node.children) {
+			for (const child of node.children) {
+				this.visitNode(child, parentPath, content, lineIndex, keys);
+			}
+		}
+	}
+
+	// ============================================================================
+	// Public API
+	// ============================================================================
+
+	async outline(content: string, filePath: string): Promise<SmartReadResult> {
+		const jsonc = getJsonc();
+		if (!jsonc) {
+			return this.makeFallbackResult(filePath, "jsonc-parser not available");
+		}
+
+		const keys = this.collectKeys(content);
+		if (keys.length === 0) {
+			return {
+				content: `[No JSON keys found in ${filePath}]`,
+				mode: "outline",
+				mutationSafe: false,
+				adapterConfidence: SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
+				adapterName: this.name,
+				parseSource: "native_parser" as SmartReadParseSource,
+				providerName: this.name,
+				providerPriority: this.priority,
+				isFallback: false,
+			};
+		}
+
+		const threshold = 20;
+		const displayKeys = keys.length > threshold ? keys.slice(0, threshold) : keys;
+		const outline = this.buildOutline(filePath, displayKeys, keys.length);
 
 		return {
 			content: outline,
 			mode: "outline",
 			mutationSafe: false,
-			adapterConfidence:
-				keys.length > 0 ? SMART_READ_CONFIDENCE.NATIVE_PARSER_OUTLINE : SMART_READ_CONFIDENCE.REGEX_FALLBACK_MAX,
+			adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_OUTLINE,
 			adapterName: this.name,
 			parseSource: "native_parser" as SmartReadParseSource,
 			providerName: this.name,
@@ -92,11 +238,16 @@ export class JsonNativeProvider implements SmartReadProvider {
 	}
 
 	async symbols(content: string, _filePath: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const symbolList = keys.map((k) => `${k.type}: ${k.path} [L${k.line}]`).join("\n");
+		const jsonc = getJsonc();
+		if (!jsonc) {
+			return this.makeFallbackResult(_filePath, "jsonc-parser not available");
+		}
+
+		const keys = this.collectKeys(content);
+		const symbolList = keys.map((k) => `${k.type}: ${k.path} [L${k.line}-${k.endLine}]`).join("\n");
 
 		return {
-			content: symbolList,
+			content: symbolList || "[No symbols found]",
 			mode: "symbols",
 			mutationSafe: false,
 			adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT - 0.05,
@@ -110,46 +261,44 @@ export class JsonNativeProvider implements SmartReadProvider {
 	}
 
 	async symbolExact(content: string, filePath: string, symbol: string): Promise<SmartReadResult> {
-		const keys = this.extractKeys(content);
-		const keyPath = symbol;
+		const jsonc = getJsonc();
+		if (!jsonc) {
+			return this.makeNotFoundResult(symbol, filePath, "jsonc-parser not available");
+		}
 
-		// Try exact path match
-		const match = keys.find((k) => k.path === keyPath);
-
-		if (!match) {
-			// Try nested path match (e.g., "compilerOptions.paths")
-			const segments = keyPath.split(".");
-			const nestedMatch = keys.find((k) => {
-				const kSegments = k.path.split(".");
-				return (
-					segments.length > 1 &&
-					kSegments.length >= segments.length &&
-					segments.every((s, i) => s === kSegments[i])
-				);
-			});
-
-			if (!nestedMatch) {
-				return {
-					content: `[Path "${symbol}" not found in ${filePath}]`,
-					mode: "symbol_exact",
-					mutationSafe: false,
-					adapterConfidence: 0.1,
-					adapterName: this.name,
-					parseSource: "native_parser" as SmartReadParseSource,
-					providerName: this.name,
-					isFallback: true,
-					fallbackError: `path "${symbol}" not found via native parser`,
-				};
+		try {
+			const tree = this.getTree(content);
+			if (!tree) {
+				return this.makeNotFoundResult(symbol, filePath, "parse failed");
 			}
 
+			// Split path by dots — note: keys containing literal dots will be split incorrectly.
+			// For now, document this limitation. A quoted path syntax could be added later.
+			const pathSegments = symbol.split(".");
+
+			// Use jsonc-parser's findNodeAtLocation for O(1) AST navigation
+			const node = jsonc.findNodeAtLocation(tree, pathSegments);
+
+			if (!node) {
+				return this.makeNotFoundResult(symbol, filePath);
+			}
+
+			const startOffset = node.offset;
+			const endOffset = node.offset + (node.length ?? 0);
+
+			// Build line index once for both start and end
+			const lineIndex = this.buildLineIndex(content);
+			const startLine = this.offsetToLineFast(lineIndex, startOffset);
+			const endLine = this.offsetToLineFast(lineIndex, endOffset);
+
+			// Extract exact content using line index
 			const lines = content.split("\n");
-			const endLine = nestedMatch.endLine ?? lines.length;
-			const exactContent = lines.slice(nestedMatch.line - 1, endLine).join("\n");
+			const exactContent = lines.slice(startLine - 1, endLine).join("\n");
 
 			return {
 				content: exactContent,
 				mode: "symbol_exact",
-				mutationSafe: true,
+				mutationSafe: true, // True because jsonc-parser gives us exact AST positions
 				adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT,
 				adapterName: this.name,
 				parseSource: "native_parser" as SmartReadParseSource,
@@ -157,35 +306,15 @@ export class JsonNativeProvider implements SmartReadProvider {
 				providerPriority: this.priority,
 				isFallback: false,
 				exactRange: {
-					startLine: nestedMatch.line,
-					endLine: endLine,
-					startOffset: nestedMatch.startOffset,
-					endOffset: nestedMatch.endOffset,
+					startLine,
+					endLine,
+					startOffset,
+					endOffset,
 				},
 			};
+		} catch (err) {
+			return this.makeNotFoundResult(symbol, filePath, (err as Error).message);
 		}
-
-		const lines = content.split("\n");
-		const endLine = match.endLine ?? lines.length;
-		const exactContent = lines.slice(match.line - 1, endLine).join("\n");
-
-		return {
-			content: exactContent,
-			mode: "symbol_exact",
-			mutationSafe: true,
-			adapterConfidence: SMART_READ_CONFIDENCE.NATIVE_PARSER_EXACT,
-			adapterName: this.name,
-			parseSource: "native_parser" as SmartReadParseSource,
-			providerName: this.name,
-			providerPriority: this.priority,
-			isFallback: false,
-			exactRange: {
-				startLine: match.line,
-				endLine: endLine,
-				startOffset: match.startOffset,
-				endOffset: match.endOffset,
-			},
-		};
 	}
 
 	async rangeExact(content: string, _filePath: string, startLine: number, endLine: number): Promise<SmartReadResult> {
@@ -220,126 +349,38 @@ export class JsonNativeProvider implements SmartReadProvider {
 	}
 
 	// ============================================================================
-	// Key extraction using jsonc-parser when available, fallback to JSON.parse
+	// Helpers
 	// ============================================================================
 
-	private extractKeys(content: string): JsonKeyInfo[] {
-		const parser = getJsoncParser();
-		if (parser) {
-			return this.extractKeysWithParser(content, parser);
-		}
-		return this.extractKeysSimple(content);
-	}
-
-	private extractKeysWithParser(content: string, parser: any): JsonKeyInfo[] {
-		const keys: JsonKeyInfo[] = [];
-		const _lines = content.split("\n");
-		const _offsetToLine = (offset: number): number => {
-			let line = 0;
-			for (let i = 0; i < offset && i < content.length; i++) {
-				if (content[i] === "\n") line++;
-			}
-			return line;
+	private makeFallbackResult(_filePath: string, error: string): SmartReadResult {
+		return {
+			content: `[jsonc-parser error — raw JSON]\n${error}`,
+			mode: "raw",
+			mutationSafe: true,
+			adapterConfidence: 0.1,
+			adapterName: this.name,
+			parseSource: "regex_fallback" as SmartReadParseSource,
+			providerName: this.name,
+			providerPriority: this.priority,
+			isFallback: true,
+			fallbackError: error,
 		};
-
-		try {
-			const tree = parser.parseTree(content);
-			if (!tree) return [];
-
-			function visit(node: any, parentPath: string[]) {
-				if (node.type === "property" && node.children && node.children.length >= 2) {
-					const keyNode = node.children[0];
-					const valueNode = node.children[1];
-					const key = keyNode.value;
-
-					if (typeof key === "string") {
-						const currentPath = [...parentPath, key];
-						const pathStr = currentPath.join(".");
-
-						// Get line numbers from offsets
-						const startOffset = keyNode.offset;
-						const endOffset = valueNode.offset + (valueNode.length ?? 0);
-
-						// Simple offset-to-line mapping using local helper
-						const startLine = _offsetToLine(startOffset) + 1;
-						const endLine = _offsetToLine(endOffset) + 1;
-
-						let type = "value";
-						if (valueNode.type === "object") type = "object";
-						else if (valueNode.type === "array") type = "array";
-						else if (valueNode.type === "string") type = "string";
-						else if (valueNode.type === "number") type = "number";
-						else if (valueNode.type === "boolean") type = "boolean";
-						else if (valueNode.type === "null") type = "null";
-
-						keys.push({
-							path: pathStr,
-							type,
-							line: startLine,
-							endLine,
-							startOffset,
-							endOffset,
-						});
-
-						if (valueNode.children) {
-							visit(valueNode, currentPath);
-						}
-					}
-				} else if (node.children) {
-					for (const child of node.children) {
-						visit(child, parentPath);
-					}
-				}
-			}
-
-			visit(tree, []);
-		} catch {
-			// Fall through to simple extraction
-			return this.extractKeysSimple(content);
-		}
-
-		return keys;
 	}
 
-	private extractKeysSimple(content: string): JsonKeyInfo[] {
-		const keys: JsonKeyInfo[] = [];
-		const lines = content.split("\n");
-		const pathStack: string[] = [];
-
-		for (let i = 0; i < lines.length; i++) {
-			const lineNum = i + 1;
-			const trimmed = lines[i].trim();
-
-			// Track object/array depth from brackets
-			const openObjects = (trimmed.match(/\{/g) || []).length;
-			const closeObjects = (trimmed.match(/\}/g) || []).length;
-
-			const keyMatch = trimmed.match(/^"([^"]+)"\s*:/);
-			if (keyMatch) {
-				const key = keyMatch[1];
-
-				let type = "value";
-				if (trimmed.includes("{")) type = "object";
-				else if (trimmed.includes("[")) type = "array";
-				else if (trimmed.includes('"')) type = "string";
-				else if (trimmed.match(/:\s*(true|false)/)) type = "boolean";
-				else if (trimmed.match(/:\s*null/)) type = "null";
-				else if (trimmed.match(/:\s*\d/)) type = "number";
-
-				// Build path using current depth tracking
-				const path = pathStack.length > 0 ? `${pathStack.join(".")}.${key}` : key;
-
-				keys.push({ path, type, line: lineNum });
-			}
-
-			// Update path stack for object depth
-			for (let j = 0; j < openObjects - closeObjects; j++) {
-				// We don't know the key of the current object from this line alone
-				// This is a best-effort
-			}
-		}
-
-		return keys;
+	private makeNotFoundResult(symbol: string, filePath: string, extraError?: string): SmartReadResult {
+		const errorMsg = extraError ? ` (${extraError})` : "";
+		return {
+			content: `[Path "${symbol}" not found in ${filePath}${errorMsg}]`,
+			mode: "symbol_exact",
+			mutationSafe: false,
+			adapterConfidence: 0.1,
+			adapterName: this.name,
+			parseSource: "native_parser" as SmartReadParseSource,
+			providerName: this.name,
+			providerPriority: this.priority,
+			isFallback: true,
+			fallbackError: `path "${symbol}" not found via jsonc-parser${errorMsg}`,
+		};
 	}
 
 	private buildOutline(filePath: string, keys: JsonKeyInfo[], totalKeys: number): string {
@@ -347,8 +388,7 @@ export class JsonNativeProvider implements SmartReadProvider {
 		lines.push(`Key Path Outline (${filePath}):`);
 		lines.push("=".repeat(40));
 		for (const key of keys) {
-			const range = key.endLine ? ` @ L${key.line}-${key.endLine}` : ` @ L${key.line}`;
-			lines.push(`  [${key.type}] ${key.path}${range}`);
+			lines.push(`  [${key.type}] ${key.path} @ L${key.line}-${key.endLine}`);
 		}
 		if (totalKeys > keys.length) {
 			lines.push(`  ... (${totalKeys - keys.length} more keys, use symbols mode for full list)`);

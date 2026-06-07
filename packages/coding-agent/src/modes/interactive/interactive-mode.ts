@@ -318,6 +318,9 @@ export class InteractiveMode {
 	private extensionEditor: ExtensionEditorComponent | undefined = undefined;
 	private extensionTerminalInputUnsubscribers = new Set<() => void>();
 
+	// Snapshot controller for pause/resume/cancel
+	private _snapshotController: any = null;
+
 	// Extension widgets (components rendered above/below the editor)
 	private extensionWidgetsAbove = new Map<string, Component & { dispose?(): void }>();
 	private extensionWidgetsBelow = new Map<string, Component & { dispose?(): void }>();
@@ -2441,6 +2444,30 @@ export class InteractiveMode {
 			text = text.trim();
 			if (!text) return;
 
+			// Handle snapshot controls when snapshot is running
+			if (this._snapshotController) {
+				const t = text.toLowerCase();
+				if (t === "p" || t === "pause") {
+					this._snapshotController.pause();
+					this.showWarning("Snapshot paused. Type 'r' to resume or 'h' to halt.");
+					this.editor.setText("");
+					return;
+				}
+				if (t === "h" || t === "halt" || t === "cancel") {
+					this._snapshotController.cancel();
+					this.showWarning("Snapshot cancelled.");
+					this.editor.setText("");
+					this._snapshotController = null;
+					return;
+				}
+				if (t === "r" || t === "resume") {
+					this._snapshotController.resume();
+					this.showWarning("Snapshot resumed.");
+					this.editor.setText("");
+					return;
+				}
+			}
+
 			// Handle commands
 			if (text === "/settings") {
 				this.showSettingsSelector();
@@ -2572,6 +2599,13 @@ export class InteractiveMode {
 			if (text === "/quit") {
 				this.editor.setText("");
 				await this.shutdown();
+				return;
+			}
+
+			// Handle /snapshot command
+			if (text.startsWith("/snapshot")) {
+				this.handleSnapshotCommand(text);
+				this.editor.setText("");
 				return;
 			}
 
@@ -5210,6 +5244,133 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(lines.join("\n"), 1, 0));
 		this.ui.requestRender();
+	}
+
+	private async handleSnapshotCommand(text: string): Promise<void> {
+		const runtime = this.session.tokenContextRuntime;
+		if (!runtime) {
+			this.chatContainer.addChild(
+				new Text("Token context runtime not available. Enable tokenContext in settings.", 1, 0),
+			);
+			this.ui.requestRender();
+			return;
+		}
+
+		// Parse arguments
+		const args = text.split(/\s+/).slice(1);
+		let rootDir = this.sessionManager.getCwd();
+		let concurrency: number | undefined;
+		let force = false;
+		let json = false;
+		let dryRun = false;
+
+		for (let i = 0; i < args.length; i++) {
+			const arg = args[i];
+			if (arg === "--concurrency" && i + 1 < args.length) {
+				concurrency = Number.parseInt(args[++i], 10);
+			} else if (arg === "--force") {
+				force = true;
+			} else if (arg === "--dry-run") {
+				dryRun = true;
+			} else if (arg === "--json") {
+				json = true;
+			} else if (!arg.startsWith("--")) {
+				// Positional argument: directory path
+				rootDir = path.resolve(this.sessionManager.getCwd(), arg);
+			}
+		}
+
+		// Import and create snapshot controller for pause/resume
+		try {
+			const mod = await import("../../core/smart-read-snapshot.js");
+			this._snapshotController = mod.createSnapshotController();
+		} catch {
+			// Fallback: no controller
+		}
+
+		// Show initial message with controls hint
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text("", 1, 0);
+		this.chatContainer.addChild(statusText);
+		if (this._snapshotController) {
+			this.showWarning("[P] Pause [H] Halt [R] Resume");
+		}
+		this.ui.requestRender();
+
+		// Run snapshot with progress
+		runtime
+			.snapshotDirectory({
+				rootDir,
+				concurrency,
+				force,
+				dryRun,
+				json,
+				controller: this._snapshotController,
+				onProgress: (progress) => {
+					if (this._snapshotController?.isCancelled()) {
+						statusText.setText("Snapshot cancelled");
+						this.ui.requestRender();
+						return;
+					}
+					const statusBadge = this._snapshotController?.isPaused()
+						? " \x1b[33m[PAUSED]\x1b[0m"
+						: " \x1b[32m[RUNNING]\x1b[0m";
+					const action = progress.currentAction ? ` ${progress.currentAction}:` : "";
+					const current = progress.currentFile ? `${action} ${progress.currentFile}` : "";
+					const progressLine = `[${this.progressBar(progress.percent)}] ${progress.percent}% ${progress.scanned}/${progress.total} cached=${progress.cached} skipped=${progress.skipped} failed=${progress.failed} saved\u2248${Math.round(progress.estimatedTokensSaved / 1000)}K tokens${current}${statusBadge}`;
+					statusText.setText(progressLine);
+					this.ui.requestRender();
+				},
+			})
+			.then((result) => {
+				this._snapshotController = null;
+				if (json) {
+					statusText.setText(JSON.stringify(result, null, 2));
+				} else {
+					const lines: string[] = [];
+					lines.push("");
+					lines.push(dryRun ? "Dry-run complete (no files were cached)" : "Snapshot complete");
+					lines.push(`Root: ${result.rootDir}`);
+					lines.push(`Files scanned: ${result.filesScanned}`);
+					lines.push(`Cached: ${result.filesCached}`);
+					lines.push(`Skipped: ${result.filesSkipped}`);
+					lines.push(`Failed: ${result.filesFailed}`);
+					lines.push(`Raw size: ${this.formatBytes(result.rawBytes)}`);
+					lines.push(`Compact size: ${this.formatBytes(result.compactBytes)}`);
+					lines.push(`Estimated saved: ${(result.estimatedTokensSaved / 1000).toFixed(1)}K tokens`);
+					lines.push(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
+					if (result.failures.length > 0) {
+						lines.push("");
+						lines.push(`Failures (${result.failures.length}):`);
+						for (const f of result.failures.slice(0, 5)) {
+							lines.push(`  ${f.file}: ${f.error}`);
+						}
+						if (result.failures.length > 5) {
+							lines.push(`  ... and ${result.failures.length - 5} more`);
+						}
+					}
+					statusText.setText(lines.join("\n"));
+				}
+				this.ui.requestRender();
+			})
+			.catch((err) => {
+				this._snapshotController = null;
+				statusText.setText(`Snapshot failed: ${(err as Error).message}`);
+				this.ui.requestRender();
+			});
+	}
+
+	private progressBar(percent: number): string {
+		const width = 20;
+		const filled = Math.round((percent / 100) * width);
+		const empty = width - filled;
+		return "#".repeat(filled) + ".".repeat(empty);
+	}
+
+	private formatBytes(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
 	private generateSavingsReport(tcSettings?: TokenContextSettings): string {

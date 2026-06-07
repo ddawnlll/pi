@@ -211,7 +211,20 @@ function formatReadResult(
 	// Show smart read skip reason when raw content was returned instead of compact
 	const smartReadSkip = result.details?.smartReadSkip;
 	if (smartReadSkip) {
-		text += `\n${theme.fg("dim", `[smart read skipped: ${smartReadSkip}]`)}`;
+		// Make the message more user-friendly
+		let displayReason = smartReadSkip;
+		if (smartReadSkip.includes("tiny_file")) {
+			displayReason = "file too small for optimization";
+		} else if (smartReadSkip.includes("targeted_read")) {
+			displayReason = "targeted read (offset/limit specified)";
+		} else if (smartReadSkip.includes("acceptance_gate")) {
+			displayReason = "compact outline not shorter than raw";
+		} else if (smartReadSkip.includes("confidence")) {
+			displayReason = "parser confidence too low for safe optimization";
+		} else if (smartReadSkip.includes("mode_not_active")) {
+			displayReason = "token context mode is not active_safe";
+		}
+		text += `\n${theme.fg("dim", `[raw read: ${displayReason}]`)}`;
 	}
 
 	return text;
