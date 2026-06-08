@@ -5247,6 +5247,63 @@ export class InteractiveMode {
 	}
 
 	private async handleSnapshotCommand(text: string): Promise<void> {
+		const args = text.split(/\s+/).slice(1);
+		const subcommand = args[0];
+
+		// Handle subcommands
+		if (subcommand === "status") {
+			await this.handleSnapshotStatus();
+			return;
+		}
+		if (subcommand === "resume") {
+			await this.handleSnapshotResume(args.slice(1));
+			return;
+		}
+
+		// Default: run full snapshot (Smart Read warmup + project state files)
+		await this.runFullSnapshot(text);
+	}
+
+	private async handleSnapshotStatus(): Promise<void> {
+		const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+		const rootDir = this.sessionManager.getCwd();
+		const service = new ProjectStateSnapshotService();
+		service.setRootDir(rootDir);
+		const status = service.getStatus(rootDir);
+
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text(service.formatStatus(status), 1, 0);
+		this.chatContainer.addChild(statusText);
+		this.ui.requestRender();
+	}
+
+	private async handleSnapshotResume(args: string[]): Promise<void> {
+		const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+		let rootDir = this.sessionManager.getCwd();
+
+		for (let i = 0; i < args.length; i++) {
+			if (!args[i].startsWith("--")) {
+				rootDir = path.resolve(this.sessionManager.getCwd(), args[i]);
+				break;
+			}
+		}
+
+		const service = new ProjectStateSnapshotService();
+		const result = await service.resume({ rootDir });
+
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text("", 1, 0);
+		this.chatContainer.addChild(statusText);
+
+		if (result === null) {
+			statusText.setText("No interrupted snapshot to resume, or snapshot already complete.");
+		} else {
+			statusText.setText(service.formatSummary(result));
+		}
+		this.ui.requestRender();
+	}
+
+	private async runFullSnapshot(text: string): Promise<void> {
 		const runtime = this.session.tokenContextRuntime;
 		if (!runtime) {
 			this.chatContainer.addChild(
@@ -5262,7 +5319,6 @@ export class InteractiveMode {
 		let concurrency: number | undefined;
 		let force = false;
 		let json = false;
-		let dryRun = false;
 
 		for (let i = 0; i < args.length; i++) {
 			const arg = args[i];
@@ -5270,8 +5326,6 @@ export class InteractiveMode {
 				concurrency = Number.parseInt(args[++i], 10);
 			} else if (arg === "--force") {
 				force = true;
-			} else if (arg === "--dry-run") {
-				dryRun = true;
 			} else if (arg === "--json") {
 				json = true;
 			} else if (!arg.startsWith("--")) {
@@ -5303,7 +5357,6 @@ export class InteractiveMode {
 				rootDir,
 				concurrency,
 				force,
-				dryRun,
 				json,
 				controller: this._snapshotController,
 				onProgress: (progress) => {
@@ -5329,7 +5382,7 @@ export class InteractiveMode {
 				} else {
 					const lines: string[] = [];
 					lines.push("");
-					lines.push(dryRun ? "Dry-run complete (no files were cached)" : "Snapshot complete");
+					lines.push("Snapshot complete");
 					lines.push(`Root: ${result.rootDir}`);
 					lines.push(`Files scanned: ${result.filesScanned}`);
 					lines.push(`Cached: ${result.filesCached}`);
@@ -5358,6 +5411,17 @@ export class InteractiveMode {
 				statusText.setText(`Snapshot failed: ${(err as Error).message}`);
 				this.ui.requestRender();
 			});
+
+		// Also run project state snapshot in background
+		try {
+			const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+			const pss = new ProjectStateSnapshotService();
+			pss.run({ rootDir, concurrency, force, json }).catch(() => {
+				// Best-effort: project state is optimization only
+			});
+		} catch {
+			// Best-effort
+		}
 	}
 
 	private progressBar(percent: number): string {

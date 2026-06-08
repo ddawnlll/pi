@@ -2,9 +2,11 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Box, Container, Spacer, Text } from "@earendil-works/pi-tui";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
+import { relative } from "path";
 import { type Static, Type } from "typebox";
 import { renderDiff } from "../../modes/interactive/components/diff.js";
 import type { ToolDefinition } from "../extensions/types.js";
+import { afterFileEdit } from "../project-state-hooks.js";
 import { buildEditRecoveryPacket, formatRecoveryPacket } from "../token-context/edit-recovery.js";
 import type { EditRecoveryConfig } from "../token-context/edit-recovery-types.js";
 import {
@@ -411,6 +413,10 @@ export function createEditToolDefinition(
 								if (aborted) {
 									return;
 								}
+
+								// Emit project state event
+								const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
+								afterFileEdit(cwd, relPath, finalContent, baseContent);
 
 								// Clean up abort handler.
 								if (signal) {

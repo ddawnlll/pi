@@ -1,11 +1,12 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
-import { dirname } from "path";
+import { dirname, relative } from "path";
 import { type Static, Type } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.js";
 import { getLanguageFromPath, highlightCode } from "../../modes/interactive/theme/theme.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import { afterFileWrite } from "../project-state-hooks.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToCwd } from "./path-utils.js";
 import { invalidArgText, normalizeDisplayText, replaceTabs, shortenPath, str } from "./render-utils.js";
@@ -223,6 +224,9 @@ export function createWriteToolDefinition(
 									// Write the file contents.
 									await ops.writeFile(absolutePath, content);
 									if (aborted) return;
+									// Emit project state event
+									const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
+									afterFileWrite(cwd, relPath, content);
 									signal?.removeEventListener("abort", onAbort);
 									resolve({
 										content: [

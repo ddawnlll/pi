@@ -16,9 +16,10 @@ import {
 	trackProcess,
 	untrackDetachedChildPid,
 } from "../../utils/shell.js";
-import type { CommandPolicyDecision } from "../command-policy-types.js";
 import type { CommandPolicyEngine } from "../command-policy-engine.js";
+import type { CommandPolicyDecision } from "../command-policy-types.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import { afterBashCommand, beforeBashCommand } from "../project-state-hooks.js";
 import { isLongRunningCommand, isValidationCommand, withValidationLock } from "../validation-lock.js";
 import { OutputAccumulator } from "./output-accumulator.js";
 import { getTextOutput, invalidArgText, str } from "./render-utils.js";
@@ -328,6 +329,10 @@ export function createBashToolDefinition(
 			_ctx?,
 		) {
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
+
+			// Classify command and open mutation window if needed
+			const classificationResult = beforeBashCommand(cwd, resolvedCommand, cwd);
+			const mutationWindowId = classificationResult.mutationWindowId;
 			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook);
 
 			// Command policy check: evaluate before execution
@@ -454,6 +459,10 @@ export function createBashToolDefinition(
 				});
 			};
 
+			// Track outcome for guaranteed finally cleanup
+			let bashOutcome: import("../project-state-hooks.js").BashCommandOutcome | undefined;
+			const bashStartedAt = Date.now();
+
 			try {
 				let exitCode: number | null;
 				try {
@@ -463,24 +472,48 @@ export function createBashToolDefinition(
 					const snapshot = await finishOutput();
 					const { text } = formatOutput(snapshot, "");
 					if (err instanceof Error && err.message === "aborted") {
+						bashOutcome = { exitCode: null, status: "aborted", errorMessage: "Aborted", durationMs: Date.now() - bashStartedAt };
 						throw new Error(appendStatus(text, "Command aborted"));
 					}
 					if (err instanceof Error && err.message.startsWith("timeout:")) {
 						const timeoutSecs = err.message.split(":")[1];
+						bashOutcome = { exitCode: null, status: "timeout", errorMessage: `Timed out after ${timeoutSecs}s`, durationMs: Date.now() - bashStartedAt };
 						throw new Error(appendStatus(text, `Command timed out after ${timeoutSecs} seconds`));
 					}
+					bashOutcome = { exitCode: null, status: "unknown_error", errorMessage: (err as Error).message, durationMs: Date.now() - bashStartedAt };
 					throw err;
 				}
 
 				const snapshot = await finishOutput();
 				const { text: outputText, details } = formatOutput(snapshot);
 				const resultDetails = { ...(details ?? {}), exitCode };
+
 				if (exitCode !== 0 && exitCode !== null) {
+					bashOutcome = { exitCode, status: "failed", errorMessage: `Exited with code ${exitCode}`, durationMs: Date.now() - bashStartedAt };
 					throw new Error(appendStatus(outputText, `Command exited with code ${exitCode}`));
 				}
+				bashOutcome = { exitCode: exitCode ?? 0, status: "completed", durationMs: Date.now() - bashStartedAt };
 				return { content: [{ type: "text", text: outputText }], details: resultDetails };
 			} finally {
 				clearUpdateTimer();
+				// Guaranteed cleanup: always call afterBashCommand if beforeBashCommand ran
+				if (bashOutcome) {
+					try {
+						afterBashCommand(cwd, resolvedCommand, bashOutcome, classificationResult.classification, mutationWindowId);
+					} catch {
+						// Best-effort
+					}
+				} else if (mutationWindowId) {
+					// beforeBashCommand opened window but bash didn't start (policy reject etc.)
+					try {
+						import("../project-state/mutation-window-store.js").then(({ MutationWindowStore }) => {
+							const mw = new MutationWindowStore(cwd);
+							mw.fail(mutationWindowId);
+						}).catch(() => {});
+					} catch {
+						// Best-effort
+					}
+				}
 			}
 		},
 		renderCall(args, _theme, context) {
