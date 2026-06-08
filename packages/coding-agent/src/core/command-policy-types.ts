@@ -2,6 +2,8 @@
  * Command Policy Types — ACCP 1.2 / PlanSpec v5
  */
 
+export type DangerousCommandPolicy = "ask" | "auto_allow" | "deny";
+
 export type CommandPolicyDecisionCode =
 	| "allow"
 	| "deny"
@@ -18,7 +20,21 @@ export interface CommandPolicyDecision {
 	reason: string;
 	blockCode?: string;
 	/** Which policy layer made the decision */
-	policyLayer?: "hard_deny" | "exact_allowed" | "command_class" | "controlled_delete" | "runtime_grant" | "watch_mode" | "git_safety" | "self_modification";
+	policyLayer?:
+		| "hard_deny"
+		| "exact_allowed"
+		| "command_class"
+		| "controlled_delete"
+		| "runtime_grant"
+		| "watch_mode"
+		| "git_safety"
+		| "self_modification"
+		| "dangerous_command_approval"
+		| "dangerous_command_auto_allow"
+		| "dangerous_command_policy"
+		| "dangerous_policy_delete"
+		| "default_deny"
+		| "default_allow";
 	blockedBy?: "firewall" | "git_safety" | "watch_mode" | "controlled_delete" | "exact_allowed" | "default_deny";
 	userApprovalRequested?: boolean;
 	controlledDeleteInfo?: {
@@ -39,6 +55,9 @@ export interface CommandPolicyConfig {
 	controlledDelete?: ControlledDeletePolicy;
 	contextWindowRequired?: boolean;
 	autoGrantLowRiskReadOnly?: boolean;
+	dangerousCommandPolicy?: DangerousCommandPolicy;
+	workspaceRoot?: string;
+	protectedPaths?: string[];
 }
 
 export interface ExactAllowedCommand {
@@ -119,11 +138,36 @@ export interface AllowedDeletePath {
 
 export const COMMAND_CLASSES: CommandClass[] = [
 	{ id: "delete", label: "Delete", prefixPatterns: ["rm", "rmdir"], canSatisfyValidation: false },
-	{ id: "git_mutation", label: "Git Mutation", prefixPatterns: ["git commit", "git push", "git reset", "git rebase", "git merge"], canSatisfyValidation: true },
-	{ id: "read", label: "Read", prefixPatterns: ["cat", "head", "tail", "less", "more", "grep", "find", "ls"], isDiscovery: true },
-	{ id: "discovery", label: "Discovery", prefixPatterns: ["which", "type", "command -v", "npm ls", "pip list", "cargo tree"], isDiscovery: true },
-	{ id: "install", label: "Install", prefixPatterns: ["npm install", "pip install", "cargo install", "brew install", "apt-get install"], canSatisfyValidation: false },
-	{ id: "watch", label: "Watch", prefixPatterns: ["npm run dev", "npm run watch", "cargo watch", "nodemon", "tsc --watch"], canSatisfyValidation: false },
+	{
+		id: "git_mutation",
+		label: "Git Mutation",
+		prefixPatterns: ["git commit", "git push", "git reset", "git rebase", "git merge"],
+		canSatisfyValidation: true,
+	},
+	{
+		id: "read",
+		label: "Read",
+		prefixPatterns: ["cat", "head", "tail", "less", "more", "grep", "find", "ls"],
+		isDiscovery: true,
+	},
+	{
+		id: "discovery",
+		label: "Discovery",
+		prefixPatterns: ["which", "type", "command -v", "npm ls", "pip list", "cargo tree"],
+		isDiscovery: true,
+	},
+	{
+		id: "install",
+		label: "Install",
+		prefixPatterns: ["npm install", "pip install", "cargo install", "brew install", "apt-get install"],
+		canSatisfyValidation: false,
+	},
+	{
+		id: "watch",
+		label: "Watch",
+		prefixPatterns: ["npm run dev", "npm run watch", "cargo watch", "nodemon", "tsc --watch"],
+		canSatisfyValidation: false,
+	},
 	{ id: "other", label: "Other", prefixPatterns: [], canSatisfyValidation: false },
 ];
 

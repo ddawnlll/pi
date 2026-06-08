@@ -19,7 +19,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
 import { minimatch } from "minimatch";
 import type {
 	CommandClass,
@@ -27,11 +27,11 @@ import type {
 	CommandPolicyConfig,
 	CommandPolicyDecision,
 	CommandPolicyDecisionCode,
-	ControlledDeletePolicy,
 	RuntimeCommandGrant,
 	RuntimeCommandGrantRequest,
 } from "./command-policy-types.js";
-import { COMMAND_CLASSES, DEFAULT_COMMAND_POLICY_CONFIG } from "./command-policy-types.js";
+import { COMMAND_CLASSES, type DangerousCommandPolicy, DEFAULT_COMMAND_POLICY_CONFIG } from "./command-policy-types.js";
+import type { ExecutionPolicyMode } from "./execution-policy.js";
 import { isValidationLikeCommand, isWatchModeCommand } from "./watch-mode-guard.js";
 
 // =============================================================================
@@ -63,12 +63,36 @@ export class CommandPolicyEngine {
 	 * @returns A CommandPolicyDecision
 	 */
 	evaluate(command: string, cwd: string): CommandPolicyDecision {
+		return this._evaluate(command, cwd);
+	}
+
+	/**
+	 * Evaluate a command with mode-aware behavior.
+	 *
+	 * In planspec_locked mode:
+	 * - Unknown command -> deny (autoGrantLowRiskReadOnly ignored)
+	 * - Unknown delete target -> deny (userApprovalRequested=false)
+	 *
+	 * In manual_no_plan / legacy_v411:
+	 * - Unknown command -> allow_with_evidence if autoGrantLowRiskReadOnly
+	 * - Unknown delete target -> follows dangerousCommandPolicy
+	 *
+	 * @param command - The full shell command string
+	 * @param cwd - The working directory for command execution
+	 * @param mode - Execution policy mode override
+	 * @returns A CommandPolicyDecision
+	 */
+	evaluateWithMode(command: string, cwd: string, mode?: ExecutionPolicyMode): CommandPolicyDecision {
+		return this._evaluate(command, cwd, mode);
+	}
+
+	private _evaluate(command: string, cwd: string, mode?: ExecutionPolicyMode): CommandPolicyDecision {
 		const trimmed = command.trim();
 
 		// -------------------------------------------------------------------
 		// Layer 1: Hard deny (always first)
 		// -------------------------------------------------------------------
-		for (const pattern of (this.config.hardDenyPatterns ?? [])) {
+		for (const pattern of this.config.hardDenyPatterns ?? []) {
 			if (trimmed.includes(pattern)) {
 				return this.recordDecision({
 					command,
@@ -103,21 +127,50 @@ export class CommandPolicyEngine {
 		const deleteResult = this.evaluateDeleteCommand(trimmed, cwd);
 		if (deleteResult) {
 			const assuredPolicy = this.config.controlledDelete;
+			let deleteDecision = deleteResult.decision;
+			let deletePolicyLayer: string = "controlled_delete";
+			let deleteBlockCode: string | undefined =
+				deleteResult.decision === "deny" ? "CONTROLLED_DELETE_DENY" : undefined;
+
+			// When the delete path is unknown (not in allowed or forbidden lists),
+			// check dangerousCommandPolicy to decide whether to ask or deny.
+			// In planspec_locked mode, unknown delete targets are always denied
+			// (userApprovalRequested=false) unless explicitly allowed.
+			const isPlanspecLocked = mode === "planspec_locked";
+			if (
+				deleteResult.decision === "deny" &&
+				!deleteResult.info?.matchedForbidden &&
+				!deleteResult.info?.matchedAllowed
+			) {
+				if (!isPlanspecLocked) {
+					const dangerPolicy: DangerousCommandPolicy = this.config.dangerousCommandPolicy ?? "ask";
+					if (dangerPolicy === "ask") {
+						deleteDecision = "requires_human_approval";
+						deleteBlockCode = undefined;
+						deletePolicyLayer = "dangerous_command_approval";
+					} else if (dangerPolicy === "auto_allow") {
+						deleteDecision = "allow";
+						deleteBlockCode = undefined;
+						deletePolicyLayer = "dangerous_command_auto_allow";
+					}
+				}
+			}
+
 			const userApprovalRequested =
-				deleteResult.decision === "requires_human_approval"
+				deleteDecision === "requires_human_approval"
 					? true
 					: deleteResult.decision === "deny"
-						? assuredPolicy?.requestUserApprovalOnDeny ?? false
+						? (assuredPolicy?.requestUserApprovalOnDeny ?? false)
 						: false;
 
 			return this.recordDecision({
 				command,
 				cwd,
-				decision: deleteResult.decision,
+				decision: deleteDecision,
 				reason: deleteResult.reason,
-				blockCode: deleteResult.decision === "deny" ? "CONTROLLED_DELETE_DENY" : undefined,
+				blockCode: deleteBlockCode,
 				userApprovalRequested,
-				policyLayer: "controlled_delete",
+				policyLayer: deletePolicyLayer as any,
 				controlledDeleteInfo: deleteResult.info,
 			});
 		}
@@ -125,7 +178,7 @@ export class CommandPolicyEngine {
 		// -------------------------------------------------------------------
 		// Layer 4: Exact allowed commands
 		// -------------------------------------------------------------------
-		for (const exact of (this.config.exactAllowedCommands ?? [])) {
+		for (const exact of this.config.exactAllowedCommands ?? []) {
 			if (exact.command && trimmed === exact.command.trim()) {
 				return this.recordDecision({
 					command,
@@ -187,23 +240,40 @@ export class CommandPolicyEngine {
 				command,
 				cwd,
 				decision: "allow",
-					reason: `Granted by runtime grant: ${grantResult.reason}`,
-					userApprovalRequested: false,
-					policyLayer: "runtime_grant",
+				reason: `Granted by runtime grant: ${grantResult.reason}`,
+				userApprovalRequested: false,
+				policyLayer: "runtime_grant",
 			});
 		}
 
 		// -------------------------------------------------------------------
-		// Layer 7: Default deny for unrecognized commands
+		// Layer 7: Default for unrecognized commands
 		// -------------------------------------------------------------------
+		// In planspec_locked mode, unknown commands are always denied
+		// regardless of autoGrantLowRiskReadOnly.
+		const isPlanspecLocked = mode === "planspec_locked";
+		if (!isPlanspecLocked && this.config.autoGrantLowRiskReadOnly) {
+			return this.recordDecision({
+				command,
+				cwd,
+				decision: "allow_with_evidence",
+				reason: "Unrecognized command allowed with evidence (autoGrantLowRiskReadOnly)",
+				userApprovalRequested: false,
+				policyLayer: "default_allow",
+			});
+		}
+
+		const denyReason = isPlanspecLocked
+			? "Command is not recognized by any policy layer (planspec_locked mode)"
+			: "Command is not recognized by any policy layer";
 		return this.recordDecision({
 			command,
 			cwd,
 			decision: "deny",
-			reason: "Command is not recognized by any policy layer",
+			reason: denyReason,
 			blockCode: "UNRECOGNIZED_COMMAND",
 			userApprovalRequested: false,
-			policyLayer: "hard_deny",
+			policyLayer: "default_deny",
 		});
 	}
 
@@ -263,8 +333,11 @@ export class CommandPolicyEngine {
 		// Check forbidden paths first (preempts allowed)
 		const policy = this.config.controlledDelete;
 		if (policy?.enabled) {
-			for (const forbidden of (policy.forbiddenPaths ?? [])) {
-				if (minimatch(target, forbidden.pattern) || (canonicalPath && minimatch(canonicalPath, forbidden.pattern))) {
+			for (const forbidden of policy.forbiddenPaths ?? []) {
+				if (
+					minimatch(target, forbidden.pattern) ||
+					(canonicalPath && minimatch(canonicalPath, forbidden.pattern))
+				) {
 					return {
 						decision: "deny",
 						reason: `Forbidden delete path matched: ${forbidden.pattern} (${forbidden.reason})`,
@@ -281,7 +354,7 @@ export class CommandPolicyEngine {
 			}
 
 			// Check allowed paths
-			for (const allowed of (policy.allowedPaths ?? [])) {
+			for (const allowed of policy.allowedPaths ?? []) {
 				if (minimatch(target, allowed.pattern) || (canonicalPath && minimatch(canonicalPath, allowed.pattern))) {
 					return {
 						decision: "allow",
@@ -300,7 +373,7 @@ export class CommandPolicyEngine {
 		}
 
 		// Also check forbiddenDeletePaths from top-level config
-		for (const forbidden of (this.config.forbiddenDeletePaths ?? [])) {
+		for (const forbidden of this.config.forbiddenDeletePaths ?? []) {
 			if (minimatch(target, forbidden.pattern) || (canonicalPath && minimatch(canonicalPath, forbidden.pattern))) {
 				return {
 					decision: "deny",

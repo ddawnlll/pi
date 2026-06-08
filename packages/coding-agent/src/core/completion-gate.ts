@@ -141,6 +141,12 @@ export interface WorkspaceValidationState {
 	dangerousGitCommandDetected: boolean;
 	/** The dangerous git command, if any */
 	dangerousGitCommand: string | null;
+	/** Whether PlanSpec mode is active */
+	planspecMode?: boolean;
+	/** Plan lock hash for PlanSpec lock verification */
+	planLockHash?: string;
+	/** Workspace lock hash for PlanSpec lock verification */
+	workspaceLockHash?: string;
 }
 
 /**
@@ -531,6 +537,9 @@ export function createWorkspaceValidationState(planExecId: string, workspaceId: 
 		commandHistory: [],
 		dangerousGitCommandDetected: false,
 		dangerousGitCommand: null,
+		planspecMode: false,
+		planLockHash: undefined,
+		workspaceLockHash: undefined,
 	};
 }
 
@@ -546,6 +555,135 @@ export function createWorkspaceValidationState(planExecId: string, workspaceId: 
  * @param workspaceId - The workspaceId to scope by
  * @returns Updated validation state
  */
+/**
+ * Evidence satisfaction summary for PlanSpec mode completion checks.
+ */
+export interface EvidenceSatisfaction {
+	/** Number of ACs with satisfied evidence */
+	satisfied: number;
+	/** Number of ACs with failed evidence */
+	failed: number;
+	/** Number of ACs with unverified evidence */
+	unverified: number;
+	/** Whether AC evidence is required for completion */
+	requiresAcceptanceCriteria: boolean;
+}
+
+/**
+ * Options for evaluateWorkspaceCompletionV2.
+ */
+export interface WorkspaceCompletionV2Options {
+	/** PlanSpec mode enables additional PlanSpec-specific checks */
+	planspecMode?: boolean;
+	/** Evidence satisfaction summary for AC checks */
+	evidenceSatisfaction?: EvidenceSatisfaction;
+	/** Expected plan lock hash for lock mismatch detection */
+	expectedPlanLockHash?: string;
+	/** Expected workspace lock hash for lock mismatch detection */
+	expectedWorkspaceLockHash?: string;
+	/** Worker report echo: the planLockHash the worker claimed */
+	workerReportedPlanLockHash?: string;
+	/** Worker report echo: the workspaceLockHash the worker claimed */
+	workerReportedWorkspaceLockHash?: string;
+}
+
+/**
+ * Wrapper around evaluateWorkspaceCompletion with v2 PlanSpec-aware checks.
+ *
+ * Additional checks in planspecMode:
+ * 1. AC evidence satisfaction — blocks if unverified/failed ACs exist
+ * 2. Plan lock hash match — blocks if planLockHash differs from expected
+ * 3. Workspace lock hash match — blocks if workspaceLockHash differs from expected
+ * 4. Lock hashes set — blocks if planspecMode but lock hashes are missing
+ *
+ * @param validationState - Current workspace validation state
+ * @param workspace - The workspace being evaluated
+ * @param options - V2 options
+ * @returns Completion result
+ */
+export function evaluateWorkspaceCompletionV2(
+	validationState: WorkspaceValidationState,
+	workspace: Workspace,
+	options?: WorkspaceCompletionV2Options,
+): WorkspaceCompletionResult {
+	const baseResult = evaluateWorkspaceCompletion(validationState, workspace);
+	const blockReasons = [...baseResult.blockReasons];
+
+	// PlanSpec mode checks
+	if (options?.planspecMode) {
+		// Check 1: Lock hashes must be set in PlanSpec mode
+		if (!validationState.planLockHash || !validationState.workspaceLockHash) {
+			blockReasons.push("Lock hashes not set on validation state in PlanSpec mode");
+		}
+
+		// Check 2: Plan lock hash match
+		if (
+			options.expectedPlanLockHash &&
+			validationState.planLockHash &&
+			validationState.planLockHash !== options.expectedPlanLockHash
+		) {
+			blockReasons.push(
+				`Plan lock hash mismatch: expected ${options.expectedPlanLockHash}, got ${validationState.planLockHash}`,
+			);
+		}
+
+		// Check 3: Workspace lock hash match
+		if (
+			options.expectedWorkspaceLockHash &&
+			validationState.workspaceLockHash &&
+			validationState.workspaceLockHash !== options.expectedWorkspaceLockHash
+		) {
+			blockReasons.push(
+				`Workspace lock hash mismatch: expected ${options.expectedWorkspaceLockHash}, got ${validationState.workspaceLockHash}`,
+			);
+		}
+
+		// Check 4: Worker report planLockHash echo
+		if (options.workerReportedPlanLockHash === undefined || options.workerReportedPlanLockHash === null) {
+			blockReasons.push("Worker report is missing planLockHash echo");
+		} else if (options.expectedPlanLockHash && options.workerReportedPlanLockHash !== options.expectedPlanLockHash) {
+			blockReasons.push(
+				`Worker report planLockHash mismatch: expected ${options.expectedPlanLockHash}, ` +
+					`got ${options.workerReportedPlanLockHash}`,
+			);
+		}
+
+		// Check 5: Worker report workspaceLockHash echo
+		if (options.workerReportedWorkspaceLockHash === undefined || options.workerReportedWorkspaceLockHash === null) {
+			blockReasons.push("Worker report is missing workspaceLockHash echo");
+		} else if (
+			options.expectedWorkspaceLockHash &&
+			options.workerReportedWorkspaceLockHash !== options.expectedWorkspaceLockHash
+		) {
+			blockReasons.push(
+				`Worker report workspaceLockHash mismatch: expected ${options.expectedWorkspaceLockHash}, ` +
+					`got ${options.workerReportedWorkspaceLockHash}`,
+			);
+		}
+	}
+
+	// AC evidence satisfaction check (applies regardless of mode)
+	if (options?.evidenceSatisfaction) {
+		const es = options.evidenceSatisfaction;
+		if (es.requiresAcceptanceCriteria && es.unverified > 0) {
+			blockReasons.push(`${es.unverified} AC(s) have unverified evidence`);
+		}
+		if (es.failed > 0) {
+			blockReasons.push(`${es.failed} AC(s) have failed evidence`);
+		}
+	}
+
+	if (blockReasons.length > (baseResult.canComplete ? 0 : baseResult.blockReasons.length)) {
+		return {
+			canComplete: false,
+			blockReasons,
+			recommendedState: baseResult.recommendedState,
+		};
+	}
+
+	return baseResult;
+}
+
 export function mergeFailureSignals(
 	state: WorkspaceValidationState,
 	signals: FailureSignal[],
@@ -1273,6 +1411,32 @@ export class CompletionGateRegistry {
 	}
 
 	/**
+	 * Evaluate workspace completion with PlanSpec v5 V2 checks.
+	 *
+	 * In addition to the standard evaluateWorkspace checks, this adds:
+	 * - AC evidence satisfaction (via EvidenceLedger)
+	 * - Plan lock hash match
+	 * - Workspace lock hash match
+	 * - Lock hashes present in PlanSpec mode
+	 * - P45 boundary violations
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param workspace - Workspace definition
+	 * @param options - V2 options
+	 * @returns Completion result
+	 */
+	evaluateWorkspaceV2(
+		planExecId: string,
+		workspaceId: string,
+		workspace: Workspace,
+		options?: WorkspaceCompletionV2Options,
+	): WorkspaceCompletionResult {
+		const state = this.getOrCreate(planExecId, workspaceId);
+		return evaluateWorkspaceCompletionV2(state, workspace, options);
+	}
+
+	/**
 	 * Validate commit safety for a workspace using WorkspaceCommitGate.
 	 * Inspects actual git staged files and returns block reasons.
 	 * Must be called before evaluateWorkspace for production execution.
@@ -1316,6 +1480,21 @@ export class CompletionGateRegistry {
 			return result;
 		}
 		return evaluatePlanCompletion(workspaceStates, allowSkipped);
+	}
+
+	/**
+	 * Set lock hashes for a workspace validation state.
+	 * Used in PlanSpec mode to bind lock hashes to the validation state.
+	 *
+	 * @param planExecId - Plan execution ID
+	 * @param workspaceId - Workspace ID
+	 * @param planLockHash - Plan lock hash
+	 * @param workspaceLockHash - Workspace lock hash
+	 */
+	setLockHashes(planExecId: string, workspaceId: string, planLockHash: string, workspaceLockHash: string): void {
+		const state = this.getOrCreate(planExecId, workspaceId);
+		state.planLockHash = planLockHash;
+		state.workspaceLockHash = workspaceLockHash;
 	}
 
 	/**

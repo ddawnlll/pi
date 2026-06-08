@@ -130,6 +130,50 @@ export function isAllowedArtifact(repoRelativePath: string, allowlistedArtifactG
 }
 
 /**
+ * Check if a repo-relative path matches a P45 forbidden runtime path pattern.
+ * P45 runtime paths (e.g., "packages/ai/src/runtime/**") are protected
+ * and cannot be written or modified outside of PlanSpec-authorized bridges.
+ *
+ * @param repoRelativePath - Repo-relative file path
+ * @param p45ForbiddenPaths - P45 forbidden path patterns (if undefined, no paths are forbidden)
+ * @returns True if the path is forbidden
+ */
+export function isP45PathForbidden(repoRelativePath: string, p45ForbiddenPaths?: string[]): boolean {
+	if (!p45ForbiddenPaths || p45ForbiddenPaths.length === 0) {
+		return false;
+	}
+
+	const normalized = repoRelativePath.replace(/\\/g, "/");
+
+	for (const pattern of p45ForbiddenPaths) {
+		const normalizedPattern = pattern.replace(/\\/g, "/");
+
+		// Exact match
+		if (normalized === normalizedPattern) return true;
+
+		// Directory prefix match
+		if (normalizedPattern.endsWith("/**") && normalized.startsWith(normalizedPattern.slice(0, -3))) {
+			return true;
+		}
+		if (normalizedPattern.endsWith("/") && normalized.startsWith(normalizedPattern)) return true;
+
+		// Glob pattern match
+		if (normalizedPattern.includes("*") || normalizedPattern.includes("?")) {
+			const globPattern = normalizedPattern
+				.replace(/\./g, "\\.")
+				.replace(/\*\*/g, ".*")
+				.replace(/\*/g, "[^/]*")
+				.replace(/\?/g, ".");
+			if (new RegExp(`^${globPattern}$`).test(normalized)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+/**
  * Full writeSet check.
  */
 export function checkWriteSet(
