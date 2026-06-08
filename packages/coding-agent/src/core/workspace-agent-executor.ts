@@ -464,12 +464,18 @@ export class WorkspaceAgentExecutor {
 		 * - `attemptNo`: Current attempt number, used for attempt-scoped worktrees.
 		 * - `_skipWorktreeCheck`: Internal flag used ONLY by executeInWorktree()
 		 *   when creating the inner executor scoped to the worktree path.
+		 * - `planLockHash`: PlanLock hash for planspec_locked mode (for echo verification).
+		 * - `workspaceLockHash`: Workspace lock hash for this workspace (for echo verification).
+		 * - `executionPolicyMode`: Execution policy mode for command policy wiring.
 		 */
 		_options?: {
 			_signal?: AbortSignal;
 			_skipWorktreeCheck?: boolean;
 			logPath?: string;
 			attemptNo?: number;
+			planLockHash?: string;
+			workspaceLockHash?: string;
+			executionPolicyMode?: import("../core/execution-policy.js").ExecutionPolicyMode;
 		},
 	): Promise<AgentExecutionResult> {
 		// P26.C: Create per-execution context
@@ -697,6 +703,37 @@ export class WorkspaceAgentExecutor {
 			if (packet.packet.allowedFiles && packet.packet.allowedFiles.length > 0) {
 				session.setFirewallAllowedPaths(packet.packet.allowedFiles);
 				log(`Firewall: ${packet.packet.allowedFiles.length} allowed path(s) registered`);
+			}
+
+			// V5: Wire mode-aware CommandPolicyEngine into the bash tool
+			// for planspec_locked enforcement.
+			if (_options?.executionPolicyMode) {
+				const { createCommandPolicyEngine } = await import("../core/command-policy-engine.js");
+				const policyMode = _options.executionPolicyMode;
+				const engine = createCommandPolicyEngine();
+				// Wrap evaluate to use mode-aware path
+				const modeAwareEngine = {
+					...engine,
+					evaluate: (cmd: string, cwd: string) => engine.evaluateWithMode(cmd, cwd, policyMode),
+					evaluateWithMode: (cmd: string, cwd: string, _mode?: any) =>
+						engine.evaluateWithMode(cmd, cwd, policyMode),
+					getConfig: () => engine.getConfig(),
+					isValidationSatisfying: engine.isValidationSatisfying.bind(engine),
+					matchCommandClass: engine.matchCommandClass.bind(engine),
+					recordDecision: engine.recordDecision.bind(engine),
+					recordEvidence: engine.recordEvidence.bind(engine),
+					getDecisions: () => engine.getDecisions(),
+					getEvidence: () => engine.getEvidence(),
+					getWorkspaceEvidence: (wid: string) => engine.getWorkspaceEvidence(wid),
+					clear: () => engine.clear(),
+					runtimeGrantQueue: [],
+					requestGrant: (req: any) => engine.requestGrant(req),
+					grantCommand: (id: string) => engine.grantCommand(id),
+					checkRuntimeGrant: (cmd: string) => engine.checkRuntimeGrant(cmd),
+				};
+				log(`V5: Setting mode-aware CommandPolicyEngine for mode=${policyMode}`);
+				session.setBashOptions({ commandPolicy: modeAwareEngine });
+				log(`V5: Bash tool now enforces ${policyMode} command policy`);
 			}
 
 			// Log active tools for debugging

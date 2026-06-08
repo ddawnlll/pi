@@ -27,7 +27,14 @@ import { createTransitionRouter } from "../execution-runtime/transition-router.j
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import { AutoCommit } from "./auto-commit.js";
-import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
+import { extractWorkerEcho } from "./completion/worker-echo-extractor.js";
+import {
+	CompletionGateRegistry,
+	evaluatePlanCompletion,
+	type WorkspaceCompletionV2Options,
+} from "./completion-gate.js";
+import type { ExecutionPolicyContext } from "./execution-policy.js";
+import { createDefaultPolicyContext } from "./execution-policy.js";
 import type { LeadAgent } from "./lead-agent/index.js";
 import type { JournalEventType, PlanState } from "./plan-state.js";
 import { generateWorkspaceReport } from "./plan-state.js";
@@ -235,6 +242,18 @@ export class AutonomousExecutor {
 	 * the draining phase of a stop/stop request. Set when stop begins, cleared
 	 * after the stop has fully completed.
 	 */
+	/** Execution policy context (V5 PlanSpec mode tracking) */
+	private executionPolicy: ExecutionPolicyContext = createDefaultPolicyContext();
+
+	/** Plan lock hash from PlanLock admission (for planspec_locked mode) */
+	private planLockHash: string | undefined;
+
+	/** Per-workspace lock hashes keyed by workspace ID (from PlanLock admission) */
+	private _workspaceLockHashes: Record<string, string> = {};
+
+	/** The admitted PlanLock object (for workspace packet derivation) */
+	private _admittedPlanLock: import("./planlock-types.js").PlanLock | undefined;
+
 	private isStopping = false;
 
 	/**
@@ -564,6 +583,105 @@ export class AutonomousExecutor {
 	}
 
 	/**
+	 * Detect execution policy mode from a workspace queue.
+	 *
+	 * Checks queue metadata (or parsed plan) to determine if this is:
+	 * - planspec_locked: queue has a planspecVersion or planSpecJson metadata
+	 * - legacy_v411: queue has legacyTemplateVersion metadata
+	 * - manual_no_plan: default fallback
+	 */
+	private detectExecutionPolicy(queue: WQ): ExecutionPolicyContext {
+		const metadata = (queue as any).metadata ?? (queue as unknown as Record<string, unknown>);
+		const planspecVersion = (queue as any).planSpecVersion ?? (metadata as any).planSpecVersion;
+		const legacyVersion = (queue as any).legacyTemplateVersion ?? (metadata as any).legacyTemplateVersion;
+		const planSpecJson = (queue as any).planSpecJson ?? (metadata as any).planSpecJson;
+
+		// If the plan carries a PlanSpec v5 version or JSON, it is planspec_locked
+		if (planspecVersion || planSpecJson) {
+			return {
+				mode: "planspec_locked",
+				planSpecVersion: (planspecVersion as string) ?? "5.0.0",
+				planSpecJson: planSpecJson as string | undefined,
+			};
+		}
+
+		// If the plan has legacy template version, use legacy_v411
+		if (legacyVersion) {
+			return {
+				mode: "legacy_v411",
+				legacyTemplateVersion: legacyVersion as string,
+			};
+		}
+
+		// Default: manual_no_plan
+		return createDefaultPolicyContext();
+	}
+
+	/**
+	 * Attempt PlanLock admission from queue-stored PlanSpec data.
+	 * If successful, stores planLockHash in this.planLockHash.
+	 */
+	private async admitPlanspecFromQueue(queue: WQ): Promise<void> {
+		const metadata = (queue as any).metadata ?? (queue as unknown as Record<string, unknown>);
+		const planSpecJson = (queue as any).planSpecJson ?? (metadata as any).planSpecJson;
+		if (!planSpecJson) {
+			// No PlanSpec JSON means we can't be in planspec_locked mode with enforcement.
+			// If the queue metadata says planspec but no JSON, that's a data error.
+			const planspecVersion = (queue as any).planSpecVersion ?? (metadata as any).planSpecVersion;
+			if (planspecVersion && this.executionPolicy.mode === "planspec_locked") {
+				throw new Error(
+					`PlanSpec v${planspecVersion} detected but no PlanSpec JSON found in queue metadata. ` +
+						"Cannot admit PlanLock without PlanSpec JSON.",
+				);
+			}
+			return;
+		}
+
+		const { parsePlanSpecJsonOnly } = await import("./planspec-v5-parser.js");
+		const { admitPlanSpec } = await import("./planlock-admission.js");
+
+		const parseResult = parsePlanSpecJsonOnly(planSpecJson as string);
+		if (!parseResult.success) {
+			const schemaErrors = (parseResult.errors ?? []).join("; ");
+			throw new Error(
+				`PlanSpec admission rejected: schema/semantic validation failed. ` +
+					`Errors: ${schemaErrors || parseResult.errorCode || "unknown"}. ` +
+					"Cannot start workspace execution. Fix the PlanSpec and re-upload.",
+			);
+		}
+
+		if (!parseResult.planspec) {
+			throw new Error(
+				"PlanSpec admission rejected: parse succeeded but no PlanSpec object returned. " +
+					"This is an internal error. Cannot start workspace execution.",
+			);
+		}
+
+		const { result, planLock } = admitPlanSpec(parseResult.planspec, planSpecJson as string);
+		if (!result.admitted || !planLock) {
+			throw new Error(
+				`PlanSpec admission rejected: ${result.errorMessage || "admission failed"}. ` +
+					"Cannot start workspace execution.",
+			);
+		}
+
+		// Success: store lock hashes and per-workspace metadata
+		this.planLockHash = planLock.planLockHash;
+		this.executionPolicy.planLockHash = planLock.planLockHash;
+
+		// Store per-workspace lock hashes from the admitted PlanLock
+		const wsLockHashes: Record<string, string> = {};
+		for (const wsId of planLock.normalized.workspaceIds) {
+			const wsLock = planLock.normalized.workspaces[wsId];
+			if (wsLock) {
+				wsLockHashes[wsId] = wsLock.workspaceLockHash;
+			}
+		}
+		(this as any)._workspaceLockHashes = wsLockHashes;
+		(this as any)._admittedPlanLock = planLock;
+	}
+
+	/**
 	 * Create a workspace-scoped WorkspaceAgentExecutor for the given workspace.
 	 * Registers the executor in activeAgentExecutors for stop/artifact handling.
 	 * The executor is removed from the map after execution completes (via
@@ -644,6 +762,27 @@ export class AutonomousExecutor {
 		const state = await this.stateStore.loadState(planExecutionId);
 		if (state) {
 			this.currentPlanState = state;
+		}
+
+		// Detect execution policy mode from queue/plan.
+		// If the queue has a PlanSpec v5 template reference, use planspec_locked.
+		// If the queue has a legacy template version, use legacy_v411.
+		// Default to manual_no_plan.
+		this.executionPolicy = this.detectExecutionPolicy(queue);
+
+		// If planspec_locked mode, try to admit the PlanSpec.
+		// The planSpecJson or parsedPlanSpec should come from queue metadata.
+		if (this.executionPolicy.mode === "planspec_locked") {
+			await this.admitPlanspecFromQueue(queue);
+		}
+
+		// Store policy mode in plan state
+		if (this.currentPlanState) {
+			this.currentPlanState.executionPolicyMode = this.executionPolicy.mode;
+			this.currentPlanState.planSpecVersion = this.executionPolicy.planSpecVersion;
+			this.currentPlanState.planLockHash = this.planLockHash;
+			this.currentPlanState.lockStatus = this.planLockHash ? "admitted" : undefined;
+			await this.stateStore.saveState(planExecutionId).catch(() => {});
 		}
 
 		// Update agent executor with the new plan execution ID
@@ -1117,10 +1256,20 @@ export class AutonomousExecutor {
 					// P26.C: Pass logPath to execute() instead of calling setLogPath()
 					// P26.D: Pass abortSignal so execute() wires it to the internal abortController
 					// P26.F: Pass attemptNo for attempt-scoped worktree paths and branch names
+					// V5: Pass planLockHash/workspaceLockHash/executionPolicyMode for planspec_locked
+					const v5PacketInfo =
+						this._admittedPlanLock && this.executionPolicy.mode === "planspec_locked"
+							? {
+									planLockHash: this.planLockHash,
+									workspaceLockHash: this._workspaceLockHashes[workspace.id],
+									executionPolicyMode: this.executionPolicy.mode as any,
+								}
+							: {};
 					const agentResult = await workspaceExecutor.execute(packet, workspace.id, {
 						_signal: abortSignal,
 						logPath,
 						attemptNo: wsStateForPacket.attempts,
+						...v5PacketInfo,
 					});
 
 					// Write execution logs (also written by executor on completion, but keep
@@ -1322,8 +1471,41 @@ export class AutonomousExecutor {
 				}
 			}
 
-			// Evaluate via registry to get the live state after mutations above
-			const gateResult = this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
+			// Evaluate via registry to get the live state after mutations above.
+			// In planspec_locked mode, use the V2 evaluation with PlanSpec-aware checks.
+			const isPlanspecLocked = this.executionPolicy.mode === "planspec_locked";
+
+			// Set lock hashes on validation state for PlanSpec mode
+			if (isPlanspecLocked && this.planLockHash && this._workspaceLockHashes[workspace.id]) {
+				this.completionGate.setLockHashes(
+					planExecutionId,
+					workspace.id,
+					this.planLockHash,
+					this._workspaceLockHashes[workspace.id],
+				);
+			}
+
+			// Extract worker echo from report if available
+			let workerReportedPlanLockHash: string | undefined;
+			let workerReportedWorkspaceLockHash: string | undefined;
+
+			if (isPlanspecLocked && result.report) {
+				const echoResult = extractWorkerEcho(result.report);
+				if (echoResult.success && echoResult.claim) {
+					workerReportedPlanLockHash = echoResult.claim.planLockHash;
+					workerReportedWorkspaceLockHash = echoResult.claim.workspaceLockHash;
+				}
+			}
+
+			const gateResult = isPlanspecLocked
+				? this.completionGate.evaluateWorkspaceV2(planExecutionId, workspace.id, workspace, {
+						planspecMode: true,
+						expectedPlanLockHash: this.planLockHash,
+						expectedWorkspaceLockHash: this._workspaceLockHashes[workspace.id],
+						workerReportedPlanLockHash,
+						workerReportedWorkspaceLockHash,
+					})
+				: this.completionGate.evaluateWorkspace(planExecutionId, workspace.id, workspace);
 
 			// P37.HOTFIX: Stale attempt guard — check if workspace is still current
 			// before attempting any transition. If the workspace was terminalized
