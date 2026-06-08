@@ -472,15 +472,30 @@ export function createBashToolDefinition(
 					const snapshot = await finishOutput();
 					const { text } = formatOutput(snapshot, "");
 					if (err instanceof Error && err.message === "aborted") {
-						bashOutcome = { exitCode: null, status: "aborted", errorMessage: "Aborted", durationMs: Date.now() - bashStartedAt };
+						bashOutcome = {
+							exitCode: null,
+							status: "aborted",
+							errorMessage: "Aborted",
+							durationMs: Date.now() - bashStartedAt,
+						};
 						throw new Error(appendStatus(text, "Command aborted"));
 					}
 					if (err instanceof Error && err.message.startsWith("timeout:")) {
 						const timeoutSecs = err.message.split(":")[1];
-						bashOutcome = { exitCode: null, status: "timeout", errorMessage: `Timed out after ${timeoutSecs}s`, durationMs: Date.now() - bashStartedAt };
+						bashOutcome = {
+							exitCode: null,
+							status: "timeout",
+							errorMessage: `Timed out after ${timeoutSecs}s`,
+							durationMs: Date.now() - bashStartedAt,
+						};
 						throw new Error(appendStatus(text, `Command timed out after ${timeoutSecs} seconds`));
 					}
-					bashOutcome = { exitCode: null, status: "unknown_error", errorMessage: (err as Error).message, durationMs: Date.now() - bashStartedAt };
+					bashOutcome = {
+						exitCode: null,
+						status: "unknown_error",
+						errorMessage: (err as Error).message,
+						durationMs: Date.now() - bashStartedAt,
+					};
 					throw err;
 				}
 
@@ -489,7 +504,12 @@ export function createBashToolDefinition(
 				const resultDetails = { ...(details ?? {}), exitCode };
 
 				if (exitCode !== 0 && exitCode !== null) {
-					bashOutcome = { exitCode, status: "failed", errorMessage: `Exited with code ${exitCode}`, durationMs: Date.now() - bashStartedAt };
+					bashOutcome = {
+						exitCode,
+						status: "failed",
+						errorMessage: `Exited with code ${exitCode}`,
+						durationMs: Date.now() - bashStartedAt,
+					};
 					throw new Error(appendStatus(outputText, `Command exited with code ${exitCode}`));
 				}
 				bashOutcome = { exitCode: exitCode ?? 0, status: "completed", durationMs: Date.now() - bashStartedAt };
@@ -499,17 +519,25 @@ export function createBashToolDefinition(
 				// Guaranteed cleanup: always call afterBashCommand if beforeBashCommand ran
 				if (bashOutcome) {
 					try {
-						afterBashCommand(cwd, resolvedCommand, bashOutcome, classificationResult.classification, mutationWindowId);
+						afterBashCommand(
+							cwd,
+							resolvedCommand,
+							bashOutcome,
+							classificationResult.classification,
+							mutationWindowId,
+						);
 					} catch {
 						// Best-effort
 					}
 				} else if (mutationWindowId) {
 					// beforeBashCommand opened window but bash didn't start (policy reject etc.)
 					try {
-						import("../project-state/mutation-window-store.js").then(({ MutationWindowStore }) => {
-							const mw = new MutationWindowStore(cwd);
-							mw.fail(mutationWindowId);
-						}).catch(() => {});
+						import("../project-state/mutation-window-store.js")
+							.then(({ MutationWindowStore }) => {
+								const mw = new MutationWindowStore(cwd);
+								mw.fail(mutationWindowId);
+							})
+							.catch(() => {});
 					} catch {
 						// Best-effort
 					}

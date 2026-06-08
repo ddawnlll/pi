@@ -9,12 +9,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
-import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
-import { beforeBashCommand, afterBashCommand } from "../../src/core/project-state-hooks.js";
-import type { BashCommandOutcome } from "../../src/core/project-state-hooks.js";
 import type { CommandClassification } from "../../src/core/project-state/event-types.js";
+import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
+import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
+import type { BashCommandOutcome } from "../../src/core/project-state-hooks.js";
+import { afterBashCommand, beforeBashCommand } from "../../src/core/project-state-hooks.js";
 
 describe("Bash failure lifecycle", () => {
 	let tmpDir: string;
@@ -122,13 +122,18 @@ describe("Bash failure lifecycle", () => {
 	});
 
 	// ========================================================================
-	// Throw / timeout / abort path  
+	// Throw / timeout / abort path
 	// ========================================================================
 
 	it("aborted outcome calls afterBashCommand once", () => {
 		const { classification, mutationWindowId } = beforeBashCommand(tmpDir, "sleep 10", tmpDir);
 
-		const outcome: BashCommandOutcome = { exitCode: null, status: "aborted", errorMessage: "Aborted", durationMs: 50 };
+		const outcome: BashCommandOutcome = {
+			exitCode: null,
+			status: "aborted",
+			errorMessage: "Aborted",
+			durationMs: 50,
+		};
 		afterBashCommand(tmpDir, "sleep 10", outcome, classification, mutationWindowId);
 
 		expect(countEventType("command_completed")).toBeGreaterThan(0);
@@ -140,7 +145,12 @@ describe("Bash failure lifecycle", () => {
 	it("timeout outcome calls afterBashCommand and fails window", () => {
 		const { classification, mutationWindowId } = beforeBashCommand(tmpDir, "sleep 60", tmpDir);
 
-		const outcome: BashCommandOutcome = { exitCode: null, status: "timeout", errorMessage: "Timed out after 5s", durationMs: 5000 };
+		const outcome: BashCommandOutcome = {
+			exitCode: null,
+			status: "timeout",
+			errorMessage: "Timed out after 5s",
+			durationMs: 5000,
+		};
 		afterBashCommand(tmpDir, "sleep 60", outcome, classification, mutationWindowId);
 
 		expect(countEventType("command_completed")).toBeGreaterThan(0);
@@ -152,7 +162,12 @@ describe("Bash failure lifecycle", () => {
 	it("unknown_error outcome calls afterBashCommand and fails window", () => {
 		const { classification, mutationWindowId } = beforeBashCommand(tmpDir, "nonexistent-command", tmpDir);
 
-		const outcome: BashCommandOutcome = { exitCode: null, status: "spawn_error", errorMessage: "ENOENT", durationMs: 5 };
+		const outcome: BashCommandOutcome = {
+			exitCode: null,
+			status: "spawn_error",
+			errorMessage: "ENOENT",
+			durationMs: 5,
+		};
 		afterBashCommand(tmpDir, "nonexistent-command", outcome, classification, mutationWindowId);
 
 		expect(countEventType("command_completed")).toBeGreaterThan(0);
@@ -169,7 +184,12 @@ describe("Bash failure lifecycle", () => {
 		const { classification, mutationWindowId } = beforeBashCommand(tmpDir, "python generates.py", tmpDir);
 
 		// Emulate the state marking that beforeBashCommand does
-		const outcome: BashCommandOutcome = { exitCode: 1, status: "failed", errorMessage: "Exited with code 1", durationMs: 100 };
+		const outcome: BashCommandOutcome = {
+			exitCode: 1,
+			status: "failed",
+			errorMessage: "Exited with code 1",
+			durationMs: 100,
+		};
 		afterBashCommand(tmpDir, "python generates.py", outcome, classification, mutationWindowId);
 
 		// Mutation window should be failed

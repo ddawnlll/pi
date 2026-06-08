@@ -22,22 +22,22 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
-import { ProjectStateStore } from "../../src/core/project-state/store.js";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
-import { ProjectStateProjector } from "../../src/core/project-state/projector.js";
 import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
+import { getStateDir, STATE_FILES } from "../../src/core/project-state/paths.js";
+import { ProjectStateProjector } from "../../src/core/project-state/projector.js";
 import { QueryService } from "../../src/core/project-state/query-service.js";
 import { ReadTimeVerifier } from "../../src/core/project-state/read-time-verifier.js";
-import { SmartReadDiskCache } from "../../src/core/token-context/smart-read-disk-cache.js";
-import {
-	afterFileWrite,
-	afterFileEdit,
-	beforeBashCommand,
-	afterBashCommand,
-} from "../../src/core/project-state-hooks.js";
+import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
+import { ProjectStateStore } from "../../src/core/project-state/store.js";
 import type { BashCommandOutcome } from "../../src/core/project-state-hooks.js";
-import { getStateDir, STATE_FILES } from "../../src/core/project-state/paths.js";
+import {
+	afterBashCommand,
+	afterFileEdit,
+	afterFileWrite,
+	beforeBashCommand,
+} from "../../src/core/project-state-hooks.js";
+import { SmartReadDiskCache } from "../../src/core/token-context/smart-read-disk-cache.js";
 
 describe("Project State Real Gauntlet Smoke", () => {
 	let tmpDir: string;
@@ -59,13 +59,21 @@ describe("Project State Real Gauntlet Smoke", () => {
 		mkdirSync(join(tmpDir, "test"), { recursive: true });
 		mkdirSync(join(tmpDir, ".git"), { recursive: true });
 
-		writeFileSync(join(tmpDir, "package.json"), JSON.stringify({
-			name: "smoke-test",
-			scripts: { test: "vitest", build: "tsc" },
-		}), "utf-8");
-		writeFileSync(join(tmpDir, "src", "a.ts"), "export const greet = (name: string) => `Hello, ${name}!`;\n", "utf-8");
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				name: "smoke-test",
+				scripts: { test: "vitest", build: "tsc" },
+			}),
+			"utf-8",
+		);
+		writeFileSync(
+			join(tmpDir, "src", "a.ts"),
+			"export const greet = (name: string) => `Hello, ${name}!`;\n",
+			"utf-8",
+		);
 		writeFileSync(join(tmpDir, "src", "b.ts"), "export const add = (a: number, b: number) => a + b;\n", "utf-8");
-		writeFileSync(join(tmpDir, "src", "nested", "c.ts"), 'export const magic = 42;\n', "utf-8");
+		writeFileSync(join(tmpDir, "src", "nested", "c.ts"), "export const magic = 42;\n", "utf-8");
 		writeFileSync(join(tmpDir, "test", "a.test.ts"), "import { greet } from '../src/a';\n", "utf-8");
 
 		// ====================================================================
@@ -120,7 +128,11 @@ describe("Project State Real Gauntlet Smoke", () => {
 		const verifier = new ReadTimeVerifier(store, cache);
 
 		// File existed before edit
-		writeFileSync(join(tmpDir, "src", "a.ts"), "export const greet = (name: string) => `Hello, ${name}!`;\n", "utf-8");
+		writeFileSync(
+			join(tmpDir, "src", "a.ts"),
+			"export const greet = (name: string) => `Hello, ${name}!`;\n",
+			"utf-8",
+		);
 
 		// Verify still accepts if content unchanged
 		const verifyUnchanged = verifier.verify("src/a.ts");
@@ -148,8 +160,8 @@ describe("Project State Real Gauntlet Smoke", () => {
 		// ====================================================================
 		// Step 6: Real edit hook → event → projector → stale Smart Read
 		// ====================================================================
-		const oldContent = 'export const greet = (name: string) => `Hi, ${name}!`;\n';
-		const newContent = 'export const greet = (name: string) => `Hey, ${name}!`;\n';
+		const oldContent = "export const greet = (name: string) => `Hi, ${name}!`;\n";
+		const newContent = "export const greet = (name: string) => `Hey, ${name}!`;\n";
 		writeFileSync(join(tmpDir, "src", "a.ts"), oldContent, "utf-8");
 		// First sync — write it so it's in the project state with a hash
 		// Then edit via hook
@@ -198,7 +210,13 @@ describe("Project State Real Gauntlet Smoke", () => {
 		expect(failResult.mutationWindowId).toBeDefined();
 
 		const outcome: BashCommandOutcome = { exitCode: 7, status: "failed", durationMs: 100 };
-		afterBashCommand(tmpDir, "node -e 'process.exit(7)'", outcome, failResult.classification, failResult.mutationWindowId);
+		afterBashCommand(
+			tmpDir,
+			"node -e 'process.exit(7)'",
+			outcome,
+			failResult.classification,
+			failResult.mutationWindowId,
+		);
 
 		// Window should be failed
 		const failMw = new MutationWindowStore(tmpDir);

@@ -13,14 +13,13 @@
  * 9. Snapshot manifest creation
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SmartReadSnapshotService, type SmartReadSnapshotProgress } from "../../../src/core/smart-read-snapshot.js";
-import { SmartReadDiskCache } from "../../../src/core/token-context/smart-read-disk-cache.js";
+import { type SmartReadSnapshotProgress, SmartReadSnapshotService } from "../../../src/core/smart-read-snapshot.js";
 import { createTokenContextRuntime } from "../../../src/core/token-context/runtime.js";
+import { SmartReadDiskCache } from "../../../src/core/token-context/smart-read-disk-cache.js";
 import { DEFAULT_TOKEN_CONTEXT_CONFIG } from "../../../src/core/token-context/types.js";
 
 describe("SmartReadSnapshotService", () => {
@@ -212,9 +211,7 @@ describe("SmartReadSnapshotService", () => {
 				rawBytes: 1000000,
 				compactBytes: 250000,
 				estimatedTokensSaved: 187500,
-				failures: [
-					{ file: "bad.js", error: "Parse error" },
-				],
+				failures: [{ file: "bad.js", error: "Parse error" }],
 			};
 
 			const summary = service.formatSummary(result);
