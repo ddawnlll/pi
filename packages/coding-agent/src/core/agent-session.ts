@@ -307,6 +307,8 @@ export class AgentSession {
 	private _extensionUIContext?: ExtensionUIContext;
 	private _extensionCommandContextActions?: ExtensionCommandContextActions;
 	private _extensionShutdownHandler?: ShutdownHandler;
+	/** Extra bash tool options (V5 planspec: command policy engine) */
+	private _bashOptions?: import("./tools/bash.js").BashToolOptions;
 	private _extensionErrorListener?: ExtensionErrorListener;
 	private _extensionErrorUnsubscriber?: () => void;
 
@@ -446,6 +448,22 @@ export class AgentSession {
 	 */
 	setFirewallAllowedPaths(paths: string[]): void {
 		this._selfModFirewall.setAllowedPaths(paths);
+	}
+
+	/**
+	 * Set bash tool options (e.g., command policy engine for planspec_locked mode).
+	 * The options are applied on the next tool definition rebuild.
+	 */
+	setBashOptions(options: import("./tools/bash.js").BashToolOptions): void {
+		this._bashOptions = options;
+		// Rebuild runtime with the new options
+		const runtime = this._extensionRunner;
+		if (runtime) {
+			this._buildRuntime({
+				activeToolNames: runtime.getActiveToolNames(),
+				flagValues: runtime.getFlagValues(),
+			});
+		}
 	}
 
 	/**
@@ -2482,7 +2500,7 @@ export class AgentSession {
 				)
 			: createAllToolDefinitions(this._cwd, {
 					read: { autoResizeImages, tokenContextRuntime: this._tokenContextRuntime },
-					bash: { commandPrefix: shellCommandPrefix, shellPath },
+					bash: { commandPrefix: shellCommandPrefix, shellPath, ...this._bashOptions },
 					edit: this._tokenContextRuntime?.config.editRecovery.enabled
 						? { editRecoveryConfig: this._tokenContextRuntime.config.editRecovery }
 						: undefined,
