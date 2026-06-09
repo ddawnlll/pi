@@ -32,6 +32,7 @@ import {
   Sunrise,
   Target,
   Upload,
+  X,
 } from "lucide-react";
 import type { Project, PlanExecution, MultiPhaseTask } from "../../types";
 import type { TopbarV3BrainMode } from "../topbar/TopbarV3";
@@ -58,6 +59,10 @@ export interface TaskRunSidebarProps {
   onSelectProject: (projectId: string) => void;
   /** Create a new project. */
   onCreateProject: () => void;
+  /** Delete a project. */
+  onDeleteProject?: (projectId: string) => void;
+  /** Rename a project. */
+  onRenameProject?: (projectId: string, name: string) => void;
   /** Upload a plan. */
   onUploadPlan: () => void;
   /** Create a new task. */
@@ -229,6 +234,8 @@ export function TaskRunSidebar({
   onNavigate,
   onSelectProject,
   onCreateProject,
+  onDeleteProject,
+  onRenameProject,
   onUploadPlan,
   onCreateTask,
   onOpenSettings,
@@ -249,9 +256,149 @@ export function TaskRunSidebar({
     platform: false,
   }));
 
+  // Project dropdown state
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [renamingProject, setRenamingProject] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
   const toggleSection = useCallback((id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
+
+  // Render project selector with dropdown
+  const renderProjectSelector = () => (
+    <div className="shrink-0 px-3 py-3 border-b border-[#E8E6E1] dark:border-[#333]">
+      <div className="relative">
+        <button
+          onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+          className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${SURF} border ${BORD} hover:bg-stone-50 dark:hover:bg-[#2A2A2A]`}
+        >
+          <FolderOpen size={14} strokeWidth={1.6} className={TXT} />
+          <span className={`flex-1 truncate text-left ${TXT}`}>
+            {project ? project.name || project.id : "No project selected"}
+          </span>
+          <ChevronDown size={12} strokeWidth={2} className={MUT} />
+        </button>
+
+        {/* Dropdown */}
+        {showProjectDropdown && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowProjectDropdown(false)} />
+            <div className={`absolute left-0 right-0 top-full mt-1 z-20 ${SURF} border ${BORD} rounded-lg shadow-lg max-h-60 overflow-y-auto`}>
+              {projects.length === 0 && (
+                <div className={`px-3 py-2 text-xs ${MUT}`}>No projects yet</div>
+              )}
+              {projects.map((p) => (
+                <div key={p.id} className="relative group">
+                  {confirmDelete === p.id ? (
+                    <div className={`px-3 py-2 flex items-center gap-2 text-xs ${MUT}`}>
+                      <span className="flex-1">Remove "{p.name || p.id}" from dashboard?</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteProject?.(p.id);
+                          setConfirmDelete(null);
+                        }}
+                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(null)}
+                        className="hover:text-stone-700 dark:hover:text-stone-300"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        onSelectProject(p.id);
+                        setShowProjectDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors ${
+                        project?.id === p.id
+                          ? `${ACC_BG} ${ACC_TXT}`
+                          : `${TXT} hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`
+                      }`}
+                    >
+                      <FolderOpen size={12} strokeWidth={1.6} className="shrink-0" />
+                      <span className="flex-1 truncate">{p.name || p.id}</span>
+                      {/* Rename / Delete (only on hover, for non-active) */}
+                      <span className="hidden group-hover:flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingProject(true);
+                            setRenameValue(p.name || p.id);
+                            setShowProjectDropdown(false);
+                          }}
+                          className={`text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+                          title="Rename"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDelete(p.id);
+                          }}
+                          className={`text-xs ${MUT} hover:text-red-600 dark:hover:text-red-400`}
+                          title="Remove from dashboard"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    </button>
+                  )}
+                </div>
+              ))}
+              <div className={`border-t ${BORD}`}>
+                <button
+                  onClick={() => {
+                    setShowProjectDropdown(false);
+                    onCreateProject();
+                  }}
+                  className={`flex items-center gap-2 w-full px-3 py-2 text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-[#2A2A2A]`}
+                >
+                  <Plus size={12} strokeWidth={2} />
+                  <span>New project...</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Rename inline form */}
+      {renamingProject && project && (
+        <div className="mt-2 flex items-center gap-1">
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && renameValue.trim()) {
+                onRenameProject?.(project.id, renameValue.trim());
+                setRenamingProject(false);
+              } else if (e.key === "Escape") {
+                setRenamingProject(false);
+              }
+            }}
+            className={`flex-1 px-2 py-1 text-xs rounded border ${BORD} bg-transparent ${TXT} outline-none focus:border-blue-500`}
+            placeholder="Project name"
+          />
+          <button
+            onClick={() => setRenamingProject(false)}
+            className={`text-xs ${MUT} hover:text-stone-700 dark:hover:text-stone-300`}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   // Count active vs completed tasks (matching TaskStatus type)
   const activeTasks = tasks.filter((t) =>
@@ -266,15 +413,8 @@ export function TaskRunSidebar({
 
   return (
     <div className="flex flex-col h-full" role="navigation" aria-label="Task-Run sidebar">
-      {/* ── Project name / switcher ── */}
-      <div className="shrink-0 px-3 py-3 border-b border-[#E8E6E1] dark:border-[#333]">
-        <div className="flex items-center gap-2">
-          <FolderOpen size={14} strokeWidth={1.6} className={TXT} />
-          <span className={`text-sm font-semibold truncate ${TXT}`}>
-            {project ? project.name || project.id : "No project"}
-          </span>
-        </div>
-      </div>
+      {/* ── Project selector ── */}
+      {renderProjectSelector()}
 
       {/* ── Scrollable nav area ── */}
       <div className="flex-1 overflow-y-auto py-1 overflow-x-hidden">

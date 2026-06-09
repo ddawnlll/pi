@@ -30,6 +30,32 @@ async function createProject(name: string, rootPath?: string): Promise<Project |
 	}
 }
 
+async function deleteProject(projectId: string): Promise<boolean> {
+	try {
+		const response = await fetch(`${API_BASE}/api/projects/${encodeURIComponent(projectId)}`, {
+			method: "DELETE",
+		});
+		return response.ok;
+	} catch (error) {
+		console.error("Failed to delete project:", error);
+		return false;
+	}
+}
+
+async function renameProject(projectId: string, name: string): Promise<boolean> {
+	try {
+		const response = await fetch(`${API_BASE}/api/projects/${encodeURIComponent(projectId)}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ name }),
+		});
+		return response.ok;
+	} catch (error) {
+		console.error("Failed to rename project:", error);
+		return false;
+	}
+}
+
 export function useProjects() {
 	const query = useQuery<Project[]>({
 		queryKey: ["projects"],
@@ -43,5 +69,7 @@ export function useProjects() {
 		error: query.error,
 		refetch: () => query.refetch(),
 		createProject,
+		deleteProject,
+		renameProject,
 	};
 }

@@ -86,7 +86,7 @@ function AppShellWiring() {
 	const ui = useUIStore();
 
 	// Data fetching
-	const { projects, isLoading: projectsLoading, createProject } = useProjects();
+	const { projects, isLoading: projectsLoading, createProject, deleteProject, renameProject } = useProjects();
 	const hasProjects = projects.length > 0;
 	const [includeArchivedPlans, setIncludeArchivedPlans] = useState(false);
 	const { data: executions = [], isLoading: executionsLoading } = usePlanExecutions(selectedProjectId, includeArchivedPlans);
@@ -346,6 +346,16 @@ function AppShellWiring() {
 					onNavigate={handleSidebarNavigate}
 					onSelectProject={setProjectId}
 					onCreateProject={() => ui.setShowProjectDialog(true)}
+					onDeleteProject={(projectId) => {
+						deleteProject(projectId).then(() => {
+							queryClient.invalidateQueries({ queryKey: ["projects"] });
+						});
+					}}
+					onRenameProject={(projectId, name) => {
+						renameProject(projectId, name).then(() => {
+							queryClient.invalidateQueries({ queryKey: ["projects"] });
+						});
+					}}
 					onUploadPlan={() => hasProjects ? ui.setShowPlanUploadDialog(true) : ui.setShowProjectDialog(true)}
 					onCreateTask={() => ui.setShowTaskCreateDialog(true)}
 					onOpenSettings={() => ui.setShowSettingsDialog(true)}
