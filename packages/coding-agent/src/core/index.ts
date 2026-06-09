@@ -289,6 +289,33 @@ export {
 	recordExitCodeFailure,
 	scanLogLines,
 } from "./log-failure-detector.js";
+export type {
+	CompiledCommandPolicy,
+	CompiledCompletion,
+	CompiledExecution,
+	CompiledFilePolicy,
+	CompiledPlan,
+	CompiledTask,
+	CompiledWave,
+	CompiledWorkspace,
+	DiagnosticSummary,
+	ExecutionBatch,
+	PlanCompileResult,
+	PlanCompilerPhase,
+	PlanDiagnostic,
+	PlanDiagnosticCode,
+	PlanDiagnosticSeverity,
+	PlanDiagnosticSourceSpan,
+	PlanSpecV5Alpha2,
+} from "./plan-compiler/index.js";
+// Plan Compiler — Alpha2 canonical compiler
+export {
+	compiledPlanToWorkspaceQueue,
+	compilePlanSpecAlpha2,
+	formatDiagnostics,
+	formatDiagnosticsJson,
+	summarizeDiagnostics,
+} from "./plan-compiler/index.js";
 // P11.C — Plan Intake Analyzer
 export {
 	analyzePlanIntake,
@@ -303,11 +330,6 @@ export {
 	rejectIntakeProposal,
 	type SerializedTailInfo,
 } from "./plan-intake-analyzer.js";
-export {
-	findMissingWorkspaceLabels,
-	type ParsedSource,
-	scanMarkdownWorkstreamHeadings,
-} from "./plan-parser.js";
 // Planner — Autonomous Planner Core
 export {
 	type CriticalPathInfo,

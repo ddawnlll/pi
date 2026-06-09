@@ -1,5 +1,9 @@
 /**
- * Plan Validator — validates parsed plan drafts against rules.
+ * Plan Validator — validates parsed plan drafts against rules (NON-AUTHORITATIVE PREVIEW).
+ *
+ * WARNING: This is a frontend-only preview validator. Plan validity is determined
+ * exclusively by the backend compilePlanSpecAlpha2() compiler. Do not treat
+ * local validation success as proof of plan validity.
  *
  * Checks:
  * - title presence

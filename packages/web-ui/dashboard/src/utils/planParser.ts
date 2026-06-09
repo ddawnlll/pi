@@ -1,5 +1,9 @@
 /**
- * Plan Parser — extracts metadata from plan file content.
+ * Plan Parser — extracts metadata from plan file content (NON-AUTHORITATIVE PREVIEW).
+ *
+ * WARNING: This is a frontend-only preview parser. Plan validity is determined
+ * exclusively by the backend compilePlanSpecAlpha2() compiler. Do not treat
+ * local parse success as proof of plan validity.
  *
  * Supports Markdown (.md), plain text (.txt), JSON (.json),
  * and YAML (.yml/.yaml) plan files.

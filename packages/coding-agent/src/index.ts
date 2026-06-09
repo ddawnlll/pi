@@ -177,8 +177,32 @@ export {
 	type ValidationResult,
 	validateObservabilityEvent,
 } from "./core/observability.js";
+// Plan Compiler (canonical Alpha2 ingestion)
+export {
+	type CompiledCommandPolicy,
+	type CompiledCompletion,
+	type CompiledExecution,
+	type CompiledFilePolicy,
+	type CompiledPlan,
+	type CompiledTask,
+	type CompiledWave,
+	type CompiledWorkspace,
+	compiledPlanToWorkspaceQueue,
+	compilePlanSpecAlpha2,
+	type DiagnosticSummary,
+	type ExecutionBatch,
+	formatDiagnostics,
+	formatDiagnosticsJson,
+	type PlanCompileResult,
+	type PlanCompilerPhase,
+	type PlanDiagnostic,
+	type PlanDiagnosticCode,
+	type PlanDiagnosticSeverity,
+	type PlanDiagnosticSourceSpan,
+	type PlanSpecV5Alpha2,
+	summarizeDiagnostics,
+} from "./core/plan-compiler/index.js";
 export { createPlanControlManager, PlanControlManager } from "./core/plan-control.js";
-export { formatParseResult, loadPlan, type ParseOptions, type ParseResult, parsePlan } from "./core/plan-parser.js";
 export {
 	buildTranscriptSummary,
 	createWorkerTranscriptEvent,
@@ -189,12 +213,6 @@ export {
 	type WorkerTranscriptEvent,
 	type WorkerTranscriptEventType,
 } from "./core/plan-state.js";
-export {
-	type PlanSpecCombinedResult,
-	parsePlanSpecJsonOnly,
-} from "./core/planspec-v5-parser.js";
-export { type PlanSpecV5ParseResult, parsePlanSpecV5 } from "./core/planspec-v5-schema.js";
-export { validatePlanSpecSemantics } from "./core/planspec-v5-semantic-validator.js";
 export {
 	createProductionReadinessDoctor,
 	formatProductionReadinessReport,

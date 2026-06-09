@@ -5,8 +5,12 @@
 
 SHELL := /bin/bash
 .PHONY: help install build dashboard-install env db db-create db-migrate db-drop \
-        server dashboard dev dev-server dev-dashboard stop logs clean \
-        stack-up stack-down stack-down-hard
+        server dashboard dev dev-server dev-dashboard stop logs clean install-fork \
+        stack-up stack-down stack-down-hard \
+        test test-full test-full-phase-01 test-full-phase-02 test-full-phase-03 test-full-phase-04 \
+        test-deterministic test-execution-gauntlet test-execution-gauntlet-lead \
+        test-execution-gauntlet-control test-smoke-real-python \
+        test-smoke-real-python-monte-carlo test-nightly-real
 
 # ── Load environment ──────────────────────────────────────────────────────────
 # Sources .env at the repo root for PG* and PORT vars.
@@ -43,6 +47,7 @@ help:
 	@echo "  make db-migrate    Run pending migrations only"
 	@echo "  make db-drop       Drop the database (destructive)"
 	@echo "  make pi            Run pi TUI from local dist (dev build)"
+	@echo "  make install-fork  Install pi-fork script to ~/.local/bin/pi-fork"
 	@echo "  make server        API server (foreground)"
 	@echo "  make dashboard     Dashboard Vite dev server (foreground)"
 	@echo "  make dev           Start both server + dashboard in background"
@@ -53,6 +58,9 @@ help:
 	@echo "  make stack-up      Full bootstrap: env + install + build + db + dev"
 	@echo "  make stack-down    Stop services (preserves data)"
 	@echo "  make stack-down-hard  Stop services + drop database"
+	@echo "  make test           Run deterministic execution gauntlet (quick dev loop)"
+	@echo "  make test-full      Full end-to-end gate: lint → unit → build → stability gauntlet"
+	@echo "  make test-full-phase-04  Execution stability gauntlet only (deep integration)"
 	@echo "  make clean         Remove all node_modules"
 	@echo ""
 
@@ -60,6 +68,17 @@ help:
 
 install:
 	npm install
+
+# ── Install pi-fork ────────────────────────────────────────────────────────────
+
+install-fork: build
+	@echo "Installing pi-fork script..."
+	@mkdir -p $(HOME)/.local/bin
+	@REPO_DIR=$$(cd . && pwd); \
+	sed "s|__PI_REPO_PATH__|$$REPO_DIR|" scripts/pi-fork.sh > $(HOME)/.local/bin/pi-fork
+	@chmod +x $(HOME)/.local/bin/pi-fork
+	@echo "Installed pi-fork to $(HOME)/.local/bin/pi-fork"
+	@echo "Make sure $(HOME)/.local/bin is in your PATH."
 
 # ── Build (dependency order) ─────────────────────────────────────────────────
 
@@ -303,13 +322,59 @@ stack-down-hard: stop db-drop
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 
+REPORT_DIR := reports
+
 test:
-	@echo "=== Deterministic Focused Tests ==="
-	@cd packages/coding-agent && npx vitest run test/execution-gauntlet/
+	@REPORT_FILE="$(REPORT_DIR)/test-deterministic-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		echo "=== Deterministic Focused Tests ==="; \
+		cd packages/coding-agent && npx vitest run test/execution-gauntlet/; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo ""; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-full:
+	@REPORT_FILE="$(REPORT_DIR)/test-full-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		echo "╔══════════════════════════════════════════════════════════════╗"; \
+		echo "║  Full End-to-End Test Gate                                 ║"; \
+		echo "╚══════════════════════════════════════════════════════════════╝"; \
+		echo ""; \
+		$(MAKE) test-full-phase-01 || exit 1; \
+		$(MAKE) test-full-phase-02 || exit 1; \
+		$(MAKE) test-full-phase-03 || exit 1; \
+		$(MAKE) test-full-phase-04 || exit 1; \
+		echo ""; \
+		echo "╔══════════════════════════════════════════════════════════════╗"; \
+		echo "║  Full End-to-End Test Gate — PASSED                        ║"; \
+		echo "╚══════════════════════════════════════════════════════════════╝"; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo ""; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
+
+test-full-phase-01:
+	@echo "=== Phase 1: Code Quality (lint + format + typecheck + browser-smoke) ==="
+	@npm run check || (echo "PHASE 1 FAILED" && exit 1)
+
+test-full-phase-02:
+	@echo "=== Phase 2: All Package Unit Tests (hermetic) ==="
+	@for pkg in packages/*/; do \
+		pkg_name=$$(basename $$pkg); \
+		printf "\n--- %s ---\n" "$$pkg_name"; \
+		(cd $$pkg && if [ "$$pkg_name" = "ai" ]; then npm run test:fast; else npm test; fi) || exit 1; \
+	done; \
+	echo ""; \
+	echo "=== Phase 2 PASSED ==="
+
+test-full-phase-03:
+	@echo "=== Phase 3: Build All Packages ==="
+	@npm run build || (echo "PHASE 3 FAILED" && exit 1)
+
+test-full-phase-04:
 	@echo "╔══════════════════════════════════════════════════════════════╗"
-	@echo "║  P39 Readiness Gate — Full Execution Stability Gauntlet     ║"
+	@echo "║  Phase 4 — Execution Stability Gauntlet                    ║"
 	@echo "╚══════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@TIMESTAMP=$$(date -u +"%Y-%m-%dT%H-%M-%S-%3NZ" 2>/dev/null || date -u +"%Y-%m-%dT%H-%M-%SZ"); \
@@ -357,62 +422,97 @@ test-full:
 		|| (echo "SUMMARY VALIDATION FAILED" && exit 1); \
 	echo ""; \
 	echo "╔══════════════════════════════════════════════════════════════╗"; \
-	echo "║  P39 Readiness Gate — PASSED                                ║"; \
+	echo "║  Execution Stability Gauntlet — PASSED                    ║"; \
 	echo "╚══════════════════════════════════════════════════════════════╝"
 
 test-deterministic:
-	@cd packages/coding-agent && npx vitest run test/execution-gauntlet/
+	@REPORT_FILE="$(REPORT_DIR)/test-deterministic-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		cd packages/coding-agent && npx vitest run test/execution-gauntlet/; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-execution-gauntlet:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode fast \
-		--suite all \
-		--execution-modes stable_3,patch_transaction \
-		--iterations 100 \
-		--seed 1 \
-		--timeout-ms 300000
+	@REPORT_FILE="$(REPORT_DIR)/test-execution-gauntlet-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode fast \
+			--suite all \
+			--execution-modes stable_3,patch_transaction \
+			--iterations 100 \
+			--seed 1 \
+			--timeout-ms 300000; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-execution-gauntlet-lead:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode fast \
-		--suite lead-agent \
-		--execution-modes stable_3,patch_transaction \
-		--iterations 50 \
-		--seed 1 \
-		--timeout-ms 300000
+	@REPORT_FILE="$(REPORT_DIR)/test-execution-gauntlet-lead-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode fast \
+			--suite lead-agent \
+			--execution-modes stable_3,patch_transaction \
+			--iterations 50 \
+			--seed 1 \
+			--timeout-ms 300000; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-execution-gauntlet-control:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode fast \
-		--suite control-plane \
-		--execution-modes stable_3,patch_transaction \
-		--iterations 50 \
-		--seed 1 \
-		--timeout-ms 300000
+	@REPORT_FILE="$(REPORT_DIR)/test-execution-gauntlet-control-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode fast \
+			--suite control-plane \
+			--execution-modes stable_3,patch_transaction \
+			--iterations 50 \
+			--seed 1 \
+			--timeout-ms 300000; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-smoke-real-python:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode smoke-real \
-		--suite python-webapp \
-		--execution-modes stable_3,patch_transaction \
-		--seed 1 \
-		--timeout-ms 300000
+	@REPORT_FILE="$(REPORT_DIR)/test-smoke-real-python-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode smoke-real \
+			--suite python-webapp \
+			--execution-modes stable_3,patch_transaction \
+			--seed 1 \
+			--timeout-ms 300000; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-smoke-real-python-monte-carlo:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode smoke-real \
-		--suite python-webapp-monte-carlo \
-		--execution-modes stable_3,patch_transaction \
-		--iterations 20 \
-		--seed 1 \
-		--timeout-ms 300000
+	@REPORT_FILE="$(REPORT_DIR)/test-smoke-real-python-monte-carlo-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode smoke-real \
+			--suite python-webapp-monte-carlo \
+			--execution-modes stable_3,patch_transaction \
+			--iterations 20 \
+			--seed 1 \
+			--timeout-ms 300000; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 test-nightly-real:
-	@npx tsx scripts/run-execution-stability-gauntlet.ts \
-		--mode nightly-real \
-		--suite all \
-		--execution-modes stable_3,patch_transaction \
-		--iterations 10
+	@REPORT_FILE="$(REPORT_DIR)/test-nightly-real-$$(date -u +%Y%m%dT%H%M%SZ).log"; \
+	mkdir -p "$(REPORT_DIR)"; \
+	{ \
+		npx tsx scripts/run-execution-stability-gauntlet.ts \
+			--mode nightly-real \
+			--suite all \
+			--execution-modes stable_3,patch_transaction \
+			--iterations 10; \
+	} 2>&1 | tee "$$REPORT_FILE"; \
+	echo "Report: $$(pwd)/$$REPORT_FILE"
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 

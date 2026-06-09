@@ -14,14 +14,13 @@ import {
 	type ApprovedPreviewMetadata,
 	AutonomousExecutor,
 	type CleanupReviewResult,
+	type CompiledPlan,
+	compiledPlanToWorkspaceQueue,
+	compilePlanSpecAlpha2,
 	createSafetyDoctor,
 	killTrackedDetachedChildren,
 	PiLogger,
-	parsePlan,
-	parsePlanSpecJsonOnly,
-	parsePlanSpecV5,
 	runCleanupReview,
-	validatePlanSpecSemantics,
 	validatePlanTargetCommands,
 	type WorkspaceExecutionResult,
 	type WorkspaceQueue,
@@ -508,100 +507,28 @@ function scheduleExecutionCleanup(planExecId: string): void {
 export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const { planContent, projectId, workspaceRoot, planFileName } = options;
 
-	// Try PlanSpec v5 JSON parsing first
+	// Use canonical PlanSpec v5 Alpha2 compiler for all plan ingestion
 	let parseResult: any;
 	let currentPhase = "";
-	if (planContent.trim().startsWith("{")) {
-		try {
-			const v5Parse = parsePlanSpecJsonOnly(planContent);
-			if (v5Parse.success) {
-				const v5Schema = parsePlanSpecV5(planContent);
-				const parsed = JSON.parse(planContent);
-				// Set currentPhase as early as possible so the log line immediately
-				// following (outside the if/else chain) shows the correct phase even
-				// when a semantic-error or schema-failure branch is taken.
-				currentPhase = parsed.taskId || "P44";
-				if (v5Schema.success) {
-					const semanticErrors = validatePlanSpecSemantics(parsed);
-					if (semanticErrors.length === 0) {
-						// PlanSpec v5 valid — create a compatible parseResult
-						parseResult = {
-							success: true,
-							queue: {
-								phase: currentPhase,
-								title: parsed.taskName || parsed.metadata?.title || "Untitled",
-								workspaces: (parsed.workspaces || []).map((ws: any) => ({
-									id: ws.id,
-									title: ws.title || ws.id,
-									dependencies: ws.dependencies || [],
-									roleBudget: "worker",
-									executorPrompt: ws.instructions || ws.description || ws.title || `Work on ${ws.id}`,
-									instructions: ws.instructions || ws.description || "",
-									description: ws.description || ws.title || "",
-									capabilities: {
-										canEdit: ws.allowedFiles || [],
-										cannotEdit: ws.forbiddenFiles || [],
-										canRun: (ws.commands || []).map((cmd: any) => cmd.exact || cmd),
-									},
-									maxRetries: 3,
-									targetCommand: ws.validation?.commandRefs?.[0]
-										? ws.commands?.find((c: any) => c.ref === ws.validation.commandRefs[0])?.exact
-										: undefined,
-									acceptedEquivalentCommands: ws.validation?.equivalentCommands || [],
-									validationRequirement: ws.validation
-										? {
-												testFile: undefined,
-												acceptedEquivalentCommands: ws.validation.equivalentCommands || [],
-												mustPass: ws.validation.mustPass ?? true,
-											}
-										: undefined,
-									commands: (ws.commands || []).map((cmd: any) => cmd.exact || cmd),
-									fileScope: {
-										writeSet: ws.allowedFiles || [],
-										allowedPaths: ws.allowedFiles || [],
-									},
-									skip: false,
-								})),
-								maxParallelWorkspaces: parsed.authority?.executionState?.maxParallelWorkspaces || 1,
-							},
-							errors: [],
-							warnings: [],
-						};
-					} else {
-						parseResult = {
-							success: false,
-							queue: undefined,
-							errors: semanticErrors.map((e: any) => e.message || e.code),
-							warnings: [],
-						};
-					}
-				} else {
-					parseResult = {
-						success: false,
-						queue: undefined,
-						errors: v5Schema.errors || ["Schema validation failed"],
-						warnings: [],
-					};
-				}
-			} else {
-				parseResult = {
-					success: false,
-					queue: undefined,
-					errors: v5Parse.errors || ["JSON parse failed"],
-					warnings: [],
-				};
-			}
-		} catch {
-			parseResult = parsePlan(planContent);
-			if (parseResult.success && parseResult.queue) {
-				currentPhase = parseResult.queue.phase;
-			}
-		}
+
+	const compileResult = compilePlanSpecAlpha2(planContent);
+	if (compileResult.ok && compileResult.artifact) {
+		const artifact = compileResult.artifact as CompiledPlan;
+		currentPhase = artifact.phaseId;
+		const queue = compiledPlanToWorkspaceQueue(artifact);
+		parseResult = {
+			success: true,
+			queue,
+			errors: [],
+			warnings: [],
+		};
 	} else {
-		parseResult = parsePlan(planContent);
-		if (parseResult.success && parseResult.queue) {
-			currentPhase = parseResult.queue.phase;
-		}
+		parseResult = {
+			success: false,
+			queue: undefined,
+			errors: compileResult.diagnostics.map((d) => d.message),
+			warnings: [],
+		};
 	}
 
 	// AC #5: Guard against concurrent runPlan calls per projectId.
@@ -2358,14 +2285,14 @@ async function recoverSingleExecution(
 			return false;
 		}
 
-		// Parse the plan
-		const parseResult = parsePlan(planContent);
-		if (!parseResult.success || !parseResult.queue) {
+		// Parse the plan using the canoncial compiler
+		const compileResult = compilePlanSpecAlpha2(planContent);
+		if (!compileResult.ok || !compileResult.artifact) {
 			new PiLogger({ planExecId }).error(`Cannot recover ${planExecId}: failed to parse plan file`);
 			return false;
 		}
 
-		queue = parseResult.queue;
+		queue = compiledPlanToWorkspaceQueue(compileResult.artifact as CompiledPlan);
 		new PiLogger({ planExecId }).info(`Reconstructed queue from plan file for ${planExecId}`);
 	}
 

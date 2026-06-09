@@ -55,15 +55,14 @@ process.on("unhandledRejection", (reason, promise) => {
 
 import { join, resolve } from "node:path";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
+import type { CompiledPlan } from "@earendil-works/pi-coding-agent";
 import {
+	compiledPlanToWorkspaceQueue,
+	compilePlanSpecAlpha2,
 	createSafetyDoctor,
 	detectStateStoreBackend,
 	JsonStateStore,
-	parsePlan,
-	parsePlanSpecJsonOnly,
-	parsePlanSpecV5,
 	runCleanupReview,
-	validatePlanSpecSemantics,
 	validatePlanTargetCommands,
 } from "@earendil-works/pi-coding-agent";
 import { handleExecutionCommand } from "@earendil-works/pi-execution-service";
@@ -1855,66 +1854,28 @@ fastify.post<{
 		return reply.code(400).send({ error: "Plan content is required" });
 	}
 
-	// Try PlanSpec v5 JSON parsing first (for JSON-formatted plans)
-	if (planContent.trim().startsWith("{")) {
-		try {
-			const v5ParseResult = parsePlanSpecJsonOnly(planContent);
-			if (v5ParseResult.success) {
-				// Schema validation
-				const v5SchemaResult = parsePlanSpecV5(planContent);
-				if (!v5SchemaResult.success) {
-					return reply.code(400).send({
-						success: false,
-						errors: v5SchemaResult.errors,
-						errorCode: v5SchemaResult.errorCode,
-					});
-				}
-
-				// Semantic validation
-				try {
-					const parsed = JSON.parse(planContent);
-					const semanticErrors = validatePlanSpecSemantics(parsed);
-					if (semanticErrors.length > 0) {
-						return reply.code(400).send({
-							success: false,
-							errors: semanticErrors.map((e: { code: string; message: string }) => `[${e.code}] ${e.message}`),
-							errorCode: "E_SEMANTIC_INVALID",
-						});
-					}
-
-					return {
-						success: true,
-						planspec: parsed,
-						warnings: [],
-					};
-				} catch (semanticError) {
-					return reply.code(400).send({
-						success: false,
-						errors: [
-							`Semantic validation failed: ${semanticError instanceof Error ? semanticError.message : String(semanticError)}`,
-						],
-						errorCode: "E_SEMANTIC_INVALID",
-					});
-				}
-			}
-		} catch {
-			// Fall through to legacy parsing
-		}
-	}
-
+	// Use canonical PlanSpec v5 Alpha2 compiler for all inputs
 	try {
-		const parseResult = parsePlan(planContent);
+		const compileResult = compilePlanSpecAlpha2(planContent);
 
-		if (!parseResult.success) {
+		if (!compileResult.ok || !compileResult.artifact) {
 			return reply.code(400).send({
 				success: false,
-				errors: parseResult.errors,
-				warnings: parseResult.warnings,
+				errors: compileResult.diagnostics.map((d) => ({
+					code: d.code,
+					path: d.path,
+					message: d.message,
+					severity: d.severity,
+					phase: d.phase,
+					hint: d.hint,
+				})),
+				errorCode: "COMPILE_FAILED",
+				diagnostics: compileResult.diagnostics,
 			});
 		}
 
-		// Queue is guaranteed non-null because success is true
-		const queue = parseResult.queue!;
+		// Compilation succeeded — convert to workspace queue for downstream consumers
+		const queue = compiledPlanToWorkspaceQueue(compileResult.artifact as CompiledPlan);
 
 		// Run project stack validation
 		const workspaceRoot = getWorkspaceRoot();
@@ -1936,8 +1897,15 @@ fastify.post<{
 		// Generate suggested fixes
 		const suggestedFixes = generateSuggestedFixes(queue, batchPlan);
 
+		const artifact = compileResult.artifact as CompiledPlan;
+
 		return {
 			success: true,
+			compileResult: {
+				phaseId: artifact.phaseId,
+				title: artifact.title,
+				planSpecVersion: artifact.planSpecVersion,
+			},
 			parseResult: {
 				title: queue.title,
 				phase: queue.phase,
@@ -1958,7 +1926,8 @@ fastify.post<{
 			},
 			stackValidation,
 			suggestedFixes,
-			warnings: parseResult.warnings,
+			warnings: [],
+			diagnostics: compileResult.diagnostics,
 			requiresApproval: requiresInteractiveApproval(queue),
 		};
 	} catch (error) {
@@ -2150,17 +2119,18 @@ fastify.patch<{
 	}
 
 	try {
-		const parseResult = parsePlan(planContent);
+		const compileResult = compilePlanSpecAlpha2(planContent);
 
-		if (!parseResult.success || !parseResult.queue) {
+		if (!compileResult.ok || !compileResult.artifact) {
 			return reply.code(400).send({
 				success: false,
-				errors: parseResult.errors.length > 0 ? parseResult.errors : ["Failed to parse plan"],
-				warnings: parseResult.warnings,
+				errors: compileResult.diagnostics.map((d) => d.message),
+				warnings: [],
+				parseResult: compileResult.diagnostics,
 			});
 		}
 
-		const queue = parseResult.queue;
+		const queue = compiledPlanToWorkspaceQueue(compileResult.artifact as CompiledPlan);
 		const previewResult = applyDependencyPatches(queue, patches);
 
 		if (!previewResult.success) {
@@ -2219,46 +2189,14 @@ fastify.post<{
 	Body: { planContent: string; planFileName?: string; approved?: boolean; safetyOverrides?: Record<string, boolean> };
 }>("/api/projects/:projectId/plans/run", async (request, reply) => {
 	const { projectId } = request.params;
-	const { planContent, planFileName, approved, safetyOverrides } = request.body;
+	const { planContent, planFileName, safetyOverrides } = request.body;
 
 	if (!planContent) {
 		return reply.code(400).send({ error: "Plan content is required" });
 	}
 
 	try {
-		// Check if plan requires interactive approval before proceeding
-		// Try PlanSpec v5 JSON parse first
-		let _needsApproval = false;
-		if (planContent.trim().startsWith("{")) {
-			try {
-				const v5Result = parsePlanSpecJsonOnly(planContent);
-				if (v5Result.success) {
-					// PlanSpec v5 plans don't use interactive approval
-					_needsApproval = false;
-				} else {
-					// Not a valid PlanSpec v5 JSON, fall through
-					_needsApproval = false;
-				}
-			} catch {
-				_needsApproval = false;
-			}
-		} else {
-			// Legacy Markdown plan — check interactive approval
-			const parseCheck = parsePlan(planContent);
-			if (parseCheck.success && parseCheck.queue) {
-				if (requiresInteractiveApproval(parseCheck.queue) && !approved) {
-					return reply.code(403).send({
-						success: false,
-						error: "Plan requires interactive approval before execution. Set 'approved: true' in the request body to confirm.",
-						requiresApproval: true,
-						interactiveParallelismReview: parseCheck.queue.planExecution?.interactiveParallelismReview,
-						parallelismReview: parseCheck.queue.parallelismReview
-							? { enabled: parseCheck.queue.parallelismReview.enabled }
-							: undefined,
-					});
-				}
-			}
-		}
+		// Compiler handles all plan formats uniformly; no legacy approval checks needed
 
 		// Get the project from the state store
 		const stateStore = getStateStore();
@@ -3079,18 +3017,19 @@ fastify.post<{
 			continue;
 		}
 
-		// Validate the plan (parse + safety doctor)
+		// Validate the plan (parse + safety doctor) using the canonical compiler
 		try {
-			const parseResult = parsePlan(plan.planContent);
-			if (!parseResult.success) {
-				errors.push(`Invalid plan: ${(parseResult.errors ?? []).join(", ")}`);
+			const compileResult = compilePlanSpecAlpha2(plan.planContent);
+			if (!compileResult.ok || !compileResult.artifact) {
+				errors.push(`Invalid plan: ${compileResult.diagnostics.map((d) => d.message).join(", ")}`);
 				continue;
 			}
 
 			// Run safety doctor before allowing plan into the queue
-			if (parseResult.queue) {
+			const queue = compiledPlanToWorkspaceQueue(compileResult.artifact as CompiledPlan);
+			if (queue) {
 				const doctor = createSafetyDoctor();
-				const safetyReport = doctor.validateQueue(parseResult.queue);
+				const safetyReport = doctor.validateQueue(queue);
 				if (!safetyReport.safe) {
 					const criticalMsgs = safetyReport.critical.map((i) => `[${i.type}] ${i.message}`);
 					errors.push(`Safety check failed: ${criticalMsgs.join(", ")}`);

@@ -42,13 +42,47 @@ import {
 	formatMutationGuardResult,
 	formatSimulationForecast,
 } from "../core/execution-simulator.js";
+import { compiledPlanToWorkspaceQueue, compilePlanSpecAlpha2 } from "../core/plan-compiler/index.js";
 import { createPlanControlManager } from "../core/plan-control.js";
-import { formatParseResult, loadPlan } from "../core/plan-parser.js";
 import { PlanStateStore } from "../core/plan-state.js";
 import { createSafetyDoctor } from "../core/safety-doctor.js";
 import { createStateStore, detectStateStoreBackend } from "../core/state-store.js";
 import type { Workspace } from "../core/workspace-schema.js";
 import { WorkspaceStage } from "../core/workspace-schema.js";
+
+// ---------------------------------------------------------------------------
+// Plan loader adapter — uses the compiler, provides legacy-compatible result
+// ---------------------------------------------------------------------------
+
+/**
+ * Load and parse a plan file using the canonical Alpha2 compiler.
+ * Returns a legacy-compatible parse result for gradual migration.
+ */
+async function loadPlanCompilerWrapped(planPath: string) {
+	const content = await fs.readFile(planPath, "utf8");
+	const compileResult = compilePlanSpecAlpha2(content);
+
+	if (!compileResult.ok || !compileResult.artifact) {
+		return {
+			success: false,
+			queue: undefined,
+			errors: compileResult.diagnostics.map((d) => d.message),
+			warnings: [],
+			unresolvedPlaceholders: [] as string[],
+		};
+	}
+
+	const queue = compiledPlanToWorkspaceQueue(
+		compileResult.artifact as Parameters<typeof compiledPlanToWorkspaceQueue>[0],
+	);
+	return {
+		success: true,
+		queue,
+		errors: [] as string[],
+		warnings: compileResult.diagnostics.map((d) => `[${d.severity}] ${d.message}`),
+		unresolvedPlaceholders: [] as string[],
+	};
+}
 
 /**
  * Exit codes for plan commands
@@ -201,8 +235,8 @@ export async function planDoctor(planFile: string, options: PlanCommandOptions =
 		// Resolve plan file path
 		const planPath = path.resolve(cwd, planFile);
 
-		// Load and parse plan
-		const parseResult = await loadPlan(planPath);
+		// Load and parse plan using the canonical Alpha2 compiler
+		const parseResult = await loadPlanCompilerWrapped(planPath);
 
 		if (!parseResult.success || !parseResult.queue) {
 			if (json) {
@@ -220,7 +254,7 @@ export async function planDoctor(planFile: string, options: PlanCommandOptions =
 				);
 			} else {
 				console.error(chalk.red("✗ Plan parsing failed\n"));
-				console.error(formatParseResult(parseResult));
+				console.error(parseResult.errors.join("\n"));
 			}
 			return PlanExitCode.ParseError;
 		}
@@ -255,7 +289,7 @@ export async function planDoctor(planFile: string, options: PlanCommandOptions =
 		} else {
 			// Human-readable output
 			if (verbose) {
-				console.log(formatParseResult(parseResult));
+				console.log(`Plan: ${parseResult.queue.title} (${parseResult.queue.phase})`);
 				console.log("");
 			}
 
@@ -435,8 +469,8 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 		// Read original plan content for archiving
 		const planContent = await fs.readFile(planPath, "utf-8");
 
-		// Load and parse plan
-		const parseResult = await loadPlan(planPath);
+		// Load and parse plan using the canonical Alpha2 compiler
+		const parseResult = await loadPlanCompilerWrapped(planPath);
 
 		if (!parseResult.success || !parseResult.queue) {
 			if (json) {
@@ -453,7 +487,7 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 				);
 			} else {
 				console.error(chalk.red("✗ Plan parsing failed\n"));
-				console.error(formatParseResult(parseResult));
+				console.error(parseResult.errors.join("\n"));
 			}
 			return PlanExitCode.ParseError;
 		}
@@ -578,7 +612,7 @@ export async function planDryRun(planFile: string, options: PlanCommandOptions =
 			console.log(chalk.bold("=== Dry Run ===\n"));
 
 			if (verbose) {
-				console.log(formatParseResult(parseResult));
+				console.log(`Plan: ${parseResult.queue.title} (${parseResult.queue.phase})`);
 				console.log("");
 			}
 
@@ -735,8 +769,8 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 		// Resolve plan file path
 		const planPath = path.resolve(cwd, planFile);
 
-		// Load and parse plan
-		const parseResult = await loadPlan(planPath);
+		// Load and parse plan using the canonical Alpha2 compiler
+		const parseResult = await loadPlanCompilerWrapped(planPath);
 
 		if (!parseResult.success || !parseResult.queue) {
 			if (json) {
@@ -752,7 +786,7 @@ export async function planRun(planFile: string, options: PlanCommandOptions = {}
 				);
 			} else {
 				console.error(chalk.red("✗ Plan parsing failed\n"));
-				console.error(formatParseResult(parseResult));
+				console.error(parseResult.errors.join("\n"));
 			}
 			return PlanExitCode.ParseError;
 		}
@@ -1166,8 +1200,8 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 		// Resolve plan file path
 		const planPath = path.resolve(cwd, planFile);
 
-		// Load and parse plan
-		const parseResult = await loadPlan(planPath);
+		// Load and parse plan using the canonical Alpha2 compiler
+		const parseResult = await loadPlanCompilerWrapped(planPath);
 
 		if (!parseResult.success || !parseResult.queue) {
 			if (json) {
@@ -1183,7 +1217,7 @@ export async function planRerun(planFile: string, options: PlanCommandOptions = 
 				);
 			} else {
 				console.error(chalk.red("Plan parsing failed\n"));
-				console.error(formatParseResult(parseResult));
+				console.error(parseResult.errors.join("\n"));
 			}
 			return PlanExitCode.ParseError;
 		}

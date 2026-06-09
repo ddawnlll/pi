@@ -633,33 +633,26 @@ export class AutonomousExecutor {
 			return;
 		}
 
-		const { parsePlanSpecJsonOnly } = await import("./planspec-v5-parser.js");
-		const { admitPlanSpec } = await import("./planlock-admission.js");
+		const { compilePlanSpecAlpha2 } = await import("./plan-compiler/index.js");
 
-		const parseResult = parsePlanSpecJsonOnly(planSpecJson as string);
-		if (!parseResult.success) {
-			const schemaErrors = (parseResult.errors ?? []).join("; ");
+		const compileResult = compilePlanSpecAlpha2(planSpecJson as string);
+		if (!compileResult.ok) {
+			const errors = compileResult.diagnostics.map((d) => `[${d.severity}] ${d.message}`).join("; ");
 			throw new Error(
-				`PlanSpec admission rejected: schema/semantic validation failed. ` +
-					`Errors: ${schemaErrors || parseResult.errorCode || "unknown"}. ` +
+				`PlanSpec admission rejected: compilation failed. ` +
+					`Errors: ${errors || "unknown"}. ` +
 					"Cannot start workspace execution. Fix the PlanSpec and re-upload.",
 			);
 		}
 
-		if (!parseResult.planspec) {
+		if (!compileResult.planLock) {
 			throw new Error(
-				"PlanSpec admission rejected: parse succeeded but no PlanSpec object returned. " +
+				"PlanSpec admission rejected: compilation succeeded but no PlanLock emitted. " +
 					"This is an internal error. Cannot start workspace execution.",
 			);
 		}
 
-		const { result, planLock } = admitPlanSpec(parseResult.planspec, planSpecJson as string);
-		if (!result.admitted || !planLock) {
-			throw new Error(
-				`PlanSpec admission rejected: ${result.errorMessage || "admission failed"}. ` +
-					"Cannot start workspace execution.",
-			);
-		}
+		const planLock = compileResult.planLock as import("./planlock-types.js").PlanLock;
 
 		// Success: store lock hashes and per-workspace metadata
 		this.planLockHash = planLock.planLockHash;

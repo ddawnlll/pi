@@ -1,0 +1,244 @@
+{
+  "planSpecVersion": "5.0.0-alpha2",
+  "kind": "ImplementationPlan",
+  "metadata": {
+    "phaseId": "P48",
+    "title": "P48 Alpha2 Plan Compiler Rework",
+    "description": "Full replacement of the mixed plan parsing stack with a canonical PlanSpec v5 Alpha2 JSON-only compiler.",
+    "createdAt": "2026-06-09T00:00:00Z",
+    "updatedAt": "2026-06-09T00:00:00Z",
+    "owner": "pi-core",
+    "status": "active",
+    "tags": ["compiler", "planspec", "alpha2", "p48"]
+  },
+  "compatibility": {
+    "runtimeContractVersion": "2.2.0",
+    "runtimeTemplateVersion": "5.0.0-alpha2",
+    "legacyTemplateCompatible": false
+  },
+  "intent": {
+    "goal": "Implement a canonical compiler for PlanSpec v5 Alpha2 JSON that replaces all legacy parsing paths.",
+    "successCriteria": [
+      "Valid Alpha2 compiles successfully",
+      "Markdown is rejected with E_LEGACY_MARKDOWN",
+      "RC1/P44 old v5 is rejected with E_WRONG_VERSION",
+      "No failing compile returns empty diagnostics",
+      "Runtime uses single compiler path"
+    ],
+    "outOfScope": [
+      "Legacy v4/v5/RC1 parsing",
+      "Markdown extraction"
+    ],
+    "dependencies": ["P44"],
+    "blockers": []
+  },
+  "authority": {
+    "specification": "ACCP 1.2 P48 Implementation Prompt",
+    "executionState": {
+      "mode": "stable_3",
+      "maxParallelWorkspaces": 3,
+      "scaleMode": "stable",
+      "worktreeIsolation": true,
+      "integrationQueue": true,
+      "validationLock": true
+    },
+    "completion": {
+      "requiresAcceptanceCriteria": true,
+      "requiresValidationEvidence": true,
+      "requiresReport": true,
+      "requiresRollbackPlan": true,
+      "requiresFinalVerdict": true
+    },
+    "commands": {
+      "exactAllowedCommands": [
+        { "command": "npm run check", "reason": "Typecheck and lint validation" },
+        { "command": "npx vitest run", "reason": "Test execution" }
+      ]
+    }
+  },
+  "enforcementRegistry": {
+    "rules": [
+      {
+        "id": "R1",
+        "type": "compiler_invariant",
+        "severity": "critical",
+        "condition": "result.ok === false",
+        "action": "must have diagnostics"
+      }
+    ],
+    "policies": [
+      {
+        "id": "P1",
+        "name": "No Silent Failures",
+        "description": "Every compiler failure must produce structured diagnostics",
+        "ruleIds": ["R1"]
+      }
+    ]
+  },
+  "security": {
+    "selfModificationFirewall": {
+      "enabled": true,
+      "protectedPaths": ["packages/coding-agent/src/core/plan-compiler/"],
+      "allowListedFiles": [],
+      "requireExplicitApproval": true
+    },
+    "dataExfiltrationGuard": {
+      "enabled": false
+    },
+    "secretProtection": {
+      "enabled": false,
+      "maskInLogs": false
+    }
+  },
+  "commands": {
+    "policy": "strict",
+    "allowedCommands": ["npm run check", "npx vitest run"],
+    "blockedCommands": ["rm -rf /", "npm run dev", "npm run build"]
+  },
+  "validation": {
+    "preValidation": {
+      "checks": ["npm run check"]
+    },
+    "postValidation": {
+      "checks": ["npx vitest run"],
+      "timeoutSeconds": 120,
+      "requiredForCompletion": true
+    },
+    "failFast": true
+  },
+  "evidence": {
+    "captureMode": "automatic",
+    "types": ["test_results", "typecheck_output", "diagnostics_report"]
+  },
+  "brief": {
+    "summary": "Replace all legacy plan parsers with a single strict Alpha2 JSON compiler",
+    "keyChanges": [
+      "New plan-compiler module with full compiler pipeline",
+      "Strict Alpha2 JSON-only input",
+      "Structured diagnostics for all failure paths",
+      "CompiledPlan artifact with PlanLock and WorkerPackets"
+    ],
+    "risks": [
+      "Existing plans in Markdown format will break"
+    ],
+    "mitigations": [
+      "Clear diagnostic messages direct users to Alpha2 format"
+    ]
+  },
+  "locking": {
+    "enabled": true,
+    "hashAlgorithm": "sha256",
+    "includeTimestamp": true
+  },
+  "migration": {
+    "fromVersion": "5.0.0",
+    "breakingChanges": [
+      "Markdown plans no longer accepted",
+      "RC1 PlanSpec no longer accepted"
+    ],
+    "adaptationSteps": [
+      "Convert plans to Alpha2 JSON format",
+      "Use planSpecVersion: 5.0.0-alpha2"
+    ],
+    "rollbackStrategy": "Restore legacy parser files from git history"
+  },
+  "p45Bridge": {
+    "enabled": true,
+    "artifactSafety": true,
+    "mutationTracking": true,
+    "commitGating": true
+  },
+  "reports": {
+    "format": "markdown",
+    "includeMetrics": true,
+    "includeTimeline": true,
+    "includeDiffSummary": true
+  },
+  "waves": [
+    {
+      "id": "WA",
+      "title": "Workspace A — Repository Audit and Import Map",
+      "description": "Map all parser/runtime imports before changing code.",
+      "order": 0,
+      "dependencies": [],
+      "tasks": [
+        {
+          "id": "WA-T1",
+          "title": "Audit parser imports",
+          "description": "Use rg to find all parser import sites",
+          "type": "implementation",
+          "workspaceId": "WS1",
+          "acceptanceCriteria": ["Report lists every parser import site"],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "strict",
+            "allowedCommands": ["npm run check"]
+          },
+          "validation": {
+            "preCheck": ["npm run check"],
+            "postCheck": ["npm run check"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WB",
+      "title": "Workspace B — Compiler Skeleton and Diagnostics",
+      "description": "Create compiler module, diagnostics types, formatter.",
+      "order": 1,
+      "dependencies": ["WA"],
+      "tasks": [
+        {
+          "id": "WB-T1",
+          "title": "Create compiler module structure",
+          "description": "Set up plan-compiler directory with all submodules",
+          "type": "implementation",
+          "workspaceId": "WS1",
+          "acceptanceCriteria": ["Compiler directory exists with required files"],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "strict",
+            "allowedCommands": ["npm run check", "npx vitest run"]
+          },
+          "validation": {
+            "preCheck": ["npm run check"],
+            "postCheck": ["npx vitest run"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WC",
+      "title": "Workspace C — Strict Alpha2 Schema and Parser",
+      "description": "Implement strict Alpha2 JSON parsing and schema validation.",
+      "order": 2,
+      "dependencies": ["WB"],
+      "tasks": [
+        {
+          "id": "WC-T1",
+          "title": "Create Zod schemas for Alpha2",
+          "description": "Strict schemas with unknown property rejection",
+          "type": "implementation",
+          "workspaceId": "WS1",
+          "acceptanceCriteria": ["Valid minimal Alpha2 passes schema validation"],
+          "priority": "high"
+        }
+      ]
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "WS1",
+      "name": "plan-compiler",
+      "rootDir": "packages/coding-agent",
+      "canEdit": [
+        "packages/coding-agent/src/core/plan-compiler/",
+        "packages/coding-agent/test/plan-compiler/",
+        "docs/",
+        "reports/"
+      ],
+      "canRead": ["packages/coding-agent/src/"],
+      "isolationLevel": "partial"
+    }
+  ]
+}
