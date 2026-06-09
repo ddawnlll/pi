@@ -27,6 +27,7 @@ import { createTransitionRouter } from "../execution-runtime/transition-router.j
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import { AutoCommit } from "./auto-commit.js";
+import { createScopedIntegrationFromWorkspace } from "./completion/scoped-commit-integration.js";
 import type { AttemptRecord as ReconcilerAttemptRecord } from "./completion/terminal-reconciler.js";
 import { TerminalVerdictReconciler } from "./completion/terminal-reconciler.js";
 import { extractWorkerEcho } from "./completion/worker-echo-extractor.js";
@@ -191,6 +192,14 @@ export interface AutonomousExecutorConfig {
 	 * If not provided, falls back to direct WorkspaceAgentExecutor construction.
 	 */
 	workerAdapter?: WorkerAdapter;
+	/**
+	 * Enable scoped commit enforcement via WorkspaceCommitGate.
+	 * When true, only files matching the workspace's canEdit patterns
+	 * are staged and committed, preventing commits that include files
+	 * outside the workspace write set.
+	 * Defaults to false (uses existing AutoCommit flow).
+	 */
+	scopedCommitEnabled?: boolean;
 }
 
 /**
@@ -228,6 +237,7 @@ export class AutonomousExecutor {
 	/** P40: WorkerAdapter for platform/agent separation */
 	private workerAdapter: WorkerAdapter | null = null;
 	private autoCommitEnabled: boolean;
+	private scopedCommitEnabled: boolean;
 	private postPlanHandoffEnabled: boolean;
 	private handoffTimeoutMs: number;
 	/** Completion gate registry for tracking validation state per workspace (P4.6.1) */
@@ -527,6 +537,7 @@ export class AutonomousExecutor {
 		this.projectId = config.projectId ?? "default";
 		this.enableRealExecution = config.enableRealExecution ?? false;
 		this.autoCommitEnabled = config.autoCommit ?? true;
+		this.scopedCommitEnabled = config.scopedCommitEnabled ?? false;
 		this.postPlanHandoffEnabled = config.postPlanHandoff ?? true;
 		this.handoffTimeoutMs = config.handoffTimeoutMs ?? 30 * 60 * 1000; // 30 minutes
 
@@ -2660,23 +2671,33 @@ export class AutonomousExecutor {
 			const worktreeRoot = agentExecutor?.getEffectiveWorkspaceRoot() ?? null;
 			const commitRoot = worktreeRoot ?? this.workspaceRoot;
 			const phase = this.workspaceQueue?.phase ?? "2";
+			const commitMsg = `feat(p${phase}): complete workspace ${workspace.id} — ${workspace.title.slice(0, 50)}`;
 
-			const autoCommit = new AutoCommit(commitRoot);
-			const result = await autoCommit.commit(workspace, wsState, phase);
+			let commitResult: { success: boolean; commitHash?: string; reason?: string };
 
-			if (!result.success) {
+			if (this.scopedCommitEnabled) {
+				// Scoped commit: only files matching workspace write set are staged and committed
+				const integration = createScopedIntegrationFromWorkspace(commitRoot, workspace.id, workspace);
+				commitResult = await integration.createScopedCommit(commitMsg);
+			} else {
+				// Original auto-commit path: stages files matching canEdit patterns
+				const autoCommit = new AutoCommit(commitRoot);
+				commitResult = await autoCommit.commit(workspace, wsState, phase);
+			}
+
+			if (!commitResult.success) {
 				// Log warnings for skip reasons (not errors)
-				if (result.reason && !result.reason.includes("failed")) {
-					console.warn(`[auto-commit] ${workspace.id}: ${result.reason}`);
-				} else if (result.reason) {
-					console.warn(`[auto-commit] Warning: ${workspace.id}: ${result.reason}`);
+				if (commitResult.reason && !commitResult.reason.includes("failed")) {
+					console.warn(`[auto-commit] ${workspace.id}: ${commitResult.reason}`);
+				} else if (commitResult.reason) {
+					console.warn(`[auto-commit] Warning: ${workspace.id}: ${commitResult.reason}`);
 				}
 				return;
 			}
 
-			console.log(`[auto-commit] Committed workspace ${workspace.id} in ${commitRoot} (${result.commitHash})`);
+			console.log(`[auto-commit] Committed workspace ${workspace.id} in ${commitRoot} (${commitResult.commitHash})`);
 
-			if (worktreeRoot && worktreeRoot !== this.workspaceRoot && result.commitHash) {
+			if (worktreeRoot && worktreeRoot !== this.workspaceRoot && commitResult.commitHash) {
 				try {
 					const runner = createGitRunner({
 						planExecId: this.planExecutionId ?? "",
@@ -2684,9 +2705,8 @@ export class AutonomousExecutor {
 						leaseId: "",
 						cwd: this.workspaceRoot,
 					});
-					await runner.writeRepo(["cherry-pick", "--no-commit", result.commitHash], { timeout: 60_000 });
+					await runner.writeRepo(["cherry-pick", "--no-commit", commitResult.commitHash], { timeout: 60_000 });
 					await runner.writeRepo(["add", "-A"], { timeout: 30_000 });
-					const commitMsg = `feat(p${phase}): complete workspace ${workspace.id} — ${workspace.title.slice(0, 50)}`;
 					await runner.writeRepo(["commit", "--no-verify", "-m", commitMsg], { timeout: 30_000 });
 					console.log(`[auto-commit] Cherry-picked ${workspace.id} into main repo`);
 				} catch (cherryErr) {
