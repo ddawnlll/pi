@@ -103,6 +103,17 @@ export const EDIT_STRATEGY_BLOCKED_CHANNEL = "edit_strategy_blocked";
  * @param content - File content string
  * @returns Number of lines (0 for empty string, 1 for single line without newline)
  */
+export type { EditStrategyReasonCode } from "./edit-strategy-policy.js";
+
+/**
+ * Count the number of lines in a string.
+ *
+ * Uses the same convention as the read/edit tools: split on newlines,
+ * treating both LF and CRLF as line breaks.
+ *
+ * @param content - File content string
+ * @returns Number of lines (0 for empty string, 1 for single line without newline)
+ */
 export function countLines(content: string): number {
 	if (content.length === 0) return 0;
 	const normalized = content.replace(/\r\n/g, "\n");

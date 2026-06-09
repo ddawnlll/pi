@@ -6,9 +6,11 @@ import { relative } from "path";
 import { type Static, Type } from "typebox";
 import { renderDiff } from "../../modes/interactive/components/diff.js";
 import type { ToolDefinition } from "../extensions/types.js";
+import type { SmartMutationEngine } from "../mutation/smart-mutation-engine.js";
 import { afterFileEdit } from "../project-state-hooks.js";
 import { buildEditRecoveryPacket, formatRecoveryPacket } from "../token-context/edit-recovery.js";
 import type { EditRecoveryConfig } from "../token-context/edit-recovery-types.js";
+import type { WriteGate } from "../write-gate.js";
 import {
 	applyEditsToNormalizedContent,
 	computeEditsDiff,
@@ -91,6 +93,14 @@ export interface EditToolOptions {
 	operations?: EditOperations;
 	/** P43.3 Edit recovery config for mismatched oldText */
 	editRecoveryConfig?: EditRecoveryConfig;
+	/** Optional WriteGate for tracking edit results. */
+	writeGate?: WriteGate;
+	/** Optional SmartMutationEngine for safe mutation with safety checks. */
+	smartMutationEngine?: SmartMutationEngine;
+	/** Repo root path (required for SmartMutationEngine relative path resolution). */
+	repoRoot?: string;
+	/** Workspace ID for tracking (used by WriteGate and SmartMutationEngine). */
+	workspaceId?: string;
 }
 
 function prepareEditArguments(input: unknown): EditToolInput {
@@ -315,7 +325,80 @@ export function createEditToolDefinition(
 		async execute(_toolCallId, input: EditToolInput, signal?: AbortSignal, _onUpdate?, _ctx?) {
 			const { path, edits } = validateEditInput(input);
 			const absolutePath = resolveToCwd(path, cwd);
+			const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
 
+			// ---- WriteGate (for tracking, not blocking edits) ----
+			const wg = options?.writeGate;
+
+			// ---- SmartMutationEngine path ----
+			const sme = options?.smartMutationEngine;
+			const repoRoot = options?.repoRoot ?? cwd;
+			const workspaceId = options?.workspaceId;
+
+			// When SmartMutationEngine is provided, use it for each edit
+			if (sme) {
+				// Since the edit tool supports multiple edits but the engine handles one at a time,
+				// we apply edits sequentially using the engine.
+				try {
+					for (const edit of edits) {
+						const mutationResult = await sme.mutate({
+							repoRoot,
+							workspaceId,
+							path: relPath,
+							mode: "edit",
+							oldText: edit.oldText,
+							newText: edit.newText,
+						});
+
+						if (!mutationResult.ok) {
+							if (wg) {
+								wg.processEditResult(
+									relPath,
+									mutationResult.blockReason ?? `Edit rejected for block: ${edit.oldText.substring(0, 40)}`,
+									false,
+								);
+							}
+							return {
+								content: [
+									{
+										type: "text",
+										text:
+											mutationResult.blockReason ??
+											`Edit rejected for block: ${edit.oldText.substring(0, 40)}`,
+									},
+								],
+								isError: true,
+								details: {} as EditToolDetails,
+							};
+						}
+					}
+
+					if (wg) {
+						wg.processEditResult(relPath, "", true);
+					}
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Successfully replaced ${edits.length} block(s) in ${path}.`,
+							},
+						],
+						details: {} as EditToolDetails,
+					};
+				} catch (error: any) {
+					if (wg) {
+						wg.processEditResult(relPath, String(error), false);
+					}
+					return {
+						content: [{ type: "text", text: `Edit failed: ${error.message ?? String(error)}` }],
+						isError: true,
+						details: {} as EditToolDetails,
+					};
+				}
+			}
+
+			// ---- Default direct edit path ----
 			return withFileMutationQueue(
 				absolutePath,
 				() =>
@@ -330,6 +413,7 @@ export function createEditToolDefinition(
 						}
 
 						let aborted = false;
+						let editSucceeded = false;
 
 						// Set up abort handler.
 						const onAbort = () => {
@@ -352,6 +436,9 @@ export function createEditToolDefinition(
 										error instanceof Error && "code" in error ? `Error code: ${error.code}` : String(error);
 									if (signal) {
 										signal.removeEventListener("abort", onAbort);
+									}
+									if (wg) {
+										wg.processEditResult(relPath, errorMessage, false);
 									}
 									reject(new Error(`Could not edit file: ${path}. ${errorMessage}.`));
 									return;
@@ -415,13 +502,14 @@ export function createEditToolDefinition(
 								}
 
 								// Emit project state event
-								const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
 								afterFileEdit(cwd, relPath, finalContent, baseContent);
 
 								// Clean up abort handler.
 								if (signal) {
 									signal.removeEventListener("abort", onAbort);
 								}
+
+								editSucceeded = true;
 
 								const diffResult = generateDiffString(baseContent, newContent);
 								resolve({
@@ -439,8 +527,20 @@ export function createEditToolDefinition(
 									signal.removeEventListener("abort", onAbort);
 								}
 
+								if (wg) {
+									wg.processEditResult(
+										relPath,
+										error instanceof Error ? error.message : String(error),
+										editSucceeded,
+									);
+								}
+
 								if (!aborted) {
 									reject(error instanceof Error ? error : new Error(String(error)));
+								}
+							} finally {
+								if (wg && editSucceeded) {
+									wg.processEditResult(relPath, "", true);
 								}
 							}
 						})();

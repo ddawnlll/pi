@@ -6,7 +6,9 @@ import { type Static, Type } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.js";
 import { getLanguageFromPath, highlightCode } from "../../modes/interactive/theme/theme.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
+import type { SmartMutationEngine } from "../mutation/smart-mutation-engine.js";
 import { afterFileWrite } from "../project-state-hooks.js";
+import type { WriteGate } from "../write-gate.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToCwd } from "./path-utils.js";
 import { invalidArgText, normalizeDisplayText, replaceTabs, shortenPath, str } from "./render-utils.js";
@@ -38,6 +40,14 @@ const defaultWriteOperations: WriteOperations = {
 export interface WriteToolOptions {
 	/** Custom operations for file writing. Default: local filesystem */
 	operations?: WriteOperations;
+	/** Optional WriteGate for edit strategy enforcement (blocks full rewrites of large files). */
+	writeGate?: WriteGate;
+	/** Optional SmartMutationEngine for safe file mutation with safety checks. */
+	smartMutationEngine?: SmartMutationEngine;
+	/** Repo root path (required for SmartMutationEngine relative path resolution). */
+	repoRoot?: string;
+	/** Workspace ID for tracking (used by WriteGate and SmartMutationEngine). */
+	workspaceId?: string;
 }
 
 type WriteHighlightCache = {
@@ -200,6 +210,81 @@ export function createWriteToolDefinition(
 			_ctx?,
 		) {
 			const absolutePath = resolveToCwd(path, cwd);
+			const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
+
+			// ---- WriteGate pre-check ----
+			const wg = options?.writeGate;
+			if (wg) {
+				const gateResult = await wg.check(
+					absolutePath,
+					relPath,
+					Buffer.byteLength(content, "utf-8"),
+					undefined,
+					content.split("\n").length,
+				);
+				if (!gateResult.allowed) {
+					return {
+						content: [{ type: "text", text: gateResult.reason }],
+						isError: true,
+						details: undefined,
+					};
+				}
+			}
+
+			// ---- SmartMutationEngine path ----
+			const sme = options?.smartMutationEngine;
+			const repoRoot = options?.repoRoot ?? cwd;
+			const workspaceId = options?.workspaceId;
+			if (sme) {
+				try {
+					const mutationResult = await sme.mutate({
+						repoRoot,
+						workspaceId,
+						path: relPath,
+						mode: "overwrite",
+						content,
+					});
+					if (!mutationResult.ok) {
+						if (wg) {
+							wg.processWriteResult(
+								relPath,
+								mutationResult.blockReason ?? "Write rejected by mutation engine",
+								false,
+							);
+						}
+						return {
+							content: [
+								{
+									type: "text",
+									text: mutationResult.blockReason ?? "Write rejected by mutation engine",
+								},
+							],
+							isError: true,
+							details: undefined,
+						};
+					}
+
+					if (wg) {
+						wg.processWriteResult(relPath, "", true);
+					}
+
+					return {
+						content: [{ type: "text", text: `Successfully wrote ${content.length} bytes to ${path}` }],
+						details: undefined,
+					};
+				} catch (error: any) {
+					if (wg) {
+						wg.processWriteResult(relPath, String(error), false);
+					}
+					return {
+						content: [{ type: "text", text: `Write failed: ${error.message ?? String(error)}` }],
+						isError: true,
+						details: undefined,
+					};
+				}
+			}
+
+			// ---- Default direct write path ----
 			const dir = dirname(absolutePath);
 			return withFileMutationQueue(
 				absolutePath,
@@ -225,7 +310,6 @@ export function createWriteToolDefinition(
 									await ops.writeFile(absolutePath, content);
 									if (aborted) return;
 									// Emit project state event
-									const relPath = relative(cwd, absolutePath).replace(/\\/g, "/");
 									afterFileWrite(cwd, relPath, content);
 									signal?.removeEventListener("abort", onAbort);
 									resolve({
