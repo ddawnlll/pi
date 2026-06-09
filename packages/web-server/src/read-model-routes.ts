@@ -396,6 +396,30 @@ export function registerReadModelRoutes(
 	);
 
 	// -----------------------------------------------------------------------
+	// GET /api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/completion-status
+	// Workspace completion status via read model (P44.10)
+	// -----------------------------------------------------------------------
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; workspaceId: string };
+	}>(
+		"/api/projects/:projectId/plans/:planExecId/workspaces/:workspaceId/completion-status",
+		async (request, reply) => {
+			const { planExecId, workspaceId } = request.params;
+			try {
+				const stateStore = getStateStore();
+				const workspaceRoot = getWorkspaceRoot();
+				const adapter = createReadModelAdapter(stateStore, workspaceRoot);
+				const readModel = createExecutionReadModel(adapter);
+				const status = await readModel.getWorkspaceCompletionStatus(planExecId, workspaceId);
+				return { success: true, completionStatus: status };
+			} catch (error) {
+				log.error({ error, planExecId, workspaceId }, "Failed to get workspace completion status from read model");
+				return reply.code(500).send({ success: false, error: String(error) });
+			}
+		},
+	);
+
+	// -----------------------------------------------------------------------
 	// GET /api/projects/:projectId/plans/:planExecId/artifacts
 	// List available artifacts for a plan execution
 	// -----------------------------------------------------------------------

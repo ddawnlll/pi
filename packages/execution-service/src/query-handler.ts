@@ -16,6 +16,7 @@ import type {
 	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
+	CompletionStatusView,
 	DependencyGraphNode,
 	DependencyGraphView,
 	ExecutionReadModel,
@@ -396,6 +397,84 @@ function extractEscalationsFromEvents(events: JournalEventEnvelope[]): LeadEscal
 	}
 
 	return escalations;
+}
+
+/**
+ * Extract completion gate status from `completion_gate_blocked_visible`
+ * journal events.
+ *
+ * Returns a CompletionStatusView indicating whether the workspace can be
+ * completed and, if blocked, the reasons and recommended stage.
+ *
+ * When no such event exists, the function determines:
+ * - If there are workspace terminal events (completed, failed, blocked)
+ *   without a completion_gate_blocked_visible, the workspace was not blocked
+ *   by the gate — returns canComplete: true.
+ * - If there are no workspace events at all, returns unavailable.
+ */
+function extractCompletionStatusFromEvents(
+	_planExecutionId: string,
+	workspaceId: string,
+	events: JournalEventEnvelope[],
+): CompletionStatusView {
+	// Filter events for this workspace
+	const wsEvents = events.filter((e) => e.workspaceId === workspaceId);
+
+	// Look for completion_gate_blocked_visible events
+	const blockedEvents = wsEvents.filter((e) => e.eventType === "completion_gate_blocked_visible");
+
+	if (blockedEvents.length > 0) {
+		// Use the latest block event (highest seq number)
+		const latestBlock = blockedEvents.reduce((a, b) =>
+			Number.parseInt(a.seq, 10) > Number.parseInt(b.seq, 10) ? a : b,
+		);
+		const payload = latestBlock.payload as Record<string, unknown> | null;
+		const blockReasons = (payload?.blockReasons as string[]) ?? [];
+		const recommendedStage = (payload?.recommendedStage as string) ?? "blocked";
+
+		return {
+			canComplete: false,
+			blockReasons,
+			recommendedStage,
+			dataAvailability: {
+				available: true,
+				reason: "Extracted from completion_gate_blocked_visible journal event.",
+			},
+		};
+	}
+
+	// No block event — check if workspace has reached a terminal state
+	const terminalEventTypes = [
+		"workspace_completed",
+		"workspace_failed",
+		"workspace_blocked",
+		"workspace_cancelled",
+		"workspace_skipped",
+		"workspace_timed_out",
+	];
+	const terminalEvents = wsEvents.filter((e) => terminalEventTypes.includes(e.eventType));
+
+	if (terminalEvents.length > 0) {
+		return {
+			canComplete: true,
+			blockReasons: [],
+			dataAvailability: {
+				available: true,
+				reason: "Workspace has reached a terminal state without completion gate blockage.",
+			},
+		};
+	}
+
+	// No relevant events at all
+	return {
+		canComplete: false,
+		blockReasons: [],
+		dataAvailability: {
+			available: false,
+			reason:
+				"No completion_gate_blocked_visible or workspace terminal events found. Cannot determine completion status.",
+		},
+	};
 }
 
 /**
@@ -1192,6 +1271,15 @@ export function createExecutionReadModel(stateStore: {
 				blocked: false,
 				blockReasons: [],
 			};
+		},
+
+		// -------------------------------------------------------------------
+		// Completion Status (P44.10)
+		// -------------------------------------------------------------------
+
+		async getWorkspaceCompletionStatus(planExecutionId: string, workspaceId: string): Promise<CompletionStatusView> {
+			const events = await getEvents(planExecutionId);
+			return extractCompletionStatusFromEvents(planExecutionId, workspaceId, events);
 		},
 
 		// -------------------------------------------------------------------

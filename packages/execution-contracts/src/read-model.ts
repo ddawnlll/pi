@@ -470,6 +470,31 @@ export interface WorkerContextView {
 // Final Validation View
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Completion Status View (P44.10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Completion status for a workspace, exposed from the completion gate
+ * evaluation. Provides insight into whether a workspace can be completed
+ * and, if blocked, what the reasons and recommended state are.
+ *
+ * DATA SOURCE: Completion status is extracted from
+ * `completion_gate_blocked_visible` journal events which contain the block
+ * reasons and recommended transition. If no such event exists, the workspace
+ * is either not yet evaluated or was completed without blockage.
+ */
+export interface CompletionStatusView {
+	/** Whether the workspace can be marked as Complete */
+	canComplete: boolean;
+	/** Reasons why completion is blocked (empty when canComplete is true) */
+	blockReasons: string[];
+	/** Recommended stage when completion is blocked */
+	recommendedStage?: string;
+	/** Whether this data is backed by real events or default */
+	dataAvailability: DataAvailability;
+}
+
 export interface FinalValidationView {
 	required: boolean;
 	passed: boolean | null;
@@ -535,6 +560,22 @@ export interface ExecutionReadModel {
 	getLeadEscalations(planExecutionId: string, workspaceId: string): Promise<LeadEscalationView[]>;
 
 	getFinalValidationStatus(planExecutionId: string, workspaceId: string): Promise<FinalValidationView>;
+
+	// -----------------------------------------------------------------------
+	// Completion Status (P44.10)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get completion gate status for a workspace.
+	 * Returns whether the workspace can be completed, and if blocked,
+	 * the block reasons and recommended stage.
+	 *
+	 * DATA SOURCE: Completion status is extracted from
+	 * `completion_gate_blocked_visible` journal events. If no such event
+	 * exists and the workspace is in a terminal state, returns `canComplete: true`.
+	 * If no events exist at all, returns explicit unavailable state.
+	 */
+	getWorkspaceCompletionStatus(planExecutionId: string, workspaceId: string): Promise<CompletionStatusView>;
 
 	// -----------------------------------------------------------------------
 	// File Tree Read Model (P41.06)
