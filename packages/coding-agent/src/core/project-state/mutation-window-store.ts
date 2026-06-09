@@ -6,7 +6,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { atomicWriteJson, readJsonFile } from "./atomic-write.js";
 import type { MutationWindow } from "./event-types.js";
@@ -36,7 +35,7 @@ export class MutationWindowStore {
 	/**
 	 * Open a new mutation window.
 	 */
-	open(source: MutationWindow["source"], reason: string, command?: string): MutationWindow {
+	open(source: MutationWindow["source"], _reason: string, command?: string): MutationWindow {
 		const window: MutationWindow = {
 			id: randomUUID().slice(0, 12),
 			source,

@@ -4,14 +4,14 @@
  * Verifies atomic persistence, load/save, error handling.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getStateDir, getStateFilePath, STATE_FILES } from "../../src/core/project-state/paths.js";
 import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
-import { type ProjectStateBundle, ProjectStateStore } from "../../src/core/project-state/store.js";
-import type { ProjectFilesState, ProjectStateManifest, SnapshotResult } from "../../src/core/project-state/types.js";
+import { ProjectStateStore } from "../../src/core/project-state/store.js";
+import type { ProjectFilesState } from "../../src/core/project-state/types.js";
 
 describe("ProjectStateStore", () => {
 	let tmpDir: string;
@@ -191,7 +191,7 @@ describe("ProjectStateSnapshotService", () => {
 	});
 
 	it("excludes node_modules from discovery", async () => {
-		const result = await service.run({ rootDir: tmpDir });
+		const _result = await service.run({ rootDir: tmpDir });
 		const store = new ProjectStateStore(tmpDir);
 		const filesState = store.loadFilesState()!;
 		const paths = Object.keys(filesState.files);
@@ -199,7 +199,7 @@ describe("ProjectStateSnapshotService", () => {
 	});
 
 	it("excludes .git from discovery", async () => {
-		const result = await service.run({ rootDir: tmpDir });
+		const _result = await service.run({ rootDir: tmpDir });
 		const store = new ProjectStateStore(tmpDir);
 		const filesState = store.loadFilesState()!;
 		const paths = Object.keys(filesState.files);
@@ -219,7 +219,7 @@ describe("ProjectStateSnapshotService", () => {
 	});
 
 	it("second snapshot skips unchanged files", async () => {
-		const first = await service.run({ rootDir: tmpDir });
+		const _first = await service.run({ rootDir: tmpDir });
 		const second = await service.run({ rootDir: tmpDir });
 		// Second run should have fewer cached files since most should be skipped
 		expect(second.filesSkipped).toBeGreaterThanOrEqual(second.filesCached);

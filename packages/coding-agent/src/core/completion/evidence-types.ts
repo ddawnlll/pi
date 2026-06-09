@@ -90,6 +90,10 @@ export interface EvidenceLedgerEntry {
 	producedBy?: string;
 	/** The criterion IDs this evidence relates to */
 	criterionIds: string[];
+	/** Plan lock hash this evidence was produced under (v5 ACCP mode) */
+	planLockHash?: string;
+	/** Workspace lock hash this evidence was produced under (v5 ACCP mode) */
+	workspaceLockHash?: string;
 }
 
 /**

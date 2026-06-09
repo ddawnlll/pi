@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanLock v1 Schema for PlanSpec v5 alpha2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lockVersion",
+    "source",
+    "contract",
+    "normalized",
+    "integrity",
+    "signature"
+  ],
+  "properties": {
+    "lockVersion": {
+      "const": "1.0.0"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specPath",
+        "specHash",
+        "compiledAt",
+        "compilerVersion"
+      ],
+      "properties": {
+        "specPath": {
+          "type": "string"
+        },
+        "specHash": {
+          "type": "string"
+        },
+        "compiledAt": {
+          "type": "string"
+        },
+        "compilerVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planSpecVersion",
+        "runtimeContractVersion",
+        "runtimeTemplateVersion",
+        "phaseId",
+        "executionMode",
+        "parallelism",
+        "p45ImplementationAllowed"
+      ],
+      "properties": {
+        "planSpecVersion": {
+          "type": "string"
+        },
+        "runtimeContractVersion": {
+          "type": "string"
+        },
+        "runtimeTemplateVersion": {
+          "type": "string"
+        },
+        "phaseId": {
+          "type": "string"
+        },
+        "executionMode": {
+          "type": "string"
+        },
+        "parallelism": {
+          "type": "integer"
+        },
+        "p45ImplementationAllowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "normalized": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "waves",
+        "workspaces",
+        "commands"
+      ],
+      "properties": {
+        "waves": {
+          "type": "array"
+        },
+        "workspaces": {
+          "type": "array"
+        },
+        "commands": {
+          "type": "object"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalJsonHash",
+        "workspaceGraphHash",
+        "allowedFilesHash",
+        "validationPolicyHash",
+        "acceptanceCriteriaHash",
+        "instructionHash",
+        "reportContractHash",
+        "p45BridgeHash",
+        "commandPolicyHash"
+      ],
+      "properties": {
+        "canonicalJsonHash": {
+          "type": "string"
+        },
+        "workspaceGraphHash": {
+          "type": "string"
+        },
+        "allowedFilesHash": {
+          "type": "string"
+        },
+        "validationPolicyHash": {
+          "type": "string"
+        },
+        "acceptanceCriteriaHash": {
+          "type": "string"
+        },
+        "instructionHash": {
+          "type": "string"
+        },
+        "reportContractHash": {
+          "type": "string"
+        },
+        "p45BridgeHash": {
+          "type": "string"
+        },
+        "commandPolicyHash": {
+          "type": "string"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "algorithm",
+        "signedBy",
+        "signature"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "algorithm": {
+          "type": "string"
+        },
+        "signedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

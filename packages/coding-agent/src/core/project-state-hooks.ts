@@ -8,13 +8,10 @@
  * If .pi/project-state does not exist or event append fails, hooks silently degrade.
  */
 
-import { readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
 import { classifyCommand } from "./project-state/bash-classifier.js";
 import { ProjectStateEventJournal } from "./project-state/event-journal.js";
 import type { CommandClassification } from "./project-state/event-types.js";
 import { MutationWindowStore } from "./project-state/mutation-window-store.js";
-import { getStateDir } from "./project-state/paths.js";
 import { ReconcileScanner } from "./project-state/reconcile-scanner.js";
 import { ProjectStateStore } from "./project-state/store.js";
 import { ToolEventEmitter } from "./project-state/tool-event-emitter.js";
@@ -26,7 +23,7 @@ import { ToolEventEmitter } from "./project-state/tool-event-emitter.js";
 /**
  * Check if a project state exists for the given root directory.
  */
-function stateExists(rootDir: string): boolean {
+function _stateExists(rootDir: string): boolean {
 	try {
 		const store = new ProjectStateStore(rootDir);
 		return store.hasAnyState();
@@ -53,7 +50,7 @@ function getEmitter(rootDir: string): ToolEventEmitter | null {
 // Hash helper (simple string hash)
 // ============================================================================
 
-function simpleHash(s: string): string {
+function _simpleHash(s: string): string {
 	let hash = 0;
 	for (let i = 0; i < s.length; i++) {
 		const char = s.charCodeAt(i);
@@ -112,7 +109,7 @@ export interface BashClassificationResult {
  * Classifies the command and opens a mutation window if required.
  * Returns the classification result so the caller can use it for after-hook.
  */
-export function beforeBashCommand(rootDir: string, command: string, cwd: string): BashClassificationResult {
+export function beforeBashCommand(rootDir: string, command: string, _cwd: string): BashClassificationResult {
 	try {
 		const classification = classifyCommand(command);
 

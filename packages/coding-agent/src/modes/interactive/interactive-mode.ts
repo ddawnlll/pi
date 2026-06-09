@@ -5259,6 +5259,18 @@ export class InteractiveMode {
 			await this.handleSnapshotResume(args.slice(1));
 			return;
 		}
+		if (subcommand === "clear") {
+			await this.handleSnapshotClear();
+			return;
+		}
+		if (subcommand === "events") {
+			await this.handleSnapshotEvents();
+			return;
+		}
+		if (subcommand === "query") {
+			await this.handleSnapshotQuery(args.slice(1));
+			return;
+		}
 
 		// Default: run full snapshot (Smart Read warmup + project state files)
 		await this.runFullSnapshot(text);
@@ -5266,13 +5278,130 @@ export class InteractiveMode {
 
 	private async handleSnapshotStatus(): Promise<void> {
 		const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+		const { MutationWindowStore } = await import("../../core/project-state/mutation-window-store.js");
+		const { QueryService } = await import("../../core/project-state/query-service.js");
 		const rootDir = this.sessionManager.getCwd();
 		const service = new ProjectStateSnapshotService();
 		service.setRootDir(rootDir);
 		const status = service.getStatus(rootDir);
 
+		const lines: string[] = [];
+		lines.push("Snapshot Status");
+		lines.push("".padEnd(50, "="));
+		lines.push("");
+		lines.push("Project State:");
+		lines.push(`  Overall: ${status.overall}`);
+		lines.push(`  Root: ${rootDir}`);
+		lines.push(`  Manifest: ${status.manifestPath || "not found"}`);
+		lines.push(`  Files indexed: ${status.fileCount}`);
+		lines.push(`  Source files: ${status.sourceFileCount}`);
+		lines.push(`  Last updated: ${status.lastUpdated || "unknown"}`);
+		lines.push("");
+		lines.push("Validity:");
+		lines.push(`  Tree:     ${status.treeValidity}`);
+		lines.push(`  Files:    ${status.filesValidity}`);
+		lines.push(`  Packages: ${status.packageValidity}`);
+		lines.push(`  Git:      ${status.gitValidity}`);
+		lines.push("");
+		lines.push("Smart Read Cache:");
+		lines.push(`  Warm entries:  ${status.smartReadWarmCount}`);
+		lines.push(`  Failed:        ${status.smartReadFailedCount}`);
+		lines.push(
+			`  Est. savings:  ${status.estimatedTokenSavings > 0 ? `${(status.estimatedTokenSavings / 1000).toFixed(0)}K` : "0"} tokens`,
+		);
+
+		// Event journal info
+		try {
+			const journal = service.getEventJournal();
+			const journalStats = journal.getStats();
+			const pending = service.getProjector(rootDir).getPendingCount();
+			const lastApplied = service.getProjector(rootDir).getLastAppliedSequence();
+
+			lines.push("");
+			lines.push("Event Journal:");
+			lines.push(`  File: ${journalStats.journalPath}`);
+			lines.push(`  Present: ${journal.exists() ? "yes" : "no"}`);
+			lines.push(`  Total events: ${journalStats.totalEvents}`);
+			lines.push(`  Last sequence: ${journalStats.lastSequence}`);
+			lines.push(`  Last applied: ${lastApplied}`);
+			lines.push(`  Pending: ${pending}`);
+			lines.push(
+				`  Journal size: ${journalStats.journalSizeBytes > 1024 ? `${(journalStats.journalSizeBytes / 1024).toFixed(1)} KB` : `${journalStats.journalSizeBytes} B`}`,
+			);
+			if (journalStats.needsCompaction) {
+				lines.push(`  Warning: Journal needs compaction`);
+			}
+
+			// Show last 5 events
+			const recentEvents = journal.loadEvents(Math.max(0, journalStats.lastSequence - 5));
+			if (recentEvents.length > 0) {
+				lines.push("");
+				lines.push(`  Recent events (${recentEvents.length}):`);
+				for (const e of recentEvents.slice(-5)) {
+					const extra =
+						e.event.type === "command_started" || e.event.type === "command_completed"
+							? `${e.event.type === "command_started" ? "→" : " "} ${(e.event as any).command ?? ""}`
+							: e.event.type.startsWith("file_")
+								? ` ${(e.event as any).path ?? ""}`
+								: "";
+					lines.push(`    [${e.sequence}] ${e.event.type}${extra}`);
+				}
+			}
+		} catch {
+			// Journal not available
+		}
+
+		// Mutation windows
+		try {
+			const mws = new MutationWindowStore(rootDir);
+			const openWindows = mws.getOpenWindows();
+			const allWindows = mws.getAll();
+			lines.push("");
+			lines.push("Mutation Windows:");
+			lines.push(`  Open: ${openWindows.length}`);
+			lines.push(`  Total: ${allWindows.length}`);
+			for (const w of openWindows.slice(0, 3)) {
+				lines.push(`  [${w.status}] ${w.source}: ${w.command?.slice(0, 60) ?? "(none)"}`);
+			}
+			for (const w of allWindows.filter((w) => w.status === "failed" || w.status === "closed").slice(0, 2)) {
+				lines.push(`  [${w.status}] ${w.source}: ${w.command?.slice(0, 60) ?? "(none)"}`);
+			}
+			if (allWindows.length > openWindows.length + 2) {
+				lines.push(`  ... and ${allWindows.length - openWindows.length - 2} more closed/failed`);
+			}
+		} catch {
+			// Not available
+		}
+
+		// Query service check
+		try {
+			const qs = new QueryService(service.getStore());
+			const rgCheck = qs.rgFiles();
+			lines.push("");
+			lines.push("Query Service:");
+			lines.push(`  rg-files cache: ${rgCheck.source === "project_state_cache" ? "available" : rgCheck.source}`);
+			lines.push(`  Total files: ${rgCheck.totalItems ?? 0}`);
+			if (rgCheck.truncated) {
+				lines.push(`  Output capped: yes (${rgCheck.items?.length ?? 0} shown)`);
+			}
+		} catch {
+			// Not available
+		}
+
+		// Recommendations
+		lines.push("");
+		lines.push("Commands:");
+		lines.push("  /snapshot          — Full snapshot (Smart Read + state files)");
+		lines.push("  /snapshot refresh  — Force refresh all cached data");
+		lines.push("  /snapshot clear    — Delete all project state");
+		lines.push("  /snapshot events   — View event journal summary");
+		lines.push("  /snapshot query ls <path>     — Cached ls");
+		lines.push("  /snapshot query rg-files      — Cached file listing");
+		lines.push("  /snapshot query packages      — Package state");
+		lines.push("  /snapshot query git           — Git state");
+
 		this.chatContainer.addChild(new Spacer(1));
-		const statusText = new Text(service.formatStatus(status), 1, 0);
+		const statusText = new Text(lines.join("\n"), 1, 0);
 		this.chatContainer.addChild(statusText);
 		this.ui.requestRender();
 	}
@@ -5300,6 +5429,133 @@ export class InteractiveMode {
 		} else {
 			statusText.setText(service.formatSummary(result));
 		}
+		this.ui.requestRender();
+	}
+
+	private async handleSnapshotClear(): Promise<void> {
+		const { rmSync, existsSync, readdirSync } = await import("node:fs");
+		const { join } = await import("node:path");
+		const rootDir = this.sessionManager.getCwd();
+		const stateDir = join(rootDir, ".pi", "project-state");
+		const cacheDir = join(rootDir, ".pi", "smart-read-cache");
+
+		const lines: string[] = [];
+		lines.push("Clearing project state...");
+		lines.push("");
+
+		let deletedFiles = 0;
+		try {
+			if (existsSync(stateDir)) {
+				const files = readdirSync(stateDir, { recursive: true });
+				deletedFiles += files.length;
+				rmSync(stateDir, { recursive: true, force: true });
+				lines.push(`Deleted .pi/project-state/ (${files.length} files)`);
+			} else {
+				lines.push("No project state found.");
+			}
+		} catch (err) {
+			lines.push(`Error clearing project state: ${(err as Error).message}`);
+		}
+
+		try {
+			if (existsSync(cacheDir)) {
+				const files = readdirSync(cacheDir, { recursive: true });
+				deletedFiles += files.length;
+				rmSync(cacheDir, { recursive: true, force: true });
+				lines.push(`Deleted .pi/smart-read-cache/ (${files.length} files)`);
+			} else {
+				lines.push("No Smart Read cache found.");
+			}
+		} catch (err) {
+			lines.push(`Error clearing cache: ${(err as Error).message}`);
+		}
+
+		lines.push("");
+		lines.push(`Done. Deleted ${deletedFiles} total files.`);
+		lines.push("Run /snapshot to rebuild.");
+
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text(lines.join("\n"), 1, 0);
+		this.chatContainer.addChild(statusText);
+		this.ui.requestRender();
+	}
+
+	private async handleSnapshotEvents(): Promise<void> {
+		const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+		const rootDir = this.sessionManager.getCwd();
+		const service = new ProjectStateSnapshotService();
+		service.setRootDir(rootDir);
+		const summary = service.getEventsSummary(rootDir);
+
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text(summary, 1, 0);
+		this.chatContainer.addChild(statusText);
+		this.ui.requestRender();
+	}
+
+	private async handleSnapshotQuery(args: string[]): Promise<void> {
+		const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+		const rootDir = this.sessionManager.getCwd();
+		const service = new ProjectStateSnapshotService();
+		service.setRootDir(rootDir);
+
+		const queryType = args[0];
+		const queryPath = args[1];
+
+		let output = "";
+		try {
+			switch (queryType) {
+				case "ls": {
+					const result = service.query("ls", queryPath ?? ".");
+					output = `${result.summary}\n${(result.items ?? []).join("\n")}`;
+					if (result.truncated) {
+						output += `\n... and ${(result.totalItems ?? 0) - (result.items?.length ?? 0)} more`;
+					}
+					if (result.warnings.length > 0) {
+						output += `\n\nWarnings:\n${result.warnings.join("\n")}`;
+					}
+					break;
+				}
+				case "rg-files": {
+					const result = service.query("rg-files", queryPath);
+					output = result.summary;
+					if (result.items && result.items.length > 0) {
+						output += `\n\nFiles (${result.items.length}):\n${result.items.join("\n")}`;
+					}
+					if (result.truncated) {
+						output += `\n... showing ${result.items?.length ?? 0} of ${result.totalItems ?? 0}`;
+					}
+					if (result.warnings.length > 0) {
+						output += `\n\nWarnings:\n${result.warnings.join("\n")}`;
+					}
+					break;
+				}
+				case "packages": {
+					const result = service.query("packages");
+					output = result.summary;
+					if (result.warnings.length > 0) {
+						output += `\n\nWarnings:\n${result.warnings.join("\n")}`;
+					}
+					break;
+				}
+				case "git": {
+					const result = service.query("git");
+					output = result.summary;
+					if (result.warnings.length > 0) {
+						output += `\n\nWarnings:\n${result.warnings.join("\n")}`;
+					}
+					break;
+				}
+				default:
+					output = `Unknown query type: ${queryType}\nValid: ls, rg-files, packages, git`;
+			}
+		} catch (err) {
+			output = `Query failed: ${(err as Error).message}`;
+		}
+
+		this.chatContainer.addChild(new Spacer(1));
+		const statusText = new Text(output, 1, 0);
+		this.chatContainer.addChild(statusText);
 		this.ui.requestRender();
 	}
 
@@ -5375,7 +5631,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 			})
-			.then((result) => {
+			.then(async (result) => {
 				this._snapshotController = null;
 				if (json) {
 					statusText.setText(JSON.stringify(result, null, 2));
@@ -5402,6 +5658,64 @@ export class InteractiveMode {
 							lines.push(`  ... and ${result.failures.length - 5} more`);
 						}
 					}
+
+					// Append project state status
+					try {
+						const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
+						const pss = new ProjectStateSnapshotService();
+						await pss.run({ rootDir, concurrency, force, json });
+						const pssStatus = pss.getStatus(rootDir);
+						const journal = pss.getEventJournal();
+						const journalStats = journal.getStats();
+
+						lines.push("");
+						lines.push("--- Project State Snapshot ---");
+						lines.push(`State files: ${pssStatus.manifestPath || "not found"}`);
+						lines.push(`Files indexed: ${pssStatus.fileCount}`);
+						lines.push(`Source files: ${pssStatus.sourceFileCount}`);
+						lines.push(`Tree validity: ${pssStatus.treeValidity}`);
+						lines.push(`Files validity: ${pssStatus.filesValidity}`);
+						lines.push(`Packages validity: ${pssStatus.packageValidity}`);
+						lines.push(`Git validity: ${pssStatus.gitValidity}`);
+						lines.push(`Smart Read warm: ${pssStatus.smartReadWarmCount}`);
+						lines.push(`Smart Read failed: ${pssStatus.smartReadFailedCount}`);
+						const estSavings =
+							pssStatus.estimatedTokenSavings > 0
+								? `${(pssStatus.estimatedTokenSavings / 1000).toFixed(0)}K`
+								: "0";
+						lines.push(`Est. token savings: ${estSavings} tokens`);
+						if (pssStatus.lastUpdated) {
+							const ago = Math.round((Date.now() - new Date(pssStatus.lastUpdated).getTime()) / 1000);
+							lines.push(`Last updated: ${ago}s ago`);
+						}
+						lines.push("");
+						lines.push("--- Event Journal ---");
+						lines.push(`Events: ${journalStats.totalEvents}`);
+						lines.push(`Last sequence: ${journalStats.lastSequence}`);
+						const jSize =
+							journalStats.journalSizeBytes > 1024
+								? `${(journalStats.journalSizeBytes / 1024).toFixed(1)} KB`
+								: `${journalStats.journalSizeBytes} B`;
+						lines.push(`Journal size: ${jSize}`);
+						if (journalStats.needsCompaction) {
+							lines.push(`Warning: Journal needs compaction (${journalStats.totalEvents} events)`);
+						}
+						lines.push(`Pending events: ${pss.getProjector().getPendingCount()}`);
+
+						if (pssStatus.overall === "dirty" || pssStatus.overall === "stale") {
+							lines.push("");
+							lines.push("Status: Project state is dirty/stale. Run /snapshot refresh.");
+						} else if (pssStatus.overall === "partial") {
+							lines.push("");
+							lines.push("Status: Project state is partial. Some segments may be missing.");
+						} else if (pssStatus.overall === "valid") {
+							lines.push("");
+							lines.push("Status: Project state is live. Use /snapshot status for details.");
+						}
+					} catch {
+						// Best-effort: project state is optimization only
+					}
+
 					statusText.setText(lines.join("\n"));
 				}
 				this.ui.requestRender();
@@ -5411,17 +5725,6 @@ export class InteractiveMode {
 				statusText.setText(`Snapshot failed: ${(err as Error).message}`);
 				this.ui.requestRender();
 			});
-
-		// Also run project state snapshot in background
-		try {
-			const { ProjectStateSnapshotService } = await import("../../core/project-state/snapshot-service.js");
-			const pss = new ProjectStateSnapshotService();
-			pss.run({ rootDir, concurrency, force, json }).catch(() => {
-				// Best-effort: project state is optimization only
-			});
-		} catch {
-			// Best-effort
-		}
 	}
 
 	private progressBar(percent: number): string {

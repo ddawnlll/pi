@@ -8,8 +8,8 @@
  * Events must go through reconcile or dirty marking.
  */
 
-import { existsSync, type FSWatcher, watch } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { type FSWatcher, watch } from "node:fs";
+import { resolve } from "node:path";
 import type { FsChangeFlushReason, ProjectStateFsChange } from "./event-types.js";
 import { HARD_EXCLUDED_DIRS } from "./paths.js";
 
@@ -105,7 +105,7 @@ export class ProjectStateWatcher {
 
 			this._isRunning = true;
 			this.error = null;
-		} catch (err) {
+		} catch (_err) {
 			this._isRunning = false;
 			this.error = WATCHER_UNAVAILABLE_WARNING;
 		}
@@ -153,7 +153,7 @@ export class ProjectStateWatcher {
 	/**
 	 * Flush pending events and return them as a batch.
 	 */
-	async flush(reason: FsChangeFlushReason): Promise<{ changes: ProjectStateFsChange[]; batchId: string }> {
+	async flush(_reason: FsChangeFlushReason): Promise<{ changes: ProjectStateFsChange[]; batchId: string }> {
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
 			this.debounceTimer = null;

@@ -80,8 +80,10 @@ function createTestPlanLock(overrides?: Partial<PlanLock>): PlanLock {
 	};
 
 	// Compute planLockHash from the lock
-	lock.planLockHash = recomputePlanLockHash(lock);
-	return lock;
+	return {
+		...lock,
+		planLockHash: recomputePlanLockHash(lock),
+	};
 }
 
 function createTestWorkerPacket(

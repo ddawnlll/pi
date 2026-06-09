@@ -1,0 +1,177 @@
+{
+  "$schema": "https://example.local/planspec/v5-alpha2/worker-packet.schema.json",
+  "packetVersion": "1.0.0-alpha2",
+  "planLockHash": "sha256:eb3430943d5a5aaa7c16978f9e7b5617c5a8b54d4f18e841e4adace1fa72a21a",
+  "workspaceLockHash": "sha256:d81a2dd515e48d077431338042b3ff86cae8d0b1e0264ccdbc05f729dfe593ac",
+  "repoBaseSha": "git:BASE_SHA_PLACEHOLDER",
+  "workspace": {
+    "id": "P44.03",
+    "title": "CompletionGate v2",
+    "waveId": "W2",
+    "dependencies": [
+      "P44.01",
+      "P44.02",
+      "P44.06"
+    ],
+    "role": "gate",
+    "allowedFiles": [
+      "packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+      "packages/coding-agent/src/core/completion/completion-gate-adapter.ts",
+      "packages/coding-agent/test/completion/completion-gate-v2.test.ts"
+    ],
+    "forbiddenFiles": [
+      "package.json",
+      "pnpm-lock.yaml",
+      ".env",
+      ".env.*",
+      "node_modules/**",
+      ".git/**"
+    ],
+    "instructions": [
+      {
+        "id": "WI-P4403-001",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "CompletionGate v2 is authoritative; worker self-report is claim-only.",
+        "enforcedBy": [
+          "completion_gate_v2",
+          "terminal_reconciler"
+        ]
+      },
+      {
+        "id": "WI-P4403-002",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "CompletionGate v2 rejects missing evidence, stale attempt verdicts, validation shortcuts, and unexpected zero-tests-found output.",
+        "enforcedBy": [
+          "completion_gate_v2",
+          "command_policy_engine"
+        ]
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC-P4403-001",
+        "title": "CompletionGate v2 implemented",
+        "text": "CompletionGate v2 has source, test, and evidence artifacts.",
+        "level": "required",
+        "evidenceRequired": true,
+        "evidenceTypes": [
+          "source",
+          "unit_test",
+          "report"
+        ],
+        "validationRefs": [
+          "VAL-P4403-001"
+        ]
+      },
+      {
+        "id": "AC-P4403-002",
+        "title": "CompletionGate v2 block path covered",
+        "text": "CompletionGate v2 includes at least one failure/blocking path test.",
+        "level": "required",
+        "evidenceRequired": true,
+        "evidenceTypes": [
+          "source",
+          "unit_test",
+          "report"
+        ],
+        "validationRefs": [
+          "VAL-P4403-001"
+        ]
+      }
+    ],
+    "validation": {
+      "requirements": [
+        {
+          "id": "VAL-P4403-001",
+          "type": "command_ref",
+          "commandRef": "CMD-P4403-UNIT",
+          "evidenceRequired": true
+        },
+        {
+          "id": "VAL-P4403-002",
+          "type": "command_ref",
+          "commandRef": "CMD-TYPECHECK-TSGO",
+          "evidenceRequired": true
+        }
+      ]
+    },
+    "reports": {
+      "required": [
+        {
+          "type": "IPR",
+          "after": "workspace_mutation"
+        },
+        {
+          "type": "TVR",
+          "after": "workspace_validation"
+        }
+      ]
+    },
+    "rollback": {
+      "strategy": "revert_workspace_files_only",
+      "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+    }
+  },
+  "globalPolicies": {
+    "p45ImplementationAllowed": false,
+    "watchModeForbidden": true,
+    "silentPassForbidden": true,
+    "workerMustEchoPlanLockHash": true,
+    "workerMustEchoWorkspaceLockHash": true,
+    "commandPolicy": {
+      "exactCommandRefsAllowed": [
+        "CMD-P4403-UNIT",
+        "CMD-TYPECHECK-TSGO"
+      ],
+      "commandClassesAvailable": [
+        "CLASS-READONLY-DISCOVERY",
+        "CLASS-TARGETED-VITEST",
+        "CLASS-TYPECHECK"
+      ],
+      "runtimeCommandGrantEnabled": true,
+      "hardDeniedCommands": [
+        "DENY-GIT-PUSH",
+        "DENY-GIT-RESET-HARD",
+        "DENY-GIT-CLEAN",
+        "DENY-RM-RF",
+        "DENY-CURL",
+        "DENY-WGET",
+        "DENY-SUDO"
+      ]
+    }
+  },
+  "runtimeCommandGrantExample": {
+    "type": "CommandGrantRequest",
+    "workspaceId": "P44.03",
+    "reason": "Need to inspect package scripts before validation.",
+    "proposedCommand": {
+      "mode": "argv",
+      "cwd": ".",
+      "executable": "node",
+      "args": [
+        "-e",
+        "console.log(JSON.stringify(require('./package.json').scripts))"
+      ]
+    },
+    "expectedSideEffects": "none",
+    "expectedOutput": "package script list",
+    "risk": "low"
+  },
+  "requiredReports": [
+    {
+      "type": "IPR",
+      "path": "reports/accp/P44/ipr_workspace_P44.03.md"
+    },
+    {
+      "type": "TVR",
+      "path": "reports/accp/P44/tvr_workspace_P44.03.md"
+    }
+  ],
+  "completionEchoRequired": {
+    "planLockHash": "sha256:eb3430943d5a5aaa7c16978f9e7b5617c5a8b54d4f18e841e4adace1fa72a21a",
+    "workspaceLockHash": "sha256:d81a2dd515e48d077431338042b3ff86cae8d0b1e0264ccdbc05f729dfe593ac",
+    "repoBaseSha": "git:BASE_SHA_PLACEHOLDER"
+  }
+}

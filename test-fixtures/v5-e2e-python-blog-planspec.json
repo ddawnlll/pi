@@ -1,0 +1,201 @@
+{
+  "accpVersion": "1.2",
+  "planspecVersion": "5.0.0",
+  "taskId": "V5-E2E-PYTHON-BLOG",
+  "taskName": "V5 End-to-End Python Blog App",
+  "executionClass": "implementation",
+  "workspaceGroup": "A",
+  "allowProductionCodeChanges": true,
+  "allowTestCodeChanges": true,
+  "allowReportFiles": true,
+  "requireRepoInspectionFirst": false,
+  "requireValidationEvidence": true,
+  "requireRollbackPlan": true,
+  "requireFinalAccpReport": true,
+  "authority": {
+    "specification": "Create a simple Python Flask blog application with backend API and frontend templates",
+    "executionState": {
+      "mode": "planspec_locked",
+      "maxParallelWorkspaces": 2
+    },
+    "completion": {
+      "requiresAcceptanceCriteria": true,
+      "requiresValidationEvidence": true,
+      "requiresReport": true,
+      "requiresRollbackPlan": true,
+      "requiresFinalVerdict": true
+    }
+  },
+  "waves": [
+    {
+      "id": "WAVE-01",
+      "description": "Backend API development",
+      "workspaceRefs": ["WS-BACKEND"],
+      "parallel": false
+    },
+    {
+      "id": "WAVE-02",
+      "description": "Frontend templates development",
+      "workspaceRefs": ["WS-FRONTEND"],
+      "parallel": false
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "WS-BACKEND",
+      "title": "Flask Backend API",
+      "description": "Create a Flask REST API for blog posts with CRUD operations",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-BACKEND-01",
+          "description": "Flask app created with proper structure"
+        },
+        {
+          "id": "AC-BACKEND-02",
+          "description": "Blog post model with title, content, author, created_at fields"
+        },
+        {
+          "id": "AC-BACKEND-03",
+          "description": "CRUD endpoints: GET /posts, POST /posts, GET /posts/<id>, PUT /posts/<id>, DELETE /posts/<id>"
+        },
+        {
+          "id": "AC-BACKEND-04",
+          "description": "SQLite database integration working"
+        },
+        {
+          "id": "AC-BACKEND-05",
+          "description": "All API endpoints return proper JSON responses"
+        }
+      ],
+      "validation": {
+        "commandRefs": ["CMD-BACKEND-TEST"],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "reports/backend-api-summary.md",
+          "description": "Backend API implementation summary"
+        }
+      ],
+      "rollback": {
+        "steps": [
+          {
+            "action": "remove_directory",
+            "description": "Remove backend directory"
+          },
+          {
+            "action": "remove_file",
+            "description": "Remove requirements.txt if created"
+          },
+          {
+            "action": "remove_file",
+            "description": "Remove test files"
+          }
+        ]
+      },
+      "commands": [
+        {
+          "ref": "CMD-BACKEND-SETUP",
+          "description": "Set up Flask project structure",
+          "exact": "mkdir -p backend && cd backend && touch __init__.py models.py routes.py"
+        },
+        {
+          "ref": "CMD-BACKEND-INSTALL",
+          "description": "Install Flask dependencies",
+          "exact": "pip install flask flask-sqlalchemy"
+        },
+        {
+          "ref": "CMD-BACKEND-TEST",
+          "description": "Run backend tests",
+          "exact": "cd backend && python -m pytest test_backend.py -v"
+        }
+      ]
+    },
+    {
+      "id": "WS-FRONTEND",
+      "title": "Jinja2 Frontend Templates",
+      "description": "Create Jinja2 templates for displaying blog posts",
+      "dependencies": ["WS-BACKEND"],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-FRONTEND-01",
+          "description": "Base template with proper HTML structure"
+        },
+        {
+          "id": "AC-FRONTEND-02",
+          "description": "Post list template showing all blog posts"
+        },
+        {
+          "id": "AC-FRONTEND-03",
+          "description": "Single post template showing full post content"
+        },
+        {
+          "id": "AC-FRONTEND-04",
+          "description": "Create post form template"
+        },
+        {
+          "id": "AC-FRONTEND-05",
+          "description": "Templates integrate with Flask backend routes"
+        }
+      ],
+      "validation": {
+        "commandRefs": ["CMD-FRONTEND-TEST"],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "reports/frontend-templates-summary.md",
+          "description": "Frontend templates implementation summary"
+        }
+      ],
+      "rollback": {
+        "steps": [
+          {
+            "action": "remove_directory",
+            "description": "Remove templates directory"
+          },
+          {
+            "action": "remove_directory",
+            "description": "Remove static directory if created"
+          }
+        ]
+      },
+      "commands": [
+        {
+          "ref": "CMD-FRONTEND-SETUP",
+          "description": "Set up templates directory structure",
+          "exact": "mkdir -p backend/templates backend/static/css"
+        },
+        {
+          "ref": "CMD-FRONTEND-TEST",
+          "description": "Verify templates exist and are valid",
+          "exact": "ls -la backend/templates/"
+        }
+      ]
+    }
+  ],
+  "templates": [],
+  "validationCases": [
+    {
+      "id": "VAL-001",
+      "description": "Backend API responds to health check",
+      "input": "curl -s http://localhost:5000/health",
+      "expected": {
+        "valid": true
+      }
+    },
+    {
+      "id": "VAL-002",
+      "description": "Can create a blog post via API",
+      "input": "curl -s -X POST http://localhost:5000/posts -H 'Content-Type: application/json' -d '{\"title\":\"Test\",\"content\":\"Test content\"}'",
+      "expected": {
+        "valid": true
+      }
+    }
+  ]
+}

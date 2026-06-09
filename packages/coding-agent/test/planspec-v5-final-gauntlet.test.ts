@@ -431,7 +431,7 @@ describe("FINAL_REGRESSION", () => {
 		state.planLockHash = hashes.planLockHashInput;
 		state.workspaceLockHash = wsLock.workspaceLockHash;
 		state.planspecMode = true;
-		const ws = ps.workspaces[0];
+		const ws = ps.workspaces[0] as unknown as import("../src/core/workspace-schema.js").Workspace;
 		const completionResult = evaluateWorkspaceCompletionV2(state, ws, {
 			planspecMode: true,
 			expectedPlanLockHash: hashes.planLockHashInput,
@@ -627,10 +627,43 @@ describe("FINAL_REGRESSION", () => {
 			const packet = {
 				planLockHash: "stale-hash",
 				workspaceLockHash: "stale-ws-hash",
-			};
-			const planLockHash = "fresh-hash";
-			const wsLockHashMap = { "WS-01": "fresh-ws-hash" };
-			const stale = isWorkerPacketStale(packet as any, planLockHash, wsLockHashMap);
+			} as import("../src/core/planlock-types.js").WorkerPacketV5;
+			const activePlanLock = {
+				planLockHash: "fresh-hash",
+				accpVersion: "1.2",
+				planLockVersion: "1.0.0",
+				source: { planSpecTaskId: "TEST", specPath: "", lockedAt: "", lockedBy: "" },
+				contract: {
+					workspaceCount: 1,
+					mode: "stable_3",
+					maxParallelWorkspaces: 3,
+					worktreeRequired: false,
+					validationLockRequired: false,
+				},
+				integrity: {
+					canonicalJsonHash: "",
+					workspaceGraphHash: "",
+					allowedFilesHash: "",
+					validationPolicyHash: "",
+					acceptanceCriteriaHash: "",
+					instructionHash: "",
+					reportContractHash: "",
+					p45BridgeHash: "",
+					commandPolicyHash: "",
+				},
+				normalized: { workspaceIds: ["WS-01"], workspaces: {}, commandPolicyFrozen: false, schemaFrozen: true },
+			} as import("../src/core/planlock-types.js").PlanLock;
+			const workspaceLock = {
+				workspaceId: "WS-01",
+				workspaceLockHash: "fresh-ws-hash",
+				allowedFiles: [],
+				forbiddenFiles: [],
+				dependencies: [],
+				acceptanceCriteria: [],
+				validationRefs: [],
+				finalValidationRefs: [],
+			} as import("../src/core/planlock-types.js").WorkspaceLock;
+			const stale = isWorkerPacketStale(packet, activePlanLock, workspaceLock);
 			expect(stale.stale).toBe(true);
 		});
 

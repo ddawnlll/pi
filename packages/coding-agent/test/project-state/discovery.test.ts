@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { classifyFile } from "../../src/core/project-state/classify-file.js";
 import { discoverFiles } from "../../src/core/project-state/discovery.js";
-import { DEFAULT_INCLUDED_EXTENSIONS, HARD_EXCLUDED_DIRS } from "../../src/core/project-state/paths.js";
 
 describe("discoverFiles", () => {
 	let tmpDir: string;

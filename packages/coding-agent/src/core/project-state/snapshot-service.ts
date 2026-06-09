@@ -16,14 +16,9 @@ import { join, resolve } from "node:path";
 import type { SmartReadCore } from "../token-context/smart-read-core.js";
 import type { SmartReadDiskCache } from "../token-context/smart-read-disk-cache.js";
 import { classifyCommand } from "./bash-classifier.js";
-import { buildFilesState, discoverFiles } from "./discovery.js";
+import { discoverFiles } from "./discovery.js";
 import { ProjectStateEventJournal } from "./event-journal.js";
-import type {
-	ProjectStateEvent,
-	ProjectStateEventEnvelope,
-	ProjectStateQueryResult,
-	QueryRenderOptions,
-} from "./event-types.js";
+import type { ProjectStateQueryResult, QueryRenderOptions } from "./event-types.js";
 import { buildGitState } from "./git-snapshot.js";
 import { hashContent } from "./hash.js";
 import { MutationWindowStore } from "./mutation-window-store.js";
@@ -39,7 +34,6 @@ import {
 import { ProjectStateProjector } from "./projector.js";
 import { QueryService } from "./query-service.js";
 import { ReadTimeVerifier } from "./read-time-verifier.js";
-import { DEFAULT_BOUNDED_TREE_STAT_LIMIT, ReconcileScanner } from "./reconcile-scanner.js";
 import { SmartReadBridge } from "./smart-read-bridge.js";
 import { SnapshotRunStore } from "./snapshot-run-store.js";
 import { ProjectStateStore } from "./store.js";
@@ -47,12 +41,9 @@ import { buildTreeIndex } from "./tree-builder.js";
 import type {
 	ProjectFileEntry,
 	ProjectFilesState,
-	ProjectStateManifest,
-	ProjectTreeIndex,
 	SnapshotOptions,
 	SnapshotProgress,
 	SnapshotResult,
-	SnapshotRunState,
 	SnapshotStatusReport,
 } from "./types.js";
 
@@ -112,7 +103,7 @@ export class ProjectStateSnapshotService {
 
 		const startedAt = new Date().toISOString();
 		const startMs = Date.now();
-		const snapshotId = randomUUID().slice(0, 12);
+		const _snapshotId = randomUUID().slice(0, 12);
 		const failures: Array<{ path: string; error: string }> = [];
 
 		this.smartReadBridge.setForce(force);
@@ -336,7 +327,7 @@ export class ProjectStateSnapshotService {
 		for (const relPath of runState.completedFiles) {
 			try {
 				const fullPath = resolve(rootDir, relPath);
-				const stat = statSync(fullPath);
+				const _stat = statSync(fullPath);
 				// Quick stat check — if file still exists, assume completed work is valid
 				validCompleted.push(relPath);
 			} catch {

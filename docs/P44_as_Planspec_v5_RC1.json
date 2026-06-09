@@ -1,0 +1,802 @@
+{
+  "accpVersion": "1.2",
+  "planspecVersion": "5.0.0",
+  "taskId": "P44",
+  "taskName": "P44 Verified Completion Spine and Workspace-Scoped Commit Safety",
+  "executionClass": "implementation",
+  "workspaceGroup": "A",
+  "allowProductionCodeChanges": true,
+  "allowTestCodeChanges": true,
+  "allowReportFiles": true,
+  "requireRepoInspectionFirst": false,
+  "requireValidationEvidence": true,
+  "requireRollbackPlan": true,
+  "requireFinalAccpReport": true,
+  "authority": {
+    "specification": "Normal parser-compatible PlanSpec single-file plan for P44. Uses top-level workstreams, workspace-level workstreamId, strict command policy, PlanLock, WorkerPacket echo, CompletionGate V2, EvidenceLedger, WorkspaceCommitGate, and P45 bridge artifact boundaries.",
+    "executionState": {
+      "mode": "stable_3_wave_batch",
+      "maxParallelWorkspaces": 3
+    },
+    "completion": {
+      "requiresAcceptanceCriteria": true,
+      "requiresValidationEvidence": true,
+      "requiresReport": true,
+      "requiresRollbackPlan": true,
+      "requiresFinalVerdict": true
+    }
+  },
+  "waves": [
+    {
+      "id": "W0",
+      "description": "Fake-complete RCA and completion path audit.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W1",
+      "description": "AC schema, EvidenceLedger, and Worker Report Contract.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W2",
+      "description": "CompletionGate v2, terminal reconciler, and negative scanner.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W3",
+      "description": "WriteGate/SmartMutation wiring, WorkspaceCommitGate, and scoped commit integration.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W4",
+      "description": "PostImplementationAuditor and fake-complete reality checks.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W5",
+      "description": "Read model and dashboard completion truth fields.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W6",
+      "description": "Fake-complete, commit-scope, mutation-safety, and Monte Carlo gauntlets.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W7",
+      "description": "v4.1.1-compatible template extension and P45 bridge outputs only; no P45 runtime implementation.",
+      "workspaceRefs": [],
+      "parallel": false
+    },
+    {
+      "id": "W8",
+      "description": "Final validation and promotion readiness.",
+      "workspaceRefs": [],
+      "parallel": false
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "P44.00",
+      "title": "Fake Complete RCA and Completion Path Audit",
+      "description": "",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4400-001",
+          "description": "fake-complete-rca.md lists verdict/state transition paths with file/function evidence."
+        },
+        {
+          "id": "AC-P4400-002",
+          "description": "completion-path-diagram.md shows worker output -> parser -> evidence -> gate -> reconciler -> ExecutionKernel transition."
+        },
+        {
+          "id": "AC-P4400-003",
+          "description": "completion-path-grep.txt is non-empty and referenced in the ACCP report."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.01",
+      "title": "Acceptance Criteria and Traceability Schema",
+      "description": "",
+      "dependencies": [
+        "P44.00"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4401-001",
+          "description": "AcceptanceCriterion validates id, title, text, level, evidenceRequired, evidenceTypes, validationRefs, negative, forbiddenPatterns, and deferReason."
+        },
+        {
+          "id": "AC-P4401-002",
+          "description": "Schema represents negative assertions requiring negative_check evidence."
+        },
+        {
+          "id": "AC-P4401-003",
+          "description": "Deferred criteria require deferReason and cannot satisfy phase-critical ACs."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.02",
+      "title": "EvidenceLedger and Artifact Evidence Model",
+      "description": "",
+      "dependencies": [
+        "P44.00",
+        "P44.01"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4402-001",
+          "description": "EvidenceLedger stores source, test, command, diff, negative, mutation, commit, report, and runtime evidence."
+        },
+        {
+          "id": "AC-P4402-002",
+          "description": "EvidenceLedger rejects zero tests found, non-zero exit, command not found, timeout, watch mode, and silent pass guards."
+        },
+        {
+          "id": "AC-P4402-003",
+          "description": "EvidenceLedger serializes and round-trips JSON without losing AC refs or lock hashes."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.06",
+      "title": "Worker Report Contract and V5 Lock Echo Fields",
+      "description": "",
+      "dependencies": [
+        "P44.00",
+        "P44.01",
+        "P44.02"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4406-001",
+          "description": "WorkerCompletionReport parser accepts valid structured report and rejects prose-only completion."
+        },
+        {
+          "id": "AC-P4406-002",
+          "description": "Missing acceptanceCoverage or commandsRun when validation is required blocks COMPLETE."
+        },
+        {
+          "id": "AC-P4406-003",
+          "description": "planspec_locked report extraction handles planLockHash/workspaceLockHash and blocks missing/mismatched echo."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.03",
+      "title": "CompletionGate v2 Coverage Gate",
+      "description": "",
+      "dependencies": [
+        "P44.01",
+        "P44.02",
+        "P44.06"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4403-001",
+          "description": "COMPLETE without evidence is blocked with exact missing AC IDs."
+        },
+        {
+          "id": "AC-P4403-002",
+          "description": "COMPLETE with all required evidence, validation evidence, and negative evidence is accepted."
+        },
+        {
+          "id": "AC-P4403-003",
+          "description": "No tests found, watch mode, command-not-found, timeout, and silent pass guards cannot satisfy validation evidence."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.04",
+      "title": "Terminal Verdict Reconciliation and Attempt Finalization",
+      "description": "",
+      "dependencies": [
+        "P44.03",
+        "P44.06"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4404-001",
+          "description": "Current attempt COMPLETE transitions only when CompletionGate v2 accepts."
+        },
+        {
+          "id": "AC-P4404-002",
+          "description": "Old attempt COMPLETE is ignored with stale_attempt_completion_ignored event."
+        },
+        {
+          "id": "AC-P4404-003",
+          "description": "Terminal attempt is finalized as COMPLETE/BLOCKED/FAILED, never left RUNNING."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.05",
+      "title": "Negative Assertion and Forbidden Shortcut Scanner",
+      "description": "",
+      "dependencies": [
+        "P44.01",
+        "P44.02",
+        "P44.03"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4405-001",
+          "description": "Negative assertion model supports grep and AST checks."
+        },
+        {
+          "id": "AC-P4405-002",
+          "description": "Scanner blocks fake/static/stub shortcuts when forbidden."
+        },
+        {
+          "id": "AC-P4405-003",
+          "description": "Passing negative checks create negative_check evidence items."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.WG",
+      "title": "WriteGate and SmartMutation Tool Wiring",
+      "description": "",
+      "dependencies": [
+        "P44.01",
+        "P44.02"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44WG-001",
+          "description": "Production write/edit tools call WriteGate or SmartMutationEngine."
+        },
+        {
+          "id": "AC-P44WG-002",
+          "description": "Large existing source-file overwrite is blocked by default."
+        },
+        {
+          "id": "AC-P44WG-003",
+          "description": "Files outside allowedFiles and P45 runtime forbidden paths are blocked."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.08",
+      "title": "WorkspaceCommitGate",
+      "description": "",
+      "dependencies": [
+        "P44.02",
+        "P44.06",
+        "P44.WG"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4408-001",
+          "description": "WorkspaceCommitGate computes acceptedWriteSet and blocks illegal/unreported/omitted/human-edit files."
+        },
+        {
+          "id": "AC-P4408-002",
+          "description": "git add ., git add -A, and git commit -a are forbidden in production worker commit path."
+        },
+        {
+          "id": "AC-P4408-003",
+          "description": "Commit proceeds only when stagedFiles equals acceptedWriteSet."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.09",
+      "title": "Scoped Commit Integration",
+      "description": "",
+      "dependencies": [
+        "P44.08"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4409-001",
+          "description": "Real commit path uses WorkspaceCommitGate and stages only acceptedWriteSet."
+        },
+        {
+          "id": "AC-P4409-002",
+          "description": "Allowed + unrelated modified file blocks commit."
+        },
+        {
+          "id": "AC-P4409-003",
+          "description": "If stagedFiles changes after gate, commit aborts."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.07",
+      "title": "Post-Implementation Auditor",
+      "description": "",
+      "dependencies": [
+        "P44.01",
+        "P44.02",
+        "P44.06",
+        "P44.05"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4407-001",
+          "description": "Auditor compares claimed changed files to actual changed files."
+        },
+        {
+          "id": "AC-P4407-002",
+          "description": "Auditor catches missing required acceptance criteria."
+        },
+        {
+          "id": "AC-P4407-003",
+          "description": "Audit fixture emits completeAllowed:false for fake-complete."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.10",
+      "title": "Read Model and Dashboard Completion Truth Visibility",
+      "description": "",
+      "dependencies": [
+        "P44.03",
+        "P44.04",
+        "P44.08",
+        "P44.09"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4410-001",
+          "description": "Read model exposes verdictClaim, gateVerdict, missingAcceptanceCriteria, and completionGateReasons."
+        },
+        {
+          "id": "AC-P4410-002",
+          "description": "Dashboard/read model distinguishes worker claim from authoritative gate state."
+        },
+        {
+          "id": "AC-P4410-003",
+          "description": "Stale attempt error is not shown as current workspace truth."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.11",
+      "title": "Fake Complete, Commit Scope, and Mutation Safety Gauntlets",
+      "description": "",
+      "dependencies": [
+        "P44.03",
+        "P44.04",
+        "P44.05",
+        "P44.07",
+        "P44.09",
+        "P44.WG",
+        "P44.10"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4411-001",
+          "description": "Fake-complete scenario JSON exists and failedScenarios=0."
+        },
+        {
+          "id": "AC-P4411-002",
+          "description": "Commit-scope gauntlet JSON exists and failedScenarios=0."
+        },
+        {
+          "id": "AC-P4411-003",
+          "description": "Mutation-safety gauntlet JSON exists and failedScenarios=0."
+        },
+        {
+          "id": "AC-P4411-004",
+          "description": "Fake-complete Monte Carlo has totalRuns=100 and matchRate=1.0."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.12",
+      "title": "Master Template v4.1.1-Compatible Extension Update",
+      "description": "",
+      "dependencies": [
+        "P44.01",
+        "P44.02",
+        "P44.03",
+        "P44.06",
+        "P44.11"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4412-001",
+          "description": "Template requires stable AC IDs, evidence ledger, CompletionGate v2, and worker report contract."
+        },
+        {
+          "id": "AC-P4412-002",
+          "description": "Template forbids silent pass guards, watch mode validation, and zero tests found success."
+        },
+        {
+          "id": "AC-P4412-003",
+          "description": "Template states generated Markdown preview is non-authoritative."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P45.B1",
+      "title": "P45 Bridge Artifact: Accepted WriteSet Export and Ownership Summary",
+      "description": "",
+      "dependencies": [
+        "P44.08",
+        "P44.09",
+        "P44.11"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P45B1-001",
+          "description": "accepted-write-set.json and ownership-summary.json are generated and schema-valid."
+        },
+        {
+          "id": "AC-P45B1-002",
+          "description": "Bridge writes only p44 bridge artifacts and does not write P45 runtime paths."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P45.B2",
+      "title": "P45 Bridge Artifact: Assembler-Only Candidate Discovery and Readiness Doctor",
+      "description": "",
+      "dependencies": [
+        "P45.B1"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P45B2-001",
+          "description": "p45-readiness-report.json/md generated with prerequisites and blockers."
+        },
+        {
+          "id": "AC-P45B2-002",
+          "description": "No files under p45/async-assembly/static-partitioner/deterministic-assembler are modified."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P45.B3",
+      "title": "P45 Bridge Artifact: Evidence Ledger and Mutation Report Export",
+      "description": "",
+      "dependencies": [
+        "P44.02",
+        "P44.WG",
+        "P44.11"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P45B3-001",
+          "description": "evidence-ledger-export.json and mutation-report.json are generated and schema-valid."
+        },
+        {
+          "id": "AC-P45B3-002",
+          "description": "Export does not implement or write P45 runtime code."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    },
+    {
+      "id": "P44.13",
+      "title": "Final Promotion Report and Stable_3 Gate",
+      "description": "",
+      "dependencies": [
+        "P44.11",
+        "P44.12",
+        "P45.B1",
+        "P45.B2",
+        "P45.B3"
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P4413-001",
+          "description": "Final promotion report JSON and Markdown exist and include remaining risks and explicit recommendation."
+        },
+        {
+          "id": "AC-P4413-002",
+          "description": "make test exits 0 and evidence is attached."
+        },
+        {
+          "id": "AC-P4413-003",
+          "description": "make test-full exits 0 and evidence is attached."
+        },
+        {
+          "id": "AC-P4413-004",
+          "description": "Fake-complete, commit-scope, mutation-safety, and Monte Carlo reports exist and pass."
+        }
+      ],
+      "validation": {
+        "commandRefs": [],
+        "watchModeRejected": true,
+        "mustPass": true,
+        "requireEvidence": true
+      },
+      "reports": [
+        {
+          "path": "required",
+          "description": "required"
+        }
+      ],
+      "rollback": {
+        "steps": []
+      },
+      "commands": []
+    }
+  ],
+  "templates": [],
+  "validationCases": []
+}

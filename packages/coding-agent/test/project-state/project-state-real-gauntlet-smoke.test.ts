@@ -18,14 +18,12 @@
  *  12. No mutation window leak
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
 import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
-import { getStateDir, STATE_FILES } from "../../src/core/project-state/paths.js";
-import { ProjectStateProjector } from "../../src/core/project-state/projector.js";
 import { QueryService } from "../../src/core/project-state/query-service.js";
 import { ReadTimeVerifier } from "../../src/core/project-state/read-time-verifier.js";
 import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
@@ -67,9 +65,10 @@ describe("Project State Real Gauntlet Smoke", () => {
 			}),
 			"utf-8",
 		);
+		// Write initial source file
 		writeFileSync(
 			join(tmpDir, "src", "a.ts"),
-			"export const greet = (name: string) => `Hello, ${name}!`;\n",
+			`export const greet = (name: string) => \`Hello, \${name}!\`;\n`,
 			"utf-8",
 		);
 		writeFileSync(join(tmpDir, "src", "b.ts"), "export const add = (a: number, b: number) => a + b;\n", "utf-8");
@@ -101,7 +100,7 @@ describe("Project State Real Gauntlet Smoke", () => {
 
 		const treeIndex = store.loadTreeIndex();
 		expect(treeIndex).toBeDefined();
-		expect(treeIndex!.directories["src"]).toBeDefined();
+		expect(treeIndex!.directories.src).toBeDefined();
 		expect(treeIndex!.directories["src/nested"]).toBeDefined();
 
 		const packageState = store.loadPackageState();
@@ -130,16 +129,20 @@ describe("Project State Real Gauntlet Smoke", () => {
 		// File existed before edit
 		writeFileSync(
 			join(tmpDir, "src", "a.ts"),
-			"export const greet = (name: string) => `Hello, ${name}!`;\n",
+			`export const greet = (name: string) => \`Hello, \${name}!\`;\n`,
 			"utf-8",
 		);
 
 		// Verify still accepts if content unchanged
-		const verifyUnchanged = verifier.verify("src/a.ts");
+		const _verifyUnchanged = verifier.verify("src/a.ts");
 		// (it may be stale if snapshot didn't hash or changed file)
 
 		// Change file externally and verify verifier catches it
-		writeFileSync(join(tmpDir, "src", "a.ts"), "export const greet = (name: string) => `Hi, ${name}!`;\n", "utf-8");
+		writeFileSync(
+			join(tmpDir, "src", "a.ts"),
+			`export const greet = (name: string) => \`Hi, \${name}!\`;\n`,
+			"utf-8",
+		);
 		const verifyChanged = verifier.verify("src/a.ts");
 		expect(verifyChanged.canUseCache).toBe(false);
 
@@ -160,8 +163,8 @@ describe("Project State Real Gauntlet Smoke", () => {
 		// ====================================================================
 		// Step 6: Real edit hook → event → projector → stale Smart Read
 		// ====================================================================
-		const oldContent = "export const greet = (name: string) => `Hi, ${name}!`;\n";
-		const newContent = "export const greet = (name: string) => `Hey, ${name}!`;\n";
+		const oldContent = `export const greet = (name: string) => \`Hi, \${name}!\`;\n`;
+		const newContent = `export const greet = (name: string) => \`Hey, \${name}!\`;\n`;
 		writeFileSync(join(tmpDir, "src", "a.ts"), oldContent, "utf-8");
 		// First sync — write it so it's in the project state with a hash
 		// Then edit via hook

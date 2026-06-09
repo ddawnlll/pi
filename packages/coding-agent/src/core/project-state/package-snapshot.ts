@@ -7,7 +7,7 @@
 
 import type { Stats } from "node:fs";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { hashContent } from "./hash.js";
 import { HARD_EXCLUDED_DIRS, SCHEMA_VERSION } from "./paths.js";
 import type { PackageEntry, PackageState, SnapshotValidity } from "./types.js";
@@ -26,7 +26,7 @@ function detectPackageManager(rootDir: string): PackageState["packageManager"] {
 /**
  * Check if a path component should be excluded.
  */
-function isExcludedDir(relDir: string): boolean {
+function _isExcludedDir(relDir: string): boolean {
 	const parts = relDir.replace(/\\/g, "/").split("/");
 	for (const part of parts) {
 		if (HARD_EXCLUDED_DIRS.has(part)) return true;

@@ -28,11 +28,7 @@ import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import { AutoCommit } from "./auto-commit.js";
 import { extractWorkerEcho } from "./completion/worker-echo-extractor.js";
-import {
-	CompletionGateRegistry,
-	evaluatePlanCompletion,
-	type WorkspaceCompletionV2Options,
-} from "./completion-gate.js";
+import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import type { ExecutionPolicyContext } from "./execution-policy.js";
 import { createDefaultPolicyContext } from "./execution-policy.js";
 import type { LeadAgent } from "./lead-agent/index.js";
@@ -778,10 +774,11 @@ export class AutonomousExecutor {
 
 		// Store policy mode in plan state
 		if (this.currentPlanState) {
-			this.currentPlanState.executionPolicyMode = this.executionPolicy.mode;
-			this.currentPlanState.planSpecVersion = this.executionPolicy.planSpecVersion;
-			this.currentPlanState.planLockHash = this.planLockHash;
-			this.currentPlanState.lockStatus = this.planLockHash ? "admitted" : undefined;
+			const ps = this.currentPlanState as any;
+			ps.executionPolicyMode = this.executionPolicy.mode;
+			ps.planSpecVersion = this.executionPolicy.planSpecVersion;
+			ps.planLockHash = this.planLockHash;
+			ps.lockStatus = this.planLockHash ? "admitted" : undefined;
 			await this.stateStore.saveState(planExecutionId).catch(() => {});
 		}
 

@@ -206,7 +206,7 @@ export function admitPlanSpec(
 		planLockVersion: "1.0.0",
 		source: {
 			planSpecTaskId: planSpec.taskId,
-			specPath: planSpec.specSource ?? "",
+			specPath: (planSpec as any).specSource ?? "",
 			lockedAt: now,
 			lockedBy: "planspec_v5_admission",
 		},

@@ -4,12 +4,12 @@
  * Monotonic sequence, concurrent append, malformed lines, lock timeout.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
-import { getStateDir, SCHEMA_VERSION } from "../../src/core/project-state/paths.js";
+import { getStateDir } from "../../src/core/project-state/paths.js";
 
 describe("ProjectStateEventJournal", () => {
 	let tmpDir: string;
@@ -79,7 +79,7 @@ describe("ProjectStateEventJournal", () => {
 		const stateDir = getStateDir(tmpDir);
 		const journalPath = join(stateDir, "event-journal.ndjson");
 		const content = readFileSync(journalPath, "utf-8");
-		writeFileSync(journalPath, content + "not valid json\n", "utf-8");
+		writeFileSync(journalPath, `${content}not valid json\n`, "utf-8");
 
 		// Should not crash
 		const events = journal.loadEvents(0);

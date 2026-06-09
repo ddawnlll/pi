@@ -457,11 +457,11 @@ export class AgentSession {
 	setBashOptions(options: import("./tools/bash.js").BashToolOptions): void {
 		this._bashOptions = options;
 		// Rebuild runtime with the new options
-		const runtime = this._extensionRunner;
+		const runtime = this._extensionRunner as any;
 		if (runtime) {
 			this._buildRuntime({
-				activeToolNames: runtime.getActiveToolNames(),
-				flagValues: runtime.getFlagValues(),
+				activeToolNames: runtime.getActiveToolNames?.() ?? [],
+				flagValues: runtime.getFlagValues?.() ?? {},
 			});
 		}
 	}

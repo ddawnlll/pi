@@ -7,7 +7,7 @@
 
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { atomicWriteJson, readJsonFile } from "./atomic-write.js";
 import { ensureDir, getSnapshotRunFilePath, getSnapshotRunsDir } from "./paths.js";
 import type { SnapshotRunState } from "./types.js";
@@ -137,7 +137,7 @@ export class SnapshotRunStore {
 	/**
 	 * Mark a run as failed.
 	 */
-	markFailed(runState: SnapshotRunState, error: string): void {
+	markFailed(runState: SnapshotRunState, _error: string): void {
 		runState.status = "failed";
 		this.saveRunState(runState);
 	}

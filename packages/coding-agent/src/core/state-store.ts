@@ -49,6 +49,18 @@ export interface PlanExecutionSummary {
 	status: PlanStatus;
 	startedAt: string;
 	completedAt: string | null;
+	/** PlanSpec v5 version string (e.g. "5.0.0") */
+	planSpecVersion?: string;
+	/** Plan lock hash if PlanLock has been admitted */
+	planLockHash?: string;
+	/** Lock admission status */
+	lockStatus?: "admitted" | "pending" | "rejected";
+	/** Schema validation status */
+	schemaValidationStatus?: "valid" | "invalid" | "unknown";
+	/** Semantic validation status */
+	semanticValidationStatus?: "valid" | "invalid" | "unknown";
+	/** Execution policy mode */
+	executionPolicyMode?: string;
 }
 
 /**

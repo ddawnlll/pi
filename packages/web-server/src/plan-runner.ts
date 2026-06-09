@@ -18,7 +18,10 @@ import {
 	killTrackedDetachedChildren,
 	PiLogger,
 	parsePlan,
+	parsePlanSpecJsonOnly,
+	parsePlanSpecV5,
 	runCleanupReview,
+	validatePlanSpecSemantics,
 	validatePlanTargetCommands,
 	type WorkspaceExecutionResult,
 	type WorkspaceQueue,
@@ -510,9 +513,98 @@ function scheduleExecutionCleanup(planExecId: string): void {
 export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 	const { planContent, projectId, workspaceRoot, planFileName } = options;
 
-	// Parse the plan FIRST to get the phase for proper dedup
-	const parseResult = parsePlan(planContent);
-	const currentPhase = parseResult.success && parseResult.queue ? parseResult.queue.phase : "";
+	// Try PlanSpec v5 JSON parsing first
+	let parseResult: any;
+	let currentPhase = "";
+	if (planContent.trim().startsWith("{")) {
+		try {
+			const v5Parse = parsePlanSpecJsonOnly(planContent);
+			if (v5Parse.success) {
+				const v5Schema = parsePlanSpecV5(planContent);
+				if (v5Schema.success) {
+					const parsed = JSON.parse(planContent);
+					const semanticErrors = validatePlanSpecSemantics(parsed);
+					if (semanticErrors.length === 0) {
+						// PlanSpec v5 valid — create a compatible parseResult
+						parseResult = {
+							success: true,
+							queue: {
+								phase: parsed.taskId || "P44",
+								title: parsed.taskName || parsed.metadata?.title || "Untitled",
+								workspaces: (parsed.workspaces || []).map((ws: any) => ({
+									id: ws.id,
+									title: ws.title || ws.id,
+									dependencies: ws.dependencies || [],
+									roleBudget: "worker",
+									executorPrompt: ws.instructions || ws.description || ws.title || `Work on ${ws.id}`,
+									instructions: ws.instructions || ws.description || "",
+									description: ws.description || ws.title || "",
+									capabilities: {
+										canEdit: ws.allowedFiles || [],
+										cannotEdit: ws.forbiddenFiles || [],
+										canRun: (ws.commands || []).map((cmd: any) => cmd.exact || cmd),
+									},
+									maxRetries: 3,
+									targetCommand: ws.validation?.commandRefs?.[0]
+										? ws.commands?.find((c: any) => c.ref === ws.validation.commandRefs[0])?.exact
+										: undefined,
+									acceptedEquivalentCommands: ws.validation?.equivalentCommands || [],
+									validationRequirement: ws.validation
+										? {
+												testFile: undefined,
+												acceptedEquivalentCommands: ws.validation.equivalentCommands || [],
+												mustPass: ws.validation.mustPass ?? true,
+											}
+										: undefined,
+									commands: (ws.commands || []).map((cmd: any) => cmd.exact || cmd),
+									fileScope: {
+										writeSet: ws.allowedFiles || [],
+										allowedPaths: ws.allowedFiles || [],
+									},
+									skip: false,
+								})),
+								maxParallelWorkspaces: parsed.authority?.executionState?.maxParallelWorkspaces || 1,
+							},
+							errors: [],
+							warnings: [],
+						};
+						currentPhase = parsed.taskId || "P44";
+					} else {
+						parseResult = {
+							success: false,
+							queue: undefined,
+							errors: semanticErrors.map((e: any) => e.message || e.code),
+							warnings: [],
+						};
+					}
+				} else {
+					parseResult = {
+						success: false,
+						queue: undefined,
+						errors: v5Schema.errors || ["Schema validation failed"],
+						warnings: [],
+					};
+				}
+			} else {
+				parseResult = {
+					success: false,
+					queue: undefined,
+					errors: v5Parse.errors || ["JSON parse failed"],
+					warnings: [],
+				};
+			}
+		} catch {
+			parseResult = parsePlan(planContent);
+			if (parseResult.success && parseResult.queue) {
+				currentPhase = parseResult.queue.phase;
+			}
+		}
+	} else {
+		parseResult = parsePlan(planContent);
+		if (parseResult.success && parseResult.queue) {
+			currentPhase = parseResult.queue.phase;
+		}
+	}
 
 	// AC #5: Guard against concurrent runPlan calls per projectId.
 	// NOTE: The old dedup-by-phase logic was removed because each plan upload
@@ -561,9 +653,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		new PiLogger().info(`Starting plan execution for project ${projectId}`);
 		new PiLogger().info(`Workspace root: ${workspaceRoot}`);
 
-		// Parse the plan
-		const parseResult = parsePlan(planContent);
-
+		// Parse result already available from PlanSpec v5 or legacy parse above
 		if (!parseResult.success || !parseResult.queue) {
 			inFlightProjects.delete(projectId);
 			return {
@@ -574,7 +664,7 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		}
 
 		// v4 AdmissionGate check — every execution entrypoint must pass
-		const queue = parseResult.queue;
+		const queue = parseResult.queue as WorkspaceQueue;
 		const isPostgresAvailable = true;
 		const isProduction = true;
 		// `jsonFallbackEnabled` is a raw JSON field, not typed on WorkspaceQueue
@@ -612,7 +702,10 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 		// Checks targetCommand compatibility (e.g., pnpm commands in npm project)
 		const stackValidation = await validatePlanTargetCommands(
 			workspaceRoot,
-			queue.workspaces.map((w) => ({ id: w.id, targetCommand: w.targetCommand })),
+			queue.workspaces.map((w: { id: string; targetCommand?: string }) => ({
+				id: w.id,
+				targetCommand: w.targetCommand,
+			})),
 		);
 
 		if (!stackValidation.valid) {

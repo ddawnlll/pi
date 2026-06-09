@@ -8,19 +8,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
-import type {
-	ProjectStateEvent,
-	ProjectStateEventEnvelope,
-	ProjectStateFsChange,
-	ReconcileLevel,
-	ReconcileOptions,
-	ReconcileResult,
-} from "./event-types.js";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+import type { ProjectStateEvent, ProjectStateEventEnvelope, ReconcileOptions, ReconcileResult } from "./event-types.js";
 import { hashContent } from "./hash.js";
 import type { ProjectStateStore } from "./store.js";
-import type { ProjectFileEntry, ProjectFilesState } from "./types.js";
 
 /** Default bounded tree stat limit */
 export const DEFAULT_BOUNDED_TREE_STAT_LIMIT = 50_000;
@@ -52,7 +44,7 @@ export class ReconcileScanner {
 		const statLimit = options.statLimit ?? DEFAULT_BOUNDED_TREE_STAT_LIMIT;
 		const absRoot = resolve(rootDir);
 		const filesState = this.store.loadFilesState();
-		const manifest = this.store.loadManifest();
+		const _manifest = this.store.loadManifest();
 
 		const events: ProjectStateEventEnvelope[] = [];
 		let statCalls = 0;

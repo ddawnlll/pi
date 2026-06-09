@@ -20,13 +20,11 @@ export class ToolEventEmitter {
 	private journal: ProjectStateEventJournal;
 	private projector: ProjectStateProjector;
 	private store: ProjectStateStore;
-	private sessionId: string;
 
-	constructor(store: ProjectStateStore, journal: ProjectStateEventJournal, sessionId?: string) {
+	constructor(store: ProjectStateStore, journal: ProjectStateEventJournal) {
 		this.store = store;
 		this.journal = journal;
 		this.projector = new ProjectStateProjector(store, journal);
-		this.sessionId = sessionId ?? "unknown";
 	}
 
 	/**

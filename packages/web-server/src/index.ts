@@ -42,6 +42,17 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import { readdir, readFile, watch, writeFile } from "node:fs/promises";
+
+// Global error handlers to prevent silent crashes
+process.on("uncaughtException", (err) => {
+	console.error("[FATAL] Uncaught Exception:", err.message);
+	console.error(err.stack);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+	console.error("[FATAL] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
 import { join, resolve } from "node:path";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
 import {
@@ -49,7 +60,10 @@ import {
 	detectStateStoreBackend,
 	JsonStateStore,
 	parsePlan,
+	parsePlanSpecJsonOnly,
+	parsePlanSpecV5,
 	runCleanupReview,
+	validatePlanSpecSemantics,
 	validatePlanTargetCommands,
 } from "@earendil-works/pi-coding-agent";
 import { handleExecutionCommand } from "@earendil-works/pi-execution-service";
@@ -404,6 +418,14 @@ const fastify = Fastify({
 	logger: true,
 	bodyLimit: 10 * 1024 * 1024, // 10 MB body limit
 });
+
+// Keep process alive - prevent exit when event loop empties during long executions
+process.stdin.resume();
+// Also add a keepalive timer as backup (do NOT unref - we WANT it to keep process alive)
+const _KEEPALIVE_TIMER = setInterval(() => {
+	// No-op timer to keep event loop alive during long LLM calls
+}, 60000);
+console.log("[server] Process keepalive enabled (stdin + 60s timer)");
 
 // CORS for local development
 await fastify.register(fastifyCors, {
@@ -1833,6 +1855,53 @@ fastify.post<{
 		return reply.code(400).send({ error: "Plan content is required" });
 	}
 
+	// Try PlanSpec v5 JSON parsing first (for JSON-formatted plans)
+	if (planContent.trim().startsWith("{")) {
+		try {
+			const v5ParseResult = parsePlanSpecJsonOnly(planContent);
+			if (v5ParseResult.success) {
+				// Schema validation
+				const v5SchemaResult = parsePlanSpecV5(planContent);
+				if (!v5SchemaResult.success) {
+					return reply.code(400).send({
+						success: false,
+						errors: v5SchemaResult.errors,
+						errorCode: v5SchemaResult.errorCode,
+					});
+				}
+
+				// Semantic validation
+				try {
+					const parsed = JSON.parse(planContent);
+					const semanticErrors = validatePlanSpecSemantics(parsed);
+					if (semanticErrors.length > 0) {
+						return reply.code(400).send({
+							success: false,
+							errors: semanticErrors.map((e: { code: string; message: string }) => `[${e.code}] ${e.message}`),
+							errorCode: "E_SEMANTIC_INVALID",
+						});
+					}
+
+					return {
+						success: true,
+						planspec: parsed,
+						warnings: [],
+					};
+				} catch (semanticError) {
+					return reply.code(400).send({
+						success: false,
+						errors: [
+							`Semantic validation failed: ${semanticError instanceof Error ? semanticError.message : String(semanticError)}`,
+						],
+						errorCode: "E_SEMANTIC_INVALID",
+					});
+				}
+			}
+		} catch {
+			// Fall through to legacy parsing
+		}
+	}
+
 	try {
 		const parseResult = parsePlan(planContent);
 
@@ -2158,18 +2227,36 @@ fastify.post<{
 
 	try {
 		// Check if plan requires interactive approval before proceeding
-		const parseCheck = parsePlan(planContent);
-		if (parseCheck.success && parseCheck.queue) {
-			if (requiresInteractiveApproval(parseCheck.queue) && !approved) {
-				return reply.code(403).send({
-					success: false,
-					error: "Plan requires interactive approval before execution. Set 'approved: true' in the request body to confirm.",
-					requiresApproval: true,
-					interactiveParallelismReview: parseCheck.queue.planExecution?.interactiveParallelismReview,
-					parallelismReview: parseCheck.queue.parallelismReview
-						? { enabled: parseCheck.queue.parallelismReview.enabled }
-						: undefined,
-				});
+		// Try PlanSpec v5 JSON parse first
+		let _needsApproval = false;
+		if (planContent.trim().startsWith("{")) {
+			try {
+				const v5Result = parsePlanSpecJsonOnly(planContent);
+				if (v5Result.success) {
+					// PlanSpec v5 plans don't use interactive approval
+					_needsApproval = false;
+				} else {
+					// Not a valid PlanSpec v5 JSON, fall through
+					_needsApproval = false;
+				}
+			} catch {
+				_needsApproval = false;
+			}
+		} else {
+			// Legacy Markdown plan — check interactive approval
+			const parseCheck = parsePlan(planContent);
+			if (parseCheck.success && parseCheck.queue) {
+				if (requiresInteractiveApproval(parseCheck.queue) && !approved) {
+					return reply.code(403).send({
+						success: false,
+						error: "Plan requires interactive approval before execution. Set 'approved: true' in the request body to confirm.",
+						requiresApproval: true,
+						interactiveParallelismReview: parseCheck.queue.planExecution?.interactiveParallelismReview,
+						parallelismReview: parseCheck.queue.parallelismReview
+							? { enabled: parseCheck.queue.parallelismReview.enabled }
+							: undefined,
+					});
+				}
 			}
 		}
 

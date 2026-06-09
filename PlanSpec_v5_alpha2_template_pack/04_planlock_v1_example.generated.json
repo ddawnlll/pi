@@ -1,0 +1,774 @@
+{
+  "$schema": "./03_planlock_v1_schema.json",
+  "lockVersion": "1.0.0",
+  "source": {
+    "specPath": "01_planspec_v5_alpha2_template.example.json",
+    "specHash": "sha256:eb3430943d5a5aaa7c16978f9e7b5617c5a8b54d4f18e841e4adace1fa72a21a",
+    "compiledAt": "2026-06-05T00:00:00Z",
+    "compilerVersion": "planspec-compiler/0.2.0-alpha2"
+  },
+  "contract": {
+    "planSpecVersion": "5.0.0-alpha2",
+    "runtimeContractVersion": "4.1.1",
+    "runtimeTemplateVersion": "4.1.1",
+    "phaseId": "P44",
+    "executionMode": "stable_3_wave_batch",
+    "parallelism": 3,
+    "p45ImplementationAllowed": false
+  },
+  "normalized": {
+    "waves": [
+      {
+        "id": "W1",
+        "workspaceIds": [
+          "P44.01",
+          "P44.02",
+          "P44.06"
+        ],
+        "dependencies": [],
+        "batchSize": 3
+      },
+      {
+        "id": "W2",
+        "workspaceIds": [
+          "P44.03",
+          "P44.04",
+          "P44.05"
+        ],
+        "dependencies": [
+          "W1"
+        ],
+        "batchSize": 3
+      },
+      {
+        "id": "W3",
+        "workspaceIds": [
+          "P44.08",
+          "P44.09"
+        ],
+        "dependencies": [
+          "W2"
+        ],
+        "batchSize": 2
+      },
+      {
+        "id": "W4",
+        "workspaceIds": [
+          "P44.07",
+          "P44.WG"
+        ],
+        "dependencies": [
+          "W2"
+        ],
+        "batchSize": 2
+      },
+      {
+        "id": "W5",
+        "workspaceIds": [
+          "P44.10"
+        ],
+        "dependencies": [
+          "W3",
+          "W4"
+        ],
+        "batchSize": 1
+      },
+      {
+        "id": "W6",
+        "workspaceIds": [
+          "P44.11"
+        ],
+        "dependencies": [
+          "W3",
+          "W4",
+          "W5"
+        ],
+        "batchSize": 1
+      },
+      {
+        "id": "W7",
+        "workspaceIds": [
+          "P44.12",
+          "P45.B1",
+          "P45.B2",
+          "P45.B3"
+        ],
+        "dependencies": [
+          "W6"
+        ],
+        "batchSize": 3
+      },
+      {
+        "id": "W8",
+        "workspaceIds": [
+          "P44.13"
+        ],
+        "dependencies": [
+          "W7"
+        ],
+        "batchSize": 1
+      }
+    ],
+    "workspaces": [
+      {
+        "id": "P44.01",
+        "workspaceLockHash": "sha256:966dcf33f0f3cc8bf34f1e3ed4ec2650442ad5e8ef4f52c733618160c9a694ca",
+        "dependencies": [],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+          "packages/coding-agent/test/completion/acceptance-criteria.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4401-001",
+          "AC-P4401-002"
+        ]
+      },
+      {
+        "id": "P44.02",
+        "workspaceLockHash": "sha256:58e8317401a7ce1fcac880b0c86b258ae42a9841eb916c55293080a32df9b96b",
+        "dependencies": [
+          "P44.01"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/completion/evidence-ledger.ts",
+          "packages/coding-agent/src/core/completion/evidence-types.ts",
+          "packages/coding-agent/test/completion/evidence-ledger.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4402-001",
+          "AC-P4402-002"
+        ]
+      },
+      {
+        "id": "P44.06",
+        "workspaceLockHash": "sha256:28ab2ab334c2ee7c18a47f70a02a6abf8e0d53ab466485666821def09ae3d6a2",
+        "dependencies": [
+          "P44.01"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/completion/worker-report-contract.ts",
+          "packages/coding-agent/test/completion/worker-report-contract.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4406-001",
+          "AC-P4406-002"
+        ]
+      },
+      {
+        "id": "P44.03",
+        "workspaceLockHash": "sha256:d81a2dd515e48d077431338042b3ff86cae8d0b1e0264ccdbc05f729dfe593ac",
+        "dependencies": [
+          "P44.01",
+          "P44.02",
+          "P44.06"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+          "packages/coding-agent/src/core/completion/completion-gate-adapter.ts",
+          "packages/coding-agent/test/completion/completion-gate-v2.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4403-001",
+          "AC-P4403-002"
+        ]
+      },
+      {
+        "id": "P44.WG",
+        "workspaceLockHash": "sha256:6ccd370ea579eca2d7c3cc9745bb1260792d8c9a74318a9fad13754b91d01ffc",
+        "dependencies": [
+          "P44.01",
+          "P44.02"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/write-gate.ts",
+          "packages/coding-agent/src/core/mutation/smart-mutation-engine.ts",
+          "packages/coding-agent/src/core/tools/write.ts",
+          "packages/coding-agent/src/core/tools/edit.ts",
+          "packages/coding-agent/test/completion/write-gate-tool-wiring.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P44WG-001",
+          "AC-P44WG-002"
+        ]
+      },
+      {
+        "id": "P44.04",
+        "workspaceLockHash": "sha256:8495be0dfc19b2b3053af1e5aa5fb2c646b93e191a17e05eeda48bb58b806c94",
+        "dependencies": [
+          "P44.03",
+          "P44.06"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_04.ts",
+          "packages/coding-agent/test/p44/p44_04.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4404-001",
+          "AC-P4404-002"
+        ]
+      },
+      {
+        "id": "P44.05",
+        "workspaceLockHash": "sha256:fdea1593f04faac08224b40c1e9da37d7ce60ed1209d5dda01ca6d68c75f0350",
+        "dependencies": [
+          "P44.01",
+          "P44.02"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_05.ts",
+          "packages/coding-agent/test/p44/p44_05.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4405-001",
+          "AC-P4405-002"
+        ]
+      },
+      {
+        "id": "P44.08",
+        "workspaceLockHash": "sha256:c93f587145dc18046752c78696177c1c5e6df8cbc5d1786dc22bc5dc1e3fedbd",
+        "dependencies": [
+          "P44.02",
+          "P44.06"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_08.ts",
+          "packages/coding-agent/test/p44/p44_08.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4408-001",
+          "AC-P4408-002"
+        ]
+      },
+      {
+        "id": "P44.09",
+        "workspaceLockHash": "sha256:fc9b364e246a927be44d8c5f6ad682447f42eb6ae88c8614de4147811b39c5df",
+        "dependencies": [
+          "P44.08"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_09.ts",
+          "packages/coding-agent/test/p44/p44_09.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4409-001",
+          "AC-P4409-002"
+        ]
+      },
+      {
+        "id": "P44.07",
+        "workspaceLockHash": "sha256:94decb0021befaf5aab0df969f47593da1424221150203d2721da733d492eba8",
+        "dependencies": [
+          "P44.01",
+          "P44.02",
+          "P44.06"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_07.ts",
+          "packages/coding-agent/test/p44/p44_07.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4407-001",
+          "AC-P4407-002"
+        ]
+      },
+      {
+        "id": "P44.10",
+        "workspaceLockHash": "sha256:4eae9c3388a0e724bdc2a7d2b1ce782b693219c37fcbf2e6e0fef83c0f579e27",
+        "dependencies": [
+          "P44.03",
+          "P44.04",
+          "P44.08",
+          "P44.09"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_10.ts",
+          "packages/coding-agent/test/p44/p44_10.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4410-001",
+          "AC-P4410-002"
+        ]
+      },
+      {
+        "id": "P44.11",
+        "workspaceLockHash": "sha256:692f9e490e1b776eaa6ec2588b0b3f08a4acb2fdf6556d1c46bc8788e54aa4b2",
+        "dependencies": [
+          "P44.03",
+          "P44.04",
+          "P44.05",
+          "P44.07",
+          "P44.09",
+          "P44.WG"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_11.ts",
+          "packages/coding-agent/test/p44/p44_11.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4411-001",
+          "AC-P4411-002"
+        ]
+      },
+      {
+        "id": "P44.12",
+        "workspaceLockHash": "sha256:2dd24e8095d8d47c4d3538fb9300ec348f54b454b6f9c4bb081eaf04931d4afb",
+        "dependencies": [
+          "P44.01",
+          "P44.02",
+          "P44.03"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_12.ts",
+          "packages/coding-agent/test/p44/p44_12.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4412-001",
+          "AC-P4412-002"
+        ]
+      },
+      {
+        "id": "P45.B1",
+        "workspaceLockHash": "sha256:d8dc67a354c370229320762445b5d891af3363466afa8c9759417d5ccb6010a1",
+        "dependencies": [
+          "P44.08",
+          "P44.09",
+          "P44.11"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p45_b1.ts",
+          "packages/coding-agent/test/p44/p45_b1.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P45B1-001",
+          "AC-P45B1-002"
+        ]
+      },
+      {
+        "id": "P45.B2",
+        "workspaceLockHash": "sha256:3ea5dcaddda56c3bf5a693a7d9b2f7c873e067e34a6baa563d6ee94569d37cab",
+        "dependencies": [
+          "P45.B1"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p45_b2.ts",
+          "packages/coding-agent/test/p44/p45_b2.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P45B2-001",
+          "AC-P45B2-002"
+        ]
+      },
+      {
+        "id": "P45.B3",
+        "workspaceLockHash": "sha256:ee892215e83a077ff5035e80b7e218ea1ffd0b91e5facd866c795acf27bd7349",
+        "dependencies": [
+          "P44.02",
+          "P44.WG",
+          "P44.11"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p45_b3.ts",
+          "packages/coding-agent/test/p44/p45_b3.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P45B3-001",
+          "AC-P45B3-002"
+        ]
+      },
+      {
+        "id": "P44.13",
+        "workspaceLockHash": "sha256:6cc110f20811f0cee6b170b32d1504f4b5c6385f9366895ea411e50c5426bac8",
+        "dependencies": [
+          "P44.11",
+          "P44.12",
+          "P45.B1",
+          "P45.B2",
+          "P45.B3"
+        ],
+        "allowedFiles": [
+          "packages/coding-agent/src/core/p44/p44_13.ts",
+          "packages/coding-agent/test/p44/p44_13.test.ts"
+        ],
+        "acceptanceCriteriaIds": [
+          "AC-P4413-001",
+          "AC-P4413-002"
+        ]
+      }
+    ],
+    "commands": {
+      "policy": "risk_tiered",
+      "defaultMode": "deny_unless_class_or_grant",
+      "shellDefault": "forbidden",
+      "exactAllowedCommands": [
+        {
+          "id": "CMD-FINAL-MAKE-TEST",
+          "kind": "final_validation",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": ".",
+          "executable": "make",
+          "args": [
+            "test"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 900,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-FINAL-MAKE-TEST-FULL",
+          "kind": "final_validation",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": ".",
+          "executable": "make",
+          "args": [
+            "test-full"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 1800,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-TYPECHECK-TSGO",
+          "kind": "typecheck",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": ".",
+          "executable": "npx",
+          "args": [
+            "tsgo",
+            "--noEmit"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 300,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": false,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-P4401-UNIT",
+          "kind": "targeted_test",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": "packages/coding-agent",
+          "executable": "npx",
+          "args": [
+            "vitest",
+            "run",
+            "test/completion/acceptance-criteria.test.ts"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 240,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-P4402-UNIT",
+          "kind": "targeted_test",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": "packages/coding-agent",
+          "executable": "npx",
+          "args": [
+            "vitest",
+            "run",
+            "test/completion/evidence-ledger.test.ts"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 240,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-P4403-UNIT",
+          "kind": "targeted_test",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": "packages/coding-agent",
+          "executable": "npx",
+          "args": [
+            "vitest",
+            "run",
+            "test/completion/completion-gate-v2.test.ts"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 240,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        },
+        {
+          "id": "CMD-P44WG-UNIT",
+          "kind": "targeted_test",
+          "mode": "argv",
+          "risk": "medium",
+          "cwd": "packages/coding-agent",
+          "executable": "npx",
+          "args": [
+            "vitest",
+            "run",
+            "test/completion/write-gate-tool-wiring.test.ts"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "evidenceRequired": true,
+          "timeoutSeconds": 240,
+          "falsePositiveGuards": {
+            "watchModeForbidden": true,
+            "noTestsFoundIsFailure": true,
+            "commandNotFoundIsFailure": true,
+            "timeoutIsFailure": true
+          }
+        }
+      ],
+      "commandClasses": [
+        {
+          "id": "CLASS-READONLY-DISCOVERY",
+          "title": "Read-only local discovery commands",
+          "risk": "low",
+          "sideEffects": "none",
+          "mode": "argv",
+          "executables": [
+            "pwd",
+            "ls",
+            "find",
+            "rg",
+            "grep",
+            "cat",
+            "sed",
+            "awk",
+            "git",
+            "node"
+          ],
+          "allowedGitSubcommands": [
+            "status",
+            "diff",
+            "log",
+            "show",
+            "branch",
+            "rev-parse",
+            "ls-files"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "timeoutSeconds": 30,
+          "maxOutputBytes": 200000,
+          "recordAsEvidence": true,
+          "grantRequired": false
+        },
+        {
+          "id": "CLASS-TARGETED-VITEST",
+          "title": "Bounded targeted vitest command family",
+          "risk": "medium",
+          "sideEffects": "read_mostly",
+          "mode": "argvPattern",
+          "executable": "npx",
+          "argSchema": [
+            {
+              "literal": "vitest"
+            },
+            {
+              "literal": "run"
+            },
+            {
+              "regex": "^test/(completion|p44|gauntlet|template)/[A-Za-z0-9_.-]+\\.test\\.(ts|tsx|js)$"
+            }
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "timeoutSeconds": 300,
+          "evidenceRequired": true,
+          "recordAsEvidence": true,
+          "grantRequired": false
+        },
+        {
+          "id": "CLASS-TYPECHECK",
+          "title": "Known local typecheck command family",
+          "risk": "medium",
+          "sideEffects": "read_mostly",
+          "mode": "argvPattern",
+          "executables": [
+            "npx",
+            "pnpm",
+            "npm"
+          ],
+          "argPatterns": [
+            "^tsgo --noEmit$",
+            "^tsc --noEmit$",
+            "^run typecheck$"
+          ],
+          "shellAllowed": false,
+          "networkAllowed": false,
+          "timeoutSeconds": 600,
+          "evidenceRequired": true,
+          "recordAsEvidence": true,
+          "grantRequired": false
+        }
+      ],
+      "runtimeCommandGrant": {
+        "enabled": true,
+        "requiresJustification": true,
+        "grantScope": "workspace_attempt",
+        "grantExpires": "on_workspace_completion",
+        "recordAsEvidence": true,
+        "autoGrantRules": [
+          {
+            "id": "GRANT-LOW-READONLY",
+            "risk": "low",
+            "sideEffects": "none",
+            "networkAllowed": false,
+            "shellAllowed": false,
+            "maxTimeoutSeconds": 60,
+            "decision": "auto_grant"
+          },
+          {
+            "id": "GRANT-MEDIUM-BOUNDED-TEST",
+            "risk": "medium",
+            "sideEffects": "read_mostly",
+            "networkAllowed": false,
+            "shellAllowed": false,
+            "maxTimeoutSeconds": 300,
+            "decision": "manager_or_policy_grant"
+          },
+          {
+            "id": "GRANT-HIGH-RISK",
+            "risk": "high",
+            "decision": "human_approval_required"
+          }
+        ],
+        "grantRequestSchema": {
+          "requiredFields": [
+            "workspaceId",
+            "reason",
+            "proposedCommand",
+            "expectedSideEffects",
+            "expectedOutput",
+            "risk"
+          ]
+        }
+      },
+      "hardDeniedCommands": [
+        {
+          "id": "DENY-GIT-PUSH",
+          "match": {
+            "executable": "git",
+            "argsPrefix": [
+              "push"
+            ]
+          },
+          "reason": "Remote mutation forbidden."
+        },
+        {
+          "id": "DENY-GIT-RESET-HARD",
+          "match": {
+            "executable": "git",
+            "argsPrefix": [
+              "reset",
+              "--hard"
+            ]
+          },
+          "reason": "Destructive reset forbidden."
+        },
+        {
+          "id": "DENY-GIT-CLEAN",
+          "match": {
+            "executable": "git",
+            "argsPrefix": [
+              "clean"
+            ]
+          },
+          "reason": "Destructive cleanup forbidden."
+        },
+        {
+          "id": "DENY-RM-RF",
+          "match": {
+            "executable": "rm",
+            "argsPrefix": [
+              "-rf"
+            ]
+          },
+          "reason": "Destructive filesystem deletion forbidden."
+        },
+        {
+          "id": "DENY-CURL",
+          "match": {
+            "executable": "curl"
+          },
+          "reason": "Network forbidden by default."
+        },
+        {
+          "id": "DENY-WGET",
+          "match": {
+            "executable": "wget"
+          },
+          "reason": "Network forbidden by default."
+        },
+        {
+          "id": "DENY-SUDO",
+          "match": {
+            "executable": "sudo"
+          },
+          "reason": "Privilege escalation forbidden."
+        }
+      ],
+      "validationEvidenceRules": {
+        "finalPromotionRequiresExactAllowedCommand": true,
+        "discoveryCommandsMayNotSatisfyFinalValidation": true,
+        "runtimeGrantCommandsCanSatisfyValidationOnlyIfGrantStatesValidationPurpose": true
+      }
+    }
+  },
+  "integrity": {
+    "canonicalJsonHash": "sha256:eb3430943d5a5aaa7c16978f9e7b5617c5a8b54d4f18e841e4adace1fa72a21a",
+    "workspaceGraphHash": "sha256:554b3231b125d854eddef88ba879c0396768b53ae7c4f7d7f1ccb275366ede2a",
+    "allowedFilesHash": "sha256:f0ed93c050ba000917ea6db6ccce94247e04b1664cbe8d058064b9fb149b8012",
+    "validationPolicyHash": "sha256:ed24071f354da9227299d2849621e55f1da9823be1a0bc1c7e1d497566d2db5f",
+    "acceptanceCriteriaHash": "sha256:050e2bac36e4e9add7bf1aad219ea18a8d19a039cb3e13b570b80f0e2e0862a0",
+    "instructionHash": "sha256:c53cfbe89a4da5afd5875c912bf91d43949aa8e92609ccbc074c8481f74fab42",
+    "reportContractHash": "sha256:679e5b49d2043a6f73b054e20d0911347d95ed047a96da722bfa310d7d350571",
+    "p45BridgeHash": "sha256:def709cc721ee4e93e959894603a9ffdcb5105510c919f57b3434ed4b0eb167c",
+    "commandPolicyHash": "sha256:062d29e591cbc5cad62319ab3d03b39c3b2f787281103e26e06340695b7c0d52"
+  },
+  "signature": {
+    "required": false,
+    "algorithm": "none",
+    "signedBy": null,
+    "signature": null
+  }
+}

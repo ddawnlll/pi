@@ -94,7 +94,7 @@ export class ProjectStateEventJournal {
 			};
 
 			// Append NDJSON line
-			writeFileSync(this.journalPath, JSON.stringify(envelope) + "\n", { encoding: "utf-8", flag: "a" });
+			writeFileSync(this.journalPath, `${JSON.stringify(envelope)}\n`, { encoding: "utf-8", flag: "a" });
 
 			this._lastSequence = sequence;
 			return sequence;
@@ -213,12 +213,12 @@ export class ProjectStateEventJournal {
 					.filter((e) => e.sequence <= upToSequence)
 					.map((e) => JSON.stringify(e))
 					.join("\n");
-				writeFileSync(archivePath, archiveContent + "\n", "utf-8");
+				writeFileSync(archivePath, `${archiveContent}\n`, "utf-8");
 			}
 
 			// Rewrite journal with tail events only
 			const journalContent = tailEvents.map((e) => JSON.stringify(e)).join("\n");
-			writeFileSync(this.journalPath, journalContent ? journalContent + "\n" : "", "utf-8");
+			writeFileSync(this.journalPath, journalContent ? `${journalContent}\n` : "", "utf-8");
 
 			this._lastSequence = upToSequence;
 			return true;

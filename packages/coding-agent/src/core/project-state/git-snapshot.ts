@@ -8,7 +8,6 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { SCHEMA_VERSION } from "./paths.js";
 import type { GitStateSummary, SnapshotValidity } from "./types.js";

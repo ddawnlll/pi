@@ -4,7 +4,7 @@
  * ls compact caps, rg-files summary, pagination, dirty/unknown safety.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -36,7 +36,7 @@ function addFilesState(store: ProjectStateStore, files: string[]): void {
 	for (const f of files) {
 		entries[f] = {
 			path: f,
-			ext: f.includes(".") ? "." + f.split(".").pop() : "",
+			ext: f.includes(".") ? `.${f.split(".").pop()}` : "",
 			sizeBytes: 10,
 			mtimeMs: Date.now(),
 			isSource: true,

@@ -13,7 +13,7 @@ import { SmartReadDiskCache } from "../token-context/smart-read-disk-cache.js";
 import { isSmartReadEligible } from "./classify-file.js";
 import { hashContent } from "./hash.js";
 import type { ProjectStateStore } from "./store.js";
-import type { ProjectFileEntry, ProjectFilesState, SnapshotValidity } from "./types.js";
+import type { ProjectFileEntry } from "./types.js";
 
 /**
  * Result of read-time verification.
@@ -162,7 +162,7 @@ export class ReadTimeVerifier {
 	 * Uses manifest lastAppliedSequence as a hint — if no mutations have been applied
 	 * since snapshot, cache is likely still valid.
 	 */
-	quickCheck(relPath: string): boolean {
+	quickCheck(_relPath: string): boolean {
 		const manifest = this.store.loadManifest();
 		if (!manifest) return false;
 		return manifest.lastAppliedSequence === 0;

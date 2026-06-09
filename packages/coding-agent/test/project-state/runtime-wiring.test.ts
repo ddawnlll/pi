@@ -7,14 +7,12 @@
  * Uses the real hook functions in a controlled temp directory.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
 import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
-import { getStateDir, SCHEMA_VERSION, STATE_FILES } from "../../src/core/project-state/paths.js";
-import { ProjectStateProjector } from "../../src/core/project-state/projector.js";
 import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
 import { ProjectStateStore } from "../../src/core/project-state/store.js";
 import {

@@ -6,10 +6,9 @@
  * Refuses stale/unknown cache hits.
  */
 
-import type { ProjectStateQueryResult, QueryRenderOptions, SnapshotValidity } from "./event-types.js";
+import type { ProjectStateQueryResult, QueryRenderOptions } from "./event-types.js";
 import { ReconcileScanner } from "./reconcile-scanner.js";
 import type { ProjectStateStore } from "./store.js";
-import type { ProjectFilesState, ProjectTreeIndex, SnapshotStatusReport } from "./types.js";
 
 /** Default ls max items */
 const DEFAULT_LS_MAX_ITEMS = 100;
@@ -18,7 +17,7 @@ const DEFAULT_LS_MAX_ITEMS = 100;
 const DEFAULT_RGFILES_MAX_PATHS = 120;
 
 /** Default max tokens in query output */
-const DEFAULT_MAX_TOKENS = 2000;
+const _DEFAULT_MAX_TOKENS = 2000;
 
 /**
  * QueryService for compact cached queries.
@@ -44,7 +43,7 @@ export class QueryService {
 	 * Cached ls query.
 	 */
 	ls(path: string, options?: QueryRenderOptions): ProjectStateQueryResult {
-		const mode = options?.mode ?? "compact";
+		const mode: NonNullable<QueryRenderOptions["mode"]> = options?.mode ?? "compact";
 		const maxItems = options?.maxItems ?? DEFAULT_LS_MAX_ITEMS;
 
 		const filesState = this.store.loadFilesState();
@@ -90,7 +89,7 @@ export class QueryService {
 		// Get files for this directory from files state
 		const items: string[] = [];
 		if (filesState) {
-			const prefix = dir === "." ? "" : dir + "/";
+			const prefix = dir === "." ? "" : `${dir}/`;
 			for (const relPath of Object.keys(filesState.files).sort()) {
 				if (dir === ".") {
 					if (!relPath.includes("/")) {
@@ -99,8 +98,6 @@ export class QueryService {
 				} else if (relPath.startsWith(prefix)) {
 					const suffix = relPath.slice(prefix.length);
 					if (!suffix.includes("/") || mode === "full") {
-						items.push(suffix);
-					} else if (mode === "full") {
 						items.push(suffix);
 					}
 				}
@@ -133,7 +130,7 @@ export class QueryService {
 	 * Cached rg-files (file listing) query.
 	 */
 	rgFiles(searchPath?: string, options?: QueryRenderOptions): ProjectStateQueryResult {
-		const mode = options?.mode ?? "summary";
+		const mode: NonNullable<QueryRenderOptions["mode"]> = options?.mode ?? "summary";
 		const maxPaths = options?.maxItems ?? DEFAULT_RGFILES_MAX_PATHS;
 
 		const manifest = this.store.loadManifest();
@@ -176,18 +173,8 @@ export class QueryService {
 			};
 		}
 
-		if (manifest.validity.files === "dirty") {
-			return {
-				source: "unavailable",
-				validity: "dirty",
-				summary: "File state is dirty. Run /snapshot to refresh.",
-				truncated: false,
-				warnings: ["File state dirty"],
-			};
-		}
-
 		// Filter files
-		const prefix = searchPath ? searchPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "") + "/" : "";
+		const prefix = searchPath ? `${searchPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "")}/` : "";
 		let allFiles = Object.keys(filesState.files).sort();
 		if (prefix) {
 			allFiles = allFiles.filter((f) => f.startsWith(prefix) || f === searchPath);

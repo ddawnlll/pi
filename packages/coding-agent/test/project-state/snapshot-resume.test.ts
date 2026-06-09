@@ -4,11 +4,10 @@
  * Tests snapshot run persistence and resume logic.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getSnapshotRunFilePath, getSnapshotRunsDir } from "../../src/core/project-state/paths.js";
 import { SnapshotRunStore } from "../../src/core/project-state/snapshot-run-store.js";
 import { ProjectStateSnapshotService } from "../../src/core/project-state/snapshot-service.js";
 
@@ -32,7 +31,7 @@ describe("Snapshot resume", () => {
 	});
 
 	it("snapshot run state is created during run", async () => {
-		const result = await service.run({ rootDir: tmpDir });
+		const _result = await service.run({ rootDir: tmpDir });
 
 		const runStore = new SnapshotRunStore(tmpDir);
 		const runs = runStore.listAllRuns();

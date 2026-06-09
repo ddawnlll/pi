@@ -5,7 +5,7 @@
  * Warms the Smart Read disk cache during snapshot and tracks per-file status.
  */
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { SmartReadCore } from "../token-context/smart-read-core.js";
 import { SmartReadDiskCache } from "../token-context/smart-read-disk-cache.js";
@@ -51,7 +51,7 @@ export class SmartReadBridge {
 	async warmFile(
 		rootDir: string,
 		relPath: string,
-		contentHash: string,
+		_contentHash: string,
 		entry: ProjectFileEntry,
 	): Promise<SmartReadWarmResult> {
 		const ext = extname(relPath).toLowerCase();
@@ -152,7 +152,7 @@ export class SmartReadBridge {
 	 * Check if a file's Smart Read cache is still valid.
 	 * Returns the cached entry if valid, undefined if stale/missing.
 	 */
-	checkCache(rootDir: string, relPath: string, entry: ProjectFileEntry): "warm" | "stale" | "missing" {
+	checkCache(rootDir: string, relPath: string, _entry: ProjectFileEntry): "warm" | "stale" | "missing" {
 		const absPath = join(resolve(rootDir), relPath);
 		const ext = extname(relPath).toLowerCase();
 

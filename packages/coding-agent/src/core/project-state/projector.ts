@@ -6,22 +6,13 @@
  * writes updated state atomically, and updates lastAppliedSequence.
  */
 
-import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { atomicWriteJson } from "./atomic-write.js";
+import { join } from "node:path";
 import type { ProjectStateEventJournal } from "./event-journal.js";
-import type { ProjectStateEvent, ProjectStateEventEnvelope } from "./event-types.js";
-import { getStateDir, PROJECT_STATE_DIR, SCHEMA_VERSION } from "./paths.js";
+import type { ProjectStateEventEnvelope } from "./event-types.js";
+import { getStateDir } from "./paths.js";
 import type { ProjectStateStore } from "./store.js";
-import type {
-	DirectoryEntry,
-	ProjectFileEntry,
-	ProjectFilesState,
-	ProjectStateManifest,
-	ProjectTreeIndex,
-	SnapshotValidity,
-} from "./types.js";
+import type { ProjectFileEntry, ProjectFilesState, ProjectStateManifest, ProjectTreeIndex } from "./types.js";
 
 /** Projector lock file */
 const PROJECTOR_LOCK_FILE = "projector.lock";
@@ -123,10 +114,10 @@ export class ProjectStateProjector {
 		envelope: ProjectStateEventEnvelope,
 		manifest: ProjectStateManifest,
 		filesState: ProjectFilesState | undefined,
-		treeIndex: ProjectTreeIndex | undefined,
+		_treeIndex: ProjectTreeIndex | undefined,
 	): void {
 		const event = envelope.event;
-		const absRoot = this.store.getRootDir();
+		const _absRoot = this.store.getRootDir();
 
 		switch (event.type) {
 			case "file_written":

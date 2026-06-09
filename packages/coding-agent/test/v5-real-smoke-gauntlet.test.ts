@@ -25,9 +25,8 @@ import {
 	evaluateWorkspaceCompletionV2,
 	type WorkspaceValidationState,
 } from "../src/core/completion-gate.js";
-import { createDefaultPolicyContext, createPlanspecPolicyContext } from "../src/core/execution-policy.js";
+import { createPlanspecPolicyContext } from "../src/core/execution-policy.js";
 import { isP45PathForbidden } from "../src/core/mutation/write-set-guard.js";
-import { admitPlanSpec } from "../src/core/planlock-admission.js";
 import { computeLockHashes, computeWorkspaceLockHash } from "../src/core/planlock-hash.js";
 import { parsePlanSpecJsonOnly } from "../src/core/planspec-v5-parser.js";
 import { parsePlanSpecV5 } from "../src/core/planspec-v5-schema.js";
@@ -141,7 +140,7 @@ describe("SMOKE-V5", () => {
 		});
 
 		// Compute workspace lock hash separately
-		const wsLockHash = computeWorkspaceLockHash(
+		const _wsLockHash = computeWorkspaceLockHash(
 			"WS-SMOKE-01",
 			["src/**"],
 			["packages/coding-agent/src/p45/**"],
@@ -227,12 +226,12 @@ describe("SMOKE-V5", () => {
 	// SMOKE-V5-003: planspec_locked unknown command is denied/grant-required
 	it("003 — planspec_locked unknown command requires approval", () => {
 		const engine = createCommandPolicyEngine();
-		const policyContext = createPlanspecPolicyContext({
-			planspecMode: true,
-			commandGrantRequired: true,
+		const policyContext = createPlanspecPolicyContext("5.0.0", {
+			planLockHash: undefined,
+			planSpecJson: undefined,
 		});
 
-		const decision = engine.evaluate("rm /tmp/test.txt", "/tmp", policyContext);
+		const decision = engine.evaluateWithMode("rm /tmp/test.txt", "/tmp", policyContext.mode);
 		expect(decision.decision).toBe("requires_human_approval");
 		expect(decision.userApprovalRequested).toBe(true);
 	});

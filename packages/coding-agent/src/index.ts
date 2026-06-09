@@ -190,6 +190,12 @@ export {
 	type WorkerTranscriptEventType,
 } from "./core/plan-state.js";
 export {
+	type PlanSpecCombinedResult,
+	parsePlanSpecJsonOnly,
+} from "./core/planspec-v5-parser.js";
+export { type PlanSpecV5ParseResult, parsePlanSpecV5 } from "./core/planspec-v5-schema.js";
+export { validatePlanSpecSemantics } from "./core/planspec-v5-semantic-validator.js";
+export {
 	createProductionReadinessDoctor,
 	formatProductionReadinessReport,
 	isBroadScope,

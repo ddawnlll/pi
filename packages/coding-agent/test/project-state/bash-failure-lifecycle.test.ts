@@ -8,7 +8,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ProjectStateEventJournal } from "../../src/core/project-state/event-journal.js";
 import type { CommandClassification } from "../../src/core/project-state/event-types.js";
 import { MutationWindowStore } from "../../src/core/project-state/mutation-window-store.js";
@@ -18,7 +18,7 @@ import { afterBashCommand, beforeBashCommand } from "../../src/core/project-stat
 
 describe("Bash failure lifecycle", () => {
 	let tmpDir: string;
-	let unknownClassification: CommandClassification;
+	let _unknownClassification: CommandClassification;
 
 	beforeEach(async () => {
 		tmpDir = mkdtempSync(join(tmpdir(), "pss-bash-lifecycle-"));
@@ -30,7 +30,7 @@ describe("Bash failure lifecycle", () => {
 		const svc = new ProjectStateSnapshotService();
 		await svc.run({ rootDir: tmpDir });
 
-		unknownClassification = {
+		_unknownClassification = {
 			effect: "unknown_global_mutation",
 			confidence: "low",
 			requiresMutationWindow: true,

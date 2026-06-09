@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getStateDir, SCHEMA_VERSION } from "../../src/core/project-state/paths.js";
-import { DEFAULT_BOUNDED_TREE_STAT_LIMIT, ReconcileScanner } from "../../src/core/project-state/reconcile-scanner.js";
+import { ReconcileScanner } from "../../src/core/project-state/reconcile-scanner.js";
 import { ProjectStateStore } from "../../src/core/project-state/store.js";
 import type { ProjectFilesState } from "../../src/core/project-state/types.js";
 
@@ -21,7 +21,7 @@ function makeFilesState(
 	for (const [path, meta] of Object.entries(files)) {
 		entries[path] = {
 			path,
-			ext: path.includes(".") ? "." + path.split(".").pop() : "",
+			ext: path.includes(".") ? `.${path.split(".").pop()}` : "",
 			sizeBytes: meta.size,
 			mtimeMs: meta.mtime,
 			contentHash: meta.hash,
