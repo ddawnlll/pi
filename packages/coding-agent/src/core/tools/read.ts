@@ -13,7 +13,7 @@ import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../../utils/paths.js";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.js";
 import { createFilePolicy } from "../file-policy.js";
-import type { TokenContextRuntime } from "../token-context/runtime.js";
+import type { SmartReadAuditTrace, TokenContextRuntime } from "../token-context/runtime.js";
 import { resolveReadPath } from "./path-utils.js";
 import { getTextOutput, invalidArgText, replaceTabs, shortenPath, str } from "./render-utils.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";
@@ -31,6 +31,8 @@ export interface ReadToolDetails {
 	truncation?: TruncationResult;
 	/** Reason smart read was skipped, if raw content was returned instead */
 	smartReadSkip?: string;
+	/** Full smart read audit trace (available when smart read was attempted but rejected) */
+	smartReadAudit?: SmartReadAuditTrace;
 }
 
 interface CompactReadClassification {
@@ -210,21 +212,52 @@ function formatReadResult(
 
 	// Show smart read skip reason when raw content was returned instead of compact
 	const smartReadSkip = result.details?.smartReadSkip;
-	if (smartReadSkip) {
-		// Make the message more user-friendly
-		let displayReason = smartReadSkip;
-		if (smartReadSkip.includes("tiny_file")) {
-			displayReason = "file too small for optimization";
-		} else if (smartReadSkip.includes("targeted_read")) {
-			displayReason = "targeted read (offset/limit specified)";
-		} else if (smartReadSkip.includes("acceptance_gate")) {
-			displayReason = "compact outline not shorter than raw";
-		} else if (smartReadSkip.includes("confidence")) {
-			displayReason = "parser confidence too low for safe optimization";
-		} else if (smartReadSkip.includes("mode_not_active")) {
-			displayReason = "token context mode is not active_safe";
+	const smartReadAudit = result.details?.smartReadAudit;
+	if (smartReadSkip || smartReadAudit) {
+		// Build a detailed diagnostic message
+		const parts: string[] = [];
+
+		if (smartReadSkip) {
+			let displayReason = smartReadSkip;
+			if (smartReadSkip.includes("tiny_file")) {
+				displayReason = "file too small for optimization";
+			} else if (smartReadSkip.includes("targeted_read")) {
+				displayReason = "targeted read (offset/limit specified)";
+			} else if (smartReadSkip.includes("acceptance_gate")) {
+				displayReason = "compact outline not shorter than raw";
+			} else if (smartReadSkip.includes("confidence")) {
+				displayReason = "parser confidence too low for safe optimization";
+			} else if (smartReadSkip.includes("mode_not_active")) {
+				displayReason = "token context mode is not active_safe";
+			}
+			parts.push(displayReason);
 		}
-		text += `\n${theme.fg("dim", `[raw read: ${displayReason}]`)}`;
+
+		if (smartReadAudit) {
+			const a = smartReadAudit;
+			// Mechanism
+			if (a.mechanism) parts.push(`mech:${a.mechanism}`);
+			// Adapter info
+			if (a.adapterName) {
+				let detail = `adapter:${a.adapterName}`;
+				if (a.adapterConfidence !== undefined) detail += `@${(a.adapterConfidence * 100).toFixed(0)}%`;
+				parts.push(detail);
+			}
+			// Mode info
+			if (a.settingsMode && a.runtimeMode) {
+				parts.push(`settings:${a.settingsMode}/runtime:${a.runtimeMode}`);
+			}
+			// Token estimates
+			if (a.rawTokensEstimate !== undefined && a.optimizedTokensEstimate !== undefined) {
+				parts.push(`raw:${a.rawTokensEstimate}t opt:${a.optimizedTokensEstimate}t`);
+			}
+			// Cache status
+			if (a.cacheStatus && a.cacheStatus !== "unknown") {
+				parts.push(`cache:${a.cacheStatus}`);
+			}
+		}
+
+		text += `\n${theme.fg("dim", `[raw read: ${parts.join(" | ")}]`)}`;
 	}
 
 	return text;
@@ -317,6 +350,7 @@ export function createReadToolDefinition(
 								// silently fall through to the normal raw read path below.
 								// Never let a smart-read failure hang the tool call.
 								let smartReadSkipReason: string | undefined;
+								let smartReadAudit: SmartReadAuditTrace | undefined;
 								const tcRuntime = options?.tokenContextRuntime;
 								if (tcRuntime) {
 									try {
@@ -376,6 +410,8 @@ export function createReadToolDefinition(
 										} else {
 											smartReadSkipReason = "smart_read compact rejected by acceptance gate";
 										}
+										// Store full audit for detailed display
+										smartReadAudit = audit;
 									} catch {
 										// Smart read threw or aborted — fall through to normal raw read.
 										// Never let a smart-read failure hang the tool call.
@@ -462,7 +498,7 @@ export function createReadToolDefinition(
 									// First line alone exceeds the byte limit. Point the model at a bash fallback.
 									const firstLineSize = formatSize(Buffer.byteLength(allLines[startLine], "utf-8"));
 									outputText = `[Line ${startLineDisplay} is ${firstLineSize}, exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use bash: sed -n '${startLineDisplay}p' ${path} | head -c ${DEFAULT_MAX_BYTES}]`;
-									details = { truncation, smartReadSkip: smartReadSkipReason };
+									details = { truncation, smartReadSkip: smartReadSkipReason, smartReadAudit };
 								} else if (truncation.truncated) {
 									// Truncation occurred. Build an actionable continuation notice.
 									const endLineDisplay = startLineDisplay + truncation.outputLines - 1;
@@ -473,17 +509,17 @@ export function createReadToolDefinition(
 									} else {
 										outputText += `\n\n[Showing lines ${startLineDisplay}-${endLineDisplay} of ${totalFileLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Use offset=${nextOffset} to continue.]`;
 									}
-									details = { truncation, smartReadSkip: smartReadSkipReason };
+									details = { truncation, smartReadSkip: smartReadSkipReason, smartReadAudit };
 								} else if (userLimitedLines !== undefined && startLine + userLimitedLines < allLines.length) {
 									// User-specified limit stopped early, but the file still has more content.
 									const remaining = allLines.length - (startLine + userLimitedLines);
 									const nextOffset = startLine + userLimitedLines + 1;
 									outputText = `${truncation.content}\n\n[${remaining} more lines in file. Use offset=${nextOffset} to continue.]`;
-									details = { smartReadSkip: smartReadSkipReason };
+									details = { smartReadSkip: smartReadSkipReason, smartReadAudit };
 								} else {
 									// No truncation and no remaining user-limited content.
 									outputText = truncation.content;
-									details = { smartReadSkip: smartReadSkipReason };
+									details = { smartReadSkip: smartReadSkipReason, smartReadAudit };
 								}
 								content = [{ type: "text", text: outputText }];
 

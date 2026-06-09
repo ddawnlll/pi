@@ -24,14 +24,12 @@ let _tsAvailable: boolean | null = null;
 
 function getTypeScript(): typeof ts | null {
 	if (_tsAvailable !== null) return _tsModule;
-	try {
-		// Dynamic require to avoid hard dependency at module level
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		_tsModule = require("typescript");
-		_tsAvailable = _tsModule !== null;
-	} catch {
-		_tsAvailable = false;
-	}
+	// The static import `import ts from "typescript"` at the top of this module
+	// already loaded the typescript package. If the import failed, this module
+	// would not have loaded at all, so ts is guaranteed to be available here.
+	// We avoid using require() because pi runs as ESM, where require is not defined.
+	_tsModule = ts;
+	_tsAvailable = true;
 	return _tsModule;
 }
 
