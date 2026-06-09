@@ -28,14 +28,14 @@ export function ProposalCard({
 	onCorrect,
 }: ProposalCardProps) {
 	return (
-		<div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
+		<div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden card-hover transition-smooth">
 			{/* Main card */}
 			<div className="p-4">
 				<div className="flex items-start justify-between mb-2">
 					<div className="flex-1 min-w-0">
 						<button
 							onClick={onToggle}
-							className="text-left text-sm font-medium text-stone-800 dark:text-stone-200 hover:text-blue-600 dark:hover:text-blue-400 truncate block w-full"
+							className="text-left text-sm font-medium text-stone-800 dark:text-stone-200 hover:text-blue-600 dark:hover:text-blue-400 truncate block w-full transition-colors link-hover"
 						>
 							{proposal.title}
 						</button>
@@ -70,21 +70,21 @@ export function ProposalCard({
 					<button
 						onClick={onAccept}
 						disabled={actionLoading}
-						className="px-3 py-1 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 transition-all btn-press"
 					>
 						Accept
 					</button>
 					<button
 						onClick={onReject}
 						disabled={actionLoading}
-						className="px-3 py-1 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-all btn-press"
 					>
 						Reject
 					</button>
 					<button
 						onClick={onCorrect}
 						disabled={actionLoading}
-						className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-colors"
+						className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 transition-all btn-press"
 					>
 						Correct
 					</button>

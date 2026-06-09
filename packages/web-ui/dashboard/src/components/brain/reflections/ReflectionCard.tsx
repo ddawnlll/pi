@@ -12,7 +12,7 @@ export function ReflectionCard({ reflection, onClick }: ReflectionCardProps) {
 	return (
 		<button
 			onClick={onClick}
-			className="w-full text-left border border-stone-200 dark:border-stone-700 rounded-lg p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-colors space-y-2"
+			className="w-full text-left border border-stone-200 dark:border-stone-700 rounded-lg p-4 hover:border-blue-300 dark:hover:border-blue-700 transition-smooth card-hover space-y-2"
 		>
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">

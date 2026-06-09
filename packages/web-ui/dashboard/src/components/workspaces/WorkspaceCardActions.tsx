@@ -42,7 +42,7 @@ export function WorkspaceCardActions({
 						onStop?.(workspaceId);
 					}}
 					title="Stop workspace"
-					className="p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+					className="p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all duration-150 btn-press scale-hover"
 					aria-label={`Stop workspace ${workspaceId}`}
 				>
 					<Square size={10} fill="currentColor" />
@@ -55,7 +55,7 @@ export function WorkspaceCardActions({
 						onRetry?.(workspaceId);
 					}}
 					title="Retry workspace"
-					className="p-1 rounded hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors"
+					className="p-1 rounded hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-all duration-150 btn-press icon-rotate-hover"
 					aria-label={`Retry workspace ${workspaceId}`}
 				>
 					<RefreshCw size={11} />

@@ -25,7 +25,7 @@ export function GoalCard({ goal, drifted, onClick }: GoalCardProps) {
 	return (
 		<button
 			onClick={onClick}
-			className={`w-full text-left border rounded-lg p-3 space-y-2 transition-colors hover:border-blue-300 dark:hover:border-blue-700 ${
+			className={`w-full text-left border rounded-lg p-3 space-y-2 transition-smooth card-hover hover:border-blue-300 dark:hover:border-blue-700 ${
 				drifted ? "border-red-300 dark:border-red-700" : "border-stone-200 dark:border-stone-700"
 			}`}
 		>

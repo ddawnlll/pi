@@ -163,7 +163,7 @@ export function WorkerCard({ workspace, index = 0, onStop, onRetry }: WorkerCard
 		>
 			<button
 				onClick={handleClick}
-				className="w-full text-left rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] overflow-hidden transition-colors duration-200"
+				className="w-full text-left rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-white dark:bg-[#1E1E1E] overflow-hidden transition-smooth duration-200 card-hover"
 			>
 				{/* Accent bar — thin colored stripe at top */}
 				<div className={`h-0.5 w-full ${meta.accentBar}`} />
@@ -241,12 +241,12 @@ export function WorkerCard({ workspace, index = 0, onStop, onRetry }: WorkerCard
 
 					{/* Actions footer */}
 					{hasActions && (
-						<div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-[#E8E6E1] dark:border-[#333] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+						<div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-[#E8E6E1] dark:border-[#333] opacity-0 group-hover:opacity-100 transition-all duration-200">
 							{showStop && (
 								<button
 									onClick={handleStop}
 									className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium
-										bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-100 dark:border-red-900/20 transition-colors"
+										bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-100 dark:border-red-900/20 transition-all btn-press scale-hover"
 								>
 									<Activity size={10} />
 									Stop
@@ -256,7 +256,7 @@ export function WorkerCard({ workspace, index = 0, onStop, onRetry }: WorkerCard
 								<button
 									onClick={handleRetry}
 									className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium
-										bg-blue-50 dark:bg-blue-900/20 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/20 transition-colors"
+										bg-blue-50 dark:bg-blue-900/20 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-100 dark:border-blue-900/20 transition-all btn-press icon-rotate-hover"
 								>
 									<RefreshCw size={10} />
 									Retry

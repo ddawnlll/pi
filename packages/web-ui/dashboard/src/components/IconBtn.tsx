@@ -19,7 +19,7 @@ export function IconBtn({ icon: Icon, label, onClick, variant = "ghost", danger 
   const dangerStyle = danger ? "text-stone-400 dark:text-stone-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400" : "";
   return (
     <button onClick={onClick} aria-label={label} title={label}
-      className={`inline-flex items-center justify-center rounded-lg transition-all duration-150 font-medium ${pad} ${FOCUS_RING} ${danger ? dangerStyle : styles[variant]}`}>
+      className={`inline-flex items-center justify-center rounded-lg transition-all duration-150 font-medium btn-press ${pad} ${FOCUS_RING} ${danger ? dangerStyle : styles[variant]}`}>
       <Icon size={15} strokeWidth={1.8} />
     </button>
   );
@@ -35,7 +35,7 @@ interface LabeledBtnProps {
 }
 
 export function LabeledBtn({ icon: Icon, label, onClick, accent = false, danger = false, disabled = false }: LabeledBtnProps) {
-  let cls = `inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150 border ${FOCUS_RING} `;
+  let cls = `inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-150 border btn-press ${FOCUS_RING} `;
   if (disabled) {
     cls += "text-stone-300 dark:text-stone-600 border-[#E8E6E1]/50 dark:border-[#333]/50 cursor-not-allowed bg-stone-50 dark:bg-[#1A1A1A]";
   } else if (accent) cls += "bg-blue-600 text-white border-transparent hover:bg-blue-700 shadow-sm";

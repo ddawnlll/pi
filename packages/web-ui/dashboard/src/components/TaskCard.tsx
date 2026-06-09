@@ -70,7 +70,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 
 	return (
 		<div
-			className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/40 hover:bg-white dark:bg-[#1E1E1E]/60 cursor-pointer transition-colors group"
+			className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8E6E1] dark:border-[#333] bg-[#F7F6F3] dark:bg-[#161616]/40 hover:bg-white dark:bg-[#1E1E1E]/60 cursor-pointer transition-smooth group card-hover"
 			onClick={() => onClick(task.id)}
 		>
 			{/* Status icon */}
@@ -98,7 +98,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 			</div>
 
 			{/* Chevron */}
-			<ChevronRight size={14} className="text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:text-stone-400 transition-colors shrink-0" />
+			<ChevronRight size={14} className="text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:text-stone-400 transition-all duration-200 group-hover:translate-x-1 shrink-0" />
 		</div>
 	);
 }

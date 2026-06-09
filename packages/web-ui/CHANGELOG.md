@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Comprehensive animation system for dashboard UI with page transitions, hover effects, click feedback, and micro-interactions. Includes centralized animation utilities in `animations.css` with 30+ reusable animation classes covering fade-ins, lifts, pulses, shimmers, and more. Enhanced core components including StatCard, WorkspaceCardV3, TaskCard, WorkerCard, and all brain section cards (MemoryCard, ProposalCard, ReflectionCard, GoalCard) with smooth hover states, button press feedback, and icon animations. All animations use GPU-accelerated transforms and respect performance best practices.
+
 ## [0.74.0] - 2026-05-07
 
 ## [0.73.1] - 2026-05-07

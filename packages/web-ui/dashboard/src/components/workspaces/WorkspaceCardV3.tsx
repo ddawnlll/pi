@@ -85,7 +85,7 @@ export function WorkspaceCardV3({
 	return (
 		<button
 			onClick={handleClick}
-			className={`group flex items-center gap-3 p-3 rounded-lg border ${BORD} ${SURF} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-colors text-left w-full border-l-2 ${stageBorderColor(workspace.stage)} ${className}`}
+			className={`group flex items-center gap-3 p-3 rounded-lg border ${BORD} ${SURF} hover:bg-stone-50 dark:hover:bg-[#2A2A2A] transition-smooth text-left w-full border-l-2 ${stageBorderColor(workspace.stage)} card-hover ${className}`}
 			aria-label={`Workspace ${shortId(workspace.id)}, ${workspace.stage}`}
 		>
 			{/* Status badge */}
@@ -137,7 +137,7 @@ export function WorkspaceCardV3({
 				/>
 				<ArrowRight
 					size={12}
-					className={`shrink-0 ${TXT_MUTED} opacity-0 group-hover:opacity-100 transition-opacity`}
+					className={`shrink-0 ${TXT_MUTED} opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-1`}
 				/>
 			</div>
 		</button>
