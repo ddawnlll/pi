@@ -17,6 +17,8 @@ import { ToolAdapter } from "../extensions/tool-adapter.js";
 import type { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-executor.js";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
+import type { TerminalVerdict, TerminalVerdictParseResult } from "./completion/terminal-verdict-parser.js";
+import { isEmptyProviderVerdictResponse, parseTerminalVerdict } from "./completion/terminal-verdict-parser.js";
 import { createGitRunner } from "./git-runner.js";
 import { DefaultResourceLoader } from "./resource-loader.js";
 import type { HashedPacket } from "./role-packets.js";
@@ -1169,7 +1171,7 @@ export class WorkspaceAgentExecutor {
 			log(`Tool results in session: ${toolResultCount}`);
 
 			const lastMessage = messages[messages.length - 1];
-			let finalVerdict: "COMPLETE" | "BLOCKED" | "FAILED" = "FAILED";
+			let finalVerdict: TerminalVerdict = "FAILED";
 
 			if (lastMessage?.role === "assistant") {
 				const assistantMessage = lastMessage as AssistantMessage;
@@ -1177,19 +1179,26 @@ export class WorkspaceAgentExecutor {
 				log(`Final assistant message (${content.length} chars): ${content.substring(0, 500)}...`);
 				log(`Final assistant diagnostics: ${this.getAssistantDiagnostics(assistantMessage)}`);
 
-				if (this.isEmptyProviderResponse(lastMessage)) {
+				// Use TerminalVerdictParser for empty provider response detection
+				const hasToolCalls = assistantMessage.content.filter((c) => c.type === "toolCall").length > 0;
+				const hasThinking = assistantMessage.content.some((c) => c.type === "thinking");
+				if (isEmptyProviderVerdictResponse(content, hasToolCalls, hasThinking)) {
 					throw new Error(
 						`Transient provider failure: assistant stream completed with no final text and no tool call (${this.getAssistantDiagnostics(assistantMessage)})`,
 					);
 				}
 
-				// Check for verdict in the response
-				if (content.includes("VERDICT: COMPLETE")) {
-					finalVerdict = "COMPLETE";
-					log("Agent reported COMPLETE");
+				// Parse terminal verdict using the TerminalVerdictParser
+				const parseResult: TerminalVerdictParseResult = parseTerminalVerdict(content);
+				finalVerdict = parseResult.verdict;
+				log(
+					`Verdict parser: ${parseResult.verdict} (confidence=${parseResult.confidence}): ${parseResult.reasoning}`,
+				);
 
-					// Emit validation passed and decision summary
-					if (this.stateStore && this.planExecutionId) {
+				// Emit state store events based on parsed verdict
+				if (this.stateStore && this.planExecutionId) {
+					if (parseResult.verdict === "COMPLETE") {
+						log("Agent reported COMPLETE");
 						if (typeof this.stateStore.emitValidation === "function") {
 							await this.stateStore
 								.emitValidation(this.planExecutionId, workspaceId, "All acceptance criteria met", true)
@@ -1205,17 +1214,10 @@ export class WorkspaceAgentExecutor {
 								)
 								.catch(() => {});
 						}
-					}
-				} else if (content.includes("VERDICT: BLOCKED")) {
-					finalVerdict = "BLOCKED";
-					log("Agent reported BLOCKED");
-
-					// Emit blocker event
-					if (this.stateStore && this.planExecutionId) {
+					} else if (parseResult.verdict === "BLOCKED") {
+						log("Agent reported BLOCKED");
 						if (typeof this.stateStore.emitBlocker === "function") {
-							// Extract blocker reason from content after VERDICT: BLOCKED
-							const blockerMatch = content.match(/VERDICT:\s*BLOCKED[^\n]*\n([^\n]*)/);
-							const blockerReason = blockerMatch ? blockerMatch[1].trim() : "Agent reported blocked";
+							const blockerReason = parseResult.reasoning || "Agent reported blocked";
 							await this.stateStore
 								.emitBlocker(this.planExecutionId, workspaceId, blockerReason)
 								.catch(() => {});
@@ -1230,13 +1232,8 @@ export class WorkspaceAgentExecutor {
 								)
 								.catch(() => {});
 						}
-					}
-				} else if (content.includes("VERDICT: FAILED")) {
-					finalVerdict = "FAILED";
-					log("Agent reported FAILED");
-
-					// Emit validation failed and decision summary
-					if (this.stateStore && this.planExecutionId) {
+					} else if (parseResult.verdict === "FAILED") {
+						log("Agent reported FAILED");
 						if (typeof this.stateStore.emitValidation === "function") {
 							await this.stateStore
 								.emitValidation(
@@ -1262,16 +1259,6 @@ export class WorkspaceAgentExecutor {
 									console.error(`[workspace-agent-executor] Failed to emit worker decision summary:`, err);
 								});
 						}
-					}
-				} else {
-					// If no explicit verdict but agent completed without error, assume success
-					if (content.toLowerCase().includes("complete") || content.toLowerCase().includes("done")) {
-						finalVerdict = "COMPLETE";
-						log("Agent appears to have completed successfully");
-					} else {
-						// Capture the last assistant message content as the failure reason
-						const snippet = content.length > 200 ? `${content.substring(0, 200)}...` : content;
-						log(`No verdict found in assistant message, defaulting to FAILED. Last output: ${snippet}`);
 					}
 				}
 			} else {
@@ -1399,18 +1386,6 @@ export class WorkspaceAgentExecutor {
 			0,
 		);
 		return `stopReason=${message.stopReason}, contentBlocks=${message.content.length}, blockTypes=${blockTypes}, toolCalls=${toolCalls}, thinkingChars=${thinkingChars}`;
-	}
-
-	private isEmptyProviderResponse(lastMessage: AgentMessage | undefined): boolean {
-		if (!lastMessage || lastMessage.role !== "assistant") {
-			return false;
-		}
-
-		const content = this.getMessageContent(lastMessage).trim();
-		const assistantMessage = lastMessage as AssistantMessage;
-		const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall").length;
-		const hasThinking = assistantMessage.content.some((c) => c.type === "thinking");
-		return content.length === 0 && toolCalls === 0 && !hasThinking;
 	}
 
 	/**

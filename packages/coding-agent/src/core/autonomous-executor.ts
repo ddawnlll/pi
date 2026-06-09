@@ -27,6 +27,8 @@ import { createTransitionRouter } from "../execution-runtime/transition-router.j
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
 import { AutoCommit } from "./auto-commit.js";
+import type { AttemptRecord as ReconcilerAttemptRecord } from "./completion/terminal-reconciler.js";
+import { TerminalVerdictReconciler } from "./completion/terminal-reconciler.js";
 import { extractWorkerEcho } from "./completion/worker-echo-extractor.js";
 import { CompletionGateRegistry, evaluatePlanCompletion } from "./completion-gate.js";
 import type { ExecutionPolicyContext } from "./execution-policy.js";
@@ -273,6 +275,12 @@ export class AutonomousExecutor {
 	/** Lead Agent for failure supervision — P38.LEAD */
 	private leadAgent: LeadAgent | null = null;
 
+	/** P44.04 Terminal Verdict Reconciler for attempt finalization */
+	private terminalReconciler: TerminalVerdictReconciler;
+
+	/** Attempt history per workspace, keyed by workspace ID, for terminal reconciliation */
+	private attemptHistories: Map<string, ReconcilerAttemptRecord[]> = new Map();
+
 	/**
 	 * P37.RCA: Extract test file name from a command string for matching.
 	 */
@@ -515,6 +523,7 @@ export class AutonomousExecutor {
 		this.scheduler = new WorkspaceScheduler(effectiveWorkers);
 		this.packetBuilder = new RolePacketBuilder();
 		this.retryHandler = new RetryHandler(config.retryPolicy);
+		this.terminalReconciler = new TerminalVerdictReconciler();
 		this.projectId = config.projectId ?? "default";
 		this.enableRealExecution = config.enableRealExecution ?? false;
 		this.autoCommitEnabled = config.autoCommit ?? true;
@@ -1315,6 +1324,27 @@ export class AutonomousExecutor {
 			// P26.B: Keep the workspace-scoped executor registered until after
 			// auto-commit so commitWorkspace() can read its effective worktree root.
 
+			// P44.04: Record attempt in history for terminal reconciliation
+			{
+				const attemptRecord: ReconcilerAttemptRecord = {
+					attemptNo: currentAttemptNo,
+					verdict: result.verdict,
+					confidence: result.success ? "high" : "medium",
+					reasoning: result.error || (result.success ? "Execution completed successfully" : "Execution failed"),
+					error: result.error,
+					completedAt: Date.now(),
+				};
+				const existing = this.attemptHistories.get(workspace.id) ?? [];
+				existing.push(attemptRecord);
+				this.attemptHistories.set(workspace.id, existing);
+
+				// Reconcile attempt history
+				const reconciled = this.terminalReconciler.reconcile(workspace.id, existing);
+				new PiLogger({ planExecId: planExecutionId }).info(
+					`[workspace ${workspace.id}] P44.04 reconciliation after attempt ${currentAttemptNo}: ${reconciled.finalVerdict} (${reconciled.totalAttempts} attempt(s), definitive=${reconciled.isDefinitive})`,
+				);
+			}
+
 			// Generate and save report
 			const report = generateWorkspaceReport(workspace, {
 				...wsStateForPacket,
@@ -1529,6 +1559,8 @@ export class AutonomousExecutor {
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
 				});
+				// P44.04: Clear attempt history for terminal workspace
+				this.attemptHistories.delete(workspace.id);
 				// P41.2: Bridge completed workspace event to brain activity timeline
 				const phase = this.workspaceQueue?.phase ?? "unknown";
 				await this.bridgeToBrainActivity(
@@ -1585,6 +1617,8 @@ export class AutonomousExecutor {
 				);
 				result.success = false;
 				result.verdict = gateResult.recommendedState === WorkspaceStage.Blocked ? "BLOCKED" : "FAILED";
+				// P44.04: Clear attempt history for terminal workspace
+				this.attemptHistories.delete(workspace.id);
 				// P41.2: Bridge blocked/failed workspace event to brain activity timeline
 				const phase = this.workspaceQueue?.phase ?? "unknown";
 				const bridgeEventType: TimelineEventType =
@@ -1821,6 +1855,31 @@ export class AutonomousExecutor {
 				error: errorMessage,
 			});
 
+			// P44.04: Use Terminal Verdict Reconciler for final verdict
+			const existingHistory = this.attemptHistories.get(workspace.id) ?? [];
+			// Record the final failed attempt if not already recorded (it may have been
+			// recorded before the retry loop if the error came from a transient failure)
+			const lastAttemptNo = wsForRetry.attempts;
+			const alreadyRecorded = existingHistory.some((a) => a.attemptNo === lastAttemptNo);
+			if (!alreadyRecorded) {
+				existingHistory.push({
+					attemptNo: lastAttemptNo,
+					verdict: "FAILED",
+					confidence: "medium",
+					reasoning: errorMessage,
+					error: errorMessage,
+					completedAt: Date.now(),
+				});
+			}
+			this.attemptHistories.set(workspace.id, existingHistory);
+			const reconciled = this.terminalReconciler.reconcile(workspace.id, existingHistory);
+			new PiLogger({ planExecId: planExecutionId }).info(
+				`[workspace ${workspace.id}] P44.04 final reconciliation after retry exhaustion: ${reconciled.finalVerdict} — ${reconciled.summary}`,
+			);
+
+			// P44.04: Clear attempt history for terminal workspace
+			this.attemptHistories.delete(workspace.id);
+
 			// Update local cache
 			this.inFlightAttemptNos.delete(workspace.id);
 			await this.stateCacheMutex.runExclusive(async () => {
@@ -1836,9 +1895,9 @@ export class AutonomousExecutor {
 			return {
 				workspaceId: workspace.id,
 				success: false,
-				verdict: "FAILED",
+				verdict: reconciled.finalVerdict,
 				error: errorMessage,
-				report: `Failed after ${wsForRetry.attempts} attempts: ${retryDecision.reason}`,
+				report: `Failed after ${reconciled.totalAttempts} attempt(s): ${reconciled.summary}`,
 			};
 		}
 	}
