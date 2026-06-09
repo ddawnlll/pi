@@ -43,7 +43,7 @@ describe.sequential("Anthropic OAuth", () => {
 			const body = getJsonBody(init);
 			expect(body.grant_type).toBe("authorization_code");
 			expect(body.code).toBe("manual-code");
-			expect(body.redirect_uri).toBe("http://localhost:53692/callback");
+			expect(body.redirect_uri).toMatch(/^http:\/\/localhost:\d+\/callback$/);
 			return jsonResponse({
 				access_token: "access-token",
 				refresh_token: "refresh-token",

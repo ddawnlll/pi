@@ -3,7 +3,30 @@ import type { Kysely } from "kysely";
 import { AttemptEventJournal } from "./attempt-event-journal.js";
 import { assertLegalTransition, assertRetryAllowed } from "./attempt-fsm.js";
 import { createStateAuthorityToken } from "./state-authority.js";
-import type { AttemptState, AttemptTransitionResult } from "./types.js";
+import type { AttemptEventType, AttemptState, AttemptTransitionResult } from "./types.js";
+
+export type AttemptControllerEventType = AttemptEventType | "retry" | "succeeded" | "failed_final";
+
+const ATTEMPT_CONTROLLER_EVENT_TYPES = new Set<AttemptControllerEventType>([
+	"attempt_started",
+	"attempt_progressed",
+	"attempt_blocked",
+	"handoff_required",
+	"deadline_exceeded",
+	"attempt_succeeded",
+	"attempt_failed",
+	"legacy_state_write_detected",
+	"legacy_state_write_rejected",
+	"retry",
+	"succeeded",
+	"failed_final",
+]);
+
+function assertAttemptControllerEventType(eventType: string): asserts eventType is AttemptControllerEventType {
+	if (!ATTEMPT_CONTROLLER_EVENT_TYPES.has(eventType as AttemptControllerEventType)) {
+		throw new Error(`Unknown attempt event: ${eventType}`);
+	}
+}
 
 export class WorkspaceAttemptController {
 	private readonly journal: AttemptEventJournal;
@@ -15,7 +38,12 @@ export class WorkspaceAttemptController {
 		this.journal = new AttemptEventJournal(db);
 	}
 
-	async handleEvent(attemptId: string, eventType: string, payload: Record<string, unknown> = {}): Promise<void> {
+	async handleEvent(
+		attemptId: string,
+		eventType: AttemptControllerEventType,
+		payload: Record<string, unknown> = {},
+	): Promise<void> {
+		assertAttemptControllerEventType(eventType);
 		const attempt = await this.db.selectFrom("attempts").selectAll().where("id", "=", attemptId).executeTakeFirst();
 		if (!attempt) throw new Error(`Attempt not found: ${attemptId}`);
 		const currentState = attempt.current_state as AttemptState;
@@ -87,16 +115,31 @@ export class WorkspaceAttemptController {
 		return { state: nextState, version: expectedVersion + 1, deadlineAt: null };
 	}
 
-	private reduceEvent(state: AttemptState, eventType: string): AttemptState {
-		if (eventType === "retry") return "READY";
-		if (eventType === "handoff_required") return "HANDOFF_REQUIRED";
-		if (eventType === "deadline_exceeded") return "FAILED_RETRYABLE";
-		if (eventType === "succeeded") return "SUCCEEDED";
-		if (eventType === "failed_final") return "FAILED_FINAL";
-		if (eventType === "attempt_started") return "RUNNING";
-		if (eventType === "attempt_failed") return "FAILED_RETRYABLE";
-		if (eventType === "attempt_succeeded") return "SUCCEEDED";
-		if (eventType === "attempt_blocked") return "BLOCKED";
-		return state;
+	private reduceEvent(state: AttemptState, eventType: AttemptControllerEventType): AttemptState {
+		switch (eventType) {
+			case "retry":
+				return "READY";
+			case "handoff_required":
+				return "HANDOFF_REQUIRED";
+			case "deadline_exceeded":
+				return "FAILED_RETRYABLE";
+			case "succeeded":
+			case "attempt_succeeded":
+				return "SUCCEEDED";
+			case "failed_final":
+				return "FAILED_FINAL";
+			case "attempt_started":
+				return "RUNNING";
+			case "attempt_failed":
+				return "FAILED_RETRYABLE";
+			case "attempt_blocked":
+				return "BLOCKED";
+			case "attempt_progressed":
+			case "legacy_state_write_detected":
+			case "legacy_state_write_rejected":
+				return state;
+		}
+		const _exhaustive: never = eventType;
+		return _exhaustive;
 	}
 }

@@ -6,7 +6,7 @@ import type { HandoffQueueRow } from "./types.js";
 // Types
 // =========================================================================
 
-export type HandoffStatus = "pending" | "resolved" | "rejected" | "expired";
+export type HandoffStatus = "pending" | "resolved" | "manually_resolved" | "complete" | "rejected" | "expired";
 
 // Re-export the HandoffQueueRow type from types.ts
 // export type { HandoffQueueRow } from "./types.js";

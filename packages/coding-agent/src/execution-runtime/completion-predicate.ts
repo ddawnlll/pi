@@ -48,6 +48,20 @@ export interface PlanCompletionInput {
 // Completion predicate
 // =========================================================================
 
+export function isTerminalHandoffStatus(status: string): boolean {
+	return status === "resolved" || status === "manually_resolved" || status === "complete";
+}
+
+function isUnresolvedRequiredHandoff(workspace: WorkspaceTerminalState): boolean {
+	return Boolean(
+		workspace.required &&
+			workspace.state === "HANDOFF_REQUIRED" &&
+			workspace.handoff &&
+			workspace.handoff.required &&
+			!isTerminalHandoffStatus(workspace.handoff.status),
+	);
+}
+
 /**
  * Compute the plan lifecycle state from workspace terminal states.
  *
@@ -64,15 +78,7 @@ export function computePlanLifecycleState(input: PlanCompletionInput): PlanLifec
 	const { workspaces, finalValidationPassed, finalValidationFailed } = input;
 
 	// Check for unresolved required handoffs
-	const hasUnresolvedHandoff = workspaces.some(
-		(w) =>
-			w.required &&
-			w.state === "HANDOFF_REQUIRED" &&
-			w.handoff &&
-			w.handoff.required &&
-			w.handoff.status !== "complete" &&
-			w.handoff.status !== "manually_resolved",
-	);
+	const hasUnresolvedHandoff = workspaces.some(isUnresolvedRequiredHandoff);
 	if (hasUnresolvedHandoff) {
 		return "awaiting_handoff";
 	}
@@ -137,14 +143,7 @@ export function isPlanComplete(state: PlanLifecycleState): boolean {
  * Assert that a plan is not trying to complete with unresolved handoffs.
  */
 export function assertNoUnresolvedHandoffs(workspaces: WorkspaceTerminalState[]): void {
-	const unresolved = workspaces.filter(
-		(w) =>
-			w.state === "HANDOFF_REQUIRED" &&
-			w.handoff &&
-			w.handoff.required &&
-			w.handoff.status !== "complete" &&
-			w.handoff.status !== "manually_resolved",
-	);
+	const unresolved = workspaces.filter(isUnresolvedRequiredHandoff);
 	if (unresolved.length > 0) {
 		throw new Error(
 			`plan_completed_with_unresolved_handoff: workspaces ${unresolved.map((w) => w.workspaceId).join(", ")} have unresolved handoffs`,

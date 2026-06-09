@@ -10,6 +10,7 @@ export class DeadlineWatchdog {
 	start(): void {
 		if (this.timer) return;
 		this.timer = setInterval(() => void this.scan(), this.intervalMs);
+		this.timer.unref?.();
 	}
 	stop(): void {
 		if (!this.timer) return;

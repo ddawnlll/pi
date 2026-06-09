@@ -4,6 +4,7 @@ import {
 	assertNoUnresolvedHandoffs,
 	computePlanLifecycleState,
 	isPlanComplete,
+	isTerminalHandoffStatus,
 } from "../../src/execution-runtime/completion-predicate.js";
 import type { HandoffQueueRow } from "../../src/execution-runtime/types.js";
 
@@ -41,6 +42,21 @@ describe("completion-predicate", () => {
 			];
 			expect(computePlanLifecycleState({ workspaces })).toBe("awaiting_handoff");
 		});
+
+		it.each(["resolved", "manually_resolved", "complete"])(
+			"does not return awaiting_handoff when required handoff status is %s",
+			(status) => {
+				const workspaces: WorkspaceTerminalState[] = [
+					{
+						workspaceId: "ws-1",
+						required: true,
+						state: "HANDOFF_REQUIRED",
+						handoff: makeHandoff({ status }),
+					},
+				];
+				expect(computePlanLifecycleState({ workspaces })).not.toBe("awaiting_handoff");
+			},
+		);
 
 		it("returns failed_final when required workspace is FAILED_FINAL", () => {
 			const workspaces: WorkspaceTerminalState[] = [
@@ -170,17 +186,20 @@ describe("completion-predicate", () => {
 			expect(() => assertNoUnresolvedHandoffs(workspaces)).toThrow("plan_completed_with_unresolved_handoff");
 		});
 
-		it("does not throw when handoffs are resolved", () => {
-			const workspaces: WorkspaceTerminalState[] = [
-				{
-					workspaceId: "ws-1",
-					required: true,
-					state: "HANDOFF_REQUIRED",
-					handoff: makeHandoff({ status: "complete" }),
-				},
-			];
-			expect(() => assertNoUnresolvedHandoffs(workspaces)).not.toThrow();
-		});
+		it.each(["resolved", "manually_resolved", "complete"])(
+			"does not throw when handoff status is terminal: %s",
+			(status) => {
+				const workspaces: WorkspaceTerminalState[] = [
+					{
+						workspaceId: "ws-1",
+						required: true,
+						state: "HANDOFF_REQUIRED",
+						handoff: makeHandoff({ status }),
+					},
+				];
+				expect(() => assertNoUnresolvedHandoffs(workspaces)).not.toThrow();
+			},
+		);
 
 		it("does not throw when no handoffs exist", () => {
 			const workspaces: WorkspaceTerminalState[] = [
@@ -192,6 +211,15 @@ describe("completion-predicate", () => {
 				},
 			];
 			expect(() => assertNoUnresolvedHandoffs(workspaces)).not.toThrow();
+		});
+	});
+
+	describe("isTerminalHandoffStatus", () => {
+		it("treats resolved handoff statuses as terminal", () => {
+			expect(isTerminalHandoffStatus("resolved")).toBe(true);
+			expect(isTerminalHandoffStatus("manually_resolved")).toBe(true);
+			expect(isTerminalHandoffStatus("complete")).toBe(true);
+			expect(isTerminalHandoffStatus("pending")).toBe(false);
 		});
 	});
 

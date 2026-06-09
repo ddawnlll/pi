@@ -70,6 +70,16 @@ describe("WorkspaceAttemptController", () => {
 		await expect(controller.handleEvent("att-404", "succeeded", {})).rejects.toThrow("Attempt not found");
 	});
 
+	it("rejects unknown events before journaling", async () => {
+		const db = createMockDb({ attempt: createMockAttempt({ current_state: "RUNNING" }) });
+		const controller = new WorkspaceAttemptController(db as any, "ctrl-1");
+
+		await expect(controller.handleEvent("att-1", "unknown_event" as never, {})).rejects.toThrow(
+			"Unknown attempt event: unknown_event",
+		);
+		expect(db.insertInto).not.toHaveBeenCalled();
+	});
+
 	it("rejects retry before terminal state", async () => {
 		const db = createMockDb({ attempt: createMockAttempt({ current_state: "RUNNING" }) });
 		const controller = new WorkspaceAttemptController(db as any, "ctrl-1");
