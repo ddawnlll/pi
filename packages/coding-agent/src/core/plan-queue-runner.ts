@@ -74,6 +74,13 @@ export interface PlanQueueEntry {
 	 * When set, draft gate checks use this to enforce lead agent restrictions.
 	 */
 	agentId?: string;
+	/**
+	 * Timestamp when this entry was recovered from a stranded state after a
+	 * crash/restart. Set in loadState() when an Active entry is reset to Pending.
+	 * Downstream consumers can distinguish "never started" (startedAt undefined,
+	 * recoveredAt undefined) from "recovered and restarted" (recoveredAt set).
+	 */
+	recoveredAt?: number;
 }
 
 /**
@@ -541,10 +548,13 @@ export class PlanQueueRunner {
 			if (state.isRunning && state.activeEntryId) {
 				const activeEntry = this.entries.find((e) => e.id === state.activeEntryId);
 				if (activeEntry && activeEntry.status === PlanQueueEntryStatus.Active) {
-					// Reset the stranded active entry back to pending
+					// Reset the stranded active entry back to pending.
+					// Set recoveredAt so downstream consumers can distinguish "never started"
+					// from "recovered and restarted" for metrics/elapsed-time calculations.
 					activeEntry.status = PlanQueueEntryStatus.Pending;
 					activeEntry.startedAt = undefined;
 					activeEntry.error = undefined;
+					activeEntry.recoveredAt = Date.now();
 				}
 				this.isRunning = false;
 				this.activeEntryId = null;

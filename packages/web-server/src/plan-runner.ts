@@ -8,7 +8,7 @@
 
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat as statFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	type ApprovedPreviewMetadata,
@@ -167,9 +167,10 @@ class WorkspaceCompletionSignal {
 class WorkspaceCompletionBus extends EventEmitter {
 	private pendingNext: { resolve: (value: WorkspaceCompletionSignal) => void } | null = null;
 	private lastSignal: WorkspaceCompletionSignal | null = null;
-	// Bug #7 fix: use a simple mutex flag to prevent races between
-	// nextCompletion() and signalCompletion()
-	private busy = false;
+	// No mutex or chain needed — all signal methods are synchronous and JavaScript's
+	// run-to-completion guarantees that two synchronous functions never interleave.
+	// This means pendingNext/lastSignal are always in a consistent state when a
+	// signal method exits, even if called from microtasks or event handler chains.
 
 	/**
 	 * Reset the bus for reuse — clears any stale accumulated signal.
@@ -184,10 +185,6 @@ class WorkspaceCompletionBus extends EventEmitter {
 	 * @returns a signal describing what happened
 	 */
 	async nextCompletion(): Promise<WorkspaceCompletionSignal> {
-		// Busy-wait briefly if signalCompletion is in progress
-		while (this.busy) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
 		// If a signal was previously sent, consume it atomically
 		if (this.lastSignal !== null) {
 			const signal = this.lastSignal;
@@ -201,49 +198,34 @@ class WorkspaceCompletionBus extends EventEmitter {
 
 	/** Signal that a workspace completed */
 	signalCompletion(): void {
-		this.busy = true;
-		try {
-			if (this.pendingNext) {
-				const resolve = this.pendingNext.resolve;
-				this.pendingNext = null;
-				resolve(WorkspaceCompletionSignal.complete());
-			} else {
-				this.lastSignal = WorkspaceCompletionSignal.complete();
-			}
-		} finally {
-			this.busy = false;
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(WorkspaceCompletionSignal.complete());
+		} else {
+			this.lastSignal = WorkspaceCompletionSignal.complete();
 		}
 	}
 
 	/** Signal stop - resolves any pending nextCompletion */
 	signalStop(): void {
-		this.busy = true;
-		try {
-			if (this.pendingNext) {
-				const resolve = this.pendingNext.resolve;
-				this.pendingNext = null;
-				resolve(WorkspaceCompletionSignal.stop());
-			} else {
-				this.lastSignal = WorkspaceCompletionSignal.stop();
-			}
-		} finally {
-			this.busy = false;
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(WorkspaceCompletionSignal.stop());
+		} else {
+			this.lastSignal = WorkspaceCompletionSignal.stop();
 		}
 	}
 
 	/** Signal wake - wakes without semantic meaning, e.g. pause has been written */
 	signalWake(): void {
-		this.busy = true;
-		try {
-			if (this.pendingNext) {
-				const resolve = this.pendingNext.resolve;
-				this.pendingNext = null;
-				resolve(WorkspaceCompletionSignal.wake());
-			} else {
-				this.lastSignal = WorkspaceCompletionSignal.wake();
-			}
-		} finally {
-			this.busy = false;
+		if (this.pendingNext) {
+			const resolve = this.pendingNext.resolve;
+			this.pendingNext = null;
+			resolve(WorkspaceCompletionSignal.wake());
+		} else {
+			this.lastSignal = WorkspaceCompletionSignal.wake();
 		}
 	}
 }
@@ -301,6 +283,7 @@ const inFlightProjects = new Set<string>();
 
 /**
  * Delete snapshot files (meta file + workspace queue) for a plan execution.
+ * Also removes the recovery tombstone so it does not accumulate indefinitely.
  *
  * Best-effort — warnings are logged on failure, but errors are never thrown.
  */
@@ -333,6 +316,18 @@ async function deleteExecutionSnapshots(planExecId: string): Promise<void> {
 	}
 
 	executionWorkspaceRoots.delete(planExecId);
+
+	// Remove the recovery tombstone — if the execution completed normally,
+	// the snapshot is gone and the tombstone would be orphaned.
+	try {
+		const tombstones = await loadRecoveryTombstones(workspaceRoot);
+		if (tombstones.has(planExecId)) {
+			tombstones.delete(planExecId);
+			await writeFile(join(piDir, RECOVERY_TOMBSTONE_FILE), JSON.stringify([...tombstones], null, 2), "utf-8");
+		}
+	} catch {
+		// Best-effort
+	}
 }
 
 /**
@@ -521,15 +516,19 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 			const v5Parse = parsePlanSpecJsonOnly(planContent);
 			if (v5Parse.success) {
 				const v5Schema = parsePlanSpecV5(planContent);
+				const parsed = JSON.parse(planContent);
+				// Set currentPhase as early as possible so the log line immediately
+				// following (outside the if/else chain) shows the correct phase even
+				// when a semantic-error or schema-failure branch is taken.
+				currentPhase = parsed.taskId || "P44";
 				if (v5Schema.success) {
-					const parsed = JSON.parse(planContent);
 					const semanticErrors = validatePlanSpecSemantics(parsed);
 					if (semanticErrors.length === 0) {
 						// PlanSpec v5 valid — create a compatible parseResult
 						parseResult = {
 							success: true,
 							queue: {
-								phase: parsed.taskId || "P44",
+								phase: currentPhase,
 								title: parsed.taskName || parsed.metadata?.title || "Untitled",
 								workspaces: (parsed.workspaces || []).map((ws: any) => ({
 									id: ws.id,
@@ -568,7 +567,6 @@ export async function runPlan(options: RunPlanOptions): Promise<RunPlanResult> {
 							errors: [],
 							warnings: [],
 						};
-						currentPhase = parsed.taskId || "P44";
 					} else {
 						parseResult = {
 							success: false,
@@ -1039,9 +1037,11 @@ export class LogBuffer {
 			this.flushed = true;
 			this.lastFlushError = null;
 		} catch (err) {
-			// Buffer the failed lines back so they aren't lost on transient write errors
+			// Buffer the failed lines back so they aren't lost on transient write errors.
+			// Restore count to reflect the actual number of string elements in lines[]
+			// to prevent count from drifting above lines.length.
 			this.lines = [batch, ...this.lines];
-			this.count += batch.split("\n").length;
+			this.count = this.lines.length;
 			this.lastFlushError = err instanceof Error ? err.message : String(err);
 			this.flushed = false;
 			// Retry after a short delay
@@ -1167,6 +1167,7 @@ async function executePlanInBackground(
 		const workspaceLastErrors = new Map<string, string>();
 		const workspaceSameSignatureCounts = new Map<string, number>();
 		const workspaceLastAttemptTimestamps = new Map<string, number>();
+		const workspaceInstantFailureCounts = new Map<string, number>();
 
 		// Persist the workspace queue for crash recovery
 		await persistWorkspaceQueue(workspaceRoot, planExecId, queue);
@@ -1662,14 +1663,15 @@ async function executePlanInBackground(
 					const isInstantFailure = lastTs !== undefined && now - lastTs < 1000;
 					workspaceLastAttemptTimestamps.set(result.workspaceId, now);
 
-					// Compute instant failure count (failures within 1s of last)
+					// Compute instant failure count (consecutive failures within 1s of last)
 					let instantFailureCount = 0;
 					if (isInstantFailure) {
-						// We count consecutive instant failures; tracked separately
-						for (let i = 0; i < currentAttempts; i++) {
-							// Rough estimate: if currentAttempts > 3 and all recent were instant
-							instantFailureCount = currentAttempts > 3 ? currentAttempts : 0;
-						}
+						const currentInstant = (workspaceInstantFailureCounts.get(result.workspaceId) ?? 0) + 1;
+						workspaceInstantFailureCounts.set(result.workspaceId, currentInstant);
+						instantFailureCount = currentInstant;
+					} else {
+						// Non-instant failure resets the counter
+						workspaceInstantFailureCounts.set(result.workspaceId, 0);
 					}
 
 					// Check all guards — any one exceeded means the workspace must be blocked
@@ -1984,17 +1986,16 @@ async function executePlanInBackground(
 			const stateStore = executor.getStateStore();
 			await stateStore.completePlan(planExecId);
 			await executor.loadState();
-			updateExecutionStatus(planExecId, "complete");
-			await log(`Plan execution complete (cleanup issues logged).`);
 
+			// Check if the plan was externally stopped/cancelled after loadState
 			const finalState = executor.getState();
 			if (finalState?.status === "stopped" || finalState?.status === "cancelled") {
 				await log(`Execution already ${finalState.status}, not overriding`);
-				completionBus.signalCompletion();
 				return;
 			}
 
 			updateExecutionStatus(planExecId, "complete");
+			await log(`Plan execution complete (cleanup issues logged).`);
 		} else {
 			// ── Mark as failed ────────────────────────────────────────────
 			await executor.failPlan(`${failedCount} workspace(s) failed after ${planRetryCount} plan retries`);
@@ -2059,6 +2060,44 @@ async function executePlanInBackground(
  * File name used to persist the workspace queue alongside plan state.
  */
 const QUEUE_SNAPSHOT_FILE = "workspace-queue.json";
+
+/**
+ * File name for the tombstone marker that records terminal executions whose
+ * queue snapshots should be skipped on future recovery scans.
+ */
+const RECOVERY_TOMBSTONE_FILE = "recovery-tombstones.json";
+
+/**
+ * Load the set of plan execution IDs that have been previously scanned and
+ * found to be terminal (complete/failed/stopped/cancelled) and whose queue
+ * snapshots should be skipped during crash recovery.
+ */
+async function loadRecoveryTombstones(workspaceRoot: string): Promise<Set<string>> {
+	try {
+		const path = join(workspaceRoot, ".pi", RECOVERY_TOMBSTONE_FILE);
+		const content = await readFile(path, "utf-8");
+		const parsed = JSON.parse(content);
+		if (Array.isArray(parsed)) {
+			return new Set(parsed);
+		}
+	} catch {
+		// File doesn't exist or is malformed — start fresh
+	}
+	return new Set();
+}
+
+/**
+ * Add a plan execution ID to the recovery tombstone so it is not re-scanned
+ * on subsequent restarts.
+ */
+export async function addRecoveryTombstone(workspaceRoot: string, planExecId: string): Promise<void> {
+	const piDir = join(workspaceRoot, ".pi");
+	await mkdir(piDir, { recursive: true });
+	const tombstonePath = join(piDir, RECOVERY_TOMBSTONE_FILE);
+	const tombstones = await loadRecoveryTombstones(workspaceRoot);
+	tombstones.add(planExecId);
+	await writeFile(tombstonePath, JSON.stringify([...tombstones], null, 2), "utf-8");
+}
 
 /**
  * Persist the workspace queue to disk so it can be recovered after a crash.
@@ -2234,9 +2273,18 @@ async function recoverSingleExecution(
 	// If already terminal, crash recovery skips it. Manual continue/rerun may
 	// restart failed, stopped, or cancelled executions in-place while preserving
 	// completed workspaces.
+	// Check tombstone: if this execution was previously scanned and found terminal
+	// (without being continued), skip it entirely to avoid re-parsing every restart.
+	const tombstones = await loadRecoveryTombstones(workspaceRoot);
+	if (tombstones.has(planExecId)) {
+		new PiLogger({ planExecId }).info(`Execution ${planExecId} in recovery tombstone, skipping`);
+		return false;
+	}
+
 	if (planState.status === "complete") {
 		new PiLogger({ planExecId }).info(`Execution ${planExecId} already complete, skipping recovery`);
 		await deleteExecutionSnapshots(planExecId);
+		await addRecoveryTombstone(workspaceRoot, planExecId);
 		return false;
 	}
 	if (
@@ -2246,6 +2294,11 @@ async function recoverSingleExecution(
 		new PiLogger({ planExecId }).info(
 			`Execution ${planExecId} already ${planState.status}, preserving snapshots for manual continue`,
 		);
+		// Write tombstone so future restart scans skip this execution.
+		// The queue snapshot is preserved in case the user later issues a manual
+		// continue, in which case continuePlanExecution calls recoverSingleExecution
+		// with allowTerminal=true and the tombstone is not consulted.
+		await addRecoveryTombstone(workspaceRoot, planExecId);
 		return false;
 	}
 
@@ -2468,6 +2521,16 @@ export async function continuePlanExecution(
 	projectId: string,
 	planExecId: string,
 ): Promise<boolean> {
+	// Remove the tombstone so recoverSingleExecution does not skip this execution.
+	// The tombstone was written when the execution was first scanned as terminal;
+	// the user is now manually continuing, so it should be re-examined.
+	const tombstones = await loadRecoveryTombstones(workspaceRoot);
+	if (tombstones.has(planExecId)) {
+		tombstones.delete(planExecId);
+		const piDir = join(workspaceRoot, ".pi");
+		await writeFile(join(piDir, RECOVERY_TOMBSTONE_FILE), JSON.stringify([...tombstones], null, 2), "utf-8");
+	}
+
 	const stateStore = getStateStore();
 	await stateStore
 		.appendJournal(planExecId, {
@@ -2629,9 +2692,17 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 		},
 	});
 
+	// Resolve the workspace root for the next phase from the current execution's
+	// registered root (set in writeExecutionMeta). The caller-provided workspaceRoot
+	// is the current phase's project root — use it directly since all phases in a
+	// multi-phase task share the same repository and therefore the same .pi/plans/
+	// directory. If a future task model supports per-phase workspace roots, this
+	// lookup can be extended via executionWorkspaceRoots.
+	const phaseWorkspaceRoot = executionWorkspaceRoots.get(planExecId) ?? workspaceRoot;
+
 	// Read the phase's plan file and start execution
 	try {
-		const planFilePath = join(workspaceRoot, ".pi", "plans", nextPhase.planFile);
+		const planFilePath = join(phaseWorkspaceRoot, ".pi", "plans", nextPhase.planFile);
 		const planContent = await readFile(planFilePath, "utf-8");
 
 		// Use the existing runPlan to start execution
@@ -2640,7 +2711,7 @@ export async function advancePhaseIfReady(workspaceRoot: string, planExecId: str
 			planContent,
 			projectId: freshTask.projectId,
 			projectName,
-			workspaceRoot,
+			workspaceRoot: phaseWorkspaceRoot,
 			planFileName: nextPhase.planFile,
 		});
 
@@ -2732,16 +2803,39 @@ async function runPhaseTransitionGate(
 			// V2: read actual budget from settings
 		}
 		if (conditions.includes("dirty_integration_queue")) {
-			// Check integration queue
+			// Check integration queue with recency filter.
+			// Old/unrelated audit files (leftovers from previous runs) should not
+			// block phase transitions. Only consider files newer than the task's
+			// startedAt (or created at if not yet started) to avoid false positives.
 			try {
 				const auditDir = join(workspaceRoot, ".pi", "queue-audit");
 				const auditFiles = await readdir(auditDir).catch(() => [] as string[]);
 				if (auditFiles.length > 5) {
-					return {
-						allowed: false,
-						blockedBy: "dirty_integration_queue",
-						reason: `Integration queue has ${auditFiles.length} unresolved audit entries`,
-					};
+					// Filter by recency: use a sliding 2-hour window so that audit files
+					// from earlier phases of a long-running task do not permanently block
+					// later phases. Files not modified in the last 2 hours are considered
+					// stale/leftover and do not count toward the dirty threshold.
+					const cutoffMs = Date.now() - 2 * 60 * 60 * 1000;
+					let recentCount = 0;
+					for (const fileName of auditFiles) {
+						try {
+							const filePath = join(auditDir, fileName);
+							const fileStat = await statFile(filePath);
+							if (fileStat.mtimeMs >= cutoffMs) {
+								recentCount++;
+							}
+						} catch {
+							// Can't stat this file; count it conservatively
+							recentCount++;
+						}
+					}
+					if (recentCount > 5) {
+						return {
+							allowed: false,
+							blockedBy: "dirty_integration_queue",
+							reason: `Integration queue has ${recentCount} unresolved audit entries modified in last 2h (${auditFiles.length} total)`,
+						};
+					}
 				}
 			} catch {
 				// Non-fatal
