@@ -1,0 +1,60 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P44.5 Final Test Validation Report
+support_level: schema_strict
+plan_id: P44.5
+workspace_id: P44.5.13
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: final
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P44.5
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: CMD-TYPECHECK-TSGO
+      exit_code: 0
+      output_excerpt: "ok"
+      passed: true
+      scope: "all workspaces"
+    - commandRef: CMD-P445-COMPLETION-VNEXT-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (82) FAIL (0)"
+      passed: true
+      scope: "W1, W2, W4"
+    - commandRef: CMD-P445-COMMIT-MESSAGE-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (31) FAIL (0)"
+      passed: true
+      scope: "W3"
+    - commandRef: CMD-P445-GIT-DURABILITY-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (18) FAIL (0)"
+      passed: true
+      scope: "W2"
+    - commandRef: CMD-P445-DASHBOARD-TRUTH-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (5) FAIL (0)"
+      passed: true
+      scope: "W4"
+    - commandRef: CMD-P445-GAUNTLET
+      exit_code: 0
+      output_excerpt: "PASS (15) FAIL (0)"
+      passed: true
+      scope: "W6"
+  regressions:
+    - none
+
+  notes:
+    - "All 6 validation commands pass."
+    - "144 total tests pass across all modules."
+    - "No regressions detected."

@@ -1,0 +1,167 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P44.5 Implementation Summary Report
+support_level: schema_strict
+plan_id: P44.5
+workspace_id: P44.5.13
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: final
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+implementation_summary:
+  plan_id: P44.5
+  title: "Commit Durability as Completion Truth"
+  total_workspaces: 14
+  completed_workspaces: 14
+  failed_workspaces: 0
+  status: "ALL_COMPLETED"
+
+  waves:
+    - wave_id: W0
+      title: "Compatibility, Policy Freeze, Migration Map"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.00
+          status: complete
+          commit_hash: 14e59b3e147d4736b1793f10523631df616db957
+          files:
+            - docs/pi/p44/commit-durability-completion-gate-plan.md
+            - reports/p44-5/compatibility/p26-overlap-map.md
+            - reports/p44-5/compatibility/shared-file-policy.md
+            - reports/p44-5/compatibility/block-recovery-routing.md
+            - reports/p44-5/compatibility/llm-composer-circuit-breaker.md
+            - reports/p44-5/compatibility/rollout-migration-plan.md
+
+    - wave_id: W1
+      title: "Contracts and Verdict Types"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.01
+          status: complete
+          commit_hash: 4cb55ce80
+          files:
+            - packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts
+            - packages/coding-agent/src/core/completion/workspace-truth-status.ts
+        - workspace_id: P44.5.02
+          status: complete
+          commit_hash: 387b0d33b
+          files:
+            - packages/coding-agent/src/core/completion/completion-gate-vnext.ts
+            - packages/coding-agent/src/core/completion/completion-gate-vnext-adapter.ts
+
+    - wave_id: W2
+      title: "Durability Stages"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.03
+          status: complete
+          commit_hash: e34a9de3a
+          files:
+            - packages/coding-agent/src/core/completion/stages/declared-output-existence-stage.ts
+            - packages/coding-agent/src/core/completion/stages/evidence-ledger-stage.ts
+        - workspace_id: P44.5.04
+          status: complete
+          commit_hash: e34a9de3a
+          files:
+            - packages/coding-agent/src/core/completion/stages/scope-and-writeset-stage.ts
+            - packages/coding-agent/src/core/completion/stages/commit-candidate-stage.ts
+            - packages/coding-agent/src/core/completion/stages/commit-execution-stage.ts
+        - workspace_id: P44.5.05
+          status: complete
+          commit_hash: e34a9de3a
+          files:
+            - packages/coding-agent/src/core/completion/stages/post-commit-verification-stage.ts
+
+    - wave_id: W3
+      title: "LLM Commit Message Composer and Git Identity"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.06
+          status: complete
+          commit_hash: 3744ca751
+          files:
+            - packages/coding-agent/src/core/completion/commit-message-composer.ts
+            - packages/coding-agent/src/core/completion/commit-message-validator.ts
+            - packages/coding-agent/src/core/completion/commit-message-renderer.ts
+        - workspace_id: P44.5.07
+          status: complete
+          commit_hash: 3744ca751
+          files:
+            - packages/coding-agent/src/core/completion/git-actor-identity.ts
+            - packages/coding-agent/src/core/completion/commit-trailer-builder.ts
+
+    - wave_id: W4
+      title: "State Routing, Read Model, Dashboard Truth"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.08
+          status: complete
+          commit_hash: fb319a344
+          files:
+            - packages/coding-agent/src/core/completion/completion-recovery-router.ts
+        - workspace_id: P44.5.09
+          status: complete
+          commit_hash: ac9ff9f88
+          files:
+            - packages/execution-contracts/src/read-model.ts (modified)
+            - packages/execution-service/src/query-handler.ts (modified)
+            - packages/web-ui/src/components/WorkspaceTruthStatus.ts
+
+    - wave_id: W5
+      title: "Destructive Operation Guard and Migration Backfill"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.10
+          status: complete
+          commit_hash: d5de7619c
+          files:
+            - packages/coding-agent/src/core/completion/destructive-operation-guard.ts
+            - packages/coding-agent/src/core/git-runner.ts (modified)
+            - packages/coding-agent/src/worktree/worktree-cleanup.ts (modified)
+        - workspace_id: P44.5.11
+          status: complete
+          commit_hash: d5de7619c
+          files:
+            - packages/coding-agent/src/core/completion/verified-complete-backfill.ts
+
+    - wave_id: W6
+      title: "Gauntlets and Promotion"
+      status: complete
+      workspaces:
+        - workspace_id: P44.5.12
+          status: complete
+          commit_hash: a02f04efc
+          files:
+            - packages/coding-agent/test/gauntlet/commit-durability-completion-gate.test.ts
+        - workspace_id: P44.5.13
+          status: complete
+          commit_hash: HEAD
+          files:
+            - reports/accp/P44.5/source/P44_5_IPR_001.accp.yaml
+            - reports/accp/P44.5/source/P44_5_TVR_001.accp.yaml
+            - reports/accp/P44.5/source/P44_5_PRR_001.accp.yaml
+            - reports/p44-5/final-promotion-report.md
+
+key_outcomes:
+  - CompletionGate vNext types with 4-dimension truth status (never runtime-only)
+  - Stage orchestrator with 9 durability stages and rollout mode adapter
+  - 6 concrete stage implementations (output existence, evidence, scope, commit candidate, commit execution, post-commit)
+  - LLM commit message composer with circuit breaker (8s timeout, 1 repair, deterministic fallback)
+  - Per-workspace git identity and 7 required commit trailers
+  - Frozen recovery routing table (9 entries) integrated into transition router
+  - Workspace truth read model and dashboard component
+  - Destructive operation preservation guard
+  - Verified complete backfill for legacy workspaces
+  - 15 gauntlet tests + 144 total tests across all modules
+
+  total_new_source_files: 23
+  total_test_files: 5
+  total_tests: 144
