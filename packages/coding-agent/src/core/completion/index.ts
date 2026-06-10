@@ -36,6 +36,39 @@ export {
 	isCriterionBlocking,
 	parseRawCriteria,
 } from "./acceptance-criteria.js";
+// Commit Message Composer (P44.5.06)
+export type {
+	CommitMessageComposerResult,
+	LlmCommitMessageGenerator,
+} from "./commit-message-composer.js";
+export {
+	COMPOSER_TIMEOUT_MS,
+	composeCommitMessage,
+	MAX_REPAIR_ATTEMPTS,
+	REQUIRED_COMMIT_TRAILERS,
+} from "./commit-message-composer.js";
+export type { CommitMessageParts, FallbackCommitMessage, RuntimeFactPacket } from "./commit-message-renderer.js";
+export {
+	buildFallbackCommitMessage,
+	DEFAULT_COMMIT_SCOPE,
+	DEFAULT_COMMIT_TYPE,
+	deriveCommitType,
+	deriveScope,
+	formatCommitMessageFromParts,
+	generateShortDescription,
+} from "./commit-message-renderer.js";
+export type { CommitMessageValidationResult } from "./commit-message-validator.js";
+export {
+	extractScopeFromMessage,
+	extractTrailers,
+	validateCommitMessage,
+} from "./commit-message-validator.js";
+export type { CommitTrailerInput } from "./commit-trailer-builder.js";
+export {
+	buildCommitTrailers,
+	formatTrailers,
+	validateRequiredTrailers,
+} from "./commit-trailer-builder.js";
 // Completion Gate Adapter
 export {
 	buildEvidenceSatisfactionFromLedger,
@@ -118,6 +151,12 @@ export {
 	formatEvidenceId,
 	meetsMinConfidence,
 } from "./evidence-types.js";
+// Commit Trailers and Git Identity (P44.5.07)
+export type { GitActorIdentity, GitActorIdentityOptions } from "./git-actor-identity.js";
+export {
+	createGitActorIdentity,
+	formatGitIdentityArgs,
+} from "./git-actor-identity.js";
 // P45 Bridge Exporter (P45.B1)
 export type {
 	AcceptedWriteSet,
@@ -194,10 +233,7 @@ export type {
 	CommitVerificationData,
 	PostCommitVerificationStageConfig,
 } from "./stages/post-commit-verification-stage.js";
-export {
-	createPostCommitVerificationStageRunner,
-	REQUIRED_COMMIT_TRAILERS,
-} from "./stages/post-commit-verification-stage.js";
+export { createPostCommitVerificationStageRunner } from "./stages/post-commit-verification-stage.js";
 export type {
 	ScopeAndWriteSetStageConfig,
 	UnauthorizedFileEntry,
