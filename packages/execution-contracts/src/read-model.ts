@@ -484,6 +484,39 @@ export interface WorkerContextView {
  * reasons and recommended transition. If no such event exists, the workspace
  * is either not yet evaluated or was completed without blockage.
  */
+/**
+ * Workspace truth status view for the dashboard.
+ * Exposes separate runtime, implementation, validation, and durability dimensions.
+ */
+export interface WorkspaceTruthStatusView {
+	/** Runtime execution status */
+	runtimeStatus: string;
+	/** Implementation existence status */
+	implementationStatus: string;
+	/** Validation pass/fail status */
+	validationStatus: string;
+	/** Durability/commit status */
+	durabilityStatus: string;
+	/** Whether the workspace is fully verified complete (all 4 dimensions) */
+	verifiedComplete: boolean;
+	/** Backfill status for legacy workspaces */
+	backfillStatus: string;
+	/** Commit hash (if committed) */
+	commitHash?: string;
+	/** Files verified in the commit */
+	verifiedFiles: string[];
+	/** Blockers preventing completion */
+	blockers: string[];
+	/** Warnings (non-blocking) */
+	warnings: string[];
+	/** Recommended recovery route */
+	recoveryState?: string;
+	/** Current rollout mode */
+	rolloutMode: string;
+	/** Data availability */
+	dataAvailability: DataAvailability;
+}
+
 export interface CompletionStatusView {
 	/** Whether the workspace can be marked as Complete */
 	canComplete: boolean;
@@ -575,6 +608,13 @@ export interface ExecutionReadModel {
 	 * exists and the workspace is in a terminal state, returns `canComplete: true`.
 	 * If no events exist at all, returns explicit unavailable state.
 	 */
+	/**
+	 * Get workspace truth status for the dashboard.
+	 * Returns separate runtime, implementation, validation, and durability status.
+	 * Never returns verifiedComplete=true from runtime complete alone.
+	 */
+	getWorkspaceTruthStatus(planExecutionId: string, workspaceId: string): Promise<WorkspaceTruthStatusView>;
+
 	getWorkspaceCompletionStatus(planExecutionId: string, workspaceId: string): Promise<CompletionStatusView>;
 
 	// -----------------------------------------------------------------------

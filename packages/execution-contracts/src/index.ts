@@ -117,6 +117,7 @@ export type {
 	PlanExecutionSummary,
 	WorkerContextView,
 	WorkspaceExecutionSummary,
+	WorkspaceTruthStatusView,
 } from "./read-model.js";
 // Runtime event emitter
 export { RuntimeEventEmitter } from "./runtime-emitter.js";

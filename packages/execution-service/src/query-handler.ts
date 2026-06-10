@@ -34,6 +34,7 @@ import type {
 	WorkerContextView,
 	WorkerTranscriptEvent,
 	WorkspaceExecutionSummary,
+	WorkspaceTruthStatusView,
 } from "@earendil-works/pi-execution-contracts";
 import { buildFileTreeFromEntries, getFileExt } from "@earendil-works/pi-execution-contracts";
 
@@ -412,6 +413,30 @@ function extractEscalationsFromEvents(events: JournalEventEnvelope[]): LeadEscal
  *   by the gate — returns canComplete: true.
  * - If there are no workspace events at all, returns unavailable.
  */
+/**
+ * Map a workspace stage to a runtime status string.
+ */
+function mapStageToRuntimeStatus(stage: string): string {
+	switch (stage) {
+		case "PENDING":
+			return "PENDING";
+		case "ACTIVE":
+		case "Active":
+			return "RUNNING";
+		case "COMPLETE":
+		case "Complete":
+			return "COMPLETE";
+		case "FAILED":
+		case "Failed":
+			return "FAILED";
+		case "BLOCKED":
+		case "Blocked":
+			return "BLOCKED";
+		default:
+			return "UNKNOWN";
+	}
+}
+
 function extractCompletionStatusFromEvents(
 	_planExecutionId: string,
 	workspaceId: string,
@@ -1271,6 +1296,70 @@ export function createExecutionReadModel(stateStore: {
 				blocked: false,
 				blockReasons: [],
 			};
+		},
+
+		// -------------------------------------------------------------------
+		// Workspace Truth Status (P44.5)
+		// -------------------------------------------------------------------
+
+		async getWorkspaceTruthStatus(planExecutionId: string, workspaceId: string): Promise<WorkspaceTruthStatusView> {
+			if (!stateStore.getWorkspaceState) {
+				return {
+					runtimeStatus: "UNKNOWN",
+					implementationStatus: "UNKNOWN",
+					validationStatus: "UNKNOWN",
+					durabilityStatus: "UNKNOWN",
+					verifiedComplete: false,
+					backfillStatus: "not_applicable",
+					verifiedFiles: [],
+					blockers: [],
+					warnings: [],
+					rolloutMode: "shadow",
+					dataAvailability: { available: false, reason: "State store does not support workspace state" },
+				};
+			}
+
+			const wsState = await stateStore.getWorkspaceState(planExecutionId, workspaceId);
+			if (!wsState) {
+				return {
+					runtimeStatus: "UNKNOWN",
+					implementationStatus: "UNKNOWN",
+					validationStatus: "UNKNOWN",
+					durabilityStatus: "UNKNOWN",
+					verifiedComplete: false,
+					backfillStatus: "not_applicable",
+					verifiedFiles: [],
+					blockers: [],
+					warnings: [],
+					rolloutMode: "shadow",
+					dataAvailability: { available: false, reason: "Workspace state not found" },
+				};
+			}
+
+			const stage = wsState.stage ?? "PENDING";
+			const runtimeStatus = mapStageToRuntimeStatus(stage);
+
+			const status: WorkspaceTruthStatusView = {
+				runtimeStatus,
+				implementationStatus: runtimeStatus === "COMPLETE" ? "DECLARED_OUTPUT_EXISTS" : "UNKNOWN",
+				validationStatus: runtimeStatus === "COMPLETE" ? "PASSED" : "NOT_RUN",
+				durabilityStatus: "NOT_COMMITTED",
+				verifiedComplete: false,
+				backfillStatus: "legacy_no_commit_data",
+				verifiedFiles: [],
+				blockers: [],
+				warnings: [],
+				rolloutMode: "shadow",
+				dataAvailability: { available: true },
+			};
+
+			// Never return verifiedComplete=true from runtime complete alone
+			if (runtimeStatus === "COMPLETE") {
+				status.durabilityStatus = "NOT_COMMITTED";
+				status.verifiedComplete = false;
+			}
+
+			return status;
 		},
 
 		// -------------------------------------------------------------------
