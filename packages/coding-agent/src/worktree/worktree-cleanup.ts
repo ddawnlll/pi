@@ -13,7 +13,12 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createGitRunner, type GitRunner } from "../core/git-runner.js";
+import {
+	createGitRunner,
+	DestructiveOperationGuard,
+	type GitRunner,
+	guardDestructiveGitOperation,
+} from "../core/git-runner.js";
 import { DEFAULT_WORKTREE_ROOT, type WorktreeCleanupResult } from "./worktree-types.js";
 
 // ---------------------------------------------------------------------------
@@ -141,6 +146,25 @@ export class WorktreeCleanup {
 	 */
 	async removeWorktree(worktreeDir: string, branchName?: string): Promise<WorktreeCleanupResult> {
 		const resolvedDir = path.resolve(worktreeDir);
+
+		// P44.5.10: Check the destructive operation guard before proceeding
+		// This captures preservation state and blocks if uncommitted output exists.
+		const guard = new DestructiveOperationGuard({
+			repoRoot: this.workspaceRoot,
+			workspaceId: "worktree-cleanup",
+			planExecId: "",
+			archiveDir: path.join(this.workspaceRoot, ".pi", "preservation"),
+			blockOnPreservationFailure: true,
+		});
+		const guardResult = guardDestructiveGitOperation(guard, "git worktree remove --force");
+
+		if (!guardResult.allowed) {
+			return {
+				success: false,
+				path: resolvedDir,
+				error: guardResult.reason ?? "Destructive operation blocked by preservation guard",
+			};
+		}
 
 		// AC3: Validate path is within allowed root
 		try {

@@ -288,6 +288,16 @@ export {
 	isValidLink,
 	validateLink,
 } from "./traceability-schema.js";
+// Verified Complete Backfill (P44.5.11)
+export type { VerifiedCompleteBackfillStatus } from "./verified-complete-backfill.js";
+export {
+	backfillStatusLabel,
+	computeBackfillStatus,
+	computeLegacyBackfillStatus,
+	createDefaultBackfillStatus,
+	needsBackfillAttention,
+	P445_DEPLOYMENT_TIMESTAMP,
+} from "./verified-complete-backfill.js";
 export type { WorkerEchoClaim, WorkerEchoExtractionResult } from "./worker-echo-extractor.js";
 // Worker Echo Extractor
 export { extractWorkerEcho, verifyWorkerEcho } from "./worker-echo-extractor.js";
