@@ -1,0 +1,48 @@
+{
+  "diagnostic_families": [
+    "ACCP_PARSE",
+    "ACCP_SCHEMA",
+    "ACCP_ID",
+    "ACCP_REF",
+    "ACCP_SEMANTIC",
+    "ACCP_EVIDENCE",
+    "ACCP_LINEAGE",
+    "ACCP_ROUTE",
+    "ACCP_GATE",
+    "ACCP_AUTHORITY"
+  ],
+  "codes": [
+    {
+      "code": "ACCP_PARSE_YAML_INVALID",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_SCHEMA_MISSING_REQUIRED_SECTION",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_ID_DUPLICATE",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_REF_UNRESOLVED",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_SEMANTIC_CONFIRMED_BUG_MISSING_EVIDENCE",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_EVIDENCE_PATH_NOT_FOUND",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_ROUTE_MUTATION_WITHOUT_AUTHORITY",
+      "fatal": true
+    },
+    {
+      "code": "ACCP_GATE_BLOCKING_FINDING_OPEN",
+      "fatal": false
+    }
+  ]
+}

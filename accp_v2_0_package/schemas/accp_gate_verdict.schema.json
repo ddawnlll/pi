@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi.local/schemas/accp_gate_verdict.schema.json",
+  "title": "ACCP Gate Verdict",
+  "type": "object",
+  "required": [
+    "reportId",
+    "reportType",
+    "valid",
+    "fatalErrors",
+    "warnings",
+    "blockingFindings",
+    "requiresHir",
+    "requiresTvr",
+    "blocksPromotion",
+    "compiledAt",
+    "staleAfter"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string"
+    },
+    "reportType": {
+      "type": "string"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "fatalErrors": {
+      "type": "array"
+    },
+    "warnings": {
+      "type": "array"
+    },
+    "blockingFindings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requiresHir": {
+      "type": "boolean"
+    },
+    "requiresTvr": {
+      "type": "boolean"
+    },
+    "blocksPromotion": {
+      "type": "boolean"
+    },
+    "compiledAt": {
+      "type": "string"
+    },
+    "staleAfter": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

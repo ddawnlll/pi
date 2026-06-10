@@ -1,0 +1,1070 @@
+{
+	"planSpecVersion": "5.0.0-alpha2",
+	"kind": "ImplementationPlan",
+	"$schema": "https://schemas.pi.dev/planspec/v5-alpha2.json",
+
+	"metadata": {
+		"phaseId": "P44",
+		"title": "P44 Verified Completion Spine and Workspace-Scoped Commit Safety",
+		"description": "Normal parser-compatible PlanSpec single-file plan for P44. Uses top-level workstreams, workspace-level workstreamId, strict command policy, PlanLock, WorkerPacket echo, CompletionGate V2, EvidenceLedger, WorkspaceCommitGate, and P45 bridge artifact boundaries.",
+		"createdAt": "2025-01-01T00:00:00.000Z",
+		"updatedAt": "2026-06-09T21:53:31.874Z",
+		"owner": "pi-agent",
+		"status": "active",
+		"tags": ["implementation", "A"]
+	},
+
+	"compatibility": {
+		"runtimeContractVersion": "2.6.0",
+		"runtimeTemplateVersion": "4.1.1",
+		"legacyTemplateCompatible": true,
+		"generatedFromV411": true,
+		"v411AdapterRequired": false,
+		"notes": [
+			"P44 adds CompletionGate V2, EvidenceLedger, WorkspaceCommitGate, and P45 bridge artifact boundaries.",
+			"Template requires stable AC IDs, evidence ledger, CompletionGate v2, and worker report contract.",
+			"Template forbids silent pass guards, watch mode validation, and zero tests found success.",
+			"Template states generated Markdown preview is non-authoritative."
+		]
+	},
+
+	"intent": {
+		"goal": "Build the Verified Completion Spine — a set of gates, ledger, commit safety, and bridge outputs that make worker completions auditable, enforceable, and P45-ready without implementing P45 runtime.",
+		"successCriteria": [
+			"All acceptance criteria pass with attached evidence (source, test, command, diff, negative, mutation, commit, report, runtime).",
+			"CompletionGate v2 blocks COMPLETE without evidence, showing exact missing AC IDs.",
+			"Terminal reconciler finalizes attempts as COMPLETE/BLOCKED/FAILED and ignores stale completions.",
+			"WorkspaceCommitGate enforces write-set integrity — only acceptedWriteSet is staged and committed.",
+			"Scoped commit integration uses WorkspaceCommitGate and rejects unmatched staged files.",
+			"Post-implementation auditor catches fake-complete and missing ACs.",
+			"Negative assertion scanner blocks forbidden shortcuts (stub, static, fake).",
+			"P45 bridge artifacts (write set, readiness, evidence, mutation) generated without touching P45 runtime.",
+			"All gauntlets pass: fake-complete, commit-scope, mutation-safety, Monte Carlo.",
+			"Final promotion report with tests passing and recommendation."
+		],
+		"outOfScope": [
+			"P45 runtime implementation (async-assembly, static-partitioner, deterministic-assembler).",
+			"Arbitration logic and retry strategies for failed attempts.",
+			"Full automation of the wave batch scheduler beyond stable_3_wave_batch.",
+			"UI redesign of the dashboard completion panels (only read model changes).",
+			"Multi-repo support."
+		],
+		"dependencies": [],
+		"blockers": []
+	},
+
+	"authority": {
+		"specification": "Normal parser-compatible PlanSpec single-file plan for P44. Uses top-level workstreams, workspace-level workstreamId, strict command policy, PlanLock, WorkerPacket echo, CompletionGate V2, EvidenceLedger, WorkspaceCommitGate, and P45 bridge artifact boundaries.",
+		"executionState": {
+			"mode": "stable_3_wave_batch",
+			"maxParallelWorkspaces": 3,
+			"worktreeIsolation": true,
+			"integrationQueue": false,
+			"validationLock": true
+		},
+		"completion": {
+			"requiresAcceptanceCriteria": true,
+			"requiresValidationEvidence": true,
+			"requiresReport": true,
+			"requiresRollbackPlan": true,
+			"requiresFinalVerdict": true
+		}
+	},
+
+	"enforcementRegistry": {
+		"rules": [
+			{
+				"id": "ER-001",
+				"type": "completion_gate",
+				"severity": "error",
+				"condition": "Worker attempts COMPLETE without evidence for all required ACs",
+				"action": "Block transition, emit missing evidence IDs, log completion_gate_blocked event"
+			},
+			{
+				"id": "ER-002",
+				"type": "commit_gate",
+				"severity": "error",
+				"condition": "stagedFiles !== acceptedWriteSet computed by WorkspaceCommitGate",
+				"action": "Block commit with mismatch report, emit commit_gate_blocked event"
+			},
+			{
+				"id": "ER-003",
+				"type": "forbidden_shortcut",
+				"severity": "error",
+				"condition": "Negative assertion scanner detects fake/stub/static shortcuts when forbidden",
+				"action": "Block completion, require proper implementation"
+			},
+			{
+				"id": "ER-004",
+				"type": "stale_attempt",
+				"severity": "warning",
+				"condition": "Old attempt COMPLETE received after terminal attempt exists",
+				"action": "Log stale_attempt_completion_ignored event, do not transition"
+			},
+			{
+				"id": "ER-005",
+				"type": "evidence_guard",
+				"severity": "error",
+				"condition": "Validation evidence uses no-tests-found, watch-mode, command-not-found, timeout, or silent-pass",
+				"action": "Reject evidence, require real test results"
+			}
+		],
+		"policies": [
+			{
+				"id": "POL-001",
+				"name": "P44 Verified Completion Policy",
+				"description": "Completion gate, commit gate, and evidence integrity enforcement for the Verified Completion Spine.",
+				"ruleIds": ["ER-001", "ER-002", "ER-003", "ER-004", "ER-005"]
+			}
+		]
+	},
+
+	"security": {
+		"selfModificationFirewall": {
+			"enabled": true,
+			"protectedPaths": [
+				"package.json",
+				"package-lock.json",
+				"pnpm-lock.yaml",
+				".env",
+				".env.*",
+				"node_modules/**",
+				".git/**",
+				"packages/coding-agent/src/p45/**",
+				"packages/coding-agent/src/async-assembly/**",
+				"packages/coding-agent/src/static-partitioner/**",
+				"packages/coding-agent/src/deterministic-assembler/**"
+			],
+			"requireExplicitApproval": true
+		},
+		"dataExfiltrationGuard": {
+			"enabled": true,
+			"sensitivePatterns": [
+				"*API_KEY*",
+				"*SECRET*",
+				"*TOKEN*",
+				"*PASSWORD*"
+			],
+			"blockedDestinations": ["external-api"]
+		},
+		"secretProtection": {
+			"enabled": true,
+			"secretPatterns": ["*.env", "*.env.*", "**/credentials/**"],
+			"maskInLogs": true
+		}
+	},
+
+	"commands": {
+		"policy": "strict",
+		"allowedCommands": [
+			"npm run check",
+			"npm test",
+			"npx vitest",
+			"git add",
+			"git commit",
+			"git status",
+			"git diff",
+			"grep",
+			"find",
+			"ls"
+		],
+		"blockedCommands": [
+			"git add .",
+			"git add -A",
+			"git commit -a"
+		],
+		"timeoutSeconds": 300,
+		"maxOutputBytes": 1048576
+	},
+
+	"evidence": {
+		"captureMode": "automatic",
+		"types": ["source", "test", "command", "diff", "negative", "mutation", "commit", "report", "runtime"],
+		"retentionDays": 90
+	},
+
+	"locking": {
+		"enabled": true,
+		"hashAlgorithm": "sha256",
+		"includeTimestamp": true
+	},
+
+	"p45Bridge": {
+		"enabled": true,
+		"artifactSafety": true,
+		"mutationTracking": true,
+		"commitGating": true
+	},
+
+	"reports": {
+		"format": "markdown",
+		"includeMetrics": true,
+		"includeTimeline": true,
+		"includeDiffSummary": true
+	},
+
+	"waves": [
+		{
+			"id": "W0",
+			"title": "Fake-complete RCA and completion path audit",
+			"description": "Fake-complete RCA and completion path audit. Establishes the root-cause analysis for fake-complete scenarios and maps the full completion path: worker output -> parser -> evidence -> gate -> reconciler -> ExecutionKernel transition. This foundational wave ensures workers understand what fake-complete looks like and what gates block it.",
+			"order": 0,
+			"tasks": [
+				{
+					"id": "task-P44.00",
+					"title": "Fake Complete RCA and Completion Path Audit",
+					"description": "Investigate and document how fake-complete scenarios can occur in the current system. Map the end-to-end completion path showing how worker output flows through parsing, evidence collection, completion gating, terminal reconciliation, and final ExecutionKernel transition. The RCA document lists verdict/state transition paths with file and function evidence. The path diagram shows the architectural flow. The grep output confirms real occurrences.",
+					"type": "implementation",
+					"workspaceId": "P44.00",
+					"files": [
+						{ "path": "docs/pi/p44/fake-complete-rca.md", "operation": "create" },
+						{ "path": "docs/pi/p44/completion-path-diagram.md", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/completion-path-grep.txt", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/completion-audit.json", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4400-001: fake-complete-rca.md lists verdict/state transition paths with file/function evidence.",
+						"AC-P4400-002: completion-path-diagram.md shows worker output -> parser -> evidence -> gate -> reconciler -> ExecutionKernel transition.",
+						"AC-P4400-003: completion-path-grep.txt is non-empty and referenced in the ACCP report."
+					],
+					"dependencies": [],
+					"estimatedMinutes": 60,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": [],
+			"estimatedDurationMinutes": 60
+		},
+		{
+			"id": "W1",
+			"title": "AC schema, EvidenceLedger, and Worker Report Contract",
+			"description": "Build the acceptance criteria and traceability schema, the EvidenceLedger storage model, and the worker report contract with V5 lock echo fields. These three components form the data layer of the Verified Completion Spine — they define how acceptance criteria are structured, how evidence is stored and validated, and how workers report completion in a structured format that the completion gate can verify.",
+			"order": 1,
+			"tasks": [
+				{
+					"id": "task-P44.01",
+					"title": "Acceptance Criteria and Traceability Schema",
+					"description": "Define the canonical AcceptanceCriterion type with id, title, text, level, evidenceRequired, evidenceTypes, validationRefs, negative, forbiddenPatterns, and deferReason. This schema is the single source of truth for what constitutes a valid acceptance criterion. Supports negative assertions requiring negative_check evidence. Deferred criteria require a deferReason and cannot satisfy phase-critical ACs.",
+					"type": "implementation",
+					"workspaceId": "P44.01",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/acceptance-criteria.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/traceability-schema.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion/acceptance-criteria.test.ts", "operation": "create" },
+						{ "path": "docs/pi/p44/traceability-schema.md", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4401-001: AcceptanceCriterion validates id, title, text, level, evidenceRequired, evidenceTypes, validationRefs, negative, forbiddenPatterns, and deferReason.",
+						"AC-P4401-002: Schema represents negative assertions requiring negative_check evidence.",
+						"AC-P4401-003: Deferred criteria require deferReason and cannot satisfy phase-critical ACs."
+					],
+					"dependencies": ["task-P44.00"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.02",
+					"title": "EvidenceLedger and Artifact Evidence Model",
+					"description": "Build the EvidenceLedger that stores source, test, command, diff, negative, mutation, commit, report, and runtime evidence. The ledger must reject invalid evidence including zero tests found, non-zero exit, command not found, timeout, watch mode, and silent pass guards. Must serialize to JSON and round-trip without losing AC refs or lock hashes. This is the canonical evidence store used by CompletionGate v2 to verify worker completions.",
+					"type": "implementation",
+					"workspaceId": "P44.02",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/evidence-ledger.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/evidence-types.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion/evidence-ledger.test.ts", "operation": "create" },
+						{ "path": "docs/pi/p44/evidence-ledger.md", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4402-001: EvidenceLedger stores source, test, command, diff, negative, mutation, commit, report, and runtime evidence.",
+						"AC-P4402-002: EvidenceLedger rejects zero tests found, non-zero exit, command not found, timeout, watch mode, and silent pass guards.",
+						"AC-P4402-003: EvidenceLedger serializes and round-trips JSON without losing AC refs or lock hashes."
+					],
+					"dependencies": ["task-P44.00", "task-P44.01"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.06",
+					"title": "Worker Report Contract and V5 Lock Echo Fields",
+					"description": "Define the WorkerCompletionReport parser that accepts only structured reports and rejects prose-only completions. The parser validates acceptanceCoverage and commandsRun when validation is required, and blocks COMPLETE if they are missing. The planspec_locked report extraction handles planLockHash and workspaceLockHash, blocking on missing or mismatched echo fields. This ensures workers cannot complete without echoing the lock hash — a core auditability requirement.",
+					"type": "implementation",
+					"workspaceId": "P44.06",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/worker-report-contract.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/worker-echo-extractor.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/role-packets.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/src/core/workspace-agent-executor.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/worker-report-contract.test.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/worker-echo-extraction.test.ts", "operation": "create" },
+						{ "path": "docs/pi/p44/worker-report-contract.md", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4406-001: WorkerCompletionReport parser accepts valid structured report and rejects prose-only completion.",
+						"AC-P4406-002: Missing acceptanceCoverage or commandsRun when validation is required blocks COMPLETE.",
+						"AC-P4406-003: planspec_locked report extraction handles planLockHash/workspaceLockHash and blocks missing/mismatched echo."
+					],
+					"dependencies": ["task-P44.00", "task-P44.01", "task-P44.02"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W0"],
+			"estimatedDurationMinutes": 270
+		},
+		{
+			"id": "W2",
+			"title": "CompletionGate v2, terminal reconciler, and negative scanner",
+			"description": "Build the enforcement layer: CompletionGate v2 validates worker completions against the evidence ledger, the terminal reconciler finalizes attempts into COMPLETE/BLOCKED/FAILED states, and the negative assertion scanner detects forbidden shortcuts. These are the decision-making components that prevent fake-complete and enforce completion integrity.",
+			"order": 2,
+			"tasks": [
+				{
+					"id": "task-P44.03",
+					"title": "CompletionGate v2 Coverage Gate",
+					"description": "Build CompletionGate v2 — the authoritative gate that validates worker completion claims against the EvidenceLedger. COMPLETE without evidence is blocked with exact missing AC IDs. COMPLETE with all required evidence, validation evidence, and negative evidence is accepted. No tests found, watch mode, command-not-found, timeout, and silent pass guards cannot satisfy validation evidence. This replaces any earlier gate implementation and becomes the single completion gate.",
+					"type": "implementation",
+					"workspaceId": "P44.03",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/completion-gate-v2.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/completion-gate-result.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/completion-gate-adapter.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/index.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/completion-gate-v2.test.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion-gate.test.ts", "operation": "modify" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4403-001: COMPLETE without evidence is blocked with exact missing AC IDs.",
+						"AC-P4403-002: COMPLETE with all required evidence, validation evidence, and negative evidence is accepted.",
+						"AC-P4403-003: No tests found, watch mode, command-not-found, timeout, and silent pass guards cannot satisfy validation evidence."
+					],
+					"dependencies": ["task-P44.01", "task-P44.02", "task-P44.06"],
+					"estimatedMinutes": 120,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.04",
+					"title": "Terminal Verdict Reconciliation and Attempt Finalization",
+					"description": "Build the terminal verdict reconciler that handles completion verdicts from workers. Current attempt COMPLETE transitions only when CompletionGate v2 accepts. Old attempt COMPLETE is ignored with a stale_attempt_completion_ignored event. Terminal attempt is finalized as COMPLETE/BLOCKED/FAILED and never left RUNNING. This ensures the system has a single authoritative completion state per workspace attempt.",
+					"type": "implementation",
+					"workspaceId": "P44.04",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/terminal-verdict-parser.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/terminal-reconciler.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/workspace-agent-executor.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/src/core/autonomous-executor.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/src/core/plan-state.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/terminal-reconciler.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4404-001: Current attempt COMPLETE transitions only when CompletionGate v2 accepts.",
+						"AC-P4404-002: Old attempt COMPLETE is ignored with stale_attempt_completion_ignored event.",
+						"AC-P4404-003: Terminal attempt is finalized as COMPLETE/BLOCKED/FAILED, never left RUNNING."
+					],
+					"dependencies": ["task-P44.03", "task-P44.06"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.05",
+					"title": "Negative Assertion and Forbidden Shortcut Scanner",
+					"description": "Build the negative assertion model that supports both grep and AST-based checks, and the forbidden shortcut scanner that blocks fake/static/stub shortcuts when forbidden. Passing negative checks create negative_check evidence items. This is the integrity layer that prevents workers from taking shortcuts that bypass real implementation work.",
+					"type": "implementation",
+					"workspaceId": "P44.05",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/negative-assertions.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/forbidden-shortcut-scanner.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion/negative-assertions.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4405-001: Negative assertion model supports grep and AST checks.",
+						"AC-P4405-002: Scanner blocks fake/static/stub shortcuts when forbidden.",
+						"AC-P4405-003: Passing negative checks create negative_check evidence items."
+					],
+					"dependencies": ["task-P44.01", "task-P44.02", "task-P44.03"],
+					"estimatedMinutes": 90,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W1"],
+			"estimatedDurationMinutes": 300
+		},
+		{
+			"id": "W3",
+			"title": "WriteGate/SmartMutation wiring, WorkspaceCommitGate, and scoped commit integration",
+			"description": "Build the write and commit safety layer. The WriteGate and SmartMutation tool wiring ensures production write/edit tools go through gates. WorkspaceCommitGate computes the accepted write set and validates commits against it. Scoped commit integration wires the gate into the real commit path. Together these prevent unauthorized writes and ensure every commit is exactly what was reported.",
+			"order": 3,
+			"tasks": [
+				{
+					"id": "task-P44.WG",
+					"title": "WriteGate and SmartMutation Tool Wiring",
+					"description": "Wire WriteGate and SmartMutationEngine into the production write/edit tools. Large existing source-file overwrite is blocked by default. Files outside allowedFiles and P45 runtime forbidden paths are blocked. This ensures all mutations go through the gate for auditability and safety.",
+					"type": "implementation",
+					"workspaceId": "P44.WG",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/write-gate.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/write-set-guard.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/mutation/smart-mutation-engine.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/tools/write.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/src/core/tools/edit.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/write-gate-tool-wiring.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P44WG-001: Production write/edit tools call WriteGate or SmartMutationEngine.",
+						"AC-P44WG-002: Large existing source-file overwrite is blocked by default.",
+						"AC-P44WG-003: Files outside allowedFiles and P45 runtime forbidden paths are blocked."
+					],
+					"dependencies": ["task-P44.01", "task-P44.02"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.08",
+					"title": "WorkspaceCommitGate",
+					"description": "Build WorkspaceCommitGate that computes acceptedWriteSet from the workspace's allowed files and the files the worker actually changed. Blocks illegal files (outside allowedFiles), unreported files (changed but not mentioned in completion), omitted files (in workspaceAllowed but not staged), and human-edit files (not machine-authored). git add ., git add -A, and git commit -a are forbidden in the production worker commit path. Commit proceeds only when stagedFiles equals acceptedWriteSet exactly.",
+					"type": "implementation",
+					"workspaceId": "P44.08",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/workspace-commit-gate.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/completion/workspace-write-set.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion/workspace-commit-gate.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4408-001: WorkspaceCommitGate computes acceptedWriteSet and blocks illegal/unreported/omitted/human-edit files.",
+						"AC-P4408-002: git add ., git add -A, and git commit -a are forbidden in production worker commit path.",
+						"AC-P4408-003: Commit proceeds only when stagedFiles equals acceptedWriteSet."
+					],
+					"dependencies": ["task-P44.02", "task-P44.06", "task-P44.WG"],
+					"estimatedMinutes": 90,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P44.09",
+					"title": "Scoped Commit Integration",
+					"description": "Wire WorkspaceCommitGate into the real commit path in autonomous-executor. Only acceptedWriteSet is staged. Block commits when unrelated modified files are present alongside allowed files. If stagedFiles changes after the gate approves, abort the commit. This completes the end-to-end commit safety chain.",
+					"type": "implementation",
+					"workspaceId": "P44.09",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/scoped-commit-integration.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/src/core/autonomous-executor.ts", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/scoped-commit-integration.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4409-001: Real commit path uses WorkspaceCommitGate and stages only acceptedWriteSet.",
+						"AC-P4409-002: Allowed + unrelated modified file blocks commit.",
+						"AC-P4409-003: If stagedFiles changes after gate, commit aborts."
+					],
+					"dependencies": ["task-P44.08"],
+					"estimatedMinutes": 60,
+					"priority": "critical",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W1"],
+			"estimatedDurationMinutes": 240
+		},
+		{
+			"id": "W4",
+			"title": "PostImplementationAuditor and fake-complete reality checks",
+			"description": "Build the PostImplementationAuditor that validates worker claims against actual filesystem changes. Catches fake-complete where a worker claims changes that weren't made, or omits required acceptance criteria. Emits completeAllowed:false for fake-complete scenarios. This is the last line of defense before a workspace is marked complete.",
+			"order": 4,
+			"tasks": [
+				{
+					"id": "task-P44.07",
+					"title": "Post-Implementation Auditor",
+					"description": "Build the auditor that runs after implementation to verify claimed changes match actual filesystem changes. Compares the worker's claimed changed files to git diff output. Catches missing required acceptance criteria that the worker didn't address. The audit fixture emits completeAllowed:false for fake-complete so the gate can block. This catches workers that claim completion without doing the work.",
+					"type": "implementation",
+					"workspaceId": "P44.07",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/completion/post-implementation-auditor.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/completion/post-implementation-auditor.test.ts", "operation": "create" },
+						{ "path": "scripts/run-post-implementation-audit.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4407-001: Auditor compares claimed changed files to actual changed files.",
+						"AC-P4407-002: Auditor catches missing required acceptance criteria.",
+						"AC-P4407-003: Audit fixture emits completeAllowed:false for fake-complete."
+					],
+					"dependencies": ["task-P44.01", "task-P44.02", "task-P44.06", "task-P44.05"],
+					"estimatedMinutes": 90,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W2"],
+			"estimatedDurationMinutes": 90
+		},
+		{
+			"id": "W5",
+			"title": "Read model and dashboard completion truth fields",
+			"description": "Expose completion truth in the read model and dashboard. The read model must expose verdictClaim, gateVerdict, missingAcceptanceCriteria, and completionGateReasons so the UI can distinguish between what a worker claims and what the gate says. Stale attempt errors must not show as current workspace truth.",
+			"order": 5,
+			"tasks": [
+				{
+					"id": "task-P44.10",
+					"title": "Read Model and Dashboard Completion Truth Visibility",
+					"description": "Extend the read model to expose completion truth fields: verdictClaim (what the worker reported), gateVerdict (what the completion gate decided), missingAcceptanceCriteria (ACs without evidence), and completionGateReasons (why the gate rejected). Dashboard components must distinguish between worker claim and authoritative gate state. Stale attempt errors must not be shown as the current workspace truth. This touches packages across the stack: execution-core, execution-contracts, execution-service, web-server, and web-ui dashboard.",
+					"type": "implementation",
+					"workspaceId": "P44.10",
+					"files": [
+						{ "path": "packages/execution-core/src/read-model.ts", "operation": "modify" },
+						{ "path": "packages/execution-contracts/src/read-model.ts", "operation": "modify" },
+						{ "path": "packages/execution-service/src/query-handler.ts", "operation": "modify" },
+						{ "path": "packages/web-server/src/**", "operation": "modify" },
+						{ "path": "packages/web-ui/dashboard/src/components/**", "operation": "modify" },
+						{ "path": "packages/web-ui/dashboard/src/hooks/**", "operation": "modify" },
+						{ "path": "packages/coding-agent/test/completion/read-model-completion-visibility.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4410-001: Read model exposes verdictClaim, gateVerdict, missingAcceptanceCriteria, and completionGateReasons.",
+						"AC-P4410-002: Dashboard/read model distinguishes worker claim from authoritative gate state.",
+						"AC-P4410-003: Stale attempt error is not shown as current workspace truth."
+					],
+					"dependencies": ["task-P44.03", "task-P44.04", "task-P44.08", "task-P44.09"],
+					"estimatedMinutes": 120,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W3"],
+			"estimatedDurationMinutes": 120
+		},
+		{
+			"id": "W6",
+			"title": "Fake-complete, commit-scope, mutation-safety, and Monte Carlo gauntlets",
+			"description": "Run the gauntlets that stress-test the entire verified completion spine: fake-complete detection, commit scope enforcement, mutation safety, and Monte Carlo simulation. Each gauntlet produces a JSON result with scenario counts. All must pass before promotion.",
+			"order": 6,
+			"tasks": [
+				{
+					"id": "task-P44.11",
+					"title": "Fake Complete, Commit Scope, and Mutation Safety Gauntlets",
+					"description": "Create and run gauntlet tests that verify the full completion spine end-to-end. The fake-complete gauntlet validates that the system catches fake-complete attempts. The commit-scope gauntlet validates that commit scope enforcement works. The mutation-safety gauntlet validates mutation tracking. The Monte Carlo simulation runs 100 random scenarios and requires a 1.0 match rate. All gauntlets produce JSON reports with failedScenarios=0.",
+					"type": "test",
+					"workspaceId": "P44.11",
+					"files": [
+						{ "path": "scripts/run-execution-stability-gauntlet.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/gauntlet/fake-complete-and-commit-scope.test.ts", "operation": "create" },
+						{ "path": "reports/p44-fake-complete-gauntlet.json", "operation": "create" },
+						{ "path": "reports/p44-commit-scope-gauntlet.json", "operation": "create" },
+						{ "path": "reports/p44-mutation-safety-gauntlet.json", "operation": "create" },
+						{ "path": "reports/p44-fake-complete-monte-carlo.json", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4411-001: Fake-complete scenario JSON exists and failedScenarios=0.",
+						"AC-P4411-002: Commit-scope gauntlet JSON exists and failedScenarios=0.",
+						"AC-P4411-003: Mutation-safety gauntlet JSON exists and failedScenarios=0.",
+						"AC-P4411-004: Fake-complete Monte Carlo has totalRuns=100 and matchRate=1.0."
+					],
+					"dependencies": ["task-P44.03", "task-P44.04", "task-P44.05", "task-P44.07", "task-P44.09", "task-P44.WG", "task-P44.10"],
+					"estimatedMinutes": 180,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W4", "W5"],
+			"estimatedDurationMinutes": 180
+		},
+		{
+			"id": "W7",
+			"title": "v4.1.1-compatible template extension and P45 bridge outputs only; no P45 runtime implementation",
+			"description": "Update the master template to be v4.1.1-compatible with the new completion spine requirements, and generate P45 bridge artifacts. The template gains stable AC IDs, evidence ledger, CompletionGate v2, and worker report contract requirements. P45 bridge exports the accepted write set, readiness report, evidence ledger, and mutation report — all as artifacts that P45 can consume without modifying P45 runtime code. This wave is boundary-safe: no files under p45/async-assembly/static-partitioner/deterministic-assembler are touched.",
+			"order": 7,
+			"tasks": [
+				{
+					"id": "task-P44.12",
+					"title": "Master Template v4.1.1-Compatible Extension Update",
+					"description": "Update the master implementation agent template to require the new completion spine components: stable AC IDs, evidence ledger, CompletionGate v2, and worker report contract. Template must forbid silent pass guards, watch mode validation, and zero tests found success. Template must state that generated Markdown preview is non-authoritative. Update supporting documentation and planner prompt rules.",
+					"type": "documentation",
+					"workspaceId": "P44.12",
+					"files": [
+						{ "path": "docs/llm-implementation-agent-master-template.md", "operation": "modify" },
+						{ "path": "docs/pi/p44/master-template-update.md", "operation": "create" },
+						{ "path": "docs/pi/p44/planner-prompt-rules.md", "operation": "create" },
+						{ "path": "packages/coding-agent/test/template/p44-template-extension.test.ts", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4412-001: Template requires stable AC IDs, evidence ledger, CompletionGate v2, and worker report contract.",
+						"AC-P4412-002: Template forbids silent pass guards, watch mode validation, and zero tests found success.",
+						"AC-P4412-003: Template states generated Markdown preview is non-authoritative."
+					],
+					"dependencies": ["task-P44.01", "task-P44.02", "task-P44.03", "task-P44.06", "task-P44.11"],
+					"estimatedMinutes": 60,
+					"priority": "medium",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P45.B1",
+					"title": "P45 Bridge Artifact: Accepted WriteSet Export and Ownership Summary",
+					"description": "Generate accepted-write-set.json (the canonical set of files the workspace was allowed to touch) and ownership-summary.json (mapping files to responsible workspaces). These bridge artifacts let the future P45 assembler know what was built and who built it. Bridge writes ONLY to p44 bridge artifact paths — never to P45 runtime paths.",
+					"type": "implementation",
+					"workspaceId": "P45.B1",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/p44/p45-bridge/writeset-export.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/p44/p45-bridge-writeset-export.test.ts", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/accepted-write-set.json", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/ownership-summary.json", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P45B1-001: accepted-write-set.json and ownership-summary.json are generated and schema-valid.",
+						"AC-P45B1-002: Bridge writes only p44 bridge artifacts and does not write P45 runtime paths."
+					],
+					"dependencies": ["task-P44.08", "task-P44.09", "task-P44.11"],
+					"estimatedMinutes": 60,
+					"priority": "medium",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P45.B2",
+					"title": "P45 Bridge Artifact: Assembler-Only Candidate Discovery and Readiness Doctor",
+					"description": "Generate p45-readiness-report.json and p45-readiness-report.md showing prerequisites, blockers, and readiness status for P45 assembly. The readiness doctor inspects whether the workspace has everything P45 needs. No files under p45/async-assembly/, p45/static-partitioner/, or p45/deterministic-assembler/ are modified — this is read-only assessment producing bridge artifacts.",
+					"type": "implementation",
+					"workspaceId": "P45.B2",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/p44/p45-bridge/readiness-doctor.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/p44/p45-readiness-doctor.test.ts", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/p45-readiness-report.json", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/p45-readiness-report.md", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P45B2-001: p45-readiness-report.json/md generated with prerequisites and blockers.",
+						"AC-P45B2-002: No files under p45/async-assembly/static-partitioner/deterministic-assembler are modified."
+					],
+					"dependencies": ["task-P45.B1"],
+					"estimatedMinutes": 45,
+					"priority": "medium",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				},
+				{
+					"id": "task-P45.B3",
+					"title": "P45 Bridge Artifact: Evidence Ledger and Mutation Report Export",
+					"description": "Generate evidence-ledger-export.json (full evidence ledger serialized for P45 consumption) and mutation-report.json (record of all mutations performed). Export does not implement or write P45 runtime code — it only produces bridge artifacts in the p44 bridge paths.",
+					"type": "implementation",
+					"workspaceId": "P45.B3",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/p44/p45-bridge/evidence-mutation-export.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/p44/p45-evidence-mutation-export.test.ts", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/evidence-ledger-export.json", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/mutation-report.json", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P45B3-001: evidence-ledger-export.json and mutation-report.json are generated and schema-valid.",
+						"AC-P45B3-002: Export does not implement or write P45 runtime code."
+					],
+					"dependencies": ["task-P44.02", "task-P44.WG", "task-P44.11"],
+					"estimatedMinutes": 45,
+					"priority": "medium",
+					"validation": {
+						"requiresHumanApproval": true,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W6"],
+			"estimatedDurationMinutes": 210
+		},
+		{
+			"id": "W8",
+			"title": "Final validation and promotion readiness",
+			"description": "Final validation wave: build the promotion report, run make test and make test-full, verify all gauntlet reports exist and pass, and produce the final promotion readiness recommendation.",
+			"order": 8,
+			"tasks": [
+				{
+					"id": "task-P44.13",
+					"title": "Final Promotion Report and Stable_3 Gate",
+					"description": "Generate the final promotion report as both JSON and Markdown including remaining risks and explicit recommendation. Run make test and make test-full, attaching evidence for each. Verify all gauntlet reports (fake-complete, commit-scope, mutation-safety, Monte Carlo) exist and pass. This is the final gate before P44 is promoted.",
+					"type": "validation",
+					"workspaceId": "P44.13",
+					"files": [
+						{ "path": "packages/coding-agent/src/core/p44/final-promotion-report.ts", "operation": "create" },
+						{ "path": "packages/coding-agent/test/p44/final-promotion-report.test.ts", "operation": "create" },
+						{ "path": "reports/accp/P44/prr_promotion_readiness.md", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/final-promotion-report.md", "operation": "create" },
+						{ "path": "reports/p44-verified-completion/final-promotion-report.json", "operation": "create" }
+					],
+					"acceptanceCriteria": [
+						"AC-P4413-001: Final promotion report JSON and Markdown exist and include remaining risks and explicit recommendation.",
+						"AC-P4413-002: make test exits 0 and evidence is attached.",
+						"AC-P4413-003: make test-full exits 0 and evidence is attached.",
+						"AC-P4413-004: Fake-complete, commit-scope, mutation-safety, and Monte Carlo reports exist and pass."
+					],
+					"dependencies": ["task-P44.11", "task-P44.12", "task-P45.B1", "task-P45.B2", "task-P45.B3"],
+					"estimatedMinutes": 120,
+					"priority": "high",
+					"validation": {
+						"requiresHumanApproval": false,
+						"postCheck": []
+					}
+				}
+			],
+			"dependencies": ["W7"],
+			"estimatedDurationMinutes": 120
+		}
+	],
+
+	"workspaces": [
+		{
+			"id": "P44.00",
+			"name": "Fake Complete RCA and Completion Path Audit",
+			"rootDir": "./",
+			"canEdit": [
+				"docs/pi/p44/fake-complete-rca.md",
+				"docs/pi/p44/completion-path-diagram.md",
+				"reports/p44-verified-completion/completion-path-grep.txt",
+				"reports/p44-verified-completion/completion-audit.json"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/**",
+				"packages/coding-agent/src/core/workspace-agent-executor.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.01",
+			"name": "Acceptance Criteria and Traceability Schema",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+				"packages/coding-agent/src/core/completion/traceability-schema.ts",
+				"packages/coding-agent/test/completion/acceptance-criteria.test.ts",
+				"docs/pi/p44/traceability-schema.md"
+			],
+			"canRead": [],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.02",
+			"name": "EvidenceLedger and Artifact Evidence Model",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/evidence-types.ts",
+				"packages/coding-agent/test/completion/evidence-ledger.test.ts",
+				"docs/pi/p44/evidence-ledger.md"
+			],
+			"canRead": [],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.06",
+			"name": "Worker Report Contract and V5 Lock Echo Fields",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/worker-report-contract.ts",
+				"packages/coding-agent/src/core/completion/worker-echo-extractor.ts",
+				"packages/coding-agent/src/core/role-packets.ts",
+				"packages/coding-agent/src/core/workspace-agent-executor.ts",
+				"packages/coding-agent/test/completion/worker-report-contract.test.ts",
+				"packages/coding-agent/test/worker-echo-extraction.test.ts",
+				"docs/pi/p44/worker-report-contract.md"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.03",
+			"name": "CompletionGate v2 Coverage Gate",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+				"packages/coding-agent/src/core/completion/completion-gate-result.ts",
+				"packages/coding-agent/src/core/completion/completion-gate-adapter.ts",
+				"packages/coding-agent/src/core/completion/index.ts",
+				"packages/coding-agent/test/completion/completion-gate-v2.test.ts",
+				"packages/coding-agent/test/completion-gate.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+				"packages/coding-agent/src/core/completion/worker-report-contract.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.04",
+			"name": "Terminal Verdict Reconciliation and Attempt Finalization",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/terminal-verdict-parser.ts",
+				"packages/coding-agent/src/core/completion/terminal-reconciler.ts",
+				"packages/coding-agent/src/core/workspace-agent-executor.ts",
+				"packages/coding-agent/src/core/autonomous-executor.ts",
+				"packages/coding-agent/src/core/plan-state.ts",
+				"packages/coding-agent/test/completion/terminal-reconciler.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+				"packages/coding-agent/src/core/completion/completion-gate-result.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.05",
+			"name": "Negative Assertion and Forbidden Shortcut Scanner",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/negative-assertions.ts",
+				"packages/coding-agent/src/core/completion/forbidden-shortcut-scanner.ts",
+				"packages/coding-agent/test/completion/negative-assertions.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.WG",
+			"name": "WriteGate and SmartMutation Tool Wiring",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/write-gate.ts",
+				"packages/coding-agent/src/core/write-set-guard.ts",
+				"packages/coding-agent/src/core/mutation/smart-mutation-engine.ts",
+				"packages/coding-agent/src/core/tools/write.ts",
+				"packages/coding-agent/src/core/tools/edit.ts",
+				"packages/coding-agent/test/completion/write-gate-tool-wiring.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/completion-gate-v2.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.08",
+			"name": "WorkspaceCommitGate",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts",
+				"packages/coding-agent/src/core/completion/workspace-write-set.ts",
+				"packages/coding-agent/test/completion/workspace-commit-gate.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/worker-report-contract.ts",
+				"packages/coding-agent/src/core/write-gate.ts",
+				"packages/coding-agent/src/core/write-set-guard.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.09",
+			"name": "Scoped Commit Integration",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/scoped-commit-integration.ts",
+				"packages/coding-agent/src/core/autonomous-executor.ts",
+				"packages/coding-agent/test/completion/scoped-commit-integration.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts",
+				"packages/coding-agent/src/core/completion/workspace-write-set.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.07",
+			"name": "Post-Implementation Auditor",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/completion/post-implementation-auditor.ts",
+				"packages/coding-agent/test/completion/post-implementation-auditor.test.ts",
+				"scripts/run-post-implementation-audit.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/worker-report-contract.ts",
+				"packages/coding-agent/src/core/completion/negative-assertions.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.10",
+			"name": "Read Model and Dashboard Completion Truth Visibility",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/execution-core/src/read-model.ts",
+				"packages/execution-contracts/src/read-model.ts",
+				"packages/execution-service/src/query-handler.ts",
+				"packages/web-server/src/**",
+				"packages/web-ui/dashboard/src/components/**",
+				"packages/web-ui/dashboard/src/hooks/**",
+				"packages/coding-agent/test/completion/read-model-completion-visibility.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+				"packages/coding-agent/src/core/completion/terminal-reconciler.ts",
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.11",
+			"name": "Fake Complete, Commit Scope, and Mutation Safety Gauntlets",
+			"rootDir": "./",
+			"canEdit": [
+				"scripts/run-execution-stability-gauntlet.ts",
+				"packages/coding-agent/test/gauntlet/fake-complete-and-commit-scope.test.ts",
+				"reports/p44-fake-complete-gauntlet.json",
+				"reports/p44-commit-scope-gauntlet.json",
+				"reports/p44-mutation-safety-gauntlet.json",
+				"reports/p44-fake-complete-monte-carlo.json"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/**",
+				"packages/coding-agent/src/core/write-gate.ts",
+				"packages/coding-agent/src/core/autonomous-executor.ts",
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.12",
+			"name": "Master Template v4.1.1-Compatible Extension Update",
+			"rootDir": "./",
+			"canEdit": [
+				"docs/llm-implementation-agent-master-template.md",
+				"docs/pi/p44/master-template-update.md",
+				"docs/pi/p44/planner-prompt-rules.md",
+				"packages/coding-agent/test/template/p44-template-extension.test.ts"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/completion/completion-gate-v2.ts",
+				"packages/coding-agent/src/core/completion/worker-report-contract.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P45.B1",
+			"name": "P45 Bridge Artifact: Accepted WriteSet Export and Ownership Summary",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/p44/p45-bridge/writeset-export.ts",
+				"packages/coding-agent/test/p44/p45-bridge-writeset-export.test.ts",
+				"reports/p44-verified-completion/accepted-write-set.json",
+				"reports/p44-verified-completion/ownership-summary.json"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts",
+				"packages/coding-agent/src/core/completion/workspace-write-set.ts",
+				"packages/coding-agent/src/core/completion/scoped-commit-integration.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P45.B2",
+			"name": "P45 Bridge Artifact: Assembler-Only Candidate Discovery and Readiness Doctor",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/p44/p45-bridge/readiness-doctor.ts",
+				"packages/coding-agent/test/p44/p45-readiness-doctor.test.ts",
+				"reports/p44-verified-completion/p45-readiness-report.json",
+				"reports/p44-verified-completion/p45-readiness-report.md"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/workspace-commit-gate.ts",
+				"packages/coding-agent/src/core/p44/p45-bridge/writeset-export.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P45.B3",
+			"name": "P45 Bridge Artifact: Evidence Ledger and Mutation Report Export",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/p44/p45-bridge/evidence-mutation-export.ts",
+				"packages/coding-agent/test/p44/p45-evidence-mutation-export.test.ts",
+				"reports/p44-verified-completion/evidence-ledger-export.json",
+				"reports/p44-verified-completion/mutation-report.json"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/evidence-ledger.ts",
+				"packages/coding-agent/src/core/write-gate.ts",
+				"packages/coding-agent/src/core/mutation/smart-mutation-engine.ts"
+			],
+			"isolationLevel": "partial"
+		},
+		{
+			"id": "P44.13",
+			"name": "Final Promotion Report and Stable_3 Gate",
+			"rootDir": "./",
+			"canEdit": [
+				"packages/coding-agent/src/core/p44/final-promotion-report.ts",
+				"packages/coding-agent/test/p44/final-promotion-report.test.ts",
+				"reports/accp/P44/prr_promotion_readiness.md",
+				"reports/p44-verified-completion/final-promotion-report.md",
+				"reports/p44-verified-completion/final-promotion-report.json"
+			],
+			"canRead": [
+				"packages/coding-agent/src/core/completion/**",
+				"reports/p44-fake-complete-gauntlet.json",
+				"reports/p44-commit-scope-gauntlet.json",
+				"reports/p44-mutation-safety-gauntlet.json",
+				"reports/p44-fake-complete-monte-carlo.json",
+				"reports/p44-verified-completion/**"
+			],
+			"isolationLevel": "partial"
+		}
+	]
+}

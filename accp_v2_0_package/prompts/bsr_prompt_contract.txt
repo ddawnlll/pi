@@ -1,0 +1,10 @@
+Return exactly one ACCP v2.0 YAML document.
+source_format must be "ACCP-YAML".
+report.type must be "BSR".
+Task mode: bug_search, read_only.
+Do not modify files.
+No prose outside YAML.
+Use stable IDs.
+confirmed_bug and likely_bug require evidence.
+P0/P1 bugs block promotion.
+Include prioritized_fix_plan, validation_recommendations, final_status, and next_route.

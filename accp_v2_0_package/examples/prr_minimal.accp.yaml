@@ -1,0 +1,115 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "P46_PRR_001"
+  type: "PRR"
+  family: "core"
+  kind: "promotion_readiness"
+  status: "complete"
+
+meta:
+  plan_id: "P46"
+  workspace_id: "unknown"
+  repo_root: "."
+  git_commit: "unknown"
+  git_branch: "unknown"
+  report_generated_at: "unknown"
+  report_stale_after: "on_next_commit"
+  inspection_mode: "read_only"
+  confidence: "medium"
+
+agent:
+  agent_id: "coding-agent"
+  agent_role: "reviewer"
+  model_name: "unknown"
+  model_version: "unknown"
+  session_id: "unknown"
+  prompt_hash: "unknown"
+  context_used_percent: "unknown"
+  context_window_remaining: "unknown"
+
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - "read"
+    - "bash"
+  max_depth_inspected: "unknown"
+
+references: []
+assumptions: {}
+skipped_inspections: {}
+
+promotion_target:
+  from_state: "workspace"
+  to_state: "promoted"
+  promotion_scope: "workspace"
+  promotion_requires_human_approval: true
+
+gate_checks:
+  PR001:
+    gate: "tests_pass"
+    status: "unknown"
+    evidence: []
+    blocking: true
+    confidence: "low"
+  PR002:
+    gate: "rollback_available"
+    status: "unknown"
+    evidence: []
+    blocking: true
+    confidence: "low"
+
+open_risks:
+  G001:
+    severity: "high"
+    finding: "Promotion evidence is incomplete."
+    blocking: true
+    mitigation:
+      - "Run TVR and verify rollback evidence."
+    confidence: "medium"
+
+signoff_requirements:
+  human_signoff_required: true
+  required_reviewers:
+    - "human_architect"
+  required_follow_up_reports:
+    - "TVR"
+
+decisions:
+  DC001:
+    approved_to_promote: "no"
+    conditions:
+      - "TVR required."
+    reason: "Missing validation evidence."
+    confidence: "high"
+
+next_route:
+  NR001:
+    recommended_next_report: "TVR"
+    recommended_next_action: "validate"
+    target_refs: []
+    mutation_policy_needed: "validation_only"
+    auto_advance_safe: "conditional"
+    requires_human_confirmation: false
+    reason:
+      - "Promotion requires validation evidence."
+    confidence: "medium"
+
+final_status:
+  promotion_readiness: "not_ready"
+  approved_to_promote: "no"
+  blocking_items:
+    - "PR001"
+    - "PR002"
+  next_action:
+    - "Run TVR."
+  self_assessment:
+    required_sections_complete: "yes"
+    evidence_coverage: "low"
+    unresolved_gaps:
+      - "Missing validation evidence."
+    confidence_in_own_completeness: "medium"

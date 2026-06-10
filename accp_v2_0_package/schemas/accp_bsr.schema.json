@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi.local/schemas/accp_bsr.schema.json",
+  "title": "ACCP v2.0 BSR Schema",
+  "allOf": [
+    {
+      "$ref": "./accp_common.schema.json"
+    }
+  ],
+  "required": [
+    "bug_search_scope",
+    "search_method",
+    "bug_findings",
+    "prioritized_fix_plan",
+    "validation_recommendations",
+    "final_status"
+  ],
+  "properties": {
+    "report": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "BSR"
+        },
+        "family": {
+          "const": "bugfix"
+        }
+      }
+    },
+    "bug_findings": {
+      "type": "object",
+      "patternProperties": {
+        "^BG[0-9]{3}$": {
+          "type": "object",
+          "required": [
+            "title",
+            "classification",
+            "priority",
+            "severity",
+            "confidence",
+            "evidence",
+            "minimal_fix"
+          ],
+          "properties": {
+            "classification": {
+              "enum": [
+                "confirmed_bug",
+                "likely_bug",
+                "suspected_bug",
+                "design_risk",
+                "false_positive"
+              ]
+            },
+            "priority": {
+              "enum": [
+                "P0",
+                "P1",
+                "P2",
+                "P3",
+                "P4"
+              ]
+            },
+            "severity": {
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "confidence": {
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

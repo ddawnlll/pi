@@ -1,0 +1,8 @@
+Return exactly one ACCP v2.0 YAML document.
+source_format must be "ACCP-YAML".
+report.type must be "TVR".
+Task mode: validation_only.
+Run only allowed validation commands.
+Include command_results with exit_code and false_positive_guards.
+If no tests were found, validation did not pass.
+Include regressions, final_status, and next_route.

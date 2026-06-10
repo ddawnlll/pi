@@ -139,7 +139,7 @@ export interface PlanSpecWorkspaceCommand {
 }
 
 export interface PlanSpecP45Bridge {
-	implementationAllowed: false;
+	implementationAllowed: boolean;
 	allowedFiles?: string[];
 	forbiddenPaths?: string[];
 }

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi.local/schemas/accp_common.schema.json",
+  "title": "ACCP v2.0 Common Schema",
+  "type": "object",
+  "required": [
+    "accp_version",
+    "source_format",
+    "report",
+    "meta",
+    "agent",
+    "capabilities",
+    "references",
+    "assumptions",
+    "skipped_inspections",
+    "final_status"
+  ],
+  "properties": {
+    "accp_version": {
+      "const": "2.0.0"
+    },
+    "source_format": {
+      "const": "ACCP-YAML"
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "family",
+        "kind",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            "core",
+            "bugfix",
+            "feature",
+            "writing",
+            "coordination"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "complete",
+            "partial",
+            "blocked",
+            "superseded"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object"
+    },
+    "agent": {
+      "type": "object"
+    },
+    "capabilities": {
+      "type": "object"
+    },
+    "references": {
+      "type": "array"
+    },
+    "assumptions": {
+      "type": "object"
+    },
+    "skipped_inspections": {
+      "type": "object"
+    },
+    "final_status": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

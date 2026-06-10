@@ -1,0 +1,38 @@
+{
+  "support_levels": [
+    "known",
+    "template_available",
+    "schema_lite",
+    "schema_strict",
+    "gate_blocking"
+  ],
+  "p46_gate_critical": [
+    "BSR",
+    "FPR",
+    "TVR",
+    "PRR",
+    "HIR",
+    "CAR"
+  ],
+  "p46_schema_lite": [
+    "RIR",
+    "PIR",
+    "IPR",
+    "ECR",
+    "DCR"
+  ],
+  "p46_template_only": [
+    "BRR",
+    "RCA",
+    "FVR",
+    "FER",
+    "FDR",
+    "FCR",
+    "FIR",
+    "FGR",
+    "WBR",
+    "WDR",
+    "WER",
+    "WQR"
+  ]
+}

@@ -1,0 +1,94 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "P46_TVR_001"
+  type: "TVR"
+  family: "core"
+  kind: "test_validation"
+  status: "complete"
+
+meta:
+  plan_id: "P46"
+  workspace_id: "unknown"
+  repo_root: "."
+  git_commit: "unknown"
+  git_branch: "unknown"
+  report_generated_at: "unknown"
+  report_stale_after: "on_next_commit"
+  inspection_mode: "validation_only"
+  confidence: "medium"
+
+agent:
+  agent_id: "coding-agent"
+  agent_role: "validator"
+  model_name: "unknown"
+  model_version: "unknown"
+  session_id: "unknown"
+  prompt_hash: "unknown"
+  context_used_percent: "unknown"
+  context_window_remaining: "unknown"
+
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - "read"
+    - "bash"
+  max_depth_inspected: "unknown"
+
+references: []
+assumptions: {}
+skipped_inspections: {}
+
+validation_summary:
+  overall_status: "not_run"
+  required_validation_satisfied: "no"
+  blocking_failures:
+    - "Validation was not run in this example."
+
+command_results: {}
+
+validation_not_run:
+  items:
+    - command: "pnpm test"
+      reason_not_run: "Example only."
+      risk: "medium"
+      needed_next: "Run validation in repository."
+
+regressions:
+  RG001:
+    detected: "unknown"
+    symptom: "Validation not run."
+    previously_passing_evidence: "unknown"
+    current_failure_evidence: "unknown"
+    recommended_report: "none"
+    confidence: "low"
+
+next_route:
+  NR001:
+    recommended_next_report: "HIR"
+    recommended_next_action: "handoff"
+    target_refs: []
+    mutation_policy_needed: "read_only"
+    auto_advance_safe: "no"
+    requires_human_confirmation: true
+    reason:
+      - "Validation not run."
+    confidence: "medium"
+
+final_status:
+  validation_status: "not_run"
+  safe_to_continue: "no"
+  requires_rar: false
+  requires_hir: true
+  reason:
+    - "Command evidence missing."
+  self_assessment:
+    required_sections_complete: "yes"
+    evidence_coverage: "low"
+    unresolved_gaps:
+      - "Validation command not executed."
+    confidence_in_own_completeness: "medium"

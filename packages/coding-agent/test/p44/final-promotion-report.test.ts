@@ -124,16 +124,12 @@ describe("P44.13 — Final Promotion Report & Stable_3 Gate", () => {
 			const waves = makeGenerator().generate(entries).waves;
 
 			// Simulate some waves not started
-			const modifiedWaves = waves.map((w) =>
-				w.waveId === "W8" ? { ...w, status: "not_started" as const } : w,
-			);
+			const modifiedWaves = waves.map((w) => (w.waveId === "W8" ? { ...w, status: "not_started" as const } : w));
 
 			const result = assessStable3Gate(modifiedWaves, entries, SKIP_FS);
 			expect(result.cleared).toBe(false);
 
-			const allWavesCheck = result.checks.find(
-				(c) => c.id === STABLE_3_CHECKS.ALL_WAVES_COMPLETED,
-			);
+			const allWavesCheck = result.checks.find((c) => c.id === STABLE_3_CHECKS.ALL_WAVES_COMPLETED);
 			expect(allWavesCheck).toBeDefined();
 			expect(allWavesCheck!.severity).toBe("fail");
 		});
@@ -147,9 +143,7 @@ describe("P44.13 — Final Promotion Report & Stable_3 Gate", () => {
 
 			expect(result.cleared).toBe(false);
 
-			const noFailedCheck = result.checks.find(
-				(c) => c.id === STABLE_3_CHECKS.NO_FAILED_WORKSPACES,
-			);
+			const noFailedCheck = result.checks.find((c) => c.id === STABLE_3_CHECKS.NO_FAILED_WORKSPACES);
 			expect(noFailedCheck).toBeDefined();
 			expect(noFailedCheck!.severity).toBe("fail");
 		});
@@ -165,9 +159,7 @@ describe("P44.13 — Final Promotion Report & Stable_3 Gate", () => {
 
 			expect(result.cleared).toBe(false);
 
-			const noBlockedCheck = result.checks.find(
-				(c) => c.id === STABLE_3_CHECKS.NO_BLOCKED_WORKSPACES,
-			);
+			const noBlockedCheck = result.checks.find((c) => c.id === STABLE_3_CHECKS.NO_BLOCKED_WORKSPACES);
 			expect(noBlockedCheck).toBeDefined();
 			expect(noBlockedCheck!.severity).toBe("fail");
 		});

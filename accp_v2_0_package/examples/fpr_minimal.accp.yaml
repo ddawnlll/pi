@@ -1,0 +1,104 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "P46_FPR_001"
+  type: "FPR"
+  family: "bugfix"
+  kind: "fix_patch"
+  status: "complete"
+
+meta:
+  plan_id: "P46"
+  workspace_id: "unknown"
+  repo_root: "."
+  git_commit: "unknown"
+  git_branch: "unknown"
+  report_generated_at: "unknown"
+  report_stale_after: "on_next_commit"
+  inspection_mode: "mutation_allowed"
+  confidence: "medium"
+
+agent:
+  agent_id: "coding-agent"
+  agent_role: "repair_agent"
+  model_name: "unknown"
+  model_version: "unknown"
+  session_id: "unknown"
+  prompt_hash: "unknown"
+  context_used_percent: "unknown"
+  context_window_remaining: "unknown"
+
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: true
+  can_access_network: false
+  tools_available:
+    - "read"
+    - "bash"
+  max_depth_inspected: "unknown"
+
+references: []
+assumptions: {}
+skipped_inspections: {}
+
+scope:
+  in_scope:
+    - "Fix BSR#BG001."
+  out_of_scope:
+    - "Do not expand beyond ACCP gate reader."
+  explicitly_not_changed: []
+
+fix_summary:
+  fixes_bug: "BSR#BG001"
+  status: "partial"
+  mutation_performed: false
+  summary:
+    - "Example FPR; no mutation performed."
+
+fixes:
+  FX001:
+    fixes_bug: "BSR#BG001"
+    summary: "Add ACCP gate reader."
+    files_changed:
+      - "unknown"
+    risk: "medium"
+
+diff_integrity:
+  no_repo_mutation_performed: true
+
+rollback_plan:
+  no_repo_mutation_performed: true
+  rollback_required: false
+
+validation_handoff:
+  validation_required: true
+  validation_performed_in_this_report: false
+  commands_recommended:
+    - "pnpm test"
+
+next_route:
+  NR001:
+    recommended_next_report: "TVR"
+    recommended_next_action: "validate"
+    target_refs:
+      - "FPR#FX001"
+    mutation_policy_needed: "validation_only"
+    auto_advance_safe: "conditional"
+    requires_human_confirmation: false
+    reason:
+      - "Fix requires validation."
+    confidence: "medium"
+
+final_status:
+  implementation_status: "partial"
+  ready_for_validation: "yes"
+  handoff_required: false
+  reason:
+    - "Example report."
+  self_assessment:
+    required_sections_complete: "yes"
+    evidence_coverage: "low"
+    unresolved_gaps: []
+    confidence_in_own_completeness: "medium"

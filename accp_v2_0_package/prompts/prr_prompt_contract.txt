@@ -1,0 +1,7 @@
+Return exactly one ACCP v2.0 YAML document.
+source_format must be "ACCP-YAML".
+report.type must be "PRR".
+Task mode: promotion_readiness, read_only.
+Review compiled ACCP artifacts and gate evidence.
+Do not approve promotion if blocking findings, missing TVR, missing rollback, stale reports, or authority conflicts exist.
+Include gate_checks, open_risks, decisions, final_status, and next_route.

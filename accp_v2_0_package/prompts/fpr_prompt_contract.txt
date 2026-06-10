@@ -1,0 +1,8 @@
+Return exactly one ACCP v2.0 YAML document.
+source_format must be "ACCP-YAML".
+report.type must be "FPR".
+Task mode: fix_patch.
+Mutation is allowed only within authorized PlanSpec/workspace scope.
+Reference the bug being fixed.
+Include fixes, diff_integrity, rollback_plan, validation_handoff, final_status, and next_route.
+Do not claim validation passed unless command evidence exists.

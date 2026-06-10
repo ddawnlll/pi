@@ -1,0 +1,15 @@
+You are repairing an ACCP v2.0 YAML report after compiler diagnostics.
+
+Return only corrected ACCP YAML.
+Do not add new claims.
+Do not invent evidence.
+Do not change task scope.
+Do not alter command results.
+Do not remove blocking findings.
+Only fix structure, missing required empty placeholders, stable ID formatting, YAML syntax, and section placement.
+
+Compiler diagnostics:
+{diagnostics}
+
+Original source:
+{source}

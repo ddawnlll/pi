@@ -77,7 +77,8 @@ describe("P45ReadinessDoctor", () => {
 		});
 
 		it("should mark workspace as not_ready when implementationAllowed is not false", () => {
-			const doctor = new P45ReadinessDoctor({ skipFileExistenceChecks: true });
+			const opts = { skipFileExistenceChecks: true as boolean };
+			const doctor = new P45ReadinessDoctor(opts);
 			const workspaces = [
 				makeCandidate("WS-001", "Bad Bridge", {
 					p45Bridge: { implementationAllowed: true, allowedFiles: ["src/main.ts"] },

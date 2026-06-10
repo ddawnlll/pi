@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi.local/schemas/accp_route_signal.schema.json",
+  "title": "ACCP Route Signal",
+  "type": "object",
+  "required": [
+    "currentReportId",
+    "currentReportType",
+    "recommendedNextReport",
+    "recommendedNextAction",
+    "targetRefs",
+    "mutationPolicyNeeded",
+    "autoAdvanceSafe",
+    "requiresHumanConfirmation",
+    "confidence",
+    "valid",
+    "diagnostics"
+  ],
+  "properties": {
+    "currentReportId": {
+      "type": "string"
+    },
+    "currentReportType": {
+      "type": "string"
+    },
+    "recommendedNextReport": {
+      "type": "string"
+    },
+    "recommendedNextAction": {
+      "type": "string"
+    },
+    "targetRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mutationPolicyNeeded": {
+      "enum": [
+        "read_only",
+        "mutation_allowed",
+        "validation_only"
+      ]
+    },
+    "autoAdvanceSafe": {
+      "enum": [
+        "yes",
+        "no",
+        "conditional"
+      ]
+    },
+    "requiresHumanConfirmation": {
+      "type": "boolean"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "diagnostics": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

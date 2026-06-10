@@ -1,0 +1,141 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "P46_BSR_001"
+  type: "BSR"
+  family: "bugfix"
+  kind: "bug_search"
+  status: "complete"
+
+meta:
+  plan_id: "P46"
+  workspace_id: "unknown"
+  repo_root: "."
+  git_commit: "unknown"
+  git_branch: "unknown"
+  report_generated_at: "unknown"
+  report_stale_after: "on_next_commit"
+  inspection_mode: "read_only"
+  confidence: "medium"
+
+agent:
+  agent_id: "coding-agent"
+  agent_role: "reviewer"
+  model_name: "unknown"
+  model_version: "unknown"
+  session_id: "unknown"
+  prompt_hash: "unknown"
+  context_used_percent: "unknown"
+  context_window_remaining: "unknown"
+
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - "read"
+    - "bash"
+  max_depth_inspected: "unknown"
+
+references: []
+assumptions: {}
+skipped_inspections: {}
+
+bug_search_scope:
+  in_scope:
+    - "Inspect ACCP completion gate integration."
+  out_of_scope:
+    - "Do not modify files."
+  target_bug_classes:
+    - "validation_bypass"
+  explicitly_not_changed:
+    - "No files were modified."
+
+search_method:
+  strategy:
+    - "Inspect completion and promotion control paths."
+  commands: []
+  files_read: []
+  limitations:
+    - "Example only."
+
+bug_findings:
+  BG001:
+    title: "Completion gate lacks ACCP verdict check."
+    classification: "likely_bug"
+    priority: "P1"
+    severity: "high"
+    confidence: "medium"
+    affected_area: "validation"
+    evidence:
+      - id: "EV001"
+        type: "missing_evidence"
+        detail: "Requires repo inspection."
+        path: "unknown"
+        lines: "unknown"
+    minimal_fix:
+      fix_id: "FX001"
+      summary: "Add non-blocking ACCP gate reader."
+      recommended_files:
+        - "packages/execution-runtime/src/accp/accp-gate-reader.ts"
+    validation_after_fix:
+      - id: "VT001"
+        command: "pnpm test"
+        cwd: "."
+        expected_result: "ACCP gate tests pass."
+
+prioritized_fix_plan:
+  FX001:
+    fixes_bug: "BSR#BG001"
+    priority: "P1"
+    action: "add_guard"
+    summary: "Wire ACCP verdict reader into completion gate."
+    minimal_files:
+      - "packages/execution-runtime/src/accp/accp-gate-reader.ts"
+    estimated_blast_radius: "medium"
+    validation_required:
+      - "VT001"
+    blocks_promotion: true
+
+validation_recommendations:
+  VT001:
+    purpose: "Validate ACCP gate reader."
+    command: "pnpm test"
+    cwd: "."
+    expected_pass_signal: "Relevant ACCP runtime tests pass."
+    false_positive_guards:
+      watch_mode: false
+      no_tests_found: false
+      command_not_found: false
+      timeout: false
+
+next_route:
+  NR001:
+    recommended_next_report: "FPR"
+    recommended_next_action: "fix"
+    target_refs:
+      - "BSR#BG001"
+    mutation_policy_needed: "mutation_allowed"
+    auto_advance_safe: "conditional"
+    requires_human_confirmation: true
+    reason:
+      - "Fix requires repo mutation and PlanSpec authority check."
+    confidence: "medium"
+
+final_status:
+  bug_search_status: "complete"
+  repo_mutation_performed: false
+  highest_priority: "P1"
+  must_fix_before_promotion:
+    - "BG001"
+  safe_to_continue_without_fix: "conditional"
+  requires_tvr: true
+  requires_hir: false
+  self_assessment:
+    required_sections_complete: "yes"
+    evidence_coverage: "low"
+    unresolved_gaps:
+      - "Example only."
+    confidence_in_own_completeness: "medium"
