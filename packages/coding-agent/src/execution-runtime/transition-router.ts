@@ -127,19 +127,11 @@ export class DirectTransitionRouter implements TransitionRouter {
 		// Map recovery states to workspace stages
 		switch (recoveryState) {
 			case "FALLBACK_MESSAGE_USED":
-				// Non-blocking: workspace continues to Complete
-				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
-				break;
 			case "PASSED":
 			case "WARNED":
 				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
 				break;
-			case "NEEDS_REPAIR":
-			case "NEEDS_REPAIR_OR_RAR":
-			case "NEEDS_HIR":
-			case "RETRYABLE_BLOCKED":
 			default:
-				// All failure states block the workspace
 				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Blocked, {
 					...(data ?? {}),
 					recoveryState,
@@ -234,10 +226,6 @@ export class KernelTransitionRouter implements TransitionRouter {
 			case "WARNED":
 				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
 				break;
-			case "NEEDS_REPAIR":
-			case "NEEDS_REPAIR_OR_RAR":
-			case "NEEDS_HIR":
-			case "RETRYABLE_BLOCKED":
 			default:
 				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Blocked, {
 					...(data ?? {}),

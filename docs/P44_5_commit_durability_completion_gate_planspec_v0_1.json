@@ -1,0 +1,2189 @@
+{
+  "$schema": "./02_planspec_v5_alpha2_schema.json",
+  "planSpecVersion": "5.0.0-alpha2",
+  "kind": "ImplementationPlan",
+  "metadata": {
+    "phaseId": "P44.5",
+    "title": "Commit Durability as Completion Truth",
+    "description": "Rework the current post-completion commit gate into CompletionGate vNext durability stages. Adds verified file existence, scope/writeSet coverage, commit execution, post-commit verification, LLM-authored but runtime-validated commit messages, per-agent git identity, dashboard truth fields, P26 reuse boundaries, rollout/migration, shared-file policy, circuit breaker behavior, and BLOCK recovery routing.",
+    "createdAt": "2026-06-11T00:00:00+03:00",
+    "updatedAt": "2026-06-11T00:00:00+03:00",
+    "owner": "pi",
+    "status": "draft",
+    "sourceDocuments": [
+      "P44 Commit Gate Forensics — Comprehensive Bug Search Report",
+      "Commit Durability as Completion Truth — Vision Document",
+      "P44_PlanSpec_v5_alpha2.json",
+      "P26_execution_correctness_recovery_plan_v3.md"
+    ]
+  },
+  "compatibility": {
+    "runtimeContractVersion": "4.1.1",
+    "runtimeTemplateVersion": "4.1.1",
+    "legacyTemplateCompatible": true,
+    "generatedFromV411": true,
+    "v411AdapterRequired": true,
+    "notes": [
+      "PlanSpec v5 alpha2 is canonical.",
+      "v4.1.1 adapter compiles to executable lock.",
+      "ACCP remains an evidence/report protocol only.",
+      "This plan must reuse P26 infrastructure where present instead of duplicating GitRunner serialization, attempt-scoped artifacts, or managed validation runner.",
+      "Commit gate is removed as a separate post-completion concept and becomes CompletionGate vNext durability stages."
+    ]
+  },
+  "intent": {
+    "executionClass": "implementation",
+    "safetyLevel": "strict",
+    "executionMode": "stable_3_wave_batch",
+    "parallelism": 2,
+    "targetPromotionMode": "stable_3",
+    "p45ImplementationAllowed": false,
+    "humanReviewRecommended": true,
+    "primaryOutcome": "verified_complete_requires_durable_commit",
+    "nonGoals": [
+      "Do not solve the separate file-deletion RCA in this plan, except by adding guards that prevent false completion and destructive cleanup before durable verification.",
+      "Do not replace P26 systems that already exist; integrate/adapt them.",
+      "Do not make LLM output authoritative for gate verdicts, validation truth, mutation authorization, or evidence validation."
+    ]
+  },
+  "authority": {
+    "executionState": {
+      "owner": "ExecutionKernel",
+      "workersMayMutateState": false,
+      "stateTransitionRequiresGate": true,
+      "workspaceCompleteRequiresVerifiedCompletion": true
+    },
+    "completion": {
+      "workerSelfReportIsClaimOnly": true,
+      "completionGate": "CompletionGateVNext",
+      "evidenceLedgerRequired": true,
+      "missingEvidenceBlocksCompletion": true,
+      "staleAttemptVerdictIgnored": true,
+      "commitDurabilityRequiredForMutationWorkspace": true,
+      "declaredOutputExistenceRequired": true,
+      "postCommitVerificationRequired": true,
+      "llmCommitMessageIsProseOnly": true,
+      "runtimeFactsAreAuthoritative": true
+    },
+    "repositoryMutation": {
+      "writeGateRequired": true,
+      "allowedFilesRequired": true,
+      "writeSetRequired": true,
+      "sharedFileOwnershipRequired": true,
+      "largeOverwriteBlockedByDefault": true,
+      "commitFailureBlocksCompletion": true,
+      "canEditExclusionPolicy": "block_or_hir_never_silent",
+      "destructiveOperationPreservationRequired": true
+    },
+    "reports": {
+      "protocol": "ACCP",
+      "version": "2.0.0",
+      "reportsAreEvidenceOnly": true,
+      "reportsDoNotAuthorizeExecution": true,
+      "runtimeConsumesCompiledArtifactsOnly": true
+    }
+  },
+  "enforcementRegistry": {
+    "mechanisms": [
+      "json_schema",
+      "admission_gate",
+      "plan_lock_verifier",
+      "workspace_lock_verifier",
+      "tool_runtime",
+      "command_policy_engine",
+      "runtime_command_grant",
+      "write_gate",
+      "smart_mutation_engine",
+      "completion_gate_vnext",
+      "durable_completion_stage",
+      "declared_output_existence_stage",
+      "scope_and_writeset_stage",
+      "commit_message_composer",
+      "commit_message_validator",
+      "git_actor_identity_provider",
+      "post_commit_verifier",
+      "workspace_truth_read_model",
+      "destructive_operation_guard",
+      "terminal_reconciler",
+      "evidence_ledger",
+      "accp_report_validator",
+      "final_promotion_gate"
+    ]
+  },
+  "security": {
+    "schemaValidationRequired": true,
+    "lockRequiredForExecution": true,
+    "canonicalJsonHashRequired": true,
+    "signatureRequired": false,
+    "signatureAlgorithm": "none",
+    "hardStops": [
+      "unsupported_planSpecVersion",
+      "missing_plan_lock",
+      "plan_lock_hash_mismatch",
+      "workspace_lock_hash_mismatch",
+      "spec_changed_after_lock",
+      "unknown_execution_mode",
+      "parallelism_exceeds_mode_cap",
+      "missing_allowedFiles",
+      "missing_writeSet",
+      "missing_shared_file_policy",
+      "workspace_edits_outside_allowedFiles",
+      "workspace_edits_outside_writeSet",
+      "undeclared_shared_file_mutation",
+      "forbidden_file_access",
+      "validation_command_not_allowed",
+      "validation_silent_pass_pattern",
+      "watch_mode_validation",
+      "no_tests_found",
+      "missing_ac_evidence",
+      "missing_declared_output",
+      "missing_commit_hash_for_mutation_workspace",
+      "post_commit_verification_failed",
+      "llm_commit_message_claims_unverified_fact",
+      "destructive_operation_without_preservation"
+    ],
+    "forbiddenFiles": [
+      ".env",
+      ".env.*",
+      "node_modules/**",
+      ".git/**",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "packages/coding-agent/src/p45/**",
+      "packages/coding-agent/src/async-assembly/**",
+      "packages/coding-agent/src/static-partitioner/**",
+      "packages/coding-agent/src/deterministic-assembler/**"
+    ],
+    "destructiveOperations": {
+      "guardRequired": true,
+      "blockedUnlessPreservedAndAuthorized": [
+        "git reset --hard",
+        "git clean",
+        "git checkout -- .",
+        "git restore",
+        "git worktree remove --force",
+        "git worktree prune",
+        "fs.rm",
+        "fs.unlink",
+        "rm -rf"
+      ],
+      "preservationRequirements": [
+        "capture_git_status",
+        "capture_diff_patch",
+        "capture_file_snapshot_when_possible",
+        "record_event",
+        "block_if_workspace_output_not_durably_committed"
+      ]
+    }
+  },
+  "commands": {
+    "policy": "risk_tiered",
+    "defaultMode": "deny_unless_class_or_grant",
+    "shellDefault": "forbidden",
+    "exactAllowedCommands": [
+      {
+        "id": "CMD-TYPECHECK-TSGO",
+        "kind": "typecheck",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "npx",
+        "args": ["tsgo", "--noEmit"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": false,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P445-COMPLETION-VNEXT-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/coding-agent",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/completion/completion-gate-vnext.test.ts"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P445-COMMIT-MESSAGE-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/coding-agent",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/completion/commit-message-composer.test.ts"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P445-GIT-DURABILITY-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/coding-agent",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/completion/git-durability-stage.test.ts"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P445-DASHBOARD-TRUTH-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "packages/execution-service/test/workspace-truth-read-model.test.ts"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P445-GAUNTLET",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/coding-agent",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/gauntlet/commit-durability-completion-gate.test.ts"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 420,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-FINAL-MAKE-TEST",
+        "kind": "final_validation",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "make",
+        "args": ["test"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 900,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      }
+    ],
+    "commandClasses": [
+      {
+        "id": "CLASS-READONLY-DISCOVERY",
+        "title": "Read-only local discovery commands",
+        "risk": "low",
+        "sideEffects": "none",
+        "mode": "argv",
+        "executables": [
+          "pwd",
+          "ls",
+          "find",
+          "rg",
+          "grep",
+          "cat",
+          "sed",
+          "awk",
+          "git",
+          "node"
+        ],
+        "allowedGitSubcommands": [
+          "status",
+          "diff",
+          "log",
+          "show",
+          "branch",
+          "rev-parse",
+          "ls-files",
+          "worktree"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "timeoutSeconds": 30,
+        "maxOutputBytes": 200000,
+        "recordAsEvidence": true,
+        "grantRequired": false
+      }
+    ],
+    "hardDeniedCommands": [
+      {
+        "id": "DENY-GIT-PUSH",
+        "match": {
+          "executable": "git",
+          "argsPrefix": ["push"]
+        },
+        "reason": "Remote mutation forbidden."
+      },
+      {
+        "id": "DENY-GIT-RESET-HARD",
+        "match": {
+          "executable": "git",
+          "argsPrefix": ["reset", "--hard"]
+        },
+        "reason": "Destructive reset forbidden."
+      },
+      {
+        "id": "DENY-GIT-CLEAN",
+        "match": {
+          "executable": "git",
+          "argsPrefix": ["clean"]
+        },
+        "reason": "Destructive cleanup forbidden."
+      },
+      {
+        "id": "DENY-RM-RF",
+        "match": {
+          "executable": "rm",
+          "argsPrefix": ["-rf"]
+        },
+        "reason": "Destructive filesystem deletion forbidden."
+      }
+    ],
+    "validationEvidenceRules": {
+      "finalPromotionRequiresExactAllowedCommand": true,
+      "discoveryCommandsMayNotSatisfyFinalValidation": true,
+      "runtimeGrantCommandsCanSatisfyValidationOnlyIfGrantStatesValidationPurpose": true
+    }
+  },
+  "locking": {
+    "lockVersion": "1.0.0",
+    "lockFile": "plans/P44_5_commit_durability_completion_gate.planlock.json",
+    "lockRequired": true,
+    "workerMustEchoPlanLockHash": true,
+    "workerMustEchoWorkspaceLockHash": true,
+    "hashes": [
+      "canonicalJsonHash",
+      "workspaceGraphHash",
+      "allowedFilesHash",
+      "writeSetHash",
+      "sharedFilePolicyHash",
+      "acceptanceCriteriaHash",
+      "validationPolicyHash",
+      "instructionHash",
+      "reportContractHash",
+      "commandPolicyHash"
+    ],
+    "lifecycle": [
+      "DRAFT",
+      "VALIDATED",
+      "LOCKED",
+      "ADMITTED",
+      "RUNNING",
+      "FINAL_VALIDATION",
+      "COMPLETED"
+    ],
+    "mutationRules": {
+      "DRAFT": "spec_mutable",
+      "VALIDATED": "spec_mutable_lock_invalidated",
+      "LOCKED": "immutable_new_lock_required",
+      "ADMITTED": "immutable_new_execution_required",
+      "RUNNING": "immutable_amendment_required",
+      "FINAL_VALIDATION": "immutable",
+      "COMPLETED": "immutable"
+    }
+  },
+  "brief": {
+    "mission": {
+      "id": "MISSION-P445",
+      "text": "Make durable git truth a required part of workspace completion. A mutation workspace cannot become COMPLETE until declared outputs exist, evidence and validation pass, scope/writeSet are verified, commit succeeds, and post-commit verification confirms expected files and identity."
+    },
+    "hardRequirements": [
+      {
+        "id": "HR-P445-001",
+        "priority": "must",
+        "kind": "architecture_rule",
+        "text": "Standalone post-completion commit gate semantics are removed. Commit durability becomes a CompletionGate vNext stage.",
+        "enforcedBy": ["completion_gate_vnext", "durable_completion_stage"]
+      },
+      {
+        "id": "HR-P445-002",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "A mutation workspace cannot transition to COMPLETE without a verified commit hash and post-commit file verification.",
+        "enforcedBy": ["completion_gate_vnext", "post_commit_verifier"]
+      },
+      {
+        "id": "HR-P445-003",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "LLM commit composer may write explanation but must never be source of truth. Runtime fact packet and validator are authoritative.",
+        "enforcedBy": ["commit_message_validator", "completion_gate_vnext"]
+      },
+      {
+        "id": "HR-P445-004",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "LLM commit composer timeout, error, or invalid output must use bounded repair then deterministic fallback. LLM latency must not block durable completion indefinitely.",
+        "enforcedBy": ["commit_message_composer", "commit_message_validator"]
+      },
+      {
+        "id": "HR-P445-005",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "canEdit/writeSet mismatch is never silent. If mutation is unauthorized, block. If PlanSpec authority is ambiguous or legitimate output path is missing from allowedFiles, route to HIR.",
+        "enforcedBy": ["scope_and_writeset_stage"]
+      },
+      {
+        "id": "HR-P445-006",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "Parallel shared-file mutation requires declared shared ownership. Undeclared concurrent writes to the same file block admission or route to HIR.",
+        "enforcedBy": ["workspace_lock_verifier", "scope_and_writeset_stage"]
+      },
+      {
+        "id": "HR-P445-007",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "P26 infrastructure must be reused where present through adapters. Do not replicate GitRunner serialization, attempt-scoped artifacts, or managed validation runner if compatible P26 components exist.",
+        "enforcedBy": ["p26_compatibility_map", "admission_gate"]
+      },
+      {
+        "id": "HR-P445-008",
+        "priority": "must",
+        "kind": "implementation_rule",
+        "text": "BLOCK state must route deterministically to retry, repair, HIR, RCA, or RAR depending on stage failure class.",
+        "enforcedBy": ["completion_gate_vnext", "transition_router"]
+      }
+    ],
+    "antiPatterns": [
+      {
+        "id": "AP-P445-001",
+        "text": "Do not mark workspace COMPLETE before commit durability verification.",
+        "enforcedBy": ["completion_gate_vnext"]
+      },
+      {
+        "id": "AP-P445-002",
+        "text": "Do not silently exclude files from commits because they are outside canEdit/writeSet.",
+        "enforcedBy": ["scope_and_writeset_stage"]
+      },
+      {
+        "id": "AP-P445-003",
+        "text": "Do not let LLM commit message claims override runtime facts.",
+        "enforcedBy": ["commit_message_validator"]
+      },
+      {
+        "id": "AP-P445-004",
+        "text": "Do not duplicate P26 implementation if an adapter can reuse it.",
+        "enforcedBy": ["p26_compatibility_map"]
+      },
+      {
+        "id": "AP-P445-005",
+        "text": "Do not let dashboard show Verified Complete from runtime state alone.",
+        "enforcedBy": ["workspace_truth_read_model"]
+      }
+    ]
+  },
+  "designDecisions": {
+    "sharedFilePolicy": {
+      "decision": "declared_owner_or_block",
+      "rules": [
+        "If two parallel workspaces write the same file and no shared owner/merge owner is declared, admission blocks before execution.",
+        "If a shared file is declared, exactly one workspace is the commit owner and other workspaces produce patch/evidence artifacts or route through integration queue.",
+        "If runtime detects same-file write drift during completion, route to NEEDS_HIR unless an automatic merge policy is explicitly declared.",
+        "Worktree isolation is necessary but not sufficient; writeSet ownership remains authoritative."
+      ]
+    },
+    "llmComposerCircuitBreaker": {
+      "decision": "bounded_llm_with_fallback",
+      "timeoutSeconds": 8,
+      "maxRepairAttempts": 1,
+      "fallback": "deterministic_runtime_fact_commit_message",
+      "failurePolicy": "fallback_not_block_unless_runtime_fact_packet_missing",
+      "allowedModels": ["cheap_or_flash_model_preferred"],
+      "notAuthorityFor": [
+        "gate verdict",
+        "evidence validation",
+        "validation truth",
+        "mutation authorization"
+      ]
+    },
+    "p26OverlapPolicy": {
+      "decision": "adapter_first_reuse",
+      "rules": [
+        "W0 must map P26 GitRunner serialization, attempt-scoped artifacts, and managed validation runner.",
+        "If P26 component exists and satisfies contract, build adapter instead of duplicating.",
+        "If P26 component partially satisfies contract, wrap and extend without changing public semantics unless required.",
+        "If P26 component is missing or incompatible, document gap and implement minimal P44.5-owned component."
+      ]
+    },
+    "migrationPolicy": {
+      "decision": "warn_then_block",
+      "phases": [
+        "shadow_read_model_for_existing_complete_workspaces",
+        "warning_mode_for_all_new_workspaces",
+        "blocking_mode_for_P44_P45_strict_plans",
+        "blocking_mode_for_stable_3_plus",
+        "retroactive_verifiedComplete_backfill"
+      ]
+    },
+    "blockRecoveryPolicy": {
+      "decision": "stage_failure_routes_to_state",
+      "routingTable": [
+        {
+          "stage": "DeclaredOutputExistenceStage",
+          "failure": "missing_declared_output",
+          "state": "NEEDS_REPAIR",
+          "nextReport": "FPR",
+          "retry": "allowed_after_repair"
+        },
+        {
+          "stage": "EvidenceLedgerStage",
+          "failure": "missing_or_stale_evidence",
+          "state": "NEEDS_REPAIR",
+          "nextReport": "FPR",
+          "retry": "allowed_after_evidence_added"
+        },
+        {
+          "stage": "ValidationStage",
+          "failure": "test_failed_or_command_invalid",
+          "state": "NEEDS_REPAIR_OR_RAR",
+          "nextReport": "RAR_or_FPR",
+          "retry": "allowed_after_fix"
+        },
+        {
+          "stage": "ScopeAndWriteSetStage",
+          "failure": "unauthorized_mutation",
+          "state": "NEEDS_HIR",
+          "nextReport": "HIR",
+          "retry": "not_allowed_without_authority"
+        },
+        {
+          "stage": "CommitExecutionStage",
+          "failure": "transient_git_failure",
+          "state": "RETRYABLE_BLOCKED",
+          "nextReport": "none_or_HIR_after_retry_budget",
+          "retry": "bounded_retry_allowed"
+        },
+        {
+          "stage": "CommitExecutionStage",
+          "failure": "non_transient_commit_failure",
+          "state": "NEEDS_REPAIR",
+          "nextReport": "FPR",
+          "retry": "allowed_after_fix"
+        },
+        {
+          "stage": "PostCommitVerificationStage",
+          "failure": "commit_missing_expected_files",
+          "state": "NEEDS_REPAIR",
+          "nextReport": "FPR",
+          "retry": "allowed_after_repair"
+        },
+        {
+          "stage": "CommitMessageComposerStage",
+          "failure": "timeout_or_invalid_message",
+          "state": "FALLBACK_MESSAGE_USED",
+          "nextReport": "none",
+          "retry": "not_needed"
+        },
+        {
+          "stage": "DestructiveOperationGuard",
+          "failure": "unpreserved_output_at_risk",
+          "state": "NEEDS_HIR",
+          "nextReport": "HIR",
+          "retry": "not_allowed_without_preservation"
+        }
+      ]
+    },
+    "canEditMismatchPolicy": {
+      "decision": "block_by_default_hir_on_authority_ambiguity",
+      "rules": [
+        "If changed file is outside canEdit/writeSet and not declared shared, completion BLOCKS.",
+        "If declared output is outside allowedFiles but appears legitimate by PlanSpec intent, route to HIR to amend PlanSpec or allowedFiles.",
+        "If generated artifact is outside allowedFiles and non-critical, emit WARN only when explicitly configured as safe generated artifact.",
+        "Silent exclusion is forbidden."
+      ]
+    }
+  },
+  "waves": [
+    {
+      "id": "W0",
+      "title": "Compatibility, Policy Freeze, and Migration Map",
+      "description": "Resolve the known design gaps before implementation: P26 overlap, shared-file policy, LLM circuit breaker, recovery routing, migration/backfill strategy, and canEdit mismatch semantics.",
+      "workspaceIds": ["P44.5.00"],
+      "dependencies": [],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO"],
+        "requiredArtifacts": [
+          "reports/p44-5/compatibility/p26-overlap-map.md",
+          "reports/p44-5/compatibility/shared-file-policy.md",
+          "reports/p44-5/compatibility/block-recovery-routing.md",
+          "reports/p44-5/compatibility/rollout-migration-plan.md"
+        ]
+      }
+    },
+    {
+      "id": "W1",
+      "title": "Contracts and Verdict Types",
+      "description": "Define CompletionGate vNext types, stage verdicts, truth statuses, commit candidate set, and agent completion claim contracts.",
+      "workspaceIds": ["P44.5.01", "P44.5.02"],
+      "dependencies": ["W0"],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO", "CMD-P445-COMPLETION-VNEXT-UNIT"],
+        "requiredArtifacts": ["reports/accp/P44.5/tvr_wave_W1.accp.yaml"]
+      }
+    },
+    {
+      "id": "W2",
+      "title": "Durability Stages",
+      "description": "Implement declared output existence, evidence/validation adapters, scope/writeSet coverage, commit preparation, commit execution, and post-commit verification stages.",
+      "workspaceIds": ["P44.5.03", "P44.5.04", "P44.5.05"],
+      "dependencies": ["W1"],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO", "CMD-P445-GIT-DURABILITY-UNIT"],
+        "requiredArtifacts": ["reports/accp/P44.5/tvr_wave_W2.accp.yaml"]
+      }
+    },
+    {
+      "id": "W3",
+      "title": "LLM Commit Message Composer and Git Identity",
+      "description": "Add LLM-authored but runtime-validated commit messages, deterministic trailers, timeout/circuit breaker, fallback renderer, and per-workspace git identity.",
+      "workspaceIds": ["P44.5.06", "P44.5.07"],
+      "dependencies": ["W2"],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO", "CMD-P445-COMMIT-MESSAGE-UNIT"],
+        "requiredArtifacts": ["reports/accp/P44.5/tvr_wave_W3.accp.yaml"]
+      }
+    },
+    {
+      "id": "W4",
+      "title": "State Routing, Read Model, and Dashboard Truth",
+      "description": "Wire deterministic BLOCK recovery routing and expose runtime/implementation/validation/durability status fields to the read model and dashboard.",
+      "workspaceIds": ["P44.5.08", "P44.5.09"],
+      "dependencies": ["W2"],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO", "CMD-P445-DASHBOARD-TRUTH-UNIT"],
+        "requiredArtifacts": ["reports/accp/P44.5/tvr_wave_W4.accp.yaml"]
+      }
+    },
+    {
+      "id": "W5",
+      "title": "Destructive Operation Guard and Migration Backfill",
+      "description": "Prevent cleanup/discard/reset/worktree removal from destroying unpreserved output and add backfill for verifiedComplete over legacy COMPLETE workspaces.",
+      "workspaceIds": ["P44.5.10", "P44.5.11"],
+      "dependencies": ["W4"],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-TYPECHECK-TSGO"],
+        "requiredArtifacts": ["reports/accp/P44.5/tvr_wave_W5.accp.yaml"]
+      }
+    },
+    {
+      "id": "W6",
+      "title": "Gauntlets and Promotion",
+      "description": "Add end-to-end gauntlets for fake complete, missing declared file, canEdit/writeSet exclusion, commit failure, invalid LLM commit message, shared-file conflict, and destructive cleanup preservation.",
+      "workspaceIds": ["P44.5.12", "P44.5.13"],
+      "dependencies": ["W3", "W5"],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": [
+          "CMD-TYPECHECK-TSGO",
+          "CMD-P445-GAUNTLET",
+          "CMD-FINAL-MAKE-TEST"
+        ],
+        "requiredArtifacts": [
+          "reports/accp/P44.5/P44_5_TVR_001.accp.yaml",
+          "reports/accp/P44.5/P44_5_PRR_001.accp.yaml",
+          "reports/p44-5/final-promotion-report.md"
+        ]
+      }
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "P44.5.00",
+      "title": "P26 Compatibility, Shared-File Policy, and Recovery Routing Freeze",
+      "waveId": "W0",
+      "dependencies": [],
+      "role": "architecture_policy",
+      "allowedFiles": [
+        "docs/pi/p44/commit-durability-completion-gate-plan.md",
+        "reports/p44-5/compatibility/p26-overlap-map.md",
+        "reports/p44-5/compatibility/shared-file-policy.md",
+        "reports/p44-5/compatibility/block-recovery-routing.md",
+        "reports/p44-5/compatibility/llm-composer-circuit-breaker.md",
+        "reports/p44-5/compatibility/rollout-migration-plan.md"
+      ],
+      "writeSet": [
+        "docs/pi/p44/commit-durability-completion-gate-plan.md",
+        "reports/p44-5/compatibility/**"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44500-001",
+          "priority": "must",
+          "kind": "architecture_rule",
+          "text": "Map P26 components and decide adapter/reuse/extend/implement for each overlapping stage.",
+          "enforcedBy": ["admission_gate"]
+        },
+        {
+          "id": "WI-P44500-002",
+          "priority": "must",
+          "kind": "architecture_rule",
+          "text": "Freeze shared-file policy: undeclared parallel mutation blocks; declared shared file requires single commit owner or integration owner.",
+          "enforcedBy": ["workspace_lock_verifier"]
+        },
+        {
+          "id": "WI-P44500-003",
+          "priority": "must",
+          "kind": "architecture_rule",
+          "text": "Freeze LLM commit composer circuit breaker: timeout 8s, one repair, deterministic fallback, LLM never authority.",
+          "enforcedBy": ["commit_message_validator"]
+        },
+        {
+          "id": "WI-P44500-004",
+          "priority": "must",
+          "kind": "architecture_rule",
+          "text": "Freeze BLOCK recovery routing table by stage failure class.",
+          "enforcedBy": ["transition_router"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44500-001",
+          "title": "P26 overlap map exists",
+          "text": "Every overlapping P26 capability is classified as reuse, adapter, extend, or missing.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["report"],
+          "validationRefs": ["VAL-P44500-001"]
+        },
+        {
+          "id": "AC-P44500-002",
+          "title": "Shared-file policy is explicit",
+          "text": "The plan declares how parallel same-file mutation is blocked or routed.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["report"],
+          "validationRefs": ["VAL-P44500-001"]
+        },
+        {
+          "id": "AC-P44500-003",
+          "title": "Recovery routing is deterministic",
+          "text": "Every CompletionGate vNext stage failure maps to retry, repair, HIR, RCA, RAR, or fallback.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["report"],
+          "validationRefs": ["VAL-P44500-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44500-001",
+            "type": "review_artifact",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "FDR",
+            "after": "design_freeze"
+          },
+          {
+            "type": "FCR",
+            "after": "contract_freeze"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Documentation/report-only workspace."
+      }
+    },
+    {
+      "id": "P44.5.01",
+      "title": "CompletionGate vNext Contract Types",
+      "waveId": "W1",
+      "dependencies": ["P44.5.00"],
+      "role": "schema",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts",
+        "packages/coding-agent/src/core/completion/workspace-truth-status.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts",
+        "packages/coding-agent/src/core/completion/workspace-truth-status.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44501-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Define CompletionGateVNextVerdict, StageVerdict, AgentCompletionClaim, VerifiedReality, CommitCandidateSet, and WorkspaceTruthStatus.",
+          "enforcedBy": ["json_schema", "completion_gate_vnext"]
+        },
+        {
+          "id": "WI-P44501-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Types must represent runtimeStatus, implementationStatus, validationStatus, durabilityStatus, verifiedComplete, blockers, warnings, and route recommendation.",
+          "enforcedBy": ["read_model", "completion_gate_vnext"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44501-001",
+          "title": "CompletionGate vNext types exist",
+          "text": "Core verdict and truth status types compile and are tested.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P44501-001", "VAL-P44501-002"]
+        },
+        {
+          "id": "AC-P44501-002",
+          "title": "VerifiedComplete cannot be runtime-only",
+          "text": "Tests prove verifiedComplete requires implementation, validation, and durability statuses.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44501-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44501-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMPLETION-VNEXT-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P44501-002",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned type/test files only."
+      }
+    },
+    {
+      "id": "P44.5.02",
+      "title": "CompletionGate vNext Stage Orchestrator",
+      "waveId": "W1",
+      "dependencies": ["P44.5.01"],
+      "role": "gate_orchestrator",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/completion-gate-vnext.ts",
+        "packages/coding-agent/src/core/completion/completion-gate-vnext-adapter.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/completion-gate-vnext.ts",
+        "packages/coding-agent/src/core/completion/completion-gate-vnext-adapter.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+        ],
+        "commitOwner": "P44.5.02",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44502-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement orchestrator that runs stages in deterministic order and returns pass/warn/block/HIR/retry/repair routes.",
+          "enforcedBy": ["completion_gate_vnext"]
+        },
+        {
+          "id": "WI-P44502-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Adapter must allow warning mode and blocking mode for rollout.",
+          "enforcedBy": ["admission_gate", "completion_gate_vnext"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44502-001",
+          "title": "Stage orchestrator implemented",
+          "text": "CompletionGate vNext can run configured stages and aggregate verdicts.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P44502-001"]
+        },
+        {
+          "id": "AC-P44502-002",
+          "title": "Warning/blocking mode supported",
+          "text": "Tests prove rollout mode can warn without blocking and strict mode blocks.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44502-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44502-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMPLETION-VNEXT-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P44502-002",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned orchestrator/test files only."
+      }
+    },
+    {
+      "id": "P44.5.03",
+      "title": "Declared Output and Evidence Verification Stages",
+      "waveId": "W2",
+      "dependencies": ["P44.5.01", "P44.5.02"],
+      "role": "verification_stage",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/stages/declared-output-existence-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/evidence-ledger-stage.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/stages/declared-output-existence-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/evidence-ledger-stage.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+        ],
+        "commitOwner": "P44.5.02",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44503-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Block completion when declared output or PlanSpec-required output is missing.",
+          "enforcedBy": ["declared_output_existence_stage"]
+        },
+        {
+          "id": "WI-P44503-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Reuse existing EvidenceLedger where possible and block missing/stale/unresolved evidence.",
+          "enforcedBy": ["evidence_ledger_stage"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44503-001",
+          "title": "Missing declared output blocks",
+          "text": "Tests prove a workspace claim with nonexistent file cannot be COMPLETE.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44503-001"]
+        },
+        {
+          "id": "AC-P44503-002",
+          "title": "Evidence gap blocks",
+          "text": "Tests prove missing evidence cannot pass strict completion.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44503-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44503-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMPLETION-VNEXT-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned stage files only."
+      }
+    },
+    {
+      "id": "P44.5.04",
+      "title": "Scope, WriteSet, Commit Candidate, and Commit Execution Stages",
+      "waveId": "W2",
+      "dependencies": ["P44.5.00", "P44.5.02"],
+      "role": "durability_stage",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/stages/scope-and-writeset-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/commit-candidate-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/commit-execution-stage.ts",
+        "packages/coding-agent/test/completion/git-durability-stage.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/stages/scope-and-writeset-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/commit-candidate-stage.ts",
+        "packages/coding-agent/src/core/completion/stages/commit-execution-stage.ts",
+        "packages/coding-agent/test/completion/git-durability-stage.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44504-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "canEdit/writeSet exclusions must produce block or HIR, never silent exclusion.",
+          "enforcedBy": ["scope_and_writeset_stage"]
+        },
+        {
+          "id": "WI-P44504-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Commit execution must happen before workspace COMPLETE and must use P26 GitRunner if compatible.",
+          "enforcedBy": ["commit_execution_stage", "p26_compatibility_map"]
+        },
+        {
+          "id": "WI-P44504-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Commit failure returns stage block and cannot leave workspace COMPLETE.",
+          "enforcedBy": ["completion_gate_vnext"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44504-001",
+          "title": "canEdit mismatch not silent",
+          "text": "Tests prove out-of-scope mutation blocks or routes to HIR.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44504-001"]
+        },
+        {
+          "id": "AC-P44504-002",
+          "title": "Commit failure blocks",
+          "text": "Tests prove git commit failure prevents COMPLETE.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44504-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44504-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-GIT-DURABILITY-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned stage/test files only."
+      }
+    },
+    {
+      "id": "P44.5.05",
+      "title": "Post-Commit Verification Stage",
+      "waveId": "W2",
+      "dependencies": ["P44.5.04"],
+      "role": "post_commit_verifier",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/stages/post-commit-verification-stage.ts",
+        "packages/coding-agent/test/completion/git-durability-stage.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/stages/post-commit-verification-stage.ts",
+        "packages/coding-agent/test/completion/git-durability-stage.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/test/completion/git-durability-stage.test.ts"
+        ],
+        "commitOwner": "P44.5.04",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44505-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Verify commit hash exists, author identity matches, required trailers exist, expected files are in commit, and no expected output remains untracked.",
+          "enforcedBy": ["post_commit_verifier"]
+        },
+        {
+          "id": "WI-P44505-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Post-commit verification failure blocks COMPLETE and routes to NEEDS_REPAIR.",
+          "enforcedBy": ["completion_gate_vnext", "transition_router"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44505-001",
+          "title": "Expected files verified in commit",
+          "text": "Tests prove missing expected file in commit blocks completion.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44505-001"]
+        },
+        {
+          "id": "AC-P44505-002",
+          "title": "Commit metadata verified",
+          "text": "Tests prove required author/trailer metadata is checked.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44505-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44505-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-GIT-DURABILITY-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned verifier/test files only."
+      }
+    },
+    {
+      "id": "P44.5.06",
+      "title": "LLM Commit Message Composer, Validator, and Fallback",
+      "waveId": "W3",
+      "dependencies": ["P44.5.00", "P44.5.01"],
+      "role": "commit_message",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/commit-message-composer.ts",
+        "packages/coding-agent/src/core/completion/commit-message-validator.ts",
+        "packages/coding-agent/src/core/completion/commit-message-renderer.ts",
+        "packages/coding-agent/test/completion/commit-message-composer.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/commit-message-composer.ts",
+        "packages/coding-agent/src/core/completion/commit-message-validator.ts",
+        "packages/coding-agent/src/core/completion/commit-message-renderer.ts",
+        "packages/coding-agent/test/completion/commit-message-composer.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44506-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Composer receives runtime fact packet and may only produce prose. Validator rejects invented files, tests, broad pass claims, wrong scope, and missing body.",
+          "enforcedBy": ["commit_message_validator"]
+        },
+        {
+          "id": "WI-P44506-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Circuit breaker uses 8s timeout, one repair attempt, then deterministic fallback. Fallback must not block durable completion when runtime facts are valid.",
+          "enforcedBy": ["commit_message_composer"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44506-001",
+          "title": "LLM hallucination rejected",
+          "text": "Validator rejects messages that mention files or tests not in verified facts.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44506-001"]
+        },
+        {
+          "id": "AC-P44506-002",
+          "title": "Timeout fallback works",
+          "text": "Tests prove composer timeout produces deterministic fallback message.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44506-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44506-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMMIT-MESSAGE-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned composer/test files only."
+      }
+    },
+    {
+      "id": "P44.5.07",
+      "title": "Git Actor Identity and Structured Trailers",
+      "waveId": "W3",
+      "dependencies": ["P44.5.06"],
+      "role": "git_identity",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/git-actor-identity.ts",
+        "packages/coding-agent/src/core/completion/commit-trailer-builder.ts",
+        "packages/coding-agent/test/completion/commit-message-composer.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/git-actor-identity.ts",
+        "packages/coding-agent/src/core/completion/commit-trailer-builder.ts",
+        "packages/coding-agent/test/completion/commit-message-composer.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/test/completion/commit-message-composer.test.ts"
+        ],
+        "commitOwner": "P44.5.06",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44507-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Each commit must use explicit per-workspace user.name and user.email via git -c or equivalent GitRunner config.",
+          "enforcedBy": ["git_actor_identity_provider"]
+        },
+        {
+          "id": "WI-P44507-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Commit trailers include Pi-Plan, Pi-Workspace, Pi-Agent, Pi-Completion-Gate, Pi-Commit-Durability, Pi-Validation, and Pi-Generated-By.",
+          "enforcedBy": ["commit_trailer_builder", "post_commit_verifier"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44507-001",
+          "title": "Per-workspace git identity exists",
+          "text": "Tests prove identity is generated deterministically for plan/workspace/agent.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44507-001"]
+        },
+        {
+          "id": "AC-P44507-002",
+          "title": "Required trailers generated",
+          "text": "Tests prove required trailers are present and runtime-controlled.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44507-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44507-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMMIT-MESSAGE-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned identity/trailer files only."
+      }
+    },
+    {
+      "id": "P44.5.08",
+      "title": "BLOCK Recovery Routing and Transition Integration",
+      "waveId": "W4",
+      "dependencies": ["P44.5.00", "P44.5.02"],
+      "role": "transition_routing",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/completion-recovery-router.ts",
+        "packages/coding-agent/src/execution-runtime/transition-router.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/completion-recovery-router.ts",
+        "packages/coding-agent/src/execution-runtime/transition-router.ts",
+        "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/src/execution-runtime/transition-router.ts",
+          "packages/coding-agent/test/completion/completion-gate-vnext.test.ts"
+        ],
+        "commitOwner": "P44.5.08",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44508-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement deterministic mapping from stage failure to RETRYABLE_BLOCKED, NEEDS_REPAIR, NEEDS_HIR, NEEDS_RCA, NEEDS_RAR, or fallback-used status.",
+          "enforcedBy": ["transition_router"]
+        },
+        {
+          "id": "WI-P44508-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Commit failure cannot leave workspace COMPLETE; it must route according to recovery table.",
+          "enforcedBy": ["completion_gate_vnext", "transition_router"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44508-001",
+          "title": "Stage failure routing implemented",
+          "text": "Tests cover every stage failure route in the frozen recovery table.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44508-001"]
+        },
+        {
+          "id": "AC-P44508-002",
+          "title": "Commit failure not complete",
+          "text": "Tests prove commit failure cannot result in COMPLETE state.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44508-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44508-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-COMPLETION-VNEXT-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned router/test files only."
+      }
+    },
+    {
+      "id": "P44.5.09",
+      "title": "Workspace Truth Read Model and Dashboard Fields",
+      "waveId": "W4",
+      "dependencies": ["P44.5.01", "P44.5.08"],
+      "role": "visibility",
+      "allowedFiles": [
+        "packages/execution-contracts/src/read-model.ts",
+        "packages/execution-service/src/query-handler.ts",
+        "packages/execution-service/test/workspace-truth-read-model.test.ts",
+        "packages/web-ui/src/components/WorkspaceTruthStatus.ts"
+      ],
+      "writeSet": [
+        "packages/execution-contracts/src/read-model.ts",
+        "packages/execution-service/src/query-handler.ts",
+        "packages/execution-service/test/workspace-truth-read-model.test.ts",
+        "packages/web-ui/src/components/WorkspaceTruthStatus.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44509-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Expose runtimeStatus, implementationStatus, validationStatus, durabilityStatus, verifiedComplete, commitHash, verifiedFiles, blockers, warnings.",
+          "enforcedBy": ["read_model", "dashboard"]
+        },
+        {
+          "id": "WI-P44509-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Dashboard must not render Verified Complete from runtime complete alone.",
+          "enforcedBy": ["dashboard", "read_model"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44509-001",
+          "title": "Truth fields exposed",
+          "text": "Read model returns separate runtime, implementation, validation, and durability status fields.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P44509-001"]
+        },
+        {
+          "id": "AC-P44509-002",
+          "title": "Dashboard false complete prevented",
+          "text": "Tests prove runtime complete with missing commit renders durability failed, not verified complete.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44509-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44509-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-DASHBOARD-TRUTH-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback owned read-model/UI files only."
+      }
+    },
+    {
+      "id": "P44.5.10",
+      "title": "Destructive Operation Preservation Guard",
+      "waveId": "W5",
+      "dependencies": ["P44.5.04", "P44.5.05"],
+      "role": "data_loss_guard",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/destructive-operation-guard.ts",
+        "packages/coding-agent/src/core/git-runner.ts",
+        "packages/coding-agent/src/worktree/worktree-cleanup.ts",
+        "packages/coding-agent/test/completion/destructive-operation-guard.test.ts"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/destructive-operation-guard.ts",
+        "packages/coding-agent/src/core/git-runner.ts",
+        "packages/coding-agent/src/worktree/worktree-cleanup.ts",
+        "packages/coding-agent/test/completion/destructive-operation-guard.test.ts"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/coding-agent/src/core/git-runner.ts",
+          "packages/coding-agent/src/worktree/worktree-cleanup.ts"
+        ],
+        "commitOwner": "P44.5.10",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44510-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Guard destructive operations by preserving diff/snapshot/event before checkout/reset/clean/worktree removal.",
+          "enforcedBy": ["destructive_operation_guard"]
+        },
+        {
+          "id": "WI-P44510-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Block destructive operation if workspace output is not durably committed and preservation failed.",
+          "enforcedBy": ["destructive_operation_guard", "completion_gate_vnext"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44510-001",
+          "title": "Destructive operations guarded",
+          "text": "Tests prove checkout/reset/worktree removal require preservation or block.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44510-001"]
+        },
+        {
+          "id": "AC-P44510-002",
+          "title": "Uncommitted output not silently destroyed",
+          "text": "Tests prove uncommitted workspace output is preserved or HIR-blocked before deletion.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44510-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44510-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback guard and integration changes only."
+      }
+    },
+    {
+      "id": "P44.5.11",
+      "title": "Legacy COMPLETE Backfill and Rollout Mode",
+      "waveId": "W5",
+      "dependencies": ["P44.5.09"],
+      "role": "migration",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/completion/verified-complete-backfill.ts",
+        "packages/execution-service/src/query-handler.ts",
+        "packages/execution-service/test/workspace-truth-read-model.test.ts",
+        "reports/p44-5/migration/legacy-complete-backfill-report.md"
+      ],
+      "writeSet": [
+        "packages/coding-agent/src/core/completion/verified-complete-backfill.ts",
+        "packages/execution-service/src/query-handler.ts",
+        "packages/execution-service/test/workspace-truth-read-model.test.ts",
+        "reports/p44-5/migration/legacy-complete-backfill-report.md"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": true,
+        "sharedFiles": [
+          "packages/execution-service/src/query-handler.ts",
+          "packages/execution-service/test/workspace-truth-read-model.test.ts"
+        ],
+        "commitOwner": "P44.5.09",
+        "conflictPolicy": "single_commit_owner"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44511-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Add retroactive verifiedComplete computation for legacy COMPLETE workspaces without mutating historical state.",
+          "enforcedBy": ["read_model"]
+        },
+        {
+          "id": "WI-P44511-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Support rollout modes: off, shadow, warn, block_strict_plans, block_all_stable_3.",
+          "enforcedBy": ["completion_gate_vnext", "admission_gate"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44511-001",
+          "title": "Legacy complete backfill exists",
+          "text": "Read model can compute verifiedComplete for old runtime-complete workspaces as unknown/failed/passed without rewriting history.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P44511-001"]
+        },
+        {
+          "id": "AC-P44511-002",
+          "title": "Rollout modes implemented",
+          "text": "Tests prove warning mode and strict blocking mode behave differently.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["unit_test"],
+          "validationRefs": ["VAL-P44511-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44511-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-DASHBOARD-TRUTH-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback backfill/read-model changes only."
+      }
+    },
+    {
+      "id": "P44.5.12",
+      "title": "Commit Durability Gauntlets",
+      "waveId": "W6",
+      "dependencies": [
+        "P44.5.03",
+        "P44.5.04",
+        "P44.5.05",
+        "P44.5.06",
+        "P44.5.10"
+      ],
+      "role": "gauntlet",
+      "allowedFiles": [
+        "packages/coding-agent/test/gauntlet/commit-durability-completion-gate.test.ts",
+        "reports/p44-5/gauntlet/fake-complete-result.json",
+        "reports/p44-5/gauntlet/missing-file-result.json",
+        "reports/p44-5/gauntlet/canedit-exclusion-result.json",
+        "reports/p44-5/gauntlet/llm-message-fallback-result.json",
+        "reports/p44-5/gauntlet/shared-file-conflict-result.json"
+      ],
+      "writeSet": [
+        "packages/coding-agent/test/gauntlet/commit-durability-completion-gate.test.ts",
+        "reports/p44-5/gauntlet/**"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44512-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Add gauntlets for fake complete, missing declared output, untracked expected output, canEdit exclusion, commit failure, post-commit missing file, invalid LLM commit message, composer timeout, shared-file conflict, and destructive cleanup preservation.",
+          "enforcedBy": ["completion_gate_vnext", "gauntlet"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44512-001",
+          "title": "Fake complete gauntlet blocks",
+          "text": "A workspace that claims files without creating them cannot become verified complete.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["integration_test"],
+          "validationRefs": ["VAL-P44512-001"]
+        },
+        {
+          "id": "AC-P44512-002",
+          "title": "Commit failure gauntlet blocks",
+          "text": "A workspace with simulated commit failure cannot become verified complete.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["integration_test"],
+          "validationRefs": ["VAL-P44512-001"]
+        },
+        {
+          "id": "AC-P44512-003",
+          "title": "LLM fallback gauntlet passes safely",
+          "text": "Composer timeout uses fallback and still produces valid audited commit message.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["integration_test"],
+          "validationRefs": ["VAL-P44512-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44512-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P445-GAUNTLET",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback gauntlet tests and reports only."
+      }
+    },
+    {
+      "id": "P44.5.13",
+      "title": "Final Promotion and ACCP Reporting",
+      "waveId": "W6",
+      "dependencies": ["P44.5.12"],
+      "role": "final",
+      "allowedFiles": [
+        "reports/accp/P44.5/source/P44_5_IPR_001.accp.yaml",
+        "reports/accp/P44.5/source/P44_5_TVR_001.accp.yaml",
+        "reports/accp/P44.5/source/P44_5_PRR_001.accp.yaml",
+        "reports/p44-5/final-promotion-report.md"
+      ],
+      "writeSet": [
+        "reports/accp/P44.5/source/**",
+        "reports/p44-5/final-promotion-report.md"
+      ],
+      "sharedFilePolicy": {
+        "mayDeclareSharedFiles": false,
+        "conflictPolicy": "block"
+      },
+      "instructions": [
+        {
+          "id": "WI-P44513-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Produce ACCP IPR, TVR, and PRR artifacts summarizing implementation, validation, open risks, rollout mode, and promotion decision.",
+          "enforcedBy": ["accp_report_validator", "final_promotion_gate"]
+        },
+        {
+          "id": "WI-P44513-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Final PRR must explicitly state whether system score is at least 8/10 and what remains for 9/10+.",
+          "enforcedBy": ["final_promotion_gate"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P44513-001",
+          "title": "ACCP reports exist",
+          "text": "IPR, TVR, PRR are written as ACCP v2.0 YAML source files.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["report"],
+          "validationRefs": ["VAL-P44513-001"]
+        },
+        {
+          "id": "AC-P44513-002",
+          "title": "Promotion decision explicit",
+          "text": "Final report states promote/hold decision and remaining risks.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["report"],
+          "validationRefs": ["VAL-P44513-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P44513-001",
+            "type": "command_ref",
+            "commandRef": "CMD-FINAL-MAKE-TEST",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "PRR",
+            "after": "promotion_review"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Reports-only workspace."
+      }
+    }
+  ],
+  "validation": {
+    "finalRequired": true,
+    "watchModeForbidden": true,
+    "noTestsFoundIsFailure": true,
+    "commandEvidenceRequired": true,
+    "forbiddenPatterns": ["|| true", "|| exit 0", "; true"],
+    "finalValidationCommandRefs": ["CMD-FINAL-MAKE-TEST"],
+    "discoveryCommandsMayNotSatisfyFinalValidation": true
+  },
+  "evidence": {
+    "ledgerRequired": true,
+    "confidenceEnum": ["high", "medium", "low"],
+    "requiredEvidenceTypes": [
+      "source",
+      "unit_test",
+      "integration_test",
+      "command",
+      "diff",
+      "report",
+      "negative",
+      "mutation",
+      "commit",
+      "post_commit_verification",
+      "dashboard_truth"
+    ],
+    "evidenceItemRequiredFields": [
+      "id",
+      "type",
+      "workspaceId",
+      "acRefs",
+      "createdAt",
+      "confidence"
+    ],
+    "hashWhenAvailable": true
+  },
+  "reports": {
+    "protocol": "ACCP",
+    "version": "2.0.0",
+    "required": [
+      {
+        "type": "FDR",
+        "when": "design_freeze"
+      },
+      {
+        "type": "FCR",
+        "when": "contract_freeze"
+      },
+      {
+        "type": "IPR",
+        "when": "workspace_mutation"
+      },
+      {
+        "type": "TVR",
+        "when": "validation_completed"
+      },
+      {
+        "type": "HIR",
+        "when": "authority_or_scope_conflict"
+      },
+      {
+        "type": "RAR",
+        "when": "validation_regression"
+      },
+      {
+        "type": "PRR",
+        "when": "promotion_readiness"
+      }
+    ],
+    "artifactDirectory": "reports/accp/P44.5/",
+    "sourcePattern": "reports/accp/P44.5/source/{report_id}.accp.yaml",
+    "compiledPattern": "reports/accp/P44.5/compiled/{report_id}.compiled.json",
+    "renderedPattern": "reports/accp/P44.5/rendered/{report_id}.accp.md"
+  },
+  "rollout": {
+    "modes": [
+      {
+        "mode": "off",
+        "meaning": "CompletionGate vNext disabled."
+      },
+      {
+        "mode": "shadow",
+        "meaning": "Verdicts computed and logged but do not affect completion."
+      },
+      {
+        "mode": "warn",
+        "meaning": "Dashboard/read model show warnings, but completion remains legacy-compatible."
+      },
+      {
+        "mode": "block_strict_plans",
+        "meaning": "P44/P45/stable_3 strict plans block on vNext failures."
+      },
+      {
+        "mode": "block_all_stable_3",
+        "meaning": "All stable_3 plans use vNext blocking semantics."
+      }
+    ],
+    "initialMode": "shadow",
+    "promotionMode": "block_strict_plans",
+    "retroactiveBackfill": {
+      "enabled": true,
+      "mutatesHistoricalState": false,
+      "output": "verifiedCompleteBackfillStatus"
+    }
+  },
+  "successMetrics": {
+    "currentScore": 2.5,
+    "minimumTargetScore": 8.0,
+    "stretchTargetScore": 9.0,
+    "scoreDimensions": [
+      {
+        "dimension": "durability_guarantee",
+        "target": 8
+      },
+      {
+        "dimension": "deletion_safety",
+        "target": 7
+      },
+      {
+        "dimension": "failure_escalation",
+        "target": 9
+      },
+      {
+        "dimension": "scope_handling",
+        "target": 8
+      },
+      {
+        "dimension": "dashboard_truthfulness",
+        "target": 8
+      },
+      {
+        "dimension": "evidence_quality",
+        "target": 8
+      },
+      {
+        "dimension": "git_identity_auditability",
+        "target": 8
+      },
+      {
+        "dimension": "description_quality",
+        "target": 8
+      }
+    ]
+  },
+  "finalPromotionGate": {
+    "requires": [
+      "all_required_workspaces_complete",
+      "all_required_validation_passed_or_justified",
+      "no_P0_or_P1_open_without_HIR",
+      "verifiedComplete_required_for_mutation_workspaces",
+      "commit_hash_present_for_mutation_workspaces",
+      "post_commit_verification_passed",
+      "dashboard_truth_fields_available",
+      "llm_commit_message_fallback_tested",
+      "p26_overlap_decision_recorded",
+      "shared_file_policy_recorded",
+      "block_recovery_routing_recorded"
+    ],
+    "promotionDecision": "hold_until_validated"
+  }
+}

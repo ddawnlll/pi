@@ -16,7 +16,6 @@ import { describe, expect, it } from "vitest";
 import {
 	createDestructiveOperationGuard,
 	type DestructiveOperationGuard,
-
 } from "../../src/core/completion/destructive-operation-guard.js";
 
 // ---------------------------------------------------------------------------

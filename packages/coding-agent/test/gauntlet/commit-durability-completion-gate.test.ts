@@ -29,11 +29,15 @@ describe("Gauntlet: Fake Complete", () => {
 			declaredOutputFiles: ["nonexistent-file-gauntlet.md"],
 			checkFilesystemExistence: true,
 		});
-		const verdict = await runner("DeclaredOutputExistence", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"DeclaredOutputExistence",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(false);
 		expect(verdict.blockReasons[0]).toContain("Declared output file not found");
 	});
@@ -53,11 +57,15 @@ describe("Gauntlet: Missing Declared Output", () => {
 			declaredOutputFiles: ["missing-output-gauntlet.md"],
 			checkFilesystemExistence: true,
 		});
-		const verdict = await runner("DeclaredOutputExistence", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"DeclaredOutputExistence",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(false);
 		expect(verdict.blockReasons[0]).toContain("Declared output file not found");
 	});
@@ -71,11 +79,15 @@ describe("Gauntlet: Missing Declared Output", () => {
 			declaredOutputFiles: ["package.json"],
 			checkFilesystemExistence: true,
 		});
-		const verdict = await runner("DeclaredOutputExistence", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"DeclaredOutputExistence",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(true);
 	});
 });
@@ -98,11 +110,15 @@ describe("Gauntlet: canEdit/writeSet Exclusion", () => {
 			},
 			() => ["src/main.ts", "forbidden-external-file.ts"],
 		);
-		const verdict = await runner("ScopeAndWriteSet", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"ScopeAndWriteSet",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(false);
 		expect(verdict.blockReasons[0]).toContain("forbidden-external-file.ts");
 	});
@@ -120,11 +136,15 @@ describe("Gauntlet: canEdit/writeSet Exclusion", () => {
 			},
 			() => ["unauthorized-file.ts"],
 		);
-		const verdict = await runner("ScopeAndWriteSet", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"ScopeAndWriteSet",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(false);
 		expect(verdict.detail["recoveryState"]).toBe("NEEDS_HIR");
 	});
@@ -142,11 +162,15 @@ describe("Gauntlet: canEdit/writeSet Exclusion", () => {
 			},
 			() => ["src/main.ts"],
 		);
-		const verdict = await runner("ScopeAndWriteSet", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"ScopeAndWriteSet",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(true);
 	});
 });
@@ -157,9 +181,7 @@ describe("Gauntlet: canEdit/writeSet Exclusion", () => {
 
 describe("Gauntlet: LLM Message Fallback", () => {
 	it("should produce deterministic fallback when LLM times out", async () => {
-		const { composeCommitMessage } = await import(
-			"../../src/core/completion/commit-message-composer.js"
-		);
+		const { composeCommitMessage } = await import("../../src/core/completion/commit-message-composer.js");
 		const result = await composeCommitMessage(
 			{
 				planId: "P44.5",
@@ -179,9 +201,7 @@ describe("Gauntlet: LLM Message Fallback", () => {
 	});
 
 	it("should fallback when LLM returns invalid message", async () => {
-		const { composeCommitMessage } = await import(
-			"../../src/core/completion/commit-message-composer.js"
-		);
+		const { composeCommitMessage } = await import("../../src/core/completion/commit-message-composer.js");
 		const result = await composeCommitMessage(
 			{
 				planId: "P44.5",
@@ -218,11 +238,15 @@ describe("Gauntlet: Shared-file Conflict", () => {
 			},
 			() => ["shared/data.ts"],
 		);
-		const verdict = await runner("ScopeAndWriteSet", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"ScopeAndWriteSet",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		// Without declaring shared file, the file is outside both writeSet and allowedFiles -> blocked
 		expect(verdict.passed).toBe(false);
 		expect(verdict.detail["recoveryState"]).toBe("NEEDS_HIR");
@@ -242,11 +266,15 @@ describe("Gauntlet: Shared-file Conflict", () => {
 			},
 			() => ["shared/data.ts"],
 		);
-		const verdict = await runner("ScopeAndWriteSet", {}, {
-			planId: "P44.5",
-			workspaceId: "W6",
-			rolloutMode: "block_strict_plans",
-		});
+		const verdict = await runner(
+			"ScopeAndWriteSet",
+			{},
+			{
+				planId: "P44.5",
+				workspaceId: "W6",
+				rolloutMode: "block_strict_plans",
+			},
+		);
 		expect(verdict.passed).toBe(true);
 	});
 });
@@ -257,9 +285,7 @@ describe("Gauntlet: Shared-file Conflict", () => {
 
 describe("Gauntlet: Commit Durability Routing", () => {
 	it("should route commit failure according to recovery table", async () => {
-		const { routeStageFailure } = await import(
-			"../../src/core/completion/completion-recovery-router.js"
-		);
+		const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
 		const route = routeStageFailure("CommitExecution", "non_transient_commit_failure");
 		expect(route.state).toBe("NEEDS_REPAIR");
 		expect(route.reportType).toBe("FPR");
@@ -267,18 +293,14 @@ describe("Gauntlet: Commit Durability Routing", () => {
 	});
 
 	it("should route transient commit failure as retryable", async () => {
-		const { routeStageFailure } = await import(
-			"../../src/core/completion/completion-recovery-router.js"
-		);
+		const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
 		const route = routeStageFailure("CommitExecution", "transient_git_failure");
 		expect(route.state).toBe("RETRYABLE_BLOCKED");
 		expect(route.retryPolicy).toBe("bounded_retry_allowed");
 	});
 
 	it("should route post-commit verification failure to NEEDS_REPAIR", async () => {
-		const { routeStageFailure } = await import(
-			"../../src/core/completion/completion-recovery-router.js"
-		);
+		const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
 		const route = routeStageFailure("PostCommitVerification", "commit_missing_expected_files");
 		expect(route.state).toBe("NEEDS_REPAIR");
 		expect(route.retryPolicy).toBe("allowed_after_repair");
@@ -300,21 +322,24 @@ describe("Gauntlet: Orchestrator Integration", () => {
 		const registry = new StageRunnerRegistry();
 
 		// DeclaredOutputExistence passes
-		registry.register("DeclaredOutputExistence", () =>
-			createPassedStageVerdict("DeclaredOutputExistence", {}, 1),
-		);
+		registry.register("DeclaredOutputExistence", () => createPassedStageVerdict("DeclaredOutputExistence", {}, 1));
 		// Commit fails
 		registry.register("CommitExecution", () =>
-			createFailedStageVerdict("CommitExecution", ["Gauntlet: commit failed"], {
-				recoveryState: "NEEDS_REPAIR",
-			}, 5),
+			createFailedStageVerdict(
+				"CommitExecution",
+				["Gauntlet: commit failed"],
+				{
+					recoveryState: "NEEDS_REPAIR",
+				},
+				5,
+			),
 		);
 
-		const verdict = await runCompletionGateVNext(
-			{ id: "W6" } as any,
-			registry,
-			{ planId: "P44.5", workspaceId: "W6", rolloutMode: "block_strict_plans" },
-		);
+		const verdict = await runCompletionGateVNext({ id: "W6" } as any, registry, {
+			planId: "P44.5",
+			workspaceId: "W6",
+			rolloutMode: "block_strict_plans",
+		});
 
 		expect(verdict.passed).toBe(false);
 		expect(verdict.blockReasons).toContain("Gauntlet: commit failed");
@@ -330,18 +355,16 @@ describe("Gauntlet: Orchestrator Integration", () => {
 		);
 		const registry = new StageRunnerRegistry();
 
-		registry.register("DeclaredOutputExistence", () =>
-			createPassedStageVerdict("DeclaredOutputExistence", {}, 1),
-		);
+		registry.register("DeclaredOutputExistence", () => createPassedStageVerdict("DeclaredOutputExistence", {}, 1));
 		registry.register("CommitExecution", () =>
 			createFailedStageVerdict("CommitExecution", ["Shadow mode failure"], {}, 5),
 		);
 
-		const verdict = await runCompletionGateVNext(
-			{ id: "W6" } as any,
-			registry,
-			{ planId: "P44.5", workspaceId: "W6", rolloutMode: "shadow" },
-		);
+		const verdict = await runCompletionGateVNext({ id: "W6" } as any, registry, {
+			planId: "P44.5",
+			workspaceId: "W6",
+			rolloutMode: "shadow",
+		});
 
 		expect(verdict.passed).toBe(true); // Shadow mode does not block
 		expect(verdict.wouldBlockReasons).toBeDefined();

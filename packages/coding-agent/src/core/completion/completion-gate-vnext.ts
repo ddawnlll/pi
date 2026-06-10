@@ -32,7 +32,7 @@ import {
  */
 export type StageRunner = (
 	stage: CompletionGateStageName,
-	workspace: Workspace,
+	workspace: Workspace | Record<string, unknown>,
 	context: StageExecutionContext,
 ) => Promise<StageVerdict> | StageVerdict;
 
@@ -108,7 +108,7 @@ export class StageRunnerRegistry {
  * @returns Aggregated gate verdict
  */
 export async function runCompletionGateVNext(
-	workspace: Workspace,
+	workspace: Workspace | Record<string, unknown>,
 	stageRunners: StageRunnerRegistry,
 	context: StageExecutionContext,
 ): Promise<CompletionGateVNextVerdict> {
