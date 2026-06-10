@@ -175,6 +175,34 @@ export {
 	performPostImplementationAudit,
 	resetFindingSequence,
 } from "./post-implementation-auditor.js";
+export type {
+	CommitCandidateInfo,
+	CommitCandidateStageConfig,
+} from "./stages/commit-candidate-stage.js";
+export { createCommitCandidateStageRunner } from "./stages/commit-candidate-stage.js";
+export type {
+	CommitExecutionResult,
+	CommitExecutionStageConfig,
+} from "./stages/commit-execution-stage.js";
+export { createCommitExecutionStageRunner } from "./stages/commit-execution-stage.js";
+// CompletionGate vNext Stages (P44.5.03, P44.5.04, P44.5.05)
+export type { DeclaredOutputExistenceStageConfig } from "./stages/declared-output-existence-stage.js";
+export { createDeclaredOutputExistenceStageRunner } from "./stages/declared-output-existence-stage.js";
+export type { EvidenceLedgerStageConfig } from "./stages/evidence-ledger-stage.js";
+export { createEvidenceLedgerStageRunner } from "./stages/evidence-ledger-stage.js";
+export type {
+	CommitVerificationData,
+	PostCommitVerificationStageConfig,
+} from "./stages/post-commit-verification-stage.js";
+export {
+	createPostCommitVerificationStageRunner,
+	REQUIRED_COMMIT_TRAILERS,
+} from "./stages/post-commit-verification-stage.js";
+export type {
+	ScopeAndWriteSetStageConfig,
+	UnauthorizedFileEntry,
+} from "./stages/scope-and-writeset-stage.js";
+export { createScopeAndWriteSetStageRunner } from "./stages/scope-and-writeset-stage.js";
 // Terminal Verdict Reconciler (P44.04)
 export type {
 	AttemptRecord,

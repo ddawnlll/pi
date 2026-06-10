@@ -658,3 +658,246 @@ describe("CompletionGate vNext Orchestrator", () => {
 		expect(verdict.blockReasons).toContain("Transient git failure");
 	});
 });
+
+// ---------------------------------------------------------------------------
+// DeclaredOutputExistence Stage Tests
+// ---------------------------------------------------------------------------
+
+describe("DeclaredOutputExistenceStage", () => {
+	describe("createDeclaredOutputExistenceStageRunner", () => {
+		it("should pass when all declared files exist", async () => {
+			const { createDeclaredOutputExistenceStageRunner } = await import(
+				"../../src/core/completion/stages/declared-output-existence-stage.js"
+			);
+			const runner = createDeclaredOutputExistenceStageRunner({
+				repoRoot: process.cwd(),
+				declaredOutputFiles: ["package.json"],
+				checkFilesystemExistence: true,
+			});
+			const verdict = await runner(
+				"DeclaredOutputExistence",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(true);
+		});
+
+		it("should fail when declared files are missing", async () => {
+			const { createDeclaredOutputExistenceStageRunner } = await import(
+				"../../src/core/completion/stages/declared-output-existence-stage.js"
+			);
+			const runner = createDeclaredOutputExistenceStageRunner({
+				repoRoot: "/tmp",
+				declaredOutputFiles: ["nonexistent-file-12345.md"],
+				checkFilesystemExistence: true,
+			});
+			const verdict = await runner(
+				"DeclaredOutputExistence",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(false);
+			expect(verdict.blockReasons[0]).toContain("Declared output file not found");
+		});
+
+		it("should pass when filesystem check is disabled", async () => {
+			const { createDeclaredOutputExistenceStageRunner } = await import(
+				"../../src/core/completion/stages/declared-output-existence-stage.js"
+			);
+			const runner = createDeclaredOutputExistenceStageRunner({
+				repoRoot: "/tmp",
+				declaredOutputFiles: ["does-not-exist.md"],
+				checkFilesystemExistence: false,
+			});
+			const verdict = await runner(
+				"DeclaredOutputExistence",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(true);
+			expect(verdict.detail["note"]).toBe("filesystem check disabled");
+		});
+
+		it("should configure recovery state as NEEDS_REPAIR on failure", async () => {
+			const { createDeclaredOutputExistenceStageRunner } = await import(
+				"../../src/core/completion/stages/declared-output-existence-stage.js"
+			);
+			const runner = createDeclaredOutputExistenceStageRunner({
+				repoRoot: "/tmp",
+				declaredOutputFiles: ["missing.md"],
+				checkFilesystemExistence: true,
+			});
+			const verdict = await runner(
+				"DeclaredOutputExistence",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.detail["recoveryState"]).toBe("NEEDS_REPAIR");
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// EvidenceLedger Stage Tests
+// ---------------------------------------------------------------------------
+
+describe("EvidenceLedgerStage", () => {
+	describe("createEvidenceLedgerStageRunner", () => {
+		it("should pass when ledger has no entries (empty ledger = passing)", async () => {
+			const { EvidenceLedger } = await import("../../src/core/completion/evidence-ledger.js");
+			const { createEvidenceLedgerStageRunner } = await import(
+				"../../src/core/completion/stages/evidence-ledger-stage.js"
+			);
+			const ledger = new EvidenceLedger("test");
+			const runner = createEvidenceLedgerStageRunner({
+				ledger,
+				minPassRate: 0.0,
+			});
+			const verdict = await runner(
+				"EvidenceLedger",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(true);
+		});
+
+		it("should fail when pass rate is below threshold", async () => {
+			const { EvidenceLedger } = await import("../../src/core/completion/evidence-ledger.js");
+			const { createArtifactEvidence } = await import("../../src/core/completion/evidence-types.js");
+			const { createEvidenceLedgerStageRunner } = await import(
+				"../../src/core/completion/stages/evidence-ledger-stage.js"
+			);
+			const ledger = new EvidenceLedger("test");
+			ledger.add(
+				createArtifactEvidence({
+					id: "ac-1",
+					description: "test",
+					source: "test",
+					verdict: "fail",
+					fileHash: "abc",
+				}),
+			);
+			const runner = createEvidenceLedgerStageRunner({
+				ledger,
+				minPassRate: 1.0,
+				maxFailures: 0,
+			});
+			const verdict = await runner(
+				"EvidenceLedger",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(false);
+			expect(verdict.blockReasons[0]).toContain("Evidence pass rate");
+		});
+
+		it("should pass with mixed verdicts when pass rate is met", async () => {
+			const { EvidenceLedger } = await import("../../src/core/completion/evidence-ledger.js");
+			const { createArtifactEvidence } = await import("../../src/core/completion/evidence-types.js");
+			const { createEvidenceLedgerStageRunner } = await import(
+				"../../src/core/completion/stages/evidence-ledger-stage.js"
+			);
+			const ledger = new EvidenceLedger("test");
+			ledger.add(
+				createArtifactEvidence({
+					id: "ac-pass",
+					description: "passing test",
+					source: "test",
+					verdict: "pass",
+					fileHash: "abc",
+				}),
+			);
+			ledger.add(
+				createArtifactEvidence({
+					id: "ac-fail",
+					description: "failing test",
+					source: "test",
+					verdict: "fail",
+					fileHash: "def",
+				}),
+			);
+			const runner = createEvidenceLedgerStageRunner({
+				ledger,
+				minPassRate: 0.5,
+				maxFailures: 1,
+			});
+			const verdict = await runner(
+				"EvidenceLedger",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(true);
+		});
+
+		it("should fail when failures exceed max", async () => {
+			const { EvidenceLedger } = await import("../../src/core/completion/evidence-ledger.js");
+			const { createArtifactEvidence } = await import("../../src/core/completion/evidence-types.js");
+			const { createEvidenceLedgerStageRunner } = await import(
+				"../../src/core/completion/stages/evidence-ledger-stage.js"
+			);
+			const ledger = new EvidenceLedger("test");
+			ledger.add(
+				createArtifactEvidence({
+					id: "ac-1",
+					description: "test",
+					source: "test",
+					verdict: "fail",
+					fileHash: "abc",
+				}),
+			);
+			ledger.add(
+				createArtifactEvidence({
+					id: "ac-2",
+					description: "test",
+					source: "test",
+					verdict: "fail",
+					fileHash: "def",
+				}),
+			);
+			const runner = createEvidenceLedgerStageRunner({
+				ledger,
+				minPassRate: 0.0,
+				maxFailures: 1,
+			});
+			const verdict = await runner(
+				"EvidenceLedger",
+				{},
+				{
+					planId: "P1",
+					workspaceId: "W1",
+					rolloutMode: "block_strict_plans",
+				},
+			);
+			expect(verdict.passed).toBe(false);
+			expect(verdict.blockReasons[0]).toContain("fail verdict");
+		});
+	});
+});
