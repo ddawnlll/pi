@@ -57,6 +57,32 @@ export {
 	checkEvidenceSatisfaction,
 	evaluateWorkspaceCompletionV2,
 } from "./completion-gate-v2.js";
+// CompletionGate vNext Types (P44.5.01)
+export type {
+	AgentCompletionClaim,
+	BackfillStatus,
+	CommitCandidateSet,
+	CompletionGateStageName,
+	CompletionGateVNextVerdict,
+	RecoveryReportType,
+	RecoveryRoute,
+	RecoveryState,
+	RetryPolicy,
+	RolloutMode,
+	StageFailureKind,
+	StageVerdict,
+	VerifiedReality,
+	WorkspaceDurabilityStatus,
+	WorkspaceImplementationStatus,
+	WorkspaceRuntimeStatus,
+	WorkspaceTruthStatus,
+	WorkspaceValidationStatus,
+} from "./completion-gate-vnext-types.js";
+export {
+	COMPLETION_GATE_VNEXT_SCHEMA_VERSION,
+	ROLLOUT_MODE_SEQUENCE,
+	STAGE_ORDER,
+} from "./completion-gate-vnext-types.js";
 export type { EvidenceLedgerSnapshot } from "./evidence-ledger.js";
 // Evidence Ledger
 export { EvidenceLedger } from "./evidence-ledger.js";
@@ -201,6 +227,24 @@ export type {
 	WorkspaceCommitGateResult,
 } from "./workspace-commit-gate.js";
 export { toCompletionCommitGateResult, WorkspaceCommitGate } from "./workspace-commit-gate.js";
+// Workspace Truth Status (P44.5.01)
+export type {} from "./workspace-truth-status.js";
+export {
+	applyVerdictToStatus,
+	BLOCKING_ROLLOUT_MODES,
+	computeVerifiedComplete,
+	createFailedStageVerdict,
+	createPassedStageVerdict,
+	createRecoveryRoute,
+	createWarningStageVerdict,
+	createWorkspaceTruthStatus,
+	DEFAULT_ROLLOUT_MODE,
+	deriveRecoveryState,
+	determineBackfillStatus,
+	durabilityStatusLabel,
+	shouldBlockCompletion,
+	validationStatusLabel,
+} from "./workspace-truth-status.js";
 // Workspace WriteSet (P44.08)
 export type {
 	WorkspaceWriteSet,
