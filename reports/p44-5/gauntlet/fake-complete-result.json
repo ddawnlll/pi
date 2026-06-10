@@ -1,0 +1,9 @@
+{
+  "gauntlet": "fake-complete",
+  "workspaceId": "W6",
+  "planId": "P44.5",
+  "status": "blocked",
+  "blockReason": "Declared output file not found: nonexistent-file-gauntlet.md",
+  "recoveryState": "NEEDS_REPAIR",
+  "testTimestamp": "2026-06-11T00:00:00+03:00"
+}

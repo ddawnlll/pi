@@ -1,0 +1,9 @@
+{
+  "gauntlet": "shared-file-conflict",
+  "workspaceId": "W6",
+  "planId": "P44.5",
+  "status": "blocked",
+  "blockReason": "File outside writeSet: shared/data.ts (not declared as shared)",
+  "recoveryState": "NEEDS_HIR",
+  "testTimestamp": "2026-06-11T00:00:00+03:00"
+}

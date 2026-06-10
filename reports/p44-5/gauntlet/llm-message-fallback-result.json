@@ -1,0 +1,9 @@
+{
+  "gauntlet": "llm-message-fallback",
+  "workspaceId": "W6",
+  "planId": "P44.5",
+  "status": "fallback_used",
+  "fallbackReason": "LLM composer not provided, deterministic fallback used",
+  "messagePreview": "feat(p44.5): src/main.ts",
+  "testTimestamp": "2026-06-11T00:00:00+03:00"
+}
