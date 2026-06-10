@@ -463,3 +463,198 @@ describe("WorkspaceTruthStatus structural contract", () => {
 		expect(status.requiredMode).toBeUndefined();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// CompletionGate vNext Orchestrator Tests
+// ---------------------------------------------------------------------------
+
+describe("CompletionGate vNext Orchestrator", () => {
+	it("should run an empty pipeline (no registered stages) and return passed", async () => {
+		const { runCompletionGateVNext, createDefaultStageRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const registry = createDefaultStageRegistry();
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "shadow",
+		});
+		expect(verdict.passed).toBe(true);
+		expect(verdict.evaluated).toBe(true);
+		expect(verdict.stageVerdicts).toHaveLength(9);
+	});
+
+	it("should return skipped verdict in off mode", async () => {
+		const { runCompletionGateVNext, createDefaultStageRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const registry = createDefaultStageRegistry();
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "off",
+		});
+		expect(verdict.passed).toBe(true);
+		expect(verdict.evaluated).toBe(false);
+		expect(verdict.stageVerdicts).toHaveLength(0);
+	});
+
+	it("should run registered stage runners in order and aggregate passing verdicts", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createPassedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("DeclaredOutputExistence", () => createPassedStageVerdict("DeclaredOutputExistence", {}, 1));
+		registry.register("EvidenceLedger", () => createPassedStageVerdict("EvidenceLedger", {}, 1));
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "shadow",
+		});
+
+		expect(verdict.passed).toBe(true);
+		expect(verdict.stageVerdicts).toHaveLength(9);
+		// Only registered stages have passed=true, others have warning=true
+		const declaredOutput = verdict.stageVerdicts.find((s) => s.stage === "DeclaredOutputExistence")!;
+		expect(declaredOutput.passed).toBe(true);
+		expect(declaredOutput.warning).toBe(false);
+	});
+
+	it("should aggregate block reasons from failing stages", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createFailedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("DeclaredOutputExistence", () =>
+			createFailedStageVerdict("DeclaredOutputExistence", ["File not found: output.md"], {}, 2),
+		);
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "block_strict_plans",
+		});
+
+		expect(verdict.passed).toBe(false);
+		expect(verdict.blockReasons).toContain("File not found: output.md");
+	});
+
+	it("should not block in shadow mode even when stages fail", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createFailedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("CommitExecution", () =>
+			createFailedStageVerdict("CommitExecution", ["Git commit failed"], {}, 5),
+		);
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "shadow",
+		});
+
+		expect(verdict.passed).toBe(true); // Shadow: does not block
+		expect(verdict.wouldBlockReasons).toBeDefined();
+		expect(verdict.wouldBlockReasons).toContain("Git commit failed");
+	});
+
+	it("should produce warnings in warn mode when stages fail", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createFailedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("DeclaredOutputExistence", () =>
+			createFailedStageVerdict("DeclaredOutputExistence", ["Missing file"], {}, 1),
+		);
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "warn",
+		});
+
+		expect(verdict.passed).toBe(true); // Warn: does not block
+		expect(verdict.warnings).toContain("[WOULD-BLOCK] Missing file");
+	});
+
+	it("should block in block_strict_plans mode", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createFailedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("ScopeAndWriteSet", () =>
+			createFailedStageVerdict("ScopeAndWriteSet", ["Unauthorized file"], {}, 2),
+		);
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "block_strict_plans",
+		});
+
+		expect(verdict.passed).toBe(false);
+		expect(verdict.blockReasons).toContain("Unauthorized file");
+	});
+
+	it("should pass the execution context with previous verdicts to each stage", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createPassedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+		const stageOrder: string[] = [];
+
+		registry.register("DeclaredOutputExistence", (stage, _ws, ctx) => {
+			stageOrder.push(stage);
+			expect(ctx.previousVerdicts).toHaveLength(0);
+			return createPassedStageVerdict("DeclaredOutputExistence", {}, 1);
+		});
+		registry.register("EvidenceLedger", (stage, _ws, ctx) => {
+			stageOrder.push(stage);
+			expect(ctx.previousVerdicts).toHaveLength(1);
+			return createPassedStageVerdict("EvidenceLedger", {}, 1);
+		});
+
+		await runCompletionGateVNext({} as any, registry, { planId: "P1", workspaceId: "W1", rolloutMode: "shadow" });
+
+		expect(stageOrder).toEqual(["DeclaredOutputExistence", "EvidenceLedger"]);
+	});
+
+	it("should include route recommendation in verdict when failing", async () => {
+		const { runCompletionGateVNext, StageRunnerRegistry } = await import(
+			"../../src/core/completion/completion-gate-vnext.js"
+		);
+		const { createFailedStageVerdict } = await import("../../src/core/completion/workspace-truth-status.js");
+		const registry = new StageRunnerRegistry();
+
+		registry.register("CommitExecution", () =>
+			createFailedStageVerdict(
+				"CommitExecution",
+				["Transient git failure"],
+				{ recoveryState: "RETRYABLE_BLOCKED" },
+				5,
+			),
+		);
+
+		const verdict = await runCompletionGateVNext({} as any, registry, {
+			planId: "P1",
+			workspaceId: "W1",
+			rolloutMode: "block_strict_plans",
+		});
+
+		expect(verdict.passed).toBe(false);
+		expect(verdict.blockReasons).toContain("Transient git failure");
+	});
+});

@@ -57,6 +57,23 @@ export {
 	checkEvidenceSatisfaction,
 	evaluateWorkspaceCompletionV2,
 } from "./completion-gate-v2.js";
+// CompletionGate vNext Orchestrator (P44.5.02)
+export type {
+	StageExecutionContext,
+	StageRunner,
+} from "./completion-gate-vnext.js";
+export {
+	createDefaultStageRegistry,
+	runCompletionGateVNext,
+	StageRunnerRegistry,
+} from "./completion-gate-vnext.js";
+// CompletionGate vNext Adapter (P44.5.02)
+export type { CompletionGateVNextAdapterOptions } from "./completion-gate-vnext-adapter.js";
+export {
+	evaluateThroughAdapter,
+	shouldBlockForMode,
+	shouldUseVNextMode,
+} from "./completion-gate-vnext-adapter.js";
 // CompletionGate vNext Types (P44.5.01)
 export type {
 	AgentCompletionClaim,
