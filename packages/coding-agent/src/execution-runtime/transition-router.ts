@@ -65,6 +65,22 @@ export interface TransitionRouter {
 	): Promise<void>;
 
 	/**
+	 * Route based on a recovery state from CompletionGate vNext.
+	 *
+	 * Maps recovery states to workspace stages:
+	 * - NEEDS_REPAIR, NEEDS_REPAIR_OR_RAR -> Blocked
+	 * - NEEDS_HIR -> Blocked
+	 * - RETRYABLE_BLOCKED -> Blocked
+	 * - FALLBACK_MESSAGE_USED -> Complete (non-blocking state)
+	 */
+	transitionByRecoveryState?(
+		planExecutionId: string,
+		workspaceId: string,
+		recoveryState: string,
+		data?: Record<string, unknown>,
+	): Promise<void>;
+
+	/**
 	 * Increment the workspace execution attempt counter.
 	 *
 	 * Attempt FSM retry events are routed by Failed/Blocked → Pending
@@ -100,6 +116,36 @@ export class DirectTransitionRouter implements TransitionRouter {
 
 	async incrementRetryAttempt(planExecutionId: string, workspaceId: string): Promise<void> {
 		await this.stateStore.incrementRetryAttempt(planExecutionId, workspaceId);
+	}
+
+	async transitionByRecoveryState(
+		planExecutionId: string,
+		workspaceId: string,
+		recoveryState: string,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		// Map recovery states to workspace stages
+		switch (recoveryState) {
+			case "FALLBACK_MESSAGE_USED":
+				// Non-blocking: workspace continues to Complete
+				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
+				break;
+			case "PASSED":
+			case "WARNED":
+				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
+				break;
+			case "NEEDS_REPAIR":
+			case "NEEDS_REPAIR_OR_RAR":
+			case "NEEDS_HIR":
+			case "RETRYABLE_BLOCKED":
+			default:
+				// All failure states block the workspace
+				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Blocked, {
+					...(data ?? {}),
+					recoveryState,
+				});
+				break;
+		}
 	}
 }
 
@@ -174,6 +220,31 @@ export class KernelTransitionRouter implements TransitionRouter {
 		// (Failed/Blocked → Pending), while this counter increments once per
 		// actual agent execution, including the initial attempt.
 		await this.stateStore.incrementRetryAttempt(planExecutionId, workspaceId);
+	}
+
+	async transitionByRecoveryState(
+		planExecutionId: string,
+		workspaceId: string,
+		recoveryState: string,
+		data?: Record<string, unknown>,
+	): Promise<void> {
+		switch (recoveryState) {
+			case "FALLBACK_MESSAGE_USED":
+			case "PASSED":
+			case "WARNED":
+				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Complete, data);
+				break;
+			case "NEEDS_REPAIR":
+			case "NEEDS_REPAIR_OR_RAR":
+			case "NEEDS_HIR":
+			case "RETRYABLE_BLOCKED":
+			default:
+				await this.transitionWorkspace(planExecutionId, workspaceId, WS.Blocked, {
+					...(data ?? {}),
+					recoveryState,
+				});
+				break;
+		}
 	}
 
 	/**

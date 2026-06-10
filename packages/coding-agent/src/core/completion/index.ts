@@ -133,6 +133,12 @@ export {
 	ROLLOUT_MODE_SEQUENCE,
 	STAGE_ORDER,
 } from "./completion-gate-vnext-types.js";
+// Completion Recovery Router (P44.5.08)
+export {
+	getRoutesForStage,
+	routeStageFailure,
+	verifyRoutingTableCoverage,
+} from "./completion-recovery-router.js";
 export type { EvidenceLedgerSnapshot } from "./evidence-ledger.js";
 // Evidence Ledger
 export { EvidenceLedger } from "./evidence-ledger.js";

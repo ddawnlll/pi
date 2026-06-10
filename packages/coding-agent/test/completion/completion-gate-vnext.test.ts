@@ -901,3 +901,129 @@ describe("EvidenceLedgerStage", () => {
 		});
 	});
 });
+
+// ---------------------------------------------------------------------------
+// CompletionRecoveryRouter Tests
+// ---------------------------------------------------------------------------
+
+describe("CompletionRecoveryRouter", () => {
+	describe("routeStageFailure", () => {
+		const stages = [
+			"DeclaredOutputExistence",
+			"EvidenceLedger",
+			"Validation",
+			"ScopeAndWriteSet",
+			"CommitExecution",
+			"PostCommitVerification",
+			"CommitMessageComposer",
+			"DestructiveOperationGuard",
+		] as const;
+
+		for (const stage of stages) {
+			it(`should route ${stage}::missing_declared_output`, async () => {
+				const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+				const route = routeStageFailure(stage as any, "missing_declared_output" as any);
+				expect(route).toBeDefined();
+				expect(route.state).toMatch(/NEEDS_|RETRYABLE_|FALLBACK_/);
+			});
+
+			it(`should route ${stage}::unauthorized_mutation`, async () => {
+				const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+				const route = routeStageFailure(stage as any, "unauthorized_mutation" as any);
+				expect(route).toBeDefined();
+			});
+		}
+
+		it("should route DeclaredOutputExistence failure to NEEDS_REPAIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("DeclaredOutputExistence", "missing_declared_output");
+			expect(route.state).toBe("NEEDS_REPAIR");
+			expect(route.reportType).toBe("FPR");
+			expect(route.retryPolicy).toBe("allowed_after_repair");
+		});
+
+		it("should route EvidenceLedger failure to NEEDS_REPAIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("EvidenceLedger", "missing_or_stale_evidence");
+			expect(route.state).toBe("NEEDS_REPAIR");
+			expect(route.reportType).toBe("FPR");
+			expect(route.retryPolicy).toBe("allowed_after_evidence_added");
+		});
+
+		it("should route Validation failure to NEEDS_REPAIR_OR_RAR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("Validation", "test_failed_or_command_invalid");
+			expect(route.state).toBe("NEEDS_REPAIR_OR_RAR");
+			expect(route.reportType).toBe("RAR");
+			expect(route.retryPolicy).toBe("allowed_after_fix");
+		});
+
+		it("should route ScopeAndWriteSet failure to NEEDS_HIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("ScopeAndWriteSet", "unauthorized_mutation");
+			expect(route.state).toBe("NEEDS_HIR");
+			expect(route.reportType).toBe("HIR");
+			expect(route.retryPolicy).toBe("not_allowed_without_authority");
+		});
+
+		it("should route transient CommitExecution failure to RETRYABLE_BLOCKED", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("CommitExecution", "transient_git_failure");
+			expect(route.state).toBe("RETRYABLE_BLOCKED");
+			expect(route.reportType).toBe("none");
+			expect(route.retryPolicy).toBe("bounded_retry_allowed");
+		});
+
+		it("should route non-transient CommitExecution failure to NEEDS_REPAIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("CommitExecution", "non_transient_commit_failure");
+			expect(route.state).toBe("NEEDS_REPAIR");
+			expect(route.reportType).toBe("FPR");
+			expect(route.retryPolicy).toBe("allowed_after_fix");
+		});
+
+		it("should route PostCommitVerification failure to NEEDS_REPAIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("PostCommitVerification", "commit_missing_expected_files");
+			expect(route.state).toBe("NEEDS_REPAIR");
+			expect(route.reportType).toBe("FPR");
+		});
+
+		it("should route CommitMessageComposer failure to FALLBACK_MESSAGE_USED", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("CommitMessageComposer", "timeout_or_invalid_message");
+			expect(route.state).toBe("FALLBACK_MESSAGE_USED");
+			expect(route.reportType).toBe("none");
+			expect(route.retryPolicy).toBe("not_needed");
+		});
+
+		it("should route DestructiveOperationGuard failure to NEEDS_HIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("DestructiveOperationGuard", "unpreserved_output_at_risk");
+			expect(route.state).toBe("NEEDS_HIR");
+			expect(route.reportType).toBe("HIR");
+			expect(route.retryPolicy).toBe("not_allowed_without_preservation");
+		});
+
+		it("should default unknown failure to NEEDS_HIR", async () => {
+			const { routeStageFailure } = await import("../../src/core/completion/completion-recovery-router.js");
+			const route = routeStageFailure("UnknownStage" as any, "unknown_failure" as any);
+			expect(route.state).toBe("NEEDS_HIR");
+			expect(route.reportType).toBe("HIR");
+		});
+
+		it("should verify routing table coverage has no missing entries", async () => {
+			const { verifyRoutingTableCoverage } = await import("../../src/core/completion/completion-recovery-router.js");
+			const missing = verifyRoutingTableCoverage();
+			expect(missing).toEqual([]);
+		});
+
+		it("should return routes for a given stage", async () => {
+			const { getRoutesForStage } = await import("../../src/core/completion/completion-recovery-router.js");
+			const routes = getRoutesForStage("CommitExecution");
+			expect(routes).toHaveLength(2);
+			expect(routes.map((r) => r.failureKind)).toContain("transient_git_failure");
+			expect(routes.map((r) => r.failureKind)).toContain("non_transient_commit_failure");
+		});
+	});
+});
