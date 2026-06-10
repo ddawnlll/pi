@@ -98,6 +98,7 @@ export type {
 	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
+	CompletionStatusView,
 	DataAvailability,
 	DependencyGraphNode,
 	DependencyGraphView,

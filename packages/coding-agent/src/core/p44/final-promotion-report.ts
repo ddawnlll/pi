@@ -10,7 +10,7 @@
  * Contract Schema: 4.2.0
  */
 
-import { accessSync, constants, readFileSync } from "node:fs";
+import { accessSync, constants } from "node:fs";
 import { resolve } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -655,9 +655,9 @@ export class FinalPromotionReportGenerator {
 	 */
 	private buildWaveEntries(workspaces: WorkspacePromotionEntry[]): WavePromotionEntry[] {
 		return P44_WAVE_PLAN.map((waveDef) => {
-			const waveWorkspaces = workspaces.filter(
-		(w) => (waveDef.workspaceIds as readonly string[]).includes(w.workspaceId),
-	);
+			const waveWorkspaces = workspaces.filter((w) =>
+				(waveDef.workspaceIds as readonly string[]).includes(w.workspaceId),
+			);
 			const passedCount = waveWorkspaces.filter((w) => w.status === "passed").length;
 			const failedCount = waveWorkspaces.filter((w) => w.status === "failed").length;
 			const blockedCount = waveWorkspaces.filter((w) => w.status === "blocked").length;

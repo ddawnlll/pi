@@ -406,7 +406,7 @@ describe("P44.09 — Scoped Commit Integration", () => {
 
 	describe("edge cases", () => {
 		let dir: string;
-		let integration: ScopedCommitIntegration;
+		let _integration: ScopedCommitIntegration;
 
 		beforeEach(() => {
 			dir = fs.mkdtempSync("scoped-edge-");
@@ -419,7 +419,7 @@ describe("P44.09 — Scoped Commit Integration", () => {
 			execSync("git add -A", { cwd: dir, stdio: "pipe" });
 			execSync("git commit -m 'initial'", { cwd: dir, stdio: "pipe" });
 
-			integration = new ScopedCommitIntegration({
+			_integration = new ScopedCommitIntegration({
 				repoRoot: dir,
 				workspaceId: "edge-ws",
 				allowedWriteSet: ["*.ts", "src/**"],

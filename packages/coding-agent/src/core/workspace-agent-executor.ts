@@ -18,7 +18,7 @@ import type { WorktreeWorkspaceExecutor } from "../worktree/worktree-workspace-e
 import type { AgentSession, AgentSessionEvent } from "./agent-session.js";
 import { createWorkspaceBudgetEnforcer } from "./budget-enforcer.js";
 import type { TerminalVerdict, TerminalVerdictParseResult } from "./completion/terminal-verdict-parser.js";
-import { isEmptyProviderVerdictResponse, parseTerminalVerdict } from "./completion/terminal-verdict-parser.js";
+import { isEmptyProviderResponse, parseTerminalVerdict } from "./completion/terminal-verdict-parser.js";
 import { createGitRunner } from "./git-runner.js";
 import { DefaultResourceLoader } from "./resource-loader.js";
 import type { HashedPacket } from "./role-packets.js";
@@ -1182,7 +1182,7 @@ export class WorkspaceAgentExecutor {
 				// Use TerminalVerdictParser for empty provider response detection
 				const hasToolCalls = assistantMessage.content.filter((c) => c.type === "toolCall").length > 0;
 				const hasThinking = assistantMessage.content.some((c) => c.type === "thinking");
-				if (isEmptyProviderVerdictResponse(content, hasToolCalls, hasThinking)) {
+				if (isEmptyProviderResponse(content, hasToolCalls, hasThinking)) {
 					throw new Error(
 						`Transient provider failure: assistant stream completed with no final text and no tool call (${this.getAssistantDiagnostics(assistantMessage)})`,
 					);

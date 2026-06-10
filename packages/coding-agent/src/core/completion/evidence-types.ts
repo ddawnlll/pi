@@ -184,6 +184,65 @@ export function computeEvidenceSummary(entries: EvidenceLedgerEntry[]): Evidence
  * @param minConfidence - Minimum required confidence level
  * @returns True if confidence meets or exceeds the threshold
  */
+/**
+ * Create an artifact evidence entry with sensible defaults.
+ * Artifact-specific fields (fileSize, mimeType, fileHash) are merged
+ * into the metadata object.
+ */
+export function createArtifactEvidence(input: {
+	id: string;
+	description: string;
+	source: string;
+	verdict?: EvidenceVerdict;
+	confidence?: EvidenceConfidence;
+	content?: string;
+	criterionIds?: string[];
+	producedBy?: string;
+	planLockHash?: string;
+	workspaceLockHash?: string;
+	fileSize?: number;
+	mimeType?: string;
+	fileHash?: string;
+	metadata?: Record<string, unknown>;
+}): EvidenceLedgerEntry {
+	const {
+		id,
+		description,
+		source,
+		verdict,
+		confidence,
+		content,
+		criterionIds,
+		producedBy,
+		planLockHash,
+		workspaceLockHash,
+		fileSize,
+		mimeType,
+		fileHash,
+		metadata,
+	} = input;
+	const artifactMeta: Record<string, unknown> = { ...(metadata ?? {}) };
+	if (fileSize !== undefined) artifactMeta.fileSize = fileSize;
+	if (mimeType !== undefined) artifactMeta.mimeType = mimeType;
+	if (fileHash !== undefined) artifactMeta.fileHash = fileHash;
+
+	return {
+		id,
+		type: "artifact",
+		description,
+		source,
+		timestamp: Date.now(),
+		verdict: verdict ?? "pass",
+		confidence: confidence ?? "medium",
+		content: content ?? "",
+		criterionIds: criterionIds ?? [],
+		producedBy,
+		planLockHash,
+		workspaceLockHash,
+		metadata: Object.keys(artifactMeta).length > 0 ? artifactMeta : undefined,
+	};
+}
+
 export function meetsMinConfidence(confidence: EvidenceConfidence, minConfidence: EvidenceConfidence): boolean {
 	const order: EvidenceConfidence[] = ["high", "medium", "low", "unknown"];
 	const actualIdx = order.indexOf(confidence);

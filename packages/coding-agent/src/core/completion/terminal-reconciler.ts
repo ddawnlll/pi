@@ -178,7 +178,7 @@ export class TerminalVerdictReconciler {
 		// If treatBlockedAsTerminal is true, BLOCKED maps to FAILED for terminal purposes
 		// but we preserve the original verdict in the result
 		const isDefinitive =
-			lastVerdict === "FAILED" || (lastVerdict === "BLOCKED" && this.config.treatBlockedAsTerminal);
+			lastVerdict === "FAILED" || (lastVerdict === "BLOCKED" && (this.config.treatBlockedAsTerminal ?? false));
 
 		// Build summary with retry context
 		const attemptSummary = limited

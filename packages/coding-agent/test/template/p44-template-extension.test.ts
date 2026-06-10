@@ -222,9 +222,7 @@ describe("AC-P4412-001: Stable AC IDs, evidence ledger, CompletionGate v2, worke
 				failureSignals: [
 					{
 						category: "test_fail" as any,
-						message: "Test failed",
 						timestamp: Date.now(),
-						source: "test",
 						rawLine: "FAIL test/foo.test.ts",
 						description: "Test failure",
 					},
@@ -319,13 +317,9 @@ describe("AC-P4412-001: Stable AC IDs, evidence ledger, CompletionGate v2, worke
 			const ws = makeWorkspace();
 			const evidenceSatisfaction: EvidenceSatisfaction = {
 				requiresAcceptanceCriteria: true,
-				total: 2,
 				satisfied: 0,
 				unverified: 1,
 				failed: 0,
-				inProgress: 0,
-				skipped: 0,
-				passRate: 0,
 			};
 			const result = evaluateWorkspaceCompletionV2(state, ws, {
 				evidenceSatisfaction,
@@ -339,13 +333,9 @@ describe("AC-P4412-001: Stable AC IDs, evidence ledger, CompletionGate v2, worke
 			const ws = makeWorkspace();
 			const evidenceSatisfaction: EvidenceSatisfaction = {
 				requiresAcceptanceCriteria: true,
-				total: 2,
 				satisfied: 0,
 				unverified: 0,
 				failed: 1,
-				inProgress: 0,
-				skipped: 0,
-				passRate: 0,
 			};
 			const result = evaluateWorkspaceCompletionV2(state, ws, {
 				evidenceSatisfaction,
