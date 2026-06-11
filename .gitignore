@@ -29,6 +29,8 @@ coverage/
 tui-debug.log
 compaction-results/
 reports/
+!reports/accp/
+!reports/p44-6/
 .opencode/
 syntax.jsonl
 out.jsonl
