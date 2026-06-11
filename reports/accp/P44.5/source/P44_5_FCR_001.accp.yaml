@@ -1,0 +1,78 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_FCR_001
+report_type: FCR
+report_family: feature
+report_name: P44.5 Contract Freeze Report
+support_level: schema_strict
+plan_id: P44.5
+workspace_id: P44.5.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: contract_freeze
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+contract_freeze:
+  status: frozen
+  items:
+    - id: CF001
+      area: completion_gate_vnext_types
+      location: packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts
+      summary: >
+        P44.5.01 must define CompletionGateVNextVerdict, StageVerdict,
+        AgentCompletionClaim, VerifiedReality, CommitCandidateSet, WorkspaceTruthStatus.
+        WorkspaceTruthStatus must expose runtimeStatus, implementationStatus,
+        validationStatus, durabilityStatus, verifiedComplete, commitHash,
+        verifiedFiles, blockers, warnings, routeRecommendation.
+    - id: CF002
+      area: stage_orchestrator
+      location: packages/coding-agent/src/core/completion/completion-gate-vnext.ts
+      summary: >
+        P44.5.02 implements orchestrator running stages in deterministic order,
+        returning pass/warn/block/HIR/retry/repair routes. Adapter supports warn/block
+        rollout modes.
+    - id: CF003
+      area: durability_stages
+      summary: >
+        P44.5.03: DeclaredOutputExistenceStage + EvidenceLedgerStage.
+        P44.5.04: ScopeAndWriteSetStage + CommitCandidateStage + CommitExecutionStage.
+        P44.5.05: PostCommitVerificationStage.
+    - id: CF004
+      area: commit_message_composer
+      summary: >
+        P44.5.06: LLM composer with 8s timeout, 1 repair, deterministic fallback.
+        P44.5.07: Git actor identity (per-workspace) and commit trailer builder.
+    - id: CF005
+      area: recovery_routing_and_dashboard
+      summary: >
+        P44.5.08: CompletionRecoveryRouter mapping stage failures to recovery states.
+        P44.5.09: Workspace truth read model and dashboard fields.
+    - id: CF006
+      area: destructive_guard_and_backfill
+      summary: >
+        P44.5.10: DestructiveOperationGuard (preserve snapshots before checkout/reset).
+        P44.5.11: VerifiedCompleteBackfill for legacy COMPLETE workspaces.
+    - id: CF007
+      area: gauntlet_and_promotion
+      summary: >
+        P44.5.12: End-to-end gauntlets for fake complete, missing files, canEdit exclusion,
+        commit failure, invalid LLM message, shared-file conflict, destructive cleanup.
+        P44.5.13: Final ACCP IPR/TVR/PRR and promotion decision.
+
+workspace_contracts_produced:
+  P44.5.00:
+    - docs/pi/p44/commit-durability-completion-gate-plan.md
+    - reports/p44-5/compatibility/p26-overlap-map.md
+    - reports/p44-5/compatibility/shared-file-policy.md
+    - reports/p44-5/compatibility/block-recovery-routing.md
+    - reports/p44-5/compatibility/llm-composer-circuit-breaker.md
+    - reports/p44-5/compatibility/rollout-migration-plan.md
+
+final_status:
+  status: complete
+  contracts_frozen: true
+  ready_for_implementation: true

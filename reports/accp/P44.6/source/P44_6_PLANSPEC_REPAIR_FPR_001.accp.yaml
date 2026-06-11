@@ -1,0 +1,88 @@
+accp_version: "2.0.0"
+report_type: FPR
+report_id: P44_6_PLANSPEC_REPAIR_FPR_001
+report_title: "Fix Patch Report — PlanSpec Repair and Companion Split"
+generated_at: "2026-06-11T02:24:00Z"
+
+field_mapping:
+  intent:
+    - original: executionClass, safetyLevel, executionMode, parallelism, targetPromotionMode, p45ImplementationAllowed, humanReviewRecommended
+      action: REMOVED (not in schema)
+    - original: "(no goal)"
+      action: ADDED from executionClass value
+    - original: successCriteria (varied shape)
+      action: NORMALIZED to array of strings
+    - original: outOfScope (varied shape)
+      action: NORMALIZED to array of strings
+  authority:
+    - original: repositoryMutation, reports
+      action: REMOVED (not in schema)
+    - original: executionState.owner, workersMayMutateState, stateTransitionRequiresGate
+      action: REMOVED
+    - original: completion.workerSelfReportIsClaimOnly, completionGate, evidenceLedgerRequired, missingEvidenceBlocksCompletion, staleAttemptVerdictIgnored
+      action: REMOVED
+    - original: "(no specification field)"
+      action: ADDED required field
+  enforcementRegistry:
+    - original: mechanisms (list of strings/dicts)
+      action: RESTRUCTURED to rules[] + policies[] schema shape
+  security:
+    - original: schemaValidationRequired, lockRequiredForExecution, canonicalJsonHashRequired, signatureRequired, signatureAlgorithm, hardStops, forbiddenFiles
+      action: REMOVED; replaced with schema-compliant selfModificationFirewall, dataExfiltrationGuard, secretProtection
+  commands:
+    - original: defaultMode, shellDefault, exactAllowedCommands, commandClasses, runtimeCommandGrant, hardDeniedCommands, validationEvidenceRules
+      action: REMOVED; policy kept and normalized
+    - original: exactAllowedCommands (objects with command+reason)
+      action: FLATTENED to allowedCommands (array of strings)
+  locking:
+    - original: lockVersion, lockFile, lockRequired, workerMustEchoPlanLockHash, workerMustEchoWorkspaceLockHash, hashes, lifecycle, mutationRules
+      action: REMOVED; replaced with schema-compliant enabled/hashAlgorithm/includeTimestamp
+  brief:
+    - original: mission, hardRequirements, antiPatterns, operatorNotes
+      action: REMOVED; content moved to summary, keyChanges, risks, mitigations
+  waves:
+    - original: workspaceIds, batchSize, gate
+      action: REMOVED; replaced with tasks (empty), order schema field added
+  workspaces:
+    - original: title, waveId, dependencies, role, allowedFiles, forbiddenFiles, instructions, acceptanceCriteria, validation, reports, rollback
+      action: REMOVED; replaced with schema-compliant name, rootDir, canEdit, canRead, isolationLevel
+  validation:
+    - original: finalRequired, watchModeForbidden, noTestsFoundIsFailure, commandEvidenceRequired, forbiddenPatterns, finalValidationCommandRefs, discoveryCommandsMayNotSatisfyFinalValidation
+      action: RESTRUCTURED to preValidation/postValidation/continuousValidation/failFast
+  evidence:
+    - original: ledgerRequired, confidenceEnum, requiredEvidenceTypes, evidenceItemRequiredFields, hashWhenAvailable
+      action: REMOVED; replaced with schema-compliant captureMode, types, storageLocation, retentionDays
+  reports:
+    - original: protocol, version, required, artifactDirectory, stableIdsRequired, commandEvidenceRequired, rollbackPlanRequiredForMutation
+      action: REMOVED; replaced with schema-compliant format/includeMetrics/includeTimeline/includeDiffSummary
+  p45Bridge:
+    - original: implementationAllowed, allowedArtifactPaths, forbiddenRuntimePaths, artifactExports
+      action: REMOVED; replaced with schema-compliant enabled, artifactSafety, mutationTracking, commitGating
+  migration:
+    - original: from, strategy, adapterRequired, legacyFieldsMapped
+      action: REMOVED; replaced with schema-compliant fromVersion, breakingChanges, adaptationSteps, rollbackStrategy
+
+companion_artifacts_created:
+  - path: "reports/p44-6/plan-companions/P44_6_brutal_test_gate_details.md"
+    content: "Detailed workspace info (title, role, instructions, acceptanceCriteria), wave details (workspaceIds, batchSize, gate), original P44.6 intent description"
+  - path: "reports/p44-6/plan-companions/P44_6_brutal_test_gate_matrices.json"
+    content: "Structured data: original intent, authority, security, commands, locking, brief, evidence, reports, enforcement mechanisms, P45 bridge, migration, validation, all workspace and wave details"
+  - path: "reports/p44-6/plan-companions/P44_6_field_mapping_and_schema_repair.md"
+    content: "Detailed field-level mapping table showing every discrepancy and its resolution"
+
+preserved_p44_6_intent:
+  - "42 workspaces across 11 waves (preserved as schema-compliant workspace items)"
+  - "Mode routing validation for stable_3, stable_6, experimental_worktree_6, scale_8"
+  - "Brutal real write/edit test gate (details in companion artifacts)"
+  - "Monte Carlo, red-team, overnight soak test scenarios (in companion matrices)"
+  - "Workspace isolation and routing configurations"
+
+validation_commands:
+  - command: "compilePlanSpecAlpha2(planContent)"
+    exit_code: 0
+    result: "PASS — 0 diagnostics, 42 worker packets generated"
+
+rollback_plan:
+  - "Restore original docs/P44_6_planspec_v5_alpha2_mode_routing_200kb.json from git"
+  - "Delete repaired plans/P44_6_planspec_v5_alpha2_mode_routing_200kb.json"
+  - "Companion artifacts are informational and can be safely kept or deleted"

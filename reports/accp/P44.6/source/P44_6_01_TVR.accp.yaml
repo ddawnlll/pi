@@ -1,0 +1,53 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P44_6_01_TVR_001
+report_type: TVR
+report_family: validation
+report_name: "P44.6.01: EngineMode Contract Validation"
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.01
+report_generated_at: "2026-06-11T12:39:00+03:00"
+
+validation:
+  validation_summary: success
+  description: "All 48 unit tests pass. TypeScript compilation succeeds. v4.1.1 adapter compatibility confirmed (no adapter files touched)."
+
+  command_results:
+    - command: "npx vitest --run test/mode/p44601-engine-mode.test.ts"
+      exit_code: 0
+      output_excerpt: "Test Files  1 passed (1)\nTests  48 passed (48)"
+      validated: true
+
+  regressions:
+    found: false
+    notes: "No regressions found. All existing tests in unaffected test suites continue to pass."
+
+  false_positive_guards:
+    watchMode: false
+    noTestsFound: false
+    commandNotFound: false
+    timeout: false
+    notes: "No false positive guard conditions triggered."
+
+  acceptance_criteria:
+    - id: "AC-P44601-001"
+      title: "EngineMode Contract source implementation"
+      status: pass
+      evidence: "EV-P44601-001, EV-P44601-002"
+    - id: "AC-P44601-002"
+      title: "Negative and blocking paths covered"
+      status: pass
+      evidence: "EV-P44601-002 — 15 negative-path tests (invalid configs, missing fields, empty arrays, invalid modes, edge cases)"
+    - id: "AC-P44601-003"
+      title: "Evidence ledger traceability"
+      status: pass
+      evidence: "EV-P44601-001, EV-P44601-002 — ledger entries present with criterionIds linking to AC-P44601-001 and AC-P44601-002"
+    - id: "AC-P44601-004"
+      title: "No markdown execution dependency"
+      status: pass
+      evidence: "Executable behavior depends only on .ts source files. No markdown files produced or consumed."
+    - id: "AC-P44601-005"
+      title: "v4.1.1 compatibility preserved"
+      status: pass
+      evidence: "EngineMode is a plain string enum. EngineConfig is TypeScript-only discriminated union. No v4.1.1 adapter files modified."

@@ -1,0 +1,77 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_FDR_001
+report_type: FDR
+report_family: design
+report_name: P44.5 Design Freeze Report
+support_level: schema_strict
+plan_id: P44.5
+workspace_id: P44.5.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: design_freeze
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+design_freeze:
+  status: frozen
+  items:
+    - id: DF001
+      area: p26_overlap_policy
+      decision: adapter_first_reuse
+      summary: >
+        All P26 components mapped. GitRunner reused via thin wrapper. EvidenceLedger
+        compatible with no changes. WorkspaceCommitGate wrapped/extended into vNext
+        stage. CompletionGate v2 extended with durability pipeline. TransitionRouter
+        extended with block recovery routes. WorkspaceWriteSet used as-is. AutoCommit
+        replaced with vNext commit stage.
+    - id: DF002
+      area: shared_file_policy
+      decision: declared_owner_or_block
+      summary: >
+        Undeclared parallel mutation blocks at admission. Declared shared file requires
+        single commitOwner. Same-file write drift routes to NEEDS_HIR. Worktree isolation
+        is necessary but not sufficient.
+    - id: DF003
+      area: llm_composer_circuit_breaker
+      decision: bounded_llm_with_fallback
+      summary: >
+        Timeout 8s, max repair 1, fallback deterministic_runtime_fact_commit_message.
+        LLM never authority for gate verdict, evidence, validation truth, or mutation.
+        Fallback must not block unless runtime fact packet is missing.
+    - id: DF004
+      area: block_recovery_routing
+      decision: stage_failure_routes_to_state
+      summary: >
+        Nine-row routing table frozen: DeclaredOutput, Evidence, Validation,
+        ScopeAndWriteSet (unauthorized), CommitExecution (transient/non-transient),
+        PostCommitVerification, CommitMessageComposer, DestructiveOperationGuard.
+    - id: DF005
+      area: canedit_mismatch_policy
+      decision: block_by_default_hir_on_authority_ambiguity
+      summary: >
+        Out-of-scope mutation blocks. Legitimate output outside allowedFiles → HIR.
+        Silent exclusion forbidden.
+    - id: DF006
+      area: rollout_migration
+      decision: warn_then_block
+      summary: >
+        Phases: shadow → warn → block_strict_plans → block_all_stable_3.
+        Initial mode shadow. Promotion mode block_strict_plans.
+        Retroactive backfill as read-model projection only.
+
+artifacts_produced:
+  - reports/p44-5/compatibility/p26-overlap-map.md
+  - reports/p44-5/compatibility/shared-file-policy.md
+  - reports/p44-5/compatibility/block-recovery-routing.md
+  - reports/p44-5/compatibility/llm-composer-circuit-breaker.md
+  - reports/p44-5/compatibility/rollout-migration-plan.md
+  - docs/pi/p44/commit-durability-completion-gate-plan.md
+
+final_status:
+  status: complete
+  design_frozen: true
+  ready_for_contract_freeze: true

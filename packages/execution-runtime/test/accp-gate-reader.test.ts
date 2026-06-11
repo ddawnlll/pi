@@ -50,6 +50,22 @@ describe("ACCP Gate Reader", () => {
 		const result = evaluateAccpGateForTransition(verdict, true);
 		expect(result.allowed).toBe(true);
 	});
+
+	// ---------------------------------------------------------------------------
+	// Absent-verdict safe return: verdict=undefined must not throw
+	// ---------------------------------------------------------------------------
+
+	it("should return allowed=true when verdict is undefined and mode is off", () => {
+		const result = evaluateAccpGateForTransition(undefined, false);
+		expect(result.allowed).toBe(true);
+		expect(result.verdict).toBeUndefined();
+	});
+
+	it("should return allowed=true when verdict is undefined and mode is required (degraded)", () => {
+		const result = evaluateAccpGateForTransition(undefined, true);
+		expect(result.allowed).toBe(true);
+		expect(result.verdict).toBeUndefined();
+	});
 });
 
 describe("ACCP Promotion Evaluator (Runtime)", () => {

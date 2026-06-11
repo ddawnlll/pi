@@ -20,6 +20,18 @@ export interface AccpEvidenceEntry {
 	exitCode?: number;
 }
 
+/** False-positive guard flags for command results. */
+export interface AccpFalsePositiveGuards {
+	watchModeForbidden?: boolean;
+	watchModeDetected?: boolean;
+	noTestsFoundIsFailure?: boolean;
+	noTestsFound?: boolean;
+	commandNotFoundIsFailure?: boolean;
+	commandNotFound?: boolean;
+	timeoutIsFailure?: boolean;
+	timeout?: boolean;
+}
+
 /**
  * Validate a single evidence entry.
  *
@@ -56,13 +68,72 @@ export function validateEvidenceEntry(entry: AccpEvidenceEntry, sourcePath?: str
 }
 
 /**
+ * Validate false-positive guards for a command result entry.
+ * All guard violations are BLOCKER severity (fatal=true).
+ */
+export function validateFalsePositiveGuards(guards: AccpFalsePositiveGuards, sourcePath?: string): AccpDiagnostic[] {
+	const diagnostics: AccpDiagnostic[] = [];
+
+	// Guard 1: watchModeForbidden + watchModeDetected
+	if (guards.watchModeForbidden && guards.watchModeDetected) {
+		diagnostics.push({
+			code: "ACCP_EVIDENCE_PATH_NOT_FOUND",
+			message: "False positive guard violation: watch mode was used but watchModeForbidden=true",
+			severity: "error",
+			fatal: true,
+			sourcePath,
+		});
+	}
+
+	// Guard 2: noTestsFoundIsFailure + noTestsFound
+	if (guards.noTestsFoundIsFailure && guards.noTestsFound) {
+		diagnostics.push({
+			code: "ACCP_EVIDENCE_PATH_NOT_FOUND",
+			message: "False positive guard violation: no tests found but noTestsFoundIsFailure=true",
+			severity: "error",
+			fatal: true,
+			sourcePath,
+		});
+	}
+
+	// Guard 3: commandNotFoundIsFailure + commandNotFound
+	if (guards.commandNotFoundIsFailure && guards.commandNotFound) {
+		diagnostics.push({
+			code: "ACCP_EVIDENCE_PATH_NOT_FOUND",
+			message: "False positive guard violation: command not found but commandNotFoundIsFailure=true",
+			severity: "error",
+			fatal: true,
+			sourcePath,
+		});
+	}
+
+	// Guard 4: timeoutIsFailure + timeout
+	if (guards.timeoutIsFailure && guards.timeout) {
+		diagnostics.push({
+			code: "ACCP_EVIDENCE_PATH_NOT_FOUND",
+			message: "False positive guard violation: command timed out but timeoutIsFailure=true",
+			severity: "error",
+			fatal: true,
+			sourcePath,
+		});
+	}
+
+	return diagnostics;
+}
+
+/**
  * Validate all evidence entries in a report.
  *
  * @param entries - Array of evidence entries.
+ * @param guards - Optional false-positive guard flags.
  * @param sourcePath - Optional source path for diagnostics.
  * @returns Diagnostics (empty if valid).
  */
-export function validateEvidence(entries: AccpEvidenceEntry[], sourcePath?: string): AccpDiagnostic[] {
+export function validateEvidence(
+	entries: AccpEvidenceEntry[],
+	guards?: AccpFalsePositiveGuards,
+	sourcePath?: string,
+): AccpDiagnostic[] {
 	const diagnostics: AccpDiagnostic[] = [];
 
 	if (!entries || entries.length === 0) {
@@ -81,14 +152,19 @@ export function validateEvidence(entries: AccpEvidenceEntry[], sourcePath?: stri
 		diagnostics.push(...diags);
 	}
 
-	// Check for false positive patterns
+	if (guards) {
+		const guardDiags = validateFalsePositiveGuards(guards, sourcePath);
+		diagnostics.push(...guardDiags);
+	}
+
+	// Check for false positive patterns — non-zero exit codes are BLOCKER
 	for (const entry of entries) {
 		if (entry.type === "command" && entry.exitCode !== undefined && entry.exitCode !== 0) {
 			diagnostics.push({
 				code: "ACCP_EVIDENCE_PATH_NOT_FOUND",
 				message: `Command "${entry.command || "unknown"}" exited with non-zero code ${entry.exitCode}`,
-				severity: "warning",
-				fatal: false,
+				severity: "error",
+				fatal: true,
 				sourcePath,
 			});
 		}

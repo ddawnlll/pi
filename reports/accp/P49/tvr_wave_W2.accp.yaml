@@ -1,0 +1,37 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W2_001
+report_type: TVR
+report_family: core
+report_name: W2 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W2
+  wave_title: "Standalone Compiler Core"
+  gate_status: passed
+  workspace_count: 6
+  workspaces_complete:
+    - P49.04
+    - P49.05
+    - P49.06
+    - P49.07
+    - P49.08
+    - P49.09
+  total_assertions: 71
+  passed: 71
+  failed: 0
+  regressions: []
+  new_failures: []
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-COMPILER-UNIT
+    cwd: packages/accp-compiler
+    exit_code: 0
+    output_excerpt: "PASS (71) FAIL (0)"
+
+gate_decision: proceed
+next_wave: W3

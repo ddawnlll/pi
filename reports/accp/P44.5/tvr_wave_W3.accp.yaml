@@ -1,0 +1,49 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_TVR_W3_001
+report_type: TVR
+report_family: feature
+report_name: P44.5 W3 Gate Validation Report
+support_level: schema_strict
+plan_id: P44.5
+wave_id: W3
+workspace_ids:
+  - P44.5.06
+  - P44.5.07
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: wave_gate
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+wave_gate:
+  wave_id: W3
+  title: "LLM Commit Message Composer and Git Identity"
+  status: passed
+  command_results:
+    - commandRef: CMD-TYPECHECK-TSGO
+      exit_code: 0
+      output_excerpt: "ok"
+      passed: true
+    - commandRef: CMD-P445-COMMIT-MESSAGE-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (31) FAIL (0)"
+      passed: true
+  required_artifacts:
+    - reports/accp/P44.5/tvr_wave_W3.accp.yaml
+    - packages/coding-agent/src/core/completion/commit-message-composer.ts
+    - packages/coding-agent/src/core/completion/commit-message-validator.ts
+    - packages/coding-agent/src/core/completion/commit-message-renderer.ts
+    - packages/coding-agent/src/core/completion/git-actor-identity.ts
+    - packages/coding-agent/src/core/completion/commit-trailer-builder.ts
+    - packages/coding-agent/test/completion/commit-message-composer.test.ts
+  all_required_artifacts_exist: true
+  all_validation_passed: true
+  proceed_to_next_wave: true
+
+final_status:
+  status: complete
+  safe_to_continue: true

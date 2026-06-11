@@ -1,0 +1,17 @@
+{
+  "plan": "P44_6_planspec_v5_alpha2_mode_routing_200kb.json",
+  "jsonParse": {
+    "ok": true,
+    "path": "plans/P44_6_planspec_v5_alpha2_mode_routing_200kb.json"
+  },
+  "compilerResult": {
+    "ok": true,
+    "diagnosticCount": 0,
+    "hasArtifact": true,
+    "workerPacketCount": 42,
+    "hasPlanLock": true
+  },
+  "diagnostics": [],
+  "warnings": [],
+  "timestamp": "2026-06-10T23:20:43.942Z"
+}

@@ -1,0 +1,33 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W7_001
+report_type: TVR
+report_family: core
+report_name: W7 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W7
+  wave_title: "ACCP Route Bus, Repair Loop, Dashboard, and Artifact Store"
+  gate_status: passed
+  workspace_count: 4
+  workspaces_complete:
+    - P49.24
+    - P49.25
+    - P49.26
+    - P49.27
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-CODING-AGENT-UNIT
+    args: vitest run test/accp
+    exit_code: 0
+    output_excerpt: "PASS (38) FAIL (0)"
+  - commandRef: CMD-ACCP-COMPILER-UNIT
+    exit_code: 0
+    output_excerpt: "PASS (101) FAIL (0)"
+
+gate_decision: proceed
+next_wave: W8

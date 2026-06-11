@@ -1,0 +1,289 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_6_RIR_001
+report_type: RIR
+report_family: repo_inspection
+report_name: P44.6 Repo Capability Inspection Report
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: read_only
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+repo_root: /Users/hootie/src/pi
+repo_root_resolved_by: git rev-parse --show-toplevel
+
+searched_paths:
+  - packages/coding-agent/src/core/tools/write.ts
+  - packages/coding-agent/src/core/tools/edit.ts
+  - packages/coding-agent/src/core/tools/read.ts
+  - packages/coding-agent/src/core/tools/index.ts
+  - packages/coding-agent/src/core/write-gate.ts
+  - packages/coding-agent/src/core/mutation/
+  - packages/coding-agent/src/core/completion/
+  - packages/coding-agent/src/core/git-runner.ts
+  - packages/coding-agent/src/worktree/
+  - packages/execution-contracts/src/
+  - packages/execution-service/src/
+  - docs/P44_PlanSpec_v5_alpha2.json
+  - docs/P44_5_commit_durability_completion_gate_planspec_v0_1.json
+  - PlanSpec_v5_alpha2_template_pack/
+  - docs/pi/p44/
+
+existing_tooling_map:
+  tool_write:
+    file: packages/coding-agent/src/core/tools/write.ts
+    implementation: |
+      Exports createWriteToolDefinition and createWriteTool.
+      Supports two paths:
+      1. SmartMutationEngine path (if smartMutationEngine option provided) — delegates to sme.mutate({mode: "overwrite", ...})
+      2. Default direct write path — uses ops.writeFile() with withFileMutationQueue serialization
+    capabilities:
+      - Resolves relative paths via resolveToCwd (path-utils.ts)
+      - WriteGate pre-check before write
+      - SmartMutationEngine integration for create/overwrite/rollback
+      - Parser validation (JSON/YAML/JS/Python) during mutation engine
+      - Atomic temp-file write in mutation engine (atomicWriteFile)
+      - Readback hash verification in mutation engine (post-write)
+      - Backup creation before overwrite in mutation engine
+      - Rollback on parser validation failure in mutation engine
+    gaps:
+      - No truncation detection on write tool output
+      - Content length reported as JS string length, not Buffer.byteLength
+      - No post-write file size comparison against expected
+      - No byte-level truncation detection in write tool itself
+      - No schema validation (JSON Schema / Zod) integrated in write path
+      - No JSON parse validation in direct write path (only in SmartMutationEngine)
+
+  tool_edit:
+    file: packages/coding-agent/src/core/tools/edit.ts
+    implementation: |
+      Exports createEditToolDefinition and createEditTool.
+      Uses exact string replacement (oldText/newText).
+      Edit schema requires: path, edits[].oldText, edits[].newText.
+    capabilities:
+      - Multiple disjoint edits per call
+      - Preview rendering
+      - EditGate policy (via options.editGate)
+    gaps:
+      - No AST-aware edit support
+      - No range-based/anchor-based edit support
+      - No temp-copy-before-edit validation
+      - No schema validation after edit
+      - No post-edit parse validation
+
+  tool_read:
+    file: packages/coding-agent/src/core/tools/read.ts
+    implementation: |
+      Exports createReadToolDefinition and createReadTool.
+      Supports offset/limit reading, compact read mode, image reading.
+    capabilities:
+      - P43 smart read (outline/symbols/range/symbolExact)
+      - Compact read mode for resource files
+      - Image reading for vision models
+    gaps:
+      - No preflight input manifest requirement before generation
+
+  write_gate:
+    file: packages/coding-agent/src/core/write-gate.ts
+    implementation: |
+      Class WriteGate with check() and processWriteResult().
+      P44.5/4.5 enhancements: TruncationDetector, EditAttemptTracker, EditAuditEventEmitter.
+    capabilities:
+      - Full-rewrite blocking based on EditStrategyPolicy
+      - Same-file failure threshold blocking
+      - Audit events
+    gaps:
+      - TruncationDetector reference exists in type but no implementation file found at expected locations
+      - No HIR/BLOCK routing after truncation detection
+      - No post-write readback validation at gate level
+
+  smart_mutation_engine:
+    file: packages/coding-agent/src/core/mutation/smart-mutation-engine.ts
+    implementation: |
+      Class SmartMutationEngine with mutate(), handleCreate(), handleEdit(), handleOverwrite(), applyWithRollback().
+      P43.8C component.
+    capabilities:
+      - Atomic temp-file write and rename
+      - Readback hash verification
+      - Backup creation and restore
+      - Parser validation (JSON/YAML/JS/Python)
+      - Rollback on parser failure
+      - Large file overwrite prevention (size thresholds, line delta check)
+      - WriteSet guard integration
+    gaps:
+      - No schema validation (no JSON Schema or Zod-based validation)
+      - No YAML parse validation retains structure (simple try/catch)
+      - No byte truncation detection
+      - No post-write file size comparison
+
+  atomic_file_writer:
+    file: packages/coding-agent/src/core/mutation/atomic-file-writer.ts
+    implementation: |
+      Exports atomicWriteFile(): write to .tmp-{basename}-{timestamp}, rename into place, readback hash verify.
+      Exports createBackup(), restoreBackup(), computeFileHash(), getFileLineCount(), getFileByteCount().
+    capabilities:
+      - Temp file write
+      - Atomic rename
+      - Post-write hash verification
+      - Pre-write backup
+    gaps:
+      - No byte count check or truncation detection
+      - No schema validation
+
+  parser_validation:
+    file: packages/coding-agent/src/core/mutation/parser-validation.ts
+    implementation: |
+      Exports validateFileContent(): validates JSON (JSON.parse), YAML (js-yaml), JavaScript/TypeScript (acorn), Python (tree-sitter).
+    capabilities:
+      - JSON parse validation
+      - YAML parse validation
+      - JS/TS parse validation
+      - Python parse validation
+    gaps:
+      - No schema validation (JSON Schema / Zod)
+      - YAML validation only checks parsing, not structure
+      - Markdown validation is trivially "none" (no checks)
+
+  write_set_guard:
+    file: packages/coding-agent/src/core/mutation/write-set-guard.ts
+    implementation: |
+      Exports normalizeRepoPath(), isWithinRepo(), isAllowedByWriteSet(), isAllowedArtifact(), isP45PathForbidden(), checkWriteSet().
+    capabilities:
+      - Repo-relative path normalization
+      - WriteSet matching (exact, prefix, glob)
+      - Artifact policy checking
+      - P45 bridge forbidden path checks
+    gaps:
+      - No input manifest preflight
+      - No required input file existence check before generation
+
+schema_validation_capabilities:
+  planspec_v5_schema_zod:
+    file: packages/coding-agent/src/core/planspec-v5-schema.ts
+    implementation: |
+      Zod-based PlanSpecV5Schema uses strictObj (z.object().strict()) for all execution/security objects.
+      Exports parsePlanSpec() with schema validation.
+      Exports PlanLockSchema, WorkerPacketSchema.
+    capabilities:
+      - Zod-based strict validation with additionalProperties=false
+      - PlanSpec v5 RC1 schema validation
+    gaps:
+      - Schema validation is NOT integrated into write/edit tooling
+      - Schema validation runs only during PlanSpec parsing (plan compile/admission), not during artifact generation
+      - No general-purpose JSON Schema validator in the write flow
+
+  planspec_v5_alpha2_schema_json:
+    file: PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json
+    implementation: |
+      JSON Schema (draft 2020-12) for PlanSpec v5 Alpha2.
+      Uses additionalProperties: false at top level and most sub-objects.
+    capabilities:
+      - Full JSON Schema for alpha2 format
+    gaps:
+      - No AJV or JSON Schema validator wired into artifact generation flow
+      - This schema is reference documentation, not used at runtime
+
+artifact_storage_or_snapshot_capabilities:
+  snapshot_artifact:
+    file: packages/execution-contracts/src/snapshot-artifact.ts
+    implementation: |
+      ISnapshotArtifactStore with InMemorySnapshotArtifactStore.
+      Creates FileSnapshot, WorkspaceSnapshot, SnapshotArtifact.
+      Computes diffs, content hashes, summaries.
+    capabilities:
+      - Pre-write file snapshots
+      - Post-write diff computation
+      - Snapshot storage (in-memory)
+    gaps:
+      - Store is in-memory only (no disk persistence)
+      - No automatic snapshot creation during write tool execution (optional, via WriteGate)
+      - No snapshot-based validation after write
+
+integration_points:
+  write_gate:
+    integration_with:
+      - write tool (via options.writeGate)
+      - SmartMutationEngine (separate, not through gate)
+      - EditStrategyPolicy (for full-rewrite blocking)
+      - TruncationDetector (type-level reference, implementation unclear)
+    route_signals: BLOCK with reason string, no HIR routing
+
+  smart_mutation_engine:
+    integration_with:
+      - write tool (via options.smartMutationEngine)
+      - atomic-file-writer (atomicWriteFile)
+      - parser-validation (validateFileContent)
+      - write-set-guard (checkWriteSet)
+      - mutation-types (MutationRequest/MutationResult)
+    route_signals: blocked/dangerous/guarded/safe, no HIR routing
+
+  completion_gate_v2:
+    file: packages/coding-agent/src/core/completion/completion-gate-v2.ts
+    integration_with:
+      - EvidenceLedger
+      - TerminalReconciler
+      - WorkspaceCommitGate
+      - PlanSpec mode detection
+    route_signals: BLOCK for missing evidence, no HIR for write failures
+
+gaps:
+  - id: G001
+    title: "No input manifest preflight before artifact generation"
+    description: "No system requires the agent to list required input files and verify their existence before generating artifacts. Missing input files cause silent continuation or guesswork."
+  - id: G002
+    title: "No truncation detection on file writes"
+    description: "The write tool reports content.length as byte count but does not compare expected vs actual bytes after write. TruncationDetector exists as a type but no implementation was found at the expected location."
+  - id: G003
+    title: "No schema validation in write/edit pipeline"
+    description: "Zod-based PlanSpec schema and JSON Schema both exist but are not integrated into the artifact write path. Generated JSON artifacts bypass schema validation entirely."
+  - id: G004
+    title: "No HIR routing for write failures"
+    description: "Write failures return error strings but never trigger HIR production. The agent continues after write failure without a hard stop."
+  - id: G005
+    title: "No post-write readback byte/lines comparison"
+    description: "SmartMutationEngine verifies hash after write but does not compare expected line count or byte count. A partial write with correct hash would pass verification."
+  - id: G006
+    title: "No repo path enforcement at generation time"
+    description: "Paths are resolved via resolveToCwd() which respects the workspace CWD. There is no guard against absolute path assumptions that diverge from git repo root."
+  - id: G007
+    title: "Multi-artifact decomposition not supported"
+    description: "There is no mechanism to decompose multi-artifact generation tasks into staged writes with individual validation."
+  - id: G008
+    title: "No companion-artifact separation for schema-incompatible fields"
+    description: "When a schema enforces additionalProperties=false (as PlanSpec alpha2 does), extra design fields have no designated companion artifact path."
+
+evidence_refs:
+  - file: packages/coding-agent/src/core/tools/write.ts
+    lines: 192-365
+    description: createWriteToolDefinition with WriteGate and SmartMutationEngine integration
+  - file: packages/coding-agent/src/core/write-gate.ts
+    lines: 139-462
+    description: WriteGate class implementing full-rewrite blocking
+  - file: packages/coding-agent/src/core/mutation/smart-mutation-engine.ts
+    lines: 46-616
+    description: SmartMutationEngine with atomic write, parser validation, rollback
+  - file: packages/coding-agent/src/core/mutation/atomic-file-writer.ts
+    lines: 114-144
+    description: Atomic file write with temp file, rename, hash verification
+  - file: packages/coding-agent/src/core/mutation/parser-validation.ts
+    lines: 157-218
+    description: validateFileContent for JSON, YAML, JS, TS, Python
+  - file: packages/coding-agent/src/core/mutation/write-set-guard.ts
+    lines: 27-214
+    description: Path normalization and WriteSet checking
+  - file: packages/coding-agent/src/core/planspec-v5-schema.ts
+    lines: 193-240
+    description: PlanSpecV5Schema with strictObj (additionalProperties=false)
+  - file: PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json
+    lines: 1-100
+    description: JSON Schema with additionalProperties=false at top level
+  - file: packages/execution-contracts/src/snapshot-artifact.ts
+    lines: 198-322
+    description: InMemorySnapshotArtifactStore

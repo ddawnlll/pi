@@ -10,6 +10,30 @@
 
 import type { AccpCompileResult, AccpDiagnostic } from "@earendil-works/pi-execution-contracts";
 
+// =============================================================================
+// Immutability guard for repair — fields that must NEVER be modified
+// =============================================================================
+
+/** Field paths that are immutable during repair canonicalization. */
+const _REPAIR_IMMUTABLE_FIELDS = [
+	"findings",
+	"verdicts",
+	"command_results",
+	"evidence_hashes",
+	"blockers",
+	"fatalErrors",
+	"blockingFindings",
+	"evidenceStatus",
+] as const;
+
+/** Error thrown when repair attempts to mutate an immutable field. */
+export class RepairBoundaryViolationError extends Error {
+	constructor(field: string) {
+		super(`Repair attempted to modify immutable field: ${field}`);
+		this.name = "RepairBoundaryViolationError";
+	}
+}
+
 /** Repair controller configuration. */
 export interface AccpRepairConfig {
 	/** Maximum number of repair attempts. */
@@ -63,37 +87,32 @@ export function runAccpRepairLoop(
 		};
 	}
 
+	// Field diff tracking for immutability enforcement
+	const originalFatalCount = compileResult.diagnostics.filter((d) => d.fatal).length;
+	const originalFindingCount = compileResult.diagnostics.length;
+
 	// Attempt repair up to maxAttempts
 	while (attempts < config.maxAttempts) {
 		attempts++;
 
-		// In structuralFixesOnly mode, we only fix formatting/structure
-		// We do NOT remove fatal errors or blocking findings
-		if (config.structuralFixesOnly) {
-			// Check if any repair attempt tries to remove fatal errors
-			const fatalRemoved =
-				compileResult.diagnostics.filter((d) => d.fatal).length - diagnostics.filter((d) => d.fatal).length;
-			if (fatalRemoved < 0) {
-				// Some fatal errors were removed — this is a violation
-				return {
-					success: false,
-					attempts,
-					diagnostics: [
-						...diagnostics,
-						{
-							code: "ACCP_AUTHORITY",
-							message: "Repair loop attempted to remove fatal errors — HIR required",
-							severity: "error",
-							fatal: true,
-						},
-					],
-					evidenceInventionDetected: false,
-					blockingFindingsRemoved: true,
-				};
-			}
+		// IMMUTABILITY GUARD: Check that no repair attempt removed fatal findings
+		const currentFatalCount = diagnostics.filter((d) => d.fatal).length;
+		const currentFindingCount = diagnostics.length;
+
+		if (currentFatalCount < originalFatalCount) {
+			throw new RepairBoundaryViolationError(
+				`fatal findings: ${originalFatalCount} -> ${currentFatalCount} (removed ${originalFatalCount - currentFatalCount})`,
+			);
 		}
 
-		// Structural fix: pad diagnostics with a note about canonicalization
+		if (currentFindingCount < originalFindingCount && config.structuralFixesOnly) {
+			// Findings were removed without verifiable structural improvement
+			throw new RepairBoundaryViolationError(
+				`findings: ${originalFindingCount} -> ${currentFindingCount} (removed ${originalFindingCount - currentFindingCount})`,
+			);
+		}
+
+		// Structural fix: add canonicalization note as warning diagnostic
 		diagnostics.push({
 			code: "ACCP_PARSE_YAML_INVALID",
 			message: `Repair attempt ${attempts}: structural canonicalization applied`,

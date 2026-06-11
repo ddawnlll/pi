@@ -1,0 +1,377 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_6_WRITE_EDIT_RIR_001
+report_type: RIR
+report_family: repo_inspection
+report_name: P44.6 Write/Edit Deep Research Report
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.RESEARCH.WRITE_EDIT
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: read_only
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+repo_root: /Users/hootie/src/pi
+repo_root_resolved_by: git rev-parse --show-toplevel
+
+files_inspected:
+  - path: packages/coding-agent/src/core/tools/write.ts
+    lines: 1-369
+    status: inspected
+  - path: packages/coding-agent/src/core/tools/edit.ts
+    lines: 1-619
+    status: inspected
+  - path: packages/coding-agent/src/core/tools/read.ts
+    lines: 1-567
+    status: inspected
+  - path: packages/coding-agent/src/core/tools/path-utils.ts
+    lines: 1-94
+    status: inspected
+  - path: packages/coding-agent/src/core/tools/index.ts
+    lines: 1-196
+    status: inspected
+  - path: packages/coding-agent/src/core/write-gate.ts
+    lines: 1-472
+    status: inspected
+  - path: packages/coding-agent/src/core/mutation/smart-mutation-engine.ts
+    lines: 1-616
+    status: inspected
+  - path: packages/coding-agent/src/core/mutation/atomic-file-writer.ts
+    lines: 1-144
+    status: inspected
+  - path: packages/coding-agent/src/core/mutation/parser-validation.ts
+    lines: 1-218
+    status: inspected
+  - path: packages/coding-agent/src/core/mutation/write-set-guard.ts
+    lines: 1-226
+    status: inspected
+  - path: packages/coding-agent/src/core/mutation/mutation-types.ts
+    lines: 1-237
+    status: inspected
+  - path: packages/coding-agent/src/core/truncation-detector.ts
+    lines: 1-266
+    status: inspected
+  - path: packages/coding-agent/src/core/tools/edit-diff.ts
+    lines: 1-347
+    status: inspected
+  - path: packages/coding-agent/test/gauntlet/mutation-safety-gauntlet.test.ts
+    status: referenced
+
+current_write_control_flow:
+  tool_name: write
+  file: packages/coding-agent/src/core/tools/write.ts
+  definition: createWriteToolDefinition at L192-365
+  parameters:
+    path: string required
+    content: string required
+  execution_paths:
+    - name: WriteGate + SmartMutationEngine path
+      condition: options.writeGate AND options.smartMutationEngine both provided
+      steps:
+        - 1. resolveToCwd(path cwd) -> absolutePath (path-utils.ts L54-60)
+        - 2. relative(cwd absolutePath) -> relPath
+        - 3. WriteGate.check(absolutePath relPath Buffer.byteLength utf-8 undefined lineCount) L220-226
+        - 3a. If gateResult.allowed === false: return isError true with reason string
+        - 4. SmartMutationEngine.mutate(repoRoot workspaceId path relPath mode overwrite content) L237-243
+        - 4a. normalizeRepoPath -> repo-relative path check (write-set-guard.ts L27-41)
+        - 4b. checkWriteSet -> WriteSet guard (write-set-guard.ts L179-214)
+        - 4c. If exists: handleOverwrite (smart-mutation-engine.ts L359-496)
+        - 4c.i   Check large file thresholds (huge >2000 very large >1000 large >300 lines)
+        - 4c.ii  Check line drop ratio (>40% blocked)
+        - 4c.iii Create backup (atomic-file-writer.ts L73-86)
+        - 4c.iv  validateFileContent (parser-validation.ts L157-218) with validationPolicy
+        - 4c.v   atomicWriteFile -> temp file rename readback hash (atomic-file-writer.ts L114-144)
+        - 4c.vi  If parser failed and rollbackOnParserFailure: restore backup return blocked
+        - 4c.vii Return ok true/false
+        - 5. If mutationResult.ok === false: return isError true with blockReason
+        - 6. WriteGate.processWriteResult(relPath '' true)
+        - 7. Return text: Successfully wrote ${content.length} bytes to ${path}
+    - name: Default direct write path
+      condition: Neither writeGate nor smartMutationEngine provided
+      steps:
+        - 1. resolveToCwd(path cwd) -> absolutePath
+        - 2. relPath = relative(cwd absolutePath)
+        - 3. withFileMutationQueue(absolutePath ...) L293-323
+        - 3a. mkdir(dirname(absolutePath))
+        - 3b. ops.writeFile(absolutePath content) raw fs.writeFile
+        - 3c. afterFileWrite(cwd relPath content)
+        - 4. Return text: Successfully wrote ${content.length} bytes to ${path}
+
+current_edit_control_flow:
+  tool_name: edit
+  file: packages/coding-agent/src/core/tools/edit.ts
+  definition: createEditToolDefinition at L304-615
+  parameters:
+    path: string required
+    edits: array of oldText string newText string required
+  execution_paths:
+    - name: SmartMutationEngine edit path
+      condition: options.smartMutationEngine provided
+      steps:
+        - 1. resolveToCwd(path cwd) -> absolutePath
+        - 2. relPath = relative(cwd absolutePath)
+        - 3. For each edit in edits[]: L338-360
+        - 3a. sme.mutate(repoRoot workspaceId path relPath mode edit oldText newText)
+        - 3b. SmartMutationEngine.handleEdit (smart-mutation-engine.ts L181-238):
+        - 3b.i   Check file exists
+        - 3b.ii  Check writeSet permission
+        - 3b.iii OldText must be provided
+        - 3b.iv  Exact match: content.indexOf(oldText)
+        - 3b.v   If unique: replace applyWithRollback (backup + atomic write + parser validation)
+        - 3b.vi  If ambiguous: block with ambiguous_oldText
+        - 3b.vii If not found: editWithRecovery (normalized candidate-range fuzzy matching)
+        - 3c. If mutationResult.ok === false: return isError true with blockReason
+        - 4. Return text: Successfully replaced ${edits.length} block(s)
+    - name: Default direct edit path
+      condition: No smartMutationEngine provided
+      steps:
+        - 1. resolveToCwd(path cwd) -> absolutePath
+        - 2. relPath = relative(cwd absolutePath)
+        - 3. withFileMutationQueue(absolutePath ...) L374-468
+        - 3a. ops.access(absolutePath) check file exists
+        - 3b. ops.readFile(absolutePath) read entire file
+        - 3c. stripBom(rawContent) detectLineEnding normalizeToLF
+        - 3d. applyEditsToNormalizedContent(normalizedContent edits path):
+        - 3d.i   For each edit in order fuzzyFindText(content oldText)
+        - 3d.ii  Exact match via indexOf
+        - 3d.iii If found and unique: replace in content
+        - 3d.iv  If ambiguous multiple matches: throw error
+        - 3d.v   If not found: throw error with optional edit recovery packet
+        - 3d.vi  Cross-edit overlap check tracks replaced ranges throws on overlap
+        - 3e. restoreLineEndings + BOM ops.writeFile
+        - 3f. Generate diff string for preview
+        - 4. Return text: Successfully replaced ${edits.length} block(s) details diff firstChangedLine
+
+write_gaps:
+  - id: WG-001
+    title: No byte-level truncation detection
+    severity: critical
+    evidence: write.ts L272 and L317 use content.length atomicWriteFile verifies hash but not byte count
+  - id: WG-002
+    title: No schema validation in write path
+    severity: high
+    evidence: No schema validation calls in write.ts or smart-mutation-engine.ts
+  - id: WG-003
+    title: No input manifest preflight
+    severity: critical
+    evidence: No manifest parameter or pre-flight check in write.ts or write-gate.ts
+  - id: WG-004
+    title: No HIR routing on write failure
+    severity: critical
+    evidence: write.ts L256-280 failure returns text no HIR import or call
+  - id: WG-005
+    title: Direct write path has zero validation
+    severity: high
+    evidence: write.ts L293-323 direct write path
+  - id: WG-006
+    title: Success message uses JS string length not byte length
+    severity: low
+    evidence: write.ts L272 and L317
+  - id: WG-007
+    title: No repo root path anchoring
+    severity: medium
+    evidence: path-utils.ts L54-60 resolveToCwd if absolute return as-is
+
+edit_gaps:
+  - id: EG-001
+    title: No temp-copy-before-edit in direct path
+    severity: high
+    evidence: edit.ts L374-468 direct path read modify write no backup
+  - id: EG-002
+    title: No parse validation after edit
+    severity: high
+    evidence: edit.ts direct path no validateFileContent call
+  - id: EG-003
+    title: No schema validation after edit
+    severity: high
+    evidence: edit.ts no schema validation import or call
+  - id: EG-004
+    title: No HIR routing on edit failure
+    severity: critical
+    evidence: edit.ts L354-364 SME path L468-480 direct path
+  - id: EG-005
+    title: No structured edit modes beyond oldText/newText
+    severity: medium
+    evidence: edit.ts call signature only path + edits[] with oldText/newText
+  - id: EG-006
+    title: Multiple edits applied to original not incrementally
+    severity: low
+    evidence: edit.ts promptGuidelines documented behavior
+
+smart_mutation_reuse_map:
+  primitives_available_for_smart_write:
+    - name: atomicWriteFile
+      reuse: DIRECT
+      gaps: No byte count comparison only hash
+    - name: validateFileContent
+      reuse: DIRECT
+      gaps: No schema validation YAML validation is simple parse check
+    - name: checkWriteSet
+      reuse: DIRECT
+    - name: computeFileHash
+      reuse: DIRECT
+    - name: createBackup
+      reuse: DIRECT
+    - name: getFileByteCount
+      reuse: DIRECT
+    - name: WriteGate
+      reuse: ADVISORY
+    - name: TruncationDetector
+      reuse: NOT_RECOMMENDED
+  primitives_available_for_smart_edit:
+    - name: SmartMutationEngine.handleEdit
+      reuse: WRAP
+      gaps: No diff preview no temp-copy-first pattern no structured modes
+    - name: atomicWriteFile
+      reuse: DIRECT
+    - name: createBackup
+      reuse: DIRECT
+    - name: validateFileContent
+      reuse: DIRECT
+    - name: applyEditsToNormalizedContent
+      reuse: DIRECT
+  what_must_not_be_duplicated:
+    - Do not create second atomic-write implementation reuse atomicWriteFile
+    - Do not create second parser-validation implementation reuse validateFileContent
+    - Do not create second path-normalization or WriteSet implementation reuse checkWriteSet
+    - Do not create second backup/restore system reuse createBackup/restoreBackup
+    - Do not create second fuzzy-find implementation reuse fuzzyFindText from edit-diff.ts
+
+failure_taxonomy:
+  write_failure_classes:
+    - class: Missing input file
+      detection: Read tool returns ENOENT
+      current_handling: No preflight check agent may continue silently
+      recommended_block: InputManifestBuilder preflight
+    - class: Path outside repo
+      detection: normalizeRepoPath returns null
+      current_handling: SME path blocks direct path writes anywhere
+      recommended_block: RepoPathResolver before all write paths
+    - class: Write truncated on disk
+      detection: Byte comparison expected vs actual
+      current_handling: NOT DETECTED atomicWriteFile hash only TruncationDetector is text heuristic
+      recommended_block: SafeArtifactWriter with Buffer.byteLength comparison
+    - class: Malformed JSON/YAML output
+      detection: JSON.parse or js-yaml.parse fails
+      current_handling: SME with best_effort default Direct path no validation
+      recommended_block: ArtifactValidationRunner with required policy
+    - class: Schema incompatibility
+      detection: Zod or JSON Schema validation rejects
+      current_handling: NOT CHECKED during write post-hoc only
+      recommended_block: Schema check before write success
+  edit_failure_classes:
+    - class: oldText not found
+      detection: fuzzyFindText returns found false
+      current_handling: SME editWithRecovery Direct path error + recovery packet
+      recommended_block: smart_edit refuse missing anchor route to HIR
+    - class: Ambiguous oldText
+      detection: indexOf finds second occurrence
+      current_handling: Block with ambiguous_oldText
+      recommended_block: Block is correct maintain this behavior
+    - class: Edit produces invalid JSON/YAML
+      detection: Post-edit parse validation fails
+      current_handling: SME rollback Direct path no validation
+      recommended_block: smart_edit validate temp copy before final replace
+    - class: Edit produces schema-invalid content
+      detection: Schema validation of edited content fails
+      current_handling: NOT CHECKED in any edit path
+      recommended_block: smart_edit run schema validation on temp copy
+
+smart_write_design_recommendation:
+  recommended: true
+  core_invariant: No verified write no artifact
+  architectural_decision: New SafeArtifactWriter module
+  reason: smart_write must be artifact-specific schema-aware byte-checking and failure-routing
+  must_reuse:
+    - atomicWriteFile from atomic-file-writer.ts
+    - validateFileContent from parser-validation.ts
+    - checkWriteSet from write-set-guard.ts
+    - createBackup from atomic-file-writer.ts
+    - computeFileHash from atomic-file-writer.ts
+    - getFileByteCount from atomic-file-writer.ts
+  must_add:
+    - Pre-compute expected Buffer.byteLength before write
+    - Post-write stat + compare byte count against expected
+    - Schema validation integration (Zod or AJV)
+    - Input manifest preflight check
+    - HIR routing on any failure
+    - Companion artifact separation for schema-incompatible fields
+  threshold_for_direct_write_forbidden:
+    value: 10240
+    unit: bytes
+
+smart_edit_design_recommendation:
+  recommended: true
+  architectural_decision: New SafeArtifactEditor module
+  reason: Validation-centric editor reusing edit-diff.ts matching not edit.ts tool UI
+  mvp_modes:
+    - mode: old_text_replace
+      description: Exact oldText/newText replacement with temp-copy validation parse+schema HIR routing
+    - mode: anchor_insert_before
+      description: Insert before unique anchor with temp-copy validation
+    - mode: anchor_insert_after
+      description: Insert after unique anchor with temp-copy validation
+  future_modes:
+    - mode: markdown_section_replace
+      phase: Post-MVP
+    - mode: json_keypath_set
+      phase: Post-MVP
+    - mode: yaml_keypath_set
+      phase: Post-MVP
+  excluded_modes:
+    - universal_ast_edit
+    - range_based_edit
+    - multi_agent_edit_planner
+    - full_code_refactor_engine
+    - every_language_parser_integration
+
+token_reduction_strategy:
+  problem: Model reads 50KB PlanSpec then writes 50KB back = 25K tokens per round trip
+  smart_edit_solution: Tool reads internally model sends 200-500 bytes path+mode+oldText+newText
+  reduction_estimate: 99.6% token reduction for large artifact edits
+  additional_benefits:
+    - Reduced failure surface
+    - Reduced latency
+    - Schema validation at edit time
+    - Deterministic matching
+
+workspace_plan_patch_recommendation:
+  affected_workspace: P44.6.02
+  recommendation: Expand P44.6.02 to include three MVP edit modes temp-copy pattern parse/schema validation HIR routing token reduction documentation
+
+acceptance_criteria_patch:
+  additions:
+    - id: AC-P446-013
+      text: smart_write pre-computes Buffer.byteLength before write and compares against actual bytes after write
+    - id: AC-P446-014
+      text: smart_write validates generated JSON/YAML against schema when schema is provided
+    - id: AC-P446-015
+      text: smart_edit supports old_text_replace anchor_insert_before anchor_insert_after modes
+    - id: AC-P446-016
+      text: smart_edit validates temp copy before final replace and routes all failures to HIR
+    - id: AC-P446-017
+      text: smart_edit old_text_replace mode achieves >95% token reduction for large artifacts compared to read+write
+    - id: AC-P446-018
+      text: json_keypath_set yaml_keypath_set markdown_section_replace are NOT built in MVP phase
+
+over_engineering_boundary:
+  must_not_build_in_p44_6:
+    - Generic common research-worker system
+    - LLM-based universal code editor
+    - Multi-agent research swarm
+    - Long-running artifact repair daemon
+    - Full AST editor for every language
+    - Over-broad refactor engine
+    - json_keypath_set mode (post-MVP)
+    - yaml_keypath_set mode (post-MVP)
+    - markdown_section_replace mode (post-MVP)
+    - Range-based edit mode (not needed)
+    - Multi-agent edit planner
+    - Every-language parser integration
+
+recommended_next_route: Patch P44.6 onefile master plan to expand P44.6.02 smart_edit design then run P44.6-MVP implementation
