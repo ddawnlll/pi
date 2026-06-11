@@ -312,6 +312,11 @@ export {
 	validateEngineConfig,
 	type WriteConfig,
 } from "./mode/engine-mode.js";
+// P44.6 — Input Inspector
+export {
+	type InspectionResult,
+	inspectPrompt,
+} from "./mode/input-inspector.js";
 // P44.6 — Mode Diagnostic Model
 export {
 	blockingDiagnostic,
