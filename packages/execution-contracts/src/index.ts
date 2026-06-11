@@ -18,7 +18,6 @@ export {
 	ACCP_V2_PACKAGE_ROOT,
 	ACCP_V2_PACKAGE_SCHEMAS,
 } from "./accp-package-reference.js";
-
 // Live command log stream (P41.05)
 export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
 export { InMemoryCommandLogStream } from "./command-log-stream.js";
@@ -104,6 +103,22 @@ export {
 export type { LogEntry, LogLevel } from "./logger.js";
 // Logger utility (standalone, zero coding-agent deps)
 export { PiLogger } from "./logger.js";
+// PlanSpec ACCP v2.0 authority boundary types (P49.02)
+export type {
+	AccpMode,
+	AccpModePolicy,
+	AccpReportProtocol,
+	PlanSpecAccpExtension,
+	PlanSpecAccpRequirements,
+	PlanSpecReportRequirements,
+} from "./planspec/accp-planspec-types.js";
+export {
+	DEFAULT_ACCP_EXTENSION,
+	DEFAULT_ACCP_MODE_POLICY,
+	DEFAULT_ACCP_PROTOCOL,
+	DEFAULT_ACCP_REQUIREMENTS,
+	DEFAULT_REPORT_REQUIREMENTS,
+} from "./planspec/accp-planspec-types.js";
 // Process killer utility (standalone, zero coding-agent deps)
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 // Read model

@@ -1,0 +1,104 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.02_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.02 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.02
+  workspace_title: "PlanSpec v5 ACCP v2.0 Authority Boundary and Report Requirement Extension"
+  wave_id: W1
+  role: planspec_contract
+  allowed_files:
+    - packages/execution-contracts/src/planspec/**
+    - packages/coding-agent/src/core/plan-compiler/**
+    - packages/coding-agent/test/plan-compiler/**
+    - packages/execution-contracts/src/accp-types.ts
+  forbidden_files:
+    - .env
+    - .env.*
+    - node_modules/**
+    - .git/**
+    - package-lock.json
+    - pnpm-lock.yaml
+    - accp_v2_0_package/**
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/execution-contracts/src/planspec/accp-planspec-types.ts
+    - packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts
+  modified_files:
+    - packages/execution-contracts/src/index.ts (export additions)
+  deleted_files: []
+  key_decisions:
+    - decision: PlanSpec declares ACCP authority boundaries but does NOT choose the next ACCP mode or route
+      rationale: "Authority separation invariant — PlanSpec defines allowed modes, route signals are advisory, runtime authorizes execution."
+    - decision: AccpMode is defined in accp-types.ts (P49.03) and imported by accp-planspec-types.ts (P49.02)
+      rationale: "Canonical type source is P49.03's type system foundation; P49.02 re-exports for PlanSpec context."
+    - decision: Default ACCP mode is 'warn', promotion to 'required' requires operator approval + gauntlet pass
+      rationale: "P49 implementation must not unconditionally enable required mode."
+  accp_mode_behavior: "off — this workspace adds PlanSpec authority contract types only, no runtime ACCP behavior"
+
+changes:
+  - file: packages/execution-contracts/src/planspec/accp-planspec-types.ts
+    action: create
+    summary: >
+      ACCP v2.0 PlanSpec authority boundary types. Defines AccpMode, AccpModePolicy,
+      AccpReportProtocol, PlanSpecAccpRequirements, PlanSpecReportRequirements,
+      and PlanSpecAccpExtension. Includes defaults (DEFAULT_ACCP_EXTENSION etc.)
+      with mode='warn', routeSignalsAreAdvisory=true, runtimeAuthorityRequired=true.
+  - file: packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts
+    action: create
+    summary: >
+      16 tests covering positive type assertions and 4 negative authority boundary
+      tests (no nextMode/nextRoute in PlanSpec extension, route signals do not
+      authorize mutation, advisory consistency, promotion gate requirements).
+  - file: packages/execution-contracts/src/index.ts
+    action: edit
+    summary: Added exports for AccpMode, AccpModePolicy, PlanSpecAccpExtension,
+      PlanSpecAccpRequirements, PlanSpecReportRequirements, and all DEFAULT_* constants.
+
+diff_integrity:
+  base_git_commit: "679772ac9feat(p49.01): add ACCP v2.0 package reference constants and tests"
+  workspace_files:
+    - packages/execution-contracts/src/planspec/accp-planspec-types.ts
+    - packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts
+    - packages/execution-contracts/src/index.ts
+  forbidden_files_check:
+    status: passed
+    detail: "No writes to accp_v2_0_package/** or any forbidden file pattern."
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO
+  type_check_result: passed
+  unit_test_ref: vitest run test/plan-compiler/accp-planspec-authority.test.ts
+  unit_test_result: passed (16/16)
+  notes: "All validations pass. AccpMode imported from P49.03's accp-types.ts."
+
+rollback_plan:
+  strategy: revert_workspace_files_only
+  steps:
+    - git checkout -- packages/execution-contracts/src/planspec/accp-planspec-types.ts
+    - git checkout -- packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts
+    - git checkout -- packages/execution-contracts/src/index.ts
+  preserve: "ACCP reports under reports/accp/P49/"
+
+evidence:
+  - type: source
+    description: PlanSpec ACCP authority boundary module
+    path: packages/execution-contracts/src/planspec/accp-planspec-types.ts
+    hash_required: false
+  - type: unit_test
+    description: Authority boundary tests (16/16 pass)
+    path: packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts
+    hash_required: false
+  - type: diff
+    description: Workspace file edits
+    paths:
+      - packages/execution-contracts/src/index.ts
+  - type: commit
+    description: P49.02 workspace commit
+    hash_required: true

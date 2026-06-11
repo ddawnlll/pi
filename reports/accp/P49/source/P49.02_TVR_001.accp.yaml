@@ -1,0 +1,66 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.02_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P49.02 Test Validation Report
+support_level: schema_lite
+
+validation_summary:
+  workspace_id: P49.02
+  status: passed
+  total_assertions: 16
+  passed: 16
+  failed: 0
+  skipped: 0
+  regressions: []
+  new_failures: []
+  coverage: {}
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    executable: npx tsgo --noEmit
+    cwd: "."
+    exit_code: 0
+    output_excerpt: "ok"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: command
+  - commandRef: vitest accp-planspec-authority
+    executable: npx vitest run test/plan-compiler/accp-planspec-authority.test.ts
+    cwd: packages/coding-agent
+    exit_code: 0
+    output_excerpt: "PASS (16) FAIL (0)"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: true
+      noTestsFound: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: unit_test
+      assertions:
+        - "should define ACCP modes as union type"
+        - "should have a default mode policy with warn as initial default"
+        - "should allow all three modes in the default policy"
+        - "should require operator approval and gauntlet pass for promotion to required"
+        - "should default to route signals being advisory"
+        - "should default to runtime authority required"
+        - "should not force ACCP compilation by default"
+        - "should have ACCP 2.0.0 as the default protocol"
+        - "should include ACCP mechanisms in the default extension"
+        - "should include ACCP diagnostic families"
+        - "should not require any reports by default"
+        - "should not block completion by default"
+        - "should enforce that PlanSpec does NOT choose the next ACCP mode"
+        - "should enforce that route signals do NOT authorize mutation by themselves"
+        - "should require route signals be advisory when runtimeAuthorityRequired is true"
+        - "should not promote to required without operator approval gate"
+
+regressions: []
