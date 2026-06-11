@@ -354,15 +354,34 @@ export class DatabaseStateStore implements IStateStore {
 
 	async listPlanExecutions(projectId: string): Promise<PlanExecutionSummary[]> {
 		const executions = await this.planExecutionRepo.listByProject(projectId);
-		return executions.map((e: PlanExecution) => ({
-			id: e.id,
-			projectId: e.project_id,
-			phase: e.phase,
-			title: e.title,
-			status: e.status as PlanExecutionSummary["status"],
-			startedAt: e.started_at,
-			completedAt: e.completed_at,
-		}));
+		return executions.map((e: PlanExecution) => {
+			// Extract lock metadata from execution_log JSON
+			let planLockHash: string | undefined;
+			let planSpecVersion: string | undefined;
+			let lockStatus: PlanExecutionSummary["lockStatus"] | undefined;
+			if (e.execution_log) {
+				try {
+					const logData = JSON.parse(e.execution_log);
+					planLockHash = logData.planLockHash as string | undefined;
+					planSpecVersion = logData.planSpecVersion as string | undefined;
+					lockStatus = logData.lockStatus as PlanExecutionSummary["lockStatus"];
+				} catch {
+					// Not valid JSON-structured log
+				}
+			}
+			return {
+				id: e.id,
+				projectId: e.project_id,
+				phase: e.phase,
+				title: e.title,
+				status: e.status as PlanExecutionSummary["status"],
+				startedAt: e.started_at,
+				completedAt: e.completed_at,
+				planLockHash,
+				planSpecVersion,
+				lockStatus,
+			};
+		});
 	}
 
 	// =========================================================================
@@ -626,6 +645,31 @@ export class DatabaseStateStore implements IStateStore {
 			type: "plan_cancelled",
 			timestamp: Date.now(),
 			data: { reason },
+		});
+	}
+
+	async updatePlanLockMetadata(
+		planExecutionId: string,
+		metadata: {
+			planLockHash: string;
+			planSpecVersion: string;
+			lockStatus: "admitted" | "pending" | "rejected";
+		},
+	): Promise<void> {
+		// Store lock metadata as structured JSON in execution_log for DB backend.
+		// The JSON state store uses a dedicated tracking file.
+		const existingLog = (await this.planExecutionRepo.findById(planExecutionId))?.execution_log;
+		let logData: Record<string, unknown> = {};
+		try {
+			if (existingLog) logData = JSON.parse(existingLog);
+		} catch {
+			// Not valid JSON, start fresh
+		}
+		logData.planLockHash = metadata.planLockHash;
+		logData.planSpecVersion = metadata.planSpecVersion;
+		logData.lockStatus = metadata.lockStatus;
+		await this.planExecutionRepo.update(planExecutionId, {
+			execution_log: JSON.stringify(logData),
 		});
 	}
 

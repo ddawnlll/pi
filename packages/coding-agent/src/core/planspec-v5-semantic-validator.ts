@@ -12,6 +12,12 @@
  * - enforcedBy types are registered
  * - p45 forbidden paths respected
  * - empty allowedFiles rejected
+ * - shell commands in final validation rejected (E_COMMAND_SHELL_NOT_ALLOWED)
+ * - network patterns in commands rejected (E_COMMAND_NETWORK_NOT_ALLOWED)
+ * - forbidden path patterns in workspace allowedFiles rejected (E_SECURITY_FORBIDDEN_PATH)
+ * - cross-wave dependency without explicit marker rejected (E_SEMANTIC_INVALID)
+ * - batch size exceeding parallelism rejected (E_SEMANTIC_INVALID)
+ * - AC/evidence traceability enforced (E_REF_UNKNOWN_AC, E_MISSING_AC_EVIDENCE)
  *
  * All errors are typed (no generic TypeError).
  */
@@ -287,6 +293,181 @@ export function validatePlanSpecSemantics(planSpec: PlanSpecV5): SemanticError[]
 						path: `authority.commands.controlledDelete`,
 					});
 				}
+			}
+		}
+	}
+
+	// SEMANTIC_VALIDATION-012: shell commands in final validation allowed patterns rejected
+	// Check if any command uses shell patterns like &&, ||, ;, | that indicate shell usage
+	// while being used as a final validation command
+	for (const ws of planSpec.workspaces) {
+		if (!ws.finalValidationCommandRefs || ws.finalValidationCommandRefs.length === 0) continue;
+
+		const exactMap = commandExactMap.get(ws.id);
+		if (!exactMap) continue;
+
+		for (const ref of ws.finalValidationCommandRefs) {
+			const cmdInfo = exactMap.get(ref);
+			if (cmdInfo) {
+				// Shell patterns detected in a command used as final validation
+				if (/[&|;]/.test(cmdInfo.exact) || cmdInfo.exact.includes("$( ")) {
+					errors.push({
+						code: "E_COMMAND_SHELL_NOT_ALLOWED",
+						message: `Workspace "${ws.id}" final validation command "${ref}" uses shell patterns: "${cmdInfo.exact}". Final validation commands must be exact argv commands.`,
+						path: `workspaces.${ws.id}.finalValidationCommandRefs`,
+					});
+				}
+
+				// Network-like patterns in commands
+				if (/curl\b|wget\b|fetch\b|http[s]?:\/\//.test(cmdInfo.exact)) {
+					errors.push({
+						code: "E_COMMAND_NETWORK_NOT_ALLOWED",
+						message: `Workspace "${ws.id}" command "${ref}" uses network pattern: "${cmdInfo.exact}". Network commands must be explicitly policy-allowed.`,
+						path: `workspaces.${ws.id}.commands.${ref}`,
+					});
+				}
+			}
+		}
+
+		// Check all commands for forbidden patterns
+		const wsCommands = planSpec.workspaces.find((w) => w.id === ws.id)?.commands ?? [];
+		for (const cmd of wsCommands) {
+			// Check for forbidden command patterns
+			// Matches patterns like rm -rf /, sudo rm, mkfs, dd if=, > /dev/sd
+			const FORBIDDEN_PATTERNS = [
+				/rm\s+-rf\s+\//,
+				/sudo\s+rm/,
+				/mkfs\b/,
+				/dd\s+if\s*=/,
+				/chmod\s+-R\s+000/,
+				/chown\s+-R\s+root:root/,
+			];
+			for (const pattern of FORBIDDEN_PATTERNS) {
+				if (pattern.test(cmd.exact)) {
+					errors.push({
+						code: "E_COMMAND_FORBIDDEN_PATTERN",
+						message: `Workspace "${ws.id}" command "${cmd.ref}" matches forbidden pattern: "${cmd.exact}".`,
+						path: `workspaces.${ws.id}.commands.${cmd.ref}.exact`,
+					});
+				}
+			}
+
+			// Check for network-only commands (curl, wget) without explicit policy
+			if (/^curl\b/.test(cmd.exact) || /^wget\b/.test(cmd.exact)) {
+				errors.push({
+					code: "E_COMMAND_NETWORK_NOT_ALLOWED",
+					message: `Workspace "${ws.id}" command "${cmd.ref}" is a network command: "${cmd.exact}". Network commands must be explicitly policy-allowed.`,
+					path: `workspaces.${ws.id}.commands.${cmd.ref}.exact`,
+				});
+			}
+		}
+	}
+
+	// SEMANTIC_VALIDATION-013: forbidden paths in workspace allowedFiles rejected
+	const GENERAL_FORBIDDEN_PATTERNS = [
+		".env",
+		".env.*",
+		"node_modules/**",
+		".git/**",
+		"package-lock.json",
+		"pnpm-lock.yaml",
+	];
+	for (const ws of planSpec.workspaces) {
+		if (ws.allowedFiles) {
+			for (const file of ws.allowedFiles) {
+				for (const forbidden of GENERAL_FORBIDDEN_PATTERNS) {
+					if (minimatch(file, forbidden)) {
+						errors.push({
+							code: "E_SECURITY_FORBIDDEN_PATH",
+							message: `Workspace "${ws.id}" allowedFiles contains forbidden path: "${file}" (matches "${forbidden}")`,
+							path: `workspaces.${ws.id}.allowedFiles`,
+						});
+					}
+				}
+			}
+		}
+
+		// Check forbiddenFiles for validity (forbiddenFiles should exist)
+		if (ws.forbiddenFiles) {
+			for (const file of ws.forbiddenFiles) {
+				// Check that forbidden files don't contain allowedFiles themselves (no-op check)
+				if (ws.allowedFiles) {
+					for (const allowed of ws.allowedFiles) {
+						if (minimatch(allowed, file)) {
+							errors.push({
+								code: "E_SECURITY_FORBIDDEN_PATH",
+								message: `Workspace "${ws.id}": allowedFiles path "${allowed}" is also covered by forbiddenFiles pattern "${file}".`,
+								path: `workspaces.${ws.id}.forbiddenFiles`,
+							});
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// SEMANTIC_VALIDATION-014: cross-wave dependency check
+	// A workspace cannot depend on a workspace in a later wave
+	const workspaceWaveMap = new Map<string, string>();
+	for (const ws of planSpec.workspaces) {
+		if (ws.waveRef) {
+			workspaceWaveMap.set(ws.id, ws.waveRef);
+		}
+	}
+
+	// Build wave order map
+	const waveOrder = new Map<string, number>();
+	for (let i = 0; i < planSpec.waves.length; i++) {
+		waveOrder.set(planSpec.waves[i].id, i);
+	}
+
+	for (const ws of planSpec.workspaces) {
+		for (const dep of ws.dependencies) {
+			const wsWave = workspaceWaveMap.get(ws.id);
+			const depWave = workspaceWaveMap.get(dep);
+			if (wsWave && depWave && waveOrder.has(wsWave) && waveOrder.has(depWave)) {
+				if ((waveOrder.get(depWave) ?? 0) > (waveOrder.get(wsWave) ?? 0)) {
+					errors.push({
+						code: "E_SEMANTIC_INVALID",
+						message: `Workspace "${ws.id}" in wave "${wsWave}" depends on workspace "${dep}" in later wave "${depWave}". Cross-wave forward dependencies are not allowed.`,
+						path: `workspaces.${ws.id}.dependencies`,
+					});
+				}
+			}
+		}
+	}
+
+	// SEMANTIC_VALIDATION-015: batch size exceeding parallelism check
+	// Total workspaces in a parallel wave should not exceed maxParallelWorkspaces
+	for (const wave of planSpec.waves) {
+		if (wave.parallel && wave.workspaceRefs.length > planSpec.authority.executionState.maxParallelWorkspaces) {
+			errors.push({
+				code: "E_SEMANTIC_INVALID",
+				message: `Wave "${wave.id}" has ${wave.workspaceRefs.length} parallel workspace(s) but maxParallelWorkspaces is ${planSpec.authority.executionState.maxParallelWorkspaces}. Batch size exceeds parallelism.`,
+				path: `waves.${wave.id}.workspaceRefs`,
+			});
+		}
+	}
+
+	// SEMANTIC_VALIDATION-016: AC evidence traceability
+	// Every workspace with requireEvidence=true must have ACs
+	for (const ws of planSpec.workspaces) {
+		if (ws.validation.requireEvidence && ws.acceptanceCriteria.length === 0) {
+			errors.push({
+				code: "E_MISSING_AC_EVIDENCE",
+				message: `Workspace "${ws.id}" requires validation evidence but has no acceptance criteria defined.`,
+				path: `workspaces.${ws.id}.validation.requireEvidence`,
+			});
+		}
+
+		// Check for ACs without descriptions (semantically invalid)
+		for (const ac of ws.acceptanceCriteria) {
+			if (!ac.description || ac.description.trim().length === 0) {
+				errors.push({
+					code: "E_REF_UNKNOWN_AC",
+					message: `Workspace "${ws.id}" AC "${ac.id}" has an empty description. Each AC must have a meaningful description.`,
+					path: `workspaces.${ws.id}.acceptanceCriteria.${ac.id}.description`,
+				});
 			}
 		}
 	}

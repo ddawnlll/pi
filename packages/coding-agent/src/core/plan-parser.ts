@@ -240,28 +240,33 @@ export function parsePlan(planContent: string, options: ParseOptions = {}): Pars
 	// P4.6.2: Workspace count consistency check
 	let missingWorkspaceLabels: string[] = [];
 	if (queue && markdownScan.count > 0) {
-		const jsonWorkspaceCount = queue.workspaces.length;
+		// Guard: queue.workspaces may be undefined for malformed or non-standard JSON
+		if (!Array.isArray(queue.workspaces)) {
+			errors.push("Queue is missing workspaces array; cannot perform workstream consistency check");
+		} else {
+			const jsonWorkspaceCount = queue.workspaces.length;
 
-		if (markdownScan.count !== jsonWorkspaceCount) {
-			const mismatchMsg =
-				`Part 1 defines ${markdownScan.count} workstream(s) but Part 3 JSON defines ${jsonWorkspaceCount} executable workspace(s). ` +
-				`Pi will execute only the ${jsonWorkspaceCount} JSON workspace(s).`;
+			if (markdownScan.count !== jsonWorkspaceCount) {
+				const mismatchMsg =
+					`Part 1 defines ${markdownScan.count} workstream(s) but Part 3 JSON defines ${jsonWorkspaceCount} executable workspace(s). ` +
+					`Pi will execute only the ${jsonWorkspaceCount} JSON workspace(s).`;
 
-			if (failOnWorkspaceCountMismatch) {
-				errors.push(mismatchMsg);
-			} else {
-				warnings.push(mismatchMsg);
+				if (failOnWorkspaceCountMismatch) {
+					errors.push(mismatchMsg);
+				} else {
+					warnings.push(mismatchMsg);
+				}
 			}
-		}
 
-		// Check for missing workspace label mappings
-		missingWorkspaceLabels = findMissingWorkspaceLabels(
-			markdownScan.labels,
-			queue.workspaces.map((w) => w.id),
-		);
+			// Check for missing workspace label mappings
+			missingWorkspaceLabels = findMissingWorkspaceLabels(
+				markdownScan.labels,
+				queue.workspaces.map((w) => w.id),
+			);
 
-		if (missingWorkspaceLabels.length > 0) {
-			warnings.push(`Markdown workstream(s) without JSON workspace entry: ${missingWorkspaceLabels.join(", ")}`);
+			if (missingWorkspaceLabels.length > 0) {
+				warnings.push(`Markdown workstream(s) without JSON workspace entry: ${missingWorkspaceLabels.join(", ")}`);
+			}
 		}
 	}
 
