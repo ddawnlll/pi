@@ -1,0 +1,27 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.09_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.09 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.09
+  workspace_title: "ACCP Evidence Validator"
+  wave_id: W2
+  role: evidence_validation
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/validation/evidence-validator.ts
+    - packages/accp-compiler/test/evidence-validator.test.ts
+
+changes:
+  - file: packages/accp-compiler/src/validation/evidence-validator.ts
+    summary: >
+      Evidence validator for paths, hashes, commands, and false positive guards.
+      Rejects missing hashes when required, warns on non-zero command exit codes.
+  - file: packages/accp-compiler/test/evidence-validator.test.ts
+    summary: 7 tests covering hash requirements, empty checks, non-zero exit warnings.
