@@ -15,8 +15,8 @@ import type {
 	CommandGrantDecisionPayload,
 	CommandGrantRequestedPayload,
 	DeletePolicyBlockedPayload,
-	PlanLockAdmittedPayload,
 	PlanAmendmentRequestedPayload,
+	PlanLockAdmittedPayload,
 	WorkspacePacketCreatedPayload,
 	WorkspacePacketRejectedPayload,
 } from "./planlock-types.js";
@@ -63,69 +63,48 @@ export type {
 /**
  * Emit a plan_lock_admitted event.
  */
-export function emitPlanLockAdmitted(
-	bus: EventBus,
-	payload: PlanLockAdmittedPayload,
-): void {
+export function emitPlanLockAdmitted(bus: EventBus, payload: PlanLockAdmittedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.PLAN_LOCK_ADMITTED, payload);
 }
 
 /**
  * Emit a workspace_packet_created event.
  */
-export function emitWorkspacePacketCreated(
-	bus: EventBus,
-	payload: WorkspacePacketCreatedPayload,
-): void {
+export function emitWorkspacePacketCreated(bus: EventBus, payload: WorkspacePacketCreatedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.WORKSPACE_PACKET_CREATED, payload);
 }
 
 /**
  * Emit a workspace_packet_rejected event.
  */
-export function emitWorkspacePacketRejected(
-	bus: EventBus,
-	payload: WorkspacePacketRejectedPayload,
-): void {
+export function emitWorkspacePacketRejected(bus: EventBus, payload: WorkspacePacketRejectedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.WORKSPACE_PACKET_REJECTED, payload);
 }
 
 /**
  * Emit a command_grant_requested event.
  */
-export function emitCommandGrantRequested(
-	bus: EventBus,
-	payload: CommandGrantRequestedPayload,
-): void {
+export function emitCommandGrantRequested(bus: EventBus, payload: CommandGrantRequestedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.COMMAND_GRANT_REQUESTED, payload);
 }
 
 /**
  * Emit a command_grant_decision event.
  */
-export function emitCommandGrantDecision(
-	bus: EventBus,
-	payload: CommandGrantDecisionPayload,
-): void {
+export function emitCommandGrantDecision(bus: EventBus, payload: CommandGrantDecisionPayload): void {
 	bus.emit(PLANLOCK_EVENTS.COMMAND_GRANT_DECISION, payload);
 }
 
 /**
  * Emit a delete_policy_blocked event.
  */
-export function emitDeletePolicyBlocked(
-	bus: EventBus,
-	payload: DeletePolicyBlockedPayload,
-): void {
+export function emitDeletePolicyBlocked(bus: EventBus, payload: DeletePolicyBlockedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.DELETE_POLICY_BLOCKED, payload);
 }
 
 /**
  * Emit a plan_amendment_requested event.
  */
-export function emitPlanAmendmentRequested(
-	bus: EventBus,
-	payload: PlanAmendmentRequestedPayload,
-): void {
+export function emitPlanAmendmentRequested(bus: EventBus, payload: PlanAmendmentRequestedPayload): void {
 	bus.emit(PLANLOCK_EVENTS.PLAN_AMENDMENT_REQUESTED, payload);
 }
