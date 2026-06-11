@@ -1236,6 +1236,26 @@ export class AutonomousExecutor {
 						},
 					});
 
+					// ACCP compile hook: if worker produced ACCP output, compile it
+					// Gated by ACCP mode (warn = diagnostic only, required = blocking)
+					if (workerResult.accp?.shouldCompile && workerResult.accp?.sourceYaml) {
+						try {
+							// Dynamic import to avoid circular dependency at module level
+							const { compileAccpSource } = await import("@earendil-works/pi-accp-compiler");
+							const compileResult = compileAccpSource(workerResult.accp.sourceYaml);
+							workerResult.accp.compiledArtifactPath = `reports/accp/${planExecutionId || "P49"}/compiled/${workerResult.accp.reportId}.compiled.json`;
+							workerResult.accp.diagnostics = compileResult.diagnostics;
+							if (compileResult.hasBlockingFindings) {
+								console.error(`[ACCP] Compilation warnings/errors for ${workerResult.accp.reportId}:`);
+								for (const d of compileResult.diagnostics) {
+									console.error(`  [${d.code}] ${d.message}`);
+								}
+							}
+						} catch (err) {
+							console.error(`[ACCP] Compile hook error: ${err}`);
+						}
+					}
+
 					// Write execution logs (the adapter writes logs, but keep this
 					// as a safety net in case adapter didn't write them)
 					if (workerResult.report) {
