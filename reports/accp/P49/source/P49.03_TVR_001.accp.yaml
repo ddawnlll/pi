@@ -1,0 +1,65 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.03_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P49.03 Test Validation Report
+support_level: schema_lite
+
+validation_summary:
+  workspace_id: P49.03
+  status: passed
+  total_assertions: 18
+  passed: 18
+  failed: 0
+  skipped: 0
+  regressions: []
+  new_failures: []
+  coverage: {}
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    executable: npx tsgo --noEmit
+    cwd: "."
+    exit_code: 0
+    output_excerpt: "ok"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: command
+  - commandRef: vitest accp-types
+    executable: npx vitest run test/accp-types.test.ts
+    cwd: packages/execution-contracts
+    exit_code: 0
+    output_excerpt: "PASS (18) FAIL (0)"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: true
+      noTestsFound: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: unit_test
+      assertions:
+        positive:
+          - "should allow all 24 report types as a union"
+          - "should distinguish support levels"
+          - "should support all three ACCP modes"
+          - "should support compile status values"
+          - "should create a valid route signal with advisory=true"
+          - "should create a valid gate verdict"
+          - "should create a valid compile event"
+          - "should create an ACCP worker output on WorkerRunResult"
+        negative:
+          - "should not allow route signals to authorize execution"
+          - "should require ACCP worker output to be optional on WorkerRunResult"
+          - "should have optional report field on WorkerRunResult"
+          - "should enforce that AccpLifecycleEvent is a discriminated union"
+          - "should reject a lifecyle event with an invalid kind"
+
+regressions: []

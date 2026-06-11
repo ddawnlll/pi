@@ -9,6 +9,8 @@
  * Execution decides how the result maps to workspace state.
  */
 
+import type { AccpWorkerOutput } from "./accp-types.js";
+
 // ---------------------------------------------------------------------------
 // WorkerAdapter interface
 // ---------------------------------------------------------------------------
@@ -75,6 +77,8 @@ export interface WorkerRunResult {
 	commandHistory: WorkerCommandHistoryEntry[];
 	/** Worker report/output */
 	report?: string;
+	/** Optional ACCP v2.0 structured output (additive — P49.03) */
+	accp?: AccpWorkerOutput;
 	/** Error message if failed */
 	error?: string;
 	/** Optional metadata */

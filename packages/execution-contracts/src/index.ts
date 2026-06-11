@@ -6,6 +6,15 @@
  * Must NOT import from @earendil-works/pi-coding-agent.
  */
 
+export type {
+	AccpCompileCompletedEvent,
+	AccpCompileStartedEvent,
+	AccpEventKind,
+	AccpFindingRecordedEvent,
+	AccpGateVerdictEmittedEvent,
+	AccpLifecycleEvent,
+	AccpRouteSignalEmittedEvent,
+} from "./accp-events.js";
 // ACCP v2.0 package reference (P49.01)
 export {
 	ACCP_V2_PACKAGE_DESCRIPTION,
@@ -18,6 +27,23 @@ export {
 	ACCP_V2_PACKAGE_ROOT,
 	ACCP_V2_PACKAGE_SCHEMAS,
 } from "./accp-package-reference.js";
+// ACCP v2.0 type system foundation (P49.03)
+export type {
+	AccpArtifactRef,
+	AccpCompileResult,
+	AccpCompileStatus,
+	AccpDiagnostic,
+	AccpFinding,
+	AccpGateVerdict,
+	AccpIntermediateRepresentation,
+	AccpReportFamily,
+	AccpReportType,
+	AccpRouteSignal,
+	AccpSupportLevel,
+	AccpTaskEnvelope,
+	AccpWorkerOutput,
+	InitialRouteIndicator,
+} from "./accp-types.js";
 // Live command log stream (P41.05)
 export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
 export { InMemoryCommandLogStream } from "./command-log-stream.js";

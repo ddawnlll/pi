@@ -1,0 +1,131 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.03_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.03 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.03
+  workspace_title: "Execution Contracts ACCP v2.0 Type System Foundation"
+  wave_id: W1
+  role: contracts
+  allowed_files:
+    - packages/execution-contracts/src/accp-types.ts
+    - packages/execution-contracts/src/accp-events.ts
+    - packages/execution-contracts/src/index.ts
+    - packages/execution-contracts/src/worker-adapter.ts
+    - packages/execution-contracts/test/accp-types.test.ts
+  forbidden_files:
+    - .env
+    - .env.*
+    - node_modules/**
+    - .git/**
+    - package-lock.json
+    - pnpm-lock.yaml
+    - accp_v2_0_package/**
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/execution-contracts/src/accp-types.ts
+    - packages/execution-contracts/src/accp-events.ts
+    - packages/execution-contracts/test/accp-types.test.ts
+  modified_files:
+    - packages/execution-contracts/src/index.ts (export additions for accp-types and accp-events)
+    - packages/execution-contracts/src/worker-adapter.ts (additive AccpWorkerOutput field)
+  deleted_files: []
+  key_decisions:
+    - decision: AccpMode is defined in accp-types.ts as the canonical type source
+      rationale: "P49.03 owns the type system foundation; P49.02 imports it from here."
+    - decision: AccpWorkerOutput on WorkerRunResult is optional (additive)
+      rationale: "Backward compatibility — legacy report: string remains mandatory."
+    - decision: Route signals have isAdvisory: true as a type invariant
+      rationale: "Architectural guard — route signals do not authorize execution."
+    - decision: AccpLifecycleEvent is a discriminated union with 5 kinds
+      rationale: "Structured event types for the event journal."
+  accp_mode_behavior: "off — this workspace creates type/contract infrastructure only, no runtime ACCP behavior"
+
+changes:
+  - file: packages/execution-contracts/src/accp-types.ts
+    action: create
+    summary: >
+      Core ACCP v2.0 type definitions. Includes AccpReportType (24-report union),
+      AccpReportFamily, AccpSupportLevel, AccpMode, AccpCompileStatus, AccpDiagnostic,
+      AccpCompileResult, AccpRouteSignal, AccpGateVerdict, AccpFinding, AccpWorkerOutput,
+      AccpIntermediateRepresentation, AccpArtifactRef, InitialRouteIndicator,
+      AccpTaskEnvelope. 382 lines.
+  - file: packages/execution-contracts/src/accp-events.ts
+    action: create
+    summary: >
+      ACCP lifecycle events with 5 kinds: compile_started, compile_completed,
+      gate_verdict_emitted, finding_recorded, route_signal_emitted.
+      Uses discriminated union pattern for type safety.
+  - file: packages/execution-contracts/test/accp-types.test.ts
+    action: create
+    summary: >
+      18 tests covering positive type assertions and 5 negative authority boundary
+      tests (route signal advisory invariant, optional accp on WorkerRunResult,
+      backward compat without accp, discriminated union completeness).
+  - file: packages/execution-contracts/src/worker-adapter.ts
+    action: edit
+    summary: >
+      Added optional accp?: AccpWorkerOutput field to WorkerRunResult.
+      Imported AccpWorkerOutput from ./accp-types.js. Legacy report field unchanged.
+  - file: packages/execution-contracts/src/index.ts
+    action: edit
+    summary: >
+      Added type and value exports for all ACCP type system and event types.
+
+diff_integrity:
+  base_git_commit: "679772ac9feat(p49.01): add ACCP v2.0 package reference constants and tests"
+  workspace_files:
+    - packages/execution-contracts/src/accp-types.ts
+    - packages/execution-contracts/src/accp-events.ts
+    - packages/execution-contracts/test/accp-types.test.ts
+    - packages/execution-contracts/src/worker-adapter.ts
+    - packages/execution-contracts/src/index.ts
+  forbidden_files_check:
+    status: passed
+    detail: "No writes to accp_v2_0_package/** or any forbidden file pattern."
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO
+  type_check_result: passed
+  unit_test_ref: vitest run test/accp-types.test.ts
+  unit_test_result: passed (18/18)
+  notes: "All validations pass. Types are additive and backward-compatible."
+
+rollback_plan:
+  strategy: revert_workspace_files_only
+  steps:
+    - git checkout -- packages/execution-contracts/src/accp-types.ts
+    - git checkout -- packages/execution-contracts/src/accp-events.ts
+    - git checkout -- packages/execution-contracts/test/accp-types.test.ts
+    - git checkout -- packages/execution-contracts/src/worker-adapter.ts
+    - git checkout -- packages/execution-contracts/src/index.ts
+  preserve: "ACCP reports under reports/accp/P49/"
+
+evidence:
+  - type: source
+    description: ACCP v2.0 type system module
+    path: packages/execution-contracts/src/accp-types.ts
+    hash_required: false
+  - type: source
+    description: ACCP lifecycle event types
+    path: packages/execution-contracts/src/accp-events.ts
+    hash_required: false
+  - type: unit_test
+    description: Type system tests (18/18 pass)
+    path: packages/execution-contracts/test/accp-types.test.ts
+    hash_required: false
+  - type: diff
+    description: Worker adapter additive field
+    path: packages/execution-contracts/src/worker-adapter.ts
+  - type: diff
+    description: Execution contracts exports
+    path: packages/execution-contracts/src/index.ts
+  - type: commit
+    description: P49.03 workspace commit
+    hash_required: true
