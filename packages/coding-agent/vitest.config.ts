@@ -6,6 +6,7 @@ const aiSrcIndex = fileURLToPath(new URL("../ai/src/index.ts", import.meta.url))
 const aiSrcOAuth = fileURLToPath(new URL("../ai/src/oauth.ts", import.meta.url));
 const dbSrcIndex = fileURLToPath(new URL("../db/src/index.ts", import.meta.url));
 const agentSrcIndex = fileURLToPath(new URL("../agent/src/index.ts", import.meta.url));
+const accpCompilerSrcDir = fileURLToPath(new URL("../accp-compiler/src", import.meta.url));
 const executionContractsSrcDir = fileURLToPath(new URL("../execution-contracts/src", import.meta.url));
 const executionServiceSrcDir = fileURLToPath(new URL("../execution-service/src", import.meta.url));
 const workerAdaptersSrcDir = fileURLToPath(new URL("../worker-adapters/src", import.meta.url));
@@ -47,6 +48,8 @@ export default defineConfig({
 			{ find: /^@mariozechner\/pi-ai$/, replacement: aiSrcIndex },
 			{ find: /^@mariozechner\/pi-ai\/oauth$/, replacement: aiSrcOAuth },
 			{ find: /^@mariozechner\/pi-agent-core$/, replacement: agentSrcIndex },
+			{ find: /^@earendil-works\/pi-accp-compiler$/, replacement: `${accpCompilerSrcDir}/index.ts` },
+			{ find: /^@earendil-works\/pi-accp-compiler\/(.*)/, replacement: `${accpCompilerSrcDir}/$1.ts` },
 		],
 	},
 });

@@ -29,7 +29,9 @@
 			"@earendil-works/pi-execution-runtime": ["./packages/execution-runtime/src/index.ts"],
 			"@earendil-works/pi-execution-runtime/*": ["./packages/execution-runtime/src/*"],
 			"@earendil-works/pi-brain": ["./packages/brain/src/index.ts"],
-			"@earendil-works/pi-brain/*": ["./packages/brain/src/*"]
+			"@earendil-works/pi-brain/*": ["./packages/brain/src/*"],
+			"@earendil-works/pi-accp-compiler": ["./packages/accp-compiler/src/index.ts"],
+			"@earendil-works/pi-accp-compiler/*": ["./packages/accp-compiler/src/*"]
 		}
 	},
 	"include": ["packages/*/src/**/*", "packages/*/test/**/*", "packages/coding-agent/examples/**/*"],

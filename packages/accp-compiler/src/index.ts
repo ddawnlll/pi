@@ -21,6 +21,10 @@
  * @packageDocumentation
  */
 
+// Template registry
+import { AccpTemplateRegistry, defaultTemplateRegistry } from "./registry/template-registry.js";
+export { AccpTemplateRegistry, defaultTemplateRegistry };
+
 // Types re-exported from execution-contracts for convenience
 export type {
 	AccpArtifactRef,
