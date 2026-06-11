@@ -11,6 +11,25 @@ export {
 	type PlannerMemoryEntry,
 	type PlannerMemoryStore,
 } from "../memory/planner-memory.js";
+// P44.6 — CAR Correction Path
+export {
+	type CAR,
+	type CarReason,
+	type CarResult,
+	requireCAR,
+} from "./accp/car-correction-path.js";
+// P44.6 — ACCP Mode Report Validator
+export {
+	type ReportValidationResult,
+	type ReportValidationVerdict,
+	validateModeReport,
+} from "./accp/mode-report-validator.js";
+// P44.6 — Report Mapping
+export {
+	createReportMapping,
+	type ReportMapping,
+	type ReportMappingKind,
+} from "./accp/tvr-prr-mapping.js";
 export {
 	AgentSession,
 	type AgentSessionConfig,
@@ -35,6 +54,20 @@ export {
 	createAgentSessionServices,
 } from "./agent-session-services.js";
 export { type BashExecutorOptions, type BashResult, executeBashWithOperations } from "./bash-executor.js";
+// P44.6 — P45 Boundary Guard
+export {
+	checkP45Boundary,
+	type P45BoundaryCheckResult,
+} from "./boundary/p45-boundary-guard.js";
+// P44.6 — P49.5 Bridge
+export {
+	exportP495Handoff,
+	type P495HandoffArtifact,
+} from "./bridge/p495-artifact-export.js";
+export {
+	evaluateP495Readiness,
+	type P495ReadinessVerdict,
+} from "./bridge/p495-readiness-guard.js";
 // P11.G Capability Policy Engine
 export {
 	ACTION_LABELS,
@@ -58,6 +91,11 @@ export {
 	VERDICT_LABELS,
 } from "./capability-policy-engine.js";
 export type { CompactionResult } from "./compaction/index.js";
+// P44.6 — v4.1.1 Compatibility Pack
+export {
+	checkV411Compatibility,
+	type V411CompatResult,
+} from "./compat/v411-adapter-pack.js";
 export {
 	CompletionGateRegistry,
 	createWorkspaceValidationState,
@@ -204,6 +242,11 @@ export {
 	type P446EventKind,
 	type RouteSignalCompiledPayload,
 } from "./events/p446-event-types.js";
+// P44.6 — Evidence Ledger Export
+export {
+	createEvidenceSnapshot,
+	type EvidenceSnapshot,
+} from "./evidence/ledger-export.js";
 // Extensions system
 export {
 	type AgentEndEvent,
