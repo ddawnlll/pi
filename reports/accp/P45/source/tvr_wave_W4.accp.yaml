@@ -1,0 +1,31 @@
+# ACCP TVR — W4 Wave Gate Validation
+report:
+  type: TVR
+  id: tvr_wave_W4
+  waveId: "W4"
+  workspaceIds: ["P45.10", "P45.11", "P45.12"]
+  generatedAt: "2026-06-11T20:00:00+03:00"
+  schemaVersion: "2.0.0"
+
+validation:
+  waveId: "W4"
+  overallResult: pass
+  commands:
+    - id: CMD-TYPECHECK-TSGO
+      executable: npx
+      args: ["tsgo", "--noEmit"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "ok"
+
+  aggregateTests:
+    total: 289
+    passed: 289
+    failed: 0
+
+falsePositiveGuards:
+  watchModeDetected: false
+  noTestsFound: false
+  commandNotFound: false
+  timeoutDetected: false
+  silentPassDetected: false

@@ -1,0 +1,31 @@
+# ACCP TVR — W1 Wave Gate Validation
+report:
+  type: TVR
+  id: tvr_wave_W1
+  waveId: "W1"
+  workspaceIds: ["P45.00", "P45.01", "P45.02"]
+  generatedAt: "2026-06-11T20:00:00+03:00"
+  schemaVersion: "2.0.0"
+
+validation:
+  waveId: "W1"
+  overallResult: pass
+  commands:
+    - id: CMD-TYPECHECK-TSGO
+      executable: npx
+      args: ["tsgo", "--noEmit"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "ok"
+
+  aggregateTests:
+    total: 12
+    passed: 12
+    failed: 0
+
+falsePositiveGuards:
+  watchModeDetected: false
+  noTestsFound: false
+  commandNotFound: false
+  timeoutDetected: false
+  silentPassDetected: false
