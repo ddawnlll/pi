@@ -1,0 +1,17 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "FIXTURE_TVR_001"
+  type: "TVR"
+  family: "core"
+  kind: "test_validation"
+  status: "complete"
+
+meta:
+  plan_id: "P49"
+  workspace_id: "FIXTURE"
+  repo_root: "."
+  git_commit: "unknown"
+  inspection_mode: "validation_only"
+  confidence: "medium"

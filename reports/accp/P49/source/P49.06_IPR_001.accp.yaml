@@ -1,0 +1,44 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.06_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.06 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.06
+  workspace_title: "ACCP YAML Parser, Source Extractor, and Strict Source Profile"
+  wave_id: W2
+  role: parser
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/parser/yaml-parser.ts
+    - packages/accp-compiler/src/parser/extractor.ts
+    - packages/accp-compiler/test/yaml-parser.test.ts
+    - packages/accp-compiler/test/fixtures/valid_tvr.accp.yaml
+
+changes:
+  - file: packages/accp-compiler/src/parser/yaml-parser.ts
+    action: create
+    summary: >
+      ACCP YAML parser with line-based parsing. Validates accp_version,
+      source_format=ACCP-YAML, and report section with id/type/family.
+      Produces structured diagnostics on failure.
+  - file: packages/accp-compiler/src/parser/extractor.ts
+    action: create
+    summary: >
+      Source extractor for transitional compatibility. Can extract YAML
+      from code fences and text content. Warns when extraction is needed.
+  - file: packages/accp-compiler/test/yaml-parser.test.ts
+    action: create
+    summary: 12 tests covering positive, extractor, and negative cases.
+  - file: packages/accp-compiler/test/fixtures/valid_tvr.accp.yaml
+    action: create
+    summary: Minimal valid TVR fixture file for parser testing.
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO: passed
+  unit_test_ref: CMD-ACCP-COMPILER-UNIT: passed (12/12 for parser)
