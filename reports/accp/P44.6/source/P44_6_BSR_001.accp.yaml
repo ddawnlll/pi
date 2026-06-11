@@ -1,0 +1,238 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_6_BSR_001
+report_type: BSR
+report_family: bug_search
+report_name: P44.6 Bug Search Report
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: read_only
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+failure_class_taxonomy:
+  - id: FC-MISSING-INPUT
+    title: Missing Required Input File
+    severity: critical
+    description: >
+      Agent attempts to read a required file that does not exist at the expected path.
+      The agent does not check file existence before reading and does not stop on ENOENT.
+    reproduction: |
+      Attempt to generate a PlanSpec artifact without verifying that required schema,
+      template, or reference files exist. The read tool will return ENOENT, but the
+      system does not enforce a pre-generation input manifest.
+    detection_method: "Manual inspection of read tool returns for ENOENT/not found"
+    current_handling: "Agent may continue, guess content, or hallucinate paths"
+    recommended_block: |
+      InputManifestBuilder in P44.6 must enumerate required files and verify existence
+      before any write/generation tool is called. Missing required input must route to HIR.
+
+  - id: FC-PATH-MISMATCH
+    title: Path Mismatch / Absolute Path Assumption
+    severity: critical
+    description: >
+      Agent assumes a specific absolute path (e.g., /home/erfolg/src/pi/) that
+      does not match the actual repo root (e.g., /Users/hootie/src/pi/).
+      The resolution mechanism (resolveToCwd from path-utils.ts) handles relative
+      paths but does not enforce repo-root-anchored path resolution.
+    reproduction: |
+      Write an artifact with an absolute path assumption. The write tool uses
+      resolveToCwd() which expects relative paths. An absolute path from a different
+      system would be used as-is, potentially writing outside the repo or to a non-existent dir.
+    current_handling: |
+      resolveToCwd in path-utils.ts resolves relative paths against cwd.
+      Absolute paths are returned as-is. There is no repo root verification.
+    recommended_block: |
+      RepoPathResolver must normalize all paths against git rev-parse --show-toplevel
+      and reject paths outside the repo root or that conflict with known repo structure.
+
+  - id: FC-LARGE-WRITE-TRUNCATION
+    title: Large Generated Artifact Truncation
+    severity: high
+    description: >
+      The write tool reports content.length as byte count but does not compare
+      expected vs actual bytes. The write tool's default path uses ops.writeFile()
+      which has no truncation detection. Even the SmartMutationEngine path only
+      verifies a content hash, not the byte count.
+    reproduction: |
+      Generate a large JSON artifact (e.g., >50KB). The write tool calls
+      fs.writeFile() and reports success. If the write is truncated due to
+      buffer/OS limits, neither the write tool nor the mutation engine detects it.
+    current_handling: |
+      WriteGate has a TruncationDetector type reference but no implementation was found.
+      The write tool processWriteResult method references truncationDetector but it
+      appears to be a no-op or placeholder integration.
+    recommended_block: |
+      SafeArtifactWriter must:
+      1. Pre-compute expected byte count (Buffer.byteLength)
+      2. Post-write read file and compare actual byte count
+      3. If mismatch, mark as failure and route to HIR (no retry with same method)
+
+  - id: FC-PYTHON-C-HUGE-LITERAL
+    title: Unsafe python -c / Huge Literal Recovery Attempt
+    severity: critical
+    description: >
+      After a direct write truncation, the agent attempted recovery by piping
+      content through python -c with a huge string literal in the command.
+      This causes shell quoting/syntax failures because the content exceeds
+      shell argument length limits and contains special characters.
+    reproduction: |
+      Generate a >100KB JSON artifact. After write failure, attempt:
+      python -c "import json; open('path', 'w').write('''<100KB JSON>''')"
+      The shell will fail on quoting or argument length.
+    current_handling: "Not handled — this is a recovery strategy that should never be attempted"
+    recommended_block: |
+      Forbid shell-based fallback writes for artifacts above 10KB.
+      SafeArtifactWriter must use temp-file + atomic rename.
+      If smart_write fails, route to HIR instead of attempting unsafe recovery.
+
+  - id: FC-INVALID-JSON-YAML
+    title: Malformed Generated JSON/YAML
+    severity: high
+    description: >
+      Generated JSON or YAML artifacts may not parse correctly. The direct write
+      path has no parse validation. The SmartMutationEngine path has parse validation
+      but it is optional (parserValidation policy defaults to "best_effort").
+      Even when enabled, malformed output is rolled back rather than routed to HIR.
+    reproduction: |
+      Generate a JSON artifact with a trailing comma or unclosed brace.
+      The write tool reports success. SmartMutationEngine would catch this only if
+      parserValidation policy is "required" and rollbackOnParserFailure is true.
+    current_handling: |
+      SmartMutationEngine handleOverwrite runs validateFileContent with configurable policy.
+      Default: best_effort (warns but does not block).
+      On failure with rollbackOnParserFailure: rolls back write silently.
+      No HIR is generated.
+    recommended_block: |
+      ArtifactValidationRunner must enforce parse validation as "required" for
+      JSON/YAML artifacts. Parse failure must route to HIR, not silent rollback.
+
+  - id: FC-SCHEMA-ADDITIONAL-PROPERTIES
+    title: Schema additionalProperties=false Rejection
+    severity: medium
+    description: >
+      The PlanSpec v5 alpha2 schema uses additionalProperties: false at top level
+      and in most sub-objects. If generated JSON contains extra fields not in the
+      schema, validation will reject the entire artifact. The agent has no way to
+      know which fields are schema-compatible without an explicit pre-generation check.
+    reproduction: |
+      Generate a PlanSpec JSON with a non-schema field like "designRationale" at top level.
+      Zod schema or JSON Schema validation would reject. The agent's write succeeds,
+      but subsequent plan compilation or schema validation fails.
+    current_handling: |
+      PlanSpec compilation (compilePlanSpecAlpha2) runs Zod schema validation.
+      Rejection surfaces as a compile error. No pre-write schema compatibility check exists.
+    recommended_block: |
+      Schema compatibility check must run before the write, not after.
+      Extra fields must be routed to companion artifacts.
+
+  - id: FC-SILENT-CONTINUATION
+    title: Silent Continuation After Failure
+    severity: critical
+    description: >
+      The agent does not stop on missing input, write failure, parse failure,
+      or schema validation failure. Write failures return error strings but
+      do not trigger a hard stop, HIR, or BLOCK routing. The agent can continue
+      to the next operation assuming success.
+    reproduction: |
+      1. Write tool returns isError: true with reason string
+      2. Agent continues to next write/read operation
+      3. No HIR is produced
+      4. Downstream operations fail or produce incorrect results
+    current_handling: |
+      Write tool returns isError: true. The agent is expected to check this.
+      No system-level halt exists. WriteGate blocks at gate level but does not
+      prevent the agent from trying alternative paths.
+    recommended_block: |
+      ArtifactFailureRouter must catch all failure classes and produce HIR
+      with BLOCK severity. The agent must not continue after a write/input failure
+      unless explicitly routed to repair.
+
+severity:
+  critical:
+    - FC-MISSING-INPUT
+    - FC-PATH-MISMATCH
+    - FC-PYTHON-C-HUGE-LITERAL
+    - FC-SILENT-CONTINUATION
+  high:
+    - FC-LARGE-WRITE-TRUNCATION
+    - FC-INVALID-JSON-YAML
+  medium:
+    - FC-SCHEMA-ADDITIONAL-PROPERTIES
+
+reproduction_or_evidence:
+  fc_missing_input:
+    evidence: "No input manifest check exists in write tool, writeSet, or any pre-generation gate"
+    file_ref: packages/coding-agent/src/core/tools/write.ts
+    lines: 192-365
+
+  fc_path_mismatch:
+    evidence: "resolveToCwd returns absolute paths as-is; no repo root anchor enforcement"
+    file_ref: packages/coding-agent/src/core/tools/path-utils.ts
+    lines: 54-60
+
+  fc_large_write_truncation:
+    evidence: "write tool reports content.length (JS string length), not Buffer.byteLength; no post-write byte comparison"
+    file_ref: packages/coding-agent/src/core/tools/write.ts
+    lines: 272, 317
+
+  fc_python_c_huge_literal:
+    evidence: "No write strategy prevents shell-based recovery; no size-based method selection"
+    file_ref: packages/coding-agent/src/core/mutation/atomic-file-writer.ts
+    lines: 114-144
+
+  fc_invalid_json_yaml:
+    evidence: "validateFileContent exists but is optional (default: best_effort) in SmartMutationEngine"
+    file_ref: packages/coding-agent/src/core/mutation/smart-mutation-engine.ts
+    lines: 402-415
+    additional_evidence: "Direct write path has no parse validation at all"
+    file_ref2: packages/coding-agent/src/core/tools/write.ts
+    lines2: 292-320
+
+  fc_schema_additional_properties:
+    evidence: "PlanSpecV5Schema uses strictObj (additionalProperties=false) but no pre-write compatibility check exists"
+    file_ref: packages/coding-agent/src/core/planspec-v5-schema.ts
+    lines: 193-240
+
+  fc_silent_continuation:
+    evidence: "No HIR production, no agent-level hard stop, no failure router in write/edit tool infrastructure"
+    file_ref: packages/coding-agent/src/core/tools/write.ts
+    lines: 256-280
+    additional_evidence: "processWriteResult logs failures but does not route to HIR"
+    file_ref2: packages/coding-agent/src/core/write-gate.ts
+    lines2: 345-400
+
+recommended_blocks:
+  - block: "Required input missing must produce HIR before any write"
+    blocks_failure_class: FC-MISSING-INPUT
+    implemented_by: ArtifactGenerationGate.InputManifestBuilder
+
+  - block: "Absolute path or path outside repo root must reject with HIR"
+    blocks_failure_class: FC-PATH-MISMATCH
+    implemented_by: RepoPathResolver
+
+  - block: "Large artifact direct write is forbidden above threshold; smart_write required"
+    blocks_failure_class: FC-LARGE-WRITE-TRUNCATION
+    implemented_by: SafeArtifactWriter with byte count comparison
+
+  - block: "Shell-based fallback writes forbidden; route to HIR instead"
+    blocks_failure_class: FC-PYTHON-C-HUGE-LITERAL
+    implemented_by: ArtifactFailureRouter
+
+  - block: "Generated JSON/YAML must parse before success; failure routes to HIR"
+    blocks_failure_class: FC-INVALID-JSON-YAML
+    implemented_by: ArtifactValidationRunner
+
+  - block: "Schema compatibility gate before write; extra fields go to companion artifacts"
+    blocks_failure_class: FC-SCHEMA-ADDITIONAL-PROPERTIES
+    implemented_by: ArtifactGenerationGate + ArtifactDecompositionPlanner
+
+  - block: "All write/input/parse/schema failures must route to HIR"
+    blocks_failure_class: FC-SILENT-CONTINUATION
+    implemented_by: ArtifactFailureRouter

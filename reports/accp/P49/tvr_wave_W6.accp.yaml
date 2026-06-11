@@ -1,0 +1,28 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W6_001
+report_type: TVR
+report_family: core
+report_name: W6 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W6
+  wave_title: "TUI Mode Selection and Initial Route Envelope"
+  gate_status: passed
+  workspace_count: 2
+  workspaces_complete:
+    - P49.22
+    - P49.23
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-CODING-AGENT-UNIT
+    args: vitest run test/accp/initial-route-indicator.test.ts
+    exit_code: 0
+    output_excerpt: "PASS (4) FAIL (0)"
+
+gate_decision: proceed
+next_wave: W7

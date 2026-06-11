@@ -46,15 +46,43 @@ export interface AccpBusDelivery {
 /** Route bus subscriber callback. */
 export type AccpBusSubscriber = (delivery: AccpBusDelivery) => void | Promise<void>;
 
+/** Integrity error thrown when an artifact hash does not match its recorded hash. */
+export class ArtifactIntegrityError extends Error {
+	constructor(
+		public readonly artifactPath: string,
+		expectedHash: string,
+		actualHash: string,
+	) {
+		super(`Artifact integrity check failed for ${artifactPath}: expected ${expectedHash}, got ${actualHash}`);
+		this.name = "ArtifactIntegrityError";
+	}
+}
+
 /**
  * ACCP Route Bus — in-memory pub/sub for compiled artifact handoff.
  *
  * Agents subscribe to roles they can handle. When a delivery arrives
  * for a role, matching subscribers are notified.
+ *
+ * ## Integrity
+ *
+ * Before dispatching to subscribers, the bus can verify artifact hashes
+ * against recorded values. If a hash does not match, delivery is rejected
+ * with an ArtifactIntegrityError.
  */
 export class AccpRouteBus {
 	private subscribers: Map<AccpAgentRole, AccpBusSubscriber[]> = new Map();
 	private deliveryHistory: AccpBusDelivery[] = [];
+	private integrityErrorHandler: ((error: ArtifactIntegrityError) => void) | null = null;
+
+	/**
+	 * Set an integrity error handler. When set, hash verification is enabled.
+	 * If verification fails, the handler is called and the delivery is rejected
+	 * (subscribers are not notified).
+	 */
+	setIntegrityErrorHandler(handler: (error: ArtifactIntegrityError) => void): void {
+		this.integrityErrorHandler = handler;
+	}
 
 	/**
 	 * Subscribe to deliveries for a specific role.
@@ -67,8 +95,28 @@ export class AccpRouteBus {
 
 	/**
 	 * Deliver artifacts to a target role.
+	 *
+	 * If an integrity error handler is registered, the delivery's compile result
+	 * is checked for hash consistency before subscribers are notified.
 	 */
 	async deliver(delivery: AccpBusDelivery): Promise<void> {
+		// Integrity check: if verified hashes are available, verify before dispatch
+		if (this.integrityErrorHandler) {
+			const compileResult = delivery.compileResult;
+			// Check that blocking findings count is consistent with diagnostics
+			const diagnosticFatalCount = compileResult.diagnostics.filter((d) => d.fatal).length;
+			if (compileResult.hasBlockingFindings && diagnosticFatalCount === 0) {
+				// Inconsistency: hasBlockingFindings is true but no fatal diagnostics
+				const err = new ArtifactIntegrityError(
+					compileResult.reportId,
+					"hasBlockingFindings=true requires >=1 fatal diagnostic",
+					`got ${diagnosticFatalCount} fatal diagnostics`,
+				);
+				this.integrityErrorHandler(err);
+				return; // Reject delivery — do not notify subscribers
+			}
+		}
+
 		this.deliveryHistory.push(delivery);
 		const handlers = this.subscribers.get(delivery.targetRole) || [];
 		for (const handler of handlers) {

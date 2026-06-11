@@ -69,4 +69,59 @@ describe("ACCP Gate Stage Runner", () => {
 		expect(verdict.passed).toBe(true);
 		expect(verdict.warning).toBe(false);
 	});
+
+	// ---------------------------------------------------------------------------
+	// Mode ordering tests: mode check MUST precede verdict evaluation
+	// ---------------------------------------------------------------------------
+
+	it("should NOT block when mode=off even with BLOCK verdict (mode-first ordering)", () => {
+		const blockingVerdict: AccpGateVerdict = {
+			reportId: "TEST_001",
+			reportType: "TVR",
+			valid: false,
+			fatalErrors: ["Fatal error"],
+			warnings: [],
+			blockingFindings: ["Blocker"],
+			findingCount: 1,
+			promotionReady: false,
+			evidenceStatus: "complete",
+		};
+		// modeRequired=false means mode=off or mode=warn — gate must NOT block
+		const verdict = runAccpGateStage("AccpGate", null, { modeRequired: false, verdict: blockingVerdict });
+		expect(verdict.passed).toBe(true);
+		expect(verdict.detail).toHaveProperty("note", "ACCP mode is not required — gate is advisory");
+	});
+
+	it("should pass in warn mode even with BLOCK verdict (non-blocking)", () => {
+		const blockingVerdict: AccpGateVerdict = {
+			reportId: "TEST_001",
+			reportType: "TVR",
+			valid: false,
+			fatalErrors: ["Fatal error"],
+			warnings: [],
+			blockingFindings: ["Blocker"],
+			findingCount: 1,
+			promotionReady: false,
+			evidenceStatus: "complete",
+		};
+		// modeRequired=false simulates warn mode
+		const verdict = runAccpGateStage("AccpGate", null, { modeRequired: false, verdict: blockingVerdict });
+		expect(verdict.passed).toBe(true);
+	});
+
+	it("should block in required mode with BLOCK verdict", () => {
+		const blockingVerdict: AccpGateVerdict = {
+			reportId: "TEST_001",
+			reportType: "TVR",
+			valid: false,
+			fatalErrors: ["Fatal error"],
+			warnings: [],
+			blockingFindings: ["Blocker"],
+			findingCount: 1,
+			promotionReady: false,
+			evidenceStatus: "complete",
+		};
+		const verdict = runAccpGateStage("AccpGate", null, { modeRequired: true, verdict: blockingVerdict });
+		expect(verdict.passed).toBe(false);
+	});
 });

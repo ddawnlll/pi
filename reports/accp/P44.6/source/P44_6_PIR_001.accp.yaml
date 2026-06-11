@@ -1,0 +1,219 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_6_PIR_001
+report_type: PIR
+report_family: plan_input_inspection
+report_name: P44.6 Plan Input Inspection Report
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: read_only
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+available_plan_inputs:
+  planspec_v5_alpha2_schema_json:
+    path: PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json
+    status: available
+    format: JSON Schema draft 2020-12
+    notes: |
+      Full alpha2 schema with additionalProperties: false at top level.
+      Top-level required fields: $schema, planSpecVersion, kind, metadata, compatibility,
+      intent, authority, enforcementRegistry, security, commands, locking, brief, waves,
+      workspaces, validation, evidence, reports, p45Bridge.
+      36 occurrences of additionalProperties: false across sub-objects.
+      Some sub-objects use additionalProperties: true (authority sub-fields).
+
+  planspec_v5_rc1_zod_schema:
+    path: packages/coding-agent/src/core/planspec-v5-schema.ts
+    status: available
+    format: Zod strict objects
+    notes: |
+      PlanSpecV5Schema uses strictObj() for all execution/security objects.
+      Schema differs from alpha2: uses accpVersion, planspecVersion literal "5.0.0",
+      taskId, taskName, executionClass, etc. vs alpha2's $schema, planSpecVersion "5.0.0-alpha2".
+      This is the runtime schema used by plan-compiler (compilePlanSpecAlpha2).
+
+  planspec_v5_alpha2_template:
+    path: PlanSpec_v5_alpha2_template_pack/01_planspec_v5_alpha2_template.example.json
+    status: available
+    format: JSON (example)
+    notes: 69.7KB template with workspaces, waves, authority, enforcementRegistry, P45 bridge config
+
+  planspec_v5_alpha2_compiled_example:
+    path: docs/P44_PlanSpec_v5_alpha2.json
+    status: available
+    format: JSON (compiled P44 plan)
+    notes: 51.5KB — single-file compiled plan for P44 Verified Completion Spine
+
+  p44_5_planspec_v0_1:
+    path: docs/P44_5_commit_durability_completion_gate_planspec_v0_1.json
+    status: available
+    format: JSON
+    notes: 74.1KB — P44.5 commit durability completion gate plan
+
+  p44_design_docs:
+    path: docs/pi/p44/
+    status: available
+    format: Markdown
+    notes: |
+      Contains 7 design documents:
+      - completion-path-diagram.md (24.2KB) — end-to-end architectural flow
+      - evidence-ledger.md (10.0KB)
+      - fake-complete-rca.md (11.6KB)
+      - master-template-update.md (3.3KB)
+      - planner-prompt-rules.md (5.0KB)
+      - traceability-schema.md (5.1KB)
+      - worker-report-contract.md (4.8KB)
+
+  accp_report_mapping:
+    path: PlanSpec_v5_alpha2_template_pack/07_accp_report_mapping.md
+    status: available
+    format: Markdown
+    notes: |
+      Maps PlanSpec events to ACCP report types:
+      - Repo inspection → RIR (required)
+      - Plan review → PIR (required)
+      - Workspace mutation → IPR (required)
+      - Workspace validation → TVR (required)
+      - Handoff/blocker → HIR (conditional)
+      - Regression → RAR (conditional)
+      - Final promotion → PRR (required)
+      - Report correction → CAR (conditional)
+
+  p44_5_fdr:
+    path: reports/accp/P44.5/source/P44_5_FDR_001.accp.yaml
+    status: available
+    format: ACCP-YAML
+    notes: Prior P44.5 design freeze with workspace graph template
+
+  p44_5_fcr:
+    path: reports/accp/P44.5/source/P44_5_FCR_001.accp.yaml
+    status: available
+    format: ACCP-YAML
+    notes: Prior P44.5 contract freeze — shows expected FCR structure
+
+  p44_5_workspace_outputs:
+    path: reports/p44-5/compatibility/
+    status: available
+    format: Mixed (Markdown, JSON)
+    notes: |
+      Contains 7 files from P44.5 workspace execution:
+      - p26-overlap-map.md, block-recovery-routing.md, shared-file-policy.md
+      - llm-composer-circuit-breaker.md, rollout-migration-plan.md
+      - P44_5_W0_decision_record.json, P44_5_W0_context_binder.final.md
+
+  existing_workspace_modules:
+    path: packages/coding-agent/src/core/
+    status: available
+    format: TypeScript
+    notes: |
+      Key reusable modules:
+      - mutation/ (SmartMutationEngine, atomic-file-writer, parser-validation, write-set-guard)
+      - write-gate.ts (WriteGate)
+      - completion/ (CompletionGate v2, EvidenceLedger, TerminalReconciler, WorkspaceCommitGate)
+      - planspec-v5-schema.ts (Zod schema)
+      - planspec-v5-types.ts (TypeScript types)
+      - git-runner.ts
+
+missing_plan_inputs:
+  - id: MI001
+    title: "PlanSpec v5 Alpha2 JSON Schema runtime validator"
+    description: "No AJV or JSON Schema validator exists in packages/. The alpha2 JSON Schema is documentation-only."
+  - id: MI002
+    title: "P44.6 dedicated workspace or module directory"
+    description: "No packages/coding-agent/src/core/p44-6/ or similar directory exists. All modules must be created fresh."
+  - id: MI003
+    title: "Pre-existing smart_write or smart_edit tool"
+    description: "No smart_write or smart_edit tool exists. The write tool is the generic write, the edit tool is the generic edit. Both lack schema validation, truncation detection, input manifest preflight, and HIR routing."
+  - id: MI004
+    title: "P44.6 PlanSpec or workspace graph"
+    description: "No P44.6 plan exists yet. The workspace graph must be designed and produced as a PlanSpec or companion artifact."
+
+planspec_schema_constraints:
+  alpha2_json_schema:
+    additionalProperties_false: true
+    required_fields:
+      - $schema, planSpecVersion, kind, metadata, compatibility, intent, authority
+      - enforcementRegistry, security, commands, locking, brief, waves, workspaces
+      - validation, evidence, reports, p45Bridge
+    extra_fields_policy: rejected (additionalProperties: false at root)
+    notes: |
+      Any design field not in the alpha2 schema must go to a companion artifact.
+      The alpha2 schema is the contractual schema for PlanSpec files.
+      Companion artifacts are not schema-bound and can contain design rationale.
+
+  rc1_zod_schema:
+    additionalProperties_false: true (via strictObj)
+    required_fields:
+      - accpVersion, planspecVersion (literal "5.0.0"), taskId, taskName, executionClass
+      - workspaceGroup, allowProductionCodeChanges, allowTestCodeChanges, allowReportFiles
+      - requireRepoInspectionFirst, requireValidationEvidence, requireRollbackPlan
+      - requireFinalAccpReport, authority, waves, workspaces, templates, validationCases
+    notes: |
+      RC1 Zod schema is used by the runtime compiler (compilePlanSpecAlpha2).
+      Alpha2 JSON Schema is the canonical spec schema.
+      These are different schemas with different field sets.
+
+accp_report_constraints:
+  format: ACCP-YAML with accp_version: "2.0.0"
+  authority_section:
+    reports_are_evidence_only: true
+    route_signals_are_advisory: true
+  output_paths:
+    allowed: reports/accp/P44.6/source/ and reports/p44-6/research/
+    policy: read-only research; no source code mutation
+
+p44_6_planning_assumptions:
+  - assumption: "P44.6 must not modify source files in packages/"
+    confidence: high
+    evidence: "The ACCP task specifies mutation_allowed: false and explicitly says 'No implementation is allowed in this research pass.'"
+  - assumption: "P44.6 can reuse SmartMutationEngine primitives (atomicWriteFile, validateFileContent, checkWriteSet)"
+    confidence: high
+    evidence: "These exist at packages/coding-agent/src/core/mutation/ and are already integrated with the write tool."
+  - assumption: "P44.6 must add schema validation to the write path"
+    confidence: high
+    evidence: "No schema validation exists in the write/edit pipeline despite PlanSpec schemas being available (RIR G003)."
+  - assumption: "P44.6 must add HIR routing for write/input failures"
+    confidence: high
+    evidence: "No HIR routing exists in write tool, WriteGate, or SmartMutationEngine (RIR G004)."
+  - assumption: "P44.6 must add input manifest preflight"
+    confidence: high
+    evidence: "No input manifest requirement exists before artifact generation (RIR G001)."
+  - assumption: "P44.6 should produce a PlanSpec v5 Alpha2 or RC1 plan"
+    confidence: medium
+    evidence: "Previous P44's produced PlanSpec artifacts (P44.5 has a full alpha2 compiled plan). P44.6 should follow the same pattern."
+
+schema_compatible_vs_companion_artifact_separation:
+  policy: "Design fields not in PlanSpec alpha2 schema must be placed in companion artifacts"
+  companion_artifact_path: "reports/p44-6/research/"
+  companion_format: "Markdown or JSON (not schema-bound)"
+  schema_bound_artifact_path: "reports/accp/P44.6/source/"
+  schema_bound_format: "ACCP-YAML (for reports) or PlanSpec JSON (for plan)"
+  notes: |
+    The alpha2 schema has additionalProperties: false at root level.
+    Any workspace_graph_recommendation, design_rationale, or non-goal documentation
+    that does not map to a PlanSpec field must go to companion artifacts.
+    ACCP-YAML reports in source/ are schema-bound to ACCP v2.0.0 format.
+
+evidence_refs:
+  - file: PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json
+    lines: 1-6
+    description: Top-level additionalProperties: false
+  - file: packages/coding-agent/src/core/planspec-v5-schema.ts
+    lines: 193-240
+    description: PlanSpecV5Schema with strictObj
+  - file: PlanSpec_v5_alpha2_template_pack/07_accp_report_mapping.md
+    lines: 1-23
+    description: ACCP report type mapping
+  - file: reports/accp/P44.5/source/P44_5_FDR_001.accp.yaml
+    lines: 1-70
+    description: Prior P44.5 FDR pattern
+  - file: reports/accp/P44.5/source/P44_5_FCR_001.accp.yaml
+    lines: 1-50
+    description: Prior P44.5 FCR pattern

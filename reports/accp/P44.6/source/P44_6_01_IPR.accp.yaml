@@ -1,0 +1,120 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P44_6_01_IPR_001
+report_type: IPR
+report_family: implementation
+report_name: "P44.6.01: EngineMode Contract and Mode Enum Canonicalization"
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.01
+report_generated_at: "2026-06-11T12:39:00+03:00"
+
+implementation:
+  scope_declaration:
+    id: SCOPE-P44601-001
+    workspace_id: P44.6.01
+    workspace_name: EngineMode Contract and Mode Enum Canonicalization
+    description: >
+      Define explicit EngineMode enum values for write, edit, smart_write,
+      and smart_edit with supporting discriminated union types (EngineConfig)
+      and mode utility functions. Runtime must never infer mode from
+      data_source or prose.
+    in_scope:
+      - "packages/coding-agent/src/core/mode/engine-mode.ts (create)"
+      - "packages/coding-agent/src/core/index.ts (add exports)"
+      - "packages/coding-agent/test/mode/p44601-engine-mode.test.ts (create)"
+    out_of_scope:
+      - "Any P45 async assembly runtime code"
+      - "Completion gate vNext types (P44.5 owned)"
+      - "Execution adapter modifications"
+      - "Write gate or edit scope guard implementations (P44.6.09, P44.6.10)"
+      - "Mode mapping compiler (P44.6.03)"
+      - "Task intent envelope (P44.6.02)"
+
+  implementation_summary:
+    success: true
+    notes: >
+      EngineMode enum defined with four explicit values. EngineConfig
+      discriminated union prevents mode confusion. All mode utility
+      functions (getModeCapability, isSmartMode, isSimpleMode,
+      getTargetRequirement, getExecutionPhase, validateEngineConfig,
+      isEngineMode) are implemented and tested. 48/48 unit tests pass.
+    key_decisions:
+      - "EngineMode is a string enum for serializability"
+      - "EngineConfig is a discriminated union with 'mode' as discriminant"
+      - "Each config variant has only the fields relevant to its mode"
+      - "validateEngineConfig returns string[] errors, never throws"
+      - "isEngineMode is the only coercion path for unknown values"
+      - "No 'auto_detect' or 'infer' mode value exists"
+
+  changes:
+    - action: create
+      path: packages/coding-agent/src/core/mode/engine-mode.ts
+      description: EngineMode enum, EngineConfig discriminated union, mode utility functions
+    - action: modify
+      path: packages/coding-agent/src/core/index.ts
+      description: Added exports for engine-mode module
+    - action: create
+      path: packages/coding-agent/test/mode/p44601-engine-mode.test.ts
+      description: 48 unit tests covering all mode types, utilities, and design contract
+
+  diff_integrity:
+    base_git_commit: "PENDING"  # Will be filled after commit
+    files:
+      - path: packages/coding-agent/src/core/mode/engine-mode.ts
+        purpose: Engine mode types and utilities
+        status: created
+      - path: packages/coding-agent/src/core/index.ts
+        purpose: Public API exports
+        status: modified
+      - path: packages/coding-agent/test/mode/p44601-engine-mode.test.ts
+        purpose: Unit tests
+        status: created
+
+  validation_handoff:
+    test_results:
+      command: "npx vitest --run test/mode/p44601-engine-mode.test.ts"
+      exit_code: 0
+      passed: 48
+      failed: 0
+      notes: "All tests pass including AC-P44601-002 negative/blocking paths and AC-P44601-003 evidence traceability checks"
+    validation_type: unit_test
+    validation_bucket: local
+
+  rollback_plan:
+    steps:
+      - "git checkout packages/coding-agent/src/core/mode/engine-mode.ts"
+      - "git checkout packages/coding-agent/src/core/index.ts"
+      - "git checkout packages/coding-agent/test/mode/p44601-engine-mode.test.ts"
+    verification: "Run: npx vitest --run test/mode/ (should report no test file for p44601)"
+
+evidence:
+  ledger_entries:
+    - id: EV-P44601-001
+      type: source_file
+      description: EngineMode enum and EngineConfig discriminated union
+      source: packages/coding-agent/src/core/mode/engine-mode.ts
+      timestamp: 2026-06-11T12:39:00+03:00
+      verdict: pass
+      confidence: high
+      content: >
+        EngineMode enum with Write, Edit, SmartWrite, SmartEdit values.
+        EngineConfig discriminated union with per-mode config variants.
+        Mode utility functions: getModeCapability, isSmartMode,
+        isSimpleMode, getTargetRequirement, getExecutionPhase,
+        validateEngineConfig, isEngineMode.
+      criterionIds:
+        - "AC-P44601-001"
+      producedBy: "P44.6.01"
+    - id: EV-P44601-002
+      type: unit_test
+      description: 48 unit tests covering all mode paths and negative cases
+      source: packages/coding-agent/test/mode/p44601-engine-mode.test.ts
+      timestamp: 2026-06-11T12:39:00+03:00
+      verdict: pass
+      confidence: high
+      content: "48/48 tests passed covering enum values, capabilities, target requirements, execution phases, config validation, isEngineMode guard, and no-implicit-inference design contract"
+      criterionIds:
+        - "AC-P44601-001"
+        - "AC-P44601-002"
+      producedBy: "P44.6.01"

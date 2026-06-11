@@ -1,0 +1,48 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_5_TVR_W1_001
+report_type: TVR
+report_family: feature
+report_name: P44.5 W1 Gate Validation Report
+support_level: schema_strict
+plan_id: P44.5
+wave_id: W1
+workspace_ids:
+  - P44.5.01
+  - P44.5.02
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: wave_gate
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+wave_gate:
+  wave_id: W1
+  title: "Contracts and Verdict Types"
+  status: passed
+  command_results:
+    - commandRef: CMD-TYPECHECK-TSGO
+      exit_code: 0
+      output_excerpt: "ok"
+      passed: true
+    - commandRef: CMD-P445-COMPLETION-VNEXT-UNIT
+      exit_code: 0
+      output_excerpt: "PASS (46) FAIL (0)"
+      passed: true
+  required_artifacts:
+    - reports/accp/P44.5/tvr_wave_W1.accp.yaml
+    - packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts
+    - packages/coding-agent/src/core/completion/workspace-truth-status.ts
+    - packages/coding-agent/src/core/completion/completion-gate-vnext.ts
+    - packages/coding-agent/src/core/completion/completion-gate-vnext-adapter.ts
+    - packages/coding-agent/test/completion/completion-gate-vnext.test.ts
+  all_required_artifacts_exist: true
+  all_validation_passed: true
+  proceed_to_next_wave: true
+
+final_status:
+  status: complete
+  safe_to_continue: true

@@ -1,0 +1,187 @@
+{
+  "planId": "P44.6",
+  "title": "Verified Artifact Generation and Safe Write",
+  "generatedAt": "2026-06-11T00:00:00+03:00",
+  "workspaceGraph": {
+    "layout": {
+      "basePath": "reports/p44-6/research/",
+      "planspecPath": "reports/accp/P44.6/source/",
+      "companionPath": "reports/p44-6/research/"
+    },
+    "workspaces": [
+      {
+        "id": "P44.6.00",
+        "title": "Artifact Preflight Contract and Input Manifest",
+        "purpose": "Preflight contract, input manifest, repo path resolution, required input gate.",
+        "estimatedEffort": "small",
+        "dependencies": [],
+        "modules": [
+          {
+            "name": "ArtifactGenerationGate",
+            "file": "packages/coding-agent/src/core/p44-6/artifact-generation-gate.ts",
+            "responsibility": "Preflight, input manifest, path normalization, decomposition, failure routing orchestration",
+            "reuses": []
+          },
+          {
+            "name": "InputManifestBuilder",
+            "file": "packages/coding-agent/src/core/p44-6/input-manifest-builder.ts",
+            "responsibility": "Resolve required and optional input files before generation; verify existence",
+            "reuses": []
+          },
+          {
+            "name": "RepoPathResolver",
+            "file": "packages/coding-agent/src/core/p44-6/repo-path-resolver.ts",
+            "responsibility": "Resolve repo-relative paths using git rev-parse; reject unsafe absolute assumptions",
+            "reuses": []
+          }
+        ],
+        "acceptanceCriteria": ["AC-P446-001", "AC-P446-002"]
+      },
+      {
+        "id": "P44.6.01",
+        "title": "SafeArtifactWriter / smart_write",
+        "purpose": "Temp-file atomic write, byte count, parse/schema validation, readback, truncation detection.",
+        "estimatedEffort": "large",
+        "dependencies": ["P44.6.00"],
+        "modules": [
+          {
+            "name": "SafeArtifactWriter",
+            "file": "packages/coding-agent/src/core/p44-6/safe-artifact-writer.ts",
+            "toolName": "smart_write",
+            "responsibility": "Temp-file write, atomic rename, byte count comparison, parse/schema validation, readback verification, truncation detection",
+            "reuses": [
+              "packages/coding-agent/src/core/mutation/atomic-file-writer.ts (atomicWriteFile, computeFileHash, createBackup)",
+              "packages/coding-agent/src/core/mutation/parser-validation.ts (validateFileContent)",
+              "packages/coding-agent/src/core/mutation/write-set-guard.ts (checkWriteSet)"
+            ]
+          }
+        ],
+        "acceptanceCriteria": ["AC-P446-003", "AC-P446-004", "AC-P446-008"]
+      },
+      {
+        "id": "P44.6.02",
+        "title": "SafeArtifactEditor / smart_edit",
+        "purpose": "Minimal deterministic patch/anchor/AST-safe edit with validation.",
+        "estimatedEffort": "small",
+        "dependencies": ["P44.6.00"],
+        "modules": [
+          {
+            "name": "SafeArtifactEditor",
+            "file": "packages/coding-agent/src/core/p44-6/safe-artifact-editor.ts",
+            "toolName": "smart_edit",
+            "responsibility": "Minimal deterministic anchor/oldText/newText patch with temp copy, temp content validation, final replace. AST-free, range-free.",
+            "reuses": [
+              "packages/coding-agent/src/core/mutation/atomic-file-writer.ts (createBackup, restoreBackup)",
+              "packages/coding-agent/src/core/mutation/parser-validation.ts (validateFileContent)"
+            ]
+          }
+        ],
+        "acceptanceCriteria": ["AC-P446-005"]
+      },
+      {
+        "id": "P44.6.03",
+        "title": "Artifact Validation Runner",
+        "purpose": "JSON/YAML parse validation, schema validation, markdown link/path checks.",
+        "estimatedEffort": "small",
+        "dependencies": ["P44.6.00"],
+        "modules": [
+          {
+            "name": "ArtifactValidationRunner",
+            "file": "packages/coding-agent/src/core/p44-6/artifact-validation-runner.ts",
+            "responsibility": "JSON/YAML parse validation, schema validation (Zod/JSON Schema), markdown link/path checks",
+            "reuses": [
+              "packages/coding-agent/src/core/mutation/parser-validation.ts (validateJson, validateYaml)",
+              "packages/coding-agent/src/core/planspec-v5-schema.ts (PlanSpecV5Schema)"
+            ]
+          }
+        ],
+        "acceptanceCriteria": ["AC-P446-006", "AC-P446-007"]
+      },
+      {
+        "id": "P44.6.04",
+        "title": "Artifact Failure Router",
+        "purpose": "Map missing input, unsafe path, invalid write, parse/schema failure, truncation to HIR/BLOCK/repair.",
+        "estimatedEffort": "small",
+        "dependencies": ["P44.6.00", "P44.6.01", "P44.6.02", "P44.6.03"],
+        "modules": [
+          {
+            "name": "ArtifactFailureRouter",
+            "file": "packages/coding-agent/src/core/p44-6/artifact-failure-router.ts",
+            "responsibility": "Map missing input, unsafe path, invalid write, parse/schema failure, truncation to HIR/BLOCK/repair",
+            "reuses": []
+          }
+        ],
+        "acceptanceCriteria": ["AC-P446-011"]
+      },
+      {
+        "id": "P44.6.05",
+        "title": "PlanSpec and ACCP Generation Gauntlets",
+        "purpose": "End-to-end tests for large PlanSpec, ACCP YAML, missing input, path mismatch, truncation, schema failure.",
+        "estimatedEffort": "medium",
+        "dependencies": ["P44.6.01", "P44.6.02", "P44.6.03", "P44.6.04"],
+        "modules": [],
+        "tests": [
+          "test/suite/regressions/p44-6-large-planspec-write.test.ts",
+          "test/suite/regressions/p44-6-missing-input.test.ts",
+          "test/suite/regressions/p44-6-path-mismatch.test.ts",
+          "test/suite/regressions/p44-6-truncation-simulation.test.ts",
+          "test/suite/regressions/p44-6-malformed-json.test.ts",
+          "test/suite/regressions/p44-6-schema-rejection.test.ts",
+          "test/suite/regressions/p44-6-multi-artifact-decomposition.test.ts"
+        ],
+        "acceptanceCriteria": ["AC-P446-009", "AC-P446-010", "AC-P446-012"]
+      }
+    ],
+    "dependencies": {
+      "P44.6.00": [],
+      "P44.6.01": ["P44.6.00"],
+      "P44.6.02": ["P44.6.00"],
+      "P44.6.03": ["P44.6.00"],
+      "P44.6.04": ["P44.6.00", "P44.6.01", "P44.6.02", "P44.6.03"],
+      "P44.6.05": ["P44.6.01", "P44.6.02", "P44.6.03", "P44.6.04"]
+    },
+    "executionOrder": ["P44.6.00", "P44.6.01", "P44.6.02", "P44.6.03", "P44.6.04", "P44.6.05"]
+  },
+  "acceptanceCriteria": [
+    {"id": "AC-P446-001", "text": "Required input missing blocks artifact generation and produces manifest/HIR."},
+    {"id": "AC-P446-002", "text": "Repo root is resolved dynamically; absolute path assumptions are rejected."},
+    {"id": "AC-P446-003", "text": "Large artifact direct write is forbidden above threshold."},
+    {"id": "AC-P446-004", "text": "smart_write uses temp file, byte count, parse/schema validation, readback, and atomic rename."},
+    {"id": "AC-P446-005", "text": "smart_edit refuses missing anchors/ranges and validates temp copy before final replace."},
+    {"id": "AC-P446-006", "text": "JSON/YAML outputs must parse successfully before success is reported."},
+    {"id": "AC-P446-007", "text": "Schema validation runs when schema is available; failure blocks final artifact success."},
+    {"id": "AC-P446-008", "text": "Truncation detection prevents success and forbids retrying with the same write method."},
+    {"id": "AC-P446-009", "text": "Multi-artifact tasks are decomposed into staged generation."},
+    {"id": "AC-P446-010", "text": "If schema additionalProperties=false, extra design fields go to companion artifacts, not the schema-bound artifact."},
+    {"id": "AC-P446-011", "text": "The system does not continue after required input, write, parse, or schema failure unless routed to explicit repair/HIR."},
+    {"id": "AC-P446-012", "text": "No generic research-worker framework is introduced."}
+  ],
+  "overEngineeringBoundary": {
+    "mustNotBuild": [
+      "Generic common research-worker system with plugin architecture",
+      "LLM-based universal code editor (P45 scope)",
+      "Multi-agent research swarm with coordinator",
+      "Long-running artifact repair daemon with polling",
+      "Full AST editor with every-language parser integration",
+      "Over-broad refactor engine with dependency analysis",
+      "Distributed artifact pipeline (cross-machine)",
+      "Real-time artifact streaming",
+      "Generic CI/CD artifact plugin system"
+    ]
+  },
+  "reuseStrategy": {
+    "mustReuse": [
+      "packages/coding-agent/src/core/mutation/atomic-file-writer.ts (atomicWriteFile, computeFileHash, createBackup)",
+      "packages/coding-agent/src/core/mutation/parser-validation.ts (validateFileContent)",
+      "packages/coding-agent/src/core/mutation/write-set-guard.ts (checkWriteSet, normalizeRepoPath)",
+      "packages/coding-agent/src/core/mutation/mutation-types.ts (MutationResult, ParserValidationResult)",
+      "packages/coding-agent/src/core/planspec-v5-schema.ts (PlanSpecV5Schema for Zod validation)"
+    ],
+    "mustNotReuse": [
+      "No creation of alternative atomic-write, parser-validation, or path-guard implementations"
+    ]
+  },
+  "recommendedNextRoute": "FCR",
+  "recommendedNextRouteIfSuccess": "FCR -> PlanSpec generation",
+  "recommendedNextRouteIfBlocked": "HIR"
+}

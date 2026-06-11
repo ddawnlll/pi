@@ -1,0 +1,41 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W8_001
+report_type: TVR
+report_family: core
+report_name: W8 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W8
+  wave_title: "Template Expansion, End-to-End Gauntlets, Final Promotion, and P50 Readiness"
+  gate_status: passed
+  workspace_count: 3
+  workspaces_complete:
+    - P49.28
+    - P49.29
+    - P49.30
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-COMPILER-UNIT
+    exit_code: 0
+    output_excerpt: "PASS (111) FAIL (0)"
+  - commandRef: CMD-ACCP-CODING-AGENT-UNIT
+    args: vitest run test/accp
+    exit_code: 0
+    output_excerpt: "PASS (55) FAIL (0)"
+
+required_artifacts:
+  - reports/accp/P49/prr_promotion_readiness.accp.yaml
+  - reports/accp/P49/graph.json
+  - reports/p49-accp-native-route-bus/final-promotion-report.md
+
+final_gate_decision: all_gates_passed
+accp_mode: warn
+promotion_eligible: false
+promotion_blockers:
+  - "operator_approval: pending"
+p50_readiness: true

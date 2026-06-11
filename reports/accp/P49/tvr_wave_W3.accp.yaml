@@ -1,0 +1,33 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W3_001
+report_type: TVR
+report_family: core
+report_name: W3 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W3
+  wave_title: "Compiler Outputs, Route Signals, Gate Verdicts, Artifacts, and CLI"
+  gate_status: passed
+  workspace_count: 4
+  workspaces_complete:
+    - P49.10
+    - P49.11
+    - P49.12
+    - P49.13
+  total_assertions: 101
+  passed: 101
+  failed: 0
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-COMPILER-UNIT
+    cwd: packages/accp-compiler
+    exit_code: 0
+    output_excerpt: "PASS (101) FAIL (0)"
+
+gate_decision: proceed
+next_wave: W4

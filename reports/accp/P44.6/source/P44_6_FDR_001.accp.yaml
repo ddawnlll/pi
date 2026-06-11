@@ -1,0 +1,335 @@
+# ACCP-YAML
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P44_6_FDR_001
+report_type: FDR
+report_family: design
+report_name: P44.6 Design Freeze Report
+support_level: schema_strict
+plan_id: P44.6
+workspace_id: P44.6.00
+report_generated_at: "2026-06-11T00:00:00+03:00"
+report_stale_after: on_next_commit
+inspection_mode: design_recommendation
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+design_freeze:
+  status: recommended
+  items:
+    - id: DF-P446-001
+      area: smart_write_implementation
+      decision: mandatory
+      summary: >
+        SafeArtifactWriter (smart_write) is the core P44.6 deliverable.
+        It must provide: temp-file atomic write, byte count comparison,
+        parse/schema validation, post-write readback, truncation detection,
+        and HIR routing on failure. Must reuse atomicWriteFile,
+        validateFileContent, and checkWriteSet from existing SmartMutationEngine.
+
+    - id: DF-P446-002
+      area: smart_edit_implementation
+      decision: minimal_deterministic
+      summary: >
+        SafeArtifactEditor (smart_edit) is in scope but limited to:
+        anchor/oldText/newText replacement with temp-copy-before-edit,
+        validate temp copy content, then final replace.
+        No AST-aware editing. No range-based editing.
+        Must refuse missing anchors. Must validate temp copy before final.
+
+    - id: DF-P446-003
+      area: common_research_workers
+      decision: not_in_scope
+      summary: >
+        Generic common research-worker system is over-engineering for P44.6.
+        P44.6 addresses the specific verified write/edit failure class.
+        If research workers are needed later, they must be proposed in P45+.
+
+    - id: DF-P446-004
+      area: schema_validation_in_write_path
+      decision: mandatory
+      summary: >
+        Schema validation (Zod for PlanSpec RC1, JSON Schema for alpha2)
+        must be integrated into the artifact write pipeline.
+        Pre-write schema compatibility check and post-write validation.
+
+    - id: DF-P446-005
+      area: companion_artifact_separation
+      decision: mandatory
+      summary: >
+        Extra fields rejected by additionalProperties=false must be routed
+        to companion artifacts in reports/p44-6/research/.
+        ArtifactDecompositionPlanner must split schema-compatible vs
+        companion content before generation.
+
+    - id: DF-P446-006
+      area: failure_routing
+      decision: mandatory
+      summary: >
+        Every failure class (missing input, path mismatch, write failure,
+        parse failure, schema failure, truncation) must route to HIR.
+        Silent continuation is forbidden. ArtifactFailureRouter must be the
+        single exit point for all failure paths.
+
+recommended_name: "P44.6 — Verified Artifact Generation and Safe Write"
+
+problem_definition: |
+  The current artifact generation pipeline (write/edit tools) lacks:
+  1. Input manifest preflight — required files are not verified before generation
+  2. Path normalization against repo root — absolute path assumptions are not rejected
+  3. Write strategy selection — large artifacts use direct write with no truncation detection
+  4. Parse validation — direct write path has no parse validation; mutation engine path is optional
+  5. Schema validation — JSON Schema and Zod schemas exist but are not integrated into write path
+  6. Post-write readback — no byte count comparison or line count verification
+  7. Failure routing — errors return strings but never produce HIR or stop the agent
+  8. Companion artifact separation — extra design fields have no designated path
+
+  These gaps caused a previous large PlanSpec generation attempt to fail
+  with truncated writes, malformed JSON, path mismatches, and silent continuation.
+  P44.6 adds preflight, safe write, safe edit, schema validation, and failure-stop
+  behavior without over-engineering.
+
+non_goals:
+  - "Generic common research-worker system"
+  - "LLM-based universal code editor"
+  - "Multi-agent research swarm"
+  - "Long-running artifact repair daemon"
+  - "Full AST editor for every language"
+  - "Over-broad refactor engine"
+  - "P45 runtime implementation"
+  - "Complete replacement of existing write/edit tools"
+  - "Cross-repository artifact generation"
+
+target_architecture:
+  modules:
+    - id: ArtifactGenerationGate
+      responsibility: "Preflight, input manifest, path normalization, decomposition, failure routing orchestration"
+      dependencies: [InputManifestBuilder, RepoPathResolver, ArtifactDecompositionPlanner]
+      location: "packages/coding-agent/src/core/p44-6/artifact-generation-gate.ts"
+
+    - id: InputManifestBuilder
+      responsibility: "Resolve required and optional input files before generation; verify existence"
+      location: "packages/coding-agent/src/core/p44-6/input-manifest-builder.ts"
+
+    - id: RepoPathResolver
+      responsibility: "Resolve repo-relative paths using git rev-parse; reject unsafe absolute assumptions"
+      location: "packages/coding-agent/src/core/p44-6/repo-path-resolver.ts"
+
+    - id: ArtifactDecompositionPlanner
+      responsibility: "Split multi-artifact tasks into staged generation with schema-compatible vs companion separation"
+      location: "packages/coding-agent/src/core/p44-6/artifact-decomposition-planner.ts"
+
+    - id: SafeArtifactWriter
+      tool_name: smart_write
+      responsibility: >
+        Temp-file write, atomic rename, byte count comparison,
+        parse/schema validation, readback verification, truncation detection.
+        Reuses atomicWriteFile, validateFileContent from mutation/.
+      location: "packages/coding-agent/src/core/p44-6/safe-artifact-writer.ts"
+
+    - id: SafeArtifactEditor
+      tool_name: smart_edit
+      responsibility: >
+        Minimal deterministic anchor/oldText/newText patch with temp copy,
+        temp content validation, final replace. AST-free, range-free.
+      location: "packages/coding-agent/src/core/p44-6/safe-artifact-editor.ts"
+
+    - id: ArtifactValidationRunner
+      responsibility: "JSON/YAML parse validation, schema validation (Zod/JSON Schema), markdown link/path checks"
+      location: "packages/coding-agent/src/core/p44-6/artifact-validation-runner.ts"
+
+    - id: ArtifactFailureRouter
+      responsibility: "Map missing input, unsafe path, invalid write, parse/schema failure, truncation to HIR/BLOCK/repair"
+      location: "packages/coding-agent/src/core/p44-6/artifact-failure-router.ts"
+
+smart_write_scope:
+  included:
+    - "Temp-file write and atomic rename (reuse atomicWriteFile)"
+    - "Pre-compute expected byte count via Buffer.byteLength"
+    - "Post-write readback byte count comparison"
+    - "Parse validation (JSON/YAML) — required, not best_effort"
+    - "Schema validation when schema is provided"
+    - "Truncation detection (byte count mismatch)"
+    - "Readback hash verification (reuse existing)"
+    - "Failure routing to HIR on any check failure"
+    - "Threshold: direct write path forbidden above configurable byte limit"
+    - "WriteSet guard integration (reuse checkWriteSet)"
+  excluded:
+    - "AST-aware write"
+    - "Multi-file bulk write"
+    - "Compression or binary artifact support"
+    - "Network write (SFTP, API push)"
+    - "Git operation integration"
+
+smart_edit_scope:
+  included:
+    - "Anchor/oldText/newText replacement"
+    - "Temp copy of file before edit"
+    - "Validate temp copy content (parse, schema if applicable)"
+    - "Replace original with temp on validation pass"
+    - "Refuse edit if anchor/oldText not found"
+    - "Refuse edit if temp validation fails"
+    - "Failure routing to HIR on any check failure"
+  excluded:
+    - "AST-aware edit"
+    - "Range-based edit"
+    - "Multi-hunk edit orchestration (tool level supports this already)"
+    - "Reconciliation of concurrent edits"
+
+over_engineering_boundary:
+  must_not_build:
+    - "Generic common research-worker system with plugin architecture"
+    - "LLM-based universal code editor (P45 scope)"
+    - "Multi-agent research swarm with coordinator"
+    - "Long-running artifact repair daemon with polling"
+    - "Full AST editor with every-language parser integration"
+    - "Over-broad refactor engine with dependency analysis"
+    - "Distributed artifact pipeline (cross-machine)"
+    - "Real-time artifact streaming"
+    - "Generic CI/CD artifact plugin system"
+
+workspace_graph_recommendation:
+  layout:
+    base_path: "reports/p44-6/research/"
+    planspec_path: "reports/accp/P44.6/source/"
+    companion_path: "reports/p44-6/research/"
+
+  workspaces:
+    - id: "P44.6.00"
+      title: "Artifact Preflight Contract and Input Manifest"
+      purpose: "Preflight contract, input manifest, repo path resolution, required input gate."
+      estimated_effort: "small"
+      dependencies: []
+      produces:
+        - ArtifactGenerationGate module
+        - InputManifestBuilder module
+        - RepoPathResolver module
+      acceptance_criteria:
+        - AC-P446-001: "Required input missing blocks artifact generation and produces manifest/HIR"
+        - AC-P446-002: "Repo root resolved dynamically; absolute path assumptions rejected"
+
+    - id: "P44.6.01"
+      title: "SafeArtifactWriter / smart_write"
+      purpose: "Temp-file atomic write, byte count, parse/schema validation, readback, truncation detection."
+      estimated_effort: "large"
+      dependencies: [P44.6.00]
+      produces:
+        - SafeArtifactWriter module
+        - smart_write tool definition
+      acceptance_criteria:
+        - AC-P446-003: "Large artifact direct write forbidden above threshold"
+        - AC-P446-004: "smart_write uses temp file, byte count, parse/schema validation, readback, atomic rename"
+        - AC-P446-008: "Truncation detection prevents success and forbids retrying with same method"
+
+    - id: "P44.6.02"
+      title: "SafeArtifactEditor / smart_edit"
+      purpose: "Minimal deterministic patch/anchor/AST-safe edit with validation."
+      estimated_effort: "small"
+      dependencies: [P44.6.00]
+      produces:
+        - SafeArtifactEditor module
+        - smart_edit tool definition
+      acceptance_criteria:
+        - AC-P446-005: "smart_edit refuses missing anchors/ranges and validates temp copy before final replace"
+
+    - id: "P44.6.03"
+      title: "Artifact Validation Runner"
+      purpose: "JSON/YAML parse validation, schema validation, markdown link/path checks."
+      estimated_effort: "small"
+      dependencies: [P44.6.00]
+      produces:
+        - ArtifactValidationRunner module
+      acceptance_criteria:
+        - AC-P446-006: "JSON/YAML outputs must parse successfully before success is reported"
+        - AC-P446-007: "Schema validation runs when schema is available; failure blocks final artifact success"
+
+    - id: "P44.6.04"
+      title: "Artifact Failure Router"
+      purpose: "Map missing input, unsafe path, invalid write, parse/schema failure, truncation to HIR/BLOCK/repair."
+      estimated_effort: "small"
+      dependencies: [P44.6.00, P44.6.01, P44.6.02, P44.6.03]
+      produces:
+        - ArtifactFailureRouter module
+      acceptance_criteria:
+        - AC-P446-011: "System does not continue after required input, write, parse, or schema failure unless routed to explicit repair/HIR"
+
+    - id: "P44.6.05"
+      title: "PlanSpec and ACCP Generation Gauntlets"
+      purpose: "End-to-end tests for large PlanSpec, ACCP YAML, missing input, path mismatch, truncation, schema failure."
+      estimated_effort: "medium"
+      dependencies: [P44.6.01, P44.6.02, P44.6.03, P44.6.04]
+      produces:
+        - test gauntlets
+        - integration tests
+      acceptance_criteria:
+        - AC-P446-009: "Multi-artifact tasks are decomposed into staged generation"
+        - AC-P446-010: "If schema additionalProperties=false, extra design fields go to companion artifacts, not the schema-bound artifact"
+        - AC-P446-012: "No generic research-worker framework is introduced"
+
+  dependencies:
+    P44.6.00: []
+    P44.6.01: [P44.6.00]
+    P44.6.02: [P44.6.00]
+    P44.6.03: [P44.6.00]
+    P44.6.04: [P44.6.00, P44.6.01, P44.6.02, P44.6.03]
+    P44.6.05: [P44.6.01, P44.6.02, P44.6.03, P44.6.04]
+
+acceptance_criteria:
+  - id: AC-P446-001
+    text: "Required input missing blocks artifact generation and produces manifest/HIR."
+    verification: "Unit test: InputManifestBuilder with missing file returns failed manifest with file list."
+  - id: AC-P446-002
+    text: "Repo root is resolved dynamically; absolute path assumptions are rejected."
+    verification: "Unit test: RepoPathResolver with absolute path outside repo returns error."
+  - id: AC-P446-003
+    text: "Large artifact direct write is forbidden above threshold."
+    verification: "Unit test: smart_write with content above threshold but no atomic strategy returns blocked."
+  - id: AC-P446-004
+    text: "smart_write uses temp file, byte count, parse/schema validation, readback, and atomic rename."
+    verification: "Integration test: Write generated JSON, verify temp file created, byte count matches, parse passes, hash matches, final file in place."
+  - id: AC-P446-005
+    text: "smart_edit refuses missing anchors/ranges and validates temp copy before final replace."
+    verification: "Unit test: smart_edit with non-matching oldText returns error. Integration test: smart_edit validates temp copy before replace."
+  - id: AC-P446-006
+    text: "JSON/YAML outputs must parse successfully before success is reported."
+    verification: "Unit test: ArtifactValidationRunner with invalid JSON returns error. With valid JSON returns success."
+  - id: AC-P446-007
+    text: "Schema validation runs when schema is available; failure blocks final artifact success."
+    verification: "Integration test: Write PlanSpec JSON with extra field, schema validation rejects, success not reported."
+  - id: AC-P446-008
+    text: "Truncation detection prevents success and forbids retrying with the same write method."
+    verification: "Unit test: SafeArtifactWriter with truncated write (simulated byte count mismatch) returns failure and blocks retry."
+  - id: AC-P446-009
+    text: "Multi-artifact tasks are decomposed into staged generation."
+    verification: "Integration test: ArtifactDecompositionPlanner splits 3-artifact task into 3 staged writes."
+  - id: AC-P446-010
+    text: "If schema additionalProperties=false, extra design fields go to companion artifacts, not the schema-bound artifact."
+    verification: "Unit test: ArtifactDecompositionPlanner with schema-bound fields returns separate companion artifact paths."
+  - id: AC-P446-011
+    text: "The system does not continue after required input, write, parse, or schema failure unless routed to explicit repair/HIR."
+    verification: "Integration test: Trigger each failure class, verify HIR is produced and agent does not continue to next operation."
+  - id: AC-P446-012
+    text: "No generic research-worker framework is introduced."
+    verification: "Code review: no packages/coding-agent/src/core/research-worker/ or equivalent directory created."
+
+validation_strategy: |
+  1. Unit tests for each module in isolation (mock file system)
+  2. Integration tests for smart_write and smart_edit with temp files
+  3. Schema validation tests using both Zod and JSON Schema paths
+  4. Gauntlet tests (P44.6.05) for end-to-end scenarios:
+     - Large PlanSpec JSON generation with full validation
+     - ACCP YAML generation with schema validation
+     - Missing input file scenario
+     - Path mismatch scenario
+     - Truncation simulation scenario
+     - Malformed JSON output scenario
+     - Schema additionalProperties rejection scenario
+     - Multi-artifact decomposition scenario
+  5. Failure routing tests: each failure class routes to HIR
+
+next_route: "FCR — Contract Freeze Report"
+
+next_route_if_success: "FCR → PlanSpec generation"
+next_route_if_blocked: "HIR"

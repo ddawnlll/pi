@@ -1,0 +1,34 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W4_001
+report_type: TVR
+report_family: core
+report_name: W4 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W4
+  wave_title: "Prompt Integration and Worker Compile Hook"
+  gate_status: passed
+  workspace_count: 4
+  workspaces_complete:
+    - P49.14
+    - P49.15
+    - P49.16
+    - P49.17
+  total_assertions: 20
+  passed: 20
+  failed: 0
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    exit_code: 0
+    output_excerpt: "ok"
+  - commandRef: CMD-ACCP-CODING-AGENT-UNIT
+    cwd: packages/coding-agent
+    args: vitest run test/accp
+    exit_code: 0
+    output_excerpt: "PASS (20) FAIL (0)"
+
+gate_decision: proceed
+next_wave: W5

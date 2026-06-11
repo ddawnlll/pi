@@ -1,0 +1,79 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: TVR_WAVE_W1_001
+report_type: TVR
+report_family: core
+report_name: W1 Wave Gate Test Validation Report
+support_level: schema_strict
+
+validation_summary:
+  wave_id: W1
+  wave_title: "Authority, Package Intake, and Contract Foundation"
+  gate_status: passed
+  workspace_count: 3
+  workspaces_complete:
+    - P49.01
+    - P49.02
+    - P49.03
+  total_assertions: 38
+  passed: 38
+  failed: 0
+  skipped: 0
+  regressions: []
+  new_failures: []
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    executable: npx tsgo --noEmit
+    cwd: "."
+    exit_code: 0
+    output_excerpt: "ok"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: command
+  - commandRef: vitest accp-package-reference test
+    executable: npx vitest run test/accp-package-reference.test.ts
+    cwd: packages/execution-contracts
+    exit_code: 0
+    output_excerpt: "PASS (9) FAIL (0)"
+    evidence:
+      type: unit_test
+      assertions: 9
+  - commandRef: vitest accp-planspec-authority test
+    executable: npx vitest run test/plan-compiler/accp-planspec-authority.test.ts
+    cwd: packages/coding-agent
+    exit_code: 0
+    output_excerpt: "PASS (16) FAIL (0)"
+    evidence:
+      type: unit_test
+      assertions: 16
+  - commandRef: vitest accp-types test
+    executable: npx vitest run test/accp-types.test.ts
+    cwd: packages/execution-contracts
+    exit_code: 0
+    output_excerpt: "PASS (13) FAIL (0)"
+    evidence:
+      type: unit_test
+      assertions: 13
+
+gate_artifacts:
+  - reports/accp/P49/source/P49.01_IPR_001.accp.yaml
+  - reports/accp/P49/source/P49.01_TVR_001.accp.yaml
+  - reports/accp/P49/source/P49.02_IPR_001.accp.yaml
+  - reports/accp/P49/source/P49.02_TVR_001.accp.yaml
+  - reports/accp/P49/source/P49.03_IPR_001.accp.yaml
+  - reports/accp/P49/source/P49.03_TVR_001.accp.yaml
+  - reports/accp/P49/tvr_wave_W1.accp.yaml
+
+commit_hashes:
+  P49.01: "679772ac9"
+  P49.02: "863059666"
+  P49.03: "0c6d3a4a1"
+
+next_wave: W2
+gate_decision: proceed

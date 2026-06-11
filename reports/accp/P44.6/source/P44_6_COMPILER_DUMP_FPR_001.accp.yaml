@@ -1,0 +1,43 @@
+accp_version: "2.0.0"
+report_type: FPR
+report_id: P44_6_COMPILER_DUMP_FPR_001
+report_title: "Fix Patch Report — Compiler Diagnostic Dump Improvements"
+generated_at: "2026-06-11T02:22:00Z"
+
+files_changed:
+  - path: "packages/coding-agent/src/core/plan-compiler/diagnostics/diagnostic.ts"
+    description: "Extended PlanDiagnostic interface with zodCode, expected, received, unknownKeys, schemaPointer, owningSection, nearestParentPath fields"
+  - path: "packages/coding-agent/src/core/plan-compiler/diagnostics/diagnostic.ts"
+    description: "Extended DiagnosticBuilderOptions and diag() builder to populate new fields"
+  - path: "packages/coding-agent/src/core/plan-compiler/diagnostics/format-diagnostics.ts"
+    description: "Updated formatDiagnostics (text) and formatDiagnosticsJson (structured JSON) to include expected, received, unknownKeys, schemaPointer, owningSection, nearestParentPath"
+  - path: "packages/coding-agent/src/core/plan-compiler/alpha2/parse-alpha2-json.ts"
+    description: "Updated validateAlpha2Schema to populate all new diagnostic fields from Zod issues, including extracting expected/received types and unknown keys"
+
+diagnostic_fields_added:
+  - "zodCode: Zod error code (e.g. 'invalid_type', 'unrecognized_keys')"
+  - "expected: Expected type/value description"
+  - "received: Received type/value description"
+  - "unknownKeys: Array of unknown property keys (for unrecognized_keys)"
+  - "schemaPointer: Schema source file reference"
+  - "owningSection: Top-level PlanSpec section name"
+  - "nearestParentPath: JSON pointer to parent object"
+
+before_after_examples:
+  - code_before: "{ code: 'E_UNKNOWN_PROPERTY', path: '$.intent', message: 'Unknown property: ...' }"
+    code_after: "{ code: 'E_UNKNOWN_PROPERTY', path: '$.intent', message: 'Unknown property: ...', zodCode: 'unrecognized_keys', unknownKeys: [...], owningSection: 'intent', nearestParentPath: '$' }"
+  - code_before: "{ code: 'E_INVALID_TYPE', path: '$.intent.goal', message: 'Invalid input: expected string, received undefined' }"
+    code_after: "{ code: 'E_INVALID_TYPE', path: '$.intent.goal', message: 'Invalid input: expected string, received undefined', zodCode: 'invalid_type', expected: 'string', received: 'undefined', owningSection: 'intent', nearestParentPath: '$.intent' }"
+
+tests:
+  - "All 41 existing compile-alpha2 tests pass"
+  - formatDiagnostics now includes expected/received/unknownKeys/nearestParentPath in text output
+  - formatDiagnosticsJson now includes all new fields in structured output
+  - validateAlpha2Schema populates owningSection from path segments
+  - validateAlpha2Schema populates nearestParentPath from path segments
+  - validateAlpha2Schema extracts unknownKeys as structured array for unrecognized_keys
+
+rollback_plan:
+  - "git revert changes to diagnostic.ts, format-diagnostics.ts, parse-alpha2-json.ts"
+  - "Verify 41 compile-alpha2 tests still pass"
+  - "Verify P44.6 repaired plan still compiles (it will, the diagnostics just lose precision)"
