@@ -1,7 +1,61 @@
-$(cat .gitignore | head -30)
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+coverage/
+*.tsbuildinfo
+health/
+plans/
+
+# Build artifacts
+packages/agent/dist/
+packages/ai/dist/
+packages/brain/dist/
+packages/coding-agent/dist/
+packages/db/dist/
+packages/execution-contracts/dist/
+packages/execution-runtime/dist/
+packages/execution-service/dist/
+packages/tui/dist/
+packages/web-server/dist/
+packages/web-ui/dist/
+packages/web-ui/dashboard/dist/
+packages/worker-adapters/dist/
+
+# Dependencies
+packages/agent/node_modules/
+packages/ai/node_modules/
+packages/brain/node_modules/
+packages/coding-agent/node_modules/
+packages/db/node_modules/
+packages/execution-service/node_modules/
+packages/web-server/node_modules/
+packages/web-ui/node_modules/
+packages/web-ui/dashboard/node_modules/
+
+# Pi runtime state
+.pi/
+.pi-test/
+.logs/
+
+# IDE
+.opencode/
+
+# Temp / debug
+tui-debug.log
+compaction-results/
+syntax.jsonl
+out.jsonl
+pi-*.html
+out.html
+packages/coding-agent/binaries/
+todo.md
+
+# Reports (except tracked ACCP/P44.6)
 reports/
 !reports/accp/
 !reports/p44-6/
 !reports/accp/**
 !reports/p44-6/**
-$(cat .gitignore | tail -20)
+reports/execution-diagnostics/
