@@ -1,0 +1,2501 @@
+{
+  "$schema": "./02_planspec_v5_alpha2_schema.json",
+  "planSpecVersion": "5.0.0-alpha2",
+  "kind": "ImplementationPlan",
+  "metadata": {
+    "phaseId": "P44.6",
+    "title": "Verified Mode Routing, Write/Edit Safety, Smart Mutation Gates, and P49.5 Bridge Readiness",
+    "description": "PlanSpec v5 alpha2 JSON plan for P44.6. Converts write, edit, smart write, and smart edit from prose-level agent behavior into explicit EngineMode, readiness gates, route signals, runtime adapters, evidence ledger entries, and P49.5 bridge artifacts.",
+    "createdAt": "2026-06-11T00:00:00Z",
+    "updatedAt": "2026-06-11T00:00:00Z",
+    "owner": "pi",
+    "status": "draft",
+    "sourceDocument": "01_planspec_v5_alpha2_template.example.json"
+  },
+  "compatibility": {
+    "runtimeContractVersion": "4.1.1",
+    "runtimeTemplateVersion": "4.1.1",
+    "legacyTemplateCompatible": true,
+    "generatedFromV411": true,
+    "v411AdapterRequired": true,
+    "notes": [
+      "PlanSpec v5 alpha2 is canonical.",
+      "v4.1.1 adapter compiles to executable lock.",
+      "ACCP is evidence/report protocol only.",
+      "P44.6 is a bridge-quality mode routing and mutation-safety phase; it must not implement P45 async assembly runtime.",
+      "Markdown previews are generated artifacts only and are non-authoritative."
+    ]
+  },
+  "intent": {
+    "goal": "implementation",
+    "successCriteria": [
+      "All mode routing paths validated"
+    ],
+    "outOfScope": [
+      "Runtime implementation"
+    ]
+  },
+  "authority": {
+    "specification": "P44.6 mode routing validation",
+    "executionState": {
+      "mode": "stable_3",
+      "maxParallelWorkspaces": 3
+    },
+    "completion": {
+      "requiresAcceptanceCriteria": true,
+      "requiresValidationEvidence": true,
+      "requiresReport": true,
+      "requiresRollbackPlan": true,
+      "requiresFinalVerdict": true
+    }
+  },
+  "enforcementRegistry": {
+    "rules": [
+      {
+        "id": "rule_0",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "json_schema"
+      },
+      {
+        "id": "rule_1",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "admission_gate"
+      },
+      {
+        "id": "rule_2",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "plan_lock_verifier"
+      },
+      {
+        "id": "rule_3",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "workspace_lock_verifier"
+      },
+      {
+        "id": "rule_4",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "tool_runtime"
+      },
+      {
+        "id": "rule_5",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "command_policy_engine"
+      },
+      {
+        "id": "rule_6",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "runtime_command_grant"
+      },
+      {
+        "id": "rule_7",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "write_gate"
+      },
+      {
+        "id": "rule_8",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "smart_mutation_engine"
+      },
+      {
+        "id": "rule_9",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "workspace_commit_gate"
+      },
+      {
+        "id": "rule_10",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "completion_gate_v2"
+      },
+      {
+        "id": "rule_11",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "terminal_reconciler"
+      },
+      {
+        "id": "rule_12",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "evidence_ledger"
+      },
+      {
+        "id": "rule_13",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "accp_report_validator"
+      },
+      {
+        "id": "rule_14",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "final_promotion_gate"
+      },
+      {
+        "id": "rule_15",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p45_bridge_boundary_guard"
+      },
+      {
+        "id": "rule_16",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_input_inspector"
+      },
+      {
+        "id": "rule_17",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_mode_mapper"
+      },
+      {
+        "id": "rule_18",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_readiness_gate"
+      },
+      {
+        "id": "rule_19",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_route_signal_compiler"
+      },
+      {
+        "id": "rule_20",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_engine_invocation_wrapper"
+      },
+      {
+        "id": "rule_21",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_event_recorder_guard"
+      },
+      {
+        "id": "rule_22",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_runtime_adapter_guard"
+      },
+      {
+        "id": "rule_23",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_shadow_execution_guard"
+      },
+      {
+        "id": "rule_24",
+        "type": "enforcement",
+        "severity": "error",
+        "condition": "always",
+        "action": "p446_mode_specific_champion_registry"
+      }
+    ],
+    "policies": [
+      {
+        "id": "policy_main",
+        "name": "Converted from mechanisms",
+        "description": "Auto-converted for schema compliance",
+        "ruleIds": [
+          "rule_0",
+          "rule_1",
+          "rule_2",
+          "rule_3",
+          "rule_4",
+          "rule_5",
+          "rule_6",
+          "rule_7",
+          "rule_8",
+          "rule_9",
+          "rule_10",
+          "rule_11",
+          "rule_12",
+          "rule_13",
+          "rule_14",
+          "rule_15",
+          "rule_16",
+          "rule_17",
+          "rule_18",
+          "rule_19",
+          "rule_20",
+          "rule_21",
+          "rule_22",
+          "rule_23",
+          "rule_24"
+        ]
+      }
+    ]
+  },
+  "security": {
+    "selfModificationFirewall": {
+      "enabled": true,
+      "protectedPaths": [
+        "packages/coding-agent/src/core/plan-compiler"
+      ],
+      "requireExplicitApproval": true
+    },
+    "dataExfiltrationGuard": {
+      "enabled": true,
+      "blockedDestinations": [
+        "external-api"
+      ]
+    },
+    "secretProtection": {
+      "enabled": true,
+      "maskInLogs": true
+    }
+  },
+  "commands": {
+    "policy": "moderate",
+    "allowedCommands": [],
+    "timeoutSeconds": 300
+  },
+  "validation": {
+    "preValidation": {
+      "checks": [
+        "True"
+      ],
+      "timeoutSeconds": 120
+    },
+    "postValidation": {
+      "checks": [
+        "CMD-FINAL-MAKE-TEST",
+        "CMD-FINAL-MAKE-TEST-FULL"
+      ],
+      "requiredForCompletion": true
+    },
+    "continuousValidation": true,
+    "failFast": true
+  },
+  "evidence": {
+    "captureMode": "automatic",
+    "types": [
+      "source",
+      "unit_test",
+      "integration_test",
+      "command",
+      "diff",
+      "report",
+      "negative",
+      "mutation",
+      "commit",
+      "mode_mapping",
+      "route_signal",
+      "readiness_gate",
+      "runtime_event",
+      "p49_bridge_artifact"
+    ],
+    "storageLocation": "reports/p44-6/validation/",
+    "retentionDays": 90
+  },
+  "brief": {
+    "summary": "{'id': 'MISSION-P446', 'text': 'Implement P44.6 as the verified mode-routing and mutation-safety bridge that converts Write, Edit, Smart Write, and Smart Edit into explicit JSON contracts, runtime gates, route signals, evidence ledger entries, and P49.5-ready artifacts.'}",
+    "keyChanges": [
+      "HR001",
+      "HR002",
+      "HR003",
+      "HR004",
+      "HR005",
+      "HR006",
+      "HR007"
+    ],
+    "risks": [
+      "AP001",
+      "AP002",
+      "AP003",
+      "AP004",
+      "AP005",
+      "AP006"
+    ],
+    "mitigations": [
+      "ON001",
+      "ON002",
+      "ON003",
+      "ON004"
+    ]
+  },
+  "locking": {
+    "enabled": true,
+    "hashAlgorithm": "sha256",
+    "includeTimestamp": true
+  },
+  "migration": {
+    "fromVersion": "Implementation Template v4.1.1",
+    "breakingChanges": [
+      "{\"v411\": \"contractVersion\", \"planspec\": \"compatibility.runtimeContractVersion\"}",
+      "{\"v411\": \"templateVersion\", \"planspec\": \"compatibility.runtimeTemplateVersion\"}",
+      "{\"v411\": \"workspaces\", \"planspec\": \"workspaces\"}",
+      "{\"v411\": \"validation\", \"planspec\": \"validation\"}",
+      "{\"v411\": \"reports\", \"planspec\": \"reports\"}",
+      "{\"v411\": \"workerMode\", \"planspec\": \"workspaces[].instructions[].EngineMode\"}",
+      "{\"v411\": \"toolMutationPolicy\", \"planspec\": \"authority.repositoryMutation\"}"
+    ],
+    "adaptationSteps": [],
+    "rollbackStrategy": "restore from git"
+  },
+  "p45Bridge": {
+    "enabled": false,
+    "artifactSafety": true,
+    "mutationTracking": false,
+    "commitGating": false
+  },
+  "reports": {
+    "format": "markdown",
+    "includeMetrics": true,
+    "includeTimeline": true,
+    "includeDiffSummary": true
+  },
+  "renderHints": {
+    "generatedMarkdownPath": "06_p446_human_preview.generated.md",
+    "includeBrief": true,
+    "includeWaves": true,
+    "includeWorkspaces": true,
+    "includeAcceptanceCriteria": true,
+    "includeValidation": true,
+    "markPreviewNonAuthoritative": true
+  },
+  "waves": [
+    {
+      "id": "W1",
+      "title": "Wave W1",
+      "description": "Wave W1",
+      "order": 0,
+      "tasks": [
+        {
+          "id": "task_P44.6.01",
+          "title": "EngineMode Contract and Mode Enum Canonicalization",
+          "description": "[{'id': 'WI-P44601-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'EngineMode Contract and Mode Enum Canonicalization must implement Define explicit EngineMode values for write, edit, smart_write, and smart_edit so runtime never infers mode from data_source or prose.', 'enforcedBy'",
+          "type": "implementation",
+          "workspaceId": "P44.6.01",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44601-001', 'title': 'EngineMode Contract and Mode Enum Canonicalization source implemen",
+            "{'id': 'AC-P44601-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44601-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44601-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44601-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.02",
+          "title": "Serializable Task Intent Envelope",
+          "description": "[{'id': 'WI-P44602-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Serializable Task Intent Envelope must implement Represent natural-language prompt, target artifact, mutation intent, constraints, and user-facing ambiguity as a stable JSON envelope.', 'enforcedBy': ['json_schema',",
+          "type": "implementation",
+          "workspaceId": "P44.6.02",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44602-001', 'title': 'Serializable Task Intent Envelope source implemented', 'text': 'Pr",
+            "{'id': 'AC-P44602-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44602-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44602-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44602-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.03",
+          "title": "Mode Mapping Compiler",
+          "description": "[{'id': 'WI-P44603-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Mode Mapping Compiler must implement Compile task intent to explicit EngineMode with deterministic rules and structured diagnostics for ambiguous write/edit cases.', 'enforcedBy': ['json_schema', 'admission_gate', '",
+          "type": "implementation",
+          "workspaceId": "P44.6.03",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44603-001', 'title': 'Mode Mapping Compiler source implemented', 'text': 'Production sou",
+            "{'id': 'AC-P44603-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44603-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44603-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44603-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.04",
+          "title": "Mode Diagnostic Model",
+          "description": "[{'id': 'WI-P44604-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Mode Diagnostic Model must implement Define blocking and warning diagnostics used by admission, TUI, read model, and ACCP reports.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2']}, {'id': 'WI",
+          "type": "implementation",
+          "workspaceId": "P44.6.04",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44604-001', 'title': 'Mode Diagnostic Model source implemented', 'text': 'Production sou",
+            "{'id': 'AC-P44604-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44604-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44604-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44604-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W2",
+      "title": "Wave W2",
+      "description": "Wave W2",
+      "order": 1,
+      "tasks": [
+        {
+          "id": "task_P44.6.05",
+          "title": "Input Inspector for Write/Edit Intent",
+          "description": "[{'id': 'WI-P44605-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Input Inspector for Write/Edit Intent must implement Classify prompts into creation, scoped mutation, audit-then-mutate, or route-then-create without allowing the LLM to authorize runtime state.', 'enforcedBy': ['js",
+          "type": "implementation",
+          "workspaceId": "P44.6.05",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44605-001', 'title': 'Input Inspector for Write/Edit Intent source implemented', 'text':",
+            "{'id': 'AC-P44605-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44605-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44605-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44605-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.06",
+          "title": "Target Artifact Resolver",
+          "description": "[{'id': 'WI-P44606-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Target Artifact Resolver must implement Resolve whether the requested target exists, is new, is multi-file, or is unsafe to overwrite before mutation tools execute.', 'enforcedBy': ['json_schema', 'admission_gate', ",
+          "type": "implementation",
+          "workspaceId": "P44.6.06",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44606-001', 'title': 'Target Artifact Resolver source implemented', 'text': 'Production ",
+            "{'id': 'AC-P44606-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44606-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44606-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44606-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.07",
+          "title": "Acceptance Criteria Normalizer",
+          "description": "[{'id': 'WI-P44607-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Acceptance Criteria Normalizer must implement Convert implicit user success conditions into explicit acceptance criterion IDs and evidence expectations.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_",
+          "type": "implementation",
+          "workspaceId": "P44.6.07",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44607-001', 'title': 'Acceptance Criteria Normalizer source implemented', 'text': 'Produ",
+            "{'id': 'AC-P44607-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44607-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44607-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44607-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.08",
+          "title": "P44.6 Readiness Gate",
+          "description": "[{'id': 'WI-P44608-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'P44.6 Readiness Gate must implement Block execution when mode, target, scope, acceptance criteria, or evidence requirements are missing or contradictory.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion",
+          "type": "implementation",
+          "workspaceId": "P44.6.08",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44608-001', 'title': 'P44.6 Readiness Gate source implemented', 'text': 'Production sour",
+            "{'id': 'AC-P44608-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44608-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44608-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44608-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W1"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W3",
+      "title": "Wave W3",
+      "description": "Wave W3",
+      "order": 2,
+      "tasks": [
+        {
+          "id": "task_P44.6.09",
+          "title": "WriteGate v2 Mode-Aware Policy",
+          "description": "[{'id': 'WI-P44609-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'WriteGate v2 Mode-Aware Policy must implement Require create-new operations to prove target path, artifact type, overwrite policy, and acceptance evidence before writing.', 'enforcedBy': ['json_schema', 'admission_g",
+          "type": "implementation",
+          "workspaceId": "P44.6.09",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44609-001', 'title': 'WriteGate v2 Mode-Aware Policy source implemented', 'text': 'Produ",
+            "{'id': 'AC-P44609-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44609-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44609-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44609-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.10",
+          "title": "Edit Scope Guard",
+          "description": "[{'id': 'WI-P44610-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Edit Scope Guard must implement Reject edit operations that cannot identify existing target, allowed file scope, preserve constraints, or patch strategy.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion",
+          "type": "implementation",
+          "workspaceId": "P44.6.10",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44610-001', 'title': 'Edit Scope Guard source implemented', 'text': 'Production source i",
+            "{'id': 'AC-P44610-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44610-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44610-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44610-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.11",
+          "title": "SmartMutation Planner Contract",
+          "description": "[{'id': 'WI-P44611-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'SmartMutation Planner Contract must implement Separate inspect/audit phase from patch phase and compile a mutation plan before smart edit modifies files.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion",
+          "type": "implementation",
+          "workspaceId": "P44.6.11",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44611-001', 'title': 'SmartMutation Planner Contract source implemented', 'text': 'Produ",
+            "{'id': 'AC-P44611-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44611-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44611-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44611-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.12",
+          "title": "Large Overwrite and Rewrite Blocker",
+          "description": "[{'id': 'WI-P44612-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Large Overwrite and Rewrite Blocker must implement Prevent large existing source-file rewrites unless the plan explicitly grants rewrite scope and preservation evidence.', 'enforcedBy': ['json_schema', 'admission_ga",
+          "type": "implementation",
+          "workspaceId": "P44.6.12",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44612-001', 'title': 'Large Overwrite and Rewrite Blocker source implemented', 'text': '",
+            "{'id': 'AC-P44612-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44612-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44612-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44612-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "high",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W2"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W4",
+      "title": "Wave W4",
+      "description": "Wave W4",
+      "order": 3,
+      "tasks": [
+        {
+          "id": "task_P44.6.13",
+          "title": "Tool Runtime Write/Edit Adapter",
+          "description": "[{'id': 'WI-P44613-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Tool Runtime Write/Edit Adapter must implement Route production write and edit tool paths through P44.6 mode-aware gates rather than bypassing via helper APIs.', 'enforcedBy': ['json_schema', 'admission_gate', 'comp",
+          "type": "implementation",
+          "workspaceId": "P44.6.13",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44613-001', 'title': 'Tool Runtime Write/Edit Adapter source implemented', 'text': 'Prod",
+            "{'id': 'AC-P44613-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44613-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44613-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44613-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.14",
+          "title": "Engine Invocation Timeout and Circuit Breaker Wrapper",
+          "description": "[{'id': 'WI-P44614-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Engine Invocation Timeout and Circuit Breaker Wrapper must implement Add real timeout, cancellation, retry budget, and circuit-breaker behavior around engine invocation.', 'enforcedBy': ['json_schema', 'admission_ga",
+          "type": "implementation",
+          "workspaceId": "P44.6.14",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44614-001', 'title': 'Engine Invocation Timeout and Circuit Breaker Wrapper source imple",
+            "{'id': 'AC-P44614-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44614-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44614-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44614-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.15",
+          "title": "EventRecorder Shadow Conditional Fix",
+          "description": "[{'id': 'WI-P44615-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'EventRecorder Shadow Conditional Fix must implement Fix shadow conditional behavior so event recording is not silently skipped under mode-specific runtime branches.', 'enforcedBy': ['json_schema', 'admission_gate', ",
+          "type": "implementation",
+          "workspaceId": "P44.6.15",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44615-001', 'title': 'EventRecorder Shadow Conditional Fix source implemented', 'text': ",
+            "{'id': 'AC-P44615-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44615-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44615-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44615-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.16",
+          "title": "Production Runtime Scan Adapter Path",
+          "description": "[{'id': 'WI-P44616-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Production Runtime Scan Adapter Path must implement Connect existing runtime scan loop to exactly one production adapter path with explicit degraded-mode reporting.', 'enforcedBy': ['json_schema', 'admission_gate', ",
+          "type": "implementation",
+          "workspaceId": "P44.6.16",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44616-001', 'title': 'Production Runtime Scan Adapter Path source implemented', 'text': ",
+            "{'id': 'AC-P44616-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44616-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44616-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44616-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W3"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W5",
+      "title": "Wave W5",
+      "description": "Wave W5",
+      "order": 4,
+      "tasks": [
+        {
+          "id": "task_P44.6.17",
+          "title": "Smart Write Artifact Schema Selector",
+          "description": "[{'id': 'WI-P44617-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Smart Write Artifact Schema Selector must implement Choose JSON artifact schema for smart write requests before generation and reject markdown-only executable plans.', 'enforcedBy': ['json_schema', 'admission_gate',",
+          "type": "implementation",
+          "workspaceId": "P44.6.17",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44617-001', 'title': 'Smart Write Artifact Schema Selector source implemented', 'text': ",
+            "{'id': 'AC-P44617-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44617-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44617-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44617-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.18",
+          "title": "Smart Write Route Signal Compiler",
+          "description": "[{'id': 'WI-P44618-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Smart Write Route Signal Compiler must implement Compile route signals such as ROUTE_TO_WRITE, ROUTE_TO_PLAN_JSON, and ROUTE_TO_ARTIFACT_EXPORT.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2'",
+          "type": "implementation",
+          "workspaceId": "P44.6.18",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44618-001', 'title': 'Smart Write Route Signal Compiler source implemented', 'text': 'Pr",
+            "{'id': 'AC-P44618-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44618-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44618-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44618-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.19",
+          "title": "JSON Plan Artifact Writer",
+          "description": "[{'id': 'WI-P44619-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'JSON Plan Artifact Writer must implement Ensure plan-like smart write outputs are JSON PlanSpec artifacts, not markdown previews or mixed prose.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2'",
+          "type": "implementation",
+          "workspaceId": "P44.6.19",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44619-001', 'title': 'JSON Plan Artifact Writer source implemented', 'text': 'Production",
+            "{'id': 'AC-P44619-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44619-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44619-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44619-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.20",
+          "title": "Compile Diagnostics for Smart Write",
+          "description": "[{'id': 'WI-P44620-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Compile Diagnostics for Smart Write must implement Return machine-readable diagnostics when artifact schema, route, or acceptance requirements fail.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate",
+          "type": "implementation",
+          "workspaceId": "P44.6.20",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44620-001', 'title': 'Compile Diagnostics for Smart Write source implemented', 'text': '",
+            "{'id': 'AC-P44620-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44620-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44620-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44620-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W4"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W6",
+      "title": "Wave W6",
+      "description": "Wave W6",
+      "order": 5,
+      "tasks": [
+        {
+          "id": "task_P44.6.21",
+          "title": "Smart Edit Audit Finding Contract",
+          "description": "[{'id': 'WI-P44621-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Smart Edit Audit Finding Contract must implement Represent smart edit findings as stable blockers/warnings with file references, confidence, and required patch evidence.', 'enforcedBy': ['json_schema', 'admission_ga",
+          "type": "implementation",
+          "workspaceId": "P44.6.21",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44621-001', 'title': 'Smart Edit Audit Finding Contract source implemented', 'text': 'Pr",
+            "{'id': 'AC-P44621-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44621-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44621-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44621-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.22",
+          "title": "Smart Edit Patch Scope Compiler",
+          "description": "[{'id': 'WI-P44622-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Smart Edit Patch Scope Compiler must implement Compile audit findings into minimal patch scopes and reject patches not traceable to a finding or user request.', 'enforcedBy': ['json_schema', 'admission_gate', 'compl",
+          "type": "implementation",
+          "workspaceId": "P44.6.22",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44622-001', 'title': 'Smart Edit Patch Scope Compiler source implemented', 'text': 'Prod",
+            "{'id': 'AC-P44622-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44622-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44622-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44622-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.23",
+          "title": "Smart Edit Regression Guard",
+          "description": "[{'id': 'WI-P44623-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Smart Edit Regression Guard must implement Require targeted validation or negative evidence before smart edit claims a patch resolved the finding.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v",
+          "type": "implementation",
+          "workspaceId": "P44.6.23",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44623-001', 'title': 'Smart Edit Regression Guard source implemented', 'text': 'Producti",
+            "{'id': 'AC-P44623-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44623-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44623-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44623-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.24",
+          "title": "Patch Evidence Binder",
+          "description": "[{'id': 'WI-P44624-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Patch Evidence Binder must implement Bind diff hunks, commands, and source evidence to acceptance criterion IDs and audit finding IDs.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2']}, {'id':",
+          "type": "implementation",
+          "workspaceId": "P44.6.24",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44624-001', 'title': 'Patch Evidence Binder source implemented', 'text': 'Production sou",
+            "{'id': 'AC-P44624-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44624-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44624-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44624-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W5"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W7",
+      "title": "Wave W7",
+      "description": "Wave W7",
+      "order": 6,
+      "tasks": [
+        {
+          "id": "task_P44.6.25",
+          "title": "P44.6 Event Types",
+          "description": "[{'id': 'WI-P44625-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'P44.6 Event Types must implement Add mode inspection, compile, gate, route, mutation, and evidence events without weakening existing event schema.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v",
+          "type": "implementation",
+          "workspaceId": "P44.6.25",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44625-001', 'title': 'P44.6 Event Types source implemented', 'text': 'Production source ",
+            "{'id': 'AC-P44625-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44625-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44625-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44625-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.26",
+          "title": "Read Model Mode Truth Fields",
+          "description": "[{'id': 'WI-P44626-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Read Model Mode Truth Fields must implement Expose authoritative mode, gate verdict, diagnostics, route signal, and evidence state through read model fields.', 'enforcedBy': ['json_schema', 'admission_gate', 'comple",
+          "type": "implementation",
+          "workspaceId": "P44.6.26",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44626-001', 'title': 'Read Model Mode Truth Fields source implemented', 'text': 'Product",
+            "{'id': 'AC-P44626-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44626-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44626-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44626-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.27",
+          "title": "Web Server P44.6 Read Endpoints",
+          "description": "[{'id': 'WI-P44627-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Web Server P44.6 Read Endpoints must implement Serve read-only P44.6 status, diagnostics, and route signal endpoints without permitting runtime mutation.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion",
+          "type": "implementation",
+          "workspaceId": "P44.6.27",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44627-001', 'title': 'Web Server P44.6 Read Endpoints source implemented', 'text': 'Prod",
+            "{'id': 'AC-P44627-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44627-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44627-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44627-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.28",
+          "title": "TUI Mode and Diagnostic Visibility",
+          "description": "[{'id': 'WI-P44628-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'TUI Mode and Diagnostic Visibility must implement Display selected EngineMode, readiness verdict, blocking diagnostics, and next route in the TUI.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v",
+          "type": "implementation",
+          "workspaceId": "P44.6.28",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44628-001', 'title': 'TUI Mode and Diagnostic Visibility source implemented', 'text': 'P",
+            "{'id': 'AC-P44628-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44628-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44628-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44628-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W6"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W8",
+      "title": "Wave W8",
+      "description": "Wave W8",
+      "order": 7,
+      "tasks": [
+        {
+          "id": "task_P44.6.29",
+          "title": "ACCP Mode Report Validator",
+          "description": "[{'id': 'WI-P44629-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'ACCP Mode Report Validator must implement Validate that ACCP reports are evidence-only and cannot authorize mode transitions or execution.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2']}, {'",
+          "type": "implementation",
+          "workspaceId": "P44.6.29",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44629-001', 'title': 'ACCP Mode Report Validator source implemented', 'text': 'Productio",
+            "{'id': 'AC-P44629-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44629-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44629-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44629-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.30",
+          "title": "Evidence Ledger Export for Mode Decisions",
+          "description": "[{'id': 'WI-P44630-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Evidence Ledger Export for Mode Decisions must implement Export mode mapping, gate verdicts, patch evidence, and validation results into an immutable evidence ledger snapshot.', 'enforcedBy': ['json_schema', 'admiss",
+          "type": "implementation",
+          "workspaceId": "P44.6.30",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44630-001', 'title': 'Evidence Ledger Export for Mode Decisions source implemented', 'te",
+            "{'id': 'AC-P44630-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44630-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44630-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44630-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.31",
+          "title": "TVR and PRR Mapping for P44.6",
+          "description": "[{'id': 'WI-P44631-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'TVR and PRR Mapping for P44.6 must implement Map validation and promotion readiness to TVR and PRR report requirements with stable artifact paths.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v",
+          "type": "implementation",
+          "workspaceId": "P44.6.31",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44631-001', 'title': 'TVR and PRR Mapping for P44.6 source implemented', 'text': 'Produc",
+            "{'id': 'AC-P44631-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44631-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44631-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44631-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.32",
+          "title": "CAR Correction Path for Mode Report Failures",
+          "description": "[{'id': 'WI-P44632-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'CAR Correction Path for Mode Report Failures must implement Require CAR when a mode report is malformed, stale, contradictory, or tries to authorize execution.', 'enforcedBy': ['json_schema', 'admission_gate', 'comp",
+          "type": "implementation",
+          "workspaceId": "P44.6.32",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44632-001', 'title': 'CAR Correction Path for Mode Report Failures source implemented', ",
+            "{'id': 'AC-P44632-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44632-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44632-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44632-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W7"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W9",
+      "title": "Wave W9",
+      "description": "Wave W9",
+      "order": 8,
+      "tasks": [
+        {
+          "id": "task_P44.6.33",
+          "title": "P49.5 Bridge Artifact Export",
+          "description": "[{'id': 'WI-P44633-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'P49.5 Bridge Artifact Export must implement Export the P49.5 bridge artifacts needed to hand P44.6 evidence to the next phase without implementing P45 runtime code.', 'enforcedBy': ['json_schema', 'admission_gate', ",
+          "type": "implementation",
+          "workspaceId": "P44.6.33",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44633-001', 'title': 'P49.5 Bridge Artifact Export source implemented', 'text': 'Product",
+            "{'id': 'AC-P44633-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44633-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44633-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44633-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.34",
+          "title": "P49.5 Readiness Guard",
+          "description": "[{'id': 'WI-P44634-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'P49.5 Readiness Guard must implement Block promotion unless mode mapping, mutation safety, runtime scan, and evidence ledger all pass readiness checks.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_g",
+          "type": "implementation",
+          "workspaceId": "P44.6.34",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44634-001', 'title': 'P49.5 Readiness Guard source implemented', 'text': 'Production sou",
+            "{'id': 'AC-P44634-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44634-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44634-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44634-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.35",
+          "title": "P45 Boundary Guard",
+          "description": "[{'id': 'WI-P44635-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'P45 Boundary Guard must implement Forbid async assembly, static partitioner, deterministic assembler, and P45 runtime implementation changes in P44.6.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_ga",
+          "type": "implementation",
+          "workspaceId": "P44.6.35",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44635-001', 'title': 'P45 Boundary Guard source implemented', 'text': 'Production source",
+            "{'id': 'AC-P44635-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44635-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44635-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44635-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.36",
+          "title": "v4.1.1 Adapter Compatibility Pack",
+          "description": "[{'id': 'WI-P44636-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'v4.1.1 Adapter Compatibility Pack must implement Compile P44.6 PlanSpec fields into the v4.1.1 execution adapter without parsing markdown or ACCP prose.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_",
+          "type": "implementation",
+          "workspaceId": "P44.6.36",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44636-001', 'title': 'v4.1.1 Adapter Compatibility Pack source implemented', 'text': 'Pr",
+            "{'id': 'AC-P44636-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44636-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44636-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44636-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W8"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W10",
+      "title": "Wave W10",
+      "description": "Wave W10",
+      "order": 9,
+      "tasks": [
+        {
+          "id": "task_P44.6.37",
+          "title": "Deterministic Unit Test Matrix",
+          "description": "[{'id': 'WI-P44637-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Deterministic Unit Test Matrix must implement Cover all four modes, ambiguous prompts, forbidden overwrites, missing targets, stale evidence, and report-only claims.', 'enforcedBy': ['json_schema', 'admission_gate',",
+          "type": "implementation",
+          "workspaceId": "P44.6.37",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44637-001', 'title': 'Deterministic Unit Test Matrix source implemented', 'text': 'Produ",
+            "{'id': 'AC-P44637-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44637-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44637-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44637-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.38",
+          "title": "Production Runtime Integration Test Path",
+          "description": "[{'id': 'WI-P44638-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Production Runtime Integration Test Path must implement Run real production scan path tests rather than mock-only paths to prove the runtime adapter is wired.', 'enforcedBy': ['json_schema', 'admission_gate', 'compl",
+          "type": "implementation",
+          "workspaceId": "P44.6.38",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44638-001', 'title': 'Production Runtime Integration Test Path source implemented', 'tex",
+            "{'id': 'AC-P44638-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44638-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44638-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44638-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.39",
+          "title": "Monte Carlo Prompt and Mutation Red Team",
+          "description": "[{'id': 'WI-P44639-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Monte Carlo Prompt and Mutation Red Team must implement Stress ambiguous natural language, prompt injection, markdown-plan attempts, hidden overwrite requests, and stale evidence claims.', 'enforcedBy': ['json_schem",
+          "type": "implementation",
+          "workspaceId": "P44.6.39",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44639-001', 'title': 'Monte Carlo Prompt and Mutation Red Team source implemented', 'tex",
+            "{'id': 'AC-P44639-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44639-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44639-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44639-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.40",
+          "title": "Fake Complete and Silent Pass Gauntlet",
+          "description": "[{'id': 'WI-P44640-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Fake Complete and Silent Pass Gauntlet must implement Prove that self-reported done, no-tests-found, watch-mode output, command-not-found, and stale report claims are blocked.', 'enforcedBy': ['json_schema', 'admiss",
+          "type": "implementation",
+          "workspaceId": "P44.6.40",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44640-001', 'title': 'Fake Complete and Silent Pass Gauntlet source implemented', 'text'",
+            "{'id': 'AC-P44640-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44640-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44640-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44640-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W9"
+      ],
+      "estimatedDurationMinutes": 120
+    },
+    {
+      "id": "W11",
+      "title": "Wave W11",
+      "description": "Wave W11",
+      "order": 10,
+      "tasks": [
+        {
+          "id": "task_P44.6.41",
+          "title": "Migration and Operator Preview Pack",
+          "description": "[{'id': 'WI-P44641-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Migration and Operator Preview Pack must implement Generate non-authoritative human preview and migration notes from JSON PlanSpec without making markdown executable.', 'enforcedBy': ['json_schema', 'admission_gate'",
+          "type": "implementation",
+          "workspaceId": "P44.6.41",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44641-001', 'title': 'Migration and Operator Preview Pack source implemented', 'text': '",
+            "{'id': 'AC-P44641-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44641-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44641-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44641-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        },
+        {
+          "id": "task_P44.6.42",
+          "title": "Final Promotion Pack",
+          "description": "[{'id': 'WI-P44642-001', 'priority': 'must', 'kind': 'implementation_rule', 'text': 'Final Promotion Pack must implement Assemble final promotion evidence, readiness report, mutation report, and P49.5 handoff export for P44.6.', 'enforcedBy': ['json_schema', 'admission_gate', 'completion_gate_v2']},",
+          "type": "implementation",
+          "workspaceId": "P44.6.42",
+          "files": [
+            {
+              "path": "*.ts",
+              "operation": "modify"
+            },
+            {
+              "path": "*.json",
+              "operation": "modify"
+            }
+          ],
+          "acceptanceCriteria": [
+            "{'id': 'AC-P44642-001', 'title': 'Final Promotion Pack source implemented', 'text': 'Production sour",
+            "{'id': 'AC-P44642-002', 'title': 'Negative and blocking paths covered', 'text': 'At least one test p",
+            "{'id': 'AC-P44642-003', 'title': 'Evidence ledger traceability', 'text': 'Every success path emits e",
+            "{'id': 'AC-P44642-004', 'title': 'No markdown execution dependency', 'text': 'Executable behavior do",
+            "{'id': 'AC-P44642-005', 'title': 'v4.1.1 compatibility preserved', 'text': 'Runtime compatibility ta"
+          ],
+          "dependencies": [],
+          "priority": "medium",
+          "executionPolicy": {
+            "mode": "moderate",
+            "maxRetries": 10
+          }
+        }
+      ],
+      "dependencies": [
+        "W10"
+      ],
+      "estimatedDurationMinutes": 120
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "P44.6.01",
+      "name": "EngineMode Contract and Mode Enum Canonicalization",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.02",
+      "name": "Serializable Task Intent Envelope",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.03",
+      "name": "Mode Mapping Compiler",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.04",
+      "name": "Mode Diagnostic Model",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.05",
+      "name": "Input Inspector for Write/Edit Intent",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.06",
+      "name": "Target Artifact Resolver",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.07",
+      "name": "Acceptance Criteria Normalizer",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.08",
+      "name": "P44.6 Readiness Gate",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.09",
+      "name": "WriteGate v2 Mode-Aware Policy",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.10",
+      "name": "Edit Scope Guard",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.11",
+      "name": "SmartMutation Planner Contract",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.12",
+      "name": "Large Overwrite and Rewrite Blocker",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.13",
+      "name": "Tool Runtime Write/Edit Adapter",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.14",
+      "name": "Engine Invocation Timeout and Circuit Breaker Wrapper",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.15",
+      "name": "EventRecorder Shadow Conditional Fix",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.16",
+      "name": "Production Runtime Scan Adapter Path",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.17",
+      "name": "Smart Write Artifact Schema Selector",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.18",
+      "name": "Smart Write Route Signal Compiler",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.19",
+      "name": "JSON Plan Artifact Writer",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.20",
+      "name": "Compile Diagnostics for Smart Write",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.21",
+      "name": "Smart Edit Audit Finding Contract",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.22",
+      "name": "Smart Edit Patch Scope Compiler",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.23",
+      "name": "Smart Edit Regression Guard",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.24",
+      "name": "Patch Evidence Binder",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.25",
+      "name": "P44.6 Event Types",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.26",
+      "name": "Read Model Mode Truth Fields",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.27",
+      "name": "Web Server P44.6 Read Endpoints",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.28",
+      "name": "TUI Mode and Diagnostic Visibility",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.29",
+      "name": "ACCP Mode Report Validator",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.30",
+      "name": "Evidence Ledger Export for Mode Decisions",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.31",
+      "name": "TVR and PRR Mapping for P44.6",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.32",
+      "name": "CAR Correction Path for Mode Report Failures",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.33",
+      "name": "P49.5 Bridge Artifact Export",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.34",
+      "name": "P49.5 Readiness Guard",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.35",
+      "name": "P45 Boundary Guard",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.36",
+      "name": "v4.1.1 Adapter Compatibility Pack",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.37",
+      "name": "Deterministic Unit Test Matrix",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.38",
+      "name": "Production Runtime Integration Test Path",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.39",
+      "name": "Monte Carlo Prompt and Mutation Red Team",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.40",
+      "name": "Fake Complete and Silent Pass Gauntlet",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.41",
+      "name": "Migration and Operator Preview Pack",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    },
+    {
+      "id": "P44.6.42",
+      "name": "Final Promotion Pack",
+      "rootDir": ".",
+      "canEdit": [
+        "*.ts",
+        "*.json",
+        "*.md",
+        "*.yaml",
+        "*.css",
+        "*.html"
+      ],
+      "canRead": [
+        "*"
+      ],
+      "isolationLevel": "none"
+    }
+  ]
+}

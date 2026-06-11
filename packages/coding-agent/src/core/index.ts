@@ -289,6 +289,29 @@ export {
 	recordExitCodeFailure,
 	scanLogLines,
 } from "./log-failure-detector.js";
+// P44.6 — EngineMode and Mode Contracts
+export {
+	ALL_ENGINE_MODES,
+	type EditConfig,
+	ENGINE_MODE_LABELS,
+	ENGINE_MODE_SCHEMA_VERSION,
+	type EngineConfig,
+	EngineMode,
+	type ExecutionPhase,
+	getExecutionPhase,
+	getModeCapability,
+	getTargetRequirement,
+	isEngineMode,
+	isSimpleMode,
+	isSmartMode,
+	type ModeCapability,
+	type OverwritePolicy,
+	type SmartEditConfig,
+	type SmartWriteConfig,
+	type TargetRequirement,
+	validateEngineConfig,
+	type WriteConfig,
+} from "./mode/engine-mode.js";
 export type {
 	CompiledCommandPolicy,
 	CompiledCompletion,
