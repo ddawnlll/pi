@@ -192,6 +192,18 @@ export {
 	setDraftLeadAgent,
 } from "./draft-planner.js";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.js";
+// P44.6 — Events
+export {
+	createEvent,
+	type EvidenceBoundPayload,
+	type GateVerdictEmittedPayload,
+	type ModeCompiledPayload,
+	type ModeInspectedPayload,
+	type MutationPlannedPayload,
+	type P446Event,
+	type P446EventKind,
+	type RouteSignalCompiledPayload,
+} from "./events/p446-event-types.js";
 // Extensions system
 export {
 	type AgentEndEvent,
@@ -343,6 +355,8 @@ export {
 	compileMode,
 	type ModeMappingResult,
 } from "./mode/mode-mapping-compiler.js";
+// P44.6 — Read Model
+export type { ModeTruth } from "./mode/read-model-mode-truth.js";
 // P44.6 — Readiness Gate
 export {
 	evaluateReadiness,
@@ -505,6 +519,31 @@ export {
 	type SelfModificationFirewallConfig,
 	type SelfModificationReport,
 } from "./self-modification-firewall.js";
+export {
+	type AuditFindingCollection,
+	type AuditFindingConfidence,
+	type AuditFindingSeverity,
+	createFinding,
+	getFindingsByFile,
+	hasBlockerFindings,
+	type SmartEditAuditFinding,
+} from "./smart-edit/audit-finding.js";
+export {
+	bindEvidence,
+	type EvidenceBindingResult,
+	type EvidenceKind,
+	type PatchEvidenceBinding,
+} from "./smart-edit/patch-evidence-binder.js";
+export {
+	compilePatchScopes,
+	type PatchScope,
+	type PatchScopeCompilationResult,
+} from "./smart-edit/patch-scope-compiler.js";
+// P44.6 — Smart Edit
+export {
+	checkRegression,
+	type RegressionCheckResult,
+} from "./smart-edit/regression-guard.js";
 // P44.6 — SmartMutation Planner
 export {
 	createMutationPlan,
@@ -514,6 +553,27 @@ export {
 	transitionToAudit,
 	transitionToPatch,
 } from "./smart-mutation/smart-mutation-planner.js";
+// P44.6 — Smart Write
+export {
+	type ArtifactSchema,
+	type SchemaSelectionResult,
+	selectSchema,
+} from "./smart-write/artifact-schema-selector.js";
+export {
+	type CompileDiagnosticsResult,
+	type CompileStatus,
+	collectCompileDiagnostics,
+} from "./smart-write/compile-diagnostics.js";
+export {
+	type PlanArtifact,
+	type PlanArtifactResult,
+	writePlanArtifact,
+} from "./smart-write/json-plan-artifact-writer.js";
+export {
+	compileRouteSignal,
+	type RouteSignal,
+	type RouteSignalResult,
+} from "./smart-write/route-signal-compiler.js";
 export { createSyntheticSourceInfo } from "./source-info.js";
 // Unsafe Suggestion Guard — P8.D
 export {
