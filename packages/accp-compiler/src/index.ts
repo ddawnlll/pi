@@ -42,3 +42,22 @@ export type {
 // Core compiler pipeline
 export { compileAccpSource } from "./compiler.js";
 export { AccpCompilerPipeline } from "./compiler-pipeline.js";
+export { compileGateVerdict } from "./emit/emit-gate-verdict.js";
+// Route signal and gate verdict compilers
+export { compileRouteSignal, type RouteSignalCompileOptions } from "./emit/emit-route-signal.js";
+export { evaluateGate } from "./gate/gate-evaluator.js";
+export { evaluatePromotion } from "./gate/promotion-evaluator.js";
+export { checkRoutePolicy } from "./gate/route-policy.js";
+export { extractAccpYaml } from "./parser/extractor.js";
+// Parsers and validators
+export { type AccpParsedReport, parseAccpYaml } from "./parser/yaml-parser.js";
+// Registry
+export {
+	type AccpReportRegistryEntry,
+	getGateCriticalReportTypes,
+	getReportTypesByFamily,
+	isKnownReportType,
+	lookupReportType,
+} from "./registry/report-registry.js";
+export { ACCP_GATE_CRITICAL_TYPES, ACCP_SCHEMA_LITE_TYPES } from "./registry/support-matrix.js";
+export { validateCommonSchema } from "./validation/common-schema-validator.js";
