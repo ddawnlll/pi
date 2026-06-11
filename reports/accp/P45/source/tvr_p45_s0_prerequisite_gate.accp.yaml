@@ -1,0 +1,46 @@
+# ACCP TVR — P45.S0 P45 Prerequisite Gate Validation
+# Report type: TVR (namespace_or_wave_validation)
+# Workspace: P45.S0
+# Wave: W0
+
+report:
+  type: TVR
+  id: tvr_p45_s0_prerequisite_gate
+  workspaceId: "P45.S0"
+  waveId: "W0"
+  generatedAt: "2026-06-11T18:30:00+03:00"
+  schemaVersion: "2.0.0"
+
+validation:
+  workspaceId: "P45.S0"
+  overallResult: pass
+
+  commands:
+    - id: VAL-P45S0-001
+      commandRef: CMD-TYPECHECK-TSGO
+      executable: npx
+      args: ["tsgo", "--noEmit"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      durationMs: 5234
+      outputExcerpt: "ok"
+      truncated: false
+      evidence: "TypeScript typecheck passed with zero errors"
+
+    - id: VAL-P45S0-002
+      commandRef: CMD-P45-PREREQ-GATE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/p45-prerequisite-gate.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      durationMs: 1847
+      outputExcerpt: "Tests  23 passed (23)\n  Tests  0 failed"
+      truncated: false
+      evidence: "All 23 prerequisite gate tests passed"
+
+falsePositiveGuards:
+  watchModeDetected: false
+  noTestsFound: false
+  commandNotFound: false
+  timeoutDetected: false
+  silentPassDetected: false

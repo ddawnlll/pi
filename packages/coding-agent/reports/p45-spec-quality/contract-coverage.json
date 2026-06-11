@@ -1,0 +1,23 @@
+{
+  "verdict": {
+    "admitted": true,
+    "summary": {
+      "totalContracts": 6,
+      "staticCount": 6,
+      "humanCount": 0,
+      "historicalCount": 0,
+      "llmOnlyCount": 0,
+      "unknownCount": 0,
+      "hardCoverage": 1,
+      "softCoverage": 1,
+      "llmOnlyRatio": 0,
+      "unknownRequiredCount": 0,
+      "hardCoveragePassed": true,
+      "softCoveragePassed": true,
+      "llmOnlyRatioExceeded": false
+    },
+    "blockingReasons": [],
+    "warnings": []
+  },
+  "generatedAt": "2026-06-11T18:28:40.331Z"
+}

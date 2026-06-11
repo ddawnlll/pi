@@ -1,0 +1,32 @@
+# ACCP IPR — P45.S1 Spec Quality Ledger and History Store Implementation
+report:
+  type: IPR
+  id: ipr_p45_s1_spec_quality_ledger
+  workspaceId: "P45.S1"
+  waveId: "W0"
+  generatedAt: "2026-06-11T18:45:00+03:00"
+  schemaVersion: "2.0.0"
+mutation:
+  files:
+    - path: packages/coding-agent/src/core/assembly/spec-quality-ledger.ts
+      change: created
+    - path: packages/coding-agent/src/core/assembly/spec-quality-history.ts
+      change: created
+    - path: packages/coding-agent/test/assembly/spec-quality-ledger.test.ts
+      change: created
+verification:
+  commands:
+    - id: CMD-P45-SPEC-QUALITY
+      executable: npx
+      args: ["vitest", "run", "test/assembly/spec-quality-ledger.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 29 passed (29)"
+acceptance:
+  criteria:
+    - id: AC-P45S1-001
+      status: passed
+    - id: AC-P45S1-002
+      status: passed
+    - id: AC-P45S1-003
+      status: passed

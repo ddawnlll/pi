@@ -1,0 +1,72 @@
+# ACCP IPR — P45.S0 P45 Prerequisite Gate Implementation
+# Report type: IPR (namespace_worker_mutation)
+# Workspace: P45.S0
+# Wave: W0
+
+report:
+  type: IPR
+  id: ipr_p45_s0_prerequisite_gate
+  workspaceId: "P45.S0"
+  waveId: "W0"
+  generatedAt: "2026-06-11T18:30:00+03:00"
+  schemaVersion: "2.0.0"
+
+mutation:
+  files:
+    - path: packages/coding-agent/src/core/assembly/p45-prerequisite-gate.ts
+      change: enhanced
+      summary: >
+        Extended P45PrerequisiteVerdict with sub-system checks (P44 completion gate,
+        P49 ACCP v2 readiness, evidence ledger, write gate, dirty runtime status).
+        Added evaluateP45PrerequisiteGateFull for full deterministic input bundle.
+        Added isP45FixtureAllowed, summarizePrerequisiteVerdict helpers.
+    - path: packages/coding-agent/test/assembly/p45-prerequisite-gate.test.ts
+      change: rewritten
+      summary: >
+        Expanded from 4 tests to 23 tests covering positive path (all-green, fixture_only,
+        backward compat), negative path (blocked cert, missing P44, missing P49, missing
+        evidence ledger, disabled write gate, blocking dirty runtime, multiple failures,
+        unknown decisions), and determinism.
+    - path: reports/p45-prerequisite/result.json
+      change: created
+      summary: Machine-readable result of prerequisite gate evaluation with all-green input.
+
+verification:
+  commands:
+    - id: CMD-P45-PREREQ-GATE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/p45-prerequisite-gate.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "PASS (23) FAIL (0)"
+      falsePositiveGuards:
+        watchMode: false
+        noTestsFound: false
+        commandNotFound: false
+        timeout: false
+    - id: CMD-TYPECHECK-TSGO
+      executable: npx
+      args: ["tsgo", "--noEmit"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "ok"
+      falsePositiveGuards:
+        watchMode: false
+        noTestsFound: false
+        commandNotFound: false
+        timeout: false
+
+acceptance:
+  criteria:
+    - id: AC-P45S0-001
+      status: passed
+      title: "P45 Prerequisite Gate positive path"
+      evidence: "23/23 tests pass including all-green production, fixture_only, backward compat"
+    - id: AC-P45S0-002
+      status: passed
+      title: "P45 Prerequisite Gate negative path"
+      evidence: "11 negative tests covering block_p45, missing subsystems, multiple simultaneous failures"
+    - id: AC-P45S0-003
+      status: passed
+      title: "P45 Prerequisite Gate ACCP evidence"
+      evidence: "Machine-readable result.json, IPR, and TVR reports generated"

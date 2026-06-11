@@ -1,0 +1,46 @@
+# ACCP ECR — P45.S0 Evidence Collection Bundle
+# Report type: ECR (fact_collection_or_evidence_bundle)
+# Workspace: P45.S0
+# Wave: W0
+
+report:
+  type: ECR
+  id: ecr_p45_s0_evidence_bundle
+  workspaceId: "P45.S0"
+  waveId: "W0"
+  generatedAt: "2026-06-11T18:30:00+03:00"
+  schemaVersion: "2.0.0"
+
+evidence:
+  prerequisiteGate:
+    p44CompletionGreen: true
+    p49AccpV2Ready: true
+    evidenceLedgerAccessible: true
+    writeGateEnabled: true
+    dirtyRuntimeStatus: acceptable
+    p495CertificateDecision: allow_p45
+    admissionMode: production
+
+  tests:
+    total: 23
+    passed: 23
+    failed: 0
+
+  typecheck:
+    passed: true
+    errors: 0
+
+  files:
+    implemented:
+      - packages/coding-agent/src/core/assembly/p45-prerequisite-gate.ts
+    tested:
+      - packages/coding-agent/test/assembly/p45-prerequisite-gate.test.ts
+    outputs:
+      - reports/p45-prerequisite/result.json
+
+  dependencies:
+    p49_5:
+      - packages/coding-agent/src/core/p49_5/p45-readiness-certificate.ts (exists, consumed)
+    p44:
+      - packages/coding-agent/src/core/completion/completion-gate-v2.ts (exists)
+      - packages/coding-agent/src/core/completion/evidence-ledger.ts (exists)

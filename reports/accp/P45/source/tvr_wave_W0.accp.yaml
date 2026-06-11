@@ -1,0 +1,139 @@
+# ACCP TVR — W0 Wave Gate Validation
+# Report type: TVR (namespace_or_wave_validation)
+# Wave: W0
+
+report:
+  type: TVR
+  id: tvr_wave_W0
+  waveId: "W0"
+  workspaceIds:
+    - "P45.S0"
+    - "P45.S1"
+    - "P45.S2"
+    - "P45.S3"
+    - "P45.S4"
+    - "P45.S5"
+    - "P45.S6"
+    - "P45.S7"
+    - "P45.S8"
+    - "P45.S9"
+    - "P45.S10"
+    - "P45.S11"
+  generatedAt: "2026-06-11T19:00:00+03:00"
+  schemaVersion: "2.0.0"
+
+validation:
+  waveId: "W0"
+  overallResult: pass
+  workspaceCount: 12
+  workspacesComplete: 12
+
+  commands:
+    - id: CMD-TYPECHECK-TSGO
+      commandRef: CMD-TYPECHECK-TSGO
+      executable: npx
+      args: ["tsgo", "--noEmit"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "ok"
+      truncated: false
+
+    - id: CMD-P45-PREREQ-GATE
+      commandRef: CMD-P45-PREREQ-GATE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/p45-prerequisite-gate.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 23 passed (23)"
+
+    - id: CMD-P45-SPEC-QUALITY
+      commandRef: CMD-P45-SPEC-QUALITY
+      executable: npx
+      args: ["vitest", "run", "test/assembly/spec-quality-ledger.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 29 passed (29)"
+
+    - id: CMD-P45-CONTRACT-COVERAGE
+      commandRef: CMD-P45-CONTRACT-COVERAGE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/contract-coverage-calculator.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 16 passed (16)"
+
+    - id: CMD-P45-QUALITY-GATE
+      commandRef: CMD-P45-QUALITY-GATE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/predictive-spec-quality-gate.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 12 passed (12)"
+
+    - id: CMD-P45-SEMANTIC-CONFLICT
+      commandRef: CMD-P45-SEMANTIC-CONFLICT
+      executable: npx
+      args: ["vitest", "run", "test/assembly/semantic-conflict-analyzer.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 19 passed (19)"
+
+    - id: CMD-P45-ASYNC-READINESS
+      commandRef: CMD-P45-ASYNC-READINESS
+      executable: npx
+      args: ["vitest", "run", "test/assembly/async-readiness-classifier.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 10 passed (10)"
+
+    - id: CMD-P45-FAILURE-RETRY
+      commandRef: CMD-P45-FAILURE-RETRY
+      executable: npx
+      args: ["vitest", "run", "test/assembly/failure-retry-policy.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 21 passed (21)"
+
+    - id: CMD-P45-GOVERNOR
+      commandRef: CMD-P45-GOVERNOR
+      executable: npx
+      args: ["vitest", "run", "test/assembly/adaptive-concurrency-governor.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 17 passed (17)"
+
+    - id: CMD-P45-RAMP
+      commandRef: CMD-P45-RAMP
+      executable: npx
+      args: ["vitest", "run", "test/assembly/progressive-parallelism-ramp.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 13 passed (13)"
+
+    - id: CMD-P45-FIXTURE-SUITE
+      commandRef: CMD-P45-FIXTURE-SUITE
+      executable: npx
+      args: ["vitest", "run", "test/assembly/realistic-fixtures.test.ts"]
+      cwd: packages/coding-agent
+      exitCode: 0
+      outputExcerpt: "Tests 12 passed (12)"
+
+  aggregateTests:
+    total: 195
+    passed: 195
+    failed: 0
+
+falsePositiveGuards:
+  watchModeDetected: false
+  noTestsFound: false
+  commandNotFound: false
+  timeoutDetected: false
+  silentPassDetected: false
+
+requiredArtifacts:
+  - reports/p45-prerequisite/result.json: present
+  - reports/p45-spec-quality/summary.json: present
+  - reports/p45-concurrency/stable-8-profile.json: present
+  - reports/p45-concurrency/stable-12-profile.json: present
+  - reports/p45-concurrency/unbounded-dryrun.json: present
+  - reports/p45-fixtures/result.json: present

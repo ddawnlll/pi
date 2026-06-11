@@ -1,0 +1,43 @@
+{
+  "verdict": {
+    "schemaVersion": "2.0.0",
+    "generatedAt": "2026-06-11T18:25:28.756Z",
+    "certificateDecision": "allow_p45",
+    "admissionMode": "production",
+    "blockingReasons": [],
+    "checks": [
+      {
+        "name": "P44 Completion Gate",
+        "passed": true
+      },
+      {
+        "name": "P49 ACCP v2 Readiness",
+        "passed": true
+      },
+      {
+        "name": "Evidence Ledger",
+        "passed": true
+      },
+      {
+        "name": "Write Gate",
+        "passed": true
+      },
+      {
+        "name": "Dirty Runtime Status",
+        "passed": true
+      },
+      {
+        "name": "P49.5 Certificate Decision",
+        "passed": true
+      }
+    ],
+    "p44CompletionGreen": true,
+    "p49AccpV2Ready": true,
+    "dirtyRuntimeStatus": "acceptable",
+    "evidenceLedgerAccessible": true,
+    "writeGateEnabled": true
+  },
+  "testTimestamp": "2026-06-11T18:25:28.757Z",
+  "allChecksPassed": true,
+  "admissionMode": "production"
+}
