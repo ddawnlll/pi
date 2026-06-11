@@ -1,0 +1,31 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.08_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.08 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.08
+  workspace_title: "Stable ID, Reference, and Cross-Report Lineage Validation"
+  wave_id: W2
+  role: lineage_validation
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/validation/id-validator.ts
+    - packages/accp-compiler/src/validation/reference-validator.ts
+    - packages/accp-compiler/src/validation/lineage-validator.ts
+    - packages/accp-compiler/test/id-reference-lineage.test.ts
+
+changes:
+  - file: packages/accp-compiler/src/validation/id-validator.ts
+    summary: Report ID validator with pattern match, empty check, and duplicate detection.
+  - file: packages/accp-compiler/src/validation/reference-validator.ts
+    summary: Reference validator for short refs and report IDs. Rejects unresolved refs.
+  - file: packages/accp-compiler/src/validation/lineage-validator.ts
+    summary: Lineage validator detecting self-cycles, mutual cycles, unresolved parents.
+  - file: packages/accp-compiler/test/id-reference-lineage.test.ts
+    summary: 18 tests covering ID, reference, and lineage validation (positive and negative).
