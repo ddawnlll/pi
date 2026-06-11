@@ -37,6 +37,7 @@ import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { sleep } from "../utils/sleep.js";
+import { renderAccpModeDirective } from "./accp-prompt-renderer.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.js";
 import {
@@ -1090,8 +1091,14 @@ export class AgentSession {
 
 		const loaderSystemPrompt = this._resourceLoader.getSystemPrompt();
 		const loaderAppendSystemPrompt = this._resourceLoader.getAppendSystemPrompt();
+
+		// ACCP mode directive injection (gated by ACCP mode; off = no-op)
+		const accpDirective = renderAccpModeDirective("warn"); // Hardcoded warn for P49 — will be config-driven
+
 		const appendSystemPrompt =
-			loaderAppendSystemPrompt.length > 0 ? loaderAppendSystemPrompt.join("\n\n") : undefined;
+			loaderAppendSystemPrompt.length > 0
+				? [...loaderAppendSystemPrompt, accpDirective].filter(Boolean).join("\n\n")
+				: accpDirective || undefined;
 		const loadedSkills = this._resourceLoader.getSkills().skills;
 		const loadedContextFiles = this._resourceLoader.getAgentsFiles().agentsFiles;
 
