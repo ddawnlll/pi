@@ -1,50 +1,7 @@
-node_modules/
-dist/
-*.log
-.DS_Store
-*.tsbuildinfo
-# packages/*/node_modules/
-packages/*/dist/
-packages/*/dist-chrome/
-packages/*/dist-firefox/
-*.cpuprofile
-
-# Environment
-.env
-
-# Editor files
-.vscode/
-.zed/
-.idea/
-.claude/
-*.swp
-*.swo
-*~
-
-# Package specific
-.npm/
-coverage/
-.nyc_output/
-.pi_config/
-tui-debug.log
-compaction-results/
+$(cat .gitignore | head -30)
 reports/
 !reports/accp/
 !reports/p44-6/
-.opencode/
-syntax.jsonl
-out.jsonl
-pi-*.html
-out.html
-packages/coding-agent/binaries/
-todo.md
-plans/
-.pi/hf-sessions/
-.pi/hf-sessions-backup/
-collect.sh
-
-.pi/
-.pi-test/
-.logs/
-# Execution diagnostics artifacts
-reports/execution-diagnostics/
+!reports/accp/**
+!reports/p44-6/**
+$(cat .gitignore | tail -20)
