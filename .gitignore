@@ -22,6 +22,11 @@ packages/web-server/dist/
 packages/web-ui/dist/
 packages/web-ui/dashboard/dist/
 packages/worker-adapters/dist/
+packages/accp-compiler/dist/
+packages/accp-compiler/src/**/*.js
+packages/accp-compiler/src/**/*.d.ts
+packages/accp-compiler/src/**/*.js.map
+packages/accp-compiler/src/**/*.d.ts.map
 
 # Dependencies
 packages/agent/node_modules/

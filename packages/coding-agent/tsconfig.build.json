@@ -5,7 +5,11 @@
 		"rootDir": "./src",
 		"jsx": "react",
 		"jsxFactory": "React.createElement",
-		"jsxFragmentFactory": "React.Fragment"
+		"jsxFragmentFactory": "React.Fragment",
+		"paths": {
+			"@earendil-works/pi-accp-compiler": ["../accp-compiler/src/index.ts"],
+			"@earendil-works/pi-accp-compiler/*": ["../accp-compiler/src/*"]
+		}
 	},
 	"include": ["src/**/*.ts", "src/**/*.tsx"],
 	"exclude": ["node_modules", "dist", "**/*.d.ts", "src/**/*.d.ts"]
