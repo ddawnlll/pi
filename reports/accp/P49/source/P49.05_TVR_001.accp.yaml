@@ -1,0 +1,14 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.05_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P49.05 Test Validation Report
+support_level: schema_lite
+
+validation_summary:
+  workspace_id: P49.05
+  status: passed
+  total_assertions: 18
+  passed: 18
+  failed: 0

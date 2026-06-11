@@ -1,0 +1,52 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.05_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.05 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.05
+  workspace_title: "ACCP Report Registry, 24-Type Matrix, and Support-Level Metadata"
+  wave_id: W2
+  role: registry
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/registry/report-registry.ts
+    - packages/accp-compiler/src/registry/support-matrix.ts
+    - packages/accp-compiler/test/registry.test.ts
+
+changes:
+  - file: packages/accp-compiler/src/registry/report-registry.ts
+    action: create
+    summary: >
+      Canonical 24-type report registry with AccpReportRegistryEntry interface,
+      ACCP_REPORT_REGISTRY array, lookup helpers (lookupReportType,
+      getReportTypesByFamily, getGateCriticalReportTypes, etc.). All 24 types
+      with support levels, gate-critical flags, and strict schema flags.
+  - file: packages/accp-compiler/src/registry/support-matrix.ts
+    action: create
+    summary: >
+      Support level matrix with 5 levels (known, template_available,
+      schema_lite, schema_strict, gate_blocking). Lists ACCP_GATE_CRITICAL_TYPES
+      (6), ACCP_SCHEMA_LITE_TYPES (5), ACCP_TEMPLATE_ONLY_TYPES (12).
+  - file: packages/accp-compiler/test/registry.test.ts
+    action: create
+    summary: 18 tests covering all 24 types, families, support levels, lookup helpers, negative tests.
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO
+  type_check_result: passed
+  unit_test_ref: CMD-ACCP-COMPILER-UNIT
+  unit_test_result: passed (18/18 for registry)
+
+evidence:
+  - type: source
+    path: packages/accp-compiler/src/registry/report-registry.ts
+  - type: source
+    path: packages/accp-compiler/src/registry/support-matrix.ts
+  - type: unit_test
+    path: packages/accp-compiler/test/registry.test.ts
