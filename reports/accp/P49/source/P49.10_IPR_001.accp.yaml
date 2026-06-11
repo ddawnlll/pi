@@ -1,0 +1,26 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.10_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.10 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.10
+  workspace_title: "Route Signal Compiler and Runtime Authority Guardrail Rules"
+  wave_id: W3
+  role: route_signal_compiler
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/emit/emit-route-signal.ts
+    - packages/accp-compiler/src/gate/route-policy.ts
+    - packages/accp-compiler/test/route-signal.test.ts
+  key_decisions:
+    - decision: Route signals are always isAdvisory=true as a type invariant
+    - decision: READ_ONLY routes auto-advance on high confidence
+    - decision: VALIDATION_ONLY routes check command class eligibility
+    - decision: MUTATION_ALLOWED routes require human confirmation
+    - decision: UNRESOLVED targets require HIR
