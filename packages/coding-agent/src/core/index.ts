@@ -312,6 +312,25 @@ export {
 	validateEngineConfig,
 	type WriteConfig,
 } from "./mode/engine-mode.js";
+// P44.6 — Task Intent Envelope
+export {
+	type AmbiguityCode,
+	type AmbiguitySignal,
+	addAmbiguity,
+	addConstraint,
+	type Constraint,
+	type ConstraintDomain,
+	createTaskIntentEnvelope,
+	deserializeTaskIntentEnvelope,
+	hasBlockingAmbiguities,
+	hasResolvedIntent,
+	type MutationIntent,
+	serializeTaskIntentEnvelope,
+	setMutationIntent,
+	TASK_INTENT_ENVELOPE_SCHEMA_VERSION,
+	type TaskIntentEnvelope,
+	validateTaskIntentEnvelope,
+} from "./mode/task-intent-envelope.js";
 export type {
 	CompiledCommandPolicy,
 	CompiledCompletion,
