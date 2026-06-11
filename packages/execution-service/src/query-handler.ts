@@ -13,6 +13,11 @@
  *   explicit unavailable states with documentation about the missing source.
  */
 import type {
+	AccpCompileStatusView,
+	AccpGateVerdictView,
+	AccpGraphView,
+	AccpIndexView,
+	AccpRouteSignalView,
 	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
@@ -1551,6 +1556,30 @@ export function createExecutionReadModel(stateStore: {
 		// -------------------------------------------------------------------
 		// Artifacts
 		// -------------------------------------------------------------------
+
+		// -----------------------------------------------------------------------
+		// ACCP v2.0 read model methods (P49.21)
+		// -----------------------------------------------------------------------
+
+		async getAccpRouteSignal(_planExecutionId: string, _reportId: string): Promise<AccpRouteSignalView | null> {
+			return null;
+		},
+
+		async getAccpGateVerdicts(_planExecutionId: string): Promise<AccpGateVerdictView[]> {
+			return [];
+		},
+
+		async getAccpCompileStatus(_planExecutionId: string, _reportId: string): Promise<AccpCompileStatusView | null> {
+			return null;
+		},
+
+		async getAccpGraph(_planExecutionId: string): Promise<AccpGraphView | null> {
+			return null;
+		},
+
+		async getAccpIndex(_planExecutionId: string): Promise<AccpIndexView | null> {
+			return null;
+		},
 
 		async getArtifacts(planExecutionId: string): Promise<ArtifactEntry[]> {
 			// Try to list artifacts from the execution archive via the state store.

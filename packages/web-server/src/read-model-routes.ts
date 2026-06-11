@@ -439,4 +439,88 @@ export function registerReadModelRoutes(
 			return reply.code(500).send({ success: false, error: String(error) });
 		}
 	});
+
+	// -----------------------------------------------------------------------
+	// ACCP v2.0 Routes (P49.21 — all read-only)
+	// -----------------------------------------------------------------------
+
+	// GET /api/projects/:projectId/plans/:planExecId/accp/route-signal/:reportId
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; reportId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/accp/route-signal/:reportId", async (request, reply) => {
+		const { planExecId, reportId } = request.params;
+		try {
+			const adapter = createReadModelAdapter(getStateStore(), getWorkspaceRoot());
+			const readModel = createExecutionReadModel(adapter);
+			const signal = await readModel.getAccpRouteSignal(planExecId, reportId);
+			return { success: true, signal };
+		} catch (error) {
+			log.error({ error, planExecId, reportId }, "Failed to get ACCP route signal");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// GET /api/projects/:projectId/plans/:planExecId/accp/gate-verdicts
+	fastify.get<{
+		Params: { projectId: string; planExecId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/accp/gate-verdicts", async (request, reply) => {
+		const { planExecId } = request.params;
+		try {
+			const adapter = createReadModelAdapter(getStateStore(), getWorkspaceRoot());
+			const readModel = createExecutionReadModel(adapter);
+			const verdicts = await readModel.getAccpGateVerdicts(planExecId);
+			return { success: true, verdicts };
+		} catch (error) {
+			log.error({ error, planExecId }, "Failed to get ACCP gate verdicts");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// GET /api/projects/:projectId/plans/:planExecId/accp/compile-status/:reportId
+	fastify.get<{
+		Params: { projectId: string; planExecId: string; reportId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/accp/compile-status/:reportId", async (request, reply) => {
+		const { planExecId, reportId } = request.params;
+		try {
+			const adapter = createReadModelAdapter(getStateStore(), getWorkspaceRoot());
+			const readModel = createExecutionReadModel(adapter);
+			const status = await readModel.getAccpCompileStatus(planExecId, reportId);
+			return { success: true, status };
+		} catch (error) {
+			log.error({ error, planExecId, reportId }, "Failed to get ACCP compile status");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// GET /api/projects/:projectId/plans/:planExecId/accp/graph
+	fastify.get<{
+		Params: { projectId: string; planExecId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/accp/graph", async (request, reply) => {
+		const { planExecId } = request.params;
+		try {
+			const adapter = createReadModelAdapter(getStateStore(), getWorkspaceRoot());
+			const readModel = createExecutionReadModel(adapter);
+			const graph = await readModel.getAccpGraph(planExecId);
+			return { success: true, graph };
+		} catch (error) {
+			log.error({ error, planExecId }, "Failed to get ACCP graph");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
+
+	// GET /api/projects/:projectId/plans/:planExecId/accp/index
+	fastify.get<{
+		Params: { projectId: string; planExecId: string };
+	}>("/api/projects/:projectId/plans/:planExecId/accp/index", async (request, reply) => {
+		const { planExecId } = request.params;
+		try {
+			const adapter = createReadModelAdapter(getStateStore(), getWorkspaceRoot());
+			const readModel = createExecutionReadModel(adapter);
+			const index = await readModel.getAccpIndex(planExecId);
+			return { success: true, index };
+		} catch (error) {
+			log.error({ error, planExecId }, "Failed to get ACCP index");
+			return reply.code(500).send({ success: false, error: String(error) });
+		}
+	});
 }

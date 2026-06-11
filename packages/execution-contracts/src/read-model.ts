@@ -697,6 +697,40 @@ export interface ExecutionReadModel {
 	// Artifacts
 	// -----------------------------------------------------------------------
 
+	// -----------------------------------------------------------------------
+	// ACCP v2.0 views (P49.21 — read-only)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Get the compiled ACCP route signal for a report.
+	 * Returns null if no route signal exists for the given report.
+	 */
+	getAccpRouteSignal(planExecutionId: string, reportId: string): Promise<AccpRouteSignalView | null>;
+
+	/**
+	 * Get all ACCP gate verdicts for a plan execution.
+	 * Returns an empty array if no verdicts exist.
+	 */
+	getAccpGateVerdicts(planExecutionId: string): Promise<AccpGateVerdictView[]>;
+
+	/**
+	 * Get the ACCP compile status for a report.
+	 * Returns null if no compile result exists.
+	 */
+	getAccpCompileStatus(planExecutionId: string, reportId: string): Promise<AccpCompileStatusView | null>;
+
+	/**
+	 * Get the ACCP graph for a plan execution.
+	 * Returns null if no graph exists.
+	 */
+	getAccpGraph(planExecutionId: string): Promise<AccpGraphView | null>;
+
+	/**
+	 * Get the ACCP index for a plan execution.
+	 * Returns null if no index exists.
+	 */
+	getAccpIndex(planExecutionId: string): Promise<AccpIndexView | null>;
+
 	/**
 	 * List available artifacts in the execution archive for a plan execution.
 	 * Artifacts are generated files (logs, reports, patches) stored under
@@ -707,4 +741,51 @@ export interface ExecutionReadModel {
 	 * artifact content with proper path sandboxing.
 	 */
 	getArtifacts(planExecutionId: string): Promise<ArtifactEntry[]>;
+}
+
+// -----------------------------------------------------------------------
+// ACCP v2.0 View Types (P49.21 — additive, read-only)
+// -----------------------------------------------------------------------
+
+/** ACCP route signal view (read-only, from compiled artifact). */
+export interface AccpRouteSignalView {
+	sourceReportId: string;
+	recommendedNextRoute: string;
+	recommendedNextAction: string;
+	confidence: string;
+	isAdvisory: boolean;
+	mutationPolicyNeeded: string;
+	targetResolved: boolean;
+}
+
+/** ACCP gate verdict view (read-only, from compiled artifact). */
+export interface AccpGateVerdictView {
+	reportId: string;
+	reportType: string;
+	valid: boolean;
+	fatalErrors: string[];
+	warnings: string[];
+	promotionReady: boolean;
+	evidenceStatus: string;
+}
+
+/** ACCP compile status view (read-only). */
+export interface AccpCompileStatusView {
+	reportId: string;
+	reportType: string;
+	status: string;
+	hasBlockingFindings: boolean;
+	findingCount: number;
+}
+
+/** ACCP graph view (read-only). */
+export interface AccpGraphView {
+	nodes: Array<{ id: string; type: string }>;
+	edges: Array<{ source: string; target: string; action: string; confidence: string }>;
+}
+
+/** ACCP index view (read-only). */
+export interface AccpIndexView {
+	planId: string;
+	entries: Array<{ reportId: string; reportType: string; status: string }>;
 }

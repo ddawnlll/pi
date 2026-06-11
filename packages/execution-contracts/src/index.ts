@@ -149,6 +149,12 @@ export {
 export { killPlanProcesses, killTrackedDetachedChildren } from "./process-killer.js";
 // Read model
 export type {
+	// ACCP v2.0 view types (P49.21)
+	AccpCompileStatusView,
+	AccpGateVerdictView,
+	AccpGraphView,
+	AccpIndexView,
+	AccpRouteSignalView,
 	ArtifactEntry,
 	ChangedFileEntry,
 	CommandHistoryView,
