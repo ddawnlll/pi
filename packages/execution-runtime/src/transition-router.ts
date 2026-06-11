@@ -14,8 +14,9 @@
 
 import { type Database, getKysely } from "@earendil-works/pi-db";
 import type { IStateStore } from "@earendil-works/pi-execution-contracts";
-import { PiLogger, WorkspaceStage } from "@earendil-works/pi-execution-contracts";
+import { type AccpGateVerdict, PiLogger, WorkspaceStage } from "@earendil-works/pi-execution-contracts";
 import type { Kysely } from "kysely";
+import { evaluateAccpGateForTransition } from "./accp-gate-reader.js";
 import { assertLegalTransition } from "./attempt-fsm.js";
 import type { AttemptState } from "./types.js";
 import { WorkspaceAttemptController } from "./workspace-attempt-controller.js";
@@ -199,6 +200,13 @@ export class KernelTransitionRouter implements TransitionRouter {
 
 			// Active → Complete: fire attempt_succeeded
 			if (currentStage === WorkspaceStage.Active && newStage === WorkspaceStage.Complete) {
+				// Check ACCP gate verdict if mode is required
+				const accpVerdict = data?.accpGateVerdict as AccpGateVerdict | undefined;
+				const accpModeRequired = (data?.accpModeRequired as boolean) ?? false;
+				const gateResult = evaluateAccpGateForTransition(accpVerdict, accpModeRequired);
+				if (!gateResult.allowed) {
+					throw new Error(`ACCP gate blocks Active→Complete transition: ${gateResult.blockingReasons.join("; ")}`);
+				}
 				await this.completeAttempt(workspaceId, data);
 				return;
 			}

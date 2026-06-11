@@ -1,6 +1,9 @@
 /**
  * Execution Kernel — P41 Platform / Agent Separation
  */
+
+export * from "./accp-gate-reader.js";
+export * from "./accp-promotion-evaluator.js";
 export * from "./actor-events.js";
 export * from "./actor-permissions.js";
 export * from "./admission-gate.js";
