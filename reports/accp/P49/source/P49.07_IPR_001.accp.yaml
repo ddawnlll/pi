@@ -1,0 +1,46 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.07_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.07 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.07
+  workspace_title: "Common Schema and Report-Specific Schema Validation"
+  wave_id: W2
+  role: schema_validation
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/src/validation/common-schema-validator.ts
+    - packages/accp-compiler/src/validation/report-schema-validator.ts
+    - packages/accp-compiler/src/registry/report-schemas.ts
+    - packages/accp-compiler/test/schema-validator.test.ts
+
+changes:
+  - file: packages/accp-compiler/src/validation/common-schema-validator.ts
+    action: create
+    summary: >
+      Common schema validator for top-level ACCP fields: accp_version must be
+      "2.0.0", source_format must be "ACCP-YAML", report must have id/type/family.
+      Produces ACCP_SCHEMA_MISSING_REQUIRED_SECTION diagnostics.
+  - file: packages/accp-compiler/src/validation/report-schema-validator.ts
+    action: create
+    summary: >
+      Report-specific schema validator for gate-critical types (TVR, BSR,
+      PRR, etc.). Each type defines its own required sections.
+  - file: packages/accp-compiler/src/registry/report-schemas.ts
+    action: create
+    summary: >
+      Schema definitions for all 24 report types with required sections.
+      Maps each type to its support level and validation requirements.
+  - file: packages/accp-compiler/test/schema-validator.test.ts
+    action: create
+    summary: 11 tests (3 positive common, 3 negative common, 3 positive report-specific, 4 negative report-specific).
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO: passed
+  unit_test_ref: CMD-ACCP-COMPILER-UNIT: passed (41 total across all W2 tests)
