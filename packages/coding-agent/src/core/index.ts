@@ -505,6 +505,15 @@ export {
 	type SelfModificationFirewallConfig,
 	type SelfModificationReport,
 } from "./self-modification-firewall.js";
+// P44.6 — SmartMutation Planner
+export {
+	createMutationPlan,
+	type MutationPlan,
+	type MutationPlanPhase,
+	type PlannedMutation,
+	transitionToAudit,
+	transitionToPatch,
+} from "./smart-mutation/smart-mutation-planner.js";
 export { createSyntheticSourceInfo } from "./source-info.js";
 // Unsafe Suggestion Guard — P8.D
 export {
@@ -536,3 +545,20 @@ export {
 	rewriteToNonWatch,
 	validateCommand,
 } from "./watch-mode-guard.js";
+// P44.6 — Edit Scope Guard
+export {
+	type EditScopeResult,
+	evaluateEditScope,
+	type PatchStrategy,
+} from "./write-gate/edit-scope-guard.js";
+// P44.6 — Large Overwrite Blocker
+export {
+	evaluateLargeOverwrite,
+	LARGE_REWRITE_THRESHOLD_BYTES,
+	type LargeOverwriteResult,
+} from "./write-gate/large-overwrite-blocker.js";
+// P44.6 — WriteGate v2
+export {
+	evaluateWriteGate,
+	type WriteGateResult,
+} from "./write-gate/write-gate-v2.js";
