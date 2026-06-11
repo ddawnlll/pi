@@ -289,6 +289,14 @@ export {
 	recordExitCodeFailure,
 	scanLogLines,
 } from "./log-failure-detector.js";
+// P44.6 — Acceptance Criteria Normalizer
+export {
+	ACCEPTANCE_CRITERIA_SCHEMA_VERSION,
+	type EvidenceRequirement,
+	type NormalizationResult,
+	type NormalizedCriterion,
+	normalizeCriteria,
+} from "./mode/acceptance-criteria-normalizer.js";
 // P44.6 — EngineMode and Mode Contracts
 export {
 	ALL_ENGINE_MODES,
@@ -335,6 +343,24 @@ export {
 	compileMode,
 	type ModeMappingResult,
 } from "./mode/mode-mapping-compiler.js";
+// P44.6 — Readiness Gate
+export {
+	evaluateReadiness,
+	type ReadinessGateInputs,
+	type ReadinessGateResult,
+	type ReadinessVerdict,
+} from "./mode/readiness-gate.js";
+// P44.6 — Target Artifact Resolver
+export {
+	checkOverwriteSafety,
+	LARGE_FILE_THRESHOLD_BYTES,
+	type OverwriteSafety,
+	resolveTarget,
+	resolveTargets,
+	type TargetArtifactResolution,
+	type TargetExistence,
+	type TargetResolutionCollection,
+} from "./mode/target-artifact-resolver.js";
 // P44.6 — Task Intent Envelope
 export {
 	type AmbiguityCode,
