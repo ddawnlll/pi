@@ -1,16 +1,140 @@
 # Pi Monorepo — File Analysis Summary
 
-**Date:** 2026-05-29  
-**Scope:** `packages/ai/`, `packages/coding-agent/`, `packages/web-server/`, `packages/web-ui/dashboard/`, `packages/db/`, reference docs, reports  
-**Purpose:** Understand what every file does across the autonomous execution system, V2 cognitive OS (P13-P20 brain module), prompt cache architecture, P6 large-project scale reliability, P11 continuous self-improvement, P26 execution correctness recovery, P6.5 mini E2E gauntlet, P-V5 Brain Reality Layer real implementation, and chat UI.
+**Date:** 2026-06-11  
+**Scope:** `packages/ai/`, `packages/coding-agent/`, `packages/accp-compiler/`, `packages/execution-contracts/`, `packages/execution-runtime/`, `packages/execution-service/`, `packages/web-server/`, `packages/web-ui/dashboard/`, `packages/tui/`, reference docs, reports  
+**Purpose:** Understand what every file does across the autonomous execution system, P49 ACCP v2.0 native route bus, compiler package, runtime gate, multi-agent artifact handoff, and hardening.
 
 ---
 
-## Recent Commits (last 31, oldest to newest)
+## Recent Commits (last 36, newest to oldest)
 
-### 1. `feat(coding-agent): complete execution kernel foundation with FSM, event journal, controller, and tests` (830d4d46d)
+### 1. `chore: add accp-compiler to gitignore and fix build path resolution` (605f230ba)
 
-ExecutionKernel foundation: FSM (29 legal, 38 illegal transitions), attempt-event-journal, controller-leadership, deadline-watchdog, handoff-queue, state-writer, admission-gate, plan-supervisor tests. 128 tests passing across 11 files.
+Add accp-compiler dist and source build artifacts to gitignore. Add path mapping for accp-compiler in coding-agent tsconfig.build.json and Makefile build step. Update generated model files.
+
+### 2. `fix(p49.harden): authority boundary hardening -- repair loop, evidence validator, route bus` (e83f4cb5a)
+
+Seven hardening fixes from P49 BSR/RCA: repair loop immutability guard with RepairBoundaryViolationError; evidence validator false-positive guards (watchMode, noTestsFound, commandNotFound, timeout) as BLOCKER severity; route bus integrity check with ArtifactIntegrityError on hash mismatch. 5 new negative test files added.
+
+### 3. `feat(p49.30): final promotion, documentation, operator guide, and P50 readiness` (f8caf8065)
+
+PRR promotion readiness report, graph.json, P49 operator guide, architecture documentation. ACCP mode remains warn. P50 declared ready.
+
+### 4. `feat(p49.29): add end-to-end ACCP native flow gauntlets` (f0bc50d09)
+
+15 e2e tests covering invalid YAML rejection, route signal without authority, repair loop evidence invention guard, promotion with open blockers. All fail-closed at trust boundaries.
+
+### 5. `feat(p49.28): expand non-gate-critical report family templates` (411f17e16)
+
+14 expanded template contracts for feature (FER, FDR, FCR, FIR, FGR), writing (WBR, WDR, WER, WQR), coordination (ECR, DCR), and bugfix (BRR, RCA, FVR) families. All marked evidence-only.
+
+### 6. `feat(p49.27): add ACCP artifact store with filesystem persistence` (56c9b0046)
+
+Filesystem artifact store per ACCP layout convention: reports/accp/{plan_id}/{type}/{report_id}.{suffix}. Save/read methods for compiled, IR, verdict, route, rendered.
+
+### 7. `feat(p49.26): add ACCP dashboard components` (cc58c5e8a)
+
+Read-only React components: AccpGateStatusBadge, AccpDiagnosticsPanel, AccpRouteGraph. No mutation affordances.
+
+### 8. `feat(p49.25): add ACCP repair loop and canonicalization workflow` (4e371058b)
+
+Repair loop controller with structural-only canonicalization. CRITICAL: cannot invent evidence, fabricate command results, or remove blocking findings. Covering negative tests.
+
+### 9. `feat(p49.24): add ACCP route bus for multi-agent artifact handoff` (c815da8d1)
+
+In-memory pub/sub route bus for scout, fixer, validator, reviewer, coordinator agents. Route signals remain advisory. Default subscriptions with role mapping.
+
+### 10. `feat(p49.23): add InitialRouteIndicator and AccpTaskEnvelope` (4f4353e0a)
+
+Bridges TUI user selection into compiled route signal pipeline. Does not authorize execution — bridges intent to structured routing. Subsequent routes driven by compiled route-signal.json.
+
+### 11. `feat(p49.22): add ACCP TUI mode picker, status view, and diagnostics view` (f38784d06)
+
+Tab-driven ACCP mode selection (off/warn/required). Status view shows mode, diagnostic counts, gate status. Diagnostics view renders structured diagnostics.
+
+### 12. `feat(p49.21): add ACCP read model views, query handler, and REST API routes` (b04a21a70)
+
+ACCP view types in execution read model (route signal, gate verdict, compile status, graph, index). 5 read-only REST endpoints under /api/.../accp/. Stub query handler implementations.
+
+### 13. `feat(p49.20): add ACCP lifecycle events to execution runtime event schema` (ac7a97a8b)
+
+5 event types (compile_started, compile_completed, gate_verdict_emitted, finding_recorded, route_signal_emitted) and ACCP event sources (accp_compiler, accp_route_bus). Additive.
+
+### 14. `feat(p49.19): add ACCP gate reader and transition guard in execution runtime` (2ccfb56be)
+
+ACCP gate reader evaluates compiled verdicts for transition decisions. TransitionRouter checks ACCP gate before Active->Complete in required mode. Runtime promotion evaluator.
+
+### 15. `feat(p49.18): add ACCP gate stage to CompletionGateVNext` (2376acdeb)
+
+AccpGate stage runner that checks compiled ACCP gate verdicts. Blocks Active->Complete in required mode. Advisory in non-required mode.
+
+### 16. `feat(p49.17): add autonomous executor ACCP compile hook` (72d069ba8)
+
+ACCP compile hook on worker output. When worker produces ACCP output with shouldCompile=true, runs compilation. Warn mode is diagnostic-only.
+
+### 17. `feat(p49.16): add workspace agent executor ACCP contract injection tests` (00181497f)
+
+Tests for ACCP output contract injection through workspace executor path. Mode-gated injection (off = no-op).
+
+### 18. `feat(p49.15): add ACCP mode directive injection into AgentSession system prompt` (30db68b13)
+
+ACCP mode directive injected into system prompt via _rebuildSystemPrompt. Compact prompt contracts prevent AP-P49-004 (full ACCP spec dumping).
+
+### 19. `feat(p49.14): add ACCP template registry, builtin templates, and prompt renderer` (d8f58ea64)
+
+Compact prompt contract registry with 5 built-in contracts (BSR, FPR, TVR, PRR, repair). Prompt renderer bridges templates to coding-agent system prompts.
+
+### 20. `feat(p49.13): add ACCP CLI compile/validate/compile-dir/render/graph commands` (ad178175f)
+
+CLI interface: compile, validate, compile-dir, render, graph commands.
+
+### 21. `feat(p49.12): add artifact writer, IR emitter, and rendered markdown emitter` (8151eceee)
+
+Artifact path builder, index entry and graph edge creators, IR emitter, human-readable Markdown renderer (marked human-preview-only).
+
+### 22. `feat(p49.11): add gate verdict compiler, gate evaluator, and promotion evaluator` (9a6422e0c)
+
+Gate verdict compilation from diagnostics and evidence status. Promotion readiness evaluation. Diagnostic-only — no transition authorization.
+
+### 23. `feat(p49.10): add route signal compiler with guardrail policy` (8249614bd)
+
+Route signal compilation with guardrail rules: READ_ONLY auto-advances on high confidence; VALIDATION_ONLY checks command class; MUTATION_ALLOWED requires human confirmation; UNRESOLVED targets require HIR. Signals always advisory.
+
+### 24. `feat(p49.09): add ACCP evidence validator` (8fc77bf12)
+
+Evidence validator for paths, hashes, commands, and false positive guards. Rejects missing required hashes.
+
+### 25. `feat(p49.08): add ACCP ID, reference, and lineage validation` (2fed6d579)
+
+Deterministic validators for report IDs, cross-report references, and lineage cycle detection. Structured ACCP diagnostics.
+
+### 26. `feat(p49.07): add common and report-specific ACCP schema validation` (d7c00c3c2)
+
+Common schema validator for top-level ACCP fields. Report-specific validators for gate-critical types (TVR, BSR, PRR). Schema definitions for all 24 types.
+
+### 27. `feat(p49.06): add ACCP YAML parser, source extractor, and test fixtures` (52d3549cf)
+
+Strict ACCP-YAML parser with validation for accp_version, source_format, report section. Source extractor for transitional compatibility.
+
+### 28. `feat(p49.05): add ACCP report registry with 24-type matrix and support levels` (ec4d8d849)
+
+Canonical 24-type report registry with AccpReportRegistryEntry, lookup helpers, support-matrix metadata for gate-critical types.
+
+### 29. `feat(p49.04): scaffold standalone accp-compiler package` (f45333206)
+
+New packages/accp-compiler workspace. Deterministic TypeScript compiler for ACCP v2.0. No coding-agent runtime imports. Exposes compileAccpSource() entry point.
+
+### 30. `feat(p49.03): add ACCP v2.0 type system foundation types` (0c6d3a4a1)
+
+Core ACCP v2.0 types in execution-contracts: 24-report union, route signal, gate verdict, compile result, lifecycle events, task envelope. Additive AccpWorkerOutput on WorkerRunResult.
+
+### 31. `feat(p49.02): add PlanSpec ACCP v2.0 authority boundary types` (863059666)
+
+PlanSpec ACCP authority extension: AccpMode, AccpModePolicy, AccpReportProtocol, defaults. PlanSpec does NOT choose next route.
+
+### 32. `feat(p49.01): add ACCP v2.0 package reference constants and tests` (679772ac9)
+
+Typed path constants for read-only accp_v2_0_package at repo root. Wire exports in execution-contracts index.
 
 ### 2. `feat(coding-agent): complete P28 runtime audit and shadow mode` (10d0a8d95)
 
@@ -958,6 +1082,35 @@ React + Vite dashboard with chat dialog, plan monitoring, and V2 brain UIs.
 | `src/oauth.ts` | OAuth state/PKCE separation |
 | `utils/oauth/anthropic.ts`, `pkce.ts` | OAuth security improvements |
 | `test/prompt-cache-policy.test.ts` | 450-line test suite |
+
+### `packages/accp-compiler/` — ACCP v2.0 Compiler (P49)
+
+| File | Description |
+|---|---|
+| `src/compiler.ts`, `src/compiler-pipeline.ts` | Top-level entry point and orchestration pipeline |
+| `src/parser/yaml-parser.ts`, `src/parser/extractor.ts` | Strict ACCP-YAML parser and source extractor |
+| `src/registry/report-registry.ts` | 24-type ACCP report registry with lookup helpers |
+| `src/registry/support-matrix.ts` | Support level metadata (strict/lite/template) |
+| `src/registry/report-schemas.ts` | Schema definitions for all 24 types with required sections |
+| `src/registry/template-registry.ts` | Prompt contract template registry (5 built-in + expanded) |
+| `src/registry/builtin-templates.ts` | 14 expanded templates for feature/writing/coordination types |
+| `src/validation/common-schema-validator.ts` | Top-level ACCP field validation |
+| `src/validation/report-schema-validator.ts` | Report-specific validation for gate-critical types |
+| `src/validation/id-validator.ts` | Report ID pattern and duplicate detection |
+| `src/validation/reference-validator.ts` | Cross-report reference resolution |
+| `src/validation/lineage-validator.ts` | Lineage cycle detection |
+| `src/validation/evidence-validator.ts` | Evidence path/hash/command validation, false-positive guard checks |
+| `src/emit/emit-route-signal.ts` | Route signal compilation (advisory-only) |
+| `src/emit/emit-gate-verdict.ts` | Gate verdict compilation from diagnostics |
+| `src/emit/emit-artifact.ts` | Artifact path builder, index/graph creation |
+| `src/emit/emit-ir.ts` | Intermediate representation emitter |
+| `src/emit/emit-rendered-markdown.ts` | Human-preview-only Markdown renderer |
+| `src/gate/route-policy.ts` | Route guardrail policy engine |
+| `src/gate/gate-evaluator.ts` | Gate evaluation from diagnostics |
+| `src/gate/promotion-evaluator.ts` | Promotion readiness evaluation |
+| `src/prompts/repair-prompt.ts` | Repair prompt contract template |
+| `src/cli.ts` | CLI (compile/validate/compile-dir/render/graph) |
+| `test/` | 117 unit tests |
 
 ### `packages/db/` — PostgreSQL Persistence (Restored in P11)
 
