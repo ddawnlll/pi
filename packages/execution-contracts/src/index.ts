@@ -6,6 +6,19 @@
  * Must NOT import from @earendil-works/pi-coding-agent.
  */
 
+// ACCP v2.0 package reference (P49.01)
+export {
+	ACCP_V2_PACKAGE_DESCRIPTION,
+	ACCP_V2_PACKAGE_DOCS,
+	ACCP_V2_PACKAGE_EXAMPLES,
+	ACCP_V2_PACKAGE_PATHS,
+	ACCP_V2_PACKAGE_PROMPTS,
+	ACCP_V2_PACKAGE_README,
+	ACCP_V2_PACKAGE_REGISTRY,
+	ACCP_V2_PACKAGE_ROOT,
+	ACCP_V2_PACKAGE_SCHEMAS,
+} from "./accp-package-reference.js";
+
 // Live command log stream (P41.05)
 export type { CommandLogEntry, CommandLogSubscriber, ICommandLogStream } from "./command-log-stream.js";
 export { InMemoryCommandLogStream } from "./command-log-stream.js";

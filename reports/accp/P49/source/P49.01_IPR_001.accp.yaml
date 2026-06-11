@@ -1,0 +1,105 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.01_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.01 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.01
+  workspace_title: "ACCP v2.0 Package Intake, Root Reference, and Local Source Contract"
+  wave_id: W1
+  role: protocol_intake
+  allowed_files:
+    - accp_v2_0_package/README.md
+    - accp_v2_0_package/docs/**
+    - accp_v2_0_package/registry/**
+    - accp_v2_0_package/schemas/**
+    - accp_v2_0_package/prompts/**
+    - packages/execution-contracts/src/accp-package-reference.ts
+    - packages/execution-contracts/test/accp-package-reference.test.ts
+  forbidden_files:
+    - .env
+    - .env.*
+    - node_modules/**
+    - .git/**
+    - package-lock.json
+    - pnpm-lock.yaml
+    - accp_v2_0_package/**
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/execution-contracts/src/accp-package-reference.ts
+    - packages/execution-contracts/test/accp-package-reference.test.ts
+  modified_files:
+    - packages/execution-contracts/src/index.ts
+  deleted_files: []
+  key_decisions:
+    - decision: "ACCP_V2_PACKAGE_ROOT points to accp_v2_0_package at repo root, not inside packages/"
+      rationale: "The accp_v2_0_package directory is intentionally at repo root as a cross-cutting design source, not a package-managed module."
+    - decision: "Path constants are typed 'const' literal types for maximum type safety"
+      rationale: "Compiler-enforced string literal types prevent typos and enable downstream narrowing."
+    - decision: "Exported array ACCP_V2_PACKAGE_PATHS enables iteration for validation use cases"
+      rationale: "Future validators and CI scripts can check all packages exist without duplicating path lists."
+  accp_mode_behavior: "off — this workspace creates type/contract infrastructure only, no runtime ACCP behavior"
+
+changes:
+  - file: packages/execution-contracts/src/accp-package-reference.ts
+    action: create
+    summary: >
+      Typed constants linking to the read-only accp_v2_0_package directory.
+      Exports per-subdirectory paths (docs, examples, prompts, registry, schemas, README),
+      an all-paths array, and a human-readable description. All paths are const literal types.
+  - file: packages/execution-contracts/test/accp-package-reference.test.ts
+    action: create
+    summary: >
+      9 tests: 7 positive (path correctness, disk existence, description text)
+      and 2 negative (no packages/ prefix, no trailing slashes). Existence checks
+      resolve from repo root via import.meta.dirname.
+  - file: packages/execution-contracts/src/index.ts
+    action: edit
+    summary: Added export block for all ACCP_V2_PACKAGE_* constants at the top of the public API surface.
+
+diff_integrity:
+  base_git_commit: "dbbbcfc95e992487ecddf1710525a2eb376227d9"
+  workspace_files:
+    - packages/execution-contracts/src/accp-package-reference.ts
+    - packages/execution-contracts/test/accp-package-reference.test.ts
+    - packages/execution-contracts/src/index.ts
+  forbidden_files_check:
+    status: passed
+    detail: "No writes to accp_v2_0_package/** or any forbidden file pattern."
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO
+  type_check_result: passed
+  unit_test_ref: vitest run test/accp-package-reference.test.ts
+  unit_test_result: passed (9/9)
+  notes: "All validations pass. No runtime behavior was introduced."
+
+rollback_plan:
+  strategy: revert_workspace_files_only
+  steps:
+    - git checkout -- packages/execution-contracts/src/accp-package-reference.ts
+    - git checkout -- packages/execution-contracts/test/accp-package-reference.test.ts
+    - git checkout -- packages/execution-contracts/src/index.ts
+  preserve: "ACCP reports under reports/accp/P49/"
+
+evidence:
+  - type: source
+    description: ACCP v2.0 package reference module
+    path: packages/execution-contracts/src/accp-package-reference.ts
+    hash_required: false
+  - type: unit_test
+    description: Package reference tests (9/9 pass)
+    path: packages/execution-contracts/test/accp-package-reference.test.ts
+    hash_required: false
+  - type: diff
+    description: Workspace file edits
+    paths:
+      - packages/execution-contracts/src/index.ts
+  - type: commit
+    description: P49.01 workspace commit
+    hash_required: true

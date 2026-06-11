@@ -53,9 +53,13 @@ packages/coding-agent/binaries/
 todo.md
 
 # Reports (except tracked ACCP/P44.6)
-reports/
-!reports/accp/
-!reports/p44-6/
-!reports/accp/**
-!reports/p44-6/**
-reports/execution-diagnostics/
+/reports/*
+!/reports/accp
+!/reports/p44-6
+/reports/accp/*
+!/reports/accp/*
+!/reports/accp/**
+/reports/p44-6/*
+!/reports/p44-6/*
+!/reports/p44-6/**
+/reports/execution-diagnostics/*

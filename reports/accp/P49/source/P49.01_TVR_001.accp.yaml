@@ -1,0 +1,60 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.01_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P49.01 Test Validation Report
+support_level: schema_lite
+
+validation_summary:
+  workspace_id: P49.01
+  status: passed
+  total_assertions: 9
+  passed: 9
+  failed: 0
+  skipped: 0
+  regressions: []
+  new_failures: []
+  coverage: {}
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    executable: npx tsgo --noEmit
+    cwd: "."
+    exit_code: 0
+    output_excerpt: "ok"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: command
+      hash: "none (console output only)"
+  - commandRef: vitest accp-package-reference
+    executable: npx vitest run test/accp-package-reference.test.ts
+    cwd: packages/execution-contracts
+    exit_code: 0
+    output_excerpt: "PASS (9) FAIL (0)"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: true
+      noTestsFound: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: unit_test
+      assertions:
+        - "should expose the correct package root"
+        - "should reference a package root that exists on disk"
+        - "should reference subdirectories with correct relative paths"
+        - "should reference a README path"
+        - "should include all expected paths in the array"
+        - "should expose a human-readable description"
+        - "should not point to a directory under packages/ (design-time package is at repo root)"
+        - "should not contain a trailing slash on any path (consistency)"
+        - "should expose exactly 7 paths (6 subs + README)"
+
+regressions: []
