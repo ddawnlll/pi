@@ -1,0 +1,96 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.04_IPR_001
+report_type: IPR
+report_family: feature
+report_name: P49.04 Implementation Patch Report
+support_level: schema_lite
+
+scope_declaration:
+  workspace_id: P49.04
+  workspace_title: "Standalone packages/accp-compiler Package Scaffold"
+  wave_id: W2
+  role: compiler_package
+  allowed_files:
+    - packages/accp-compiler/package.json
+    - packages/accp-compiler/tsconfig.build.json
+    - packages/accp-compiler/vitest.config.ts
+    - packages/accp-compiler/src/index.ts
+    - packages/accp-compiler/src/compiler.ts
+    - packages/accp-compiler/src/compiler-pipeline.ts
+    - packages/accp-compiler/test/compiler.test.ts
+    - package.json
+    - pnpm-workspace.yaml
+
+implementation_summary:
+  status: completed
+  created_files:
+    - packages/accp-compiler/package.json
+    - packages/accp-compiler/tsconfig.build.json
+    - packages/accp-compiler/vitest.config.ts
+    - packages/accp-compiler/src/index.ts
+    - packages/accp-compiler/src/compiler.ts
+    - packages/accp-compiler/src/compiler-pipeline.ts
+    - packages/accp-compiler/test/compiler.test.ts
+  modified_files: []
+  key_decisions:
+    - decision: "Package depends on @earendil-works/pi-execution-contracts but not coding-agent"
+      rationale: "Compiler independence — must not import coding-agent runtime modules (DE004)."
+    - decision: "compiler.ts exposes compileAccpSource() as top-level entry; pipeline lives in compiler-pipeline.ts"
+      rationale: "Separation of concerns — main entry vs orchestration pipeline."
+    - decision: "Pipeline uses placeholder parse/validate phases to be filled by P49.06/P49.07"
+      rationale: "Incremental development within W2 wave."
+    - decision: "Directory structure includes registry/, parser/, validation/, emit/, gate/, prompts/ for downstream workspaces"
+      rationale: "Pre-scaffold directories for P49.05-P49.14 workspaces."
+
+changes:
+  - file: packages/accp-compiler/package.json
+    action: create
+    summary: Package manifest with @earendil-works/pi-accp-compiler name, execution-contracts dependency.
+  - file: packages/accp-compiler/tsconfig.build.json
+    action: create
+    summary: TypeScript build config extending tsconfig.base.json.
+  - file: packages/accp-compiler/vitest.config.ts
+    action: create
+    summary: Vitest config with passWithNoTests: true.
+  - file: packages/accp-compiler/src/index.ts
+    action: create
+    summary: Public API surface re-exporting compileAccpSource and ACCP types.
+  - file: packages/accp-compiler/src/compiler.ts
+    action: create
+    summary: Top-level compileAccpSource() entry point delegating to pipeline.
+  - file: packages/accp-compiler/src/compiler-pipeline.ts
+    action: create
+    summary: Compiler pipeline class with parse, validate, execute phases. Placeholder validators.
+  - file: packages/accp-compiler/test/compiler.test.ts
+    action: create
+    summary: 5 tests (2 positive valid YAML, 3 negative empty/whitespace/non-YAML).
+
+diff_integrity:
+  base_git_commit: "0c6d3a4a1"
+  workspace_files:
+    - packages/accp-compiler/** (all files in scope)
+  forbidden_files_check:
+    status: passed
+    detail: "No writes to accp_v2_0_package/** or any forbidden file pattern."
+
+validation_handoff:
+  type_check_ref: CMD-TYPECHECK-TSGO
+  type_check_result: passed
+  unit_test_ref: vitest run test/compiler.test.ts
+  unit_test_result: passed (5/5)
+
+rollback_plan:
+  strategy: revert_workspace_files_only
+  steps:
+    - rm -rf packages/accp-compiler
+
+evidence:
+  - type: source
+    description: accp-compiler package scaffold
+    path: packages/accp-compiler/src/compiler.ts
+  - type: unit_test
+    description: Compiler scaffold tests (5/5 pass)
+    path: packages/accp-compiler/test/compiler.test.ts
+  - type: commit
+    description: P49.04 workspace commit

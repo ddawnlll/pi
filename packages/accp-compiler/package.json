@@ -1,0 +1,42 @@
+{
+	"name": "@earendil-works/pi-accp-compiler",
+	"version": "0.74.0",
+	"description": "ACCP v2.0 compiler — YAML-to-compiled-JSON pipeline with schema validation, route signals, gate verdicts, and artifact emission",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsgo -p tsconfig.build.json",
+		"test": "vitest --run",
+		"check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/pi-execution-contracts": "*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.5",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"keywords": [
+		"accp",
+		"compiler",
+		"yaml",
+		"validation",
+		"route-signal",
+		"gate-verdict"
+	],
+	"license": "MIT"
+}

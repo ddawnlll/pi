@@ -1,0 +1,56 @@
+accp_version: 2.0.0
+source_format: ACCP-YAML
+report_id: P49.04_TVR_001
+report_type: TVR
+report_family: feature
+report_name: P49.04 Test Validation Report
+support_level: schema_lite
+
+validation_summary:
+  workspace_id: P49.04
+  status: passed
+  total_assertions: 5
+  passed: 5
+  failed: 0
+  skipped: 0
+  regressions: []
+  new_failures: []
+
+command_results:
+  - commandRef: CMD-TYPECHECK-TSGO
+    executable: npx tsgo --noEmit
+    cwd: "."
+    exit_code: 0
+    output_excerpt: "ok"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: command
+  - commandRef: CMD-ACCP-COMPILER-UNIT
+    executable: npx vitest run
+    cwd: packages/accp-compiler
+    exit_code: 0
+    output_excerpt: "PASS (5) FAIL (0)"
+    false_positive_guards:
+      watchModeForbidden: true
+      watchModeDetected: false
+      noTestsFoundIsFailure: true
+      noTestsFound: false
+      commandNotFoundIsFailure: true
+      timeoutIsFailure: true
+    evidence:
+      type: unit_test
+      assertions:
+        positive:
+          - "should accept valid ACCP YAML with accp_version header"
+          - "should return a report ID from parsed YAML"
+        negative:
+          - "should reject empty source YAML"
+          - "should reject source that does not start with accp_version"
+          - "should reject whitespace-only input"
+
+regressions: []
