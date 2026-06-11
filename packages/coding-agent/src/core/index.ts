@@ -312,6 +312,24 @@ export {
 	validateEngineConfig,
 	type WriteConfig,
 } from "./mode/engine-mode.js";
+// P44.6 — Mode Diagnostic Model
+export {
+	blockingDiagnostic,
+	type DiagnosticCollection,
+	type DiagnosticSeverity,
+	filterByCode,
+	filterBySeverity,
+	hasBlockingDiagnostics,
+	MODE_DIAGNOSTIC_SCHEMA_VERSION,
+	type ModeDiagnostic,
+	type ModeDiagnosticCode,
+	warningDiagnostic,
+} from "./mode/mode-diagnostic.js";
+// P44.6 — Mode Mapping Compiler
+export {
+	compileMode,
+	type ModeMappingResult,
+} from "./mode/mode-mapping-compiler.js";
 // P44.6 — Task Intent Envelope
 export {
 	type AmbiguityCode,
