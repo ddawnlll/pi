@@ -57,7 +57,8 @@ export type CompletionGateStageName =
 	| "CommitExecution"
 	| "PostCommitVerification"
 	| "CommitMessageComposer"
-	| "DestructiveOperationGuard";
+	| "DestructiveOperationGuard"
+	| "AccpGate";
 
 /**
  * Ordered list of stage names matching execution order.
