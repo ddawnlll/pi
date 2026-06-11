@@ -155,7 +155,7 @@ function extractDetails(result: ValidateWithPreviewResponse): DetailItem[] {
 			items.push({
 				icon: AlertCircle,
 				iconColor: "text-red-400",
-				message: err,
+				message: typeof err === "string" ? err : err.message,
 			});
 		}
 	}

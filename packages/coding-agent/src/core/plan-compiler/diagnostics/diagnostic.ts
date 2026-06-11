@@ -36,6 +36,20 @@ export interface PlanDiagnostic {
 	message: string;
 	hint?: string;
 	sourceSpan?: PlanDiagnosticSourceSpan;
+	/** Zod error code (e.g. "invalid_type", "unrecognized_keys") */
+	zodCode?: string;
+	/** Expected type/value description */
+	expected?: string;
+	/** Received type/value description */
+	received?: string;
+	/** Unknown property keys (for unrecognized_keys) */
+	unknownKeys?: string[];
+	/** Schema pointer or source file path */
+	schemaPointer?: string;
+	/** The owning object's top-level section name */
+	owningSection?: string;
+	/** Nearest parent JSON pointer */
+	nearestParentPath?: string;
 }
 
 export interface PlanCompileResult {
@@ -58,6 +72,13 @@ export interface DiagnosticBuilderOptions {
 	message: string;
 	hint?: string;
 	sourceSpan?: PlanDiagnosticSourceSpan;
+	zodCode?: string;
+	expected?: string;
+	received?: string;
+	unknownKeys?: string[];
+	schemaPointer?: string;
+	owningSection?: string;
+	nearestParentPath?: string;
 }
 
 export function diag(options: DiagnosticBuilderOptions): PlanDiagnostic {
@@ -69,6 +90,13 @@ export function diag(options: DiagnosticBuilderOptions): PlanDiagnostic {
 		message: options.message,
 		hint: options.hint,
 		sourceSpan: options.sourceSpan,
+		zodCode: options.zodCode,
+		expected: options.expected,
+		received: options.received,
+		unknownKeys: options.unknownKeys,
+		schemaPointer: options.schemaPointer,
+		owningSection: options.owningSection,
+		nearestParentPath: options.nearestParentPath,
 	};
 }
 

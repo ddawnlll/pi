@@ -6,6 +6,7 @@
  * Phase 3: Schema validation (Zod strict)
  */
 
+import type { z } from "zod";
 import { diag, fatal, type PlanDiagnostic } from "../diagnostics/diagnostic.js";
 import { PlanDiagnosticCode } from "../diagnostics/diagnostic-codes.js";
 import { PlanSpecV5Alpha2Schema } from "./alpha2-schema.js";
@@ -253,6 +254,44 @@ export interface SchemaValidationResult {
  * Validate against the strict Alpha2 Zod schema.
  * Converts Zod issues to compiler diagnostics.
  */
+function owningSectionFromPath(pathSegments: readonly (string | number | symbol)[]): string | undefined {
+	// Top-level key is the first string segment after root
+	const topKey = pathSegments.find((s): s is string => typeof s === "string");
+	return topKey;
+}
+
+function nearestParentPath(pathSegments: readonly (string | number | symbol)[]): string {
+	if (pathSegments.length <= 1) return "$";
+	const parent = pathSegments.slice(0, -1);
+	return `$.${parent.join(".")}`;
+}
+
+function formatZodExpected(issue: z.ZodIssue): string | undefined {
+	const issueRecord = issue as unknown as Record<string, unknown>;
+	if ("expected" in issueRecord) {
+		const val = issueRecord.expected;
+		return val !== undefined ? String(val) : undefined;
+	}
+	const code = String(issueRecord.code);
+	if (code === "invalid_type") {
+		return String(issueRecord.expected ?? "");
+	}
+	if (code === "invalid_enum_value" || code === "invalid_literal" || code === "invalid_value") {
+		const opts = issueRecord.options;
+		if (Array.isArray(opts)) return opts.map(String).join("|");
+	}
+	return undefined;
+}
+
+function formatZodReceived(issue: z.ZodIssue): string | undefined {
+	const issueRecord = issue as unknown as Record<string, unknown>;
+	if ("received" in issueRecord) {
+		const val = issueRecord.received;
+		return val !== undefined ? String(val) : undefined;
+	}
+	return undefined;
+}
+
 export function validateAlpha2Schema(parsed: Record<string, unknown>): SchemaValidationResult {
 	const result = PlanSpecV5Alpha2Schema.safeParse(parsed);
 
@@ -264,17 +303,31 @@ export function validateAlpha2Schema(parsed: Record<string, unknown>): SchemaVal
 		const path = `$.${issue.path.join(".")}`;
 		const code = mapZodCode(issue.code);
 
-		let message = issue.message;
-		if (issue.code === "unrecognized_keys") {
-			const keys = (issue as { keys?: string[] }).keys ?? [];
+		const issueRecord = issue as unknown as Record<string, unknown>;
+		let message = String(issueRecord.message ?? "");
+		let unknownKeys: string[] | undefined;
+		const codeStr = String(issueRecord.code);
+		if (codeStr === "unrecognized_keys") {
+			const keys = (issueRecord.keys as string[]) ?? [];
+			unknownKeys = keys;
 			message = `Unknown property: ${keys.join(", ")}`;
 		}
+
+		const pathArr = Array.isArray(issueRecord.path) ? (issueRecord.path as (string | number | symbol)[]) : [];
+		const section = owningSectionFromPath(pathArr);
+		const parentPath = nearestParentPath(pathArr);
 
 		return diag({
 			code,
 			phase: "schema_validation",
 			path,
 			message,
+			zodCode: codeStr,
+			expected: formatZodExpected(issue),
+			received: formatZodReceived(issue),
+			unknownKeys,
+			owningSection: section,
+			nearestParentPath: parentPath,
 		});
 	});
 

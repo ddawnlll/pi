@@ -47,6 +47,24 @@ export function formatDiagnostics(diagnostics: PlanDiagnostic[]): string {
 			if (d.hint) {
 				lines.push(`    Hint: ${d.hint}`);
 			}
+			if (d.expected !== undefined) {
+				lines.push(`    Expected: ${d.expected}`);
+			}
+			if (d.received !== undefined) {
+				lines.push(`    Received: ${d.received}`);
+			}
+			if (d.unknownKeys && d.unknownKeys.length > 0) {
+				lines.push(`    Unknown keys: ${d.unknownKeys.join(", ")}`);
+			}
+			if (d.schemaPointer) {
+				lines.push(`    Schema: ${d.schemaPointer}`);
+			}
+			if (d.owningSection) {
+				lines.push(`    Section: ${d.owningSection}`);
+			}
+			if (d.nearestParentPath) {
+				lines.push(`    Parent: ${d.nearestParentPath}`);
+			}
 		}
 
 		lines.push("");
@@ -79,6 +97,13 @@ export function formatDiagnosticsJson(diagnostics: PlanDiagnostic[]): object {
 						length: d.sourceSpan.length,
 					}
 				: undefined,
+			zodCode: d.zodCode,
+			expected: d.expected,
+			received: d.received,
+			unknownKeys: d.unknownKeys,
+			schemaPointer: d.schemaPointer,
+			owningSection: d.owningSection,
+			nearestParentPath: d.nearestParentPath,
 		})),
 	};
 }

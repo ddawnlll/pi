@@ -570,7 +570,7 @@ export interface ValidateWithPreviewResponse {
 		critical: Array<{ type: string; message: string }>;
 		warnings: Array<{ type: string; message: string }>;
 	};
-	errors?: string[];
+	errors?: Array<string | { code: string; path: string; message: string; severity: string; phase: string; hint?: string }>;
 	warnings?: string[];
 	/** Parallelism preview batch analysis */
 	batchPlan?: BatchPlanResult;
