@@ -5,10 +5,9 @@
  * the frozen predictive spec. Computes drift metrics used by the DriftBudgetGate.
  */
 
-import { createHash } from "node:crypto";
 import type { ArtifactManifest } from "./artifact-manifest.js";
+import { type FrozenContract, freezeSpec } from "./contract-freeze.js";
 import type { PredictiveSpec } from "./predictive-spec-input.js";
-import { freezeSpec, type FrozenContract } from "./contract-freeze.js";
 
 // =============================================================================
 // Types
@@ -84,14 +83,10 @@ export class SpecDriftDetector {
 		const frozenPrediction = this.frozenContract.spec;
 
 		for (const manifest of manifests) {
-			const nsPrediction = frozenPrediction.namespaces.find(
-				(ns) => ns.namespace === manifest.namespace,
-			);
+			const nsPrediction = frozenPrediction.namespaces.find((ns) => ns.namespace === manifest.namespace);
 
 			for (const artifact of manifest.artifacts) {
-				const contract = nsPrediction?.contracts.find(
-					(c) => c.contract === artifact.file,
-				);
+				const contract = nsPrediction?.contracts.find((c) => c.contract === artifact.file);
 
 				if (!contract) {
 					// New file not in prediction → missing prediction

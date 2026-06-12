@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { buildOperatorDashboard, computeAssemblyHealth } from "../../src/core/assembly/operator-dashboard.js";
 import { evaluateGovernor } from "../../src/core/assembly/adaptive-concurrency-governor.js";
+import { buildOperatorDashboard, computeAssemblyHealth } from "../../src/core/assembly/operator-dashboard.js";
 
 describe("OperatorDashboard", () => {
 	it("builds dashboard from governor verdict", () => {
 		const input = {
 			resources: { cpuUsage: 0.2, memoryUsage: 0.3, cpuPressure: false, memoryPressure: false },
 			rateLimit: { tokensRemaining: 100, limited: false, provider: "openai" },
-			queues: { eventJournalDepth: 1, accpCompilerDepth: 1, artifactAcceptanceDepth: 1, assemblerDepth: 1, maxDepth: 100 },
+			queues: {
+				eventJournalDepth: 1,
+				accpCompilerDepth: 1,
+				artifactAcceptanceDepth: 1,
+				assemblerDepth: 1,
+				maxDepth: 100,
+			},
 			failureRate: { failureRate: 0, failures: 0, total: 10, throttleThreshold: 0.25 },
-			signalStale: false, activeWorkers: 2, maxWorkersAtTier: 6,
-			operatorVisibilityRemaining: 100, lastSampleAt: new Date().toISOString(),
+			signalStale: false,
+			activeWorkers: 2,
+			maxWorkersAtTier: 6,
+			operatorVisibilityRemaining: 100,
+			lastSampleAt: new Date().toISOString(),
 		};
 		const governor = evaluateGovernor(input);
 		const dashboard = buildOperatorDashboard({ governor });
@@ -27,10 +36,19 @@ describe("OperatorDashboard", () => {
 		const input = {
 			resources: { cpuUsage: 0.9, memoryUsage: 0.9, cpuPressure: true, memoryPressure: true },
 			rateLimit: { tokensRemaining: 0, limited: true, provider: "openai" },
-			queues: { eventJournalDepth: 1, accpCompilerDepth: 1, artifactAcceptanceDepth: 1, assemblerDepth: 1, maxDepth: 100 },
+			queues: {
+				eventJournalDepth: 1,
+				accpCompilerDepth: 1,
+				artifactAcceptanceDepth: 1,
+				assemblerDepth: 1,
+				maxDepth: 100,
+			},
 			failureRate: { failureRate: 0.3, failures: 3, total: 10, throttleThreshold: 0.25 },
-			signalStale: false, activeWorkers: 0, maxWorkersAtTier: 6,
-			operatorVisibilityRemaining: 100, lastSampleAt: new Date().toISOString(),
+			signalStale: false,
+			activeWorkers: 0,
+			maxWorkersAtTier: 6,
+			operatorVisibilityRemaining: 100,
+			lastSampleAt: new Date().toISOString(),
 		};
 		const governor = evaluateGovernor(input);
 		const dashboard = buildOperatorDashboard({ governor });

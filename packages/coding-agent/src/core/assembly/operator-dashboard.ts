@@ -10,12 +10,12 @@
  */
 
 import type { GovernorVerdict } from "./adaptive-concurrency-governor.js";
-import type { ConflictMatrix } from "./semantic-conflict-analyzer.js";
-import type { SpecQualityMetrics } from "./spec-quality-ledger.js";
-import type { TrendAnalysis } from "./spec-quality-history.js";
 import type { DriftBudget } from "./drift-budget-gate.js";
 import type { RetryState } from "./failure-retry-policy.js";
 import type { ConcurrencyTier } from "./progressive-parallelism-ramp.js";
+import type { ConflictMatrix } from "./semantic-conflict-analyzer.js";
+import type { TrendAnalysis } from "./spec-quality-history.js";
+import type { SpecQualityMetrics } from "./spec-quality-ledger.js";
 
 // =============================================================================
 // Types

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { TargetedReplayEngine } from "../../src/core/assembly/targeted-replay-engine.js";
 import { buildArtifactManifest } from "../../src/core/assembly/artifact-manifest.js";
 import type { DriftReport } from "../../src/core/assembly/spec-drift-detector.js";
+import { TargetedReplayEngine } from "../../src/core/assembly/targeted-replay-engine.js";
 
 function emptyDriftReport(): DriftReport {
-	return { totalDrifts: 0, bySeverity: { none: [], compatible: [], breaking: [] }, hasBreakingDrifts: false, specVersionChanged: false };
+	return {
+		totalDrifts: 0,
+		bySeverity: { none: [], compatible: [], breaking: [] },
+		hasBreakingDrifts: false,
+		specVersionChanged: false,
+	};
 }
 
 function breakingDriftReport(): DriftReport {
@@ -13,7 +18,16 @@ function breakingDriftReport(): DriftReport {
 		bySeverity: {
 			none: [],
 			compatible: [],
-			breaking: [{ contract: "a.ts", severity: "breaking", predicted: "matched", actual: "breaking", description: "broke", previouslyDetected: false }],
+			breaking: [
+				{
+					contract: "a.ts",
+					severity: "breaking",
+					predicted: "matched",
+					actual: "breaking",
+					description: "broke",
+					previouslyDetected: false,
+				},
+			],
 		},
 		hasBreakingDrifts: true,
 		specVersionChanged: false,
@@ -25,9 +39,14 @@ describe("TargetedReplayEngine — positive", () => {
 		const engine = new TargetedReplayEngine();
 		const manifests = [
 			buildArtifactManifest({
-				namespace: "ns-0", workspaceId: "w0",
-				artifacts: [{ file: "a.ts", contentHash: "h", kind: "full", content: "a", modifiedAt: new Date().toISOString() }],
-				accpRefs: [], p44CompletionVerdict: "passed", accpCompiled: true,
+				namespace: "ns-0",
+				workspaceId: "w0",
+				artifacts: [
+					{ file: "a.ts", contentHash: "h", kind: "full", content: "a", modifiedAt: new Date().toISOString() },
+				],
+				accpRefs: [],
+				p44CompletionVerdict: "passed",
+				accpCompiled: true,
 			}),
 		];
 		const plan = engine.buildReplayPlan(breakingDriftReport(), manifests);

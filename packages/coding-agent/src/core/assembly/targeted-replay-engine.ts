@@ -7,7 +7,7 @@
  */
 
 import type { ArtifactManifest } from "./artifact-manifest.js";
-import type { SpecDriftDetection, DriftReport } from "./spec-drift-detector.js";
+import type { DriftReport } from "./spec-drift-detector.js";
 
 // =============================================================================
 // Types
@@ -71,10 +71,7 @@ export class TargetedReplayEngine {
 	/**
 	 * Build a targeted replay plan from a drift report.
 	 */
-	buildReplayPlan(
-		driftReport: DriftReport,
-		manifests: ArtifactManifest[],
-	): ReplayPlan {
+	buildReplayPlan(driftReport: DriftReport, manifests: ArtifactManifest[]): ReplayPlan {
 		const targets: ReplayTarget[] = [];
 		const affectedFiles = new Set<string>();
 

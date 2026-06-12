@@ -204,9 +204,7 @@ export function hasRequiredAccpRefs(manifest: ArtifactManifest): boolean {
  * Compute a manifest's content hash for integrity verification.
  */
 export function computeManifestHash(manifest: Omit<ArtifactManifest, "manifestHash">): string {
-	return createHash("sha256")
-		.update(JSON.stringify(manifest))
-		.digest("hex");
+	return createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
 }
 
 /**

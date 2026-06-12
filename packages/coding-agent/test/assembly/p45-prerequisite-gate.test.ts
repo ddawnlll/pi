@@ -5,7 +5,6 @@ import {
 	evaluateP45PrerequisiteGateFull,
 	isP45FixtureAllowed,
 	isP45ProductionAllowed,
-	type P45PrerequisiteVerdict,
 	type PrerequisiteGateInput,
 	summarizePrerequisiteVerdict,
 } from "../../src/core/assembly/p45-prerequisite-gate.js";

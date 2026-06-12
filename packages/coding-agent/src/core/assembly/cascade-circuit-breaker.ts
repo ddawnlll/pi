@@ -5,5 +5,5 @@
  * and total replays. Breaks the circuit when thresholds are exceeded.
  */
 
-export { TargetedReplayEngine, DEFAULT_CASCADE_CONFIG } from "./targeted-replay-engine.js";
-export type { ReplayTarget, ReplayPlan, CascadeBreakerConfig } from "./targeted-replay-engine.js";
+export type { CascadeBreakerConfig, ReplayPlan, ReplayTarget } from "./targeted-replay-engine.js";
+export { DEFAULT_CASCADE_CONFIG, TargetedReplayEngine } from "./targeted-replay-engine.js";

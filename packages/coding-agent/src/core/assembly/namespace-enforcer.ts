@@ -6,10 +6,9 @@
  * Adapts worker patches for the deterministic assembler.
  */
 
-import type { OwnershipManifest, OwnershipEntry } from "./ownership-manifest.js";
+import type { ArtifactManifest, ManifestValidationResult, WorkerArtifact } from "./artifact-manifest.js";
+import type { OwnershipManifest } from "./ownership-manifest.js";
 import { canEditFile } from "./ownership-manifest.js";
-import type { WorkerArtifact, ArtifactManifest } from "./artifact-manifest.js";
-import type { ManifestValidationResult } from "./artifact-manifest.js";
 
 // =============================================================================
 // Types
@@ -132,9 +131,7 @@ export function validateWorkerManifest(
 		}
 
 		if (entry.namespace !== manifest.namespace && entry.role === "worker") {
-			errors.push(
-				`File "${artifact.file}" belongs to namespace "${entry.namespace}", not "${manifest.namespace}"`,
-			);
+			errors.push(`File "${artifact.file}" belongs to namespace "${entry.namespace}", not "${manifest.namespace}"`);
 		}
 	}
 

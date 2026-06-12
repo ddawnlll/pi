@@ -240,12 +240,10 @@ export function createSpecQualityLedger(): SpecQualityLedger {
  * Serialize the ledger entries for persistence (JSONL format).
  */
 export function serializeLedgerEntries(ledger: SpecQualityLedger): string {
-	return (
-		ledger
-			.getEntries()
-			.map((e) => JSON.stringify(e))
-			.join("\n") + "\n"
-	);
+	return `${ledger
+		.getEntries()
+		.map((e) => JSON.stringify(e))
+		.join("\n")}\n`;
 }
 
 /**

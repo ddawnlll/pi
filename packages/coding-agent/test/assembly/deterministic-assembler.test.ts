@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DeterministicAssembler } from "../../src/core/assembly/deterministic-assembler.js";
 import { buildArtifactManifest } from "../../src/core/assembly/artifact-manifest.js";
+import { DeterministicAssembler } from "../../src/core/assembly/deterministic-assembler.js";
 
 function makeManifest(ns: string, ws: string, files: string[]) {
 	return buildArtifactManifest({
@@ -98,14 +98,22 @@ describe("DeterministicAssembler — negative", () => {
 		const mB = buildArtifactManifest({
 			namespace: "ns-b",
 			workspaceId: "w1",
-			artifacts: [{ file: "b.ts", contentHash: "h", kind: "full", content: "b", modifiedAt: new Date().toISOString() }],
-			accpRefs: [], p44CompletionVerdict: "passed", accpCompiled: true,
+			artifacts: [
+				{ file: "b.ts", contentHash: "h", kind: "full", content: "b", modifiedAt: new Date().toISOString() },
+			],
+			accpRefs: [],
+			p44CompletionVerdict: "passed",
+			accpCompiled: true,
 		});
 		const mA = buildArtifactManifest({
 			namespace: "ns-a",
 			workspaceId: "w1",
-			artifacts: [{ file: "a.ts", contentHash: "h", kind: "full", content: "a", modifiedAt: new Date().toISOString() }],
-			accpRefs: [], p44CompletionVerdict: "passed", accpCompiled: true,
+			artifacts: [
+				{ file: "a.ts", contentHash: "h", kind: "full", content: "a", modifiedAt: new Date().toISOString() },
+			],
+			accpRefs: [],
+			p44CompletionVerdict: "passed",
+			accpCompiled: true,
 		});
 		// Input in reverse order, assembler should sort ns-a before ns-b
 		const result = assembler.assemble([mB, mA]);

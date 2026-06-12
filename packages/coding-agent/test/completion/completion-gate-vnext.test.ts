@@ -727,7 +727,7 @@ describe("DeclaredOutputExistenceStage", () => {
 				},
 			);
 			expect(verdict.passed).toBe(true);
-			expect(verdict.detail["note"]).toBe("filesystem check disabled");
+			expect(verdict.detail.note).toBe("filesystem check disabled");
 		});
 
 		it("should configure recovery state as NEEDS_REPAIR on failure", async () => {
@@ -748,7 +748,7 @@ describe("DeclaredOutputExistenceStage", () => {
 					rolloutMode: "block_strict_plans",
 				},
 			);
-			expect(verdict.detail["recoveryState"]).toBe("NEEDS_REPAIR");
+			expect(verdict.detail.recoveryState).toBe("NEEDS_REPAIR");
 		});
 	});
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluatePromotion, generatePrrReport, DEFAULT_EVIDENCE } from "../../src/core/assembly/final-promotion.js";
+import { DEFAULT_EVIDENCE, evaluatePromotion, generatePrrReport } from "../../src/core/assembly/final-promotion.js";
 import { buildOperatorDashboard } from "../../src/core/assembly/operator-dashboard.js";
 
 describe("FinalPromotion", () => {
@@ -7,7 +7,11 @@ describe("FinalPromotion", () => {
 		const dashboard = buildOperatorDashboard({});
 		const verdict = evaluatePromotion(dashboard, {
 			...DEFAULT_EVIDENCE,
-			waveGates: { W0: { passed: true, commandCount: 11 }, W1: { passed: true, commandCount: 1 }, W2: { passed: true, commandCount: 2 } },
+			waveGates: {
+				W0: { passed: true, commandCount: 11 },
+				W1: { passed: true, commandCount: 1 },
+				W2: { passed: true, commandCount: 2 },
+			},
 		});
 		expect(verdict.decision).toBe("promote");
 		expect(verdict.tiers.stable_6).toBe("ready");
@@ -16,7 +20,8 @@ describe("FinalPromotion", () => {
 	it("failed tests blocks promotion", () => {
 		const dashboard = buildOperatorDashboard({});
 		const verdict = evaluatePromotion(dashboard, {
-			...DEFAULT_EVIDENCE, failedTests: 1,
+			...DEFAULT_EVIDENCE,
+			failedTests: 1,
 		});
 		expect(verdict.decision).toBe("block");
 	});
@@ -24,7 +29,8 @@ describe("FinalPromotion", () => {
 	it("failed typecheck blocks promotion", () => {
 		const dashboard = buildOperatorDashboard({});
 		const verdict = evaluatePromotion(dashboard, {
-			...DEFAULT_EVIDENCE, typecheckPassed: false,
+			...DEFAULT_EVIDENCE,
+			typecheckPassed: false,
 		});
 		expect(verdict.decision).toBe("block");
 	});

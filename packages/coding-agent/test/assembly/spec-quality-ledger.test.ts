@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-	createSpecQualityHistoryStore,
-	SpecQualityHistoryStore,
-} from "../../src/core/assembly/spec-quality-history.js";
+import { createSpecQualityHistoryStore } from "../../src/core/assembly/spec-quality-history.js";
 import {
 	createSpecQualityLedger,
-	type EvidenceClass,
 	parseLedgerEntries,
-	type SpecOutcomeType,
 	type SpecQualityEntry,
 	serializeLedgerEntries,
 } from "../../src/core/assembly/spec-quality-ledger.js";
@@ -188,8 +183,7 @@ describe("SpecQualityLedger — positive path", () => {
 	});
 
 	it("parses valid JSONL entries", () => {
-		const jsonl =
-			[JSON.stringify(makeEntry({ id: "e1" })), JSON.stringify(makeEntry({ id: "e2" }))].join("\n") + "\n";
+		const jsonl = `${[JSON.stringify(makeEntry({ id: "e1" })), JSON.stringify(makeEntry({ id: "e2" }))].join("\n")}\n`;
 
 		const result = parseLedgerEntries(jsonl);
 		expect(result.entries).toHaveLength(2);
@@ -224,10 +218,11 @@ describe("SpecQualityLedger — negative path", () => {
 	});
 
 	it("parseLedgerEntries rejects invalid JSON lines", () => {
-		const jsonl =
-			[JSON.stringify(makeEntry({ id: "e1" })), "not valid json", JSON.stringify(makeEntry({ id: "e2" }))].join(
-				"\n",
-			) + "\n";
+		const jsonl = `${[
+			JSON.stringify(makeEntry({ id: "e1" })),
+			"not valid json",
+			JSON.stringify(makeEntry({ id: "e2" })),
+		].join("\n")}\n`;
 
 		const result = parseLedgerEntries(jsonl);
 		expect(result.entries).toHaveLength(2);
@@ -245,7 +240,7 @@ describe("SpecQualityLedger — negative path", () => {
 			evidenceClass: "unknown",
 			recordedAt: "now",
 		};
-		const jsonl = JSON.stringify(bad) + "\n";
+		const jsonl = `${JSON.stringify(bad)}\n`;
 
 		const result = parseLedgerEntries(jsonl);
 		expect(result.entries).toHaveLength(0);
@@ -263,7 +258,7 @@ describe("SpecQualityLedger — negative path", () => {
 			evidenceClass: "not_a_class",
 			recordedAt: "now",
 		};
-		const jsonl = JSON.stringify(bad) + "\n";
+		const jsonl = `${JSON.stringify(bad)}\n`;
 
 		const result = parseLedgerEntries(jsonl);
 		expect(result.entries).toHaveLength(0);
@@ -272,7 +267,7 @@ describe("SpecQualityLedger — negative path", () => {
 
 	it("parseLedgerEntries rejects entries missing required fields", () => {
 		const bad = { id: "bad" };
-		const jsonl = JSON.stringify(bad) + "\n";
+		const jsonl = `${JSON.stringify(bad)}\n`;
 
 		const result = parseLedgerEntries(jsonl);
 		expect(result.entries).toHaveLength(0);

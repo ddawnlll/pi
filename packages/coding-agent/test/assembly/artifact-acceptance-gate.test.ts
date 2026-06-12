@@ -1,15 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { evaluateArtifactAcceptance, batchAcceptManifests } from "../../src/core/assembly/artifact-acceptance-gate.js";
+import { batchAcceptManifests, evaluateArtifactAcceptance } from "../../src/core/assembly/artifact-acceptance-gate.js";
 import { buildArtifactManifest } from "../../src/core/assembly/artifact-manifest.js";
 
 function makeManifest(params: Partial<Parameters<typeof buildArtifactManifest>[0]> = {}) {
 	return buildArtifactManifest({
 		namespace: "ns-0",
 		workspaceId: "ws-1",
-		artifacts: [{ file: "a.ts", contentHash: "h1", kind: "full", content: "x", modifiedAt: new Date().toISOString() }],
+		artifacts: [
+			{ file: "a.ts", contentHash: "h1", kind: "full", content: "x", modifiedAt: new Date().toISOString() },
+		],
 		accpRefs: [
-			{ reportId: "ipr-1", reportType: "IPR", compiledPath: "p.json", compiledHash: "h", gateVerdict: "passed", compiled: true },
-			{ reportId: "tvr-1", reportType: "TVR", compiledPath: "p.json", compiledHash: "h", gateVerdict: "passed", compiled: true },
+			{
+				reportId: "ipr-1",
+				reportType: "IPR",
+				compiledPath: "p.json",
+				compiledHash: "h",
+				gateVerdict: "passed",
+				compiled: true,
+			},
+			{
+				reportId: "tvr-1",
+				reportType: "TVR",
+				compiledPath: "p.json",
+				compiledHash: "h",
+				gateVerdict: "passed",
+				compiled: true,
+			},
 		],
 		p44CompletionVerdict: "passed",
 		accpCompiled: true,
@@ -51,7 +67,16 @@ describe("ArtifactAcceptanceGate — negative", () => {
 
 	it("rejects manifest with blocked ACCP gate verdict", () => {
 		const manifest = makeManifest({
-			accpRefs: [{ reportId: "ipr-1", reportType: "IPR", compiledPath: "p", compiledHash: "h", gateVerdict: "blocked", compiled: true }],
+			accpRefs: [
+				{
+					reportId: "ipr-1",
+					reportType: "IPR",
+					compiledPath: "p",
+					compiledHash: "h",
+					gateVerdict: "blocked",
+					compiled: true,
+				},
+			],
 		});
 		const result = evaluateArtifactAcceptance(manifest);
 		expect(result.decision).toBe("rejected");

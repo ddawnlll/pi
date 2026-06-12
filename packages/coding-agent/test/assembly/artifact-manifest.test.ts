@@ -1,17 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { buildAccpRefIndex, validateAccpRefCoverage } from "../../src/core/assembly/accp-artifact-refs.js";
 import {
+	type AccpArtifactRef,
 	buildArtifactManifest,
-	validateArtifactManifest,
 	hasRequiredAccpRefs,
+	validateArtifactManifest,
 	verifyManifestIntegrity,
 	type WorkerArtifact,
-	type AccpArtifactRef,
-	type EvidenceLedgerRef,
 } from "../../src/core/assembly/artifact-manifest.js";
-import {
-	buildAccpRefIndex,
-	validateAccpRefCoverage,
-} from "../../src/core/assembly/accp-artifact-refs.js";
 
 // =============================================================================
 // Helpers
@@ -94,10 +90,7 @@ describe("ArtifactManifest — positive path", () => {
 			namespace: "ns-0",
 			workspaceId: "ws-1",
 			artifacts: [makeArtifact("a.ts")],
-			accpRefs: [
-				makeAccpRef({ reportType: "IPR" }),
-				{ ...makeAccpRef(), reportId: "tvr-1", reportType: "TVR" },
-			],
+			accpRefs: [makeAccpRef({ reportType: "IPR" }), { ...makeAccpRef(), reportId: "tvr-1", reportType: "TVR" }],
 		});
 		expect(hasRequiredAccpRefs(manifest)).toBe(true);
 	});
@@ -181,7 +174,9 @@ describe("ArtifactManifest — negative path", () => {
 		const manifest = buildArtifactManifest({
 			namespace: "ns-0",
 			workspaceId: "ws-1",
-			artifacts: [{ file: "a.ts", contentHash: "", kind: "full", content: "x", modifiedAt: new Date().toISOString() }],
+			artifacts: [
+				{ file: "a.ts", contentHash: "", kind: "full", content: "x", modifiedAt: new Date().toISOString() },
+			],
 			p44CompletionVerdict: "passed",
 			accpCompiled: true,
 		});
@@ -196,7 +191,10 @@ describe("ArtifactManifest — negative path", () => {
 
 describe("AccpArtifactRefs", () => {
 	it("builds index from refs", () => {
-		const refs: AccpArtifactRef[] = [makeAccpRef(), { ...makeAccpRef(), reportId: "tvr-1", reportType: "TVR" as const }];
+		const refs: AccpArtifactRef[] = [
+			makeAccpRef(),
+			{ ...makeAccpRef(), reportId: "tvr-1", reportType: "TVR" as const },
+		];
 		const index = buildAccpRefIndex(refs);
 		expect(index.byId.size).toBe(2);
 		expect(index.byType.get("IPR")).toHaveLength(1);

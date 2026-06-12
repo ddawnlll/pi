@@ -7,7 +7,6 @@
  * and unbounded concurrency readiness.
  */
 
-import type { GovernorVerdict } from "./adaptive-concurrency-governor.js";
 import type { OperatorDashboard } from "./operator-dashboard.js";
 import { computeAssemblyHealth } from "./operator-dashboard.js";
 
@@ -15,12 +14,7 @@ import { computeAssemblyHealth } from "./operator-dashboard.js";
 // Types
 // =============================================================================
 
-export type PromotionTierStatus =
-	| "ready"
-	| "candidate"
-	| "blocked"
-	| "dry_run_only"
-	| "requires_evidence";
+export type PromotionTierStatus = "ready" | "candidate" | "blocked" | "dry_run_only" | "requires_evidence";
 
 export interface PromotionEvidence {
 	/** Total test count. */
@@ -129,20 +123,23 @@ export function evaluatePromotion(
 
 	// Tier evaluation
 	const stable6Status: PromotionTierStatus =
-		blockingReasons.length > 0 ? "blocked" :
-		healthScore < 0.5 ? "requires_evidence" : "ready";
+		blockingReasons.length > 0 ? "blocked" : healthScore < 0.5 ? "requires_evidence" : "ready";
 
 	const stable8Status: PromotionTierStatus =
-		stable6Status !== "ready" ? "blocked" :
-		evidence.waveGates.W3?.passed !== true ? "requires_evidence" : "candidate";
+		stable6Status !== "ready"
+			? "blocked"
+			: evidence.waveGates.W3?.passed !== true
+				? "requires_evidence"
+				: "candidate";
 
 	const stable12Status: PromotionTierStatus =
-		stable8Status !== "candidate" ? "blocked" :
-		evidence.waveGates.W5?.passed !== true ? "requires_evidence" : "candidate";
+		stable8Status !== "candidate"
+			? "blocked"
+			: evidence.waveGates.W5?.passed !== true
+				? "requires_evidence"
+				: "candidate";
 
-	const unboundedStatus: PromotionTierStatus =
-		stable12Status !== "candidate" ? "blocked" :
-		"dry_run_only"; // Always dry-run only unless explicitly authorized
+	const unboundedStatus: PromotionTierStatus = stable12Status !== "candidate" ? "blocked" : "dry_run_only"; // Always dry-run only unless explicitly authorized
 
 	// Remaining evidence
 	if (!evidence.waveGates.W3?.passed) {
@@ -166,9 +163,10 @@ export function evaluatePromotion(
 		decision = "promote";
 	}
 
-	const summary = decision === "promote"
-		? `P45 is ready for stable_6 promotion. Health score: ${healthScore}. ${evidence.totalTests} tests passed. Stable_8 is a candidate after W3-W4 completion. Stable_12 requires W5 completion. Unbounded is dry-run only.`
-		: `P45 promotion is ${decision}. ${blockingReasons.join("; ")}`;
+	const summary =
+		decision === "promote"
+			? `P45 is ready for stable_6 promotion. Health score: ${healthScore}. ${evidence.totalTests} tests passed. Stable_8 is a candidate after W3-W4 completion. Stable_12 requires W5 completion. Unbounded is dry-run only.`
+			: `P45 promotion is ${decision}. ${blockingReasons.join("; ")}`;
 
 	return {
 		decision,

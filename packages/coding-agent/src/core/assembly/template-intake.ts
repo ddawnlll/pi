@@ -74,8 +74,7 @@ export function intakePlan(params: {
 }): PlanIntakeResult {
 	const warnings: string[] = [];
 	const riskLevel: "low" | "medium" | "high" =
-		params.governorSignal === "red" ? "high" :
-		params.governorSignal === "yellow" ? "medium" : "low";
+		params.governorSignal === "red" ? "high" : params.governorSignal === "yellow" ? "medium" : "low";
 
 	if (params.workspaceCount > 30) {
 		warnings.push("Large plan (>30 workspaces) — consider splitting into phases");

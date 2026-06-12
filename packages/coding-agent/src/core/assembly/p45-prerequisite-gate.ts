@@ -110,10 +110,7 @@ export function evaluateP45PrerequisiteGate(
 }
 
 /** Simple admission mapping without sub-system checks. */
-function computeSimpleAdmission(
-	certificateDecision: P45Decision,
-	_blockingReasons: string[],
-): P45AdmissionMode {
+function computeSimpleAdmission(certificateDecision: P45Decision, _blockingReasons: string[]): P45AdmissionMode {
 	switch (certificateDecision) {
 		case "allow_p45":
 			return "production";

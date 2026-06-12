@@ -3,7 +3,6 @@ import {
 	type ContractCoverageItem,
 	type CoverageThresholds,
 	calculateCoverage,
-	DEFAULT_COVERAGE_THRESHOLDS,
 	mergeCoverageSummaries,
 } from "../../src/core/assembly/contract-coverage-calculator.js";
 

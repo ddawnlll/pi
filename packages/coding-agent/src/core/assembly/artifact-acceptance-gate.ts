@@ -125,9 +125,10 @@ export function evaluateArtifactAcceptance(manifest: ArtifactManifest): Acceptan
 /**
  * Batch-accept multiple manifests. Returns accepted manifests and rejection reasons.
  */
-export function batchAcceptManifests(
-	manifests: ArtifactManifest[],
-): { accepted: ArtifactManifest[]; rejected: { manifest: ArtifactManifest; reasons: string[] }[] } {
+export function batchAcceptManifests(manifests: ArtifactManifest[]): {
+	accepted: ArtifactManifest[];
+	rejected: { manifest: ArtifactManifest; reasons: string[] }[];
+} {
 	const accepted: ArtifactManifest[] = [];
 	const rejected: { manifest: ArtifactManifest; reasons: string[] }[] = [];
 

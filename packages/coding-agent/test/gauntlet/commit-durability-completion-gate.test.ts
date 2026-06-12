@@ -146,7 +146,7 @@ describe("Gauntlet: canEdit/writeSet Exclusion", () => {
 			},
 		);
 		expect(verdict.passed).toBe(false);
-		expect(verdict.detail["recoveryState"]).toBe("NEEDS_HIR");
+		expect(verdict.detail.recoveryState).toBe("NEEDS_HIR");
 	});
 
 	it("should pass when all modified files are within writeSet", async () => {
@@ -249,7 +249,7 @@ describe("Gauntlet: Shared-file Conflict", () => {
 		);
 		// Without declaring shared file, the file is outside both writeSet and allowedFiles -> blocked
 		expect(verdict.passed).toBe(false);
-		expect(verdict.detail["recoveryState"]).toBe("NEEDS_HIR");
+		expect(verdict.detail.recoveryState).toBe("NEEDS_HIR");
 	});
 
 	it("should pass when shared file is declared and within allowedFiles", async () => {
