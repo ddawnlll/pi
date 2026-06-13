@@ -50,6 +50,13 @@ export interface WorkspaceState {
 	 * Only set when preflightStatus is "rejected".
 	 */
 	preflightRejectionReason?: string;
+
+	/**
+	 * Estimated context usage in tokens (ceil(promptChars / 4)).
+	 * Computed at execution time from the prompt length. Persisted in DB
+	 * so the web server does not need to read log files to display it.
+	 */
+	contextUsed?: number;
 }
 
 /**

@@ -890,6 +890,13 @@ fastify.get<{
 
 		// Load meta for archive/phaseTitle enrichment
 		const meta = await loadExecutionMeta(workspaceRoot, planExecId);
+
+		// Git info is project-wide, not workspace-specific — compute once
+		const _gi = getGitInfo(workspaceRoot);
+		const gitBranch = _gi.branch;
+		const gitDirty = _gi.dirty;
+		const gitCommits = _gi.recentCommits;
+
 		const workspacesArr: Array<{
 			id: string;
 			stage: string;
@@ -905,25 +912,23 @@ fastify.get<{
 		}> = [];
 
 		for (const [id, ws] of state.workspaces) {
-			// Load workspace execution log for token/git enrichment
-			let contextUsed: number | undefined;
-			try {
-				for (let a = ws.attempts; a >= 1; a--) {
-					const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
-					if (existsSync(logFile)) {
-						const content = await readFile(logFile, "utf-8");
-						contextUsed = estimateContextUsed(content);
-						break;
+			// Read contextUsed from persisted workspace state (populated at execution time).
+			// Fall back to log file parsing for workspaces executed before this data was persisted.
+			let contextUsed = ws.contextUsed;
+			if (contextUsed === undefined) {
+				try {
+					for (let a = ws.attempts; a >= 1; a--) {
+						const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
+						if (existsSync(logFile)) {
+							const content = await readFile(logFile, "utf-8");
+							contextUsed = estimateContextUsed(content);
+							break;
+						}
 					}
+				} catch {
+					// Log not available
 				}
-			} catch {
-				// Log not available
 			}
-
-			const _gi = getGitInfo(workspaceRoot);
-			const gitBranch = _gi.branch;
-			const gitDirty = _gi.dirty;
-			const gitCommits = _gi.recentCommits;
 
 			workspacesArr.push({
 				id,
@@ -1220,6 +1225,13 @@ fastify.get<{
 
 		const piDir = getPiDir();
 		const workspaceRoot = getWorkspaceRoot();
+
+		// Git info is project-wide, not workspace-specific — compute once
+		const _gi = getGitInfo(workspaceRoot);
+		const gitBranch = _gi.branch;
+		const gitDirty = _gi.dirty;
+		const gitCommits = _gi.recentCommits;
+
 		const workspacesArr: Array<{
 			id: string;
 			stage: string;
@@ -1236,25 +1248,23 @@ fastify.get<{
 		}> = [];
 
 		for (const [id, ws] of state.workspaces) {
-			let contextUsed: number | undefined;
-
-			try {
-				for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
-					const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
-					if (existsSync(logFile)) {
-						const content = await readFile(logFile, "utf-8");
-						contextUsed = estimateContextUsed(content);
-						break;
+			// Read contextUsed from persisted workspace state (populated at execution time).
+			// Fall back to log file parsing for workspaces executed before this data was persisted.
+			let contextUsed = ws.contextUsed;
+			if (contextUsed === undefined) {
+				try {
+					for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
+						const logFile = join(piDir, "workspaces", id, `execution-${a}.log`);
+						if (existsSync(logFile)) {
+							const content = await readFile(logFile, "utf-8");
+							contextUsed = estimateContextUsed(content);
+							break;
+						}
 					}
+				} catch {
+					// Log not available
 				}
-			} catch {
-				// Log not available
 			}
-
-			const _gi = getGitInfo(workspaceRoot);
-			const gitBranch = _gi.branch;
-			const gitDirty = _gi.dirty;
-			const gitCommits = _gi.recentCommits;
 
 			workspacesArr.push({
 				id,
@@ -1295,15 +1305,19 @@ fastify.get<{
 			return reply.code(404).send({ error: "Workspace not found" });
 		}
 
-		// Enrich with context + git data
-		let contextUsed: number | undefined;
-		const piDir = getPiDir();
-		for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
-			const logFile = join(piDir, "workspaces", workspaceId, `execution-${a}.log`);
-			if (existsSync(logFile)) {
-				const content = await readFile(logFile, "utf-8");
-				contextUsed = estimateContextUsed(content);
-				break;
+		// Enrich with context + git data.
+		// Read contextUsed from persisted workspace state (populated at execution time).
+		// Fall back to log file parsing for workspaces executed before this data was persisted.
+		let contextUsed = ws.contextUsed;
+		if (contextUsed === undefined) {
+			const piDir = getPiDir();
+			for (let a = (ws as any).attempts ?? 1; a >= 1; a--) {
+				const logFile = join(piDir, "workspaces", workspaceId, `execution-${a}.log`);
+				if (existsSync(logFile)) {
+					const content = await readFile(logFile, "utf-8");
+					contextUsed = estimateContextUsed(content);
+					break;
+				}
 			}
 		}
 		const gitInfo = getGitInfo(getWorkspaceRoot());

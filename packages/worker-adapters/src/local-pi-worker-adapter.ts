@@ -53,6 +53,7 @@ export class LocalPiWorkerAdapter implements WorkerAdapter {
 				metadata: {
 					success: agentResult.success,
 					logCount: agentResult.logs.length,
+					contextUsed: agentResult.contextUsed,
 				},
 			};
 		} finally {

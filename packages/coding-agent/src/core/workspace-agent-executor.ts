@@ -61,6 +61,8 @@ export interface AgentExecutionResult {
 	error?: string;
 	/** Execution logs */
 	logs: string[];
+	/** Estimated context usage in tokens (ceil(promptChars / 4)) */
+	contextUsed?: number;
 }
 
 /**
@@ -596,6 +598,8 @@ export class WorkspaceAgentExecutor {
 			}
 		};
 
+		let contextUsed: number | undefined;
+
 		try {
 			// P26.C: Use the abort controller from the execution context
 			const abortSignal = ctx.abortController.signal;
@@ -637,6 +641,10 @@ export class WorkspaceAgentExecutor {
 			// Build the prompt from the packet
 			const prompt = this.buildPromptFromPacket(packet);
 			log(`Prompt length: ${prompt.length} characters`);
+
+			// Compute contextUsed early so it can be persisted on completion.
+			// Uses the same chars/4 heuristic as estimateContextUsed in the web server.
+			const contextUsed = Math.ceil(prompt.length / 4);
 
 			// P8.A: Select tools based on role
 			// Lead agents get read-only tools (observe only), worker agents get full coding tools
@@ -1292,6 +1300,7 @@ export class WorkspaceAgentExecutor {
 					report: abortReason,
 					error: abortReason,
 					logs,
+					contextUsed,
 				};
 			}
 
@@ -1306,6 +1315,7 @@ export class WorkspaceAgentExecutor {
 				verdict: finalVerdict,
 				report,
 				logs,
+				contextUsed,
 			};
 		} catch (error) {
 			// P4.6.3: Check if this was an abort-caused error
@@ -1353,6 +1363,7 @@ export class WorkspaceAgentExecutor {
 				report: `Execution failed: ${errorMessage}`,
 				error: errorMessage,
 				logs,
+				contextUsed,
 			};
 		} finally {
 			// execute() handles timeout and abortController cleanup in its own finally.

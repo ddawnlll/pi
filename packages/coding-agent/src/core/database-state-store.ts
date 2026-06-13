@@ -83,6 +83,7 @@ interface WorkspaceEntry {
 	startedAt?: number;
 	completedAt?: number;
 	ownedFiles?: string[];
+	contextUsed?: number;
 }
 
 /**
@@ -268,6 +269,12 @@ export class DatabaseStateStore implements IStateStore {
 		const wsEntries = new Map<string, WorkspaceEntry>();
 
 		for (const ws of wsExecs) {
+			// Extract contextUsed from metadata JSONB
+			let contextUsed: number | undefined;
+			if (ws.metadata && typeof ws.metadata === "object" && "contextUsed" in ws.metadata) {
+				contextUsed = (ws.metadata as Record<string, unknown>).contextUsed as number | undefined;
+			}
+
 			const wsState: WorkspaceState = {
 				workspaceId: ws.workspace_id,
 				stage: ws.stage as WS,
@@ -275,6 +282,7 @@ export class DatabaseStateStore implements IStateStore {
 				startedAt: ws.started_at ? new Date(ws.started_at).getTime() : undefined,
 				completedAt: ws.completed_at ? new Date(ws.completed_at).getTime() : undefined,
 				error: ws.error_message ?? undefined,
+				contextUsed,
 			};
 			workspaces.set(ws.workspace_id, wsState);
 
@@ -287,6 +295,7 @@ export class DatabaseStateStore implements IStateStore {
 				error: ws.error_message ?? undefined,
 				startedAt: ws.started_at ? new Date(ws.started_at).getTime() : undefined,
 				completedAt: ws.completed_at ? new Date(ws.completed_at).getTime() : undefined,
+				contextUsed,
 			});
 		}
 
@@ -395,13 +404,20 @@ export class DatabaseStateStore implements IStateStore {
 	): Promise<void> {
 		const entry = this.getWsEntry(planExecutionId, workspaceId);
 
-		await this.workspaceExecutionRepo.update(entry.id, {
-			stage: updates.stage ?? undefined,
-			attempts: updates.attempts ?? undefined,
-			error_message: updates.error ?? null,
-			started_at: updates.startedAt ? new Date(updates.startedAt).toISOString() : undefined,
-			completed_at: updates.completedAt ? new Date(updates.completedAt).toISOString() : undefined,
-		});
+		const dbUpdates: Record<string, unknown> = {};
+		if (updates.stage) dbUpdates.stage = updates.stage;
+		if (updates.attempts !== undefined) dbUpdates.attempts = updates.attempts;
+		if (updates.error !== undefined) dbUpdates.error_message = updates.error ?? null;
+		if (updates.startedAt) dbUpdates.started_at = new Date(updates.startedAt).toISOString();
+		if (updates.completedAt) dbUpdates.completed_at = new Date(updates.completedAt).toISOString();
+
+		// Persist contextUsed in metadata JSONB so web server doesn't read log files
+		if (updates.contextUsed !== undefined) {
+			const existingMeta = (entry as any)._metadata || {};
+			dbUpdates.metadata = { ...existingMeta, contextUsed: updates.contextUsed };
+		}
+
+		await this.workspaceExecutionRepo.update(entry.id, dbUpdates);
 
 		// Update cache
 		if (updates.stage) entry.stage = updates.stage as WS;
@@ -409,6 +425,11 @@ export class DatabaseStateStore implements IStateStore {
 		if (updates.error !== undefined) entry.error = updates.error;
 		if (updates.startedAt) entry.startedAt = updates.startedAt;
 		if (updates.completedAt) entry.completedAt = updates.completedAt;
+		if (updates.contextUsed !== undefined) {
+			entry.contextUsed = updates.contextUsed;
+			(entry as any)._metadata = ((entry as any)._metadata || {}) as Record<string, unknown>;
+			((entry as any)._metadata as Record<string, unknown>).contextUsed = updates.contextUsed;
+		}
 	}
 
 	async transitionWorkspace(
@@ -850,6 +871,7 @@ export class DatabaseStateStore implements IStateStore {
 			completedAt: entry.completedAt,
 			error: entry.error,
 			ownedFiles: entry.ownedFiles,
+			contextUsed: entry.contextUsed,
 		};
 	}
 
