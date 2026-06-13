@@ -17,7 +17,7 @@ describe("ACCP Compiler Integration", () => {
 			'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"\n\nreport:\n  id: "INT_TEST_001"\n  type: "TVR"\n  family: "core"';
 		const result = compileAccpSource(yaml);
 		expect(result.status).toBe("compiled");
-		expect(result.reportId).toBe("PARSED");
+		expect(result.reportId).toBe("INT_TEST_001");
 		expect(result.hasBlockingFindings).toBe(false);
 	});
 
