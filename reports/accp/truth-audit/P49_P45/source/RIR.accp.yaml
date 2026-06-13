@@ -1,0 +1,180 @@
+---
+accp_version: "2.0.0"
+report_type: RIR
+report_id: "P45_P49_TRUTH_RIR"
+plan_id: "P45_P49"
+title: "Requirements Inventory Report — P49 + P45 Audit Targets"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+requirements:
+  - requirement_id: P49-ACCP-COMPILER-PACKAGE
+    phase: P49
+    title: "accp-compiler package exists and is used by runtime consumers"
+    expected: "packages/accp-compiler exists, is built, and is dynamically imported by autonomous-executor.ts"
+    description: "P49.00 — Foundation"
+  - requirement_id: P49-REPORT-REGISTRY
+    phase: P49
+    title: "24-report registry exists and validates required sections and support levels"
+    expected: "Report registry in accp-compiler and accp_v2_0_package/registry/"
+    description: "P49.01 — Report Registry"
+  - requirement_id: P49-DETERMINISTIC-COMPILER
+    phase: P49
+    title: "Deterministic compiler components exist"
+    expected: "YAML parser, schema validators, evidence validator, route-signal compiler, gate-verdict compiler, artifact writer, index writer, graph writer"
+    description: "P49.02-P49.09 — Compiler subsystems"
+  - requirement_id: P49-RUNTIME-COMPILED-INPUTS
+    phase: P49
+    title: "Runtime reads compiled ACCP JSON artifacts (not raw YAML)"
+    expected: "Runtime must read compiled JSON artifacts for authority"
+    description: "P49.10-P49.12 — Runtime integration"
+  - requirement_id: P49-COMPLETION-GATE
+    phase: P49
+    title: "CompletionGateV2 integrates ACCP verdicts"
+    expected: "Completion gate uses ACCP gate verdicts for blocking decisions"
+    description: "P49.18 — Gate stage runner"
+  - requirement_id: P49-ROUTE-AUTHORITY
+    phase: P49
+    title: "Runtime transition guard applies PlanSpec authority before route execution"
+    expected: "Route authority check exists in runtime"
+    description: "P49.19 — Route authority"
+  - requirement_id: P49-VISIBILITY
+    phase: P49
+    title: "Event journal, read model, API, or dashboard exposes ACCP state"
+    expected: "Dashboard/API exposes ACCP compile, gate, route, diagnostic state"
+    description: "P49.20-P49.21 — Visibility"
+  - requirement_id: P49-TUI-TAB-MODE-PICKER
+    phase: P49
+    title: "Tab opens ACCP mode picker, not file picker"
+    expected: "Tab key opens ACCP mode selection UI"
+    live_behavior_required: true
+    description: "P49.22 — TUI mode picker"
+  - requirement_id: P49-FILE-PICKER-REASSIGNMENT
+    phase: P49
+    title: "File/path picker is reassigned to @ and/or Ctrl+P"
+    expected: "File picker does not open on Tab"
+    live_behavior_required: true
+    description: "P49.22 — TUI mode picker"
+  - requirement_id: P49-INITIAL-ROUTE-INDICATOR
+    phase: P49
+    title: "Selected initial mode produces InitialRouteIndicator"
+    expected: "InitialRouteIndicator is emitted on mode selection"
+    live_behavior_required: true
+    description: "P49.23 — Route indicator"
+  - requirement_id: P49-ACCP-TASK-ENVELOPE
+    phase: P49
+    title: "Selected initial mode produces AccpTaskEnvelope"
+    expected: "AccpTaskEnvelope is emitted on mode selection"
+    live_behavior_required: true
+    description: "P49.23 — Task envelope"
+  - requirement_id: P49-MODE-VISIBLE
+    phase: P49
+    title: "Current selected or active ACCP mode is visible to the user"
+    expected: "User can see the current ACCP mode"
+    live_behavior_required: true
+    description: "P49.22 — Visibility"
+  - requirement_id: P49-ROUTE-BUS
+    phase: P49
+    title: "Route bus handles multi-agent artifact handoff"
+    expected: "Route bus transfers compiled artifacts between agents"
+    description: "P49.24 — Route bus"
+  - requirement_id: P49-E2E-NATIVE-FLOW
+    phase: P49
+    title: "E2E ACCP native flow exists and passes"
+    expected: "E2E test exists and passes"
+    description: "P49.29 — E2E"
+  - requirement_id: P49-REQUIRED-MODE-GATE
+    phase: P49
+    title: "ACCP required mode is not promoted unless all required gates pass"
+    expected: "Required mode promotion gate"
+    description: "P49.25-P49.30"
+  - requirement_id: P45-PREREQUISITE-GATE
+    phase: P45
+    title: "P45 prerequisite gate checks P44, P49, dirty runtime readiness"
+    expected: "Prerequisite gate exists and is wired"
+    description: "P45.S0"
+  - requirement_id: P45-SPEC-QUALITY-LEDGER
+    phase: P45
+    title: "SpecQualityLedger exists and is used"
+    expected: "Ledger exists and is wired into plan intake"
+    description: "P45.S1"
+  - requirement_id: P45-CONTRACT-COVERAGE
+    phase: P45
+    title: "ContractCoverageCalculator exists and is wired"
+    expected: "Calculator exists and is used"
+    description: "P45.S2"
+  - requirement_id: P45-PREDICTIVE-SPEC-QUALITY-GATE
+    phase: P45
+    title: "PredictiveSpecQualityGate exists and is wired"
+    expected: "Gate exists and is used in admission decisions"
+    description: "P45.S3"
+  - requirement_id: P45-SEMANTIC-CONFLICT-ANALYZER
+    phase: P45
+    title: "SemanticConflictAnalyzer exists and affects async admission"
+    expected: "Analyzer exists and is wired"
+    description: "P45.S4"
+  - requirement_id: P45-ASYNC-READINESS-CLASSIFIER
+    phase: P45
+    title: "AsyncReadinessClassifier exists and is used by runtime admission"
+    expected: "Classifier exists and is wired"
+    description: "P45.S5"
+  - requirement_id: P45-CONTRACT-AMENDMENT-PROTOCOL
+    phase: P45
+    title: "ContractAmendmentProtocol exists and requires DCR/CAR"
+    expected: "Amendment protocol exists"
+    description: "P45.S6"
+  - requirement_id: P45-DRIFT-BUDGET-GATE
+    phase: P45
+    title: "DriftBudgetGate exists and blocks when budget exceeded"
+    expected: "Drift budget gate exists"
+    description: "P45.S7"
+  - requirement_id: P45-FAILURE-RETRY-TIME-POLICIES
+    phase: P45
+    title: "FailurePolicy, RetryPolicy, TimeBudgetPolicy exist"
+    expected: "Policies exist and prevent retry storms"
+    description: "P45.S8"
+  - requirement_id: P45-ADAPTIVE-GOVERNOR
+    phase: P45
+    title: "AdaptiveConcurrencyGovernor is always active in runtime"
+    expected: "Governor is wired into plan intake, runtime admission, artifact acceptance, replay, promotion"
+    description: "P45.S9-S10"
+  - requirement_id: P45-GOVERNOR-SIGNALS
+    phase: P45
+    title: "Governor reads CPU/memory, rate limits, queue depth, drift, failure rate, visibility"
+    expected: "Governor signal sources are wired"
+    description: "P45.S10.2"
+  - requirement_id: P45-UNSAFE-OPTIMISTIC-BLOCK
+    phase: P45
+    title: "Unsafe optimistic execution blocked with machine-readable diagnostics"
+    expected: "Block exists"
+    description: "P45.S11"
+  - requirement_id: P45-ARTIFACT-ACCEPTANCE
+    phase: P45
+    title: "P45 artifact acceptance requires P44, ACCP compile, manifest validity"
+    expected: "Acceptance gate is wired"
+    description: "P45.S12"
+  - requirement_id: P45-DETERMINISTIC-ASSEMBLER
+    phase: P45
+    title: "Deterministic assembler is the only shared writer"
+    expected: "Assembler exists and is sole writer"
+    description: "P45.S13"
+  - requirement_id: P45-REPLAY-CASCADE-BREAKER
+    phase: P45
+    title: "Replay/cascade breaker exists"
+    expected: "Cascade circuit breaker exists and avoids retry storms"
+    description: "P45.S14"
+  - requirement_id: P45-SMOKE-AND-PROFILES
+    phase: P45
+    title: "Smoke test, load profile, gauntlet, Monte Carlo, fixtures, profiles exist"
+    expected: "Scripts and test suites exist"
+    description: "P45.W1-W6"
+  - requirement_id: P45-DASHBOARD-VISIBILITY
+    phase: P45
+    title: "Dashboard exposes P45 status and blockers"
+    expected: "operator-dashboard wired into UI"
+    description: "P45.W0"
+  - requirement_id: P45-COMPILED-ACCP-EVIDENCE
+    phase: P45
+    title: "Compiled ACCP evidence consumed where P45 affects planning, acceptance, replay, governor, promotion"
+    expected: "ACCP evidence flows through P45 systems"
+    description: "Cross-cutting"

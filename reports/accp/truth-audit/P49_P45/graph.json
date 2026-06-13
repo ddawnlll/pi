@@ -1,0 +1,24 @@
+{
+  "audit_id": "P45_P49_truth_audit",
+  "nodes": [
+    {"id": "PIR", "type": "report", "title": "Preliminary Investigation", "status": "complete"},
+    {"id": "RIR", "type": "report", "title": "Requirements Inventory", "status": "complete"},
+    {"id": "BSR", "type": "report", "title": "Behavioral Status", "status": "complete"},
+    {"id": "BRR", "type": "report", "title": "Blocker Report", "status": "complete"},
+    {"id": "TVR", "type": "report", "title": "Test & Validation", "status": "complete"},
+    {"id": "RAR", "type": "report", "title": "Route Authority", "status": "complete"},
+    {"id": "ECR", "type": "report", "title": "Evidence Compilation", "status": "complete"},
+    {"id": "PRR", "type": "report", "title": "Promotion Readiness", "status": "complete"},
+    {"id": "SCORECARD", "type": "scorecard", "title": "Scorecard", "status": "complete"}
+  ],
+  "edges": [
+    {"from": "PIR", "to": "RIR", "type": "discovers"},
+    {"from": "RIR", "to": "BSR", "type": "evaluates"},
+    {"from": "BSR", "to": "BRR", "type": "identifies_blockers"},
+    {"from": "TVR", "to": "ECR", "type": "provides_evidence"},
+    {"from": "RAR", "to": "ECR", "type": "provides_authority"},
+    {"from": "BRR", "to": "ECR", "type": "caps_scores"},
+    {"from": "ECR", "to": "PRR", "type": "scores"},
+    {"from": "PRR", "to": "SCORECARD", "type": "verdict"}
+  ]
+}

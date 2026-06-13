@@ -1,0 +1,47 @@
+{
+  "audit_id": "P45_P49_truth_audit",
+  "title": "P45 + P49 ACCP Truth Audit / Reality Verification",
+  "generated_at": "2026-06-12T23:59:00Z",
+  "reports": {
+    "PIR": {
+      "path": "source/PIR.accp.yaml",
+      "title": "Preliminary Investigation Report"
+    },
+    "RIR": {
+      "path": "source/RIR.accp.yaml",
+      "title": "Requirements Inventory Report"
+    },
+    "BSR": {
+      "path": "source/BSR.accp.yaml",
+      "title": "Behavioral Status Report"
+    },
+    "BRR": {
+      "path": "source/BRR.accp.yaml",
+      "title": "Blocker Report"
+    },
+    "TVR": {
+      "path": "source/TVR.accp.yaml",
+      "title": "Test and Validation Report"
+    },
+    "RAR": {
+      "path": "source/RAR.accp.yaml",
+      "title": "Route Authority Report"
+    },
+    "ECR": {
+      "path": "source/ECR.accp.yaml",
+      "title": "Evidence Compilation Report"
+    },
+    "PRR": {
+      "path": "source/PRR.accp.yaml",
+      "title": "Promotion Readiness Report"
+    }
+  },
+  "scorecard": {
+    "path": "scorecard.json",
+    "p49_percent": 30,
+    "p45_percent": 48,
+    "combined_percent": 36,
+    "verdict": "fail"
+  },
+  "status": "complete"
+}

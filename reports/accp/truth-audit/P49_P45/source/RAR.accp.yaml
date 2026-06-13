@@ -1,0 +1,94 @@
+---
+accp_version: "2.0.0"
+report_type: RAR
+report_id: "P45_P49_TRUTH_RAR"
+plan_id: "P45_P49"
+title: "Route Authority Report — PlanSpec Authority and Runtime Validation"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+route_signals:
+  - signal_id: RS-P49-COMPILER
+    source: "P49-ACCP-COMPILER-PACKAGE"
+    status: "partial"
+    evaluation: |
+      The accp-compiler package exists, is built, and is dynamically importable.
+      However, the only production import site (autonomous-executor.ts:1268-1282)
+      checks workerResult.accp?.shouldCompile which is NEVER populated by any
+      worker adapter. The compile path is dead.
+    recommendation: "Populate workerResult.accp in the relevant worker adapter or remove dead code."
+  - signal_id: RS-P49-TUI-PICKER
+    source: "P49-TUI-TAB-MODE-PICKER"
+    status: "blocked"
+    evaluation: |
+      The ACCP mode picker component exists in packages/tui/src/components/ but
+      is NOT imported or exported from the TUI module. Tab key does not open it.
+      This is dead code. The requirement is substantially unmet in production.
+    recommendation: "Wire accp-mode-picker into TUI keybindings. Export from index.ts. Bind Tab to it."
+  - signal_id: RS-P49-ROUTE-INDICATOR
+    source: "P49-INITIAL-ROUTE-INDICATOR"
+    status: "blocked"
+    evaluation: |
+      createInitialRouteIndicator and createAccpTaskEnvelope exist but are never
+      called from production code. They depend on mode picker wiring which is also missing.
+    recommendation: "Wire into mode picker selection handler."
+  - signal_id: RS-P49-ROUTE-BUS
+    source: "P49-ROUTE-BUS"
+    status: "blocked"
+    evaluation: |
+      AccpRouteBus class exists as a well-designed in-memory pub/sub.
+      No production code instantiates it. No startup/boot sequence creates it.
+    recommendation: "Instantiate in coding-agent boot/startup code."
+  - signal_id: RS-P49-COMPLETION-GATE
+    source: "P49-COMPLETION-GATE"
+    status: "partial"
+    evaluation: |
+      CompletionGateV2 exists but does not read ACCP gate verdicts. The ACCP gate
+      stage runner exists but is not wired into the V2 pipeline.
+    recommendation: "Wire ACCP gate verdicts into CompletionGateV2."
+  - signal_id: RS-P49-AUTHORITY
+    source: "P49-ROUTE-AUTHORITY"
+    status: "blocked"
+    evaluation: |
+      No production code reads compiled route signals as authority checks
+      before execution. The compiled JSON is written but never consumed for
+      decision-making.
+    recommendation: "Add route signal consumer in execution runtime."
+  - signal_id: RS-P49-VISIBILITY
+    source: "P49-VISIBILITY"
+    status: "blocked"
+    evaluation: |
+      ACCP dashboard React components exist but may not be wired. No API routes
+      serving ACCP state are verified. No live evidence of ACCP state exposure.
+    recommendation: "Verify and wire ACCP dashboard endpoints."
+  - signal_id: RS-P45-ALL
+    source: "ALL_P45_REQUIREMENTS"
+    status: "blocked"
+    evaluation: |
+      Every P45 assembly module is test-only. Zero modules are imported by
+      production runtime code. E2E scripts have broken imports or are stubs.
+      The adaptive governor, spec quality ledger, contract coverage, semantic
+      conflict analyzer, async readiness classifier, drift budget, failure/retry
+      policies, deterministic assembler — all exist only in test harnesses.
+    recommendation: "Wire P45 modules into production code paths one at a time."
+  - signal_id: RS-P45-GOVERNOR-SIGNALS
+    source: "P45-GOVERNOR-SIGNALS"
+    status: "blocked"
+    evaluation: |
+      Governor reads mock signal stubs in tests. Real signal plumbing
+      (CPU/memory, rate limits, queue depths) does not exist.
+    recommendation: "Wire real system metrics to governor signal inputs."
+  - signal_id: RS-P45-SMOKE-PROFILES
+    source: "P45-SMOKE-AND-PROFILES"
+    status: "blocked"
+    evaluation: |
+      Minimal smoke has broken import path. Load profile is simulated. Concurrency
+      profile is a stub. Unbounded dry-run is a stub.
+    recommendation: "Fix script import paths. Implement real wire-up smoke tests."
+authority_boundary:
+  compiled_authority_applied: false
+  raw_yaml_parsed_instead: false
+  runtime_reads_compiled_json: false
+  route_signal_advisory_respected: false
+  gate_verdict_blocks_completion: false
+  transition_guard_active: false

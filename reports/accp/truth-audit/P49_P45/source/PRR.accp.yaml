@@ -1,0 +1,63 @@
+---
+accp_version: "2.0.0"
+report_type: PRR
+report_id: "P45_P49_TRUTH_PRR"
+plan_id: "P45_P49"
+title: "Promotion Readiness Report — P49 + P45 Combined Verdict"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+promotion_verdict:
+  p49_weighted_percent: 30
+  p45_weighted_percent: 48
+  combined_percent: 36
+  verdict: fail
+  explanation: |
+    P49 achieved 30% actual completion. The accp-compiler package and report
+    registry are the only things approaching production-ready. Everything
+    TUI-facing (mode picker, mode visibility, route indicator, task envelope,
+    file picker reassignment) is either dead code or non-existent. The compiler
+    is imported but the path is dead (workerResult.accp never populated).
+    Mode is hardcoded 'warn' with no UI visibility.
+
+    P45 achieved 48% actual completion. Source files exist for every module
+    with 289 passing tests. But zero modules are wired into production runtime.
+    All are test-only. The governor signal sources are stubs. Scripts have
+    broken imports or are pure simulations. The system has P45 in its entirety
+    as test-covered but dead code.
+
+    Neither phase is promotable. P49 needs live wiring and TUI integration.
+    P45 needs production wiring into admission, scheduler, plan intake, and
+    promotion flows.
+blocker_summary:
+  - "Tab does not open ACCP mode picker (P49-TUI-TAB-MODE-PICKER)"
+  - "Current ACCP mode not user-visible (P49-MODE-VISIBLE)"
+  - "File picker still on Tab (P49-FILE-PICKER-REASSIGNMENT)"
+  - "InitialRouteIndicator never emitted (P49-INITIAL-ROUTE-INDICATOR)"
+  - "AccpTaskEnvelope never emitted (P49-ACCP-TASK-ENVELOPE)"
+  - "AccpRouteBus never instantiated in production (P49-ROUTE-BUS)"
+  - "ACCP gate verdict never fed into completion gate (P49-COMPLETION-GATE)"
+  - "No runtime transition guard (P49-ROUTE-AUTHORITY)"
+  - "ACCP required mode gate not enforced (P49-REQUIRED-MODE-GATE)"
+  - "All P45 assembly modules are test-only — none wired (ALL_P45)"
+  - "Governor signals are stubs (P45-GOVERNOR-SIGNALS)"
+  - "Run scripts have broken imports or are stubs (P45-SMOKE-AND-PROFILES)"
+  - "No dashboard visibility for P45 (P45-DASHBOARD-VISIBILITY)"
+thresholds:
+  p49_promotable: false
+  p49_unmet_blockers: 9
+  p49_total_requirements: 15
+  p49_critical_failures: 7
+  p45_promotable: false
+  p45_unmet_blockers: 4
+  p45_total_requirements: 19
+  p45_critical_failures: 4
+recommended_next_fix_scope:
+  - "Wire accp-mode-picker into TUI keybindings with Tab"
+  - "Make ACCP mode config-driven and visible in TUI"
+  - "Populate workerResult.accp in worker adapter"
+  - "Instantiate AccpRouteBus in coding-agent boot code"
+  - "Wire runAccpGateStage into completion gate pipeline"
+  - "Fix script import paths for P45 smoke"
+  - "Wire P45 prerequisite gate into admission"
+  - "Wire AdaptiveConcurrencyGovernor into scheduler"
