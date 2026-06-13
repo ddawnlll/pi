@@ -227,7 +227,7 @@ function topologicalSortWaves(spec: PlanSpecV5Alpha2): typeof spec.waves {
 function buildExecutionBatches(
 	waves: CompiledWave[],
 	tasks: CompiledTask[],
-	taskGraph: Record<string, string[]>,
+	_taskGraph: Record<string, string[]>,
 ): ExecutionBatch[] {
 	const batches: ExecutionBatch[] = [];
 

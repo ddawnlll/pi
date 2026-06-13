@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { compileAccpSource } from "@earendil-works/pi-accp-compiler";
 import type { Model } from "@earendil-works/pi-ai";
 import type { WorkerAdapter, WorktreeConfig } from "@earendil-works/pi-execution-contracts";
 import {
@@ -1240,8 +1241,6 @@ export class AutonomousExecutor {
 					// Gated by ACCP mode (warn = diagnostic only, required = blocking)
 					if (workerResult.accp?.shouldCompile && workerResult.accp?.sourceYaml) {
 						try {
-							// Dynamic import to avoid circular dependency at module level
-							const { compileAccpSource } = await import("@earendil-works/pi-accp-compiler");
 							const compileResult = compileAccpSource(workerResult.accp.sourceYaml);
 							workerResult.accp.compiledArtifactPath = `reports/accp/${planExecutionId || "P49"}/compiled/${workerResult.accp.reportId}.compiled.json`;
 							workerResult.accp.diagnostics = compileResult.diagnostics;

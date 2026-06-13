@@ -58,6 +58,7 @@
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
+		"@earendil-works/pi-accp-compiler": "^0.74.0",
 		"@earendil-works/pi-agent-core": "^0.74.0",
 		"@earendil-works/pi-ai": "^0.74.0",
 		"@earendil-works/pi-db": "^0.74.0",
