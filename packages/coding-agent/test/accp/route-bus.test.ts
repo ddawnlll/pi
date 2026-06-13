@@ -10,27 +10,23 @@
  *   mutation without authority, missing evidence
  */
 
-import type {
-	AccpCompileResult,
-	AccpGateVerdict,
-	AccpRouteSignal,
-} from "@earendil-works/pi-execution-contracts";
+import type { AccpCompileResult, AccpGateVerdict, AccpRouteSignal } from "@earendil-works/pi-execution-contracts";
 import { describe, expect, it } from "vitest";
 import {
-	REPORT_TYPE_TO_ROLE,
 	buildHandoffChain,
 	createAuthorityBoundaryGuard,
 	createDefaultSubscriptions,
 	getNextReportType,
+	REPORT_TYPE_TO_ROLE,
 	resolveTargetRole,
 	resolveTargetRoleFromCompileResult,
 } from "../../src/core/accp-artifact-subscriptions.js";
 import {
+	type AccpBusDelivery,
 	AccpRouteBus,
+	type ArtifactIntegrityError,
 	getAccpRouteBus,
 	resetAccpRouteBus,
-	type AccpBusDelivery,
-	type ArtifactIntegrityError,
 } from "../../src/core/accp-route-bus.js";
 
 // =============================================================================
@@ -140,15 +136,9 @@ describe("ACCP Route Bus", () => {
 	it("should filter history by report ID", async () => {
 		const bus = new AccpRouteBus();
 
-		await bus.deliver(
-			makeDelivery({ deliveryId: "D1", compileResult: makeCompileResult({ reportId: "R1" }) }),
-		);
-		await bus.deliver(
-			makeDelivery({ deliveryId: "D2", compileResult: makeCompileResult({ reportId: "R2" }) }),
-		);
-		await bus.deliver(
-			makeDelivery({ deliveryId: "D3", compileResult: makeCompileResult({ reportId: "R1" }) }),
-		);
+		await bus.deliver(makeDelivery({ deliveryId: "D1", compileResult: makeCompileResult({ reportId: "R1" }) }));
+		await bus.deliver(makeDelivery({ deliveryId: "D2", compileResult: makeCompileResult({ reportId: "R2" }) }));
+		await bus.deliver(makeDelivery({ deliveryId: "D3", compileResult: makeCompileResult({ reportId: "R1" }) }));
 
 		const forR1 = bus.getHistoryForReport("R1");
 		expect(forR1).toHaveLength(2);
@@ -195,7 +185,9 @@ describe("ACCP Route Bus", () => {
 	it("should clear subscriptions", async () => {
 		const bus = new AccpRouteBus();
 		const received: string[] = [];
-		bus.subscribe("validator", async (d) => received.push(d.deliveryId));
+		bus.subscribe("validator", async (d) => {
+			received.push(d.deliveryId);
+		});
 
 		await bus.deliver(makeDelivery({ targetRole: "validator" }));
 		expect(received).toHaveLength(1);
@@ -213,20 +205,16 @@ describe("ACCP Route Bus", () => {
 		const bus = new AccpRouteBus();
 		const received: AccpBusDelivery[] = [];
 
-		bus.subscribe("validator", async (d) => received.push(d));
+		bus.subscribe("validator", async (d) => {
+			received.push(d);
+		});
 
 		const signal = makeRouteSignal({
 			recommendedNextAction: "validate_implementation",
 		});
 		const compileResult = makeCompileResult({ reportType: "FPR" });
 
-		const delivery = await bus.routeBySignal(
-			"DEL_SIG_001",
-			compileResult,
-			signal,
-			resolveTargetRole,
-			"fixer",
-		);
+		const delivery = await bus.routeBySignal("DEL_SIG_001", compileResult, signal, resolveTargetRole, "fixer");
 
 		expect(delivery.targetRole).toBe("validator");
 		expect(received).toHaveLength(1);
@@ -238,7 +226,9 @@ describe("ACCP Route Bus", () => {
 		const bus = new AccpRouteBus();
 		const received: AccpBusDelivery[] = [];
 
-		bus.subscribe("coordinator", async (d) => received.push(d));
+		bus.subscribe("coordinator", async (d) => {
+			received.push(d);
+		});
 
 		const signal = makeRouteSignal({
 			recommendedNextAction: "unknown_action",
@@ -246,13 +236,7 @@ describe("ACCP Route Bus", () => {
 		});
 		const compileResult = makeCompileResult();
 
-		const delivery = await bus.routeBySignal(
-			"DEL_UNK",
-			compileResult,
-			signal,
-			resolveTargetRole,
-			"scout",
-		);
+		const delivery = await bus.routeBySignal("DEL_UNK", compileResult, signal, resolveTargetRole, "scout");
 
 		expect(delivery.targetRole).toBe("coordinator");
 		expect(received).toHaveLength(1);
@@ -413,11 +397,7 @@ describe("Delivery chain tracking", () => {
 		const chain = bus.getDeliveryChain("CHAIN_TVR");
 		expect(chain).not.toBeNull();
 		expect(chain!.deliveries).toHaveLength(3);
-		expect(chain!.deliveries.map((d) => d.deliveryId)).toEqual([
-			"CHAIN_BSR",
-			"CHAIN_FPR",
-			"CHAIN_TVR",
-		]);
+		expect(chain!.deliveries.map((d) => d.deliveryId)).toEqual(["CHAIN_BSR", "CHAIN_FPR", "CHAIN_TVR"]);
 		expect(chain!.reachedCoordinator).toBe(false);
 	});
 

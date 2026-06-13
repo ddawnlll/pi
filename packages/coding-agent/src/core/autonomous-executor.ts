@@ -10,6 +10,7 @@
 
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { compileAccpSource } from "@earendil-works/pi-accp-compiler";
 import type { Model } from "@earendil-works/pi-ai";
@@ -27,6 +28,7 @@ import type { TransitionRouter } from "../execution-runtime/transition-router.js
 import { createTransitionRouter } from "../execution-runtime/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
+import { runAccpRepairLoop } from "./accp-repair-controller.js";
 import { AutoCommit } from "./auto-commit.js";
 import { createScopedIntegrationFromWorkspace } from "./completion/scoped-commit-integration.js";
 import type { AttemptRecord as ReconcilerAttemptRecord } from "./completion/terminal-reconciler.js";
@@ -106,6 +108,8 @@ export interface WorkspaceExecutionResult {
 	error?: string;
 	/** Report content */
 	report?: string;
+	/** Estimated context usage in tokens (from prompt.length / 4) */
+	contextUsed?: number;
 }
 
 /**
@@ -1276,6 +1280,17 @@ export class AutonomousExecutor {
 								for (const d of compileResult.diagnostics) {
 									console.error(`  [${d.code}] ${d.message}`);
 								}
+
+								// P49.25: Invoke the repair loop for canonicalization.
+								// The repair prompt is stored on the worker result so the
+								// caller can inject it into the worker's next attempt.
+								const repairResult = runAccpRepairLoop(compileResult, workerResult.accp.sourceYaml);
+								workerResult.accp.repairPrompt = repairResult.repairPrompt ?? undefined;
+								if (repairResult.repairPrompt) {
+									console.error(
+										`[ACCP] Repair prompt generated for ${workerResult.accp.reportId} (attempts: ${repairResult.attempts})`,
+									);
+								}
 							}
 						} catch (err) {
 							console.error(`[ACCP] Compile hook error: ${err}`);
@@ -1304,6 +1319,7 @@ export class AutonomousExecutor {
 									: "FAILED",
 						report: workerResult.report,
 						error: workerResult.error,
+						contextUsed: workerResult.metadata?.contextUsed as number | undefined,
 					};
 				} else if (this.enableRealExecution && workspaceExecutor) {
 					// Legacy path — direct WorkspaceAgentExecutor construction
@@ -1342,6 +1358,7 @@ export class AutonomousExecutor {
 						verdict: agentResult.verdict,
 						report: agentResult.report,
 						error: agentResult.error,
+						contextUsed: agentResult.contextUsed,
 					};
 				} else {
 					// Simulate execution (for testing/backward compat)
@@ -1616,6 +1633,15 @@ export class AutonomousExecutor {
 				await this.transitionRouter.transitionWorkspace(planExecutionId, workspace.id, WorkspaceStage.Complete, {
 					verdict: result.verdict,
 				});
+				// Persist contextUsed so the web server can read it from state
+				// instead of parsing log files on every request.
+				if (result.contextUsed !== undefined) {
+					await this.stateStore
+						.updateWorkspaceState(planExecutionId, workspace.id, {
+							contextUsed: result.contextUsed,
+						})
+						.catch(() => {});
+				}
 				// P44.04: Clear attempt history for terminal workspace
 				this.attemptHistories.delete(workspace.id);
 				// P41.2: Bridge completed workspace event to brain activity timeline
@@ -1662,6 +1688,7 @@ export class AutonomousExecutor {
 				);
 				await this.stateStore.updateWorkspaceState(planExecutionId, workspace.id, {
 					error: `Completion gate blocked: ${gateBlockMsg}`,
+					contextUsed: result.contextUsed,
 				});
 				await this.transitionRouter.transitionWorkspace(
 					planExecutionId,
@@ -2751,16 +2778,45 @@ export class AutonomousExecutor {
 						leaseId: "",
 						cwd: this.workspaceRoot,
 					});
-					await runner.writeRepo(["cherry-pick", "--no-commit", commitResult.commitHash], { timeout: 60_000 });
-					await runner.writeRepo(["add", "-A"], { timeout: 30_000 });
-					await runner.writeRepo(["commit", "--no-verify", "-m", commitMsg], { timeout: 30_000 });
-					console.log(`[auto-commit] Cherry-picked ${workspace.id} into main repo`);
-				} catch (cherryErr) {
-					const errMsg = cherryErr instanceof Error ? cherryErr.message : String(cherryErr);
+					// P49.31: Use diff-tree + apply instead of cherry-pick so the
+					// worktree commit can be transplanted even when main has diverged
+					// (cherry-pick would fail with merge conflicts).
+					const diffResult = await runner.run(
+						["diff-tree", "--no-commit-id", "-p", "-r", "-M", "--root", commitResult.commitHash],
+						{ cwd: worktreeRoot, timeout: 30_000 },
+					);
+					if (diffResult.exitCode !== 0 || !diffResult.stdout.trim()) {
+						console.log(`[auto-commit] No diff to apply for ${workspace.id}, skipping`);
+						return;
+					}
+					// Write diff to temp file then apply
+					const diffFile = path.join(os.tmpdir(), `pi-auto-commit-${workspace.id}-${Date.now()}.diff`);
+					await fs.writeFile(diffFile, diffResult.stdout);
+					try {
+						const applyResult = await runner.writeRepo(["apply", "--index", diffFile], {
+							timeout: 60_000,
+						});
+						if (applyResult.exitCode !== 0) {
+							console.warn(`[auto-commit] git apply failed for ${workspace.id}: ${applyResult.stderr}`);
+							return;
+						}
+						const commitResult2 = await runner.writeRepo(["commit", "--no-verify", "-m", commitMsg], {
+							timeout: 30_000,
+						});
+						if (commitResult2.stderr.includes("nothing to commit")) {
+							console.log(`[auto-commit] Applied diff was empty for ${workspace.id}`);
+						} else {
+							console.log(`[auto-commit] Applied ${workspace.id} into main repo`);
+						}
+					} finally {
+						await fs.unlink(diffFile).catch(() => {});
+					}
+				} catch (applyErr) {
+					const errMsg = applyErr instanceof Error ? applyErr.message : String(applyErr);
 					if (errMsg.includes("nothing to commit") || errMsg.includes("empty commit")) {
-						console.log(`[auto-commit] Cherry-pick was empty (changes already in main): ${workspace.id}`);
+						console.log(`[auto-commit] Apply was empty (changes already in main): ${workspace.id}`);
 					} else {
-						console.warn(`[auto-commit] Cherry-pick failed for ${workspace.id}: ${errMsg}`);
+						console.warn(`[auto-commit] Failed to apply ${workspace.id} into main repo: ${errMsg}`);
 					}
 				}
 			}

@@ -29,11 +29,7 @@
  * @packageDocumentation
  */
 
-import type {
-	AccpCompileResult,
-	AccpReportType,
-	AccpRouteSignal,
-} from "@earendil-works/pi-execution-contracts";
+import type { AccpCompileResult, AccpReportType, AccpRouteSignal } from "@earendil-works/pi-execution-contracts";
 import type { AccpAgentRole, AccpBusDelivery, AccpRouteBus } from "./accp-route-bus.js";
 
 // =============================================================================
@@ -246,11 +242,7 @@ export function createAuthorityBoundaryGuard(
 		}
 
 		// READ-ONLY ACTIONS: always allowed (advisory information flow)
-		if (
-			action === "read_report" ||
-			action === "inspect_artifact" ||
-			action === "resolve_target"
-		) {
+		if (action === "read_report" || action === "inspect_artifact" || action === "resolve_target") {
 			return { allowed: true };
 		}
 
@@ -443,8 +435,8 @@ export function buildHandoffChain(startType: AccpReportType): AccpReportType[] {
 	const visited = new Set<AccpReportType>();
 	visited.add(startType);
 
-	while (true) {
-		const next = REPORT_HANDOFF_CHAIN[current];
+	while (current !== undefined) {
+		const next: AccpReportType | undefined = REPORT_HANDOFF_CHAIN[current];
 		if (!next) break;
 		if (visited.has(next)) break; // Cycle detection
 		visited.add(next);
