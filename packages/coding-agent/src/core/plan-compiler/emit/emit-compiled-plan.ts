@@ -3,6 +3,11 @@
  *
  * Transforms a validated PlanSpecV5Alpha2 into a CompiledPlan ready for execution.
  * Includes topological ordering, execution batches, and diagnostic summary.
+ *
+ * The new PlanSpec v5 Alpha2 uses a wave -> workspace model (waves reference
+ * workspaceIds), rather than the old wave -> task model. Tasks are synthesized
+ * from workspace acceptance criteria for backward compatibility with the
+ * execution runtime.
  */
 
 import type { PlanSpecV5Alpha2 } from "../alpha2/alpha2-types.js";
@@ -28,50 +33,52 @@ export function emitCompiledPlan(spec: PlanSpecV5Alpha2, allDiagnostics: PlanDia
 	const sortedWaves = topologicalSortWaves(spec);
 
 	// Build compiled waves, workspaces, tasks
-	const compiledWaves: CompiledWave[] = sortedWaves.map((wave) => ({
+	// In the new schema, waves have workspaceIds (not tasks).
+	// Synthesize tasks from workspace data for runtime compatibility.
+	const compiledWaves: CompiledWave[] = sortedWaves.map((wave, wi) => ({
 		id: wave.id,
 		title: wave.title,
 		description: wave.description,
-		order: wave.order,
-		taskIds: wave.tasks.map((t) => t.id),
+		order: wi,
+		taskIds: (wave.workspaceIds ?? []).map((wsId) => `task_${wsId}`),
 		dependencies: wave.dependencies ?? [],
+		batchSize: wave.batchSize ?? 3,
 	}));
 
 	const compiledWorkspaces: CompiledWorkspace[] = spec.workspaces.map((ws) => ({
 		id: ws.id,
-		name: ws.name,
-		rootDir: ws.rootDir,
-		canEdit: ws.canEdit,
-		canRead: ws.canRead ?? [],
-		isolationLevel: ws.isolationLevel,
+		name: ws.title,
+		rootDir: ".",
+		canEdit: ws.allowedFiles ?? [],
+		canRead: [],
+		isolationLevel: "full" as const,
 	}));
 
-	const allTasks = spec.waves.flatMap((w) => w.tasks);
-	const compiledTasks: CompiledTask[] = allTasks.map((t) => ({
-		id: t.id,
-		title: t.title,
-		description: t.description,
-		type: t.type,
-		workspaceId: t.workspaceId,
-		dependencies: t.dependencies ?? [],
-		acceptanceCriteria: t.acceptanceCriteria,
-		priority: t.priority,
-		executionPolicy: t.executionPolicy
-			? {
-					mode: t.executionPolicy.mode ?? "moderate",
-					allowedCommands: t.executionPolicy.allowedCommands ?? [],
-					timeoutSeconds: t.executionPolicy.timeoutSeconds,
-					maxRetries: t.executionPolicy.maxRetries,
-				}
-			: undefined,
-		validation: t.validation
-			? {
-					preCheck: t.validation.preCheck ?? [],
-					postCheck: t.validation.postCheck ?? [],
-					requiresHumanApproval: t.validation.requiresHumanApproval ?? false,
-				}
-			: undefined,
-	}));
+	// Synthesize tasks from workspace data
+	const compiledTasks: CompiledTask[] = spec.workspaces.map((ws) => {
+		const acTexts = (Array.isArray(ws.acceptanceCriteria) ? ws.acceptanceCriteria : []).map((ac: unknown) =>
+			typeof ac === "string"
+				? ac
+				: ((ac as Record<string, unknown>).text ?? (ac as Record<string, unknown>).title ?? String(ac)),
+		) as string[];
+
+		const instTexts = (Array.isArray(ws.instructions) ? ws.instructions : []).map((inst: unknown) =>
+			typeof inst === "string"
+				? inst
+				: ((inst as Record<string, unknown>).text ?? (inst as Record<string, unknown>).title ?? String(inst)),
+		) as string[];
+
+		return {
+			id: `task_${ws.id}`,
+			title: ws.title,
+			description: instTexts.join("; ") || ws.title,
+			type: "implementation" as const,
+			workspaceId: ws.id,
+			dependencies: ws.dependencies ?? [],
+			acceptanceCriteria: acTexts,
+			priority: "high" as const,
+		};
+	});
 
 	// Build graphs
 	const waveGraph: Record<string, string[]> = {};
@@ -80,8 +87,8 @@ export function emitCompiledPlan(spec: PlanSpecV5Alpha2, allDiagnostics: PlanDia
 	}
 
 	const workspaceGraph: Record<string, string[]> = {};
-	for (const ws of compiledWorkspaces) {
-		workspaceGraph[ws.id] = [];
+	for (const ws of spec.workspaces) {
+		workspaceGraph[ws.id] = ws.dependencies ?? [];
 	}
 
 	const taskGraph: Record<string, string[]> = {};
@@ -91,6 +98,9 @@ export function emitCompiledPlan(spec: PlanSpecV5Alpha2, allDiagnostics: PlanDia
 
 	// Execution batches (simple wave-order batches)
 	const executionBatches = buildExecutionBatches(compiledWaves, compiledTasks, taskGraph);
+
+	// Extract report protocol from reports section
+	const reportProtocol = spec.reports?.protocol ?? "ACCP";
 
 	// Diagnostic summary
 	const effectiveDiagnostics = allDiagnostics.filter(
@@ -103,46 +113,51 @@ export function emitCompiledPlan(spec: PlanSpecV5Alpha2, allDiagnostics: PlanDia
 
 		phaseId: spec.metadata.phaseId,
 		title: spec.metadata.title,
-		description: spec.metadata.description,
-		owner: spec.metadata.owner,
+		description: spec.metadata.description ?? "",
+		owner: spec.metadata.owner ?? "pi",
 		status: spec.metadata.status,
 		createdAt: spec.metadata.createdAt,
-		updatedAt: spec.metadata.updatedAt,
-		tags: spec.metadata.tags ?? [],
+		updatedAt: spec.metadata.updatedAt ?? spec.metadata.createdAt,
+		tags: [],
 
-		goal: spec.intent.goal,
-		successCriteria: spec.intent.successCriteria,
-		outOfScope: spec.intent.outOfScope,
+		goal: spec.intent.executionClass,
+		successCriteria: spec.intent.safetyLevel
+			? [`Safety: ${spec.intent.safetyLevel}`, `Mode: ${spec.intent.executionMode}`]
+			: [],
+		outOfScope: [],
 
 		execution: {
-			mode: spec.authority.executionState.mode,
-			maxParallelWorkspaces: spec.authority.executionState.maxParallelWorkspaces,
-			scaleMode: spec.authority.executionState.scaleMode,
-			worktreeIsolation: spec.authority.executionState.worktreeIsolation ?? true,
-			integrationQueue: spec.authority.executionState.integrationQueue ?? false,
-			validationLock: spec.authority.executionState.validationLock ?? false,
+			mode: spec.intent.executionMode,
+			maxParallelWorkspaces: spec.intent.parallelism ?? 3,
+			scaleMode: spec.intent.targetPromotionMode,
+			worktreeIsolation: true,
+			integrationQueue: false,
+			validationLock: false,
 		},
 
 		completion: {
-			requiresAcceptanceCriteria: spec.authority.completion.requiresAcceptanceCriteria,
-			requiresValidationEvidence: spec.authority.completion.requiresValidationEvidence,
-			requiresReport: spec.authority.completion.requiresReport,
-			requiresRollbackPlan: spec.authority.completion.requiresRollbackPlan,
-			requiresFinalVerdict: spec.authority.completion.requiresFinalVerdict,
+			requiresAcceptanceCriteria:
+				(spec.authority.completion as Record<string, unknown>).evidenceLedgerRequired === true,
+			requiresValidationEvidence:
+				(spec.authority.completion as Record<string, unknown>).missingEvidenceBlocksCompletion === true,
+			requiresReport: true,
+			requiresRollbackPlan: false,
+			requiresFinalVerdict:
+				(spec.authority.completion as Record<string, unknown>).accpGateVerdictRequiredWhenModeRequired === true,
 		},
 
 		commandPolicy: {
-			policy: spec.commands?.policy ?? "moderate",
-			allowedCommands: spec.commands?.allowedCommands ?? [],
-			blockedCommands: spec.commands?.blockedCommands ?? [],
-			timeoutSeconds: spec.commands?.timeoutSeconds,
-			maxOutputBytes: spec.commands?.maxOutputBytes,
+			policy: (reportProtocol === "ACCP" ? "strict" : "moderate") as "strict" | "moderate" | "permissive",
+			allowedCommands: [],
+			blockedCommands: [],
+			timeoutSeconds: 900,
+			maxOutputBytes: 1_000_000,
 		},
 
 		filePolicy: {
-			protectedPaths: spec.security.selfModificationFirewall.protectedPaths,
-			allowListedFiles: spec.security.selfModificationFirewall.allowListedFiles ?? [],
-			requireExplicitApproval: spec.security.selfModificationFirewall.requireExplicitApproval,
+			protectedPaths: spec.security.forbiddenFiles ?? [],
+			allowListedFiles: [],
+			requireExplicitApproval: spec.security.schemaValidationRequired ?? true,
 		},
 
 		waves: compiledWaves,
@@ -212,18 +227,75 @@ function topologicalSortWaves(spec: PlanSpecV5Alpha2): typeof spec.waves {
 function buildExecutionBatches(
 	waves: CompiledWave[],
 	tasks: CompiledTask[],
-	_taskGraph: Record<string, string[]>,
+	taskGraph: Record<string, string[]>,
 ): ExecutionBatch[] {
 	const batches: ExecutionBatch[] = [];
 
-	// Group tasks by wave order
 	for (const wave of waves) {
-		const waveTasks = tasks.filter((t) => wave.taskIds.includes(t.id));
-		if (waveTasks.length > 0) {
+		const waveTaskIds = new Set(wave.taskIds);
+		const waveTasks = tasks.filter((t) => waveTaskIds.has(t.id));
+		const waveTaskMap = new Map(waveTasks.map((t) => [t.id, t]));
+
+		if (waveTaskIds.size === 0) continue;
+
+		// Build sub-graph for this wave's tasks (only intra-wave deps)
+		const inDegree = new Map<string, number>();
+		const adj = new Map<string, string[]>();
+		for (const t of waveTasks) {
+			inDegree.set(t.id, 0);
+			adj.set(t.id, []);
+		}
+		for (const t of waveTasks) {
+			for (const dep of t.dependencies) {
+				// Only count deps that are within this wave
+				if (waveTaskMap.has(dep)) {
+					adj.get(dep)!.push(t.id);
+					inDegree.set(t.id, (inDegree.get(t.id) ?? 0) + 1);
+				}
+			}
+		}
+
+		// Topological sort into levels
+		const ready = new Set(waveTasks.filter((t) => inDegree.get(t.id) === 0).map((t) => t.id));
+		const batchSize = wave.batchSize ?? 3;
+		let subBatch = 0;
+
+		while (ready.size > 0) {
+			// Take up to batchSize tasks from the ready set
+			const batchIds: string[] = [];
+			for (const id of ready) {
+				if (batchIds.length >= batchSize) break;
+				batchIds.push(id);
+			}
+
+			for (const id of batchIds) {
+				ready.delete(id);
+				// Propagate: reduce in-degree of dependents
+				for (const dep of adj.get(id) ?? []) {
+					const newDegree = (inDegree.get(dep) ?? 1) - 1;
+					inDegree.set(dep, newDegree);
+					if (newDegree === 0) {
+						ready.add(dep);
+					}
+				}
+			}
+
 			batches.push({
-				waveId: wave.id,
-				taskIds: waveTasks.map((t) => t.id),
-				parallel: waveTasks.length <= 3, // Simple heuristic
+				waveId: `${wave.id}_s${subBatch}`,
+				taskIds: batchIds,
+				parallel: batchIds.length > 1,
+			});
+			subBatch++;
+		}
+
+		// Check for unprocessed tasks (cycles)
+		const remaining = waveTasks.filter((t) => !batches.some((b) => b.taskIds.includes(t.id)));
+		if (remaining.length > 0) {
+			// Put remaining in one serial batch
+			batches.push({
+				waveId: `${wave.id}_s${subBatch}`,
+				taskIds: remaining.map((t) => t.id),
+				parallel: false,
 			});
 		}
 	}

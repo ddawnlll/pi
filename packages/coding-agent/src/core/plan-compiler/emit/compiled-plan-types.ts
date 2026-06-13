@@ -96,6 +96,7 @@ export interface CompiledWave {
 	order: number;
 	taskIds: string[];
 	dependencies: string[];
+	batchSize: number;
 }
 
 export interface CompiledWorkspace {

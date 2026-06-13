@@ -31,7 +31,7 @@ export function compiledPlanToWorkspaceQueue(plan: CompiledPlan): WorkspaceQueue
 		return {
 			id: ws.id,
 			title: ws.name,
-			dependencies: [], // Alpha2 workspaces don't have direct deps
+			dependencies: plan.tasks.filter((t) => t.workspaceId === ws.id).flatMap((t) => t.dependencies),
 			roleBudget: "worker" as const,
 			executorPrompt: instructions,
 			instructions,

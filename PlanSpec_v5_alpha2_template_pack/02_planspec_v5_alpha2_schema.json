@@ -21,8 +21,7 @@
     "workspaces",
     "validation",
     "evidence",
-    "reports",
-    "p45Bridge"
+    "reports"
   ],
   "properties": {
     "$schema": {
@@ -68,6 +67,10 @@
         "reports": {
           "type": "object",
           "additionalProperties": true
+        },
+        "routing": {
+          "type": "object",
+          "additionalProperties": true
         }
       }
     },
@@ -81,30 +84,57 @@
         "mechanisms": {
           "type": "array",
           "items": {
-            "enum": [
-              "json_schema",
-              "admission_gate",
-              "plan_lock_verifier",
-              "workspace_lock_verifier",
-              "tool_runtime",
-              "command_policy_engine",
-              "runtime_command_grant",
-              "write_gate",
-              "smart_mutation_engine",
-              "workspace_commit_gate",
-              "completion_gate_v2",
-              "terminal_reconciler",
-              "evidence_ledger",
-              "accp_report_validator",
-              "final_promotion_gate",
-              "p45_bridge_boundary_guard"
-            ]
+            "type": "string"
           }
         }
       }
     },
     "security": {
-      "$ref": "#/$defs/security"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaValidationRequired",
+        "lockRequiredForExecution",
+        "canonicalJsonHashRequired",
+        "signatureRequired",
+        "hardStops",
+        "forbiddenFiles"
+      ],
+      "properties": {
+        "schemaValidationRequired": {
+          "type": "boolean"
+        },
+        "lockRequiredForExecution": {
+          "type": "boolean"
+        },
+        "canonicalJsonHashRequired": {
+          "type": "boolean"
+        },
+        "signatureRequired": {
+          "type": "boolean"
+        },
+        "signatureAlgorithm": {
+          "type": "string"
+        },
+        "hardStops": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operatorNotes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "commands": {
       "$ref": "#/$defs/commands"
@@ -242,6 +272,12 @@
         },
         "discoveryCommandsMayNotSatisfyFinalValidation": {
           "type": "boolean"
+        },
+        "accpRequiredArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -283,6 +319,9 @@
         },
         "hashWhenAvailable": {
           "type": "boolean"
+        },
+        "accpArtifactHashRequired": {
+          "type": "boolean"
         }
       }
     },
@@ -292,11 +331,7 @@
       "required": [
         "protocol",
         "version",
-        "required",
-        "artifactDirectory",
-        "stableIdsRequired",
-        "commandEvidenceRequired",
-        "rollbackPlanRequiredForMutation"
+        "required"
       ],
       "properties": {
         "protocol": {
@@ -318,6 +353,18 @@
           "type": "boolean"
         },
         "rollbackPlanRequiredForMutation": {
+          "type": "boolean"
+        },
+        "sourceFormat": {
+          "type": "string"
+        },
+        "reportsAreEvidenceOnly": {
+          "type": "boolean"
+        },
+        "reportsDoNotAuthorizeExecution": {
+          "type": "boolean"
+        },
+        "routeSignalsAreAdvisory": {
           "type": "boolean"
         }
       }
@@ -370,11 +417,76 @@
     },
     "renderHints": {
       "type": "object",
-      "additionalProperties": false
+      "additionalProperties": false,
+      "properties": {
+        "generatedMarkdownPath": {
+          "type": "string"
+        },
+        "includeBrief": {
+          "type": "boolean"
+        },
+        "includeWaves": {
+          "type": "boolean"
+        },
+        "includeWorkspaces": {
+          "type": "boolean"
+        },
+        "includeAcceptanceCriteria": {
+          "type": "boolean"
+        },
+        "includeValidation": {
+          "type": "boolean"
+        },
+        "markPreviewNonAuthoritative": {
+          "type": "boolean"
+        }
+      }
     },
     "migration": {
       "type": "object",
-      "additionalProperties": false
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "strategy": {
+          "type": "string"
+        },
+        "adapterRequired": {
+          "type": "boolean"
+        },
+        "legacyFieldsMapped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "v411",
+              "planspec"
+            ],
+            "properties": {
+              "v411": {
+                "type": "string"
+              },
+              "planspec": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "sourceReferences": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "accp": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "finalPromotion": {
+      "type": "object",
+      "additionalProperties": true
     }
   },
   "$defs": {
@@ -420,6 +532,9 @@
         },
         "sourceDocument": {
           "type": "string"
+        },
+        "sourcePackage": {
+          "type": "string"
         }
       }
     },
@@ -463,8 +578,7 @@
         "executionClass",
         "safetyLevel",
         "executionMode",
-        "parallelism",
-        "p45ImplementationAllowed"
+        "parallelism"
       ],
       "properties": {
         "executionClass": {
@@ -496,8 +610,23 @@
         "p45ImplementationAllowed": {
           "type": "boolean"
         },
+        "p50ImplementationAllowed": {
+          "type": "boolean"
+        },
         "humanReviewRecommended": {
           "type": "boolean"
+        },
+        "routeBusEnabledByDefault": {
+          "type": "boolean"
+        },
+        "tabModePickerEnabled": {
+          "type": "boolean"
+        },
+        "filePickerGesture": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
         }
       }
     },
@@ -607,6 +736,9 @@
             },
             "runtimeGrantCommandsCanSatisfyValidationOnlyIfGrantStatesValidationPurpose": {
               "type": "boolean"
+            },
+            "accpCompileCommandsCanSatisfyAccpValidationOnlyIfArtifactHashRecorded": {
+              "type": "boolean"
             }
           }
         }
@@ -636,27 +768,16 @@
         "text": {
           "type": "string"
         },
+        "description": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "string"
+        },
         "enforcedBy": {
           "type": "array",
           "items": {
-            "enum": [
-              "json_schema",
-              "admission_gate",
-              "plan_lock_verifier",
-              "workspace_lock_verifier",
-              "tool_runtime",
-              "command_policy_engine",
-              "runtime_command_grant",
-              "write_gate",
-              "smart_mutation_engine",
-              "workspace_commit_gate",
-              "completion_gate_v2",
-              "terminal_reconciler",
-              "evidence_ledger",
-              "accp_report_validator",
-              "final_promotion_gate",
-              "p45_bridge_boundary_guard"
-            ]
+            "type": "string"
           }
         }
       }
@@ -675,27 +796,26 @@
         "text": {
           "type": "string"
         },
+        "description": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "must",
+            "should",
+            "may"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
         "enforcedBy": {
           "type": "array",
           "items": {
-            "enum": [
-              "json_schema",
-              "admission_gate",
-              "plan_lock_verifier",
-              "workspace_lock_verifier",
-              "tool_runtime",
-              "command_policy_engine",
-              "runtime_command_grant",
-              "write_gate",
-              "smart_mutation_engine",
-              "workspace_commit_gate",
-              "completion_gate_v2",
-              "terminal_reconciler",
-              "evidence_ledger",
-              "accp_report_validator",
-              "final_promotion_gate",
-              "p45_bridge_boundary_guard"
-            ]
+            "type": "string"
           }
         }
       }
@@ -836,6 +956,13 @@
           "additionalProperties": true
         },
         "rollback": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "description": {
+          "type": "string"
+        },
+        "risk": {
           "type": "object",
           "additionalProperties": true
         }

@@ -4,11 +4,9 @@
  * Checks:
  * - Duplicate wave IDs
  * - Duplicate workspace IDs
- * - Duplicate task IDs
- * - Wave references must resolve
- * - Workspace references must resolve
- * - Task dependencies must resolve
- * - Task workspaceId must reference an existing workspace
+ * - Wave workspaceId references must resolve to real workspaces
+ * - Wave dependencies must resolve to real wave IDs
+ * - Workspace dependencies must resolve to real workspace IDs
  */
 
 import type { PlanSpecV5Alpha2 } from "../alpha2/alpha2-types.js";
@@ -25,9 +23,8 @@ export function validateAlpha2Semantics(spec: PlanSpecV5Alpha2): PlanDiagnostic[
 	// Collect all IDs
 	const waveIds = new Map<string, number>();
 	const workspaceIds = new Map<string, number>();
-	const taskIds = new Map<string, number>();
 
-	// Check duplicate wave IDs
+	// Check wave IDs and collect them
 	spec.waves.forEach((wave, i) => {
 		if (waveIds.has(wave.id)) {
 			diagnostics.push(
@@ -40,24 +37,9 @@ export function validateAlpha2Semantics(spec: PlanSpecV5Alpha2): PlanDiagnostic[
 			);
 		}
 		waveIds.set(wave.id, i);
-
-		// Collect tasks from waves
-		wave.tasks.forEach((task, j) => {
-			if (taskIds.has(task.id)) {
-				diagnostics.push(
-					diag({
-						code: PlanDiagnosticCode.E_DUPLICATE_TASK_ID,
-						phase: "semantic_validation",
-						path: `$.waves[${i}].tasks[${j}].id`,
-						message: `Duplicate task ID: "${task.id}" (first seen earlier)`,
-					}),
-				);
-			}
-			taskIds.set(task.id, j);
-		});
 	});
 
-	// Check duplicate workspace IDs
+	// Check workspace IDs and collect them
 	spec.workspaces.forEach((ws, i) => {
 		if (workspaceIds.has(ws.id)) {
 			diagnostics.push(
@@ -72,63 +54,59 @@ export function validateAlpha2Semantics(spec: PlanSpecV5Alpha2): PlanDiagnostic[
 		workspaceIds.set(ws.id, i);
 	});
 
-	// Check wave dependencies
-	for (let i = 0; i < spec.waves.length; i++) {
-		const wave = spec.waves[i];
+	// Check wave workspaceId references resolve
+	spec.waves.forEach((wave, i) => {
+		if (wave.workspaceIds) {
+			wave.workspaceIds.forEach((wsId, j) => {
+				if (!workspaceIds.has(wsId)) {
+					diagnostics.push(
+						diag({
+							code: PlanDiagnosticCode.E_REF_UNKNOWN_WORKSPACE_TASK,
+							phase: "semantic_validation",
+							path: `$.waves[${i}].workspaceIds[${j}]`,
+							message: `Unknown workspace reference: "${wsId}" from wave "${wave.id}"`,
+						}),
+					);
+				}
+			});
+		}
+	});
+
+	// Check wave dependencies resolve
+	spec.waves.forEach((wave, i) => {
 		if (wave.dependencies) {
-			for (const depId of wave.dependencies) {
+			wave.dependencies.forEach((depId, j) => {
 				if (!waveIds.has(depId)) {
 					diagnostics.push(
 						diag({
 							code: PlanDiagnosticCode.E_REF_UNKNOWN_WAVE,
 							phase: "semantic_validation",
-							path: `$.waves[${i}].dependencies`,
+							path: `$.waves[${i}].dependencies[${j}]`,
 							message: `Unknown wave dependency: "${depId}" referenced by wave "${wave.id}"`,
 						}),
 					);
 				}
-			}
+			});
 		}
-	}
+	});
 
-	// Check task dependencies and workspace references
-	for (let i = 0; i < spec.waves.length; i++) {
-		const wave = spec.waves[i];
-		for (let j = 0; j < wave.tasks.length; j++) {
-			const task = wave.tasks[j];
-			const taskPath = `$.waves[${i}].tasks[${j}]`;
-
-			// Task dependencies
-			if (task.dependencies) {
-				for (const depId of task.dependencies) {
-					if (!taskIds.has(depId)) {
-						diagnostics.push(
-							diag({
-								code: PlanDiagnosticCode.E_REF_UNKNOWN_TASK,
-								phase: "semantic_validation",
-								path: `${taskPath}.dependencies`,
-								message: `Unknown task dependency: "${depId}" referenced by task "${task.id}"`,
-							}),
-						);
-					}
-				}
-			}
-
-			// Task workspace reference
-			if (task.workspaceId) {
-				if (!workspaceIds.has(task.workspaceId)) {
+	// Check workspace dependencies resolve
+	spec.workspaces.forEach((ws, i) => {
+		if (ws.dependencies) {
+			ws.dependencies.forEach((depId, j) => {
+				if (!workspaceIds.has(depId)) {
 					diagnostics.push(
 						diag({
 							code: PlanDiagnosticCode.E_REF_UNKNOWN_WORKSPACE_TASK,
 							phase: "semantic_validation",
-							path: `${taskPath}.workspaceId`,
-							message: `Unknown workspace reference: "${task.workspaceId}" from task "${task.id}"`,
+							path: `$.workspaces[${i}].dependencies[${j}]`,
+							message: `Unknown workspace dependency: "${depId}" referenced by workspace "${ws.id}"`,
 						}),
 					);
 				}
-			}
+			});
 		}
-	}
+	});
 
 	return diagnostics;
 }

@@ -3,9 +3,7 @@
  *
  * Detects cycles in:
  * - Wave dependency graph
- * - Workspace dependency graph (workspaces do not have dependencies field in Alpha2;
- *   this checks workspace dependencies from task workspaceId relationships — not needed now)
- * - Task dependency graph
+ * - Workspace dependency graph
  *
  * Each cycle diagnostic includes the cycle path.
  */
@@ -36,25 +34,20 @@ export function validateAlpha2Graph(spec: PlanSpecV5Alpha2): PlanDiagnostic[] {
 		);
 	}
 
-	// Task graph cycles (all tasks across all waves)
-	const allTasks = spec.waves.flatMap((w) => w.tasks);
-	const taskCycles = detectCycles(
-		allTasks.map((t) => t.id),
-		allTasks.map((t) => t.dependencies ?? []),
+	// Workspace graph cycles
+	const wsCycles = detectCycles(
+		spec.workspaces.map((w) => w.id),
+		spec.workspaces.map((w) => w.dependencies ?? []),
 	);
-	for (const cycle of taskCycles) {
+	for (const cycle of wsCycles) {
 		diagnostics.push(
 			diag({
 				code: PlanDiagnosticCode.E_CYCLE_TASK,
 				phase: "graph_validation",
-				message: `Task dependency cycle detected: ${cycle.join(" -> ")}`,
+				message: `Workspace dependency cycle detected: ${cycle.join(" -> ")}`,
 			}),
 		);
 	}
-
-	// Workspace cycles (workspaces don't have direct dependencies in Alpha2,
-	// but we check if there are any task-induced cycles we need to flag)
-	// This is a placeholder; actual workspace cycles would require workspace-level deps
 
 	return diagnostics;
 }
@@ -93,7 +86,6 @@ function detectCycles(ids: string[], edgesList: string[][]): string[][] {
 		for (const v of neighbors) {
 			const col = color.get(v);
 			if (col === GRAY) {
-				// Found a cycle — extract cycle path
 				const cycleStart = path.indexOf(v);
 				return path.slice(cycleStart);
 			}
