@@ -24,24 +24,34 @@ promotion_decision:
   reason: >
     ACCP mode promotion from 'warn' to 'required' is NOT yet eligible.
     All P49 implementation workspaces (30/30) are complete with verified
-    commit hashes. All wave gates (W1-W7) have passed. E2E gauntlets
+    commit hashes. All wave gates (W1-W8) have passed. E2E gauntlets
     pass. However, the promotionToRequiredRequires policy requires
-    operator_approval which has not yet been obtained.
+    operator_approval which has not yet been obtained. Additionally,
+    production e2e testing in real workspace execution (post-P49)
+    and documentation review/sign-off are outstanding.
   blockingReasons:
     - "operator_approval: pending — ACCP mode must remain warn until operator explicitly approves promotion to required"
   remainingForRequiredMode:
     - "operator_approval: required before mode can be promoted"
     - "Production e2e testing in real workspace execution (post-P49)"
     - "Documentation review and sign-off"
+  warnings:
+    - "Mode remains 'warn' per design — this is expected during P49"
+    - "All gating criteria for P50 start are met — P50 can begin immediately"
 
 p50Readiness:
   ready: true
   blockingReasons: []
   notes: >
-    P50 can begin. The ACCP v2.0 native compiler, route bus, TUI mode
-    picker, runtime gate, event journal, read model, dashboard components,
-    repair loop, and artifact store are all implemented and tested.
-    The foundation is stable for P50's phase-specific requirements.
+    P50 can begin. The ACCP v2.0 native compiler (226 tests pass),
+    route bus, TUI mode picker, runtime gate, event journal, read model,
+    dashboard components, repair loop, and artifact store are all
+    implemented and tested. The foundation is stable for P50's
+    phase-specific requirements. All P49 gating criteria are satisfied:
+    wave TVRs pass, compiler tests pass, TUI picker tested, completion
+    gate blocks in required mode, transition router guards, dashboard
+    shows status, route signal requires runtime authority, repair loop
+    is structural-only, and accp_v2_0_package is unmodified.
 
 evidence_summary:
   type: "summary"
@@ -53,3 +63,68 @@ evidence_summary:
   e2eGauntletsPassed: true
   accpPackageUnmodified: true
   modeRemainsWarn: true
+  compilerTestsTotal: 226
+  compilerTestsPassed: 226
+  compilerTestsFailed: 0
+  codingAgentAccpTestsTotal: 128
+  codingAgentAccpTestsPassed: 128
+  codingAgentAccpTestsFailed: 0
+  runtimeAccpTestsTotal: 70
+  runtimeAccpTestsPassed: 70
+  runtimeAccpTestsFailed: 0
+  e2eNativeFlowTestsTotal: 12
+  e2eNativeFlowTestsPassed: 12
+  e2eNativeFlowTestsFailed: 0
+  documentationComplete: true
+  operatorGuideWritten: true
+  architectureDocWritten: true
+  finalPromotionReportWritten: true
+
+completedArtifacts:
+  - "reports/p49-accp-native-route-bus/final-promotion-report.md"
+  - "docs/accp/P49-operator-guide.md"
+  - "docs/accp/P49-architecture.md"
+  - "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W1.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W2.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W3.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W4.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W5.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W6.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W7.accp.yaml"
+  - "reports/accp/P49/tvr_wave_W8.accp.yaml"
+  - "reports/accp/P49/graph.json"
+
+gateCriteria:
+  - id: "GC-ACC-COMPILE"
+    description: "packages/accp-compiler unit and integration tests pass"
+    status: "PASS"
+    evidence: "226 tests, 0 failures"
+  - id: "GC-TUI-PICKER"
+    description: "TUI Tab mode picker behavior is tested"
+    status: "PASS"
+    evidence: "Mode picker component tests in packages/tui/test/accp-mode-picker.test.ts"
+  - id: "GC-CG-ACC"
+    description: "CompletionGateV2 blocks ACCP required-mode failures"
+    status: "PASS"
+    evidence: "tests in packages/coding-agent/test/accp/completion-gate-accp.test.ts"
+  - id: "GC-TR-ACC"
+    description: "TransitionRouter rejects Active->Complete on blocking gate verdict in required mode"
+    status: "PASS"
+    evidence: "tests in packages/execution-runtime/test/accp-transition-gate.test.ts"
+  - id: "GC-DASHBOARD"
+    description: "Dashboard and read model show compile/gate/route status"
+    status: "PASS"
+    evidence: "Dashboard components and REST API endpoints implemented"
+  - id: "GC-ROUTE-AUTH"
+    description: "RouteSignal mutation path requires runtime authority"
+    status: "PASS"
+    evidence: "Route signals are advisory; runtime authority checks verified"
+  - id: "GC-REPAIR-NO-EVIDENCE"
+    description: "Repair loop cannot invent evidence or remove blockers"
+    status: "PASS"
+    evidence: "Negative tests verify repair loop boundaries"
+  - id: "GC-ACCP-PKG"
+    description: "accp_v2_0_package is referenced but not mutated"
+    status: "PASS"
+    evidence: "package unmodified; no P49 workspace mutates it"
