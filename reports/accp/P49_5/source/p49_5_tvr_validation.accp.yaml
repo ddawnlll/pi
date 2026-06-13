@@ -1,0 +1,29 @@
+accp_version: "2.0.0"
+report_type: "TVR"
+report_id: "P49.5-TVR-VALIDATION"
+phase_id: "P49.5"
+generated_at: "__GENERATED__"
+source_format: "ACCP-YAML"
+status: "final"
+validation:
+  - id: "VAL-CMD-TYPECHECK"
+    type: "command"
+    command: "npx tsgo --noEmit"
+    exit_code: 0
+    verdict: "pass"
+    evidence: true
+  - id: "VAL-CMD-P495-READINESS"
+    type: "command"
+    command: "npx vitest run test/p49_5"
+    exit_code: 0
+    verdict: "pass"
+    evidence: true
+  - id: "VAL-CMD-BRIDGE-RUNNER"
+    type: "command"
+    command: "npx tsx scripts/run-p49-5-p45-readiness-gate.ts"
+    exit_code: 0
+    verdict: "pass"
+    evidence: true
+completion_gate: "CompletionGateV2"
+evidence_ledger_required: true
+missing_evidence_blocks_completion: true

@@ -1,0 +1,110 @@
+---
+accp_version: "2.0.0"
+report_type: BSR
+report_id: "P45_P49_TRUTH_BSR"
+plan_id: "P45_P49"
+title: "Behavioral Status Report — Runtime Wiring Verification"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+blocks:
+  - block_id: B-1
+    block_name: "accp-compiler package"
+    status: "partial_production"
+    detail: "package exists, built, dynamically imported by autonomous-executor.ts, but workerResult.accp is never populated — runtime path is dead"
+    evidence:
+      - "packages/accp-compiler/package.json"
+      - "packages/coding-agent/src/core/autonomous-executor.ts:1268-1282"
+      - "node_modules/@earendil-works/pi-accp-compiler -> ../../packages/accp-compiler (symlink)"
+  - block_id: B-2
+    block_name: "ACCP report registry and schemas"
+    status: "production_ready"
+    detail: "24-report registry, schemas, support matrix all exist in both accp-compiler and accp_v2_0_package"
+    evidence:
+      - "packages/accp-compiler/src/registry/report-registry.ts"
+      - "accp_v2_0_package/registry/report_registry.json"
+  - block_id: B-3
+    block_name: "Deterministic compiler pipeline"
+    status: "partial_production"
+    detail: "Full compiler pipeline exists with 117 passing tests. Dynamically imported in autonomous-executor. But compiler's output is never used because workerResult.accp is never populated."
+    evidence:
+      - "packages/accp-compiler/test/compiler.test.ts"
+  - block_id: B-4
+    block_name: "TUI ACCP mode picker"
+    status: "dead_or_unreachable"
+    detail: "accp-mode-picker.ts exists but is NOT imported anywhere, NOT exported from TUI index, NOT bound to any key. Tab still triggers editor/input autocomplete."
+    evidence:
+      - "packages/tui/src/components/accp-mode-picker.ts"
+      - "packages/tui/src/index.ts (no import of accp-mode-picker)"
+      - "packages/tui/src/keybindings.ts (Tab -> tui.input.tab -> autocomplete)"
+  - block_id: B-5
+    block_name: "InitialRouteIndicator / AccpTaskEnvelope"
+    status: "test_only"
+    detail: "Both functions exist but are only called from test files. No production code path creates them."
+    evidence:
+      - "packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+      - "packages/coding-agent/test/accp/initial-route-indicator.test.ts"
+  - block_id: B-6
+    block_name: "ACCP route bus"
+    status: "test_only"
+    detail: "AccpRouteBus class exists with tests passing. No production code instantiates it or calls createDefaultSubscriptions."
+    evidence:
+      - "packages/coding-agent/src/core/accp-route-bus.ts"
+      - "packages/coding-agent/test/accp/route-bus.test.ts"
+  - block_id: B-7
+    block_name: "ACCP gate stage runner"
+    status: "test_only"
+    detail: "runAccpGateStage exists but is not called by any completion gate runtime. Only referenced by P49.5 inventory/probe modules."
+    evidence:
+      - "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+  - block_id: B-8
+    block_name: "CompletionGateV2 integration"
+    status: "partial_production"
+    detail: "CompletionGateV2 exists with PlanSpec-aware checks. But it doesn't read ACCP gate verdicts directly — only checks lock hashes and evidence satisfaction."
+    evidence:
+      - "packages/coding-agent/src/core/completion/completion-gate-v2.ts"
+  - block_id: B-9
+    block_name: "ACCP dashboard/web UI components"
+    status: "dead_or_unreachable"
+    detail: "AccpGateStatusBadge, AccpDiagnosticsPanel, AccpRouteGraph exist as React components. Not verified as wired into dashboard routes."
+    evidence:
+      - "packages/web-ui/dashboard/src/components/accp/"
+  - block_id: B-10
+    block_name: "P45 assembly modules (all)"
+    status: "test_only"
+    detail: "All 30+ P45 assembly source modules exist with 289 passing tests. None are imported from any production runtime code path."
+    evidence:
+      - "packages/coding-agent/src/core/assembly/*.ts"
+      - "packages/coding-agent/test/assembly/ (289 tests pass)"
+  - block_id: B-11
+    block_name: "P45 prerequisite gate"
+    status: "test_only"
+    detail: "p45-prerequisite-gate.ts exists with 23 passing tests. Not wired into runtime admission."
+    evidence:
+      - "packages/coding-agent/src/core/assembly/p45-prerequisite-gate.ts"
+  - block_id: B-12
+    block_name: "AdaptiveConcurrencyGovernor"
+    status: "test_only"
+    detail: "Governor exists with 17 tests, reads signal stubs but signals are not wired to real system sources."
+    evidence:
+      - "packages/coding-agent/src/core/assembly/adaptive-concurrency-governor.ts"
+  - block_id: B-13
+    block_name: "P45 run scripts"
+    status: "broken_or_stub"
+    detail: "run-p45-minimal-async-assembly-smoke.ts has broken import paths. Other scripts are simulated/stubs that don't import real assembly modules."
+    evidence:
+      - "scripts/run-p45-minimal-async-assembly-smoke.ts (broken import path)"
+      - "scripts/run-p45-load-profile.ts (pure simulation)"
+      - "scripts/run-p45-concurrency-profile.ts (stub)"
+  - block_id: B-14
+    block_name: "ACCP mode visibility"
+    status: "non_existent"
+    detail: "No runtime component renders the current ACCP mode to the user. Mode is hardcoded 'warn' in agent-session.ts with no config-driven mechanism."
+    evidence:
+      - "packages/coding-agent/src/core/agent-session.ts:1096"
+  - block_id: B-15
+    block_name: "E2E ACCP native flow test"
+    status: "test_only"
+    detail: "e2e-accp-native-flow.test.ts exists and is under test/accp/. It passes as a unit test but does not exercise real runtime path, real TUI, or real services."
+    evidence:
+      - "packages/coding-agent/test/accp/e2e-accp-native-flow.test.ts"

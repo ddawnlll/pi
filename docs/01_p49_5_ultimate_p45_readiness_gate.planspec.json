@@ -1,0 +1,1830 @@
+{
+  "$schema": "./02_planspec_v5_alpha2_schema.json",
+  "planSpecVersion": "5.0.0-alpha2",
+  "kind": "ImplementationPlan",
+  "metadata": {
+    "phaseId": "P49.5",
+    "title": "P49.5 Ultimate — P49 to P45 Readiness, Large-Plan Readiness, and ACCP Capability Certificate",
+    "description": "Ultimate bridge plan between P49 and P45. P49 remains untouched. P49.5 verifies completed P49 outputs, probes ACCP compiler/gate/route/artifact capabilities, evaluates large-plan readiness, emits the P45 readiness certificate, and installs the P45-side prerequisite gate adapter. This is the final door-opening plan for P45: production P45 requires allow_p45, large-plan guarded mode requires large_plan_guarded_allowed, and uncertain readiness produces allow_fixture_only or block_p45.",
+    "createdAt": "2026-06-10T00:00:00+03:00",
+    "updatedAt": "2026-06-10T00:00:00+03:00",
+    "owner": "pi",
+    "status": "draft",
+    "sourceDocument": "generated_from_P49_plan_and_P45_final_design",
+    "doesNotModifyPhase": "P49",
+    "revision": "ultimate-final"
+  },
+  "compatibility": {
+    "runtimeContractVersion": "4.1.1",
+    "runtimeTemplateVersion": "4.1.1",
+    "legacyTemplateCompatible": true,
+    "generatedFromV411": true,
+    "v411AdapterRequired": true,
+    "notes": [
+      "P49 is not modified by this plan.",
+      "P49.5 verifies P49 outputs and produces P45 readiness artifacts.",
+      "P45 consumes the P49.5 certificate instead of directly assuming P49 readiness.",
+      "ACCP route signals remain advisory and do not authorize P45 execution."
+    ]
+  },
+  "intent": {
+    "executionClass": "implementation",
+    "safetyLevel": "strict",
+    "executionMode": "stable_3_bridge_gate",
+    "parallelism": 3,
+    "targetPromotionMode": "bridge_green",
+    "humanReviewRecommended": true,
+    "summary": "P49.5 is a bridge gate: it does not build P49 and it does not build P45 async assembly. It certifies whether P45 may start.",
+    "largePlanReadinessRequiredForLargePlanMode": true,
+    "ultimateFinal": true
+  },
+  "authority": {
+    "executionState": {
+      "owner": "ExecutionKernel",
+      "workersMayMutateState": false,
+      "stateTransitionRequiresGate": true
+    },
+    "completion": {
+      "workerSelfReportIsClaimOnly": true,
+      "completionGate": "CompletionGateV2",
+      "evidenceLedgerRequired": true,
+      "missingEvidenceBlocksCompletion": true
+    },
+    "reports": {
+      "protocol": "ACCP",
+      "version": "2.0.0",
+      "sourceFormat": "ACCP-YAML",
+      "reportsAreEvidenceOnly": true,
+      "reportsDoNotAuthorizeExecution": true,
+      "routeSignalsAreAdvisory": true,
+      "compiledJsonIsRuntimeInput": true
+    },
+    "bridge": {
+      "p49MustNotBeModified": true,
+      "p45MayStartOnlyWithCertificate": true,
+      "validDecisions": [
+        "allow_p45",
+        "allow_fixture_only",
+        "block_p45"
+      ]
+    }
+  },
+  "enforcementRegistry": {
+    "mechanisms": [
+      "json_schema",
+      "admission_gate",
+      "plan_lock_verifier",
+      "workspace_lock_verifier",
+      "completion_gate_v2",
+      "evidence_ledger",
+      "accp_report_validator",
+      "p49_5_readiness_gate",
+      "p49_artifact_inventory",
+      "accp_capability_probe",
+      "p45_readiness_certificate",
+      "p45_prerequisite_gate",
+      "final_promotion_gate"
+    ]
+  },
+  "security": {
+    "schemaValidationRequired": true,
+    "lockRequiredForExecution": true,
+    "canonicalJsonHashRequired": true,
+    "signatureRequired": false,
+    "signatureAlgorithm": "none",
+    "hardStops": [
+      "unsupported_planSpecVersion",
+      "missing_plan_lock",
+      "plan_lock_hash_mismatch",
+      "workspace_edits_outside_allowedFiles",
+      "forbidden_file_access",
+      "p49_file_mutation_attempted",
+      "missing_p49_artifact_inventory",
+      "accp_capability_probe_failed",
+      "p45_readiness_certificate_missing",
+      "p45_readiness_certificate_stale",
+      "allow_p45_without_required_capabilities",
+      "allow_p45_when_dirty_runtime_blocking",
+      "missing_ac_evidence",
+      "validation_command_not_allowed",
+      "watch_mode_validation",
+      "no_tests_found"
+    ],
+    "forbiddenFiles": [
+      ".env",
+      ".env.*",
+      "node_modules/**",
+      ".git/**",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "accp_v2_0_package/**"
+    ],
+    "operatorNotes": [
+      "This plan must fail closed.",
+      "P49 stays unchanged.",
+      "P45 production mode is blocked unless P49.5 emits allow_p45.",
+      "allow_fixture_only is the safe decision when readiness is uncertain but fixture execution is useful."
+    ]
+  },
+  "commands": {
+    "policy": "risk_tiered",
+    "defaultMode": "deny_unless_class_or_grant",
+    "shellDefault": "forbidden",
+    "exactAllowedCommands": [
+      {
+        "id": "CMD-TYPECHECK-TSGO",
+        "kind": "typecheck",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "npx",
+        "args": [
+          "tsgo",
+          "--noEmit"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 300,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": false,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P495-READINESS-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/coding-agent",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/p49_5"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 500,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P495-ACCP-COMPILER-UNIT",
+        "kind": "targeted_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": "packages/accp-compiler",
+        "executable": "npx",
+        "args": [
+          "vitest",
+          "run"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 500,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P495-BRIDGE-RUNNER",
+        "kind": "integration_test",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "npx",
+        "args": [
+          "tsx",
+          "scripts/run-p49-5-p45-readiness-gate.ts",
+          "--output",
+          "reports/p49_5_p45_readiness/p45-readiness-certificate.json"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 600,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P495-FINAL-MAKE-TEST",
+        "kind": "final_validation",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "make",
+        "args": [
+          "test"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 900,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": true,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      },
+      {
+        "id": "CMD-P495-LARGE-PLAN-READINESS",
+        "kind": "profile",
+        "mode": "argv",
+        "risk": "medium",
+        "cwd": ".",
+        "executable": "npx",
+        "args": [
+          "tsx",
+          "scripts/run-p49-5-large-plan-readiness-probe.ts",
+          "--output",
+          "reports/p49_5_p45_readiness/large-plan-readiness.json"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 900,
+        "falsePositiveGuards": {
+          "watchModeForbidden": true,
+          "noTestsFoundIsFailure": false,
+          "commandNotFoundIsFailure": true,
+          "timeoutIsFailure": true
+        }
+      }
+    ],
+    "commandClasses": [
+      {
+        "id": "CLASS-READONLY-DISCOVERY",
+        "title": "Read-only local discovery commands",
+        "risk": "low",
+        "sideEffects": "none",
+        "mode": "argv",
+        "executables": [
+          "pwd",
+          "ls",
+          "find",
+          "rg",
+          "grep",
+          "cat",
+          "sed",
+          "awk",
+          "git",
+          "node"
+        ],
+        "allowedGitSubcommands": [
+          "status",
+          "diff",
+          "log",
+          "show",
+          "branch",
+          "rev-parse",
+          "ls-files"
+        ],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "timeoutSeconds": 30,
+        "maxOutputBytes": 200000,
+        "recordAsEvidence": true,
+        "grantRequired": false
+      }
+    ],
+    "runtimeCommandGrant": {
+      "enabled": true,
+      "requiresJustification": true,
+      "grantScope": "workspace_attempt",
+      "grantExpires": "on_workspace_completion",
+      "recordAsEvidence": true
+    },
+    "hardDeniedCommands": [
+      {
+        "id": "DENY-GIT-PUSH",
+        "match": {
+          "executable": "git",
+          "argsPrefix": [
+            "push"
+          ]
+        },
+        "reason": "Remote mutation forbidden."
+      },
+      {
+        "id": "DENY-GIT-RESET-HARD",
+        "match": {
+          "executable": "git",
+          "argsPrefix": [
+            "reset",
+            "--hard"
+          ]
+        },
+        "reason": "Destructive reset forbidden."
+      },
+      {
+        "id": "DENY-GIT-CLEAN",
+        "match": {
+          "executable": "git",
+          "argsPrefix": [
+            "clean"
+          ]
+        },
+        "reason": "Destructive cleanup forbidden."
+      },
+      {
+        "id": "DENY-RM-RF",
+        "match": {
+          "executable": "rm",
+          "argsPrefix": [
+            "-rf"
+          ]
+        },
+        "reason": "Destructive filesystem deletion forbidden."
+      },
+      {
+        "id": "DENY-CURL",
+        "match": {
+          "executable": "curl"
+        },
+        "reason": "Network forbidden by default."
+      },
+      {
+        "id": "DENY-WGET",
+        "match": {
+          "executable": "wget"
+        },
+        "reason": "Network forbidden by default."
+      },
+      {
+        "id": "DENY-SUDO",
+        "match": {
+          "executable": "sudo"
+        },
+        "reason": "Privilege escalation forbidden."
+      }
+    ],
+    "validationEvidenceRules": {
+      "finalPromotionRequiresExactAllowedCommand": true,
+      "discoveryCommandsMayNotSatisfyFinalValidation": true,
+      "bridgeRunnerMustProduceCertificate": true,
+      "allowP45RequiresMachineReadableCertificate": true
+    }
+  },
+  "locking": {
+    "lockVersion": "1.0.0",
+    "lockFile": "04_planlock_v1_example.generated.json",
+    "lockRequired": true,
+    "workerMustEchoPlanLockHash": true,
+    "workerMustEchoWorkspaceLockHash": true,
+    "hashes": [
+      "canonicalJsonHash",
+      "workspaceGraphHash",
+      "allowedFilesHash",
+      "acceptanceCriteriaHash",
+      "validationPolicyHash",
+      "instructionHash",
+      "reportContractHash",
+      "commandPolicyHash",
+      "p49ReadinessInputHash",
+      "p45CertificateSchemaHash"
+    ],
+    "lifecycle": [
+      "DRAFT",
+      "VALIDATED",
+      "LOCKED",
+      "ADMITTED",
+      "RUNNING",
+      "FINAL_VALIDATION",
+      "COMPLETED"
+    ],
+    "mutationRules": {
+      "DRAFT": "spec_mutable",
+      "VALIDATED": "spec_mutable_lock_invalidated",
+      "LOCKED": "immutable_new_lock_required",
+      "ADMITTED": "immutable_new_execution_required",
+      "RUNNING": "immutable_amendment_required",
+      "FINAL_VALIDATION": "immutable",
+      "COMPLETED": "immutable"
+    }
+  },
+  "brief": {
+    "mission": {
+      "id": "MISSION-P49-5",
+      "text": "Verify completed P49 ACCP v2 substrate and emit the P45 readiness certificate that opens, limits, or blocks P45."
+    },
+    "hardRequirements": [
+      {
+        "id": "HR-P495-001",
+        "priority": "must",
+        "kind": "boundary_rule",
+        "text": "Do not modify P49 implementation. P49.5 is a readiness bridge only.",
+        "enforcedBy": [
+          "allowed_files",
+          "workspace_commit_gate"
+        ]
+      },
+      {
+        "id": "HR-P495-002",
+        "priority": "must",
+        "kind": "certificate_rule",
+        "text": "P45 production mode requires a machine-readable allow_p45 certificate.",
+        "enforcedBy": [
+          "p45_prerequisite_gate",
+          "admission_gate"
+        ]
+      },
+      {
+        "id": "HR-P495-003",
+        "priority": "must",
+        "kind": "fail_closed_rule",
+        "text": "Missing, stale, or unverifiable P49 readiness must emit allow_fixture_only or block_p45, never allow_p45.",
+        "enforcedBy": [
+          "p49_5_readiness_gate"
+        ]
+      },
+      {
+        "id": "HR-P495-004",
+        "priority": "must",
+        "kind": "authority_rule",
+        "text": "ACCP route signals remain advisory. The certificate does not grant mutation authority.",
+        "enforcedBy": [
+          "write_gate",
+          "completion_gate_v2"
+        ]
+      }
+    ]
+  },
+  "certificate": {
+    "path": "reports/p49_5_p45_readiness/p45-readiness-certificate.json",
+    "validDecisions": [
+      "allow_p45",
+      "allow_fixture_only",
+      "block_p45"
+    ],
+    "allowP45RequiredFields": [
+      "p49Green",
+      "accpV2CompilerAvailable",
+      "accpGateVerdictAvailable",
+      "accpRouteSignalAvailable",
+      "accpArtifactWriterAvailable",
+      "accpRuntimeReadsCompiledJsonOnly",
+      "dirtyRuntimeExtractionStatus",
+      "evidenceHashes",
+      "decision"
+    ],
+    "decisionRules": [
+      {
+        "if": "p49Green=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "accpV2CompilerAvailable=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "accpGateVerdictAvailable=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "accpRouteSignalAvailable=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "accpArtifactWriterAvailable=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "accpRuntimeReadsCompiledJsonOnly=false",
+        "then": "block_p45"
+      },
+      {
+        "if": "dirtyRuntimeExtractionStatus=blocking",
+        "then": "block_p45"
+      },
+      {
+        "if": "dirtyRuntimeExtractionStatus=unknown",
+        "then": "allow_fixture_only"
+      },
+      {
+        "if": "all required capabilities true and dirtyRuntimeExtractionStatus in [complete, acceptable]",
+        "then": "allow_p45"
+      }
+    ],
+    "largePlanReadiness": {
+      "enabled": true,
+      "path": "reports/p49_5_p45_readiness/large-plan-readiness.json",
+      "validDecisions": [
+        "large_plan_guarded_allowed",
+        "large_plan_fixture_only",
+        "large_plan_blocked"
+      ],
+      "requiredFor": [
+        "P45 large_plan_mode=guarded",
+        "P45 stable_8_candidate on plans above threshold",
+        "P45 stable_12_candidate on plans above threshold",
+        "P45 unbounded logical dry-run on plans above threshold"
+      ],
+      "requiredSignals": [
+        "accpCompilerThroughputProfileAvailable",
+        "artifactStoreCapacityProfileAvailable",
+        "eventJournalBackpressureProfileAvailable",
+        "dashboardVisibilityProfileAvailable",
+        "routeGraphSizeProfileAvailable",
+        "compiledArtifactVolumeProfileAvailable"
+      ],
+      "decisionRules": [
+        {
+          "if": "any required throughput/capacity profile missing",
+          "then": "large_plan_fixture_only"
+        },
+        {
+          "if": "accp compiler throughput profile red",
+          "then": "large_plan_blocked"
+        },
+        {
+          "if": "event journal backpressure profile red",
+          "then": "large_plan_blocked"
+        },
+        {
+          "if": "dashboard visibility profile red",
+          "then": "large_plan_fixture_only"
+        },
+        {
+          "if": "all profiles green or acceptable yellow",
+          "then": "large_plan_guarded_allowed"
+        }
+      ]
+    }
+  },
+  "waves": [
+    {
+      "id": "W1",
+      "title": "P49 Output Inventory and ACCP Capability Probe",
+      "description": "Inventory P49 outputs and prove ACCP compiler/gate/route/artifact writer capabilities.",
+      "workspaceIds": [
+        "P49.5.01",
+        "P49.5.02",
+        "P49.5.03"
+      ],
+      "dependencies": [],
+      "batchSize": 3,
+      "gate": {
+        "required": true,
+        "commandRefs": [
+          "CMD-TYPECHECK-TSGO",
+          "CMD-P495-ACCP-COMPILER-UNIT",
+          "CMD-P495-READINESS-UNIT"
+        ],
+        "requiredArtifacts": [
+          "reports/p49_5_p45_readiness/p49-artifact-inventory.json",
+          "reports/p49_5_p45_readiness/accp-capability-probe.json",
+          "reports/p49_5_p45_readiness/p45-readiness-certificate.schema.json"
+        ]
+      }
+    },
+    {
+      "id": "W2",
+      "title": "Bridge Runner and P45 Adapter",
+      "description": "Emit final readiness certificate and install P45-side prerequisite adapter.",
+      "workspaceIds": [
+        "P49.5.04",
+        "P49.5.05",
+        "P49.5.07"
+      ],
+      "dependencies": [
+        "W1"
+      ],
+      "batchSize": 2,
+      "gate": {
+        "required": true,
+        "commandRefs": [
+          "CMD-TYPECHECK-TSGO",
+          "CMD-P495-BRIDGE-RUNNER",
+          "CMD-P495-READINESS-UNIT",
+          "CMD-P495-LARGE-PLAN-READINESS"
+        ],
+        "requiredArtifacts": [
+          "reports/p49_5_p45_readiness/p45-readiness-certificate.json",
+          "reports/p45-prerequisite/p45_prerequisite_certificate.json",
+          "reports/p49_5_p45_readiness/large-plan-readiness.json"
+        ]
+      }
+    },
+    {
+      "id": "W3",
+      "title": "Bridge Promotion and P45 Door Open Decision",
+      "description": "Produce final bridge evidence and explicit decision.",
+      "workspaceIds": [
+        "P49.5.06"
+      ],
+      "dependencies": [
+        "W2"
+      ],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": [
+          "CMD-TYPECHECK-TSGO",
+          "CMD-P495-FINAL-MAKE-TEST"
+        ],
+        "requiredArtifacts": [
+          "reports/p49_5_p45_readiness/final-promotion-report.md",
+          "reports/p49_5_p45_readiness/p45-door-open-report.json",
+          "reports/accp/P49_5/source/p49_5_prr_promotion_readiness.accp.yaml"
+        ]
+      }
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "P49.5.01",
+      "title": "P49 Completion Artifact Inventory and Readiness Input Contract",
+      "waveId": "W1",
+      "dependencies": [],
+      "role": "inventory",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/p49_5/p49-completion-inventory.ts",
+        "packages/coding-agent/src/core/p49_5/p49-readiness-input-contract.ts",
+        "packages/coding-agent/test/p49_5/p49-completion-inventory.test.ts",
+        "reports/p49_5_p45_readiness/p49-artifact-inventory.json"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "P49 Completion Artifact Inventory and Readiness Input Contract\n\nCreate a deterministic inventory of P49 outputs that P45 depends on: ACCP compiler package availability, route-signal compiler, gate-verdict compiler, artifact writer, report registry, runtime reads compiled JSON only, event/read-model visibility, and required/warn mode behavior. The inventory must record paths, hashes where available, and freshness metadata. It must not assume P49 success from the plan existing; it must inspect artifacts and test-visible exports.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49501-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement P49 Completion Artifact Inventory and Readiness Input Contract as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49501-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49501-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49501-001",
+          "title": "P49 Completion Artifact Inventory and Readiness Input Contract implemented and wired",
+          "text": "P49 Completion Artifact Inventory and Readiness Input Contract is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49501-001"
+          ]
+        },
+        {
+          "id": "AC-P49501-002",
+          "title": "P49 Completion Artifact Inventory and Readiness Input Contract fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49501-002"
+          ]
+        },
+        {
+          "id": "AC-P49501-003",
+          "title": "P49 Completion Artifact Inventory and Readiness Input Contract preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49501-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49501-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49501-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-READINESS-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49501-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "medium",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.02",
+      "title": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe",
+      "waveId": "W1",
+      "dependencies": [
+        "P49.5.01"
+      ],
+      "role": "capability_probe",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/p49_5/accp-capability-probe.ts",
+        "packages/coding-agent/test/p49_5/accp-capability-probe.test.ts",
+        "reports/p49_5_p45_readiness/accp-capability-probe.json",
+        "reports/p49_5_p45_readiness/fixtures/probe_bsr.accp.yaml"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe\n\nProbe the installed P49 ACCP pipeline with a tiny known-good ACCP YAML fixture and known-bad fixtures. It must prove compile pass, compile fail, gate verdict generation, route signal generation, artifact write layout, and no raw YAML/Markdown runtime authority. The probe must produce a machine-readable capability result consumed by the P45 prerequisite gate.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49502-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49502-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49502-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49502-001",
+          "title": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe implemented and wired",
+          "text": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49502-001"
+          ]
+        },
+        {
+          "id": "AC-P49502-002",
+          "title": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49502-002"
+          ]
+        },
+        {
+          "id": "AC-P49502-003",
+          "title": "ACCP Compiler, Gate Verdict, Route Signal, and Artifact Writer Capability Probe preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49502-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49502-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49502-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49502-003",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-READINESS-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49502-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "high",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.03",
+      "title": "P45 Readiness Certificate Schema and Decision Engine",
+      "waveId": "W1",
+      "dependencies": [
+        "P49.5.01",
+        "P49.5.02"
+      ],
+      "role": "certificate",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/p49_5/p45-readiness-certificate.ts",
+        "packages/coding-agent/src/core/p49_5/p45-readiness-decision-engine.ts",
+        "packages/coding-agent/test/p49_5/p45-readiness-certificate.test.ts",
+        "reports/p49_5_p45_readiness/p45-readiness-certificate.schema.json"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "P45 Readiness Certificate Schema and Decision Engine\n\nDefine the P45 readiness certificate schema and decision engine. The only valid decisions are allow_p45, allow_fixture_only, and block_p45. allow_p45 requires P49 readiness, ACCP compiler capability, gate verdict capability, route signal capability, artifact writer capability, runtime compiled-JSON-only policy, and no blocking dirty runtime status. Missing or stale evidence must not produce allow_p45.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49503-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement P45 Readiness Certificate Schema and Decision Engine as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49503-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49503-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49503-001",
+          "title": "P45 Readiness Certificate Schema and Decision Engine implemented and wired",
+          "text": "P45 Readiness Certificate Schema and Decision Engine is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49503-001"
+          ]
+        },
+        {
+          "id": "AC-P49503-002",
+          "title": "P45 Readiness Certificate Schema and Decision Engine fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49503-002"
+          ]
+        },
+        {
+          "id": "AC-P49503-003",
+          "title": "P45 Readiness Certificate Schema and Decision Engine preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49503-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49503-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49503-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-READINESS-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49503-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "high",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.04",
+      "title": "P49.5 Bridge Runner and Reports",
+      "waveId": "W2",
+      "dependencies": [
+        "P49.5.03"
+      ],
+      "role": "runner",
+      "allowedFiles": [
+        "scripts/run-p49-5-p45-readiness-gate.ts",
+        "packages/coding-agent/src/core/p49_5/run-p45-readiness-gate.ts",
+        "packages/coding-agent/test/p49_5/p49-5-runner.test.ts",
+        "reports/p49_5_p45_readiness/p45-readiness-certificate.json",
+        "reports/accp/P49_5/source/p49_5_ecr_readiness.accp.yaml",
+        "reports/accp/P49_5/source/p49_5_tvr_validation.accp.yaml"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "P49.5 Bridge Runner and Reports\n\nImplement the CLI/script runner that evaluates the P49.5 bridge and writes the final P45 readiness certificate. It must emit ACCP ECR/TVR source reports and record exact command evidence. The runner is the only artifact P45 should use to decide whether production async assembly is allowed.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49504-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement P49.5 Bridge Runner and Reports as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49504-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49504-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49504-001",
+          "title": "P49.5 Bridge Runner and Reports implemented and wired",
+          "text": "P49.5 Bridge Runner and Reports is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49504-001"
+          ]
+        },
+        {
+          "id": "AC-P49504-002",
+          "title": "P49.5 Bridge Runner and Reports fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49504-002"
+          ]
+        },
+        {
+          "id": "AC-P49504-003",
+          "title": "P49.5 Bridge Runner and Reports preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49504-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49504-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49504-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-BRIDGE-RUNNER",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49504-003",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-READINESS-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49504-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "medium",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.05",
+      "title": "P45 Prerequisite Gate Adapter",
+      "waveId": "W2",
+      "dependencies": [
+        "P49.5.04"
+      ],
+      "role": "p45_adapter",
+      "allowedFiles": [
+        "packages/coding-agent/src/core/assembly/p45-prerequisite-gate.ts",
+        "packages/coding-agent/src/core/assembly/p45-prerequisite-certificate.ts",
+        "packages/coding-agent/test/assembly/p45-prerequisite-gate.test.ts",
+        "reports/p45-prerequisite/p45_prerequisite_certificate.json"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "P45 Prerequisite Gate Adapter\n\nAdd the P45-side adapter that consumes the P49.5 certificate. It must map allow_p45 to production P45 admission, allow_fixture_only to fixture-only mode, and block_p45 to a hard block. It must not probe P49 directly except through the P49.5 certificate, preventing duplicate shadow readiness logic.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49505-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement P45 Prerequisite Gate Adapter as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49505-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49505-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49505-001",
+          "title": "P45 Prerequisite Gate Adapter implemented and wired",
+          "text": "P45 Prerequisite Gate Adapter is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49505-001"
+          ]
+        },
+        {
+          "id": "AC-P49505-002",
+          "title": "P45 Prerequisite Gate Adapter fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49505-002"
+          ]
+        },
+        {
+          "id": "AC-P49505-003",
+          "title": "P45 Prerequisite Gate Adapter preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49505-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49505-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49505-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-READINESS-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49505-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "high",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.06",
+      "title": "Bridge Final Promotion and P45 Door Open Report",
+      "waveId": "W3",
+      "dependencies": [
+        "P49.5.04",
+        "P49.5.05"
+      ],
+      "role": "promotion",
+      "allowedFiles": [
+        "reports/p49_5_p45_readiness/final-promotion-report.md",
+        "reports/p49_5_p45_readiness/p45-door-open-report.json",
+        "reports/accp/P49_5/source/p49_5_prr_promotion_readiness.accp.yaml"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "Bridge Final Promotion and P45 Door Open Report\n\nProduce the final bridge promotion evidence. The final report must state whether P45 production is allowed, fixture-only, or blocked. It must include P49 artifact inventory hash, ACCP capability probe hash, certificate hash, and test evidence. P45 final plan must reference this report as its prerequisite.\n\nThis workspace belongs to P49.5, the bridge between the completed P49 ACCP v2 native substrate and the later P45 adaptive async assembly runtime. P49 itself must not be edited by this bridge plan. P49.5 consumes P49 outputs, verifies their runtime readiness, and emits a machine-readable certificate that P45 can trust. The bridge must not implement async assembly. It must not change P49's route bus, compiler package, TUI mode picker, or runtime gate implementation. It only verifies, normalizes, certificates, and exposes readiness data for P45.\n\nThe authority boundary remains unchanged: PlanSpec and runtime gates authorize execution; ACCP reports and route signals are evidence/recommendation artifacts; P45 is not allowed to start unless the P49.5 certificate says allow_p45. If P49 is incomplete or its outputs are not verifiable, the bridge must emit allow_fixture_only or block_p45 rather than allowing optimistic P45 execution.",
+      "instructions": [
+        {
+          "id": "WI-P49506-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement Bridge Final Promotion and P45 Door Open Report as a production-wired P49.5 bridge capability. It must consume existing P49 outputs and emit typed certificate artifacts without modifying P49 implementation files.",
+          "enforcedBy": [
+            "json_schema",
+            "p49_5_readiness_gate",
+            "evidence_ledger",
+            "accp_report_validator"
+          ]
+        },
+        {
+          "id": "WI-P49506-002",
+          "priority": "must",
+          "kind": "boundary_rule",
+          "text": "Do not edit P49 compiler, route bus, runtime gate, TUI mode picker, or ACCP source package. This bridge verifies readiness and produces certificates only.",
+          "enforcedBy": [
+            "allowed_files",
+            "workspace_commit_gate",
+            "completion_gate_v2"
+          ]
+        },
+        {
+          "id": "WI-P49506-003",
+          "priority": "must",
+          "kind": "p45_gate_rule",
+          "text": "P45 must not start in production mode unless the bridge certificate decision is allow_p45. allow_fixture_only permits fixture-only validation. block_p45 blocks all P45 runtime execution.",
+          "enforcedBy": [
+            "p45_prerequisite_gate",
+            "admission_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49506-001",
+          "title": "Bridge Final Promotion and P45 Door Open Report implemented and wired",
+          "text": "Bridge Final Promotion and P45 Door Open Report is implemented, exported or invoked from a bridge runner, and covered by tests.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49506-001"
+          ]
+        },
+        {
+          "id": "AC-P49506-002",
+          "title": "Bridge Final Promotion and P45 Door Open Report fails closed",
+          "text": "Negative tests prove missing P49 outputs, missing ACCP compiler readiness, missing route/gate artifacts, or stale evidence cannot produce allow_p45.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49506-002"
+          ]
+        },
+        {
+          "id": "AC-P49506-003",
+          "title": "Bridge Final Promotion and P45 Door Open Report preserves P49 boundary",
+          "text": "The workspace does not mutate P49-owned implementation files or accp_v2_0_package assets.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "diff",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49506-003"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49506-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49506-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-FINAL-MAKE-TEST",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49506-003",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true,
+            "notes": "TVR must include command evidence and must not pass on no-tests-found, watch mode, command not found, timeout, or swallowed failure."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "IPR",
+            "after": "workspace_mutation"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          },
+          {
+            "type": "ECR",
+            "after": "certificate_evidence"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback bridge-owned files only. Preserve P49 outputs and P45 final plan artifacts."
+      },
+      "risk": {
+        "level": "medium",
+        "blastRadius": "bounded_to_bridge_and_reports",
+        "mitigations": [
+          "Do not edit P49 implementation files.",
+          "Fail closed unless readiness is machine-verifiable.",
+          "Emit allow_fixture_only rather than allow_p45 when readiness is uncertain.",
+          "Require negative tests for missing/stale/corrupt P49 artifacts."
+        ]
+      }
+    },
+    {
+      "id": "P49.5.07",
+      "title": "Large-Plan Readiness Probe for P45 Guarded Mode",
+      "waveId": "W2",
+      "dependencies": [
+        "P49.5.02",
+        "P49.5.03"
+      ],
+      "role": "large_plan_readiness",
+      "allowedFiles": [
+        "scripts/run-p49-5-large-plan-readiness-probe.ts",
+        "packages/coding-agent/src/core/p49_5/large-plan-readiness-probe.ts",
+        "packages/coding-agent/test/p49_5/large-plan-readiness-probe.test.ts",
+        "reports/p49_5_p45_readiness/large-plan-readiness.json",
+        "reports/p49_5_p45_readiness/accp-compiler-throughput-profile.json",
+        "reports/p49_5_p45_readiness/artifact-store-capacity-profile.json",
+        "reports/p49_5_p45_readiness/event-journal-backpressure-profile.json",
+        "reports/p49_5_p45_readiness/dashboard-visibility-profile.json"
+      ],
+      "forbiddenFiles": [
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "accp_v2_0_package/**"
+      ],
+      "description": "Probe whether completed P49 outputs can support guarded large-plan P45 mode. The probe profiles ACCP compiler throughput, artifact store capacity, event journal backpressure, dashboard/operator visibility capacity, compiled artifact volume, and route graph size. It emits large_plan_guarded_allowed, large_plan_fixture_only, or large_plan_blocked. This workspace does not enable P45 by itself; it only adds large-plan readiness data to the P49.5 certificate.",
+      "instructions": [
+        {
+          "id": "WI-P49507-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement Large-Plan Readiness Probe for P45 Guarded Mode as a bridge-owned P49.5 capability. It must verify P49 outputs without modifying P49.",
+          "enforcedBy": [
+            "p49_5_readiness_gate",
+            "completion_gate_v2",
+            "evidence_ledger"
+          ]
+        },
+        {
+          "id": "WI-P49507-002",
+          "priority": "must",
+          "kind": "fail_closed_rule",
+          "text": "Missing or stale evidence must produce fixture-only or blocked readiness, never green production readiness.",
+          "enforcedBy": [
+            "p49_5_readiness_gate",
+            "final_promotion_gate"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P49507-001",
+          "title": "Large-Plan Readiness Probe for P45 Guarded Mode produces machine-readable output",
+          "text": "Large-Plan Readiness Probe for P45 Guarded Mode writes the expected machine-readable readiness/profiling artifacts.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "command",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49507-001"
+          ]
+        },
+        {
+          "id": "AC-P49507-002",
+          "title": "Large-Plan Readiness Probe for P45 Guarded Mode fails closed",
+          "text": "Negative tests prove readiness is not allowed when P49 capacity signals are missing, stale, or red.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "unit_test",
+            "negative",
+            "report"
+          ],
+          "validationRefs": [
+            "VAL-P49507-002"
+          ]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P49507-001",
+            "type": "command_ref",
+            "commandRef": "CMD-TYPECHECK-TSGO",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49507-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P495-LARGE-PLAN-READINESS",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P49507-TVR",
+            "type": "report",
+            "reportType": "TVR",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          {
+            "type": "ECR",
+            "after": "profile_evidence"
+          },
+          {
+            "type": "TVR",
+            "after": "workspace_validation"
+          }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only"
+      },
+      "risk": {
+        "level": "high",
+        "blastRadius": "bridge_reports_only",
+        "mitigations": [
+          "Do not modify P49.",
+          "Profile capacity without enabling large plan mode by default."
+        ]
+      }
+    }
+  ],
+  "validation": {
+    "finalRequired": true,
+    "watchModeForbidden": true,
+    "noTestsFoundIsFailure": true,
+    "commandEvidenceRequired": true,
+    "finalValidationCommandRefs": [
+      "CMD-TYPECHECK-TSGO",
+      "CMD-P495-BRIDGE-RUNNER",
+      "CMD-P495-FINAL-MAKE-TEST"
+    ],
+    "requiredScenarios": [
+      "missing P49 inventory -> block_p45",
+      "missing ACCP compiler capability -> block_p45",
+      "missing gate verdict capability -> block_p45",
+      "missing route signal capability -> block_p45",
+      "dirty runtime unknown -> allow_fixture_only",
+      "dirty runtime blocking -> block_p45",
+      "all readiness green -> allow_p45",
+      "attempt to mutate P49 files -> reject"
+    ]
+  },
+  "finalPromotion": {
+    "required": true,
+    "targetPromotionMode": "bridge_green",
+    "requirements": [
+      "P49 files are not mutated.",
+      "P49 artifact inventory exists.",
+      "ACCP capability probe passes positive and negative fixtures.",
+      "P45 readiness certificate exists and is machine-readable.",
+      "P45 prerequisite adapter consumes only the bridge certificate.",
+      "Final decision is allow_p45, allow_fixture_only, or block_p45."
+    ],
+    "requiredArtifacts": [
+      "reports/p49_5_p45_readiness/p45-readiness-certificate.json",
+      "reports/p45-prerequisite/p45_prerequisite_certificate.json",
+      "reports/p49_5_p45_readiness/final-promotion-report.md",
+      "reports/p49_5_p45_readiness/large-plan-readiness.json",
+      "reports/p49_5_p45_readiness/accp-compiler-throughput-profile.json",
+      "reports/p49_5_p45_readiness/dashboard-visibility-profile.json"
+    ]
+  },
+  "largePlanReadinessProbe": {
+    "purpose": "Verify that the P49 ACCP substrate can support the artifact volume and visibility demands of guarded large-plan P45 mode without changing P49 itself.",
+    "outputs": [
+      "reports/p49_5_p45_readiness/accp-compiler-throughput-profile.json",
+      "reports/p49_5_p45_readiness/artifact-store-capacity-profile.json",
+      "reports/p49_5_p45_readiness/event-journal-backpressure-profile.json",
+      "reports/p49_5_p45_readiness/dashboard-visibility-profile.json",
+      "reports/p49_5_p45_readiness/large-plan-readiness.json"
+    ],
+    "hardRules": [
+      "P49.5 may not mutate P49 implementation files.",
+      "Large plan readiness may be false even when allow_p45 is true.",
+      "allow_p45 opens normal P45; large_plan_guarded_allowed opens guarded large-plan mode.",
+      "large_plan_fixture_only permits only dry-run and fixture validation for large plans."
+    ]
+  }
+}

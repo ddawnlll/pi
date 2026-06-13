@@ -9,7 +9,7 @@ import {
 	resolveTargets,
 } from "../../src/core/mode/target-artifact-resolver.js";
 
-const testDir = join(tmpdir(), "p44606-test-" + Date.now());
+const testDir = join(tmpdir(), `p44606-test-${Date.now()}`);
 
 function createTestFile(relativePath: string, size: number) {
 	const fullPath = join(testDir, relativePath);

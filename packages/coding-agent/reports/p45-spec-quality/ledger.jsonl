@@ -1,0 +1,15 @@
+{"id":"sample-0","contract":"contract/ns-0.ts","namespace":"ns-0","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-11T18:27:36.325Z"}
+{"id":"sample-1","contract":"contract/ns-1.ts","namespace":"ns-1","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-06-10T18:27:36.325Z"}
+{"id":"sample-2","contract":"contract/ns-2.ts","namespace":"ns-2","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-09T18:27:36.325Z"}
+{"id":"sample-3","contract":"contract/ns-0.ts","namespace":"ns-0","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-06-08T18:27:36.325Z"}
+{"id":"sample-4","contract":"contract/ns-1.ts","namespace":"ns-1","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-07T18:27:36.325Z"}
+{"id":"sample-5","contract":"contract/ns-2.ts","namespace":"ns-2","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-06-06T18:27:36.325Z"}
+{"id":"sample-6","contract":"contract/ns-0.ts","namespace":"ns-0","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-05T18:27:36.325Z"}
+{"id":"sample-7","contract":"contract/ns-1.ts","namespace":"ns-1","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-06-04T18:27:36.325Z"}
+{"id":"sample-8","contract":"contract/ns-2.ts","namespace":"ns-2","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-03T18:27:36.325Z"}
+{"id":"sample-9","contract":"contract/ns-0.ts","namespace":"ns-0","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-06-02T18:27:36.325Z"}
+{"id":"sample-10","contract":"contract/ns-1.ts","namespace":"ns-1","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"static_confirmation","recordedAt":"2026-06-01T18:27:36.325Z"}
+{"id":"sample-11","contract":"contract/ns-2.ts","namespace":"ns-2","predictedOutcome":"matched","actualOutcome":"matched","evidenceClass":"human_approval","recordedAt":"2026-05-31T18:27:36.325Z"}
+{"id":"sample-12","contract":"contract/ns-0.ts","namespace":"ns-0","predictedOutcome":"matched","actualOutcome":"compatible_drift","evidenceClass":"static_confirmation","recordedAt":"2026-05-30T18:27:36.325Z"}
+{"id":"sample-13","contract":"contract/ns-1.ts","namespace":"ns-1","predictedOutcome":"matched","actualOutcome":"compatible_drift","evidenceClass":"human_approval","recordedAt":"2026-05-29T18:27:36.325Z"}
+{"id":"sample-14","contract":"contract/ns-2.ts","namespace":"ns-2","predictedOutcome":"matched","actualOutcome":"overpredicted","evidenceClass":"static_confirmation","recordedAt":"2026-05-28T18:27:36.325Z"}

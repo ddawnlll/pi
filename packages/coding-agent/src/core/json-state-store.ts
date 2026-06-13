@@ -288,6 +288,10 @@ export class JsonStateStore implements IStateStore {
 				status: e.status as PlanExecutionSummary["status"],
 				startedAt: e.startedAt,
 				completedAt: e.completedAt,
+				planLockHash: e.planLockHash,
+				planSpecVersion: e.planSpecVersion,
+				lockStatus: e.lockStatus as PlanExecutionSummary["lockStatus"],
+				executionPolicyMode: e.executionPolicyMode as PlanExecutionSummary["executionPolicyMode"],
 			}));
 	}
 
@@ -418,6 +422,21 @@ export class JsonStateStore implements IStateStore {
 	async cancelPlan(planExecutionId: string, reason?: string): Promise<void> {
 		await this.store.cancelPlan(reason);
 		await this.updateExecutionStatus(planExecutionId, "cancelled");
+	}
+
+	async updatePlanLockMetadata(
+		planExecutionId: string,
+		metadata: {
+			planLockHash: string;
+			planSpecVersion: string;
+			lockStatus: "admitted" | "pending" | "rejected";
+		},
+	): Promise<void> {
+		await this.updateExecutionField(planExecutionId, {
+			planLockHash: metadata.planLockHash,
+			planSpecVersion: metadata.planSpecVersion,
+			lockStatus: metadata.lockStatus,
+		});
 	}
 
 	async resumePlan(planExecutionId: string): Promise<void> {
@@ -1035,7 +1054,7 @@ export class JsonStateStore implements IStateStore {
 	}
 
 	/**
-	 * Execution tracking entry.
+	 * Execution tracking entry with PlanSpec v5 metadata.
 	 */
 	private async readExecutionTracking(): Promise<
 		Array<{
@@ -1046,6 +1065,10 @@ export class JsonStateStore implements IStateStore {
 			status: string;
 			startedAt: string;
 			completedAt: string | null;
+			planLockHash?: string;
+			planSpecVersion?: string;
+			lockStatus?: "admitted" | "pending" | "rejected";
+			executionPolicyMode?: string;
 		}>
 	> {
 		const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
@@ -1077,6 +1100,10 @@ export class JsonStateStore implements IStateStore {
 		status: string;
 		startedAt: string;
 		completedAt: string | null;
+		planLockHash?: string;
+		planSpecVersion?: string;
+		lockStatus?: "admitted" | "pending" | "rejected";
+		executionPolicyMode?: string;
 	}): Promise<void> {
 		const executions = await this.readExecutionTracking();
 		executions.push(entry);
@@ -1131,6 +1158,31 @@ export class JsonStateStore implements IStateStore {
 			}
 		} finally {
 			release();
+		}
+	}
+
+	/**
+	 * Update a specific field in execution tracking entry.
+	 * Uses atomic write with temp+rename.
+	 */
+	private async updateExecutionField(
+		planExecutionId: string,
+		fields: Record<string, string | undefined>,
+	): Promise<void> {
+		const executions = await this.readExecutionTracking();
+		const idx = executions.findIndex((e) => e.id === planExecutionId);
+		if (idx !== -1) {
+			Object.assign(executions[idx], fields);
+			const filePath = path.join(this.workspaceRoot, this.piDir, "executions.json");
+			const tempPath = `${filePath}.tmp`;
+			try {
+				await fs.writeFile(tempPath, JSON.stringify(executions, null, 2), "utf-8");
+				await fs.rename(tempPath, filePath);
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+					throw err;
+				}
+			}
 		}
 	}
 

@@ -1,0 +1,224 @@
+---
+accp_version: "2.0.0"
+report_type: ECR
+report_id: "P45_P49_TRUTH_ECR"
+plan_id: "P45_P49"
+title: "Evidence Compilation Report — Verdict and Score Justification"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+evidence_compilation:
+  - requirement: P49-ACCP-COMPILER-PACKAGE
+    state: source_present_unproven
+    score: 0.5
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.75
+      runtime_authority_integration_or_state_transition_effect: 0.25
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Package exists, built, dynamically imported. But workerResult.accp is never populated — compile path dead. ACCP mode hardcoded to 'warn', not config-driven. Cap: 0.5 (only file existence + partial wiring proven)."
+  - requirement: P49-REPORT-REGISTRY
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Registry exists in both compiler source and accp_v2_0_package. Tests pass. But not verified as consumed by production runtime for validation."
+  - requirement: P49-DETERMINISTIC-COMPILER
+    state: source_present_unproven
+    score: 0.5
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.5
+      runtime_authority_integration_or_state_transition_effect: 0.25
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Full compiler pipeline with 117 tests. Dynamically imported but output never consumed. Cap: 0.5."
+  - requirement: P49-RUNTIME-COMPILED-INPUTS
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: high
+    reason: "Runtime does not consistently read compiled JSON. One dead import site. No verified read of compiled artifacts for authority decisions. Cap: 0.5."
+  - requirement: P49-COMPLETION-GATE
+    state: source_present_unproven
+    score: 0.5
+    confidence: high
+    reason: "runAccpGateStage exists but is not wired into any completion gate code path. CompletionGateV2 doesn't read ACCP verdicts. Cap: 0.5."
+  - requirement: P49-ROUTE-AUTHORITY
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "No runtime transition guard applies PlanSpec authority. No production code reads route signals as authority checks."
+  - requirement: P49-VISIBILITY
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: medium
+    reason: "Dashboard React components exist. Wiring to backend routes unverified. No live evidence of ACCP state exposure."
+  - requirement: P49-TUI-TAB-MODE-PICKER
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: high
+    reason: "accp-mode-picker exists but is not imported or bound to Tab. Tab still triggers autocomplete. Cap: 0.25 (live behavior required, failing)."
+  - requirement: P49-FILE-PICKER-REASSIGNMENT
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "File picker still opens on Tab. No @ or Ctrl+P binding for file picker. Cap: 0.25."
+  - requirement: P49-INITIAL-ROUTE-INDICATOR
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: high
+    reason: "createInitialRouteIndicator exists but never called from production code. Cap: 0.25."
+  - requirement: P49-ACCP-TASK-ENVELOPE
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: high
+    reason: "createAccpTaskEnvelope exists but never called from production code. Cap: 0.25."
+  - requirement: P49-MODE-VISIBLE
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "Current ACCP mode is not visible in any UI. Hardcoded 'warn' in agent-session.ts with no UI binding. Cap: 0.25."
+  - requirement: P49-ROUTE-BUS
+    state: test_only
+    score: 0.75
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.0
+      runtime_authority_integration_or_state_transition_effect: 0.0
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.5
+    confidence: high
+    reason: "Class exists with passing tests. Never instantiated in production. Route test passes but no E2E flow. ACCP compiled artifact evidence exists."
+  - requirement: P49-E2E-NATIVE-FLOW
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "E2E test exists and passes. But it's a unit test that instantiates components directly, not a real E2E with TUI + agent + real runtime. Cap: 0.75."
+  - requirement: P49-REQUIRED-MODE-GATE
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "No production code checks ACCP mode before promotion. Mode is hardcoded 'warn' and never enforced as a gate. Cap: 0.25."
+  - requirement: P45-PREREQUISITE-GATE
+    state: verified_test_only
+    score: 0.75
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.0
+      runtime_authority_integration_or_state_transition_effect: 0.0
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Source exists with 23 tests passing. Not wired into runtime admission. No runtime authority. No live evidence."
+  - requirement: P45-SPEC-QUALITY-LEDGER
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 29 tests passing. Not imported from any production code path."
+  - requirement: P45-CONTRACT-COVERAGE
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 16 tests passing. Not wired."
+  - requirement: P45-PREDICTIVE-SPEC-QUALITY-GATE
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 12 tests passing. Not wired."
+  - requirement: P45-SEMANTIC-CONFLICT-ANALYZER
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 19 tests passing. Not wired."
+  - requirement: P45-ASYNC-READINESS-CLASSIFIER
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 10 tests passing. Not wired."
+  - requirement: P45-CONTRACT-AMENDMENT-PROTOCOL
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 13 tests passing. Not wired."
+  - requirement: P45-DRIFT-BUDGET-GATE
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 10 tests passing. Not wired."
+  - requirement: P45-FAILURE-RETRY-TIME-POLICIES
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Source exists with 21 tests passing. Not wired."
+  - requirement: P45-ADAPTIVE-GOVERNOR
+    state: stub_or_dead_code
+    score: 0.25
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.0
+      runtime_authority_integration_or_state_transition_effect: 0.0
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Governor exists with 17 tests. Not wired into scheduler, admission, or plan intake. Signal stubs only — no real system metrics. Cap for only file existence: 0.5."
+  - requirement: P45-GOVERNOR-SIGNALS
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "Governor only reads mock signal stubs in tests. No real signal plumbing exists. Cap: 0.0 (no real sources proven)."
+  - requirement: P45-UNSAFE-OPTIMISTIC-BLOCK
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "No production code blocks unsafe optimistic execution based on ACCP or governor state."
+  - requirement: P45-ARTIFACT-ACCEPTANCE
+    state: verified_test_only
+    score: 0.75
+    dimension_scores:
+      source_existence: 1.0
+      production_import_reachability_wiring: 0.0
+      runtime_authority_integration_or_state_transition_effect: 0.0
+      automated_test_evidence: 1.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Artifact acceptance gate exists with tests. Not wired into production artifact pipeline."
+  - requirement: P45-DETERMINISTIC-ASSEMBLER
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Assembler exists with tests. Not wired."
+  - requirement: P45-REPLAY-CASCADE-BREAKER
+    state: verified_test_only
+    score: 0.75
+    confidence: high
+    reason: "Cascade circuit breaker exists with tests. Not wired."
+  - requirement: P45-SMOKE-AND-PROFILES
+    state: missing_or_failing
+    score: 0.0
+    dimension_scores:
+      source_existence: 0.5
+      production_import_reachability_wiring: 0.0
+      runtime_authority_integration_or_state_transition_effect: 0.0
+      automated_test_evidence: 0.0
+      live_tui_server_e2e_behavior_evidence: 0.0
+      accp_compiled_artifact_evidence_ledger_gate_verdict_evidence: 0.0
+    confidence: high
+    reason: "Scripts exist but have broken imports or are stubs. Minimal smoke fails to run. Load profile is simulated. No real smoke/profiles execute."
+  - requirement: P45-DASHBOARD-VISIBILITY
+    state: stub_or_dead_code
+    score: 0.25
+    confidence: high
+    reason: "operator-dashboard.ts exists but is not wired into any web-server route or UI component."
+  - requirement: P45-COMPILED-ACCP-EVIDENCE
+    state: missing_or_failing
+    score: 0.0
+    confidence: high
+    reason: "No P45 system consumes compiled ACCP evidence. Not wired into planning, acceptance, replay, governor, or promotion code paths."

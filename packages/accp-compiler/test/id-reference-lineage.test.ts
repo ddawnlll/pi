@@ -29,7 +29,7 @@ describe("ACCP ID Validator", () => {
 	});
 
 	it("should reject very long IDs", () => {
-		const diags = validateReportId("A" + "X".repeat(100));
+		const diags = validateReportId(`A${"X".repeat(100)}`);
 		expect(diags.some((d) => d.fatal)).toBe(true);
 	});
 

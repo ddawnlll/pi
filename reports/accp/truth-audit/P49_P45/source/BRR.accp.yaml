@@ -1,0 +1,113 @@
+---
+accp_version: "2.0.0"
+report_type: BRR
+report_id: "P45_P49_TRUTH_BRR"
+plan_id: "P45_P49"
+title: "Blocker Report — Critical Failures in P49 and P45"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+blockers:
+  - blocker_id: BRR-B1
+    severity: critical
+    block_on_requirement: P49-TUI-TAB-MODE-PICKER
+    title: "Tab does not open ACCP mode picker"
+    detail: "Tab key is hard-wired to tui.input.tab (editor/input autocomplete) in keybindings.ts. There is zero code path from Tab press to accp-mode-picker.ts. No key handler dispatches Tab to mode picker."
+    evidence: "packages/tui/src/keybindings.ts:120"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B2
+    severity: critical
+    block_on_requirement: P49-MODE-VISIBLE
+    title: "Current ACCP mode is not visible to the user"
+    detail: "No UI component renders the current ACCP mode. The mode is hardcoded to 'warn' in agent-session.ts:1096 with no UI binding."
+    evidence: "packages/coding-agent/src/core/agent-session.ts:1096"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B3
+    severity: critical
+    block_on_requirement: P49-FILE-PICKER-REASSIGNMENT
+    title: "File picker still on Tab, not reassigned to @/Ctrl+P"
+    detail: "Tab still triggers autocomplete (which includes file path suggestions). No Ctrl+P or @ binding exists in keybindings for file/path picker."
+    evidence: "packages/tui/src/keybindings.ts"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B4
+    severity: critical
+    block_on_requirement: P49-INITIAL-ROUTE-INDICATOR
+    title: "InitialRouteIndicator is never emitted from any runtime path"
+    detail: "createInitialRouteIndicator is defined but never called from production code. Since mode picker is not wired, no selection event triggers it."
+    evidence: "packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B5
+    severity: critical
+    block_on_requirement: P49-ACCP-TASK-ENVELOPE
+    title: "AccpTaskEnvelope is never emitted from any runtime path"
+    detail: "createAccpTaskEnvelope is defined but never called from production code."
+    evidence: "packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B6
+    severity: critical
+    block_on_requirement: P49-ROUTE-BUS
+    title: "AccpRouteBus is never instantiated in production"
+    detail: "Route bus class exists with tests but is never wired into any production startup or agent boot sequence."
+    evidence: "packages/coding-agent/src/core/accp-route-bus.ts"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B7
+    severity: critical
+    block_on_requirement: P49-COMPLETION-GATE
+    title: "ACCP gate verdict is never fed into CompletionGateV2"
+    detail: "runAccpGateStage exists but is not called by any completion gate code path. CompletionGateV2 does not read ACCP gate verdicts."
+    evidence: "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B8
+    severity: critical
+    block_on_requirement: P49-ROUTE-AUTHORITY
+    title: "No runtime transition guard applies PlanSpec authority before route execution"
+    detail: "There is no production code that reads compiled route signals and applies them as authority checks before execution."
+    evidence: "No import of AccpRouteSignal or route authority check found in autonomous-executor.ts, workspace-agent-executor.ts, or any adapter"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B9
+    severity: critical
+    block_on_requirement: P49-VISIBILITY
+    title: "No dashboard/API exposes ACCP state in production"
+    detail: "accp-read-model, query handlers, and REST API routes may be planned but are not wired. Dashboard React components exist but their wiring into backend routes is unverified."
+    evidence: "packages/web-ui/dashboard/src/components/accp/ — components exist but wiring unknown"
+    caps_target_requirement_to: 0.5
+  - blocker_id: BRR-B10
+    severity: critical
+    block_on_requirement: P49-RUNTIME-COMPILED-INPUTS
+    title: "Runtime does not consistently read compiled ACCP JSON for authority"
+    detail: "The compiler output is written but the runtime does not read compiled artifacts for decision-making. The one import site (autonomous-executor) has a dead path."
+    evidence: "packages/coding-agent/src/core/autonomous-executor.ts:1268-1282"
+    caps_target_requirement_to: 0.5
+  - blocker_id: BRR-B11
+    severity: critical
+    block_on_requirement: P49-E2E-NATIVE-FLOW
+    title: "E2E native flow test exists but does not exercise real runtime services"
+    detail: "e2e-accp-native-flow.test.ts is a unit test that instantiates components directly, not a real E2E test involving TUI + agent + compiler."
+    evidence: "packages/coding-agent/test/accp/e2e-accp-native-flow.test.ts"
+    caps_target_requirement_to: 0.75
+  - blocker_id: BRR-B12
+    severity: critical
+    block_on_requirement: P49-REQUIRED-MODE-GATE
+    title: "ACCP required mode gate is not enforced"
+    detail: "No production code checks ACCP mode before allowing promotion. The mode is hardcoded 'warn' in one location and never checked as a gate condition."
+    evidence: "packages/coding-agent/src/core/agent-session.ts:1096"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B13
+    severity: critical
+    block_on_requirement: "ALL_P45_REQUIREMENTS"
+    title: "All P45 assembly modules are test-only — none wired into production runtime"
+    detail: "Every single P45 assembly module (adaptive-concurrency-governor, spec-quality-ledger, contract-coverage-calculator, predictive-spec-quality-gate, semantic-conflict-analyzer, async-readiness-classifier, contract-amendment-protocol, drift-budget-gate, failure-retry-policy, deterministic-assembler, etc.) is only imported by other assembly modules or their test files. Zero are imported from agent-session.ts, autonomous-executor.ts, workspace-agent-executor.ts, completion-gate.ts, or any adapter."
+    evidence: "Comprehensive grep across packages/coding-agent/src/ shows no import of any assembly module from outside core/assembly/"
+    caps_target_requirement_to: 0.25
+  - blocker_id: BRR-B14
+    severity: critical
+    block_on_requirement: P45-SMOKE-AND-PROFILES
+    title: "P45 run scripts have broken imports or are simulated stubs"
+    detail: "run-p45-minimal-async-assembly-smoke.ts imports from '../core/assembly/' which is not a valid path from scripts/. Other scripts (load-profile, concurrency-profile, unbounded-dryrun) are pure simulations that don't import real assembly modules."
+    evidence: "scripts/run-p45-*.ts files"
+    caps_target_requirement_to: 0.25
+summary:
+  total_blockers: 14
+  critical: 14
+  p49_blockers: 12
+  p45_blockers: 2

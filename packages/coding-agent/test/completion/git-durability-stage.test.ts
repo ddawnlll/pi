@@ -143,7 +143,7 @@ describe("ScopeAndWriteSetStage", () => {
 					rolloutMode: "block_strict_plans",
 				},
 			);
-			expect(verdict.detail["recoveryState"]).toBe("NEEDS_HIR");
+			expect(verdict.detail.recoveryState).toBe("NEEDS_HIR");
 		});
 
 		it("should pass with shared files", async () => {
@@ -285,7 +285,7 @@ describe("CommitExecutionStage", () => {
 				},
 			);
 			expect(verdict.passed).toBe(true);
-			expect(verdict.detail["commitHash"]).toBe("abc123");
+			expect(verdict.detail.commitHash).toBe("abc123");
 		});
 
 		it("should block on transient git failure with RETRYABLE_BLOCKED", async () => {
@@ -309,7 +309,7 @@ describe("CommitExecutionStage", () => {
 				},
 			);
 			expect(verdict.passed).toBe(false);
-			expect(verdict.detail["recoveryState"]).toBe("RETRYABLE_BLOCKED");
+			expect(verdict.detail.recoveryState).toBe("RETRYABLE_BLOCKED");
 		});
 
 		it("should block on non-transient commit failure with NEEDS_REPAIR", async () => {
@@ -332,7 +332,7 @@ describe("CommitExecutionStage", () => {
 				},
 			);
 			expect(verdict.passed).toBe(false);
-			expect(verdict.detail["recoveryState"]).toBe("NEEDS_REPAIR");
+			expect(verdict.detail.recoveryState).toBe("NEEDS_REPAIR");
 		});
 	});
 });
@@ -522,7 +522,7 @@ describe("PostCommitVerificationStage", () => {
 					rolloutMode: "block_strict_plans",
 				},
 			);
-			expect(verdict.detail["recoveryState"]).toBe("NEEDS_REPAIR");
+			expect(verdict.detail.recoveryState).toBe("NEEDS_REPAIR");
 		});
 	});
 });

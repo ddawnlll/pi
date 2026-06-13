@@ -104,6 +104,7 @@ function createMockStateStore(): IStateStore {
 			}
 		},
 		cancelPlan: async () => {},
+		updatePlanLockMetadata: async () => {},
 		resumePlan: async (_planExecId: string) => {
 			// Reset terminal workspaces back to pending for resume
 			for (const state of workspaceStates.values()) {

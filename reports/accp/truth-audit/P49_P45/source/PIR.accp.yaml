@@ -1,0 +1,122 @@
+---
+accp_version: "2.0.0"
+report_type: PIR
+report_id: "P45_P49_TRUTH_PIR"
+plan_id: "P45_P49"
+title: "Preliminary Investigation Report — P45 + P49 Truth Audit"
+generated_at: "2026-06-12T23:59:00Z"
+generated_by: "operator"
+status: complete
+findings:
+  - finding_id: F-P49-01
+    category: source_existence
+    severity: info
+    summary: "accp-compiler package exists with full source tree"
+    detail: "packages/accp-compiler/ has parser, validators, emitters, gate evaluators, registry, CLI. 117 tests pass."
+    evidence: ["packages/accp-compiler/src/index.ts", "packages/accp-compiler/test/compiler.test.ts"]
+  - finding_id: F-P49-02
+    category: source_existence
+    severity: info
+    summary: "TUI ACCP components exist in source but are NOT wired"
+    detail: "accp-mode-picker.ts, accp-status-view.ts, accp-diagnostics-view.ts exist under packages/tui/src/components/ but are NOT imported anywhere in production code. No test files reference them."
+    evidence: ["packages/tui/src/components/accp-mode-picker.ts", "packages/tui/src/index.ts"]
+  - finding_id: F-P49-03
+    category: production_import_reachability
+    severity: high
+    summary: "ACCP mode picker is dead code — not imported, not exported, not bound to Tab"
+    detail: "accp-mode-picker is not imported in packages/tui/src/index.ts, no Tab key binding routes to it. Tab is bound to tui.input.tab (autocomplete) in keybindings.ts. No keyboard handler dispatches Tab to mode picker."
+    evidence: ["packages/tui/src/keybindings.ts", "packages/tui/src/index.ts"]
+  - finding_id: F-P49-04
+    category: production_import_reachability
+    severity: high
+    summary: "InitialRouteIndicator and AccpTaskEnvelope are test-only — not wired into runtime"
+    detail: "createInitialRouteIndicator and createAccpTaskEnvelope are only called from test/accp/initial-route-indicator.test.ts. No production code imports or calls them."
+    evidence: ["packages/coding-agent/src/core/accp-initial-route-indicator.ts"]
+  - finding_id: F-P49-05
+    category: production_import_reachability
+    severity: high
+    summary: "AccpRouteBus class exists but is NOT instantiated in any production runtime path"
+    detail: "AccpRouteBus is defined in accp-route-bus.ts. createDefaultSubscriptions is defined but never called. Only tests instantiate the bus."
+    evidence: ["packages/coding-agent/src/core/accp-route-bus.ts", "packages/coding-agent/test/accp/route-bus.test.ts"]
+  - finding_id: F-P49-06
+    category: production_import_reachability
+    severity: high
+    summary: "runAccpGateStage is not called by any completion gate runtime code"
+    detail: "runAccpGateStage exists in accp-gate-stage-runner.ts but is only referenced by p49_5/accp-capability-probe.ts (a probe, not runtime) and p49_5/p49-completion-inventory.ts (inventory, not runtime)."
+    evidence: ["packages/coding-agent/src/core/accp-gate-stage-runner.ts", "packages/coding-agent/src/core/p49_5/"]
+  - finding_id: F-P49-07
+    category: runtime_authority
+    severity: medium
+    summary: "ACCP compiler IS dynamically imported in autonomous-executor.ts but accp field is never populated"
+    detail: "autonomous-executor.ts imports compileAccpSource and checks workerResult.accp?.shouldCompile, but workerResult.accp is never set by any adapter or worker. The compiled path always has ACCP mode hardcoded to 'warn' in agent-session.ts (not config-driven)."
+    evidence: ["packages/coding-agent/src/core/autonomous-executor.ts:1268-1282", "packages/coding-agent/src/core/agent-session.ts:1096"]
+  - finding_id: F-P49-08
+    category: live_behavior
+    severity: critical
+    summary: "Tab does NOT open ACCP mode picker — it still triggers autocomplete/file suggestions"
+    detail: "Tab key is bound to tui.input.tab with description 'Tab / autocomplete'. The keybinding KEY.TAB dispatches to the input/editor component's handleTabCompletion, not to the ACCP mode picker."
+    evidence: ["packages/tui/src/keybindings.ts"]
+  - finding_id: F-P49-09
+    category: live_behavior
+    severity: critical
+    summary: "Current ACCP mode is NOT user-visible in TUI"
+    detail: "No TUI component renders the current ACCP mode. The ACCP mode is hardcoded to 'warn' in agent-session.ts and never exposed as a state that a UI component reads."
+    evidence: ["packages/coding-agent/src/core/agent-session.ts:1096"]
+  - finding_id: F-P49-10
+    category: live_behavior
+    severity: critical
+    summary: "File/path picker has NOT been reassigned from Tab to @/Ctrl+P"
+    detail: "There is no evidence of file picker reassignment. Tab still triggers autocomplete (which includes file suggestions). No Ctrl+P or @ binding for file picker exists."
+    evidence: ["packages/tui/src/keybindings.ts"]
+  - finding_id: F-P45-01
+    category: source_existence
+    severity: info
+    summary: "All P45 assembly modules exist with 289 passing tests"
+    detail: "All P45 assembly modules exist: adaptive-concurrency-governor, spec-quality-ledger, contract-coverage-calculator, predictive-spec-quality-gate, semantic-conflict-analyzer, async-readiness-classifier, contract-amendment-protocol, drift-budget-gate, failure-retry-policy, deterministic-assembler, etc."
+    evidence: ["packages/coding-agent/src/core/assembly/*.ts", "packages/coding-agent/test/assembly/"]
+  - finding_id: F-P45-02
+    category: production_import_reachability
+    severity: critical
+    summary: "No P45 assembly module is imported from any production runtime code path"
+    detail: "All P45 assembly modules are only imported by each other or by their test files. No import of any assembly module exists in agent-session.ts, autonomous-executor.ts, workspace-agent-executor.ts, completion-gate.ts, or any adapter."
+    evidence: ["packages/coding-agent/src/core/"]
+  - finding_id: F-P45-03
+    category: production_import_reachability
+    severity: critical
+    summary: "P45 run scripts are stubs or have broken imports"
+    detail: "run-p45-minimal-async-assembly-smoke.ts has broken import paths (../core/assembly/ instead of ../packages/coding-agent/src/core/assembly/). run-p45-load-profile.ts is a pure simulation. run-p45-concurrency-profile.ts is a stub."
+    evidence: ["scripts/run-p45-*.ts"]
+  - finding_id: F-P45-04
+    category: runtime_authority
+    severity: high
+    summary: "P45 prerequisite gate exists but is not wired into runtime admission"
+    detail: "p45-prerequisite-gate.ts exists with tests passing. But it is never called from any production path (admission, scheduler, plan intake)."
+    evidence: ["packages/coding-agent/src/core/assembly/p45-prerequisite-gate.ts"]
+  - finding_id: F-P45-05
+    category: runtime_authority
+    severity: high
+    summary: "AdaptiveConcurrencyGovernor exists but is not wired into scheduler or agent executor"
+    detail: "AdaptiveConcurrencyGovernor class exists with tests. No scheduler, plan intake, or agent executor imports or calls it."
+    evidence: ["packages/coding-agent/src/core/assembly/adaptive-concurrency-governor.ts"]
+  - finding_id: F-P45-06
+    category: live_behavior
+    severity: critical
+    summary: "No dashboard visibility for P45 status or blockers"
+    detail: "operator-dashboard.ts exists but is not wired into any web-server route or UI component. No observable state or API endpoint exposes P45 system status."
+    evidence: ["packages/coding-agent/src/core/assembly/operator-dashboard.ts"]
+recommendations:
+  - "P49: Wire accp-mode-picker into TUI key handler for Tab. Bind file picker to @ or Ctrl+P."
+  - "P49: Wire InitialRouteIndicator creation to mode picker selection."
+  - "P49: Instantiate AccpRouteBus in boot/startup code and wire subscriptions."
+  - "P49: Make ACCP mode config-driven instead of hardcoded 'warn' in agent-session.ts."
+  - "P49: Wire runAccpGateStage into the completion gate vNext pipeline."
+  - "P45: Wire P45 prerequisite gate into admission/plan-intake pipeline."
+  - "P45: Wire AdaptiveConcurrencyGovernor into scheduler."
+  - "P45: Fix script import paths or create proper integration hooks."
+  - "P45: Wire operator-dashboard into web-server routes."
+blockers:
+  - "Tab does not open ACCP mode picker"
+  - "ACCP mode is not user-visible"
+  - "File picker not moved from Tab"
+  - "No P45 assembly module wired into production runtime"
+  - "P45 scripts have broken imports or are stubs"

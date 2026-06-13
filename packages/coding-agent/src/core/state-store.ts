@@ -388,6 +388,23 @@ export interface IStateStore {
 	cancelPlan(planExecutionId: string, reason?: string): Promise<void>;
 
 	/**
+	 * Update plan lock metadata after PlanSpec admission.
+	 * Stores planLockHash, planSpecVersion, and lock status for use
+	 * by the dashboard, crash recovery, and completion gate.
+	 *
+	 * @param planExecutionId - Plan execution ID
+	 * @param metadata - Lock metadata fields
+	 */
+	updatePlanLockMetadata(
+		planExecutionId: string,
+		metadata: {
+			planLockHash: string;
+			planSpecVersion: string;
+			lockStatus: "admitted" | "pending" | "rejected";
+		},
+	): Promise<void>;
+
+	/**
 	 * Resume plan execution.
 	 *
 	 * @param planExecutionId - Plan execution ID

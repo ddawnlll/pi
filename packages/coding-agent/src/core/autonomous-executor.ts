@@ -689,6 +689,33 @@ export class AutonomousExecutor {
 		}
 		(this as any)._workspaceLockHashes = wsLockHashes;
 		(this as any)._admittedPlanLock = planLock;
+
+		// Persist lock metadata to state store for dashboard and crash recovery
+		if (this.planExecutionId) {
+			const planSpecVersion = this.executionPolicy.planSpecVersion ?? "5.0.0";
+			await this.stateStore
+				.updatePlanLockMetadata(this.planExecutionId, {
+					planLockHash: planLock.planLockHash,
+					planSpecVersion,
+					lockStatus: "admitted",
+				})
+				.catch(() => {});
+		}
+
+		// Emit PlanLock admitted event best-effort; state store persistence is the critical path
+		try {
+			const { emitPlanLockAdmitted } = await import("./planlock-events.js");
+			const { createEventBus: _createBus } = await import("./event-bus.js");
+			const bus = (this as any)._eventBus ?? _createBus();
+			emitPlanLockAdmitted(bus, {
+				planLockHash: planLock.planLockHash,
+				planSpecTaskId: planLock.source.planSpecTaskId,
+				workspaceCount: planLock.contract.workspaceCount,
+				mode: planLock.contract.mode,
+			});
+		} catch {
+			// Event emission is best-effort
+		}
 	}
 
 	/**
