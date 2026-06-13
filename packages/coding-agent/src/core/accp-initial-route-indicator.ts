@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import type { AccpReportType, InitialRouteIndicator } from "@earendil-works/pi-execution-contracts";
+import type { AccpReportType, AccpTaskEnvelope, InitialRouteIndicator } from "@earendil-works/pi-execution-contracts";
 
 /** Default initial action description for unknown selections. */
 const DEFAULT_INITIAL_ACTION = "explore";
@@ -40,7 +40,7 @@ export function createAccpTaskEnvelope(
 	taskId: string,
 	indicator: InitialRouteIndicator,
 	targetReportTypes: AccpReportType[],
-): any {
+): AccpTaskEnvelope {
 	return {
 		taskId,
 		initialRoute: indicator,
