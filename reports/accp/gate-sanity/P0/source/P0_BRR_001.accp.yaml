@@ -1,0 +1,74 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_BRR_001
+  type: BRR
+  family: bugfix
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-BRR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+blocking_observations:
+  - id: OBS-001
+    severity: high
+    description: >
+      The audit harness cannot observe the WriteGate v2 tool path while
+      running outside an agent context. NEG-004 (forbidden mutation) cannot
+      be exercised end-to-end by the shell audit harness. The kernel itself
+      has the policy, but the audit harness does not mount the tool.
+    recommendation: "Mount WriteGate v2 in the audit harness or run NEG-004 from a worker adapter so the gate can be observed end-to-end."
+  - id: OBS-002
+    severity: medium
+    description: >
+      The audit harness cannot capture live TUI evidence for NEG-010.
+      Terminal capture, TUI smoke, or runtime trace are not produced
+      by a shell harness.
+    recommendation: "Mount a TUI smoke harness (e.g. tmux + capture-pane) or run NEG-010 from a worker adapter."
+  - id: OBS-003
+    severity: info
+    description: >
+      The accp-compiler (P49.x deliverable) does not currently emit
+      policy-derived diagnostics for missing-evidence, PRR-with-blockers,
+      raw-yaml-authority, stale-verdict, or dead-code promotion caps.
+      Those policies are encoded in planspecs and evaluated by the
+      engine, not by the compiler. The audit harness hand-rolls the
+      diagnostics for the negative controls so that the gate-verdict
+      machine-readable evidence is preserved.
+    recommendation: "Consider extending the compiler to emit ACCP_AUTHORITY-family diagnostics for the policy checks listed above."
+
+evidence:
+  - type: module_path
+    description: "WriteGate v2 module location."
+    path: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+    hashRequired: false
+  - type: module_path
+    description: "Planspec with policy flags (noTestsFoundIsFailure etc.)."
+    path: "docs/P44_5_commit_durability_completion_gate_planspec_v0_1.json"
+    hashRequired: false

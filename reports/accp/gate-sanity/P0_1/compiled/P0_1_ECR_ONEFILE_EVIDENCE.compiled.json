@@ -1,0 +1,15 @@
+{
+  "reportId": "P0_1_ECR_ONEFILE_EVIDENCE",
+  "reportType": "ECR",
+  "chainReport": true,
+  "compile": {
+    "status": "compiled",
+    "hasBlockingFindings": false,
+    "diagnostics": []
+  },
+  "verdict": {
+    "valid": true,
+    "promotionReady": false,
+    "evidenceStatus": "not_checked"
+  }
+}

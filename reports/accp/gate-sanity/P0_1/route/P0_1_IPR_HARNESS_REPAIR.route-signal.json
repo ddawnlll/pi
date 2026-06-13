@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_1_IPR_HARNESS_REPAIR",
+  "sourceReportType": "IPR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

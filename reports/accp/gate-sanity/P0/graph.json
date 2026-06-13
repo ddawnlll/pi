@@ -1,0 +1,153 @@
+{
+  "nodes": [
+    {
+      "id": "NEG-001",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "missing_command_evidence",
+        "accp_tvr_pass_without_command_evidence"
+      ]
+    },
+    {
+      "id": "NEG-002",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "no_tests_found"
+      ]
+    },
+    {
+      "id": "NEG-003",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "command_not_found"
+      ]
+    },
+    {
+      "id": "NEG-004",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "workspace_edits_outside_allowedFiles",
+        "write_gate_required"
+      ]
+    },
+    {
+      "id": "NEG-005",
+      "type": "PRR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "accp_prr_approved_with_blockers"
+      ]
+    },
+    {
+      "id": "NEG-006",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "missing_compiled_accp_artifact",
+        "raw_yaml_is_not_runtime_authority"
+      ]
+    },
+    {
+      "id": "NEG-007",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "stale_attempt_verdict_ignored",
+        "repo_base_sha_mismatch"
+      ]
+    },
+    {
+      "id": "NEG-008",
+      "type": "IPR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "missing_ac_evidence",
+        "missing_evidence_blocks_completion"
+      ]
+    },
+    {
+      "id": "NEG-009",
+      "type": "IPR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "runtime_wiring_missing",
+        "production_call_site_missing"
+      ]
+    },
+    {
+      "id": "NEG-010",
+      "type": "TVR",
+      "blocked": true,
+      "harnessGap": false,
+      "hardStops": [
+        "missing_live_evidence",
+        "user_visible_behavior_unverified"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "NEG-001",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "missing_command_evidence;accp_tvr_pass_without_command_evidence"
+    },
+    {
+      "from": "NEG-002",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "no_tests_found"
+    },
+    {
+      "from": "NEG-003",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "command_not_found"
+    },
+    {
+      "from": "NEG-004",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "workspace_edits_outside_allowedFiles;write_gate_required"
+    },
+    {
+      "from": "NEG-005",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "accp_prr_approved_with_blockers"
+    },
+    {
+      "from": "NEG-006",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "missing_compiled_accp_artifact;raw_yaml_is_not_runtime_authority"
+    },
+    {
+      "from": "NEG-007",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "stale_attempt_verdict_ignored;repo_base_sha_mismatch"
+    },
+    {
+      "from": "NEG-008",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "missing_ac_evidence;missing_evidence_blocks_completion"
+    },
+    {
+      "from": "NEG-009",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "runtime_wiring_missing;production_call_site_missing"
+    },
+    {
+      "from": "NEG-010",
+      "to": "PROMOTION_BLOCKED",
+      "reason": "missing_live_evidence;user_visible_behavior_unverified"
+    }
+  ]
+}

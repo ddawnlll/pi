@@ -1,0 +1,40 @@
+{
+  "reportId": "NEG-009",
+  "reportType": "IPR",
+  "family": "feature",
+  "controlTitle": "Feature source exists but has no production call site",
+  "controlHardStops": [
+    "runtime_wiring_missing",
+    "production_call_site_missing"
+  ],
+  "policy": "promotion_readiness_cannot_exceed_source_present_unproven",
+  "source": {
+    "path": "reports/accp/gate-sanity/P0/source/NEG-009_dead_code_only_feature.accp.yaml",
+    "sha256": "ad29d57d21b6ac30688c78be783d8fbcdde4bc7915d5acc49823cd7433551b56"
+  },
+  "compile": {
+    "status": "compiled",
+    "diagnostics": [],
+    "hasBlockingFindings": false
+  },
+  "verdict": {
+    "valid": false,
+    "promotionReady": false,
+    "evidenceStatus": "missing",
+    "blockingFindings": [
+      "[ACCP_RUNTIME_WIRING_MISSING] NEG-009 negative control: runtime_wiring_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "[ACCP_PRODUCTION_CALL_SITE_MISSING] NEG-009 negative control: production_call_site_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable."
+    ],
+    "fatalErrors": [
+      "[ACCP_RUNTIME_WIRING_MISSING] NEG-009 negative control: runtime_wiring_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "[ACCP_PRODUCTION_CALL_SITE_MISSING] NEG-009 negative control: production_call_site_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable."
+    ],
+    "warnings": [],
+    "findingCount": 2
+  },
+  "routeSignal": {
+    "recommendedNextAction": "halt_and_emit_hir",
+    "recommendedNextRoute": "HIR",
+    "mutationPolicyNeeded": "none"
+  }
+}

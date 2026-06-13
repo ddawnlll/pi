@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-001",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-001",
+      "title": "TVR claims validation passed without command evidence",
+      "hardStops": [
+        "missing_command_evidence",
+        "accp_tvr_pass_without_command_evidence"
+      ],
+      "policy": "missing_evidence_blocks_completion",
+      "policyRationale": "validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_MISSING_COMMAND_EVIDENCE",
+      "message": "NEG-001 negative control: missing_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-001_TVR_missing_evidence.accp.yaml"
+    },
+    {
+      "code": "ACCP_ACCP_TVR_PASS_WITHOUT_COMMAND_EVIDENCE",
+      "message": "NEG-001 negative control: accp_tvr_pass_without_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-001_TVR_missing_evidence.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

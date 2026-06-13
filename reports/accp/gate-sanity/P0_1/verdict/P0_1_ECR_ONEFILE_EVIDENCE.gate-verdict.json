@@ -1,0 +1,16 @@
+{
+  "reportId": "P0_1_ECR_ONEFILE_EVIDENCE",
+  "reportType": "ECR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": false,
+  "evidenceStatus": "not_checked",
+  "details": {
+    "chainReport": true,
+    "reportType": "ECR",
+    "sourceSha256": "7e5331e01fa4d6436242ed6af7777245d986f5be6b40eca61f2418821bf1429f"
+  }
+}

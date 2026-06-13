@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_RAR_001",
+  "reportType": "RAR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "RAR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

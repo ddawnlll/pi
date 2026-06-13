@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_1_RIR_HARNESS_INVENTORY",
+  "reportType": "RIR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "RIR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

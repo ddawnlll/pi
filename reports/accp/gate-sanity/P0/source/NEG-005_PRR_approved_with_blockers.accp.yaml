@@ -1,0 +1,59 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-005_PRR_approved_with_blockers
+  type: PRR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-005
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+promotion_readiness:
+  plan_id: P0_gate_sanity
+  promotion_verdict: PROMOTE
+  final_status: approved
+  # The negative control claims promotion is approved while a critical blocker
+  # is still open. The promotion gate must reject this.
+  open_risks:
+    - id: RISK-BLOCKER-001
+      severity: critical
+      description: "Live TUI evidence is missing (contradicted P49.04 requirement)."
+  blockers:
+    - id: BLOCKER-CRITICAL-001
+      severity: critical
+      description: "Production call site for new mode is not wired; runtime_wiring_missing."
+      unresolved: true
+  stable_gate: not_cleared
+  notes:
+    - "Negative control: PRR claims 'approved' / 'PROMOTE' while a critical blocker is open."
+    - "Expected kernel behavior: FinalPromotionGate / promotion evaluator must reject."
+    - "Hard-stop expected: accp_prr_approved_with_blockers."
+
+evidence: []

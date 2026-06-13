@@ -1,0 +1,63 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-003_command_not_found
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-003
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: failed
+  all_required_validation_passed: false
+  # NEG-003 negative control: this command was run for real and produced
+  # exit 127 "command not found".
+  command_results:
+    - commandRef: NEG-003-COMMAND-NOT-FOUND
+      exit_code: 127
+      output_excerpt: "/bin/bash: line 2: __definitely_missing_gate_sanity_executable__: command not found"
+      passed: false
+      scope: "NEG-003"
+  regressions:
+    - "command_not_found must be treated as validation failure"
+  notes:
+    - "Negative control: shell returns exit 127 with 'command not found'."
+    - "Expected kernel behavior: command-not-found is treated as validation failure."
+    - "Hard-stop expected: command_not_found."
+
+evidence:
+  - type: command_log
+    description: "Real command evidence captured for NEG-003."
+    path: "reports/tmp/gate-sanity/P0/neg003_cmd_not_found.txt"
+    command: "__definitely_missing_gate_sanity_executable__ --version"
+    exit_code: 127
+    hashRequired: true

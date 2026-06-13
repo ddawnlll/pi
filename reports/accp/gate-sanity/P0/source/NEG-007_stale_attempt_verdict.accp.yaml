@@ -1,0 +1,62 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-007_stale_attempt_verdict
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-007
+  git_commit: "STALE_COMMIT_NOT_MATCHING_HEAD"
+  git_branch: main
+  repo_root: "/home/erfolg/src/pi"
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: CMD-REFERENCED-STALE
+      exit_code: 0
+      output_excerpt: "ok"
+      passed: true
+      scope: "NEG-007"
+  regressions:
+    - none
+  notes:
+    - "Negative control: report references a gate verdict from a stale commit."
+    - "Expected kernel behavior: CompletionGateV2 ignores stale verdict and requires fresh evidence."
+    - "Hard-stop expected: stale_attempt_verdict_ignored / repo_base_sha_mismatch."
+
+evidence:
+  - type: gate_verdict_ref
+    description: "References a gate-verdict artifact generated for a different commit."
+    path: "reports/accp/gate-sanity/P0/verdict/NEG-007_stale.gate-verdict.json"
+    repo_base_sha: "STALE_COMMIT_NOT_MATCHING_HEAD"

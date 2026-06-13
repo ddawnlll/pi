@@ -1,0 +1,16 @@
+{
+  "reportId": "P0_BRR_001",
+  "reportType": "BRR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": false,
+  "evidenceStatus": "not_checked",
+  "details": {
+    "chainReport": true,
+    "reportType": "BRR",
+    "sourceSha256": "f0a178e3a538883095534b15baa905569db4038fec1511f1bdff1c0bea4056ad"
+  }
+}

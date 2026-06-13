@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-008",
+  "reportType": "IPR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-008",
+      "title": "Worker self-report claims completion without evidence ledger",
+      "hardStops": [
+        "missing_ac_evidence",
+        "missing_evidence_blocks_completion"
+      ],
+      "policy": "workerSelfReportIsClaimOnly",
+      "policyRationale": "implementation_summary.status:complete with empty created_files and no evidence[] violates workerSelfReportIsClaimOnly. CompletionGateV2 must reject.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_MISSING_AC_EVIDENCE",
+      "message": "NEG-008 negative control: missing_ac_evidence. implementation_summary.status:complete with empty created_files and no evidence[] violates workerSelfReportIsClaimOnly. CompletionGateV2 must reject.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-008_worker_self_report_only.accp.yaml"
+    },
+    {
+      "code": "ACCP_MISSING_EVIDENCE_BLOCKS_COMPLETION",
+      "message": "NEG-008 negative control: missing_evidence_blocks_completion. implementation_summary.status:complete with empty created_files and no evidence[] violates workerSelfReportIsClaimOnly. CompletionGateV2 must reject.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-008_worker_self_report_only.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

@@ -1,0 +1,104 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_PRR_001
+  type: PRR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-PRR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+promotion_readiness:
+  plan_id: P0_gate_sanity
+  promotion_verdict: HOLD
+  final_status: not_promoted
+  stable_gate: not_cleared
+
+  readiness_summary:
+    - id: "execution_kernel"
+      status: present
+      verdict: "kernel modules exist; policies defined in planspec"
+    - id: "completion_gate_v2"
+      status: present
+      verdict: "module exists at packages/coding-agent/src/core/completion/completion-gate-v2.ts"
+    - id: "evidence_ledger"
+      status: present
+      verdict: "module exists at packages/coding-agent/src/core/completion/evidence-ledger.ts"
+    - id: "accp_compiler"
+      status: present
+      verdict: "12 files / 111 tests passing; built dist available"
+    - id: "promotion_evaluator"
+      status: present
+      verdict: "evaluateAccpPromotion returns ready=false over the 10 negative-control verdicts"
+    - id: "write_gate_observation"
+      status: harness_gap
+      verdict: "WriteGate v2 tool path not mounted in audit harness"
+    - id: "live_tui_observation"
+      status: harness_gap
+      verdict: "no TUI smoke harness mounted for live behavior capture"
+
+  promotion_blockers:
+    - id: BLOCKER-HARNESS-001
+      severity: high
+      description: "NEG-004 forbidden-mutation cannot be observed end-to-end without mounting WriteGate v2 in the audit harness."
+      unresolved: true
+    - id: BLOCKER-HARNESS-002
+      severity: medium
+      description: "NEG-010 live TUI evidence cannot be observed end-to-end without a TUI smoke harness."
+      unresolved: true
+
+  negative_controls_summary:
+    total: 10
+    blocked: 10
+    unexpectedly_allowed: 0
+    harness_gap: 1
+
+  positive_controls_summary:
+    total: 2
+    passed: 2
+    failed: 0
+
+  kernel_sanity_verdict: HOLD
+  promotion_allowed: false
+  next_required_action: "Halt and emit HIR for kernel harness gap; rerun sanity check after harness gaps are closed."
+
+  notes:
+    - "Per the strict_generation_rules, a verdict of HOLD is correct when some negative controls cannot be observed by the audit harness but no false pass has occurred."
+    - "Promotion is NOT allowed: the kernel harness must be re-mounted before P45/P49 repair is permitted."
+
+evidence:
+  - type: scorecard
+    description: "Aggregate sanity check scorecard with verdict HOLD."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true
+  - type: promotion_evaluator_output
+    description: "evaluateAccpPromotion output for 10 negative-control verdicts."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: false

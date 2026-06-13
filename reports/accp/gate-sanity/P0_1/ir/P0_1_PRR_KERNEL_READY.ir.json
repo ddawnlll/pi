@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_1_PRR_KERNEL_READY",
+  "reportType": "PRR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "PRR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

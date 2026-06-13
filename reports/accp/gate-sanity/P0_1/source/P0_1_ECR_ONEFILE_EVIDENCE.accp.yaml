@@ -1,0 +1,93 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_1_ECR_ONEFILE_EVIDENCE
+  type: ECR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_1
+  workspace_id: P0_1-ECR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: p0-1-harness-repair
+  agent_role: kernel_harness_repair_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: true
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: passed
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+onefile_evidence_contract:
+  canonical_path: "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+  generated_by: "scripts/p0-gate-sanity.mjs"
+  format: "JSON"
+  required_keys:
+    - audit_id
+    - generated_at
+    - repo
+    - commands
+    - write_gate_probe
+    - tui_smoke
+    - p0_rerun
+    - validation
+    - artifacts
+    - hashes
+  references_raw_artifacts: true
+
+evidence_chain:
+  - id: ONE-EVIDENCE
+    description: "Single canonical evidence file aggregating all P0.1 evidence."
+    path: "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+    hashRequired: true
+  - id: WRITE-GATE-PROBE
+    description: "WriteGate probe raw result."
+    path: "reports/tmp/gate-sanity/P0_1/writegate/probe-result.json"
+    hashRequired: true
+  - id: TUI-SMOKE
+    description: "TUI smoke raw result."
+    path: "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+    hashRequired: true
+  - id: TUI-SCREEN
+    description: "Captured TUI screen text."
+    path: "reports/tmp/gate-sanity/P0_1/tui/tui-screen-capture.txt"
+    hashRequired: true
+  - id: TUI-TRACE
+    description: "TUI event trace."
+    path: "reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json"
+    hashRequired: true
+  - id: P0-SCORECARD
+    description: "Regenerated P0 scorecard."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true
+  - id: NPM-CHECK-LOG
+    description: "npm run check output (raw)."
+    path: "/tmp/p0_1_npm_check.log"
+    hashRequired: false
+  - id: NPM-BUILD-LOG
+    description: "npm run build output (raw)."
+    path: "/tmp/p0_1_npm_build.log"
+    hashRequired: false
+
+evidence:
+  - type: onefile
+    description: "Canonical onefile evidence manifest."
+    path: "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+    hashRequired: true

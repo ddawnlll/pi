@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_1_TVR_VALIDATION",
+  "sourceReportType": "TVR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

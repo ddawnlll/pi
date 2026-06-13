@@ -1,0 +1,110 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_PIR_001
+  type: PIR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-PIR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+plan_intent:
+  plan_id: P0_gate_sanity
+  title: "Aşama 0 — ExecutionKernel Gate Sanity Check"
+  purpose: >
+    Verify that ExecutionKernel, CompletionGateV2, EvidenceLedger, command policy,
+    ACCP artifact checks, and promotion gates block false completion before P49/P45
+    repair execution. This is a meta-test of the gate system, not a repair.
+  audit_scope:
+    - "ExecutionKernel enforcement"
+    - "CompletionGateV2 enforcement"
+    - "EvidenceLedger enforcement"
+    - "ACCP compiled artifact enforcement"
+    - "command evidence enforcement"
+    - "promotion readiness enforcement"
+    - "manual execution false-positive detection"
+  plans_under_test: ["P49", "P45"]
+  output_root: "reports/accp/gate-sanity/P0"
+  expected_scorecard_path: "reports/accp/gate-sanity/P0/scorecard.json"
+
+mission:
+  summary: "Run controlled negative and positive checks to prove the gate system cannot falsely mark P45/P49 as complete."
+  primary_question: "Can the current ExecutionKernel block false success when implementation evidence is missing, stale, simulated, dead-code-only, or contradicted by runtime behavior?"
+  success_definition: "The sanity check passes only if every negative control is blocked and every block is recorded with machine-readable evidence."
+  failure_definition: "The sanity check fails if any negative control is allowed to complete, promote, or produce an approved PRR."
+
+negative_controls:
+  - id: "NEG-001"
+    title: "TVR claims validation passed without command evidence"
+  - id: "NEG-002"
+    title: "Validation command returns no tests found"
+  - id: "NEG-003"
+    title: "Validation command executable is missing"
+  - id: "NEG-004"
+    title: "Attempt mutation outside allowed audit artifact paths"
+  - id: "NEG-005"
+    title: "PRR tries to approve promotion while blockers exist"
+  - id: "NEG-006"
+    title: "Runtime attempts to use raw ACCP YAML or rendered Markdown as authority"
+  - id: "NEG-007"
+    title: "Stale attempt verdict is reused after source or commit changed"
+  - id: "NEG-008"
+    title: "Worker self-report claims completion without evidence ledger"
+  - id: "NEG-009"
+    title: "Feature source exists but has no production call site"
+  - id: "NEG-010"
+    title: "User-visible TUI requirement lacks live evidence"
+
+positive_controls:
+  - id: "P0-POSITIVE-TYPECHECK"
+    purpose: "Prove allowed validation command execution and evidence capture work."
+  - id: "P0-POSITIVE-ACCP-COMPILER-UNIT"
+    purpose: "Prove targeted ACCP compiler tests can be recorded when package exists."
+
+authority_boundary:
+  reports_are_evidence_only: true
+  reports_do_not_authorize_execution: true
+  route_signals_are_advisory: true
+  compiled_json_is_runtime_input: true
+  raw_yaml_is_not_runtime_authority: true
+  rendered_markdown_is_human_preview_only: true
+  worker_self_report_is_claim_only: true
+  manual_executor_final_message_is_not_completion_authority: true
+  completion_authority_owner: "ExecutionKernel"
+  completion_gate_required: "CompletionGateV2"
+  missing_evidence_must_block_completion: true
+  prr_approved_with_blockers_must_hard_stop: true
+  scorecard_fail_must_block_phase_completion: true
+
+evidence:
+  - type: scorecard
+    description: "Aggregate sanity check scorecard."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true

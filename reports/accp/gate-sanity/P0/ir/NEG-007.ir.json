@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-007",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-007",
+      "title": "Stale attempt verdict is reused after source or commit changed",
+      "hardStops": [
+        "stale_attempt_verdict_ignored",
+        "repo_base_sha_mismatch"
+      ],
+      "policy": "staleAttemptVerdictIgnored",
+      "policyRationale": "meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_STALE_ATTEMPT_VERDICT_IGNORED",
+      "message": "NEG-007 negative control: stale_attempt_verdict_ignored. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-007_stale_attempt_verdict.accp.yaml"
+    },
+    {
+      "code": "ACCP_REPO_BASE_SHA_MISMATCH",
+      "message": "NEG-007 negative control: repo_base_sha_mismatch. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-007_stale_attempt_verdict.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

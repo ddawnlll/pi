@@ -1,0 +1,15 @@
+{
+  "reportId": "P0_BRR_001",
+  "reportType": "BRR",
+  "chainReport": true,
+  "compile": {
+    "status": "compiled",
+    "hasBlockingFindings": false,
+    "diagnostics": []
+  },
+  "verdict": {
+    "valid": true,
+    "promotionReady": false,
+    "evidenceStatus": "not_checked"
+  }
+}

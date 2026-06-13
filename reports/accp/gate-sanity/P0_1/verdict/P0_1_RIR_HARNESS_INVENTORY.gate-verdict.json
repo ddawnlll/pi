@@ -1,0 +1,16 @@
+{
+  "reportId": "P0_1_RIR_HARNESS_INVENTORY",
+  "reportType": "RIR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": false,
+  "evidenceStatus": "not_checked",
+  "details": {
+    "chainReport": true,
+    "reportType": "RIR",
+    "sourceSha256": "45261ee44283565e9f376e15e1aa9fe217c0613565dcc062c8730dbe24023e9d"
+  }
+}

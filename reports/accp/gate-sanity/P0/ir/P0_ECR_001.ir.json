@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_ECR_001",
+  "reportType": "ECR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "ECR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

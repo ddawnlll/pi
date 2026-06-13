@@ -1,0 +1,134 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_1_TVR_VALIDATION
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_1
+  workspace_id: P0_1-TVR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: p0-1-harness-repair
+  agent_role: kernel_harness_repair_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: true
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: passed
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_1
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: P0-POSITIVE-TYPECHECK
+      exit_code: 0
+      output_excerpt: "tsgo --noEmit exit 0"
+      passed: true
+      scope: "all packages"
+    - commandRef: P0-POSITIVE-ACCP-COMPILE-UNIT
+      exit_code: 0
+      output_excerpt: "12 files / 111 tests passed"
+      passed: true
+      scope: "accp-compiler"
+    - commandRef: NPM-CHECK
+      exit_code: 0
+      output_excerpt: "biome check + tsgo + check:browser-smoke + web-ui check all pass"
+      passed: true
+      scope: "root"
+    - commandRef: NPM-BUILD
+      exit_code: 0
+      output_excerpt: "13 packages build successfully"
+      passed: true
+      scope: "root"
+    - commandRef: NEG-002-NO-TESTS-FOUND
+      exit_code: 1
+      output_excerpt: "No test files found, exiting with code 1"
+      passed: false
+      scope: "NEG-002"
+    - commandRef: NEG-003-COMMAND-NOT-FOUND
+      exit_code: 127
+      output_excerpt: "/bin/bash: ... command not found"
+      passed: false
+      scope: "NEG-003"
+    - commandRef: P0-WRITEGATE-PROBE
+      exit_code: 0
+      output_excerpt: "evaluateWriteGate blocked with BLOCKED_EVIDENCE_MISSING; forbidden file not created"
+      passed: true
+      scope: "NEG-004"
+    - commandRef: P0-TUI-SMOKE
+      exit_code: 0
+      output_excerpt: "Live TUI editor rendered, Tab keypress observed, screen does not contain accp-mode-picker"
+      passed: true
+      scope: "NEG-010"
+    - commandRef: P0-GATE-SANITY
+      exit_code: 0
+      output_excerpt: "scorecard verdict=PASS, 10/10 blocked, 0 harnessGap"
+      passed: true
+      scope: "P0 rerun"
+  regressions:
+    - none
+
+p0_rerun_summary:
+  scorecard_path: "reports/accp/gate-sanity/P0/scorecard.json"
+  verdict: "PASS"
+  promotion_allowed: false
+  all_negative_controls_blocked: true
+  false_positive_failures_count: 0
+  harness_gap_count: 0
+  per_control:
+    - id: "NEG-001"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-002"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-003"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-004"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-005"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-006"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-007"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-008"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-009"
+      blocked: true
+      harnessGap: false
+    - id: "NEG-010"
+      blocked: true
+      harnessGap: false
+
+evidence:
+  - type: scorecard
+    description: "Regenerated P0 scorecard with verdict PASS."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true

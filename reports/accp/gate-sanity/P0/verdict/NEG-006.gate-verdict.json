@@ -1,0 +1,31 @@
+{
+  "reportId": "NEG-006",
+  "reportType": "TVR",
+  "valid": false,
+  "fatalErrors": [
+    "[ACCP_MISSING_COMPILED_ACCP_ARTIFACT] NEG-006 negative control: missing_compiled_accp_artifact. ACCP_AUTHORITY doctrine says raw YAML and rendered Markdown are not runtime authority. A TVR/PRR that is not accompanied by compiled.json, gate-verdict.json, and route-signal.json cannot pass.",
+    "[ACCP_RAW_YAML_IS_NOT_RUNTIME_AUTHORITY] NEG-006 negative control: raw_yaml_is_not_runtime_authority. ACCP_AUTHORITY doctrine says raw YAML and rendered Markdown are not runtime authority. A TVR/PRR that is not accompanied by compiled.json, gate-verdict.json, and route-signal.json cannot pass."
+  ],
+  "warnings": [],
+  "blockingFindings": [
+    "[ACCP_MISSING_COMPILED_ACCP_ARTIFACT] NEG-006 negative control: missing_compiled_accp_artifact. ACCP_AUTHORITY doctrine says raw YAML and rendered Markdown are not runtime authority. A TVR/PRR that is not accompanied by compiled.json, gate-verdict.json, and route-signal.json cannot pass.",
+    "[ACCP_RAW_YAML_IS_NOT_RUNTIME_AUTHORITY] NEG-006 negative control: raw_yaml_is_not_runtime_authority. ACCP_AUTHORITY doctrine says raw YAML and rendered Markdown are not runtime authority. A TVR/PRR that is not accompanied by compiled.json, gate-verdict.json, and route-signal.json cannot pass."
+  ],
+  "findingCount": 2,
+  "promotionReady": false,
+  "evidenceStatus": "missing",
+  "details": {
+    "controlId": "NEG-006",
+    "controlTitle": "Runtime attempts to use raw ACCP YAML or rendered Markdown as authority",
+    "policy": "compiled_json_is_runtime_input",
+    "hardStops": [
+      "missing_compiled_accp_artifact",
+      "raw_yaml_is_not_runtime_authority"
+    ],
+    "sourceSha256": "c27dab4fdcb4f8e50ebce1466779479c221ecd306599d1354f4bdb2fea7ce7f0",
+    "harnessGap": false,
+    "commandEvidence": {
+      "status": "not_applicable"
+    }
+  }
+}

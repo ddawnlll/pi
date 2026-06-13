@@ -1,0 +1,40 @@
+{
+  "reportId": "NEG-004",
+  "reportType": "TVR",
+  "family": "feature",
+  "controlTitle": "Attempt mutation outside allowed audit artifact paths",
+  "controlHardStops": [
+    "workspace_edits_outside_allowedFiles",
+    "write_gate_required"
+  ],
+  "policy": "write_gate_required",
+  "source": {
+    "path": "reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml",
+    "sha256": "8643918401fb93ef146a2c28598faa12158273daabaa5e014a94a7947bc0443a"
+  },
+  "compile": {
+    "status": "compiled",
+    "diagnostics": [],
+    "hasBlockingFindings": false
+  },
+  "verdict": {
+    "valid": false,
+    "promotionReady": false,
+    "evidenceStatus": "missing",
+    "blockingFindings": [
+      "[ACCP_WORKSPACE_EDITS_OUTSIDE_ALLOWEDFILES] NEG-004 negative control: workspace_edits_outside_allowedFiles. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "[ACCP_WRITE_GATE_REQUIRED] NEG-004 negative control: write_gate_required. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created."
+    ],
+    "fatalErrors": [
+      "[ACCP_WORKSPACE_EDITS_OUTSIDE_ALLOWEDFILES] NEG-004 negative control: workspace_edits_outside_allowedFiles. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "[ACCP_WRITE_GATE_REQUIRED] NEG-004 negative control: write_gate_required. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created."
+    ],
+    "warnings": [],
+    "findingCount": 2
+  },
+  "routeSignal": {
+    "recommendedNextAction": "halt_and_emit_hir",
+    "recommendedNextRoute": "HIR",
+    "mutationPolicyNeeded": "none"
+  }
+}

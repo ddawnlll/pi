@@ -1,0 +1,128 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_ECR_001
+  type: ECR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-ECR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+evidence_chain:
+  - id: EVID-POS-TYPECHECK
+    type: command_log
+    command: "npx tsgo --noEmit"
+    exit_code: 0
+    duration_ms: 2980
+    artifact: "reports/tmp/gate-sanity/P0/positive_typecheck.txt"
+    sha256_evidence: "see artifact"
+  - id: EVID-POS-ACCP-UNIT
+    type: command_log
+    command: "npx vitest run"
+    cwd: "packages/accp-compiler"
+    exit_code: 0
+    duration_ms: 944
+    test_count: "12 files / 111 tests passed"
+    artifact: "reports/tmp/gate-sanity/P0/positive_accp_compiler.txt"
+    sha256_evidence: "see artifact"
+  - id: EVID-NEG-001
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-001_TVR_missing_evidence.accp.yaml"
+    verdict: "blocked: ACCP_MISSING_COMMAND_EVIDENCE / ACCP_ACCP_TVR_PASS_WITHOUT_COMMAND_EVIDENCE"
+  - id: EVID-NEG-002
+    type: command_log
+    command: "npx vitest run test/__definitely_missing_gate_sanity_pattern__.test.ts"
+    exit_code: 1
+    artifact: "reports/tmp/gate-sanity/P0/neg002_no_tests_exitcode.txt"
+    verdict: "blocked: ACCP_NO_TESTS_FOUND"
+  - id: EVID-NEG-003
+    type: command_log
+    command: "__definitely_missing_gate_sanity_executable__ --version"
+    exit_code: 127
+    artifact: "reports/tmp/gate-sanity/P0/neg003_cmd_not_found.txt"
+    verdict: "blocked: ACCP_COMMAND_NOT_FOUND"
+  - id: EVID-NEG-004
+    type: harness_gap
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml"
+    verdict: "blocked by policy but observable only via WriteGate tool path (HARNESS GAP)"
+  - id: EVID-NEG-005
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-005_PRR_approved_with_blockers.accp.yaml"
+    verdict: "blocked: ACCP_ACCP_PRR_APPROVED_WITH_BLOCKERS"
+  - id: EVID-NEG-006
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-006_authority_raw_yaml_only.accp.yaml"
+    verdict: "blocked: ACCP_MISSING_COMPILED_ACC_ARTIFACT / ACCP_RAW_YAML_IS_NOT_RUNTIME_AUTHORITY"
+  - id: EVID-NEG-007
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-007_stale_attempt_verdict.accp.yaml"
+    verdict: "blocked: ACCP_STALE_ATTEMPT_VERDICT_IGNORED / ACCP_REPO_BASE_SHA_MISMATCH"
+  - id: EVID-NEG-008
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-008_worker_self_report_only.accp.yaml"
+    verdict: "blocked: ACCP_MISSING_AC_EVIDENCE / ACCP_MISSING_EVIDENCE_BLOCKS_COMPLETION"
+  - id: EVID-NEG-009
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-009_dead_code_only_feature.accp.yaml"
+    verdict: "blocked: ACCP_RUNTIME_WIRING_MISSING / ACCP_PRODUCTION_CALL_SITE_MISSING"
+  - id: EVID-NEG-010
+    type: accp_yaml_source
+    command: null
+    exit_code: null
+    artifact: "reports/accp/gate-sanity/P0/source/NEG-010_live_ui_required_but_missing.accp.yaml"
+    verdict: "blocked: ACCP_MISSING_LIVE_EVIDENCE / ACCP_USER_VISIBLE_BEHAVIOR_UNVERIFIED"
+
+evidence_ledger_summary:
+  total_entries: 12
+  positive_control_entries: 2
+  negative_control_entries: 10
+  command_log_entries: 4
+  source_yaml_entries: 7
+  harness_gap_entries: 1
+
+evidence:
+  - type: scorecard
+    description: "Aggregate sanity check scorecard."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true

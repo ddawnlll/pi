@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_PIR_001",
+  "sourceReportType": "PIR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-010",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-010",
+      "title": "User-visible TUI requirement lacks live evidence",
+      "hardStops": [
+        "missing_live_evidence",
+        "user_visible_behavior_unverified"
+      ],
+      "policy": "user_visible_behavior_requires_live_evidence",
+      "policyRationale": "P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_MISSING_LIVE_EVIDENCE",
+      "message": "NEG-010 negative control: missing_live_evidence. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-010_live_ui_required_but_missing.accp.yaml"
+    },
+    {
+      "code": "ACCP_USER_VISIBLE_BEHAVIOR_UNVERIFIED",
+      "message": "NEG-010 negative control: user_visible_behavior_unverified. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-010_live_ui_required_but_missing.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

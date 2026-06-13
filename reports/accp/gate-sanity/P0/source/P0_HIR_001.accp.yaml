@@ -1,0 +1,108 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_HIR_001
+  type: HIR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-HIR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+harness_gap_report:
+  plan_id: P0_gate_sanity
+  trigger: "Two of ten negative controls cannot be observed end-to-end by the shell audit harness, but no false pass occurred."
+
+  gaps:
+    - id: GAP-001
+      affected_control: "NEG-004"
+      title: "WriteGate v2 tool path is not mounted in the shell audit harness."
+      severity: high
+      description: >
+        WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is the
+        actual kernel enforcement point for the 'workspace_edits_outside_allowedFiles'
+        hard stop. The shell audit harness used for P0 has no agent runtime
+        and therefore cannot trigger WriteGate end-to-end.
+      observed_evidence:
+        - "NEG-004 source: reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml"
+        - "WriteGate module exists and is unit-tested in the coding-agent package"
+      recommended_fix: >
+        Either (a) mount the WriteGate tool path in a worker adapter that
+        the audit harness can call, or (b) move NEG-004 into a worker
+        adapter execution and observe the gate from the tool's response.
+      impact: >
+        Cannot prove the gate blocks forbidden mutation end-to-end from the
+        shell audit harness alone. Negative-control behavior must be inferred
+        from the source code of WriteGate v2, which is acceptable for an
+        audit-trail but is not equivalent to a runtime observation.
+
+    - id: GAP-002
+      affected_control: "NEG-010"
+      title: "Live TUI evidence cannot be captured by the shell audit harness."
+      severity: medium
+      description: >
+        P49 Tab/mode-picker is a user-visible TUI requirement. The shell audit
+        harness cannot start a TUI, send keystrokes, and capture the screen
+        to provide live behavior evidence.
+      observed_evidence:
+        - "NEG-010 source: reports/accp/gate-sanity/P0/source/NEG-010_live_ui_required_but_missing.accp.yaml"
+      recommended_fix: >
+        Mount a TUI smoke harness (tmux + capture-pane or a programmatic TUI
+        driver) and rerun NEG-010 with a captured screen showing the absence
+        or presence of the Tab/mode-picker behavior.
+      impact: >
+        Cannot prove the live-evidence-required policy blocks promotion in
+        this audit context. The negative control source itself is
+        machine-readable and the policy is documented, but the live
+        observation is missing.
+
+  is_false_pass: false
+  is_kernel_failure: false
+  is_harness_gap: true
+  decision: "HOLD"
+  next_action: "Fix harness gaps GAP-001 and GAP-002, then rerun P0 sanity check."
+
+  notes:
+    - "The kernel is not FAILING: the policies exist in code and planspec."
+    - "The audit harness is what is missing: it cannot observe NEG-004 and NEG-010 end-to-end."
+    - "Promotion is NOT allowed until the harness gaps are closed and the sanity check rerun."
+
+evidence:
+  - type: write_gate_source
+    description: "WriteGate v2 module reference."
+    path: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+    hashRequired: false
+  - type: planspec_reference
+    description: "Planspec with policy flags."
+    path: "docs/P44_5_commit_durability_completion_gate_planspec_v0_1.json"
+    hashRequired: false
+  - type: harness_gap_manifest
+    description: "List of negative controls with harness gaps."
+    path: "reports/accp/gate-sanity/P0/evidence/NEG-004.evidence.json"
+    hashRequired: true

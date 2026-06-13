@@ -1,0 +1,15 @@
+{
+  "reportId": "P0_TVR_001",
+  "reportType": "TVR",
+  "chainReport": true,
+  "compile": {
+    "status": "compiled",
+    "hasBlockingFindings": false,
+    "diagnostics": []
+  },
+  "verdict": {
+    "valid": true,
+    "promotionReady": false,
+    "evidenceStatus": "not_checked"
+  }
+}

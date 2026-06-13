@@ -1,0 +1,57 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-008_worker_self_report_only
+  type: IPR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-008
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+scope_declaration:
+  workspace_id: NEG-008
+  workspace_title: "Worker self-report only (negative control)"
+  wave_id: P0
+  role: implementation
+
+implementation_summary:
+  status: complete
+  # The negative control self-claims 'complete' but provides no created files,
+  # no evidence ledger, no command refs, no artifacts, no gate verdict.
+  created_files: []
+  key_decisions:
+    - "Worker self-report says complete (negative control setup)."
+
+notes:
+  - "Negative control: this IPR has no EvidenceLedger entries, no command refs, no artifacts, no gate verdict."
+  - "Expected kernel behavior: CompletionGateV2 treats self-report as claim only and blocks completion."
+  - "Hard-stop expected: missing_ac_evidence / missing_evidence_blocks_completion."
+
+evidence: []

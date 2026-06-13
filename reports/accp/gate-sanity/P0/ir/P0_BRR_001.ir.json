@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_BRR_001",
+  "reportType": "BRR",
+  "family": "bugfix",
+  "sections": {
+    "chain": {
+      "reportType": "BRR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

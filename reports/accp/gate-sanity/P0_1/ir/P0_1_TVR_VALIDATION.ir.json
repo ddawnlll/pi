@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_1_TVR_VALIDATION",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "TVR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

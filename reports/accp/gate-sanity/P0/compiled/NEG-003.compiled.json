@@ -1,0 +1,37 @@
+{
+  "reportId": "NEG-003",
+  "reportType": "TVR",
+  "family": "feature",
+  "controlTitle": "Validation command executable is missing",
+  "controlHardStops": [
+    "command_not_found"
+  ],
+  "policy": "command_not_found_is_failure",
+  "source": {
+    "path": "reports/accp/gate-sanity/P0/source/NEG-003_command_not_found.accp.yaml",
+    "sha256": "983f75a3141b61de65f2d06e3e830b97c9ddc7bfc0e8e11d6a66166f8c862367"
+  },
+  "compile": {
+    "status": "compiled",
+    "diagnostics": [],
+    "hasBlockingFindings": false
+  },
+  "verdict": {
+    "valid": false,
+    "promotionReady": false,
+    "evidenceStatus": "complete",
+    "blockingFindings": [
+      "[ACCP_COMMAND_NOT_FOUND] NEG-003 negative control: command_not_found. Shell returns exit 127 with 'command not found'. Command policy must treat this as a validation failure."
+    ],
+    "fatalErrors": [
+      "[ACCP_COMMAND_NOT_FOUND] NEG-003 negative control: command_not_found. Shell returns exit 127 with 'command not found'. Command policy must treat this as a validation failure."
+    ],
+    "warnings": [],
+    "findingCount": 1
+  },
+  "routeSignal": {
+    "recommendedNextAction": "halt_and_emit_hir",
+    "recommendedNextRoute": "HIR",
+    "mutationPolicyNeeded": "none"
+  }
+}

@@ -1,0 +1,116 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_1_PRR_KERNEL_READY
+  type: PRR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_1
+  workspace_id: P0_1-PRR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: p0-1-harness-repair
+  agent_role: kernel_harness_repair_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: true
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: passed
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+promotion_readiness:
+  plan_id: P0_1
+  promotion_verdict: HOLD
+  final_status: not_promoted
+  stable_gate: not_cleared
+
+  readiness_summary:
+    - id: "execution_kernel"
+      status: present
+      verdict: "kernel modules exist in packages/execution-runtime and packages/accp-compiler"
+    - id: "completion_gate_v2"
+      status: present
+      verdict: "modules exist; policies defined in planspec"
+    - id: "evidence_ledger"
+      status: present
+      verdict: "module exists at packages/coding-agent/src/core/completion/evidence-ledger.ts"
+    - id: "write_gate_v2"
+      status: probe_passes
+      verdict: "real evaluateWriteGate function blocks forbidden write with BLOCKED_EVIDENCE_MISSING"
+    - id: "live_tui_smoke"
+      status: probe_passes
+      verdict: "real TUI editor in VirtualTerminal renders without mode-picker overlay after Tab; contradiction recorded"
+    - id: "onefile_evidence"
+      status: present
+      verdict: "single canonical JSON at reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+    - id: "npm_check"
+      status: passed
+      verdict: "biome + tsgo + check:browser-smoke + web-ui check all exit 0"
+    - id: "npm_build"
+      status: passed
+      verdict: "13 packages build successfully"
+    - id: "p0_scorecard"
+      status: pass
+      verdict: "verdict=PASS, 10/10 blocked, 0 harnessGap, 0 false-positive failures, promotion_allowed=false"
+
+  p0_rerun:
+    scorecard_path: "reports/accp/gate-sanity/P0/scorecard.json"
+    verdict: "PASS"
+    promotion_allowed: false
+    all_negative_controls_blocked: true
+    false_positive_failures_count: 0
+    harness_gap_count: 0
+    controls:
+      - { id: "NEG-001", blocked: true, harnessGap: false }
+      - { id: "NEG-002", blocked: true, harnessGap: false }
+      - { id: "NEG-003", blocked: true, harnessGap: false }
+      - { id: "NEG-004", blocked: true, harnessGap: false }
+      - { id: "NEG-005", blocked: true, harnessGap: false }
+      - { id: "NEG-006", blocked: true, harnessGap: false }
+      - { id: "NEG-007", blocked: true, harnessGap: false }
+      - { id: "NEG-008", blocked: true, harnessGap: false }
+      - { id: "NEG-009", blocked: true, harnessGap: false }
+      - { id: "NEG-010", blocked: true, harnessGap: false }
+
+  promotion_blockers: []
+  open_risks: []
+
+  promotion_allowed: false
+  final_status: HOLD
+  next_required_action: >
+    P45/P49/P50 promotion is NOT allowed by this PRR. P0.1 is a kernel-harness
+    readiness signal only. The next step is to use the now-trustworthy harness
+    to drive actual P45/P49/P50 repair work, with each negative control
+    continuously re-validated.
+
+  notes:
+    - "promotion_allowed is FALSE per the non-negotiable contract: this PRR documents that the ExecutionKernel gate sanity now passes, but does NOT promote P45/P49/P50."
+    - "Promotion verdict is HOLD (kernel ready but no product promotion requested)."
+    - "All P0 hard-stop rules pass: no negative control is allowed, no PRR with blockers, no raw-YAML authority, no worker self-report only, no harness gap, no missing evidence."
+
+evidence:
+  - type: onefile_evidence
+    description: "Canonical onefile evidence."
+    path: "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+    hashRequired: true
+  - type: scorecard
+    description: "P0 scorecard with verdict PASS."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true

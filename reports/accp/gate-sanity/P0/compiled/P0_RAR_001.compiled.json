@@ -1,0 +1,15 @@
+{
+  "reportId": "P0_RAR_001",
+  "reportType": "RAR",
+  "chainReport": true,
+  "compile": {
+    "status": "compiled",
+    "hasBlockingFindings": false,
+    "diagnostics": []
+  },
+  "verdict": {
+    "valid": true,
+    "promotionReady": false,
+    "evidenceStatus": "not_checked"
+  }
+}

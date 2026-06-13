@@ -1,0 +1,79 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_RIR_001
+  type: RIR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-RIR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+repo_inventory:
+  repo_root: "/home/erfolg/src/pi"
+  repo_commit: "f0bc50d09b70238a2900c08c75f70c8e7b9ede25"
+  repo_branch: main
+  worktree_dirty: true
+  accp_compiler_present: true
+  accp_compiler_dist_path: "packages/accp-compiler/dist"
+  execution_runtime_present: true
+  execution_runtime_dist_path: "packages/execution-runtime/dist"
+  evidence_ledger_module: "packages/coding-agent/src/core/completion/evidence-ledger.ts"
+  completion_gate_v2_module: "packages/coding-agent/src/core/completion/completion-gate-v2.ts"
+  write_gate_v2_module: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+  promotion_evaluator_module: "packages/execution-runtime/src/accp-promotion-evaluator.ts"
+  gate_reader_module: "packages/execution-runtime/src/accp-gate-reader.ts"
+
+prior_accp_artifacts:
+  - path: "reports/accp/P44/source/"
+    status: present
+    note: "P44 BSR, ECR, IPR, TVR, RIR, PIR, RAR, PRR source YAMLs"
+  - path: "reports/accp/P44.5/source/"
+    status: present
+    note: "P44.5 IPR, TVR, PRR"
+  - path: "reports/accp/P48/source/"
+    status: present
+    note: "P48 alpha-2 plan compiler implementation report"
+  - path: "reports/accp/P49/source/"
+    status: present
+    note: "P49 IPR/TVR per workspace"
+
+policies_discovered:
+  - "missingEvidenceBlocksCompletion"
+  - "staleAttemptVerdictIgnored"
+  - "workerSelfReportIsClaimOnly"
+  - "noTestsFoundIsFailure (per planspec per-task override)"
+  - "watch_mode_validation"
+  - "watch_mode_forbidden"
+
+evidence:
+  - type: git_head
+    description: "Current HEAD commit captured by the audit harness."
+    path: "reports/tmp/gate-sanity/P0/positive_typecheck.txt"
+    hashRequired: false

@@ -1,0 +1,121 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_1_RIR_HARNESS_INVENTORY
+  type: RIR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_1
+  workspace_id: P0_1-RIR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: p0-1-harness-repair
+  agent_role: kernel_harness_repair_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: true
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+    - edit
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: passed
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+harness_inventory:
+  - id: scripts-p0-writegate-probe
+    purpose: "NEG-004 end-to-end WriteGate probe"
+    type: tsx-via-node
+    invocation: "node scripts/p0-writegate-probe.mjs"
+    real_path: "scripts/p0-writegate-probe.mjs"
+    invokes: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts:evaluateWriteGate"
+    produces: "reports/tmp/gate-sanity/P0_1/writegate/probe-result.json"
+  - id: scripts-p0-tui-smoke
+    purpose: "NEG-010 live TUI smoke"
+    type: tsx-via-node
+    invocation: "node scripts/p0-tui-smoke.mjs"
+    real_path: "scripts/p0-tui-smoke.mjs"
+    invokes:
+      - "packages/tui/src/components/editor.ts:Editor"
+      - "packages/tui/src/tui.ts:TUI"
+      - "packages/tui/test/virtual-terminal.ts:VirtualTerminal"
+      - "@xterm/headless"
+    produces:
+      - "reports/tmp/gate-sanity/P0_1/tui/tui-screen-capture.txt"
+      - "reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json"
+      - "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+  - id: scripts-p0-gate-sanity
+    purpose: "Centralized P0 gate sanity runner"
+    type: tsx-via-node
+    invocation: "node scripts/p0-gate-sanity.mjs (alias: npm run p0:gate-sanity)"
+    real_path: "scripts/p0-gate-sanity.mjs"
+    invokes:
+      - "scripts/p0-writegate-probe.mjs"
+      - "scripts/p0-tui-smoke.mjs"
+      - "reports/tmp/gate-sanity/P0/run-sanity-check.mjs"
+    produces:
+      - "reports/accp/gate-sanity/P0/scorecard.json (regenerated)"
+      - "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+
+existing_kernels_discovered:
+  - id: ExecutionKernel
+    modules:
+      - "packages/execution-runtime/src/accp-gate-reader.ts"
+      - "packages/execution-runtime/src/accp-promotion-evaluator.ts"
+      - "packages/execution-runtime/src/completion-predicate.ts"
+      - "packages/execution-runtime/src/transition-router.ts"
+  - id: CompletionGateV2
+    modules:
+      - "packages/coding-agent/src/core/completion/completion-gate-v2.ts"
+      - "packages/coding-agent/src/core/completion/evidence-ledger.ts"
+  - id: WriteGate v2
+    modules:
+      - "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+      - "packages/coding-agent/src/core/write-gate/edit-scope-guard.ts"
+      - "packages/coding-agent/src/core/write-gate/large-overwrite-blocker.ts"
+  - id: ACCP Compiler
+    modules:
+      - "packages/accp-compiler/src/compiler.ts"
+      - "packages/accp-compiler/src/gate/gate-evaluator.ts"
+      - "packages/accp-compiler/src/emit/emit-gate-verdict.ts"
+  - id: TUI Components
+    modules:
+      - "packages/tui/src/components/editor.ts"
+      - "packages/tui/src/components/accp-mode-picker.ts"
+      - "packages/tui/test/virtual-terminal.ts"
+
+npm_scripts_added:
+  - id: p0:writegate-probe
+    command: "node scripts/p0-writegate-probe.mjs"
+  - id: p0:tui-smoke
+    command: "node scripts/p0-tui-smoke.mjs"
+  - id: p0:gate-sanity
+    command: "node scripts/p0-gate-sanity.mjs"
+
+evidence:
+  - type: code_reference
+    description: "WriteGate v2 module reference."
+    path: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+    hashRequired: false
+  - type: code_reference
+    description: "TUI editor module reference."
+    path: "packages/tui/src/components/editor.ts"
+    hashRequired: false
+  - type: code_reference
+    description: "accp-mode-picker module reference (currently dead code)."
+    path: "packages/tui/src/components/accp-mode-picker.ts"
+    hashRequired: false

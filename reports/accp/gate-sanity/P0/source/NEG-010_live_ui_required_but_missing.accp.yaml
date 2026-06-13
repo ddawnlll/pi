@@ -1,0 +1,57 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-010_live_ui_required_but_missing
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-010
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: CMD-UNIT-TEST-PASSED
+      exit_code: 0
+      output_excerpt: "PASS (1) FAIL (0)"
+      passed: true
+      scope: "NEG-010 (unit test only, no live TUI observation)"
+  regressions:
+    - none
+
+notes:
+  - "Negative control: P49 Tab/mode-picker requirement is user-visible TUI behavior."
+  - "No live behavior observation (terminal capture, TUI smoke, or runtime trace) is provided."
+  - "Expected kernel behavior: requirement cannot pass without live evidence; contradicted behavior caps score at 0.25."
+  - "Hard-stop expected: missing_live_evidence / user_visible_behavior_unverified."
+
+evidence: []

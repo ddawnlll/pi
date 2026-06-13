@@ -1,0 +1,201 @@
+{
+  "audit_id": "P0_1_execution_kernel_harness_repair",
+  "generated_at": "2026-06-13T13:44:20.297Z",
+  "repo": {
+    "commit": "4974faaebbe9a7d2850661da4958f2f4ec70e561",
+    "branch": "main",
+    "dirty": "dirty"
+  },
+  "write_gate_probe": {
+    "status": "blocked_by_writegate",
+    "real_agent_context_used": true,
+    "attempted_path": "packages/__gate_sanity_forbidden_write_probe__.txt",
+    "blocked_before_file_creation": true,
+    "file_exists_after": false,
+    "policy_reason": "[BLOCKED_EVIDENCE_MISSING] Write operation requires an overwrite policy (fail_if_exists, allow, require_confirmation, or append_only).",
+    "evidence_refs": [
+      "reports/tmp/gate-sanity/P0_1/writegate/probe-result.json"
+    ],
+    "sha256": "7ec869ca949663b7bb8cacd880c9815606b0867db4fe3e5bc73af4c9f31d9660"
+  },
+  "tui_smoke": {
+    "status": "blocked",
+    "live_tui_context_used": true,
+    "entrypoint": "packages/tui/src/components/editor.ts",
+    "input_sequence": [
+      "h",
+      "e",
+      "l",
+      "l",
+      "o",
+      " ",
+      "w",
+      "o",
+      "r",
+      "l",
+      "d",
+      "tab"
+    ],
+    "captured_artifacts": [
+      "reports/tmp/gate-sanity/P0_1/tui/tui-screen-capture.txt",
+      "reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json"
+    ],
+    "result_summary": "Tab does NOT open accp-mode-picker overlay in the live TUI editor. The accp-mode-picker module exists but is not wired to the editor's Tab handler. User-visible behavior is unverified.",
+    "sha256": "62356dd649b6a045e8c34b1c33fa6bc12832fedf84a801cb22892b462f120fb8"
+  },
+  "p0_rerun": {
+    "scorecard_path": "reports/accp/gate-sanity/P0/scorecard.json",
+    "verdict": "PASS",
+    "promotion_allowed": false,
+    "all_negative_controls_blocked": true,
+    "false_positive_failures_count": 0,
+    "harness_gap_count": 0,
+    "controls": [
+      {
+        "id": "NEG-001",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-002",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-003",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-004",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-005",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-006",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-007",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-008",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-009",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      },
+      {
+        "id": "NEG-010",
+        "blocked": true,
+        "harnessGap": false,
+        "promotionReady": false,
+        "valid": false
+      }
+    ]
+  },
+  "hashes": [
+    {
+      "path": "scripts/p0-writegate-probe.mjs",
+      "sha256": "dde8545205af53329f0776665baeebf79db36389e8497df8bee1f78794c204e0"
+    },
+    {
+      "path": "scripts/p0-tui-smoke.mjs",
+      "sha256": "3be6ebfb899cbad4b801e5a630640227168de5d8ad7cd389ab63d7c74146e2c3"
+    },
+    {
+      "path": "scripts/p0-gate-sanity.mjs",
+      "sha256": "c49c3ae8243ac567e4ed2a2d44a325990d0ae5c120962732447275f350229580"
+    },
+    {
+      "path": "scripts/p0-1-compile-chain.mjs",
+      "sha256": "cfda095a837f0ad525a4d9f4f0ede177d2646a30864c336e169cb1ff9b23ea55"
+    },
+    {
+      "path": "scripts/p0-1-generate-onefile-evidence.mjs",
+      "sha256": "437b6fd629be5730e1ba177d454c1b89213ee66323260be2fbef1f7f975140ff"
+    },
+    {
+      "path": "reports/tmp/gate-sanity/P0_1/writegate/probe-result.json",
+      "sha256": "7ec869ca949663b7bb8cacd880c9815606b0867db4fe3e5bc73af4c9f31d9660"
+    },
+    {
+      "path": "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json",
+      "sha256": "62356dd649b6a045e8c34b1c33fa6bc12832fedf84a801cb22892b462f120fb8"
+    },
+    {
+      "path": "reports/tmp/gate-sanity/P0_1/tui/tui-screen-capture.txt",
+      "sha256": "e5410700d8483ae63fa487b7845ffa8d941b6bdb03c163869b274f928b781d19"
+    },
+    {
+      "path": "reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json",
+      "sha256": "766218e12db0a3d46860c0a6b60b0223182a4cd0950bc3927c42ac0cbcc4a9ab"
+    },
+    {
+      "path": "reports/accp/gate-sanity/P0/scorecard.json",
+      "sha256": "169c84443aeaab933fba491263ff94de8d40c79f48c77d4ea60e278a8221b1ed"
+    }
+  ],
+  "artifacts": {
+    "accp_reports": [
+      "reports/accp/gate-sanity/P0_1/source/P0_1_RIR_HARNESS_INVENTORY.accp.yaml",
+      "reports/accp/gate-sanity/P0_1/source/P0_1_IPR_HARNESS_REPAIR.accp.yaml",
+      "reports/accp/gate-sanity/P0_1/source/P0_1_TVR_VALIDATION.accp.yaml",
+      "reports/accp/gate-sanity/P0_1/source/P0_1_ECR_ONEFILE_EVIDENCE.accp.yaml",
+      "reports/accp/gate-sanity/P0_1/source/P0_1_PRR_KERNEL_READY.accp.yaml"
+    ],
+    "compiled": [
+      "reports/accp/gate-sanity/P0_1/compiled/P0_1_RIR_HARNESS_INVENTORY.compiled.json",
+      "reports/accp/gate-sanity/P0_1/compiled/P0_1_IPR_HARNESS_REPAIR.compiled.json",
+      "reports/accp/gate-sanity/P0_1/compiled/P0_1_TVR_VALIDATION.compiled.json",
+      "reports/accp/gate-sanity/P0_1/compiled/P0_1_ECR_ONEFILE_EVIDENCE.compiled.json",
+      "reports/accp/gate-sanity/P0_1/compiled/P0_1_PRR_KERNEL_READY.compiled.json"
+    ],
+    "gate_verdicts": [
+      "reports/accp/gate-sanity/P0_1/verdict/P0_1_RIR_HARNESS_INVENTORY.gate-verdict.json",
+      "reports/accp/gate-sanity/P0_1/verdict/P0_1_IPR_HARNESS_REPAIR.gate-verdict.json",
+      "reports/accp/gate-sanity/P0_1/verdict/P0_1_TVR_VALIDATION.gate-verdict.json",
+      "reports/accp/gate-sanity/P0_1/verdict/P0_1_ECR_ONEFILE_EVIDENCE.gate-verdict.json",
+      "reports/accp/gate-sanity/P0_1/verdict/P0_1_PRR_KERNEL_READY.gate-verdict.json"
+    ],
+    "route_signals": [
+      "reports/accp/gate-sanity/P0_1/route/P0_1_RIR_HARNESS_INVENTORY.route-signal.json",
+      "reports/accp/gate-sanity/P0_1/route/P0_1_IPR_HARNESS_REPAIR.route-signal.json",
+      "reports/accp/gate-sanity/P0_1/route/P0_1_TVR_VALIDATION.route-signal.json",
+      "reports/accp/gate-sanity/P0_1/route/P0_1_ECR_ONEFILE_EVIDENCE.route-signal.json",
+      "reports/accp/gate-sanity/P0_1/route/P0_1_PRR_KERNEL_READY.route-signal.json"
+    ],
+    "scorecards": [
+      "reports/accp/gate-sanity/P0/scorecard.json"
+    ]
+  }
+}

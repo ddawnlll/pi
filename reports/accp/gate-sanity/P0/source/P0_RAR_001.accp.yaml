@@ -1,0 +1,67 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P0_RAR_001
+  type: RAR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: P0-RAR
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+route_analysis:
+  plan_id: P0_gate_sanity
+  current_state: "GATE_SANITY_HOLD"
+  recommended_next_route: "HIR"
+  next_route_target: "HIR (kernel harness gap report)"
+  rationale: >
+    The sanity check verdict is HOLD, not PASS, because NEG-004 (WriteGate
+    forbidden mutation) and the live TUI requirement (NEG-010) cannot be
+    observed end-to-end by the shell audit harness. A HIR is required to
+    document the harness gap and recommend fixes.
+  blocking_findings:
+    - "Harness gap: WriteGate v2 tool path not mounted in audit harness."
+    - "Harness gap: live TUI smoke harness not mounted."
+
+  risks:
+    - id: RISK-HARNESS-GAP
+      severity: medium
+      description: "Two of ten negative controls cannot be observed by the shell audit harness."
+
+  next_action: "Halt and emit HIR for kernel harness gap."
+
+evidence:
+  - type: scorecard
+    description: "Aggregate scorecard with verdict HOLD and 10/10 negative controls blocked."
+    path: "reports/accp/gate-sanity/P0/scorecard.json"
+    hashRequired: true
+  - type: harness_gap_manifest
+    description: "List of negative controls with harness gaps."
+    path: "reports/accp/gate-sanity/P0/evidence/NEG-004.evidence.json"
+    hashRequired: false

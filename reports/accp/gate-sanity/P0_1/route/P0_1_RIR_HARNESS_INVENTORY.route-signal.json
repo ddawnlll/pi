@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_1_RIR_HARNESS_INVENTORY",
+  "sourceReportType": "RIR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

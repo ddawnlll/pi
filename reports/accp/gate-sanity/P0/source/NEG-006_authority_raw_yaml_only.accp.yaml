@@ -1,0 +1,63 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-006_authority_raw_yaml_only
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-006
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+  # The negative control asserts raw YAML and rendered Markdown ARE
+  # runtime authority. The kernel doctrine says compiled JSON artifacts
+  # are the only runtime input, so this must be rejected.
+  raw_yaml_is_runtime_authority: true
+  rendered_markdown_is_runtime_authority: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: CMD-RENDERED-MARKDOWN-ONLY
+      exit_code: 0
+      output_excerpt: "rendered.md"
+      passed: true
+      scope: "NEG-006"
+  regressions:
+    - none
+  notes:
+    - "Negative control: a 'validation' source is offered as raw YAML/Markdown only, with no compiled JSON, gate-verdict, or route-signal artifact."
+    - "Expected kernel behavior: runtime must reject raw YAML/Markdown as authority."
+    - "Hard-stop expected: missing_compiled_accp_artifact / raw_yaml_is_not_runtime_authority."
+
+evidence:
+  - type: rendered_markdown
+    description: "Pretend that rendered.md is the only artifact (negative control)."
+    path: "reports/accp/gate-sanity/P0/evidence/NEG-006_rendered.md"

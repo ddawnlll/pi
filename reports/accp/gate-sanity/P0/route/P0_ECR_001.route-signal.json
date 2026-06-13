@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_ECR_001",
+  "sourceReportType": "ECR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

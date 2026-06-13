@@ -1,0 +1,11 @@
+{
+  "sourceReportId": "NEG-003",
+  "sourceReportType": "TVR",
+  "recommendedNextAction": "halt_and_emit_hir",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true,
+  "unresolvedRefs": []
+}

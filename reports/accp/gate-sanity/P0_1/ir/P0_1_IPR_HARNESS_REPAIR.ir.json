@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_1_IPR_HARNESS_REPAIR",
+  "reportType": "IPR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "IPR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

@@ -1,0 +1,52 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-001_TVR_missing_evidence
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-001
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: passed
+  all_required_validation_passed: true
+  # Intentionally empty command_results: the negative control pretends
+  # validation passed without producing any command evidence.
+  command_results: []
+  regressions:
+    - none
+  notes:
+    - "Negative control: this TVR claims 'status: passed' with empty command_results."
+    - "Expected kernel behavior: CompletionGateV2 / evidence validator must block."
+    - "Hard-stop expected: missing_command_evidence / accp_tvr_pass_without_command_evidence."
+
+evidence: []

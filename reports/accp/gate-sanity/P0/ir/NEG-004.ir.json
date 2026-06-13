@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-004",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-004",
+      "title": "Attempt mutation outside allowed audit artifact paths",
+      "hardStops": [
+        "workspace_edits_outside_allowedFiles",
+        "write_gate_required"
+      ],
+      "policy": "write_gate_required",
+      "policyRationale": "WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_WORKSPACE_EDITS_OUTSIDE_ALLOWEDFILES",
+      "message": "NEG-004 negative control: workspace_edits_outside_allowedFiles. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml"
+    },
+    {
+      "code": "ACCP_WRITE_GATE_REQUIRED",
+      "message": "NEG-004 negative control: write_gate_required. WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

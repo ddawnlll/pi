@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_HIR_001",
+  "reportType": "HIR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "HIR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

@@ -1,0 +1,31 @@
+{
+  "reportId": "NEG-002",
+  "reportType": "TVR",
+  "valid": false,
+  "fatalErrors": [
+    "[ACCP_NO_TESTS_FOUND] NEG-002 negative control: no_tests_found. vitest exits 1 with 'No test files found' for a targeted test pattern. Per planspec noTestsFoundIsFailure:true this is a blocking failure for targeted validation."
+  ],
+  "warnings": [],
+  "blockingFindings": [
+    "[ACCP_NO_TESTS_FOUND] NEG-002 negative control: no_tests_found. vitest exits 1 with 'No test files found' for a targeted test pattern. Per planspec noTestsFoundIsFailure:true this is a blocking failure for targeted validation."
+  ],
+  "findingCount": 1,
+  "promotionReady": false,
+  "evidenceStatus": "complete",
+  "details": {
+    "controlId": "NEG-002",
+    "controlTitle": "Validation command returns no tests found",
+    "policy": "noTestsFoundIsFailure",
+    "hardStops": [
+      "no_tests_found"
+    ],
+    "sourceSha256": "35acc1aa144336b246ebabe4e16531ffd4fa233a7f9c02f87e7dc1860066be74",
+    "harnessGap": false,
+    "commandEvidence": {
+      "status": "ok",
+      "path": "reports/tmp/gate-sanity/P0/neg002_no_tests_exitcode.txt",
+      "content": "EXIT_CODE=1 DURATION_MS=341\n",
+      "sha256": "12b74038ea07185e826d7d35ac19a41001864077f2a2342e31cc1429a589f923"
+    }
+  }
+}

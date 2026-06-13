@@ -1,0 +1,37 @@
+{
+  "reportId": "NEG-010",
+  "reportType": "TVR",
+  "valid": false,
+  "fatalErrors": [
+    "[ACCP_MISSING_LIVE_EVIDENCE] NEG-010 negative control: missing_live_evidence. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+    "[ACCP_USER_VISIBLE_BEHAVIOR_UNVERIFIED] NEG-010 negative control: user_visible_behavior_unverified. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence."
+  ],
+  "warnings": [],
+  "blockingFindings": [
+    "[ACCP_MISSING_LIVE_EVIDENCE] NEG-010 negative control: missing_live_evidence. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+    "[ACCP_USER_VISIBLE_BEHAVIOR_UNVERIFIED] NEG-010 negative control: user_visible_behavior_unverified. P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence."
+  ],
+  "findingCount": 2,
+  "promotionReady": false,
+  "evidenceStatus": "missing",
+  "details": {
+    "controlId": "NEG-010",
+    "controlTitle": "User-visible TUI requirement lacks live evidence",
+    "policy": "user_visible_behavior_requires_live_evidence",
+    "hardStops": [
+      "missing_live_evidence",
+      "user_visible_behavior_unverified"
+    ],
+    "sourceSha256": "f69bb1aaba778d24ba73e7919f19a2837a8e774489a9132cf97f53f9bb774952",
+    "harnessGap": false,
+    "commandEvidence": {
+      "status": "not_applicable"
+    },
+    "probeResult": {
+      "path": "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json",
+      "status": "ok",
+      "sha256": "62356dd649b6a045e8c34b1c33fa6bc12832fedf84a801cb22892b462f120fb8",
+      "content": "{\n  \"probe\": \"P0.1-NEG-010-tui-smoke\",\n  \"live_tui_context_used\": true,\n  \"entrypoint\": \"packages/tui/src/components/editor.ts\",\n  \"input_sequence\": [\n    \"h\",\n    \"e\",\n    \"l\",\n    \"l\",\n    \"o\",\n    \" \",\n    \"w\",\n    \"o\",\n    \"r\",\n    \"l\",\n    \"d\",\n    \"tab\"\n  ],\n  \"captured_artifacts\": [\n    \"reports/tmp/gate-sanity/P0_1/tui/tui-screen-capture.txt\",\n    \"reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json\"\n  ],\n  \"observation\": {\n    \"screen_contains_picker_label\": false,\n    \"screen_contains_expected_picker_render\": false,\n    \"expected_picker_render\": \"╔══════════════════════════════════════════╗\\n║         ACCP Mode Selection              ║\\n╠══════════════════════════════════════════╣\\n║                                          ║\\n║  1. Off      — ACCP is disabled — no compilation, no gating ║\\n║  2. Warn     — ACCP diagnostics are collected but non-blocking ║\\n║  3. Required — ACCP gates block on failure — mode must be explicitly enabled ║\\n║                                          ║\\n║  Enter 1-3 to select, Esc to cancel      ║\\n╚══════════════════════════════════════════╝\",\n    \"screen_lines\": 24\n  },\n  \"tab_keypress_observed\": true,\n  \"live_tui_render_invoked\": true,\n  \"result_summary\": \"Tab does NOT open accp-mode-picker overlay in the live TUI editor. The accp-mode-picker module exists but is not wired to the editor's Tab handler. User-visible behavior is unverified.\",\n  \"status\": \"blocked\",\n  \"duration_ms\": 140\n}"
+    }
+  }
+}

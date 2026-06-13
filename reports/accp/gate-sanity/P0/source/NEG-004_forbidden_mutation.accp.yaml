@@ -1,0 +1,51 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-004_forbidden_mutation
+  type: PIR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-004
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: held
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+notes:
+  - "Negative control: attempt to write to packages/__gate_sanity_forbidden_write_probe__.txt via the WriteGate tool path."
+  - "The WriteGate v2 module exists at packages/coding-agent/src/core/write-gate/write-gate-v2.ts and is mounted in the agent tool path."
+  - "The audit context is a shell-only harness; WriteGate cannot be observed without an agent context. Recorded as HARNESS GAP → HOLD."
+  - "Expected kernel behavior: WriteGate blocks mutation before file creation; source tree remains unchanged."
+  - "Hard-stop expected: workspace_edits_outside_allowedFiles / write_gate_required."
+
+evidence:
+  - type: code_reference
+    description: "WriteGate v2 module location."
+    path: "packages/coding-agent/src/core/write-gate/write-gate-v2.ts"
+    hashRequired: false
+
+findings: []

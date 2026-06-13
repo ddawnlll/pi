@@ -1,0 +1,73 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-009_dead_code_only_feature
+  type: IPR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-009
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+scope_declaration:
+  workspace_id: NEG-009
+  workspace_title: "Dead-code-only feature (negative control)"
+  wave_id: P0
+  role: implementation
+
+implementation_summary:
+  status: complete
+  # The negative control claims the feature is complete: source file exists
+  # and unit tests pass, but production_call_sites is empty.
+  created_files:
+    - path: "packages/coding-agent/src/core/__gate_sanity_dead_module__.ts"
+      description: "Pretend feature module (negative control)."
+  production_call_sites: []
+  key_decisions:
+    - "Negative control: source exists, no production call site."
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: passed
+  all_required_validation_passed: true
+  command_results:
+    - commandRef: CMD-UNIT-TESTS-ONLY
+      exit_code: 0
+      output_excerpt: "PASS (1) FAIL (0)"
+      passed: true
+      scope: "NEG-009 (unit tests only, no integration)"
+  regressions:
+    - none
+
+notes:
+  - "Negative control: P49/P45 audit pattern — module exists and unit tests pass, but production_call_sites is empty."
+  - "Expected kernel behavior: promotion readiness cannot exceed source_present_unproven / test_only and cannot mark runtime complete."
+  - "Hard-stop expected: runtime_wiring_missing / production_call_site_missing."
+
+evidence: []

@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_BRR_001",
+  "sourceReportType": "BRR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

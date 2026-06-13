@@ -1,0 +1,28 @@
+{
+  "sourceReportId": "NEG-002",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-002",
+      "title": "Validation command returns no tests found",
+      "hardStops": [
+        "no_tests_found"
+      ],
+      "policy": "noTestsFoundIsFailure",
+      "policyRationale": "vitest exits 1 with 'No test files found' for a targeted test pattern. Per planspec noTestsFoundIsFailure:true this is a blocking failure for targeted validation.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_NO_TESTS_FOUND",
+      "message": "NEG-002 negative control: no_tests_found. vitest exits 1 with 'No test files found' for a targeted test pattern. Per planspec noTestsFoundIsFailure:true this is a blocking failure for targeted validation.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-002_no_tests_found.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

@@ -1,0 +1,31 @@
+{
+  "reportId": "NEG-007",
+  "reportType": "TVR",
+  "valid": false,
+  "fatalErrors": [
+    "[ACCP_STALE_ATTEMPT_VERDICT_IGNORED] NEG-007 negative control: stale_attempt_verdict_ignored. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+    "[ACCP_REPO_BASE_SHA_MISMATCH] NEG-007 negative control: repo_base_sha_mismatch. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it."
+  ],
+  "warnings": [],
+  "blockingFindings": [
+    "[ACCP_STALE_ATTEMPT_VERDICT_IGNORED] NEG-007 negative control: stale_attempt_verdict_ignored. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+    "[ACCP_REPO_BASE_SHA_MISMATCH] NEG-007 negative control: repo_base_sha_mismatch. meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it."
+  ],
+  "findingCount": 2,
+  "promotionReady": false,
+  "evidenceStatus": "missing",
+  "details": {
+    "controlId": "NEG-007",
+    "controlTitle": "Stale attempt verdict is reused after source or commit changed",
+    "policy": "staleAttemptVerdictIgnored",
+    "hardStops": [
+      "stale_attempt_verdict_ignored",
+      "repo_base_sha_mismatch"
+    ],
+    "sourceSha256": "6a79395fac4961eca4778d617c443191f6c157af436509d5e470e6eec135e67f",
+    "harnessGap": false,
+    "commandEvidence": {
+      "status": "not_applicable"
+    }
+  }
+}

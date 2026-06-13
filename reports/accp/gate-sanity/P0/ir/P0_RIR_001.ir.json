@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P0_RIR_001",
+  "reportType": "RIR",
+  "family": "feature",
+  "sections": {
+    "chain": {
+      "reportType": "RIR"
+    }
+  },
+  "diagnostics": [],
+  "references": [],
+  "evidenceRefs": []
+}

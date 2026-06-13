@@ -1,0 +1,31 @@
+{
+  "reportId": "NEG-001",
+  "reportType": "TVR",
+  "valid": false,
+  "fatalErrors": [
+    "[ACCP_MISSING_COMMAND_EVIDENCE] NEG-001 negative control: missing_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+    "[ACCP_ACCP_TVR_PASS_WITHOUT_COMMAND_EVIDENCE] NEG-001 negative control: accp_tvr_pass_without_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject."
+  ],
+  "warnings": [],
+  "blockingFindings": [
+    "[ACCP_MISSING_COMMAND_EVIDENCE] NEG-001 negative control: missing_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+    "[ACCP_ACCP_TVR_PASS_WITHOUT_COMMAND_EVIDENCE] NEG-001 negative control: accp_tvr_pass_without_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject."
+  ],
+  "findingCount": 2,
+  "promotionReady": false,
+  "evidenceStatus": "missing",
+  "details": {
+    "controlId": "NEG-001",
+    "controlTitle": "TVR claims validation passed without command evidence",
+    "policy": "missing_evidence_blocks_completion",
+    "hardStops": [
+      "missing_command_evidence",
+      "accp_tvr_pass_without_command_evidence"
+    ],
+    "sourceSha256": "fd8ca6407d4d03a3364d558823f20461cb270e43c2ad531cb141c45e189c34c2",
+    "harnessGap": false,
+    "commandEvidence": {
+      "status": "not_applicable"
+    }
+  }
+}

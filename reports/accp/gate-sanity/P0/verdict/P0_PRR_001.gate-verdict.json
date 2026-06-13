@@ -1,0 +1,16 @@
+{
+  "reportId": "P0_PRR_001",
+  "reportType": "PRR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": false,
+  "evidenceStatus": "not_checked",
+  "details": {
+    "chainReport": true,
+    "reportType": "PRR",
+    "sourceSha256": "bed9a86da92ec7eb54dbee2bf2d5a4eb1ca8846a8db075664329d833148642a0"
+  }
+}

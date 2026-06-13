@@ -1,0 +1,15 @@
+{
+  "reportId": "P0_1_IPR_HARNESS_REPAIR",
+  "reportType": "IPR",
+  "chainReport": true,
+  "compile": {
+    "status": "compiled",
+    "hasBlockingFindings": false,
+    "diagnostics": []
+  },
+  "verdict": {
+    "valid": true,
+    "promotionReady": false,
+    "evidenceStatus": "not_checked"
+  }
+}

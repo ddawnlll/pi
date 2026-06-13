@@ -1,0 +1,343 @@
+{
+  "audit_id": "P0_gate_sanity_check",
+  "merged_from_individual_files": true,
+  "entries": [
+    {
+      "controlId": "NEG-001",
+      "title": "TVR claims validation passed without command evidence",
+      "hardStops": [
+        "missing_command_evidence",
+        "accp_tvr_pass_without_command_evidence"
+      ],
+      "policy": "missing_evidence_blocks_completion",
+      "policyRationale": "validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-001_TVR_missing_evidence.accp.yaml",
+        "sha256": "fd8ca6407d4d03a3364d558823f20461cb270e43c2ad531cb141c45e189c34c2"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-002",
+      "title": "Validation command returns no tests found",
+      "hardStops": [
+        "no_tests_found"
+      ],
+      "policy": "noTestsFoundIsFailure",
+      "policyRationale": "vitest exits 1 with 'No test files found' for a targeted test pattern. Per planspec noTestsFoundIsFailure:true this is a blocking failure for targeted validation.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-002_no_tests_found.accp.yaml",
+        "sha256": "35acc1aa144336b246ebabe4e16531ffd4fa233a7f9c02f87e7dc1860066be74"
+      },
+      "commandEvidence": {
+        "status": "ok",
+        "path": "reports/tmp/gate-sanity/P0/neg002_no_tests_exitcode.txt",
+        "content": "EXIT_CODE=1 DURATION_MS=341\n",
+        "sha256": "12b74038ea07185e826d7d35ac19a41001864077f2a2342e31cc1429a589f923"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "complete"
+      }
+    },
+    {
+      "controlId": "NEG-003",
+      "title": "Validation command executable is missing",
+      "hardStops": [
+        "command_not_found"
+      ],
+      "policy": "command_not_found_is_failure",
+      "policyRationale": "Shell returns exit 127 with 'command not found'. Command policy must treat this as a validation failure.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-003_command_not_found.accp.yaml",
+        "sha256": "983f75a3141b61de65f2d06e3e830b97c9ddc7bfc0e8e11d6a66166f8c862367"
+      },
+      "commandEvidence": {
+        "status": "ok",
+        "path": "reports/tmp/gate-sanity/P0/neg003_cmd_not_found.txt",
+        "content": "EXIT_CODE=127 DURATION_MS=1\n",
+        "sha256": "4adf43038aa278795834ba67ed43e62e8a33ffa340b8a68922d0e426615ebc53"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "complete"
+      }
+    },
+    {
+      "controlId": "NEG-004",
+      "title": "Attempt mutation outside allowed audit artifact paths",
+      "hardStops": [
+        "workspace_edits_outside_allowedFiles",
+        "write_gate_required"
+      ],
+      "policy": "write_gate_required",
+      "policyRationale": "WriteGate v2 (packages/coding-agent/src/core/write-gate/write-gate-v2.ts) is invoked end-to-end by scripts/p0-writegate-probe.mjs. The probe calls the production evaluateWriteGate function with a real TaskIntentEnvelope targeting a forbidden path. The gate blocks with BLOCKED_EVIDENCE_MISSING and the forbidden file is never created.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-004_forbidden_mutation.accp.yaml",
+        "sha256": "8643918401fb93ef146a2c28598faa12158273daabaa5e014a94a7947bc0443a"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-005",
+      "title": "PRR tries to approve promotion while blockers exist",
+      "hardStops": [
+        "accp_prr_approved_with_blockers"
+      ],
+      "policy": "prr_approved_with_blockers_blocks_promotion",
+      "policyRationale": "promotion_readiness.promotion_verdict:PROMOTE with promotion_readiness.blockers[].unresolved:true and severity:critical violates FinalPromotionGate. Promotion evaluator must reject.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-005_PRR_approved_with_blockers.accp.yaml",
+        "sha256": "5e6e47eba0052a30a55721d33b4a0c74fcfc1efc43584b21efdb5bea6666a6a9"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-006",
+      "title": "Runtime attempts to use raw ACCP YAML or rendered Markdown as authority",
+      "hardStops": [
+        "missing_compiled_accp_artifact",
+        "raw_yaml_is_not_runtime_authority"
+      ],
+      "policy": "compiled_json_is_runtime_input",
+      "policyRationale": "ACCP_AUTHORITY doctrine says raw YAML and rendered Markdown are not runtime authority. A TVR/PRR that is not accompanied by compiled.json, gate-verdict.json, and route-signal.json cannot pass.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-006_authority_raw_yaml_only.accp.yaml",
+        "sha256": "c27dab4fdcb4f8e50ebce1466779479c221ecd306599d1354f4bdb2fea7ce7f0"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-007",
+      "title": "Stale attempt verdict is reused after source or commit changed",
+      "hardStops": [
+        "stale_attempt_verdict_ignored",
+        "repo_base_sha_mismatch"
+      ],
+      "policy": "staleAttemptVerdictIgnored",
+      "policyRationale": "meta.git_commit differs from current HEAD. Runtime must re-evaluate and reject the stale verdict or refuse to consume it.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-007_stale_attempt_verdict.accp.yaml",
+        "sha256": "6a79395fac4961eca4778d617c443191f6c157af436509d5e470e6eec135e67f"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-008",
+      "title": "Worker self-report claims completion without evidence ledger",
+      "hardStops": [
+        "missing_ac_evidence",
+        "missing_evidence_blocks_completion"
+      ],
+      "policy": "workerSelfReportIsClaimOnly",
+      "policyRationale": "implementation_summary.status:complete with empty created_files and no evidence[] violates workerSelfReportIsClaimOnly. CompletionGateV2 must reject.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-008_worker_self_report_only.accp.yaml",
+        "sha256": "bc21c2064daf1507701670b5c81a10e8b2bb7ae35c19a3dc4cba6a2e12cb60e0"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-009",
+      "title": "Feature source exists but has no production call site",
+      "hardStops": [
+        "runtime_wiring_missing",
+        "production_call_site_missing"
+      ],
+      "policy": "promotion_readiness_cannot_exceed_source_present_unproven",
+      "policyRationale": "implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-009_dead_code_only_feature.accp.yaml",
+        "sha256": "ad29d57d21b6ac30688c78be783d8fbcdde4bc7915d5acc49823cd7433551b56"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "controlId": "NEG-010",
+      "title": "User-visible TUI requirement lacks live evidence",
+      "hardStops": [
+        "missing_live_evidence",
+        "user_visible_behavior_unverified"
+      ],
+      "policy": "user_visible_behavior_requires_live_evidence",
+      "policyRationale": "P49 Tab/mode-picker is a user-visible TUI requirement. scripts/p0-tui-smoke.mjs launches the real TUI editor in a VirtualTerminal (backed by @xterm/headless), sends a real Tab keypress, and captures the screen. The live observation shows the screen does NOT contain the accp-mode-picker overlay: the picker module exists but is not wired to the editor's Tab handler. Promotion must be blocked because the user-visible behavior is contradicted by live evidence.",
+      "harnessGap": false,
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/NEG-010_live_ui_required_but_missing.accp.yaml",
+        "sha256": "f69bb1aaba778d24ba73e7919f19a2837a8e774489a9132cf97f53f9bb774952"
+      },
+      "commandEvidence": {
+        "status": "not_applicable"
+      },
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_PIR_001",
+      "reportType": "PIR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_PIR_001.accp.yaml",
+        "sha256": "95bedb437e6ed0e708a36d8b6a227e9aa7b81adfeb7d0407c388815e890af115"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_RIR_001",
+      "reportType": "RIR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_RIR_001.accp.yaml",
+        "sha256": "c421216f4696d307c79413c03981624b98a89039262d4773fb763056ab7f8df9"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_TVR_001",
+      "reportType": "TVR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_TVR_001.accp.yaml",
+        "sha256": "b32c9d7e662803d8cddf4676df3c7106cca1b44c343b1290c4e431f7aa8f2b66"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_BRR_001",
+      "reportType": "BRR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_BRR_001.accp.yaml",
+        "sha256": "f0a178e3a538883095534b15baa905569db4038fec1511f1bdff1c0bea4056ad"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_RAR_001",
+      "reportType": "RAR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_RAR_001.accp.yaml",
+        "sha256": "ee3bf7b20291fb9394104f6814260c53f72cff1a90ac13b2cdded90eb8283249"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_ECR_001",
+      "reportType": "ECR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_ECR_001.accp.yaml",
+        "sha256": "6c705bd3a6057d45d861c0bc95d1bb36e6e79dc984cd1e92b3687f5ed3dc18ec"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_PRR_001",
+      "reportType": "PRR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_PRR_001.accp.yaml",
+        "sha256": "bed9a86da92ec7eb54dbee2bf2d5a4eb1ca8846a8db075664329d833148642a0"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_HIR_001",
+      "reportType": "HIR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0/source/P0_HIR_001.accp.yaml",
+        "sha256": "4320d788d1c08980187b65d34099fb3fea9d0eb4fbb1ca68e2d4a126b1776cb2"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    }
+  ]
+}

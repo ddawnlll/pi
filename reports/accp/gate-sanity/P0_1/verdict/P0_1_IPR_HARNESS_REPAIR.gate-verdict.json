@@ -1,0 +1,16 @@
+{
+  "reportId": "P0_1_IPR_HARNESS_REPAIR",
+  "reportType": "IPR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": false,
+  "evidenceStatus": "not_checked",
+  "details": {
+    "chainReport": true,
+    "reportType": "IPR",
+    "sourceSha256": "621eac50140c52b6c8feb5290fe21f0375c9ce72610c788c0a595c535a51ae5e"
+  }
+}

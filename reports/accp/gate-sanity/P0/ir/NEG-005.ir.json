@@ -1,0 +1,28 @@
+{
+  "sourceReportId": "NEG-005",
+  "reportType": "PRR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-005",
+      "title": "PRR tries to approve promotion while blockers exist",
+      "hardStops": [
+        "accp_prr_approved_with_blockers"
+      ],
+      "policy": "prr_approved_with_blockers_blocks_promotion",
+      "policyRationale": "promotion_readiness.promotion_verdict:PROMOTE with promotion_readiness.blockers[].unresolved:true and severity:critical violates FinalPromotionGate. Promotion evaluator must reject.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_ACCP_PRR_APPROVED_WITH_BLOCKERS",
+      "message": "NEG-005 negative control: accp_prr_approved_with_blockers. promotion_readiness.promotion_verdict:PROMOTE with promotion_readiness.blockers[].unresolved:true and severity:critical violates FinalPromotionGate. Promotion evaluator must reject.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-005_PRR_approved_with_blockers.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

@@ -1,0 +1,71 @@
+{
+  "audit_id": "P0_1_execution_kernel_harness_repair",
+  "merged_from_individual_files": true,
+  "entries": [
+    {
+      "chainReport": true,
+      "reportId": "P0_1_ECR_ONEFILE_EVIDENCE",
+      "reportType": "ECR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0_1/source/P0_1_ECR_ONEFILE_EVIDENCE.accp.yaml",
+        "sha256": "7e5331e01fa4d6436242ed6af7777245d986f5be6b40eca61f2418821bf1429f"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_1_IPR_HARNESS_REPAIR",
+      "reportType": "IPR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0_1/source/P0_1_IPR_HARNESS_REPAIR.accp.yaml",
+        "sha256": "621eac50140c52b6c8feb5290fe21f0375c9ce72610c788c0a595c535a51ae5e"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_1_PRR_KERNEL_READY",
+      "reportType": "PRR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0_1/source/P0_1_PRR_KERNEL_READY.accp.yaml",
+        "sha256": "699cd96b81c2a7dea31d61b3b56cfac94b07e6376248c954180ce543223298bc"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_1_RIR_HARNESS_INVENTORY",
+      "reportType": "RIR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0_1/source/P0_1_RIR_HARNESS_INVENTORY.accp.yaml",
+        "sha256": "45261ee44283565e9f376e15e1aa9fe217c0613565dcc062c8730dbe24023e9d"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    },
+    {
+      "chainReport": true,
+      "reportId": "P0_1_TVR_VALIDATION",
+      "reportType": "TVR",
+      "source": {
+        "path": "reports/accp/gate-sanity/P0_1/source/P0_1_TVR_VALIDATION.accp.yaml",
+        "sha256": "68ca4c7480911c9e234ee2b97c63f54661dd38ec8dcf0b386a62813b9ed06c7e"
+      },
+      "verdict": {
+        "valid": true,
+        "evidenceStatus": "not_checked"
+      }
+    }
+  ]
+}

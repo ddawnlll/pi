@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P0_RAR_001",
+  "sourceReportType": "RAR",
+  "recommendedNextAction": "halt",
+  "recommendedNextRoute": "HIR",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "none",
+  "targetResolved": true
+}

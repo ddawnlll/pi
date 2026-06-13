@@ -1,0 +1,36 @@
+{
+  "sourceReportId": "NEG-009",
+  "reportType": "IPR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-009",
+      "title": "Feature source exists but has no production call site",
+      "hardStops": [
+        "runtime_wiring_missing",
+        "production_call_site_missing"
+      ],
+      "policy": "promotion_readiness_cannot_exceed_source_present_unproven",
+      "policyRationale": "implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_RUNTIME_WIRING_MISSING",
+      "message": "NEG-009 negative control: runtime_wiring_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-009_dead_code_only_feature.accp.yaml"
+    },
+    {
+      "code": "ACCP_PRODUCTION_CALL_SITE_MISSING",
+      "message": "NEG-009 negative control: production_call_site_missing. implementation_summary.production_call_sites is empty and implementation_summary.status:complete. Promotion readiness must cap at source_present_unproven / test_only; runtime_complete is unreachable.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-009_dead_code_only_feature.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}

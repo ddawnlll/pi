@@ -1,0 +1,63 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: NEG-002_no_tests_found
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P0_gate_sanity
+  workspace_id: NEG-002
+  report_generated_at: "2026-06-13T00:00:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: gate-sanity-audit
+  agent_role: gate_sanity_auditor
+  model_name: not_applicable
+  model_version: not_applicable
+  session_id: not_applicable
+capabilities:
+  can_read_files: true
+  can_run_commands: true
+  can_edit_files: false
+  can_access_network: false
+  tools_available:
+    - shell
+    - read
+    - grep
+references: []
+assumptions: []
+skipped_inspections: []
+final_status: blocked
+
+authority:
+  reports_are_evidence_only: true
+  route_signals_are_advisory: true
+
+validation_summary:
+  plan_id: P0_gate_sanity
+  status: failed
+  all_required_validation_passed: false
+  # NEG-002 negative control: this command was run for real and produced
+  # "No test files found, exiting with code 1".
+  command_results:
+    - commandRef: NEG-002-NO-TESTS-FOUND
+      exit_code: 1
+      output_excerpt: "No test files found, exiting with code 1"
+      passed: false
+      scope: "NEG-002"
+  regressions:
+    - "no_tests_found must be treated as failure for targeted validation"
+  notes:
+    - "Negative control: vitest returned exit 1 with 'No test files found' for the targeted pattern."
+    - "Expected kernel behavior: no_tests_found is treated as failure for targeted validation."
+    - "Hard-stop expected: no_tests_found."
+
+evidence:
+  - type: command_log
+    description: "Real command evidence captured for NEG-002."
+    path: "reports/tmp/gate-sanity/P0/neg002_no_tests_exitcode.txt"
+    command: "npx vitest run test/__definitely_missing_gate_sanity_pattern__.test.ts"
+    exit_code: 1
+    hashRequired: true

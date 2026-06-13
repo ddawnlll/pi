@@ -1,0 +1,414 @@
+{
+  "audit_id": "P0_gate_sanity_check",
+  "generated_at": "2026-06-13T13:44:20.107Z",
+  "repo": {
+    "commit": "4974faaebbe9a7d2850661da4958f2f4ec70e561",
+    "branch": "main",
+    "worktree_dirty": true,
+    "git_status_short": "M .env.bak\n M Makefile\n M package-lock.json\n M package.json\n M packages/ai/src/models.generated.ts\n M packages/coding-agent/package.json\n M packages/coding-agent/src/core/autonomous-executor.ts\n?? reports/accp/P44/\n?? reports/accp/P48/\n?? reports/accp/P49/artifacts/\n?? reports/accp/gate-sanity/\n?? scripts/p0-1-compile-chain.mjs\n?? scripts/p0-1-generate-onefile-evidence.mjs\n?? scripts/p0-gate-sanity.mjs\n?? scripts/p0-tui-smoke.mjs\n?? scripts/p0-writegate-probe.mjs"
+  },
+  "kernel_sanity": {
+    "verdict": "PASS",
+    "ready_to_promote_p45_or_p49": false,
+    "promotion_evaluator_result": {
+      "ready": false,
+      "blocking_reasons_count": 37,
+      "blocking_reasons_excerpt": [
+        "Gate verdict for NEG-001 is not valid",
+        "[NEG-001] [ACCP_MISSING_COMMAND_EVIDENCE] NEG-001 negative control: missing_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+        "[NEG-001] [ACCP_ACCP_TVR_PASS_WITHOUT_COMMAND_EVIDENCE] NEG-001 negative control: accp_tvr_pass_without_command_evidence. validation_summary.status:passed with empty command_results violates ACCP_EVIDENCE family. Evidence validator must reject.",
+        "Report NEG-001 is not promotion-ready",
+        "Gate verdict for NEG-002 is not valid"
+      ]
+    },
+    "all_negative_controls_blocked": true,
+    "all_blocked_controls_have_machine_readable_gate_verdict": true,
+    "positive_controls_have_command_evidence": true,
+    "no_source_mutation_outside_audit_artifacts": true
+  },
+  "negative_controls": [
+    {
+      "id": "NEG-001",
+      "title": "TVR claims validation passed without command evidence",
+      "policy": "missing_evidence_blocks_completion",
+      "hardStops": [
+        "missing_command_evidence",
+        "accp_tvr_pass_without_command_evidence"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-001*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-001.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-001.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-001.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-001.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-001.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-002",
+      "title": "Validation command returns no tests found",
+      "policy": "noTestsFoundIsFailure",
+      "hardStops": [
+        "no_tests_found"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "complete",
+        "blockingFindingsCount": 1,
+        "fatalErrorsCount": 1
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-002*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-002.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-002.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-002.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-002.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-002.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-003",
+      "title": "Validation command executable is missing",
+      "policy": "command_not_found_is_failure",
+      "hardStops": [
+        "command_not_found"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "complete",
+        "blockingFindingsCount": 1,
+        "fatalErrorsCount": 1
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-003*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-003.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-003.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-003.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-003.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-003.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-004",
+      "title": "Attempt mutation outside allowed audit artifact paths",
+      "policy": "write_gate_required",
+      "hardStops": [
+        "workspace_edits_outside_allowedFiles",
+        "write_gate_required"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-004*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-004.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-004.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-004.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-004.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-004.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-005",
+      "title": "PRR tries to approve promotion while blockers exist",
+      "policy": "prr_approved_with_blockers_blocks_promotion",
+      "hardStops": [
+        "accp_prr_approved_with_blockers"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 1,
+        "fatalErrorsCount": 1
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-005*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-005.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-005.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-005.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-005.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-005.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-006",
+      "title": "Runtime attempts to use raw ACCP YAML or rendered Markdown as authority",
+      "policy": "compiled_json_is_runtime_input",
+      "hardStops": [
+        "missing_compiled_accp_artifact",
+        "raw_yaml_is_not_runtime_authority"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-006*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-006.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-006.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-006.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-006.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-006.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-007",
+      "title": "Stale attempt verdict is reused after source or commit changed",
+      "policy": "staleAttemptVerdictIgnored",
+      "hardStops": [
+        "stale_attempt_verdict_ignored",
+        "repo_base_sha_mismatch"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-007*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-007.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-007.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-007.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-007.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-007.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-008",
+      "title": "Worker self-report claims completion without evidence ledger",
+      "policy": "workerSelfReportIsClaimOnly",
+      "hardStops": [
+        "missing_ac_evidence",
+        "missing_evidence_blocks_completion"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-008*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-008.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-008.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-008.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-008.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-008.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-009",
+      "title": "Feature source exists but has no production call site",
+      "policy": "promotion_readiness_cannot_exceed_source_present_unproven",
+      "hardStops": [
+        "runtime_wiring_missing",
+        "production_call_site_missing"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-009*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-009.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-009.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-009.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-009.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-009.evidence.json"
+      }
+    },
+    {
+      "id": "NEG-010",
+      "title": "User-visible TUI requirement lacks live evidence",
+      "policy": "user_visible_behavior_requires_live_evidence",
+      "hardStops": [
+        "missing_live_evidence",
+        "user_visible_behavior_unverified"
+      ],
+      "verdict": {
+        "valid": false,
+        "promotionReady": false,
+        "evidenceStatus": "missing",
+        "blockingFindingsCount": 2,
+        "fatalErrorsCount": 2
+      },
+      "blocked": true,
+      "harnessGap": false,
+      "artifact_paths": {
+        "source": "reports/accp/gate-sanity/P0/source/NEG-010*.accp.yaml",
+        "compiled": "reports/accp/gate-sanity/P0/compiled/NEG-010.compiled.json",
+        "ir": "reports/accp/gate-sanity/P0/ir/NEG-010.ir.json",
+        "verdict": "reports/accp/gate-sanity/P0/verdict/NEG-010.gate-verdict.json",
+        "route": "reports/accp/gate-sanity/P0/route/NEG-010.route-signal.json",
+        "evidence": "reports/accp/gate-sanity/P0/evidence/NEG-010.evidence.json"
+      }
+    }
+  ],
+  "positive_controls": [
+    {
+      "id": "P0-POSITIVE-TYPECHECK",
+      "purpose": "Prove allowed validation command execution and evidence capture work.",
+      "command": "npx tsgo --noEmit",
+      "cwd": ".",
+      "expected": "pass_if_exit_code_0_and_evidence_recorded",
+      "result": {
+        "exit_code": 0,
+        "duration_ms": 2980,
+        "stdout_or_stderr_excerpt": "EXIT_CODE=0 DURATION_MS=2980\n",
+        "command_ref": {
+          "status": "ok",
+          "path": "reports/tmp/gate-sanity/P0/positive_typecheck.txt",
+          "content": "EXIT_CODE=0 DURATION_MS=2980\n",
+          "sha256": "8ea04019606546544c352fae9f44c034cc3355249215ad3e747a611de78e2456"
+        }
+      },
+      "passed": true
+    },
+    {
+      "id": "P0-POSITIVE-ACCP-COMPILE-UNIT",
+      "purpose": "Prove targeted ACCP compiler tests can be recorded when package exists.",
+      "command": "npx vitest run",
+      "cwd": "packages/accp-compiler",
+      "expected": "pass_if_exit_code_0_and_evidence_recorded",
+      "result": {
+        "exit_code": 0,
+        "test_count": "111 tests / 12 files passed",
+        "duration_ms": 944,
+        "stdout_or_stderr_excerpt": "EXIT_CODE=0 DURATION_MS=944\n",
+        "command_ref": {
+          "status": "ok",
+          "path": "reports/tmp/gate-sanity/P0/positive_accp_compiler.txt",
+          "content": "EXIT_CODE=0 DURATION_MS=944\n",
+          "sha256": "71e93308e0b3aab8ce6191402a1b898f4c3a3616654a6c676823489b3cfb548b"
+        }
+      },
+      "passed": true
+    }
+  ],
+  "hard_stops_observed": [
+    {
+      "id": "NEG-001",
+      "hardStops": [
+        "missing_command_evidence",
+        "accp_tvr_pass_without_command_evidence"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-002",
+      "hardStops": [
+        "no_tests_found"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-003",
+      "hardStops": [
+        "command_not_found"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-004",
+      "hardStops": [
+        "workspace_edits_outside_allowedFiles",
+        "write_gate_required"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-005",
+      "hardStops": [
+        "accp_prr_approved_with_blockers"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-006",
+      "hardStops": [
+        "missing_compiled_accp_artifact",
+        "raw_yaml_is_not_runtime_authority"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-007",
+      "hardStops": [
+        "stale_attempt_verdict_ignored",
+        "repo_base_sha_mismatch"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-008",
+      "hardStops": [
+        "missing_ac_evidence",
+        "missing_evidence_blocks_completion"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-009",
+      "hardStops": [
+        "runtime_wiring_missing",
+        "production_call_site_missing"
+      ],
+      "harnessGap": false
+    },
+    {
+      "id": "NEG-010",
+      "hardStops": [
+        "missing_live_evidence",
+        "user_visible_behavior_unverified"
+      ],
+      "harnessGap": false
+    }
+  ],
+  "false_positive_failures": [],
+  "promotion_allowed": false,
+  "recommended_kernel_fixes": [
+    "Kernel is safe for P45/P49 promotion. Re-run this sanity check before any new repair pass to detect regressions."
+  ],
+  "interpretation": "All negative controls blocked; ExecutionKernel can gate P45/P49 repair validation."
+}

@@ -1,0 +1,28 @@
+{
+  "sourceReportId": "NEG-003",
+  "reportType": "TVR",
+  "family": "feature",
+  "sections": {
+    "negative_control": {
+      "id": "NEG-003",
+      "title": "Validation command executable is missing",
+      "hardStops": [
+        "command_not_found"
+      ],
+      "policy": "command_not_found_is_failure",
+      "policyRationale": "Shell returns exit 127 with 'command not found'. Command policy must treat this as a validation failure.",
+      "harnessGap": false
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "ACCP_COMMAND_NOT_FOUND",
+      "message": "NEG-003 negative control: command_not_found. Shell returns exit 127 with 'command not found'. Command policy must treat this as a validation failure.",
+      "severity": "error",
+      "fatal": true,
+      "sourcePath": "reports/accp/gate-sanity/P0/source/NEG-003_command_not_found.accp.yaml"
+    }
+  ],
+  "references": [],
+  "evidenceRefs": []
+}
