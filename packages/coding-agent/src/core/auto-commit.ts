@@ -34,8 +34,8 @@ export interface CommitValidation {
 	reason?: string;
 	/** Files that would be committed */
 	filesToCommit?: string[];
-	/** Forbidden files that are dirty */
-	forbiddenFilesDirty?: string[];
+	/** Forbidden files that were skipped (excluded from commit, not blocking) */
+	forbiddenFilesSkipped?: string[];
 }
 
 /**
@@ -46,7 +46,7 @@ export interface CommitValidation {
  * - Never pushes or merges
  * - Validates against capability manifest
  * - Checks for test failures
- * - Checks for forbidden file modifications
+ * - Excludes forbidden files from commit (warn, don't block)
  */
 export class AutoCommit {
 	private workspaceRoot: string;
@@ -105,39 +105,41 @@ export class AutoCommit {
 
 		// Check if workspace has capability manifest
 		if (workspace.capabilities) {
-			// Check for explicitly forbidden file modifications (cannotEdit)
-			const forbiddenFilesDirty: string[] = [];
-
-			for (const file of changedFiles) {
-				if ((workspace.capabilities.cannotEdit ?? []).some((pattern) => this.matchesPattern(file, pattern))) {
-					forbiddenFilesDirty.push(file);
-				}
-			}
-
-			if (forbiddenFilesDirty.length > 0) {
-				return {
-					allowed: false,
-					reason: `Forbidden files are dirty: ${forbiddenFilesDirty.join(", ")}`,
-					forbiddenFilesDirty,
-				};
-			}
+			const canEdit = workspace.capabilities.canEdit ?? [];
+			const cannotEdit = workspace.capabilities.cannotEdit ?? [];
 
 			// Filter files to only those allowed by capability manifest.
 			// Files outside canEdit are simply excluded (not forbidden) —
 			// they will remain uncommitted rather than blocking the commit.
+			// Files matching cannotEdit are also excluded (they may be dirty
+			// from other workspaces or pre-existing state — warn don't block).
+			const forbiddenFilesSkipped: string[] = [];
+
 			const filesToCommit = changedFiles.filter((file) => {
 				// If canEdit is empty, allow all files not in cannotEdit
-				if (workspace.capabilities!.canEdit.length === 0) {
-					return !(workspace.capabilities!.cannotEdit ?? []).some((pattern) => this.matchesPattern(file, pattern));
+				if (canEdit.length === 0) {
+					const isForbidden = cannotEdit.some((pattern) => this.matchesPattern(file, pattern));
+					if (isForbidden) {
+						forbiddenFilesSkipped.push(file);
+					}
+					return !isForbidden;
 				}
 
 				// Otherwise, only allow files in canEdit
-				return workspace.capabilities!.canEdit.some((pattern) => this.matchesPattern(file, pattern));
+				return canEdit.some((pattern) => this.matchesPattern(file, pattern));
 			});
+
+			if (forbiddenFilesSkipped.length > 0) {
+				console.warn(
+					`[auto-commit] Skipped ${forbiddenFilesSkipped.length} forbidden file(s) ` +
+						`outside canEdit scope: ${forbiddenFilesSkipped.join(", ")}`,
+				);
+			}
 
 			return {
 				allowed: true,
 				filesToCommit,
+				forbiddenFilesSkipped: forbiddenFilesSkipped.length > 0 ? forbiddenFilesSkipped : undefined,
 			};
 		}
 

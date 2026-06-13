@@ -103,15 +103,21 @@ describe("AutoCommit", () => {
 			expect(validation.reason).toContain("No changes");
 		});
 
-		it("should block commit for forbidden file modifications", async () => {
-			// Modify a forbidden file
+		it("should exclude forbidden files from commit (not block)", async () => {
+			// Modify a forbidden file — use workspace with empty canEdit so
+			// the cannotEdit exclusion path is tested
+			const wsNoCanEdit: Workspace = {
+				...mockWorkspace,
+				capabilities: { canEdit: [], cannotEdit: [".env"], canRun: [], cannotRun: [] },
+			};
 			await fs.writeFile(path.join(TEST_DIR, ".env"), "SECRET=test", "utf-8");
 
-			const validation = await autoCommit.validateCommit(mockWorkspace, mockCompleteState);
+			const validation = await autoCommit.validateCommit(wsNoCanEdit, mockCompleteState);
 
-			expect(validation.allowed).toBe(false);
-			expect(validation.reason).toContain("Forbidden files are dirty");
-			expect(validation.forbiddenFilesDirty).toContain(".env");
+			// Forbidden files are excluded from commit, not blockers
+			expect(validation.allowed).toBe(true);
+			expect(validation.filesToCommit).not.toContain(".env");
+			expect(validation.forbiddenFilesSkipped).toContain(".env");
 		});
 
 		it("should exclude files not in canEdit list from commit", async () => {
@@ -217,14 +223,18 @@ describe("AutoCommit", () => {
 			expect(result.reason).toBeDefined();
 		});
 
-		it("should fail commit for forbidden files", async () => {
-			// Modify forbidden file
+		it("should skip forbidden files in commit (not fail)", async () => {
+			// Modify forbidden file, but also a valid file for commit
 			await fs.writeFile(path.join(TEST_DIR, ".env"), "SECRET=test", "utf-8");
+			await fs.mkdir(path.join(TEST_DIR, "src"), { recursive: true });
+			await fs.writeFile(path.join(TEST_DIR, "src", "app.ts"), "test", "utf-8");
 
 			const result = await autoCommit.commit(mockWorkspace, mockCompleteState);
 
-			expect(result.success).toBe(false);
-			expect(result.reason).toContain("Forbidden files");
+			// Forbidden files are excluded, not blockers. Only valid files commit.
+			expect(result.success).toBe(true);
+			expect(result.committedFiles).toContain("src/app.ts");
+			expect(result.committedFiles).not.toContain(".env");
 		});
 
 		it("should only commit files matching capability manifest", async () => {
