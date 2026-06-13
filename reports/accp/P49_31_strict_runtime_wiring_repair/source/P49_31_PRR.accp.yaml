@@ -1,0 +1,182 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P49_31_PRR_001
+report_type: PRR
+report_family: core
+report_name: P49.31 Promotion Readiness Report (Strict Runtime Wiring Repair)
+support_level: schema_strict
+
+report:
+  id: "P49_31_PRR_001"
+  type: "PRR"
+  family: "core"
+  kind: "promotion_readiness"
+  status: "complete"
+
+meta:
+  plan_id: "P49.31"
+  parent_plan_id: "P49"
+  inspection_mode: "full"
+  confidence: "high"
+
+promotion_decision:
+  ready: false
+  promotionEligible: false
+  reason: >
+    P49.31 repairs the confirmed runtime wiring failures from the P49 system
+    culprit audit. All 14 strict completion gates pass and runtime_verified_percent
+    is 100%. However, P49.31 does NOT authorize P50 start — P50 remains blocked
+    until a separate operator decision after the P49 truth audit rerun confirms
+    sustained runtime stability with live TUI evidence in real workspace execution.
+    The PlanSpec explicitly states that compiled JSON (not raw YAML) is the runtime
+    input, and this PRR is itself raw YAML evidence-only.
+  blockingReasons:
+    - "P50 start requires explicit operator approval and sustained production stability"
+    - "Raw YAML PRR cannot serve as runtime authority; only compiled gate-verdict.json + route-signal.json can"
+  remainingForRequiredMode:
+    - "Operator sign-off on P49.31 wiring completeness"
+    - "Sustained production e2e testing across multiple workspace runs"
+    - "Documentation review and final P49 retrospective"
+  warnings:
+    - "P49.31 fixes are structural — they wire existing components but do not add new features"
+    - "ACCP mode remains 'warn' per design until operator promotes to 'required'"
+
+p50Readiness:
+  ready: false
+  blockingReasons:
+    - "P49.31 repairs runtime wiring but does not validate long-term stability"
+    - "No operator approval for P50 yet"
+    - "Compiled ACCP artifacts must be verified in live multi-agent handoff scenarios before P50"
+  notes: >
+    P50 is explicitly blocked by hard stop HS-010 ("Any P50 implementation or promotion is attempted").
+    The P49.31 phase repairs the wiring chain identified in the culprit audit:
+    CompletionGate STAGE_ORDER, runAccpGateStage registration, kernel ACCP predicate,
+    LocalPiWorkerAdapter accp bridge, TUI Tab picker boot, AccpRouteBus instantiation,
+    AccpArtifactStore reader/writer, Evidence Engine cap rules, PlanSpec ownership,
+    and strict verification harness. All 14 gates pass with runtime_verified_percent = 100.
+    But readiness ≠ authorization. P50 requires its own Phase Spec, operator approval,
+    and evidence of stable operation under load.
+
+evidence_summary:
+  type: "summary"
+  totalGates: 14
+  gatesPassed: 14
+  gatesFailed: 0
+  criticalBlockers: 0
+  runtimeVerifiedPercent: 100
+  weightedPercent: 100
+  npmRunCheckExitCode: 0
+  npmRunBuildExitCode: 0
+  p0GateSanityVerdict: "PASS"
+  p49StrictRuntimeVerificationVerdict: "PASS"
+  p49TruthAuditVerdict: "PASS"
+  compilationStatus: "compiled_with_no_errors"
+  tsmoTypecheckPass: true
+  biomeLintPass: true
+
+completedArtifacts:
+  - "reports/accp/P49_31_strict_runtime_wiring_repair/scorecard.json"
+  - "reports/accp/P49_31_strict_runtime_wiring_repair/evidence/strict-runtime-verification.json"
+  - "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+  - "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+  - "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+  - "packages/coding-agent/src/execution-runtime/completion-predicate.ts"
+  - "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+  - "packages/worker-adapters/src/accp-bridge.ts"
+  - "packages/worker-adapters/src/evidence-extractors.ts"
+  - "packages/execution-contracts/src/worker-adapter.ts"
+  - "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+  - "packages/coding-agent/src/core/agent-session.ts"
+  - "packages/coding-agent/src/core/autonomous-executor.ts"
+  - "packages/coding-agent/src/core/completion/evidence-engine-cap-rules.ts"
+  - "scripts/p49-strict-runtime-verification.mjs"
+  - "scripts/p49-truth-audit.mjs"
+  - "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+
+fixes_applied:
+  - id: "FIX-001"
+    title: "Add AccpGate to CompletionGate vNext executable STAGE_ORDER"
+    file: "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+    status: "verified"
+    gate: "GATE-001"
+  - id: "FIX-002"
+    title: "Register runAccpGateStage in production StageRunnerRegistry"
+    file: "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+    status: "verified"
+    gate: "GATE-002"
+  - id: "FIX-003"
+    title: "Wire planCompletionPredicate / isPlanComplete to ACCP gate verdict"
+    file: "packages/coding-agent/src/execution-runtime/completion-predicate.ts"
+    status: "verified"
+    gate: "GATE-003"
+  - id: "FIX-004"
+    title: "Populate WorkerRunResult.accp and preserve changedFiles/events/commandHistory/contextUsed"
+    files:
+      - "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+      - "packages/worker-adapters/src/accp-bridge.ts"
+      - "packages/worker-adapters/src/evidence-extractors.ts"
+      - "packages/execution-contracts/src/worker-adapter.ts"
+    status: "verified"
+    gate: "GATE-004"
+  - id: "FIX-005"
+    title: "Enable ACCP mode picker in production TUI boot path"
+    file: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+    status: "verified"
+    gate: "GATE-005"
+  - id: "FIX-006"
+    title: "Instantiate AccpRouteBus in production boot and wire subscriptions"
+    file: "packages/coding-agent/src/core/agent-session.ts"
+    status: "verified"
+    gate: "GATE-008"
+  - id: "FIX-007"
+    title: "Wire AccpArtifactStore into compiler bridge and CompletionGate AccpGate reader"
+    files:
+      - "packages/coding-agent/src/core/autonomous-executor.ts"
+      - "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+    status: "verified"
+    gate: "GATE-009"
+  - id: "FIX-008"
+    title: "Harden Evidence Engine scoring and PRR completion criteria"
+    file: "packages/coding-agent/src/core/completion/evidence-engine-cap-rules.ts"
+    status: "verified"
+    gate: "GATE-010"
+  - id: "FIX-009"
+    title: "Amend P49 PlanSpec allowedFiles and evidence requirements"
+    file: "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+    status: "verified"
+    gate: "GATE-011"
+  - id: "FIX-010"
+    title: "Add P49 strict runtime verification harness and scorecard"
+    files:
+      - "scripts/p49-strict-runtime-verification.mjs"
+      - "scripts/p49-truth-audit.mjs"
+      - "package.json"
+    status: "verified"
+    gate: "GATE-013,GATE-014"
+
+hard_stops_enforced:
+  - "HS-001-NO-FALSE-COMPLETION: All 14 critical gates passed"
+  - "HS-002-NO-SOURCE-ONLY-RUNTIME-PASS: Cap rules enforced via evidence-engine-cap-rules.ts"
+  - "HS-003-NO-UNIT-ONLY-RUNTIME-PASS: Cap rules limit unit-only to 0.50 credit"
+  - "HS-004-NO-MISSING-ACCP-GATE: AccpGate is in STAGE_ORDER and registered"
+  - "HS-005-NO-MISSING-ADAPTER-ACCP: LocalPiWorkerAdapter populates accp field"
+  - "HS-006-NO-DEAD-TUI-PICKER: accpModePickerEnabled defaults true; Tab routes to picker"
+  - "HS-007-NO-DEAD-ROUTEBUS: getAccpRouteBus() called in AgentSession constructor"
+  - "HS-008-NO-DEAD-ARTIFACTSTORE: saveCompiled/saveRouteSignal/readGateVerdict all have production call sites"
+  - "HS-009-NO-RAW-YAML-AUTHORITY: This PRR declares ready=false and explicitly rejects raw YAML as authority"
+  - "HS-010-NO-P50: P50 start_allowed=false; hard stop preserved"
+  - "HS-011-NO-GATE-RELAXATION: No existing hard stops removed or downgraded"
+  - "HS-012-NO-UNHASHED-EVIDENCE: All modified source files have sha256 in strict harness output"
+  - "HS-013-NO-BUILD-ONLY-SUCCESS: npm run check/build are necessary_not_sufficient; strict gates require live evidence"
+
+final_statement: >
+  P49.31 has successfully repaired every confirmed runtime wiring failure from the
+  P49 system culprit audit. The 14 strict completion gates all pass, runtime_verified_percent
+  is 100%, and critical_blockers is 0. However, this phase does NOT authorize P50 start.
+  P50 remains blocked by hard stop HS-010 until an operator explicitly approves the
+  transition and verifies sustained production stability. The ACCP mode remains at 'warn'
+  level; promotion to 'required' requires additional evidence from multi-agent handoff
+  scenarios under load. Raw YAML reports (including this PRR) are evidence-only and
+  never serve as runtime authority. Only compiled gate-verdict.json and route-signal.json
+  through the AccpArtifactStore constitute valid runtime inputs.

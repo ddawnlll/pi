@@ -1,0 +1,213 @@
+{
+  "audit_id": "P49_31_STRICT_RUNTIME_VERIFICATION",
+  "generated_at": "2026-06-13T23:41:12.527Z",
+  "duration_ms": 16720,
+  "repo": {
+    "commit": "52c05ee58a33e3929cb6958582a528f6a4fcccd4",
+    "branch": "main",
+    "dirty": true
+  },
+  "total_gates": 14,
+  "passed": 14,
+  "failed": 0,
+  "gates": [
+    {
+      "id": "GATE-001",
+      "ok": true,
+      "message": "AccpGate is in CompletionGateStageName and STAGE_ORDER",
+      "evidence": {
+        "file": "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts",
+        "sha256": "0ec48f2c178ce378dd8e75579656c879d2cfd3ea4824024cb8bfcc062a4317a7",
+        "accpInType": true,
+        "accpInOrder": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-002",
+      "ok": true,
+      "message": "runAccpGateStage is imported and registered in completion-gate-vnext.ts",
+      "evidence": {
+        "nonTestCallSites": [
+          {
+            "file": "packages/coding-agent/src/core/completion/completion-gate-vnext.ts",
+            "imports": 1,
+            "registers": 1
+          },
+          {
+            "file": "packages/coding-agent/src/core/accp-gate-stage-runner.ts",
+            "imports": 0,
+            "registers": 0
+          }
+        ]
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-003",
+      "ok": true,
+      "message": "ExecutionKernel predicate consults ACCP gate verdict",
+      "evidence": {
+        "file": "packages/coding-agent/src/execution-runtime/completion-predicate.ts",
+        "sha256": "6269473c44d58c10b0b91dc78e342e16caad49f21aae2c4390e1456b87289fbb",
+        "hasAccpBranch": true,
+        "hasAccpBlock": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-004",
+      "ok": true,
+      "message": "LocalPiWorkerAdapter populates accp + propagates evidence fields",
+      "evidence": {
+        "file": "packages/worker-adapters/src/local-pi-worker-adapter.ts",
+        "sha256": "ae86f7f1394ace0e245fb55160a201609175474e9641f94b558f70f236bf8488",
+        "hasAccpImport": true,
+        "hasAccpAssign": true,
+        "hasChangedFilesCall": true,
+        "hasEventsCall": true,
+        "hasCommandHistoryCall": true,
+        "hasContextUsed": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-005",
+      "ok": true,
+      "message": "TUI Tab keybinding routes to ACCP mode picker",
+      "evidence": {
+        "file": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+        "sha256": "35e504cd6f86f980e417b7a031a8fcb6d1d8d85e9348f86d0c7003dfa021764b",
+        "tabBlock": true,
+        "tabAction": true,
+        "pickerFn": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-006",
+      "ok": true,
+      "message": "InitialRouteIndicator and AccpTaskEnvelope factory calls present",
+      "evidence": {
+        "envelopeEmit": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-007",
+      "ok": true,
+      "message": "Tab routes to ACCP picker when enabled; @/Ctrl+P remain the file-pick gestures",
+      "evidence": {
+        "tabBlock": true,
+        "envDisable": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-008",
+      "ok": true,
+      "message": "AccpRouteBus is instantiated in AgentSession production boot",
+      "evidence": {
+        "file": "packages/coding-agent/src/core/agent-session.ts",
+        "sha256": "7c3653ca93fd0f6c43e306e648baf177d99acac9bfde6c2d2e63ffc49dee6604",
+        "imports": true,
+        "calls": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-009",
+      "ok": true,
+      "message": "AccpArtifactStore has production reader and writer",
+      "evidence": {
+        "readerFile": "packages/coding-agent/src/core/accp-gate-stage-runner.ts",
+        "readerSha": "a0eb45777b01162c5003a9a8f3ee54e1c99aaad4915411a372cc96d546bc7a4a",
+        "writerFile": "packages/coding-agent/src/core/autonomous-executor.ts",
+        "writerSha": "3571b594d23312c682513712384275738f30bfe311f05abd444a7e053ede512b",
+        "readerPresent": true,
+        "writerPresent": true
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-010",
+      "ok": true,
+      "message": "Evidence Engine enforces source/unit/integration/runtime cap rules",
+      "evidence": {
+        "details": [
+          {
+            "file": "packages/coding-agent/src/core/completion/evidence-engine-cap-rules.ts",
+            "hasCap": true
+          },
+          {
+            "file": "packages/coding-agent/src/core/completion/post-implementation-auditor.ts",
+            "hasCap": false
+          },
+          {
+            "file": "packages/coding-agent/src/core/completion/acceptance-criteria.ts",
+            "hasCap": false
+          }
+        ],
+        "sourceOnlyMax": 0.25,
+        "unitOnlyMax": 0.5,
+        "integrationMax": 0.75,
+        "runtimeMax": 1
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-011",
+      "ok": true,
+      "message": "PlanSpec allowedFiles cover all required wiring files",
+      "evidence": {
+        "spec": "/Users/hootie/src/pi/docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json",
+        "sha256": "6d9c4355b96cae769f75c37876b85cbcc4508f43230ea9df8ce7939f89b4700f",
+        "required": [
+          "packages/worker-adapters/src/local-pi-worker-adapter.ts",
+          "packages/coding-agent/src/core/accp-gate-stage-runner.ts",
+          "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+        ],
+        "missing": []
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-012",
+      "ok": true,
+      "message": "P0 gate sanity remains PASS",
+      "evidence": {
+        "scorecard": "/Users/hootie/src/pi/reports/accp/gate-sanity/P0/scorecard.json",
+        "sha256": "169c84443aeaab933fba491263ff94de8d40c79f48c77d4ea60e278a8221b1ed",
+        "verdict": "PASS",
+        "promotionAllowed": false
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-013",
+      "ok": true,
+      "message": "npm run check and npm run build pass",
+      "evidence": {
+        "checkExit": 0,
+        "buildExit": 0,
+        "checkExcerpt": "-error-on-warnings . && tsc --noEmit && cd example && biome check --write --error-on-warnings . && tsc --noEmit\n\nChecked 87 files in 41ms. No fixes applied.\nChecked 10 files in 7ms. No fixes applied.\n",
+        "buildExcerpt": "skipped"
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    },
+    {
+      "id": "GATE-014",
+      "ok": true,
+      "message": "P49 truth audit rerun passed",
+      "evidence": {
+        "exitCode": 0,
+        "excerpt": "ation/runtime cap rules\nPASS GATE-011: PlanSpec allowedFiles cover all required wiring files\nPASS GATE-012: P0 gate sanity remains PASS\nPASS GATE-013: npm run check and npm run build pass\nPASS GATE-014: Truth audit re-entry guard active; skipped\n\nP49.31 strict runtime verification: PASS (14/14 passed, 0 failed)\n\nP49.31 truth audit rerun: PASS\n  runtime_verified_percent: 100\n  critical_blockers: 0\n",
+        "stderrExcerpt": ""
+      },
+      "timestamp": "2026-06-13T23:41:12.527Z"
+    }
+  ],
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "overall_verdict": "PASS"
+}

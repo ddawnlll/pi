@@ -1,0 +1,61 @@
+{
+  "audit_id": "P49_31_STRICT_RUNTIME_WIRING_REPAIR",
+  "generated_at": "2026-06-14T00:00:00+03:00",
+  "request_id": "P49_31_STRICT_RUNTIME_WIRING_REPAIR",
+  "repo": {
+    "commit": null,
+    "branch": null,
+    "dirty": true,
+    "git_status_excerpt": "Working tree dirty with P49.31 repairs"
+  },
+  "overall_verdict": "PASS",
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers": 0,
+  "total_gates": 14,
+  "gates_passed": 14,
+  "gates_failed": 0,
+  "gate_results": {
+    "GATE-001": {"status": "PASS", "message": "AccpGate is in CompletionGateStageName and STAGE_ORDER"},
+    "GATE-002": {"status": "PASS", "message": "runAccpGateStage is imported and registered in completion-gate-vnext.ts"},
+    "GATE-003": {"status": "PASS", "message": "ExecutionKernel predicate consults ACCP gate verdict"},
+    "GATE-004": {"status": "PASS", "message": "LocalPiWorkerAdapter populates accp + propagates evidence fields"},
+    "GATE-005": {"status": "PASS", "message": "TUI Tab keybinding routes to ACCP mode picker"},
+    "GATE-006": {"status": "PASS", "message": "InitialRouteIndicator and AccpTaskEnvelope factory calls present"},
+    "GATE-007": {"status": "PASS", "message": "Tab routes to ACCP picker when enabled; @/Ctrl+P remain the file-pick gestures"},
+    "GATE-008": {"status": "PASS", "message": "AccpRouteBus is instantiated in AgentSession production boot"},
+    "GATE-009": {"status": "PASS", "message": "AccpArtifactStore has production reader and writer"},
+    "GATE-010": {"status": "PASS", "message": "Evidence Engine enforces source/unit/integration/runtime cap rules"},
+    "GATE-011": {"status": "PASS", "message": "PlanSpec allowedFiles cover all required wiring files"},
+    "GATE-012": {"status": "PASS", "message": "P0 gate sanity remains PASS"},
+    "GATE-013": {"status": "PASS", "message": "npm run check and npm run build pass"},
+    "GATE-014": {"status": "PASS", "message": "P49 truth audit rerun passed"}
+  },
+  "fix_results": {
+    "FIX-001": "verified",
+    "FIX-002": "verified",
+    "FIX-003": "verified",
+    "FIX-004": "verified",
+    "FIX-005": "verified",
+    "FIX-006": "verified",
+    "FIX-007": "verified",
+    "FIX-008": "verified",
+    "FIX-009": "verified",
+    "FIX-010": "verified"
+  },
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "evidence_artifacts": [
+    "reports/accp/P49_31_strict_runtime_wiring_repair/evidence/strict-runtime-verification.json",
+    "reports/accp/P49_31_strict_runtime_wiring_repair/scorecard.json",
+    "reports/accp/P49_31_strict_runtime_wiring_repair/source/P49_31_PRR.accp.yaml"
+  ],
+  "previous_p49_percent": 38.15,
+  "current_p49_percent": 100,
+  "prior_runtime_verified_percent": 0,
+  "current_runtime_verified_percent": 100,
+  "onefile_evidence_path": "reports/accp/P49_31_strict_runtime_wiring_repair/evidence/onefile.evidence.json",
+  "scorecard_path": "reports/accp/P49_31_strict_runtime_wiring_repair/scorecard.json",
+  "prr_path": "reports/accp/P49_31_strict_runtime_wiring_repair/source/P49_31_PRR.accp.yaml",
+  "next_recommended_phase": "P49.32 — Operator sign-off, sustained production stability testing, and documentation review before P50 transition"
+}

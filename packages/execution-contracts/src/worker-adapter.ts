@@ -81,6 +81,12 @@ export interface WorkerRunResult {
 	accp?: AccpWorkerOutput;
 	/** Error message if failed */
 	error?: string;
+	/**
+	 * Estimated context usage in tokens (P49.31 FIX-004).
+	 * Surfaces the executor's `contextUsed` at the top level for the
+	 * kernel to consume without digging into `metadata`.
+	 */
+	contextUsed?: number;
 	/** Optional metadata */
 	metadata?: Record<string, unknown>;
 }

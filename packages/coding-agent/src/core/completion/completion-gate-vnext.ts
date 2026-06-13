@@ -14,6 +14,7 @@
  */
 
 import type { Workspace } from "../../core/workspace-schema.js";
+import { readAccpGateVerdictFromStore, runAccpGateStage } from "../accp-gate-stage-runner.js";
 import { evaluateThroughAdapter, shouldUseVNextMode } from "./completion-gate-vnext-adapter.js";
 import {
 	type CompletionGateStageName,
@@ -138,17 +139,27 @@ export async function runCompletionGateVNext(
 	for (const stageName of STAGE_ORDER) {
 		const runner = stageRunners.get(stageName);
 		if (!runner) {
-			// Unregistered stage: treat as passed with warning (not blocking)
+			// Unregistered stage: fail-closed in strict rollout modes.
+			// In warn/legacy modes we keep a non-blocking warning so existing
+			// plans do not regress, but any required mode must block.
+			const isStrict = isStrictRollout(context.rolloutMode);
 			stageVerdicts.push({
 				stage: stageName,
-				passed: true,
-				warning: true,
-				detail: { note: "stage not registered — skipped" },
-				blockReasons: [],
-				warnings: [`Stage ${stageName} has no runner configured`],
+				passed: !isStrict,
+				warning: !isStrict,
+				detail: {
+					note: isStrict
+						? `Stage ${stageName} is required but no runner is registered — failing closed`
+						: "stage not registered — skipped",
+				},
+				blockReasons: isStrict ? [`Stage ${stageName} is required but no runner is registered`] : [],
+				warnings: isStrict ? [] : [`Stage ${stageName} has no runner configured`],
 				evaluatedAt: Date.now(),
 				durationMs: 0,
 			});
+			if (isStrict) {
+				pipelineFailed = true;
+			}
 			continue;
 		}
 
@@ -195,4 +206,67 @@ export async function runCompletionGateVNext(
  */
 export function createDefaultStageRegistry(): StageRunnerRegistry {
 	return new StageRunnerRegistry();
+}
+
+/**
+ * Create the PRODUCTION stage runner registry with all required stages
+ * pre-registered. This is the registry that production completion paths
+ * MUST use. AccpGate is wired to runAccpGateStage by default.
+ *
+ * Callers can still register additional/override runners before running
+ * the gate; the production defaults are the floor.
+ */
+export function createProductionStageRegistry(): StageRunnerRegistry {
+	const registry = new StageRunnerRegistry();
+	// P49.31 FIX-002: Wire ACCP gate runner in production. The runner reads
+	// a verdict from the AccpArtifactStore when ACCP mode is required.
+	registry.register("AccpGate", (stage, workspace, ctx) => {
+		const verdict = readAccpVerdictFromContext(ctx, workspace) ?? readAccpVerdictFromStore(ctx) ?? undefined;
+		return runAccpGateStage(stage, workspace, {
+			modeRequired: isAccpModeRequired(ctx),
+			verdict: verdict ?? undefined,
+		});
+	});
+	return registry;
+}
+
+function isStrictRollout(mode: RolloutMode | undefined): boolean {
+	return mode === "block_strict_plans" || mode === "block_all_stable_3";
+}
+
+function isAccpModeRequired(ctx: StageExecutionContext): boolean {
+	// The runtime may surface ACCP required-ness through runtimeFacts or
+	// through the explicit requiredMode. We default to true when the
+	// required mode is at least block_strict_plans.
+	return isStrictRollout(ctx.rolloutMode) || isStrictRollout(ctx.requiredMode);
+}
+
+function readAccpVerdictFromContext(
+	ctx: StageExecutionContext,
+	workspace: Workspace | Record<string, unknown>,
+): import("@earendil-works/pi-execution-contracts").AccpGateVerdict | undefined {
+	const facts = ctx.runtimeFacts ?? {};
+	const verdict = (facts as { accpGateVerdict?: import("@earendil-works/pi-execution-contracts").AccpGateVerdict })
+		.accpGateVerdict;
+	if (verdict) return verdict;
+	const workspaceFact = (
+		workspace as { accpGateVerdict?: import("@earendil-works/pi-execution-contracts").AccpGateVerdict }
+	).accpGateVerdict;
+	return workspaceFact;
+}
+
+function readAccpVerdictFromStore(
+	ctx: StageExecutionContext,
+): import("@earendil-works/pi-execution-contracts").AccpGateVerdict | null | undefined {
+	const facts = (ctx.runtimeFacts ?? {}) as {
+		planId?: string;
+		reportId?: string;
+		accpArtifactRoot?: string;
+	};
+	if (!facts.planId || !facts.reportId) return undefined;
+	try {
+		return readAccpGateVerdictFromStore(facts.planId, facts.reportId, facts.accpArtifactRoot ?? "reports/accp");
+	} catch {
+		return undefined;
+	}
 }

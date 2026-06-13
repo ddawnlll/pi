@@ -1,0 +1,163 @@
+{
+  "audit_id": "P49_31_TRUTH_AUDIT_RERUN",
+  "generated_at": "2026-06-13T23:41:29.386Z",
+  "repo": {
+    "commit": "52c05ee58a33e3929cb6958582a528f6a4fcccd4",
+    "branch": "main",
+    "dirty": true
+  },
+  "strict_runtime_verification": {
+    "overall_verdict": "PASS",
+    "passed": 14,
+    "failed": 0,
+    "total_gates": 14
+  },
+  "requirements": [
+    {
+      "id": "P49.31-R001-AccpGateInStageOrder",
+      "title": "AccpGate is in CompletionGateStageName and STAGE_ORDER",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R002-RunAccpGateStageRegistered",
+      "title": "runAccpGateStage is imported and registered in completion-gate-vnext.ts",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R003-PlanCompletionPredicateAccpAware",
+      "title": "ExecutionKernel predicate consults ACCP gate verdict",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R004-WorkerAdapterAccpAndEvidence",
+      "title": "LocalPiWorkerAdapter populates accp + propagates evidence fields",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R005-TuiTabOpensAccpPicker",
+      "title": "TUI Tab keybinding routes to ACCP mode picker",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R006-InitialRouteAndEnvelopeEmitted",
+      "title": "InitialRouteIndicator and AccpTaskEnvelope factory calls present",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R007-FilePickerReassigned",
+      "title": "Tab routes to ACCP picker when enabled; @/Ctrl+P remain the file-pick gestures",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R008-RouteBusProductionInstantiated",
+      "title": "AccpRouteBus is instantiated in AgentSession production boot",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R009-ArtifactStoreProductionReaderWriter",
+      "title": "AccpArtifactStore has production reader and writer",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R010-EvidenceEngineCapRules",
+      "title": "Evidence Engine enforces source/unit/integration/runtime cap rules",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R011-PlanSpecOwnershipAmended",
+      "title": "PlanSpec allowedFiles cover all required wiring files",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R012-P0RemainsPass",
+      "title": "P0 gate sanity remains PASS",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R013-BuildCheckPass",
+      "title": "npm run check and npm run build pass",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    },
+    {
+      "id": "P49.31-R014-TruthAuditRerun",
+      "title": "P49 truth audit rerun passed",
+      "weight": 10,
+      "evidenceClass": "runtime_live",
+      "cap": 1,
+      "granted": 1,
+      "weightedScore": 10,
+      "status": "implemented_with_live_or_runtime_evidence"
+    }
+  ],
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers": 0,
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "overall_verdict": "PASS"
+}

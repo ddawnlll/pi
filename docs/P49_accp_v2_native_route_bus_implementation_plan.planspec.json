@@ -11,7 +11,24 @@
     "owner": "pi",
     "status": "draft",
     "sourceDocument": "generated_from_P44_template_and_ACCP_v2_package_context",
-    "sourcePackage": "accp_v2_0_package"
+    "sourcePackage": "accp_v2_0_package",
+    "p49_31_repairs": {
+      "phase_id": "P49.31",
+      "parent_phase_id": "P49",
+      "completed_at": "2026-06-14T00:00:00+03:00",
+      "fixes_applied": [
+        "FIX-001 AccpGate added to STAGE_ORDER",
+        "FIX-002 runAccpGateStage registered in production",
+        "FIX-003 planCompletionPredicate ACCP-aware",
+        "FIX-004 LocalPiWorkerAdapter accp + evidence fields",
+        "FIX-005 accpModePickerEnabled default true",
+        "FIX-006 AccpRouteBus instantiated in production",
+        "FIX-007 AccpArtifactStore wired into compiler + AccpGate",
+        "FIX-008 Evidence Engine cap rules",
+        "FIX-009 PlanSpec ownership amended",
+        "FIX-010 strict verification harness"
+      ]
+    }
   },
   "compatibility": {
     "runtimeContractVersion": "4.1.1",
@@ -139,7 +156,8 @@
       "accp_route_target_unresolved",
       "accp_route_mutation_without_authority",
       "accp_prr_approved_with_blockers",
-      "repo_base_sha_mismatch"
+      "repo_base_sha_mismatch",
+      "p49_runtime_evidence_cap_violation"
     ],
     "forbiddenFiles": [
       ".env",
@@ -2266,7 +2284,7 @@
         "pnpm-lock.yaml",
         "accp_v2_0_package/**"
       ],
-      "description": "Route Signal Compiler and Runtime Authority Guardrail Rules\n\nCompile `next_route` blocks into canonical `route-signal.json` artifacts. The route signal compiler must normalize recommended next report, action, target refs, mutation policy, auto-advance safety, human confirmation requirements, and confidence. It must enforce that route signals are advisory. It must mark mutation routes as requiring PlanSpec/runtime authority even when the agent claims auto-advance is safe. It must support common sequences such as BSR→FPR→TVR→PRR while still allowing HIR, RAR, CAR, ECR, and DCR branches.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
+      "description": "Route Signal Compiler and Runtime Authority Guardrail Rules\n\nCompile `next_route` blocks into canonical `route-signal.json` artifacts. The route signal compiler must normalize recommended next report, action, target refs, mutation policy, auto-advance safety, human confirmation requirements, and confidence. It must enforce that route signals are advisory. It must mark mutation routes as requiring PlanSpec/runtime authority even when the agent claims auto-advance is safe. It must support common sequences such as BSR\u2192FPR\u2192TVR\u2192PRR while still allowing HIR, RAR, CAR, ECR, and DCR branches.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
       "instructions": [
         {
           "id": "WI-P4910-001",
@@ -3283,7 +3301,11 @@
       "role": "executor_compile_hook",
       "allowedFiles": [
         "packages/coding-agent/src/core/autonomous-executor.ts",
-        "packages/coding-agent/test/accp/autonomous-executor-accp.test.ts"
+        "packages/coding-agent/test/accp/autonomous-executor-accp.test.ts",
+        "packages/worker-adapters/src/local-pi-worker-adapter.ts",
+        "packages/worker-adapters/src/accp-bridge.ts",
+        "packages/worker-adapters/src/evidence-extractors.ts",
+        "packages/execution-contracts/src/worker-adapter.ts"
       ],
       "forbiddenFiles": [
         ".env",
@@ -3365,6 +3387,22 @@
           "validationRefs": [
             "VAL-P4917-002"
           ]
+        },
+        {
+          "id": "AC-P4931-002",
+          "title": "WorkerRunResult carries workerResult.accp and propagates evidence fields",
+          "text": "LocalPiWorkerAdapter populates accp from detected ACCP YAML and propagates changedFiles/events/commandHistory/contextUsed. Autonomous executor sees workerResult.accp.shouldCompile.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "unit_test",
+            "integration_test",
+            "runtime_call_site"
+          ],
+          "validationRefs": [
+            "VAL-P4931-002"
+          ]
         }
       ],
       "validation": {
@@ -3427,7 +3465,9 @@
       "role": "completion_gate",
       "allowedFiles": [
         "packages/coding-agent/src/core/completion-gate.ts",
-        "packages/coding-agent/test/accp/completion-gate-accp.test.ts"
+        "packages/coding-agent/test/accp/completion-gate-accp.test.ts",
+        "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts",
+        "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
       ],
       "forbiddenFiles": [
         ".env",
@@ -3509,6 +3549,22 @@
           "validationRefs": [
             "VAL-P4918-002"
           ]
+        },
+        {
+          "id": "AC-P4931-001",
+          "title": "ACCP Gate stage is registered in STAGE_ORDER and runtime",
+          "text": "The CompletionGate vNext executable stage list includes AccpGate, and runAccpGateStage is registered in production. Live TUI smoke and integration tests confirm execution.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "integration_test",
+            "runtime_call_site",
+            "live_tui"
+          ],
+          "validationRefs": [
+            "VAL-P4931-001"
+          ]
         }
       ],
       "validation": {
@@ -3585,7 +3641,7 @@
         "pnpm-lock.yaml",
         "accp_v2_0_package/**"
       ],
-      "description": "Execution Runtime ACCP Gate Reader and Transition Guard\n\nAdd runtime support for reading compiled ACCP gate verdicts and enforcing them at transition boundaries. The TransitionRouter must block Active→Complete in required mode when the gate verdict is block or missing. Warn mode must record advisory events but must not break existing flows. The implementation must keep runtime authority separate from the compiler library: the compiler produces evidence; runtime decides transitions.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
+      "description": "Execution Runtime ACCP Gate Reader and Transition Guard\n\nAdd runtime support for reading compiled ACCP gate verdicts and enforcing them at transition boundaries. The TransitionRouter must block Active\u2192Complete in required mode when the gate verdict is block or missing. Warn mode must record advisory events but must not break existing flows. The implementation must keep runtime authority separate from the compiler library: the compiler produces evidence; runtime decides transitions.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
       "instructions": [
         {
           "id": "WI-P4919-001",
@@ -4080,6 +4136,21 @@
           "validationRefs": [
             "VAL-P4922-002"
           ]
+        },
+        {
+          "id": "AC-P4931-003",
+          "title": "TUI Tab opens ACCP mode picker in production boot path",
+          "text": "Live TUI smoke test confirms that pressing Tab opens the ACCP mode picker overlay (and not the file picker) and that picker selection emits InitialRouteIndicator + AccpTaskEnvelope.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "integration_test",
+            "live_tui"
+          ],
+          "validationRefs": [
+            "VAL-P4931-003"
+          ]
         }
       ],
       "validation": {
@@ -4377,6 +4448,21 @@
           "validationRefs": [
             "VAL-P4924-002"
           ]
+        },
+        {
+          "id": "AC-P4931-004",
+          "title": "AccpRouteBus is instantiated in production session boot",
+          "text": "getAccpRouteBus() is called from AgentSession production constructor and createDefaultSubscriptions wires the multi-agent handler chain.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "integration_test",
+            "runtime_call_site"
+          ],
+          "validationRefs": [
+            "VAL-P4931-004"
+          ]
         }
       ],
       "validation": {
@@ -4607,7 +4693,7 @@
         "pnpm-lock.yaml",
         "accp_v2_0_package/**"
       ],
-      "description": "Dashboard ACCP Status, Diagnostics, Graph, and Route Visualization\n\nAdd dashboard visibility for ACCP. Workspace cards must show gate status. Worker detail must show compile diagnostics, artifact paths, route signal, and blocking findings. A route graph component must display report lineage such as RIR→PIR→BSR→FPR→TVR→PRR, with HIR/RAR/CAR/ECR/DCR branches. Dashboard must clearly label rendered Markdown as non-authoritative and compiled JSON as runtime-readable.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
+      "description": "Dashboard ACCP Status, Diagnostics, Graph, and Route Visualization\n\nAdd dashboard visibility for ACCP. Workspace cards must show gate status. Worker detail must show compile diagnostics, artifact paths, route signal, and blocking findings. A route graph component must display report lineage such as RIR\u2192PIR\u2192BSR\u2192FPR\u2192TVR\u2192PRR, with HIR/RAR/CAR/ECR/DCR branches. Dashboard must clearly label rendered Markdown as non-authoritative and compiled JSON as runtime-readable.\n\nThis workspace must be implemented as a production-wired change, not as a loose artifact, not as a documentation-only placeholder, and not as an isolated module that nobody imports. The worker must preserve the existing Pi authority model: PlanSpec defines allowed files, command policies, write boundaries, report requirements, lock requirements, and hard stops; ACCP v2.0 provides compiled evidence, route signals, gate verdicts, and structured communication artifacts. The worker must not give ACCP reports authority to mutate repository state, transition workspace state, bypass write gates, bypass command policy, or promote plans. Any route suggestion produced from ACCP must be treated as advisory until the runtime authority layer verifies it against PlanSpec, workspace state, command policy, write gate, and human-confirmation requirements.\n\nThe implementation must heavily reference the repository-root `accp_v2_0_package/` directory. That package is the canonical local source bundle for ACCP v2.0 in this phase and contains docs, examples, prompts, registry metadata, and schema sketches. The worker must treat the package as read-only input and must not edit it unless a later PlanSpec explicitly grants ownership. Any template, schema, diagnostic code, support matrix, or example fixture copied or adapted from that package must preserve attribution in comments or metadata where the local codebase convention allows it.\n\nThe implementation must preserve backward compatibility with existing free-text worker reports while introducing ACCP-native structured outputs. Where an existing field such as `report: string` is mandatory, the new ACCP structure must be optional and additive. Existing non-ACCP workflows must continue to run with ACCP mode set to `off`. P49 may introduce route bus capabilities, but it must not force every worker to become ACCP-native immediately.\n\nValidation must include positive and negative tests. Negative tests are mandatory because this phase is fundamentally about trust boundaries: invalid YAML, missing required sections, unresolved route targets, mutation without authority, pass verdict without command evidence, and promotion with blockers must all be tested explicitly. Tests must demonstrate that the compiler, TUI, route bus, runtime gate, event journal, and read model fail closed where appropriate.",
       "instructions": [
         {
           "id": "WI-P4926-001",
@@ -4817,6 +4903,21 @@
           ],
           "validationRefs": [
             "VAL-P4927-002"
+          ]
+        },
+        {
+          "id": "AC-P4931-005",
+          "title": "AccpArtifactStore has production reader and writer call sites",
+          "text": "saveCompiled/saveGateVerdict/saveRouteSignal are called from the autonomous executor compile hook; readGateVerdict is called from the AccpGate stage runner.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": [
+            "source",
+            "integration_test",
+            "runtime_call_site"
+          ],
+          "validationRefs": [
+            "VAL-P4931-005"
           ]
         }
       ],

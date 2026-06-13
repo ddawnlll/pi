@@ -60,6 +60,8 @@ import {
 	getShareViewerUrl,
 	VERSION,
 } from "../../config.js";
+// P49.23: InitialRouteIndicator and AccpTaskEnvelope
+import { createAccpTaskEnvelope, createInitialRouteIndicator } from "../../core/accp-initial-route-indicator.js";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.js";
 import { type AgentSessionRuntime, SessionImportFileNotFoundError } from "../../core/agent-session-runtime.js";
 import type {
@@ -362,6 +364,15 @@ export class InteractiveMode {
 		runtimeHost: AgentSessionRuntime,
 		private options: InteractiveModeOptions = {},
 	) {
+		// P49.31 FIX-005: Default the ACCP mode picker to enabled in the
+		// production TUI boot path. Operators can opt out by passing
+		// `accpModePickerEnabled: false` or by setting the env var
+		// `PI_DISABLE_ACCP_MODE_PICKER=1`. This ensures Tab opens the
+		// ACCP mode picker in live TUI runs instead of being dead code.
+		if (this.options.accpModePickerEnabled === undefined) {
+			const envDisable = process.env.PI_DISABLE_ACCP_MODE_PICKER === "1";
+			this.options.accpModePickerEnabled = !envDisable;
+		}
 		this.runtimeHost = runtimeHost;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
@@ -6141,11 +6152,23 @@ export class InteractiveMode {
 
 	/** Show the ACCP mode picker as a TUI overlay. */
 	private showAccpModePicker(): void {
-		const currentMode = "warn"; // Default to warn for P49
+		const currentMode = this.session.accpMode;
 		const picker = new AccpModePicker(currentMode as any);
 
 		picker.onSelect = (result: AccpModePickerResult) => {
 			this.ui.hideOverlay();
+
+			// P49.23: Create InitialRouteIndicator from user selection
+			const indicator = createInitialRouteIndicator(result.initialAction);
+
+			// P49.23: Create AccpTaskEnvelope from the indicator
+			const targetReportTypes = result.initialReportType ? [result.initialReportType] : [];
+			const taskId = `task-${Date.now()}`;
+			const envelope = createAccpTaskEnvelope(taskId, indicator, targetReportTypes);
+
+			// P49.23: Store the envelope and update ACCP mode on the session
+			this.session.setAccpMode(result.selectedMode, envelope);
+
 			const reportInfo = result.initialReportType ? `, initial report: ${result.initialReportType}` : "";
 			this.showStatus(`ACCP mode: ${result.selectedMode}${reportInfo}`);
 			this.ui.requestRender();

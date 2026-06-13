@@ -25,6 +25,8 @@
 		"p0:writegate-probe": "node scripts/p0-writegate-probe.mjs",
 		"p0:tui-smoke": "node scripts/p0-tui-smoke.mjs",
 		"p0:gate-sanity": "node scripts/p0-gate-sanity.mjs",
+		"p49:strict-runtime-verification": "node scripts/p49-strict-runtime-verification.mjs",
+		"p49:truth-audit": "node scripts/p49-truth-audit.mjs",
 		"test": "npm run test --workspaces --if-present",
 		"dogfood:doctor": "node packages/coding-agent/dist/cli.js plan doctor docs/dogfood-p2-template-json-plan.md",
 		"dogfood:dry-run": "node packages/coding-agent/dist/cli.js plan dry-run docs/dogfood-p2-template-json-plan.md",

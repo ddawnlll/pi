@@ -28,6 +28,7 @@ import type { TransitionRouter } from "../execution-runtime/transition-router.js
 import { createTransitionRouter } from "../execution-runtime/transition-router.js";
 import { PiLogger } from "../utils/logger.js";
 import { killPlanProcesses, killTrackedDetachedChildren } from "../utils/shell.js";
+import { AccpArtifactStore } from "./accp-artifact-store.js";
 import { runAccpRepairLoop } from "./accp-repair-controller.js";
 import { AutoCommit } from "./auto-commit.js";
 import { createScopedIntegrationFromWorkspace } from "./completion/scoped-commit-integration.js";
@@ -1275,6 +1276,23 @@ export class AutonomousExecutor {
 							const compileResult = compileAccpSource(workerResult.accp.sourceYaml);
 							workerResult.accp.compiledArtifactPath = `reports/accp/${planExecutionId || "P49"}/compiled/${workerResult.accp.reportId}.compiled.json`;
 							workerResult.accp.diagnostics = compileResult.diagnostics;
+
+							// P49.31 FIX-007: persist the compiled artifact through
+							// the AccpArtifactStore so the AccpGate reader can
+							// consume it later through the same store.
+							try {
+								const store = new AccpArtifactStore({
+									rootDir: "reports/accp",
+									planId: planExecutionId || "P49",
+								});
+								store.saveCompiled(workerResult.accp.reportId, compileResult);
+								if (workerResult.accp.routeSignal) {
+									store.saveRouteSignal(workerResult.accp.reportId, workerResult.accp.routeSignal);
+								}
+							} catch (storeErr) {
+								console.warn(`[ACCP] Artifact store write failed for ${workerResult.accp.reportId}:`, storeErr);
+							}
+
 							if (compileResult.hasBlockingFindings) {
 								console.error(`[ACCP] Compilation warnings/errors for ${workerResult.accp.reportId}:`);
 								for (const d of compileResult.diagnostics) {

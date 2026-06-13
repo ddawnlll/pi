@@ -6,16 +6,31 @@
  *
  * This is the default local worker adapter for Pi.
  * It may import @earendil-works/pi-coding-agent internals because it is the bridge.
+ *
+ * ## P49.31 FIX-004: ACCP Bridge and Evidence Field Propagation
+ *
+ * The adapter now:
+ * - Imports `AccpWorkerOutput` and populates `workerResult.accp` from
+ *   ACCP YAML detected in the agent's report (or from explicit metadata).
+ * - Propagates `changedFiles` from the actual worktree diff (when a
+ *   worktree path is available) and from `request.metadata.changedFiles`.
+ * - Synthesizes `events` from agent logs (line-prefixed events).
+ * - Builds `commandHistory` from agent logs (commands) and `request.metadata`.
+ * - Exposes `contextUsed` at the top level of the result.
  */
 
 import type { WorkspaceAgentExecutor } from "@earendil-works/pi-coding-agent/core/workspace-agent-executor.js";
 import type {
+	AccpWorkerOutput,
 	WorkerAdapter,
 	WorkerAdapterCapabilities,
 	WorkerCommandHistoryEntry,
+	WorkerEvent,
 	WorkerRunRequest,
 	WorkerRunResult,
 } from "@earendil-works/pi-execution-contracts";
+import { type AccpDetectionResult, detectAccpOutput } from "./accp-bridge.js";
+import { collectChangedFiles, collectCommandHistory, collectEvents } from "./evidence-extractors.js";
 
 export interface LocalPiWorkerAdapterConfig {
 	createExecutor: (request: WorkerRunRequest) => WorkspaceAgentExecutor;
@@ -41,21 +56,40 @@ export class LocalPiWorkerAdapter implements WorkerAdapter {
 			});
 
 			const verdict = mapVerdict(agentResult.verdict);
-			const commandHistory: WorkerCommandHistoryEntry[] = [];
 
-			return {
+			// P49.31 FIX-004: Detect ACCP output in the agent report and
+			// populate `accp` on the worker result. This is the bridge
+			// that lets autonomous-executor see workerResult.accp.shouldCompile.
+			const accpDetection: AccpDetectionResult = detectAccpOutput(agentResult, request);
+
+			// Propagate evidence fields from real sources instead of empty arrays.
+			const changedFiles: string[] = collectChangedFiles(request, agentResult);
+			const events: WorkerEvent[] = collectEvents(agentResult, request);
+			const commandHistory: WorkerCommandHistoryEntry[] = collectCommandHistory(agentResult, request);
+
+			const result: WorkerRunResult = {
 				verdict,
-				events: [],
-				changedFiles: [],
+				events,
+				changedFiles,
 				commandHistory,
 				report: agentResult.report,
 				error: agentResult.error,
+				contextUsed: agentResult.contextUsed,
 				metadata: {
 					success: agentResult.success,
 					logCount: agentResult.logs.length,
-					contextUsed: agentResult.contextUsed,
+					accpDetected: accpDetection.detected,
+					accpReportType: accpDetection.output?.reportType,
 				},
 			};
+
+			// P49.31 FIX-004: Only attach `accp` when the worker actually
+			// produced ACCP output (detection is non-fabricating).
+			if (accpDetection.output) {
+				result.accp = accpDetection.output;
+			}
+
+			return result;
 		} finally {
 			this.activeExecutors.delete(request.workspaceId);
 		}
@@ -97,3 +131,5 @@ function mapVerdict(agentVerdict: "COMPLETE" | "BLOCKED" | "FAILED"): WorkerRunR
 			return "failed";
 	}
 }
+
+export type { AccpWorkerOutput };

@@ -32,12 +32,15 @@ import {
 	modelsAreEqual,
 	resetApiProviders,
 } from "@earendil-works/pi-ai";
+import type { AccpTaskEnvelope } from "@earendil-works/pi-execution-contracts";
 import { getAgentDir } from "../config.js";
 import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { sleep } from "../utils/sleep.js";
-import { renderAccpModeDirective } from "./accp-prompt-renderer.js";
+import { createDefaultSubscriptions } from "./accp-artifact-subscriptions.js";
+import { type AccpMode, renderAccpModeDirective } from "./accp-prompt-renderer.js";
+import { type AccpRouteBus, getAccpRouteBus } from "./accp-route-bus.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.js";
 import {
@@ -329,7 +332,46 @@ export class AgentSession {
 	private _baseSystemPrompt = "";
 	private _baseSystemPromptOptions!: BuildSystemPromptOptions;
 
+	// P49.23: ACCP mode — set by TUI mode picker, drives system prompt directive
+	private _accpMode: AccpMode = "warn";
+	// P49.23: ACCP task envelope — produced when user selects initial mode
+	private _accpTaskEnvelope: AccpTaskEnvelope | undefined = undefined;
+	// P49.31 FIX-006: hold a per-session route bus instance. We capture
+	// it on construction so the session always has access to the bus for
+	// publishing route signals and subscribing consumers.
+	private _accpRouteBus: AccpRouteBus | undefined = undefined;
+
+	/**
+	 * P49.31 FIX-006: expose the per-session route bus. Consumers (e.g.
+	 * the autonomous executor) can call `publish` and `subscribe` through
+	 * the same bus instance.
+	 */
+	public get accpRouteBus(): AccpRouteBus | undefined {
+		return this._accpRouteBus;
+	}
+
 	constructor(config: AgentSessionConfig) {
+		// P49.31 FIX-006: instantiate the ACCP route bus in the production
+		// session boot path. getAccpRouteBus() returns a process-wide
+		// singleton; we keep the reference on the session so consumers
+		// and the autonomous-executor can publish through the bus.
+		try {
+			const bus = getAccpRouteBus();
+			this._accpRouteBus = bus;
+			// createDefaultSubscriptions wires the multi-agent handler
+			// chain. The optional `publishNext` callback forwards the
+			// next report type and delivery; the bus itself is advisory
+			// and never authorizes mutation.
+			createDefaultSubscriptions(bus, (_nextReportType, _delivery) => {
+				// No-op publish in this minimal integration: downstream
+				// consumers can subscribe for deliveries without an
+				// auto-publish loop. Real implementations may publish
+				// to the workspace execution channel.
+			});
+		} catch (err) {
+			console.warn("[ACCP] Route bus instantiation failed:", err);
+		}
+
 		this.agent = config.agent;
 		this.sessionManager = config.sessionManager;
 		this.settingsManager = config.settingsManager;
@@ -935,6 +977,40 @@ export class AgentSession {
 		return this.agent.state.systemPrompt;
 	}
 
+	// =========================================================================
+	// P49.23: ACCP mode and task envelope
+	// =========================================================================
+
+	/** Get the current ACCP mode ("off" | "warn" | "required"). */
+	get accpMode(): AccpMode {
+		return this._accpMode;
+	}
+
+	/** Get the current ACCP task envelope, if set by the TUI mode picker. */
+	get accpTaskEnvelope(): AccpTaskEnvelope | undefined {
+		return this._accpTaskEnvelope;
+	}
+
+	/**
+	 * Set the ACCP mode and optionally the task envelope.
+	 *
+	 * When the mode changes, the system prompt is rebuilt so the ACCP directive
+	 * reflects the current mode. The task envelope stores the initial route
+	 * indicator and target report types from the TUI mode picker.
+	 *
+	 * ACCP route signals are advisory — they do not authorize execution.
+	 */
+	setAccpMode(mode: AccpMode, envelope?: AccpTaskEnvelope): void {
+		const modeChanged = this._accpMode !== mode;
+		this._accpMode = mode;
+		if (envelope) {
+			this._accpTaskEnvelope = envelope;
+		}
+		if (modeChanged) {
+			this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
+		}
+	}
+
 	/** Current retry attempt (0 if not retrying) */
 	get retryAttempt(): number {
 		return this._retryAttempt;
@@ -1093,7 +1169,7 @@ export class AgentSession {
 		const loaderAppendSystemPrompt = this._resourceLoader.getAppendSystemPrompt();
 
 		// ACCP mode directive injection (gated by ACCP mode; off = no-op)
-		const accpDirective = renderAccpModeDirective("warn"); // Hardcoded warn for P49 — will be config-driven
+		const accpDirective = renderAccpModeDirective(this._accpMode);
 
 		const appendSystemPrompt =
 			loaderAppendSystemPrompt.length > 0

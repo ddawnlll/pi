@@ -12,10 +12,17 @@
  * execution or mutation. It only blocks completion when the ACCP
  * gate has blocking findings and ACCP mode is required.
  *
+ * ## P49.31 FIX-007
+ *
+ * `readAccpGateVerdictFromStore` is the canonical way to obtain a
+ * gate verdict for the AccpGate stage. It reads `verdict/{reportId}.gate-verdict.json`
+ * from the AccpArtifactStore (compiled JSON, never raw YAML).
+ *
  * @packageDocumentation
  */
 
 import type { AccpGateVerdict } from "@earendil-works/pi-execution-contracts";
+import { AccpArtifactStore } from "./accp-artifact-store.js";
 import type { CompletionGateStageName, StageVerdict } from "./completion/completion-gate-vnext-types.js";
 
 /** ACCP gate configuration for the completion gate stage. */
@@ -55,13 +62,26 @@ export function runAccpGateStage(
 		};
 	}
 
-	// If no verdict was provided, check skipped
+	// If no verdict was provided, fail-closed when mode is required.
+	// In warn/off mode we treat missing verdict as advisory.
 	if (!config.verdict) {
+		if (config.modeRequired) {
+			return {
+				stage,
+				passed: false,
+				warning: false,
+				detail: { note: "ACCP mode is required but no gate verdict was provided — failing closed" },
+				blockReasons: ["ACCP mode is required but no gate verdict was provided for evaluation"],
+				warnings: [],
+				evaluatedAt: Date.now(),
+				durationMs: Date.now() - startTime,
+			};
+		}
 		return {
 			stage,
 			passed: true,
 			warning: true,
-			detail: { note: "no ACCP gate verdict provided — skipped" },
+			detail: { note: "no ACCP gate verdict provided — skipped (advisory mode)" },
 			blockReasons: [],
 			warnings: ["No ACCP gate verdict was provided for evaluation"],
 			evaluatedAt: Date.now(),
@@ -117,4 +137,25 @@ export function runAccpGateStage(
 		evaluatedAt: Date.now(),
 		durationMs: Date.now() - startTime,
 	};
+}
+
+// ---------------------------------------------------------------------------
+// P49.31 FIX-007: AccpArtifactStore reader
+// ---------------------------------------------------------------------------
+
+/**
+ * Read an ACCP gate verdict for a report ID through the artifact store.
+ * Returns `null` when the verdict file is missing or unreadable; the
+ * caller decides whether a missing verdict should block completion.
+ *
+ * The verdict must have been written through `AccpArtifactStore.saveGateVerdict`
+ * or as part of a compiled artifact. Raw YAML is never accepted.
+ */
+export function readAccpGateVerdictFromStore(
+	planId: string,
+	reportId: string,
+	rootDir = "reports/accp",
+): AccpGateVerdict | null {
+	const store = new AccpArtifactStore({ rootDir, planId });
+	return store.readGateVerdict(reportId);
 }

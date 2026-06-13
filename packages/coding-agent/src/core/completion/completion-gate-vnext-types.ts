@@ -62,10 +62,16 @@ export type CompletionGateStageName =
 
 /**
  * Ordered list of stage names matching execution order.
+ *
+ * AccpGate is placed after EvidenceLedger and before Validation so that the
+ * ACCP gate verdict (compiled from compiled ACCP artifacts) is consulted
+ * before the workspace's own validation stages run. This makes the
+ * ACCP gate authoritative for runtime completion in `required` mode.
  */
 export const STAGE_ORDER: readonly CompletionGateStageName[] = [
 	"DeclaredOutputExistence",
 	"EvidenceLedger",
+	"AccpGate",
 	"Validation",
 	"ScopeAndWriteSet",
 	"CommitCandidate",
