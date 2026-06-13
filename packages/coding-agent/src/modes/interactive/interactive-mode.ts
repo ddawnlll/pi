@@ -18,6 +18,7 @@ import {
 	type OAuthSelectPrompt,
 } from "@earendil-works/pi-ai";
 import type {
+	AccpModePickerResult,
 	AutocompleteItem,
 	AutocompleteProvider,
 	EditorComponent,
@@ -29,6 +30,7 @@ import type {
 	SlashCommand,
 } from "@earendil-works/pi-tui";
 import {
+	AccpModePicker,
 	CombinedAutocompleteProvider,
 	type Component,
 	Container,
@@ -228,6 +230,9 @@ export interface InteractiveModeOptions {
 	initialMessages?: string[];
 	/** Force verbose startup (overrides quietStartup setting) */
 	verbose?: boolean;
+	/** Enable ACCP mode picker on Tab (P49.22). When true, Tab opens the ACCP mode picker
+	 * and file path completion moves to @-mention triggering. */
+	accpModePickerEnabled?: boolean;
 }
 
 export class InteractiveMode {
@@ -2402,6 +2407,11 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.session.tree", () => this.showTreeSelector());
 		this.defaultEditor.onAction("app.session.fork", () => this.showUserMessageSelector());
 		this.defaultEditor.onAction("app.session.resume", () => this.showSessionSelector());
+
+		// P49.22: ACCP mode picker (Tab when accpModePickerEnabled)
+		if (this.options.accpModePickerEnabled) {
+			this.defaultEditor.onAction("app.accp.modePicker", () => this.showAccpModePicker());
+		}
 
 		this.defaultEditor.onChange = (text: string) => {
 			const wasBashMode = this.isBashMode;
@@ -6123,6 +6133,34 @@ export class InteractiveMode {
 		} catch {
 			// Ignore, will be emitted as an event
 		}
+	}
+
+	// =========================================================================
+	// ACCP Mode Picker (P49.22)
+	// =========================================================================
+
+	/** Show the ACCP mode picker as a TUI overlay. */
+	private showAccpModePicker(): void {
+		const currentMode = "warn"; // Default to warn for P49
+		const picker = new AccpModePicker(currentMode as any);
+
+		picker.onSelect = (result: AccpModePickerResult) => {
+			this.ui.hideOverlay();
+			const reportInfo = result.initialReportType ? `, initial report: ${result.initialReportType}` : "";
+			this.showStatus(`ACCP mode: ${result.selectedMode}${reportInfo}`);
+			this.ui.requestRender();
+		};
+
+		picker.onCancel = () => {
+			this.ui.hideOverlay();
+			this.ui.requestRender();
+		};
+
+		this.ui.showOverlay(picker, {
+			width: "70%",
+			maxHeight: "80%",
+			anchor: "center",
+		});
 	}
 
 	stop(): void {
