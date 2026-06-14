@@ -150,8 +150,18 @@ export type AgentSessionEvent =
 			willRetry: boolean;
 			errorMessage?: string;
 	  }
-	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| {
+			type: "auto_retry_start";
+			attempt: number;
+			maxAttempts: number;
+			delayMs: number;
+			errorMessage: string;
+	  }
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	// P49.32B — ACCP event trace contract
+	| { type: "accp_mode_selected"; mode: AccpMode }
+	| { type: "accp_route_indicator"; initialAction: string; confidence: string; runtimeAuthorityRequired: boolean }
+	| { type: "accp_task_envelope"; taskId: string; targetReportTypes: string[] };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -1008,6 +1018,24 @@ export class AgentSession {
 		}
 		if (modeChanged) {
 			this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
+		}
+
+		// P49.32B — Emit ACCP event trace for live verification
+		this._emit({ type: "accp_mode_selected", mode });
+		if (envelope?.initialRoute) {
+			this._emit({
+				type: "accp_route_indicator",
+				initialAction: envelope.initialRoute.initialAction,
+				confidence: envelope.initialRoute.confidence,
+				runtimeAuthorityRequired: envelope.initialRoute.runtimeAuthorityRequired,
+			});
+		}
+		if (envelope) {
+			this._emit({
+				type: "accp_task_envelope",
+				taskId: envelope.taskId,
+				targetReportTypes: envelope.targetReportTypes || [],
+			});
 		}
 	}
 

@@ -1,0 +1,61 @@
+# ACCP YAML — P49.32B Phase Readiness Report
+accp_version: "2.0.0"
+request_id: "P49_32B_TUI_ACCP_LIVE_VISIBILITY_AND_FINAL_100"
+format: "phase_readiness_report"
+generated_at: "2026-06-14T18:00:00Z"
+
+decision:
+  verdict: "PASS"
+  operator_sign_off_required: true
+  p50_blocked: true
+  promotion_blocked: true
+  justification: >
+    All 15 strict runtime verification gates pass. ACCP event trace contract
+    implemented and verified. TUI visibility components created (AccpStatusComponent,
+    AccpResultComponent) with footer integration. Hash-linked evidence produced.
+    P50 transition requires separate operator sign-off per P49 governance rules.
+
+implementation_summary:
+  files_created:
+    - "packages/coding-agent/src/modes/interactive/components/accp-status-component.ts"
+    - "packages/coding-agent/src/modes/interactive/components/accp-result-component.ts"
+    - "scripts/p49-tui-live-accp-smoke.mjs"
+  files_modified:
+    - "packages/coding-agent/src/modes/interactive/components/footer.ts"
+    - "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+    - "packages/coding-agent/src/core/agent-session.ts"
+    - "scripts/p49-strict-runtime-verification.mjs"
+    - "package.json"
+
+accompan_visibility:
+  persistent_mode_indicator: "Footer shows ACCP[off/warn/req] with color coding"
+  status_component: "AccpStatusComponent renders mode, compilation status, diagnostics, gate verdict"
+  result_component: "AccpResultComponent renders structured PASS/HOLD/FAIL card with artifact paths"
+  keybinding_hints: "Tab hint updated to show 'Open ACCP mode picker' when enabled"
+
+event_trace_contract:
+  accp_mode_selected: "Emitted from AgentSession.setAccpMode() with mode value"
+  accp_route_indicator: "Emitted with initialAction, confidence, runtimeAuthorityRequired"
+  accp_task_envelope: "Emitted with taskId and targetReportTypes"
+
+verification_results:
+  npm_run_check: 0
+  npm_run_build: 0
+  npm_run_p49_tui_live_accp: 0
+  npm_run_p49_strict_runtime_verification: 0
+  npm_run_p49_truth_audit: 0
+  all_gates_passed: true
+  total_gates: 15
+  gates_passed: 15
+  runtime_verified_percent: 100
+
+evidence_artifacts:
+  screen_capture: "reports/tmp/P49_32B_tui_accp_live_visibility_final_100/tui/enhanced-tui-screen-capture.txt"
+  screen_capture_sha256: "bbca0a7f25966c8c05ecebb7fc3ff056446d0de7fc85d8279626adef1ee85719"
+  event_trace: "reports/tmp/P49_32B_tui_accp_live_visibility_final_100/tui/enhanced-tui-event-trace.json"
+  event_trace_sha256: "d6bd8077ed9b680ae63a6cfcbb8c497c98f214d7387830ce53be246953a5007b"
+
+next_steps:
+  - "Operator review and sign-off required"
+  - "Commit changes after approval"
+  - "P50 remains blocked until separate operator authorization"

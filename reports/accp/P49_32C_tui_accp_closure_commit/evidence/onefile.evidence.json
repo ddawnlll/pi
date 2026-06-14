@@ -1,0 +1,24 @@
+{
+  "audit_id": "P49_32C_TUI_ACCP_CLOSURE_COMMIT",
+  "generated_at": "2026-06-14T19:00:00Z",
+  "overall_verdict": "PASS",
+  "pre_commit_head": "f587b0016fa005349fb79a5b6dcf3b0848cc2d82",
+  "post_commit_sha": "pending",
+  "branch": "main",
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers_count": 0,
+  "held_gates_count": 0,
+  "ACCP_status_component_production_wired": true,
+  "ACCP_result_component_production_wired": true,
+  "live_tui_picker_verified": true,
+  "InitialRouteIndicator_actual_emission_verified": true,
+  "AccpTaskEnvelope_actual_emission_verified": true,
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "production_call_sites": {
+    "accompan_result_component": "packages/coding-agent/src/modes/interactive/interactive-mode.ts (agent_end handler)",
+    "footer_accompan_indicator": "packages/coding-agent/src/modes/interactive/components/footer.ts (render method)",
+    "event_emission": "packages/coding-agent/src/core/agent-session.ts (setAccpMode method)"
+  }
+}

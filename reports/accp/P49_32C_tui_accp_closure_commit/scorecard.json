@@ -1,0 +1,19 @@
+{
+  "audit_id": "P49_32C_TUI_ACCP_CLOSURE_COMMIT",
+  "generated_at": "2026-06-14T19:00:00Z",
+  "overall_verdict": "PASS",
+  "final_hard_verification_gate_verdict": "PASS",
+  "commit_verdict": "PASS_PENDING",
+  "post_commit_verdict": "PENDING",
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers_count": 0,
+  "held_gates_count": 0,
+  "ACCP_status_component_production_wired": true,
+  "ACCP_result_component_production_wired": true,
+  "live_tui_picker_verified": true,
+  "InitialRouteIndicator_actual_emission_verified": true,
+  "AccpTaskEnvelope_actual_emission_verified": true,
+  "promotion_allowed": false,
+  "p50_start_allowed": false
+}

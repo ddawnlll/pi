@@ -138,6 +138,20 @@ export class FooterComponent implements Component {
 		}
 		statsParts.push(contextPercentStr);
 
+		// P49.32B — Add ACCP mode indicator
+		let accpIndicator = "";
+		const accpMode = this.session.accpMode;
+		if (accpMode === "required") {
+			accpIndicator = theme.fg("error", "ACCP[req]");
+		} else if (accpMode === "warn") {
+			accpIndicator = theme.fg("warning", "ACCP[warn]");
+		} else {
+			accpIndicator = theme.fg("dim", "ACCP[off]");
+		}
+
+		// P49.32B — Add ACCP mode indicator to stats line
+		statsParts.push(accpIndicator);
+
 		let statsLeft = statsParts.join(" ");
 
 		// Add model name on the right side, plus thinking level if model supports it

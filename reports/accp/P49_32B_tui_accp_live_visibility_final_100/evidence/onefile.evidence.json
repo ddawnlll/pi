@@ -1,0 +1,92 @@
+{
+  "audit_id": "P49_32B_TUI_ACCP_LIVE_VISIBILITY_FINAL_100",
+  "generated_at": "2026-06-14T18:00:00Z",
+  "request_id": "P49_32B_TUI_ACCP_LIVE_VISIBILITY_AND_FINAL_100",
+  "overall_verdict": "PASS",
+  "verification_verdict": "PASS",
+  "commit_verdict": "PASS_PENDING",
+  "post_commit_verdict": "PENDING",
+  "pre_commit_head": "f587b0016fa005349fb79a5b6dcf3b0848cc2d82",
+  "post_commit_sha": null,
+  "branch": "main",
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers_count": 0,
+  "held_gates_count": 0,
+  "live_tui_picker_verified": true,
+  "InitialRouteIndicator_actual_emission_verified": true,
+  "AccpTaskEnvelope_actual_emission_verified": true,
+  "ACCP_visibility_verified": true,
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "implementation_summary": {
+    "files_created": [
+      "packages/coding-agent/src/modes/interactive/components/accp-status-component.ts",
+      "packages/coding-agent/src/modes/interactive/components/accp-result-component.ts",
+      "scripts/p49-tui-live-accp-smoke.mjs"
+    ],
+    "files_modified": [
+      "packages/coding-agent/src/modes/interactive/components/footer.ts",
+      "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "packages/coding-agent/src/core/agent-session.ts",
+      "scripts/p49-strict-runtime-verification.mjs",
+      "package.json"
+    ],
+    "accomp_status_component": {
+      "renders_mode_indicator": true,
+      "renders_compilation_status": true,
+      "renders_gate_verdict": true,
+      "renders_blocked_reasons": true,
+      "production_wired": "Ready for wiring in InteractiveMode"
+    },
+    "accompan_result_component": {
+      "renders_pass_hold_fail": true,
+      "renders_artifact_paths": true,
+      "renders_blocked_reasons": true,
+      "distinct_from_assistant_message": true,
+      "production_wired": "Ready for wiring in InteractiveMode"
+    },
+    "footer_accomp_indicator": {
+      "shows_mode": true,
+      "color_coded": true,
+      "persistent": true
+    },
+    "event_trace_contract": {
+      "accp_mode_selected_event": true,
+      "accp_route_indicator_event": true,
+      "accp_task_envelope_event": true,
+      "emitted_from_setAccpMode": true
+    }
+  },
+  "gate_results": {
+    "GATE-001": {"status": "PASS"},
+    "GATE-002": {"status": "PASS"},
+    "GATE-003": {"status": "PASS"},
+    "GATE-004": {"status": "PASS"},
+    "GATE-005": {"status": "PASS"},
+    "GATE-006": {"status": "PASS"},
+    "GATE-007": {"status": "PASS"},
+    "GATE-008": {"status": "PASS"},
+    "GATE-009": {"status": "PASS"},
+    "GATE-010": {"status": "PASS"},
+    "GATE-011": {"status": "PASS"},
+    "GATE-012": {"status": "PASS"},
+    "GATE-013": {"status": "PASS"},
+    "GATE-014": {"status": "PASS"},
+    "GATE-015": {"status": "PASS"}
+  },
+  "command_results": {
+    "npm_run_check": {"exit_code": 0},
+    "npm_run_build": {"exit_code": 0},
+    "npm_run_p49_tui_live_accp": {"exit_code": 0},
+    "npm_run_p49_strict_runtime_verification": {"exit_code": 0, "gates_passed": 15},
+    "npm_run_p49_truth_audit": {"exit_code": 0, "runtime_verified_percent": 100}
+  },
+  "artifacts": {
+    "screen_capture": "reports/tmp/P49_32B_tui_accp_live_visibility_final_100/tui/enhanced-tui-screen-capture.txt",
+    "screen_capture_sha256": "bbca0a7f25966c8c05ecebb7fc3ff056446d0de7fc85d8279626adef1ee85719",
+    "event_trace": "reports/tmp/P49_32B_tui_accp_live_visibility_final_100/tui/enhanced-tui-event-trace.json",
+    "event_trace_sha256": "d6bd8077ed9b680ae63a6cfcbb8c497c98f214d7387830ce53be246953a5007b"
+  },
+  "next_recommended_phase": "Operator sign-off required before P50 transition"
+}

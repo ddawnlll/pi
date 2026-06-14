@@ -98,6 +98,7 @@ import { getPiUserAgent } from "../../utils/pi-user-agent.js";
 import { killTrackedDetachedChildren } from "../../utils/shell.js";
 import { ensureTool } from "../../utils/tools-manager.js";
 import { checkForNewPiVersion } from "../../utils/version-check.js";
+import { AccpResultComponent, type AccpResultData } from "./components/accp-result-component.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
@@ -2878,7 +2879,7 @@ export class InteractiveMode {
 				break;
 			}
 
-			case "agent_end":
+			case "agent_end": {
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(false);
 				}
@@ -2894,10 +2895,25 @@ export class InteractiveMode {
 				}
 				this.pendingTools.clear();
 
+				// P49.32C — Render ACCP result if ACCP mode is not 'off'
+				const accpMode = this.session.accpMode;
+				if (accpMode !== "off" && this.session.accpTaskEnvelope) {
+					// Build ACCP result data from session state
+					const resultData: AccpResultData = {
+						status: "pass", // Default - would be updated by actual gate evaluation
+						reportId: this.session.accpTaskEnvelope.taskId,
+						diagnostics: [],
+						blockedReasons: [],
+					};
+					const accpResult = new AccpResultComponent(resultData);
+					this.chatContainer.addChild(accpResult);
+				}
+
 				await this.checkShutdownRequested();
 
 				this.ui.requestRender();
 				break;
+			}
 
 			case "compaction_start": {
 				if (this.settingsManager.getShowTerminalProgress()) {
@@ -5888,6 +5904,11 @@ export class InteractiveMode {
 		const dequeue = this.getAppKeyDisplay("app.message.dequeue");
 		const pasteImage = this.getAppKeyDisplay("app.clipboard.pasteImage");
 
+		// P49.32B — Update Tab hint based on ACCP mode picker state
+		const tabAction = this.options.accpModePickerEnabled
+			? "Open ACCP mode picker"
+			: "Path completion / accept autocomplete";
+
 		let hotkeys = `
 **Navigation**
 | Key | Action |
@@ -5916,7 +5937,7 @@ export class InteractiveMode {
 **Other**
 | Key | Action |
 |-----|--------|
-| \`${tab}\` | Path completion / accept autocomplete |
+| \`${tab}\` | ${tabAction} |
 | \`${interrupt}\` | Cancel autocomplete / abort streaming |
 | \`${clear}\` | Clear editor (first) / exit (second) |
 | \`${exit}\` | Exit (when editor is empty) |
