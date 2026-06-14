@@ -180,6 +180,34 @@ export function compileRouteSignal(
 			targetResolved = true;
 			break;
 
+		case "RIR":
+			// Repo inspection -> implementation or validation
+			recommendedNextRoute = "IPR";
+			recommendedNextAction = "implement_findings";
+			mutationPolicyNeeded = "mutation_allowed";
+			confidence = "medium";
+			targetResolved = true;
+			break;
+
+		case "PIR":
+			// Plan inspection -> review
+			recommendedNextRoute = "HIR";
+			recommendedNextAction = "review_analysis";
+			mutationPolicyNeeded = "read_only";
+			confidence = "medium";
+			targetResolved = true;
+			break;
+
+		case "ECR":
+		case "DCR":
+			// Coordination reports -> human review
+			recommendedNextRoute = "HIR";
+			recommendedNextAction = "coordinate";
+			mutationPolicyNeeded = "read_only";
+			confidence = "medium";
+			targetResolved = true;
+			break;
+
 		default:
 			// Unknown report type -> unresolvable
 			recommendedNextRoute = "HIR";
