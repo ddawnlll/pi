@@ -8,6 +8,8 @@ export {
 	CombinedAutocompleteProvider,
 	type SlashCommand,
 } from "./autocomplete.js";
+// ACCP components
+export { AccpModePicker, type AccpModePickerResult } from "./components/accp-mode-picker.js";
 // Components
 export { Box } from "./components/box.js";
 export { CancellableLoader } from "./components/cancellable-loader.js";

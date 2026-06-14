@@ -1302,9 +1302,9 @@ export class AutonomousExecutor {
 								// P49.25: Invoke the repair loop for canonicalization.
 								// The repair prompt is stored on the worker result so the
 								// caller can inject it into the worker's next attempt.
-								const repairResult = runAccpRepairLoop(compileResult, workerResult.accp.sourceYaml);
-								workerResult.accp.repairPrompt = repairResult.repairPrompt ?? undefined;
+								const repairResult = runAccpRepairLoop(compileResult);
 								if (repairResult.repairPrompt) {
+									workerResult.accp.repairPrompt = repairResult.repairPrompt;
 									console.error(
 										`[ACCP] Repair prompt generated for ${workerResult.accp.reportId} (attempts: ${repairResult.attempts})`,
 									);

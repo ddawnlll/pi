@@ -17,7 +17,7 @@ import {
 	type OAuthProviderId,
 	type OAuthSelectPrompt,
 } from "@earendil-works/pi-ai";
-import type { AccpDiagnostic } from "@earendil-works/pi-execution-contracts";
+import type { AccpDiagnostic, AccpTaskEnvelope } from "@earendil-works/pi-execution-contracts";
 import type {
 	AccpModePickerResult,
 	AutocompleteItem,
@@ -265,6 +265,7 @@ export class InteractiveMode {
 	// work is in progress. Created when an accp_task_envelope event fires,
 	// updated on every compilation/gate/artifact event, removed on agent_end.
 	private accpStatusComponent: AccpStatusComponent | undefined = undefined;
+	private accpTaskEnvelope: AccpTaskEnvelope | undefined = undefined;
 	private workingMessage: string | undefined = undefined;
 	private workingVisible = true;
 	private workingIndicatorOptions: LoaderIndicatorOptions | undefined = undefined;
@@ -2886,9 +2887,7 @@ export class InteractiveMode {
 			}
 
 			case "accp_task_envelope": {
-				// No-op: the status card is spawned lazily by the first
-				// compilation/gate event. This event fires only from the
-				// TUI mode picker and is not needed for autonomous execution.
+				this.accpTaskEnvelope = this.session.accpTaskEnvelope;
 				break;
 			}
 
@@ -3096,7 +3095,9 @@ export class InteractiveMode {
 
 				// P49.32C — Render ACCP result if ACCP mode is not 'off'
 				const accpMode = this.session.accpMode;
-				if (accpMode !== "off" && this.session.accpTaskEnvelope) {
+				const accpTaskEnvelope =
+					this.accpTaskEnvelope ?? this.session.accpTaskEnvelope ?? this.buildFallbackAccpTaskEnvelope();
+				if (accpMode !== "off" && accpTaskEnvelope) {
 					// Check if we already have an ACCP result in the chat
 					const hasAccpResult = this.chatContainer.children.some(
 						(child) => child.constructor.name === "AccpResultComponent",
@@ -3131,7 +3132,7 @@ export class InteractiveMode {
 
 						const resultData: AccpResultData = {
 							status: resultStatus,
-							reportId: this.session.accpTaskEnvelope.taskId,
+							reportId: accpTaskEnvelope.taskId,
 							compiledArtifactPath: this.session.lastAccpArtifactPath,
 							diagnostics,
 							gateVerdict: lastVerdict,
@@ -4229,7 +4230,7 @@ export class InteractiveMode {
 					onShowTerminalProgressChange: (enabled) => {
 						this.settingsManager.setShowTerminalProgress(enabled);
 					},
-					onVerboseAccpOutputChange: (enabled) => {
+					onVerboseAccpOutputChange: (enabled: boolean) => {
 						this.settingsManager.setVerboseAccpOutput(enabled);
 					},
 					onTokenContextModeChange: async (mode) => {
@@ -6434,6 +6435,7 @@ export class InteractiveMode {
 
 			// P49.23: Store the envelope and update ACCP mode on the session
 			this.session.setAccpMode(result.selectedMode, envelope);
+			this.accpTaskEnvelope = envelope;
 
 			const reportInfo = result.initialReportType ? `, initial report: ${result.initialReportType}` : "";
 			this.showStatus(`ACCP mode: ${result.selectedMode}${reportInfo}`);
@@ -6450,6 +6452,19 @@ export class InteractiveMode {
 			maxHeight: "80%",
 			anchor: "center",
 		});
+	}
+
+	private buildFallbackAccpTaskEnvelope(): AccpTaskEnvelope | undefined {
+		const compileResult = this.session.lastAccpCompileResult;
+		const gateVerdict = this.session.lastAccpGateVerdict;
+		const reportType = compileResult?.reportType ?? gateVerdict?.reportType;
+		if (!reportType) return undefined;
+
+		return {
+			taskId: compileResult?.reportId ?? gateVerdict?.reportId ?? `accp-${Date.now()}`,
+			initialRoute: createInitialRouteIndicator("explore"),
+			targetReportTypes: [reportType],
+		};
 	}
 
 	stop(): void {

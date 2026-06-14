@@ -137,6 +137,7 @@ export interface Settings {
 	editorPaddingX?: number; // Horizontal padding for input editor (default: 0)
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
+	verboseAccpOutput?: boolean; // Show inline ACCP compilation/gate progress in the chat TUI
 	markdown?: MarkdownSettings;
 	warnings?: WarningSettings;
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
@@ -1343,5 +1344,17 @@ export class SettingsManager {
 	/** Get merged settings (global + project) */
 	getMergedSettings(): Settings {
 		return structuredClone(this.settings);
+	}
+
+	/** Get verbose ACCP output mode. */
+	getVerboseAccpOutput(): boolean {
+		return this.settings.verboseAccpOutput ?? false;
+	}
+
+	/** Set verbose ACCP output mode. */
+	setVerboseAccpOutput(enabled: boolean): void {
+		this.globalSettings.verboseAccpOutput = enabled;
+		this.markModified("verboseAccpOutput");
+		this.save();
 	}
 }

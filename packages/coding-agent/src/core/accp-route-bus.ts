@@ -235,8 +235,7 @@ export class AccpRouteBus {
 		return {
 			chainId: deliveries[0].deliveryId,
 			deliveries,
-			reachedCoordinator:
-				deliveries.length > 0 && deliveries[deliveries.length - 1].targetRole === "coordinator",
+			reachedCoordinator: deliveries.length > 0 && deliveries[deliveries.length - 1].targetRole === "coordinator",
 		};
 	}
 

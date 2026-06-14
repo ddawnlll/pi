@@ -15,6 +15,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import { compileAccpSource } from "@earendil-works/pi-accp-compiler";
 import type {
 	Agent,
 	AgentEvent,
@@ -38,8 +39,9 @@ import { theme } from "../modes/interactive/theme/theme.js";
 import { stripFrontmatter } from "../utils/frontmatter.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { sleep } from "../utils/sleep.js";
+import { AccpArtifactStore } from "./accp-artifact-store.js";
 import { createDefaultSubscriptions } from "./accp-artifact-subscriptions.js";
-import { attachAccpProgressEmitter } from "./accp-progress-emitter.js";
+import { getAccpProgressEmitter, subscribeToAccpProgressEmitter } from "./accp-progress-emitter.js";
 import { type AccpMode, renderAccpModeDirective, renderAccpPrompt } from "./accp-prompt-renderer.js";
 import { type AccpRouteBus, getAccpRouteBus } from "./accp-route-bus.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
@@ -389,6 +391,7 @@ export class AgentSession {
 	private _lastAccpGateVerdict: import("@earendil-works/pi-execution-contracts").AccpGateVerdict | undefined =
 		undefined;
 	private _lastAccpArtifactPath: string | undefined = undefined;
+	private _unsubscribeAccpProgressEmitter: (() => void) | undefined = undefined;
 
 	/**
 	 * P49.31 FIX-006: expose the per-session route bus. Consumers (e.g.
@@ -434,10 +437,10 @@ export class AgentSession {
 			console.warn("[ACCP] Route bus instantiation failed:", err);
 		}
 
-		// P49.TUI-001: attach a progress emitter that the artifact store and
-		// gate stage runner call into. It forwards calls to `_emit` so the
-		// TUI sees compilation/gate/artifact events as they happen.
-		attachAccpProgressEmitter({
+		// P49.TUI-001: attach a progress emitter subscriber that the artifact
+		// store and gate stage runner call into. It forwards calls to `_emit`
+		// so the TUI sees compilation/gate/artifact events as they happen.
+		this._unsubscribeAccpProgressEmitter = subscribeToAccpProgressEmitter({
 			onCompilationStarted: (reportId, reportType) => {
 				this._emit({ type: "accp_compilation_started", reportId, reportType });
 			},
@@ -817,6 +820,16 @@ export class AgentSession {
 			}
 		}
 
+		// P49.TUI-001: compile ACCP YAML from agent messages BEFORE
+		// emitting agent_end. The compilation fires progress emitter
+		// events that the TUI catches to render the live status card.
+		// Doing this before the agent_end event means the TUI can
+		// read fresh lastAccpCompileResult / lastAccpGateVerdict
+		// when building the AccpResultComponent.
+		if (event.type === "agent_end" && this._accpMode !== "off") {
+			await this._compileAccpFromAgentMessages(event.messages);
+		}
+
 		// Emit to extensions first
 		await this._emitExtensionEvent(event);
 
@@ -901,6 +914,78 @@ export class AgentSession {
 			this._retryResolve();
 			this._retryResolve = undefined;
 			this._retryPromise = undefined;
+		}
+	}
+
+	/**
+	 * P49.TUI-001: Scan agent messages for ACCP YAML and compile it
+	 * in-process. The compilation fires progress emitter events that
+	 * the InteractiveMode TUI handler (set in init()) catches to
+	 * update the live status card and result card.
+	 */
+	private async _compileAccpFromAgentMessages(messages: AgentMessage[]): Promise<void> {
+		// Scan all assistant messages (most recent first) for ACCP YAML
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg.role !== "assistant") continue;
+			const assistant = msg as AssistantMessage;
+			// Collect all text content from the assistant message
+			const content = assistant.content;
+			if (!content) continue;
+			const textBlocks = Array.isArray(content)
+				? content.filter((c) => c.type === "text").map((c) => (c as TextContent).text)
+				: typeof content === "string"
+					? [content]
+					: [];
+			const fullText = textBlocks.join("\n");
+			if (!fullText) continue;
+
+			// Check for ACCP YAML markers (same detection as accp-bridge.ts)
+			const stripped = fullText.replace(/```(?:yaml|yml|accp)?\n/g, "\n").replace(/```/g, "");
+			const isAccpYaml =
+				/accp_version:\s*"?2\.0\.0"?/m.test(stripped) && /source_format:\s*"?ACCP-YAML"?/m.test(stripped);
+			if (!isAccpYaml) continue;
+
+			// Extract report type and report ID from YAML
+			const reportType = /^report_type:\s*"?([^"\n]+)"?\s*$/m.exec(stripped)?.[1]?.trim() ?? "RIR";
+			const reportId = /^report_id:\s*"?([^"\n]+)"?\s*$/m.exec(stripped)?.[1]?.trim() ?? `agent-${Date.now()}`;
+
+			try {
+				// Emit compilation-started so the TUI can flip its status card
+				getAccpProgressEmitter().emitCompilationStarted({
+					reportId,
+					reportType: reportType as unknown as import("@earendil-works/pi-execution-contracts").AccpReportType,
+				});
+
+				const compileResult = compileAccpSource(fullText);
+
+				// Persist through the artifact store so gate readers can
+				// consume the compiled JSON. saveCompiled() also emits
+				// compilation-completed which the TUI catches.
+				const store = new AccpArtifactStore({
+					rootDir: "reports/accp",
+					planId: this._accpTaskEnvelope?.taskId ?? "interactive",
+				});
+				const artifactPath = store.saveCompiled(reportId, compileResult);
+
+				// P49.TUI-001: store the compilation result on the session
+				// so the TUI's AccpResultComponent at agent_end reads real
+				// data instead of defaulting to "hold".
+				this._lastAccpCompileResult = compileResult;
+				this._lastAccpArtifactPath = artifactPath;
+
+				if (compileResult.hasBlockingFindings) {
+					console.error(`[ACCP] Compilation warnings/errors for ${reportId}:`);
+					for (const d of compileResult.diagnostics) {
+						console.error(`  [${d.code}] ${d.message}`);
+					}
+				}
+			} catch (err) {
+				console.error(`[ACCP] Inline compile hook error: ${err}`);
+			}
+
+			// Only process the first ACCP YAML found (most recent message)
+			break;
 		}
 	}
 
@@ -1064,6 +1149,8 @@ export class AgentSession {
 		this._extensionRunner.invalidate(
 			"This extension ctx is stale after session replacement or reload. Do not use a captured pi or command ctx after ctx.newSession(), ctx.fork(), ctx.switchSession(), or ctx.reload(). For newSession, fork, and switchSession, move post-replacement work into withSession and use the ctx passed to withSession. For reload, do not use the old ctx after await ctx.reload().",
 		);
+		this._unsubscribeAccpProgressEmitter?.();
+		this._unsubscribeAccpProgressEmitter = undefined;
 		this._disconnectFromAgent();
 		this._eventListeners = [];
 		// Kill any orphaned child processes (vitest, etc.) spawned via the bash tool

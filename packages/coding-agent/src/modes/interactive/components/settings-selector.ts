@@ -55,6 +55,7 @@ export interface SettingsConfig {
 	quietStartup: boolean;
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
+	verboseAccpOutput: boolean;
 	warnings: WarningSettings;
 	tokenContextMode: "disabled" | "observe_only" | "shadow" | "active_safe";
 }
@@ -83,6 +84,7 @@ export interface SettingsCallbacks {
 	onQuietStartupChange: (enabled: boolean) => void;
 	onClearOnShrinkChange: (enabled: boolean) => void;
 	onShowTerminalProgressChange: (enabled: boolean) => void;
+	onVerboseAccpOutputChange: (enabled: boolean) => void;
 	onWarningsChange: (warnings: WarningSettings) => void;
 	onCancel: () => void;
 }

@@ -60,6 +60,8 @@ export interface AccpRepairResult {
 	evidenceInventionDetected: boolean;
 	/** Whether blocking findings were removed. */
 	blockingFindingsRemoved: boolean;
+	/** Repair prompt text to inject into the worker's next attempt (if any). */
+	repairPrompt?: string;
 }
 
 /**

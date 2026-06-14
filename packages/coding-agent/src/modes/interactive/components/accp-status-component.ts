@@ -49,6 +49,11 @@ export class AccpStatusComponent implements Component {
 		this.data = data;
 	}
 
+	/** Get the current data (for read-back in gate-started handlers). */
+	getData(): AccpStatusData {
+		return this.data;
+	}
+
 	/** Toggle expansion state. */
 	toggleExpanded(): void {
 		this.expanded = !this.expanded;
