@@ -2923,11 +2923,31 @@ export class InteractiveMode {
 
 			case "accp_compilation_completed": {
 				const status: AccpCompilationStatus = event.status === "failed" ? "fail" : "compiled";
+				// Build synthetic diagnostics from event counts for TUI display
+				const diags: AccpDiagnostic[] = [];
+				for (let i = 0; i < event.fatalCount; i++) {
+					diags.push({
+						code: "ACCP-COMPILE",
+						message: "Compilation fatal error",
+						severity: "error",
+						fatal: true,
+						reportId: event.reportId,
+					});
+				}
+				for (let i = 0; i < event.diagnosticCount - event.fatalCount; i++) {
+					diags.push({
+						code: "ACCP-COMPILE",
+						message: "Compilation warning",
+						severity: "warning",
+						fatal: false,
+						reportId: event.reportId,
+					});
+				}
 				if (!this.accpStatusComponent) {
 					this.accpStatusComponent = new AccpStatusComponent({
 						mode: this.session.accpMode,
 						compilationStatus: status,
-						diagnostics: [],
+						diagnostics: diags,
 						lastCompiledReport: `${event.reportType} ${event.reportId}`,
 					});
 					this.chatContainer.addChild(this.accpStatusComponent);
@@ -2935,7 +2955,7 @@ export class InteractiveMode {
 					this.accpStatusComponent.update({
 						mode: this.session.accpMode,
 						compilationStatus: status,
-						diagnostics: [],
+						diagnostics: diags,
 						lastCompiledReport: `${event.reportType} ${event.reportId}`,
 					});
 				}
@@ -2957,7 +2977,7 @@ export class InteractiveMode {
 					this.accpStatusComponent.update({
 						mode: this.session.accpMode,
 						compilationStatus: "gate_running",
-						diagnostics: [],
+						diagnostics: this.accpStatusComponent?.getData()?.diagnostics || [],
 						lastCompiledReport: `${event.reportType} ${event.reportId}`,
 					});
 				}
@@ -2976,11 +2996,51 @@ export class InteractiveMode {
 					: event.fatalErrorCount > 0 || event.blockingFindingCount > 0
 						? "fail"
 						: "hold";
+				// Build synthetic diagnostics from gate event counts
+				const gateDiags: AccpDiagnostic[] = [];
+				for (let i = 0; i < event.fatalErrorCount; i++) {
+					gateDiags.push({
+						code: "ACCP-GATE",
+						message: "Gate fatal error",
+						severity: "error",
+						fatal: true,
+						reportId: event.reportId,
+					});
+				}
+				for (let i = 0; i < event.blockingFindingCount; i++) {
+					gateDiags.push({
+						code: "ACCP-GATE",
+						message: "Blocking finding",
+						severity: "error",
+						fatal: false,
+						reportId: event.reportId,
+					});
+				}
+				for (let i = 0; i < event.warningCount; i++) {
+					gateDiags.push({
+						code: "ACCP-GATE",
+						message: "Gate warning",
+						severity: "warning",
+						fatal: false,
+						reportId: event.reportId,
+					});
+				}
 				if (this.accpStatusComponent) {
 					this.accpStatusComponent.update({
 						mode: this.session.accpMode,
 						compilationStatus: status,
-						diagnostics: [],
+						diagnostics: gateDiags,
+						gateVerdict: {
+							reportId: event.reportId,
+							reportType: event.reportType,
+							valid: event.valid,
+							fatalErrors: [],
+							warnings: [],
+							blockingFindings: [],
+							findingCount: event.fatalErrorCount + event.blockingFindingCount + event.warningCount,
+							promotionReady: event.valid,
+							evidenceStatus: event.evidenceStatus,
+						},
 						lastCompiledReport: `${event.reportType} ${event.reportId}`,
 					});
 				}
