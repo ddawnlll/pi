@@ -39,7 +39,8 @@ import { stripFrontmatter } from "../utils/frontmatter.js";
 import { killTrackedDetachedChildren } from "../utils/shell.js";
 import { sleep } from "../utils/sleep.js";
 import { createDefaultSubscriptions } from "./accp-artifact-subscriptions.js";
-import { type AccpMode, renderAccpModeDirective } from "./accp-prompt-renderer.js";
+import { attachAccpProgressEmitter } from "./accp-progress-emitter.js";
+import { type AccpMode, renderAccpModeDirective, renderAccpPrompt } from "./accp-prompt-renderer.js";
 import { type AccpRouteBus, getAccpRouteBus } from "./accp-route-bus.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.js";
@@ -161,7 +162,37 @@ export type AgentSessionEvent =
 	// P49.32B — ACCP event trace contract
 	| { type: "accp_mode_selected"; mode: AccpMode }
 	| { type: "accp_route_indicator"; initialAction: string; confidence: string; runtimeAuthorityRequired: boolean }
-	| { type: "accp_task_envelope"; taskId: string; targetReportTypes: string[] };
+	| { type: "accp_task_envelope"; taskId: string; targetReportTypes: string[] }
+	// P49.TUI-001 — ACCP real-time progress trace (compilation, gate, artifacts)
+	| {
+			type: "accp_compilation_started";
+			reportId: string;
+			reportType: import("@earendil-works/pi-execution-contracts").AccpReportType;
+	  }
+	| {
+			type: "accp_compilation_completed";
+			reportId: string;
+			reportType: import("@earendil-works/pi-execution-contracts").AccpReportType;
+			status: "compiled" | "compiled_with_warnings" | "failed";
+			diagnosticCount: number;
+			fatalCount: number;
+	  }
+	| {
+			type: "accp_gate_started";
+			reportId: string;
+			reportType: import("@earendil-works/pi-execution-contracts").AccpReportType;
+	  }
+	| {
+			type: "accp_gate_completed";
+			reportId: string;
+			reportType: import("@earendil-works/pi-execution-contracts").AccpReportType;
+			valid: boolean;
+			evidenceStatus: "complete" | "partial" | "missing" | "not_checked";
+			fatalErrorCount: number;
+			blockingFindingCount: number;
+			warningCount: number;
+	  }
+	| { type: "accp_artifact_written"; reportId: string; kind: string; path: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -350,6 +381,14 @@ export class AgentSession {
 	// it on construction so the session always has access to the bus for
 	// publishing route signals and subscribing consumers.
 	private _accpRouteBus: AccpRouteBus | undefined = undefined;
+	// P49.TUI-001: real-time progress state — last compilation result, gate verdict,
+	// and the most recent artifact path per report. The TUI reads this to render
+	// the result card at agent_end instead of hardcoded placeholders.
+	private _lastAccpCompileResult: import("@earendil-works/pi-execution-contracts").AccpCompileResult | undefined =
+		undefined;
+	private _lastAccpGateVerdict: import("@earendil-works/pi-execution-contracts").AccpGateVerdict | undefined =
+		undefined;
+	private _lastAccpArtifactPath: string | undefined = undefined;
 
 	/**
 	 * P49.31 FIX-006: expose the per-session route bus. Consumers (e.g.
@@ -358,6 +397,19 @@ export class AgentSession {
 	 */
 	public get accpRouteBus(): AccpRouteBus | undefined {
 		return this._accpRouteBus;
+	}
+
+	// P49.TUI-001: expose latest ACCP progress state for the TUI to read at
+	// agent_end when rendering the result card. These are advisory; the
+	// TUI must not use them to authorize anything.
+	public get lastAccpCompileResult(): import("@earendil-works/pi-execution-contracts").AccpCompileResult | undefined {
+		return this._lastAccpCompileResult;
+	}
+	public get lastAccpGateVerdict(): import("@earendil-works/pi-execution-contracts").AccpGateVerdict | undefined {
+		return this._lastAccpGateVerdict;
+	}
+	public get lastAccpArtifactPath(): string | undefined {
+		return this._lastAccpArtifactPath;
 	}
 
 	constructor(config: AgentSessionConfig) {
@@ -381,6 +433,70 @@ export class AgentSession {
 		} catch (err) {
 			console.warn("[ACCP] Route bus instantiation failed:", err);
 		}
+
+		// P49.TUI-001: attach a progress emitter that the artifact store and
+		// gate stage runner call into. It forwards calls to `_emit` so the
+		// TUI sees compilation/gate/artifact events as they happen.
+		attachAccpProgressEmitter({
+			onCompilationStarted: (reportId, reportType) => {
+				this._emit({ type: "accp_compilation_started", reportId, reportType });
+			},
+			onCompilationCompleted: (reportId, reportType, status, diagnosticCount, fatalCount) => {
+				this._lastAccpCompileResult = {
+					reportId,
+					reportType,
+					status,
+					diagnostics: [],
+					hasBlockingFindings: fatalCount > 0,
+				};
+				this._emit({
+					type: "accp_compilation_completed",
+					reportId,
+					reportType,
+					status,
+					diagnosticCount,
+					fatalCount,
+				});
+			},
+			onGateStarted: (reportId, reportType) => {
+				this._emit({ type: "accp_gate_started", reportId, reportType });
+			},
+			onGateCompleted: (
+				reportId,
+				reportType,
+				valid,
+				evidenceStatus,
+				fatalErrorCount,
+				blockingFindingCount,
+				warningCount,
+			) => {
+				this._lastAccpGateVerdict = {
+					reportId,
+					reportType,
+					valid,
+					evidenceStatus,
+					fatalErrors: [],
+					blockingFindings: [],
+					warnings: [],
+					findingCount: fatalErrorCount + blockingFindingCount + warningCount,
+					promotionReady: valid && fatalErrorCount === 0 && blockingFindingCount === 0,
+				};
+				this._emit({
+					type: "accp_gate_completed",
+					reportId,
+					reportType,
+					valid,
+					evidenceStatus,
+					fatalErrorCount,
+					blockingFindingCount,
+					warningCount,
+				});
+			},
+			onArtifactWritten: (reportId, kind, path) => {
+				this._lastAccpArtifactPath = path;
+				this._emit({ type: "accp_artifact_written", reportId, kind, path });
+			},
+		});
 
 		this.agent = config.agent;
 		this.sessionManager = config.sessionManager;
@@ -1199,10 +1315,17 @@ export class AgentSession {
 		// ACCP mode directive injection (gated by ACCP mode; off = no-op)
 		const accpDirective = renderAccpModeDirective(this._accpMode);
 
+		// ACCP report type template — inject the contract template for the selected report type
+		let accpReportDirective = "";
+		if (this._accpMode !== "off" && this._accpTaskEnvelope?.targetReportTypes?.length) {
+			const reportType = this._accpTaskEnvelope.targetReportTypes[0]!;
+			accpReportDirective = renderAccpPrompt(reportType, this._accpMode);
+		}
+
 		const appendSystemPrompt =
 			loaderAppendSystemPrompt.length > 0
-				? [...loaderAppendSystemPrompt, accpDirective].filter(Boolean).join("\n\n")
-				: accpDirective || undefined;
+				? [...loaderAppendSystemPrompt, accpDirective, accpReportDirective].filter(Boolean).join("\n\n")
+				: [accpDirective, accpReportDirective].filter(Boolean).join("\n\n") || undefined;
 		const loadedSkills = this._resourceLoader.getSkills().skills;
 		const loadedContextFiles = this._resourceLoader.getAgentsFiles().agentsFiles;
 
