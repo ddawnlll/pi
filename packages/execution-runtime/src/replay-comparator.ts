@@ -203,8 +203,9 @@ export class ReplayComparator {
 			case "deadline_exceeded":
 				return "FAILED_RETRYABLE";
 			case "attempt_succeeded":
-			case "attempt_progressed":
 				return "SUCCEEDED";
+			case "attempt_progressed":
+				return "RUNNING";
 			case "attempt_failed":
 				return "FAILED_FINAL";
 			case "attempt_blocked":

@@ -83,7 +83,8 @@ export function computePlanLifecycleState(input: PlanCompletionInput): PlanLifec
 		return "failed_final";
 	}
 
-	// Check for required non-terminal workspaces
+	// Check for required non-terminal workspaces (anything not in a terminal
+	// state is still in progress and keeps the plan running/blocked).
 	const hasRequiredNonTerminal = workspaces.some(
 		(w) => w.required && w.state !== "SUCCEEDED" && w.state !== "FAILED_FINAL" && w.state !== "FAILED_RETRYABLE",
 	);
@@ -114,13 +115,17 @@ export function computePlanLifecycleState(input: PlanCompletionInput): PlanLifec
 		return "final_validation";
 	}
 
-	// Some required workspaces failed - hasRequiredFailedFinal already handled above,
-	// remaining failures are retryable
+	// If every required workspace is FAILED_RETRYABLE, retries have been
+	// exhausted without any reaching FAILED_FINAL, but the plan cannot make
+	// further progress. This is a terminal failure.
 	const hasRetryableOnly = workspaces
 		.filter((w) => w.required)
 		.every((w) => w.state === "SUCCEEDED" || w.state === "FAILED_RETRYABLE");
 	if (hasRetryableOnly) {
-		return "running";
+		// Distinguish between a mix of SUCCEEDED + FAILED_RETRYABLE (treat as
+		// failed_final) and pure FAILED_RETRYABLE (also failed_final since
+		// no path forward remains).
+		return "failed_final";
 	}
 
 	return "blocked_with_reason";

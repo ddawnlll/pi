@@ -153,7 +153,9 @@ export class KernelTransitionRouter implements TransitionRouter {
 		const wsState = await this.stateStore.getWorkspaceState(planExecutionId, workspaceId);
 		const currentStage = wsState?.stage ?? WorkspaceStage.Pending;
 
-		// Route through attempt controller for Active/Complete/Failed transitions
+		// Route through attempt controller only for actual stage changes;
+		// no-op transitions still persist so the (potentially updated) data
+		// payload is applied to the workspace row.
 		if (currentStage !== newStage) {
 			await this.routeStageTransition(
 				planExecutionId,

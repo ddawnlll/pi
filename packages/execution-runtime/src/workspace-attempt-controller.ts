@@ -87,12 +87,26 @@ export class WorkspaceAttemptController {
 		attemptId: string,
 		payload: Record<string, unknown>,
 	): Promise<AttemptTransitionResult> {
+		// Read current metadata so we can merge (never clobber) prior entries
+		// while still letting this transition's payload take precedence on
+		// conflicting keys.
+		const current = await this.db
+			.selectFrom("attempts")
+			.select(["metadata"])
+			.where("id", "=", attemptId)
+			.executeTakeFirst();
+		const previousMetadata =
+			current?.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
+				? (current.metadata as Record<string, unknown>)
+				: {};
+		const mergedMetadata: Record<string, unknown> = { ...previousMetadata, ...payload };
+
 		const updated = await this.db
 			.updateTable("attempts")
 			.set({
 				current_state: nextState,
 				version: expectedVersion + 1,
-				metadata: payload,
+				metadata: mergedMetadata,
 				updated_at: new Date().toISOString(),
 			})
 			.where("id", "=", attemptId)

@@ -18,6 +18,10 @@ export class DeadlineWatchdog {
 		this.timer = null;
 	}
 	async scan(): Promise<void> {
+		// Only consider attempts in non-terminal states — terminal attempts
+		// should not be re-enqueued for deadline_exceeded even if their
+		// (stale) deadline is in the past.
+		const TERMINAL_STATES = new Set<string>(["SUCCEEDED", "FAILED_FINAL", "FAILED_RETRYABLE", "CANCELLED"]);
 		const attempts = (await this.db
 			.selectFrom("attempts" as any)
 			.selectAll()
@@ -25,10 +29,12 @@ export class DeadlineWatchdog {
 			id: string;
 			plan_execution_id: string;
 			workspace_execution_id: string;
+			current_state: string;
 			current_deadline_at: string | null;
 			version: number;
 		}>;
 		for (const attempt of attempts) {
+			if (TERMINAL_STATES.has(attempt.current_state)) continue;
 			if (!attempt.current_deadline_at || new Date(attempt.current_deadline_at).getTime() >= Date.now()) continue;
 			await this.db
 				.insertInto("controller_inbox" as any)

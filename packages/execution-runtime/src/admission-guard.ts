@@ -35,7 +35,7 @@ export function guardExecutionEntrypoint(
 		? "postgres_unavailable"
 		: input.production && input.jsonFallback
 			? "json_fallback_forbidden_in_production"
-			: input.repairMode !== input.autonomousMode
+			: input.repairMode && !input.autonomousMode
 				? "repair_autonomous_mode_mismatch"
 				: !input.promotionGateSatisfied
 					? "promotion_gate_unsatisfied"

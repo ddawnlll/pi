@@ -338,6 +338,12 @@ const VALID_EVENT_TYPES: ReadonlySet<string> = new Set<AttemptEventTypeV4>([
 	"handoff_retry_requested",
 	"handoff_closed",
 	"manual_resolution_recorded",
+	// ACCP v2.0 lifecycle events (P49.20 — additive, no removal)
+	"accp_compile_started",
+	"accp_compile_completed",
+	"accp_gate_verdict_emitted",
+	"accp_finding_recorded",
+	"accp_route_signal_emitted",
 ]);
 
 const VALID_SOURCES: ReadonlySet<string> = new Set<EventSource>([
@@ -357,6 +363,9 @@ const VALID_SOURCES: ReadonlySet<string> = new Set<EventSource>([
 	"admission_gate",
 	"legacy_adapter",
 	"human",
+	// ACCP v2.0 event sources (P49.20)
+	"accp_compiler",
+	"accp_route_bus",
 ]);
 
 /**
