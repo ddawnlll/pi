@@ -13,6 +13,7 @@
  * Contract Schema: 4.1.1
  */
 
+import { minimatch } from "minimatch";
 import type { StageExecutionContext, StageRunner } from "../completion-gate-vnext.js";
 import type { StageVerdict } from "../completion-gate-vnext-types.js";
 import { createFailedStageVerdict, createPassedStageVerdict } from "../workspace-truth-status.js";
@@ -185,17 +186,11 @@ export function createScopeAndWriteSetStageRunner(
 // ---------------------------------------------------------------------------
 
 /**
- * Simple glob matching (supports **, * wildcards at end).
- * This is a simplified version; real implementation should use minimatch or similar.
+ * Glob matching via minimatch (consistent with checkWriteSetDrift).
+ * Uses dot:true to match files with dots (e.g., *.ts).
  */
 function matchGlob(filePath: string, pattern: string): boolean {
-	if (pattern === filePath) return true;
-	if (pattern.endsWith("/**") && filePath.startsWith(pattern.slice(0, -3))) return true;
-	if (pattern.endsWith("/*") && filePath.startsWith(pattern.slice(0, -2))) return true;
-	if (pattern.endsWith("*") && !pattern.includes("/") && filePath.endsWith(pattern.slice(0, -1))) {
-		return filePath.endsWith(pattern.slice(0, -1));
-	}
-	return false;
+	return minimatch(filePath, pattern, { dot: true });
 }
 
 /**

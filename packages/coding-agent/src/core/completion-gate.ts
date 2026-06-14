@@ -17,6 +17,7 @@
  * before marking any workspace or plan done.
  */
 
+import { minimatch } from "minimatch";
 import type { GovernanceLedger } from "./governance-ledger.js";
 import type { FailureSignal } from "./log-failure-detector.js";
 import { FailureSignalCategory } from "./log-failure-detector.js";
@@ -362,11 +363,16 @@ export function evaluateWorkspaceCompletion(
 	//
 	// P42.HOTFIX: When implementation is finished and all other gates are
 	// clear (no failure signals, no test failures, no errors, no out-of-retries,
-	// no watch-mode), AND there is at least one successful command (exit 0) in
-	// the command history, a missing exact targetCommand match is downgraded to a
+	// no watch-mode), AND EVERY completed command in the history exited 0
+	// (not just some), a missing exact targetCommand match is downgraded to a
 	// non-blocking warning. The worker explicitly reported COMPLETE with clean
 	// evidence, and the absence of an exact targetCommand match should not hold
 	// the workspace in a blocked state indefinitely.
+	//
+	// Safety: we require ALL completed commands to exit 0, not just ANY.
+	// A worker that runs a failing test then a trivial "echo" would
+	// otherwise slip through the hasCleanEvidence check (observer false
+	// positive). If any command failed, the downgrade does NOT fire.
 	//
 	// This only applies when the worker DID exercise some commands (history is
 	// non-empty) and all observable signals are clean. If the command history is
@@ -380,17 +386,20 @@ export function evaluateWorkspaceCompletion(
 				const anyWatchModeInHistory = validationState.commandHistory.some(
 					(e) => e.command && isWatchModeCommand(e.command),
 				);
+				const completedCommands = validationState.commandHistory.filter((e) => e.exitCode !== null);
+				const allCompletedExitedZero =
+					completedCommands.length > 0 && completedCommands.every((e) => e.exitCode === 0);
 				const hasCleanEvidence =
 					validationState.implementationFinished &&
 					validationState.failureSignals.length === 0 &&
 					!validationState.outOfRetries &&
 					!validationState.watchModeCommandDetected &&
 					!anyWatchModeInHistory &&
-					validationState.commandHistory.some((e) => e.exitCode === 0);
+					allCompletedExitedZero;
 				if (hasCleanEvidence) {
-					// Worker reported COMPLETE with clean evidence and at
-					// least one successful command run — treat missing
-					// exact targetCommand as advisory, not blocking.
+					// Worker reported COMPLETE with clean evidence and all
+					// completed commands exited 0 — treat missing exact
+					// targetCommand as advisory, not blocking.
 					console.warn(
 						`[completion-gate] Workspace ${workspace.id} reported COMPLETE with clean evidence but targetCommand not executed: ${workspace.targetCommand}. Downgrading to non-blocking warning.`,
 					);
@@ -410,16 +419,20 @@ export function evaluateWorkspaceCompletion(
 		}
 		if (!workspaceValidationNotRequired && !isEquivalentValidationSatisfied(validationState, workspace)) {
 			// P42.HOTFIX: Same clean-evidence downgrade as targetCommand check above.
+			// Safety: require ALL completed commands to exit 0, not just ANY.
 			const anyWatchModeInHistory = validationState.commandHistory.some(
 				(e) => e.command && isWatchModeCommand(e.command),
 			);
+			const completedCommands = validationState.commandHistory.filter((e) => e.exitCode !== null);
+			const allCompletedExitedZero =
+				completedCommands.length > 0 && completedCommands.every((e) => e.exitCode === 0);
 			const hasCleanEvidence =
 				validationState.implementationFinished &&
 				validationState.failureSignals.length === 0 &&
 				!validationState.outOfRetries &&
 				!validationState.watchModeCommandDetected &&
 				!anyWatchModeInHistory &&
-				validationState.commandHistory.some((e) => e.exitCode === 0);
+				allCompletedExitedZero;
 			if (hasCleanEvidence) {
 				console.warn(
 					`[completion-gate] Workspace ${workspace.id} reported COMPLETE with clean evidence but targeted_test validation unsatisfied. Downgrading to non-blocking warning.`,
@@ -910,11 +923,10 @@ export function checkWriteSetDrift(empiricalDiffFiles: string[], declaredScope: 
 		};
 	}
 
-	// Simple glob matching — convert to regex
+	// Glob matching via minimatch (normalized to use dot:true for consistency
+	// with existing tests that expect patterns like *.ts to match files with dots).
 	const matchesPattern = (filePath: string, pattern: string): boolean => {
-		// Convert glob pattern to regex
-		const regexStr = pattern.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".");
-		return new RegExp(`^${regexStr}$`).test(filePath);
+		return minimatch(filePath, pattern, { dot: true });
 	};
 
 	const scopedFiles: string[] = [];

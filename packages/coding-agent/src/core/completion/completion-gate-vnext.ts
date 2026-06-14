@@ -13,6 +13,8 @@
  * Contract Schema: 4.1.1
  */
 
+import type { WorkspaceValidationState } from "../../core/completion-gate.js";
+import { evaluateWorkspaceCompletion } from "../../core/completion-gate.js";
 import type { Workspace } from "../../core/workspace-schema.js";
 import { readAccpGateVerdictFromStore, runAccpGateStage } from "../accp-gate-stage-runner.js";
 import { evaluateThroughAdapter, shouldUseVNextMode } from "./completion-gate-vnext-adapter.js";
@@ -23,6 +25,7 @@ import {
 	STAGE_ORDER,
 	type StageVerdict,
 } from "./completion-gate-vnext-types.js";
+import { createFailedStageVerdict, createPassedStageVerdict } from "./workspace-truth-status.js";
 
 // ---------------------------------------------------------------------------
 // Stage Runner Type
@@ -54,6 +57,11 @@ export interface StageExecutionContext {
 	previousVerdicts?: StageVerdict[];
 	/** Runtime facts available for commit message composition */
 	runtimeFacts?: Record<string, unknown>;
+	/**
+	 * Validation state for the workspace (populated by executor).
+	 * Fed to the Validation stage so it can delegate to evaluateWorkspaceCompletion.
+	 */
+	validationState?: WorkspaceValidationState;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +147,29 @@ export async function runCompletionGateVNext(
 	for (const stageName of STAGE_ORDER) {
 		const runner = stageRunners.get(stageName);
 		if (!runner) {
+			// P49.5: Validation stage has a built-in fallback when no explicit
+			// runner is registered — it delegates to evaluateWorkspaceCompletion
+			// if a validationState is available in the context.
+			if (stageName === "Validation" && context.validationState) {
+				const ws = workspace as Workspace;
+				const result = evaluateWorkspaceCompletion(context.validationState, ws);
+				const verdict = result.canComplete
+					? createPassedStageVerdict("Validation", { note: "All validation checks passed (built-in fallback)" })
+					: createFailedStageVerdict("Validation", result.blockReasons, {
+							recoveryState: "NEEDS_REPAIR_OR_RAR",
+							blockReasons: result.blockReasons,
+						});
+				stageVerdicts.push(verdict);
+				if (!verdict.passed) {
+					pipelineFailed = true;
+					allBlockReasons.push(...verdict.blockReasons);
+				}
+				if (verdict.warnings.length > 0) {
+					allWarnings.push(...verdict.warnings);
+				}
+				continue;
+			}
+
 			// Unregistered stage: fail-closed in strict rollout modes.
 			// In warn/legacy modes we keep a non-blocking warning so existing
 			// plans do not regress, but any required mode must block.

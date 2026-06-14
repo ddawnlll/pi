@@ -70,8 +70,8 @@ export function createEvidenceLedgerStageRunner(config: EvidenceLedgerStageConfi
 		const blockReasons: string[] = [];
 		const warnings: string[] = [];
 
-		// Check pass rate
-		if (summary.passRate < minPassRate) {
+		// Check pass rate (skip when no entries exist — empty ledger is not a failure)
+		if (summary.total > 0 && summary.passRate < minPassRate) {
 			blockReasons.push(
 				`Evidence pass rate ${(summary.passRate * 100).toFixed(1)}% is below minimum ${(minPassRate * 100).toFixed(1)}%`,
 			);

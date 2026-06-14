@@ -72,7 +72,7 @@ describe("StageVerdict", () => {
 	});
 
 	it("should have all stages in STAGE_ORDER", () => {
-		expect(STAGE_ORDER).toHaveLength(9);
+		expect(STAGE_ORDER).toHaveLength(10);
 		expect(STAGE_ORDER[0]).toBe("DeclaredOutputExistence");
 		expect(STAGE_ORDER[STAGE_ORDER.length - 1]).toBe("DestructiveOperationGuard");
 	});
@@ -82,7 +82,7 @@ describe("StageVerdict", () => {
 		// DestructiveOperationGuard must be last (protect against data loss after commit)
 		const stages = STAGE_ORDER as readonly string[];
 		expect(stages.indexOf("DeclaredOutputExistence")).toBe(0);
-		expect(stages.indexOf("DestructiveOperationGuard")).toBe(8);
+		expect(stages.indexOf("DestructiveOperationGuard")).toBe(9);
 		// CommitExecution must come before PostCommitVerification
 		expect(stages.indexOf("CommitExecution")).toBeLessThan(stages.indexOf("PostCommitVerification"));
 	});
@@ -481,7 +481,7 @@ describe("CompletionGate vNext Orchestrator", () => {
 		});
 		expect(verdict.passed).toBe(true);
 		expect(verdict.evaluated).toBe(true);
-		expect(verdict.stageVerdicts).toHaveLength(9);
+		expect(verdict.stageVerdicts).toHaveLength(STAGE_ORDER.length);
 	});
 
 	it("should return skipped verdict in off mode", async () => {
@@ -516,7 +516,7 @@ describe("CompletionGate vNext Orchestrator", () => {
 		});
 
 		expect(verdict.passed).toBe(true);
-		expect(verdict.stageVerdicts).toHaveLength(9);
+		expect(verdict.stageVerdicts).toHaveLength(STAGE_ORDER.length);
 		// Only registered stages have passed=true, others have warning=true
 		const declaredOutput = verdict.stageVerdicts.find((s) => s.stage === "DeclaredOutputExistence")!;
 		expect(declaredOutput.passed).toBe(true);

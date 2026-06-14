@@ -245,6 +245,8 @@ export type {
 	UnauthorizedFileEntry,
 } from "./stages/scope-and-writeset-stage.js";
 export { createScopeAndWriteSetStageRunner } from "./stages/scope-and-writeset-stage.js";
+export type { ValidationStageConfig } from "./stages/validation-stage.js";
+export { createValidationStageRunner } from "./stages/validation-stage.js";
 // Terminal Verdict Reconciler (P44.04)
 export type {
 	AttemptRecord,
