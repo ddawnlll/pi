@@ -17,6 +17,7 @@ import {
 	type OAuthProviderId,
 	type OAuthSelectPrompt,
 } from "@earendil-works/pi-ai";
+import type { AccpDiagnostic } from "@earendil-works/pi-execution-contracts";
 import type {
 	AccpModePickerResult,
 	AutocompleteItem,
@@ -99,6 +100,7 @@ import { killTrackedDetachedChildren } from "../../utils/shell.js";
 import { ensureTool } from "../../utils/tools-manager.js";
 import { checkForNewPiVersion } from "../../utils/version-check.js";
 import { AccpResultComponent, type AccpResultData } from "./components/accp-result-component.js";
+import { type AccpCompilationStatus, AccpStatusComponent } from "./components/accp-status-component.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
@@ -259,6 +261,10 @@ export class InteractiveMode {
 	private isInitialized = false;
 	private onInputCallback?: (text: string) => void;
 	private loadingAnimation: Loader | undefined = undefined;
+	// P49.TUI-001: ACCP status card rendered into the chat area while ACCP
+	// work is in progress. Created when an accp_task_envelope event fires,
+	// updated on every compilation/gate/artifact event, removed on agent_end.
+	private accpStatusComponent: AccpStatusComponent | undefined = undefined;
 	private workingMessage: string | undefined = undefined;
 	private workingVisible = true;
 	private workingIndicatorOptions: LoaderIndicatorOptions | undefined = undefined;
@@ -2879,6 +2885,139 @@ export class InteractiveMode {
 				break;
 			}
 
+			case "accp_task_envelope": {
+				// No-op: the status card is spawned lazily by the first
+				// compilation/gate event. This event fires only from the
+				// TUI mode picker and is not needed for autonomous execution.
+				break;
+			}
+
+			case "accp_compilation_started": {
+				// P49.TUI-001: spawn the status card on the first ACCP event
+				// (not dependent on accp_task_envelope which never fires in
+				// autonomous execution).
+				if (!this.accpStatusComponent) {
+					this.accpStatusComponent = new AccpStatusComponent({
+						mode: this.session.accpMode,
+						compilationStatus: "compiling",
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+					this.chatContainer.addChild(this.accpStatusComponent);
+				} else {
+					this.accpStatusComponent.update({
+						mode: this.session.accpMode,
+						compilationStatus: "compiling",
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+				}
+				if (this.settingsManager.getVerboseAccpOutput()) {
+					this.chatContainer.addChild(
+						new Text(theme.fg("dim", `ACCP: compiling ${event.reportType} ${event.reportId}...`), 1, 0),
+					);
+				}
+				this.ui.requestRender();
+				break;
+			}
+
+			case "accp_compilation_completed": {
+				const status: AccpCompilationStatus = event.status === "failed" ? "fail" : "compiled";
+				if (!this.accpStatusComponent) {
+					this.accpStatusComponent = new AccpStatusComponent({
+						mode: this.session.accpMode,
+						compilationStatus: status,
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+					this.chatContainer.addChild(this.accpStatusComponent);
+				} else {
+					this.accpStatusComponent.update({
+						mode: this.session.accpMode,
+						compilationStatus: status,
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+				}
+				if (this.settingsManager.getVerboseAccpOutput()) {
+					const label =
+						event.status === "failed"
+							? theme.fg("error", `FAILED (${event.fatalCount} fatal, ${event.diagnosticCount} diags)`)
+							: `compiled (${event.diagnosticCount} diags)`;
+					this.chatContainer.addChild(
+						new Text(theme.fg("muted", `ACCP: ${event.reportType} ${event.reportId} → ${label}`), 1, 0),
+					);
+				}
+				this.ui.requestRender();
+				break;
+			}
+
+			case "accp_gate_started": {
+				if (this.accpStatusComponent) {
+					this.accpStatusComponent.update({
+						mode: this.session.accpMode,
+						compilationStatus: "gate_running",
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+				}
+				if (this.settingsManager.getVerboseAccpOutput()) {
+					this.chatContainer.addChild(
+						new Text(theme.fg("dim", `ACCP: gate evaluating ${event.reportType} ${event.reportId}...`), 1, 0),
+					);
+				}
+				this.ui.requestRender();
+				break;
+			}
+
+			case "accp_gate_completed": {
+				const status: AccpCompilationStatus = event.valid
+					? "pass"
+					: event.fatalErrorCount > 0 || event.blockingFindingCount > 0
+						? "fail"
+						: "hold";
+				if (this.accpStatusComponent) {
+					this.accpStatusComponent.update({
+						mode: this.session.accpMode,
+						compilationStatus: status,
+						diagnostics: [],
+						lastCompiledReport: `${event.reportType} ${event.reportId}`,
+					});
+				}
+				if (this.settingsManager.getVerboseAccpOutput()) {
+					const badge = event.valid
+						? theme.fg("success", "PASS")
+						: theme.fg(
+								"error",
+								`BLOCKED (${event.fatalErrorCount} fatal, ${event.blockingFindingCount} blocking, ${event.warningCount} warn)`,
+							);
+					this.chatContainer.addChild(
+						new Text(theme.fg("muted", `ACCP: gate ${event.reportType} ${event.reportId} → `) + badge, 1, 0),
+					);
+				}
+				this.ui.requestRender();
+				break;
+			}
+
+			case "accp_artifact_written": {
+				if (this.accpStatusComponent) {
+					const current = this.accpStatusComponent.getData();
+					this.accpStatusComponent.update({
+						mode: this.session.accpMode,
+						compilationStatus: current.compilationStatus,
+						diagnostics: [],
+						lastCompiledReport: `${event.kind}: ${event.path}`,
+					});
+				}
+				if (this.settingsManager.getVerboseAccpOutput()) {
+					this.chatContainer.addChild(
+						new Text(theme.fg("dim", `ACCP: artifact ${event.kind} → ${event.path}`), 1, 0),
+					);
+				}
+				this.ui.requestRender();
+				break;
+			}
+
 			case "agent_end": {
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(false);
@@ -2898,15 +3037,57 @@ export class InteractiveMode {
 				// P49.32C — Render ACCP result if ACCP mode is not 'off'
 				const accpMode = this.session.accpMode;
 				if (accpMode !== "off" && this.session.accpTaskEnvelope) {
-					// Build ACCP result data from session state
-					const resultData: AccpResultData = {
-						status: "pass", // Default - would be updated by actual gate evaluation
-						reportId: this.session.accpTaskEnvelope.taskId,
-						diagnostics: [],
-						blockedReasons: [],
-					};
-					const accpResult = new AccpResultComponent(resultData);
-					this.chatContainer.addChild(accpResult);
+					// Check if we already have an ACCP result in the chat
+					const hasAccpResult = this.chatContainer.children.some(
+						(child) => child.constructor.name === "AccpResultComponent",
+					);
+					if (!hasAccpResult) {
+						// P49.TUI-001: build the result data from real session
+						// state, not hardcoded placeholders. Default to "hold"
+						// (not "pass") when no gate verdict exists, so we
+						// never claim completion without evidence.
+						const lastVerdict = this.session.lastAccpGateVerdict;
+						const lastCompile = this.session.lastAccpCompileResult;
+						const blockedReasons: string[] = [];
+						const diagnostics: AccpDiagnostic[] = [];
+						let resultStatus: AccpResultData["status"] = "hold";
+
+						if (lastVerdict) {
+							if (!lastVerdict.valid) {
+								resultStatus = "fail";
+								blockedReasons.push(...(lastVerdict.fatalErrors ?? []));
+								for (const f of lastVerdict.blockingFindings ?? []) {
+									blockedReasons.push(`ACCP blocking finding: ${f}`);
+								}
+							} else if ((lastVerdict.warnings ?? []).length > 0) {
+								resultStatus = "hold";
+							} else {
+								resultStatus = "pass";
+							}
+						}
+						if (lastCompile?.diagnostics) {
+							diagnostics.push(...(lastCompile.diagnostics as AccpDiagnostic[]));
+						}
+
+						const resultData: AccpResultData = {
+							status: resultStatus,
+							reportId: this.session.accpTaskEnvelope.taskId,
+							compiledArtifactPath: this.session.lastAccpArtifactPath,
+							diagnostics,
+							gateVerdict: lastVerdict,
+							blockedReasons,
+						};
+						const accpResult = new AccpResultComponent(resultData);
+						this.chatContainer.addChild(accpResult);
+					}
+				}
+
+				// P49.TUI-001: drop the live status card once the final
+				// result card is in place. The result card carries the
+				// full verdict; the status card was the running view.
+				if (this.accpStatusComponent) {
+					this.chatContainer.removeChild(this.accpStatusComponent);
+					this.accpStatusComponent = undefined;
 				}
 
 				await this.checkShutdownRequested();
@@ -3866,6 +4047,7 @@ export class InteractiveMode {
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
+					verboseAccpOutput: this.settingsManager.getVerboseAccpOutput(),
 					tokenContextMode:
 						(this.settingsManager.getGlobalSettings().tokenContext?.mode as
 							| "disabled"
@@ -3986,6 +4168,9 @@ export class InteractiveMode {
 					},
 					onShowTerminalProgressChange: (enabled) => {
 						this.settingsManager.setShowTerminalProgress(enabled);
+					},
+					onVerboseAccpOutputChange: (enabled) => {
+						this.settingsManager.setVerboseAccpOutput(enabled);
 					},
 					onTokenContextModeChange: async (mode) => {
 						this.settingsManager.setTokenContextMode(mode);
