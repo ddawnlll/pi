@@ -20,6 +20,7 @@ import type {
 	AccpIntermediateRepresentation,
 	AccpRouteSignal,
 } from "@earendil-works/pi-execution-contracts";
+import { getAccpProgressEmitter } from "./accp-progress-emitter.js";
 
 /** Artifact store configuration. */
 export interface AccpArtifactStoreConfig {
@@ -34,6 +35,49 @@ export const DEFAULT_ARTIFACT_STORE_CONFIG: AccpArtifactStoreConfig = {
 	rootDir: "reports/accp",
 	planId: "P49",
 };
+
+// ---------------------------------------------------------------------------
+// Plan-level index and graph types
+// ---------------------------------------------------------------------------
+
+/** Entry in the plan-level artifact index. */
+export interface AccpArtifactIndexEntry {
+	reportId: string;
+	reportType: string;
+	artifacts: string[];
+	updatedAt: string;
+}
+
+/** Plan-level artifact index mapping. */
+export interface AccpArtifactIndex {
+	planId: string;
+	accpVersion: string;
+	reports: Record<string, AccpArtifactIndexEntry>;
+	updatedAt: string;
+}
+
+/** Graph node for the plan-level artifact graph. */
+export interface AccpArtifactGraphNode {
+	id: string;
+	type: "wave" | "workspace";
+	title: string;
+}
+
+/** Graph edge for the plan-level artifact graph. */
+export interface AccpArtifactGraphEdge {
+	source: string;
+	target: string;
+	action: string;
+	confidence: string;
+}
+
+/** Plan-level artifact graph. */
+export interface AccpArtifactGraph {
+	planId: string;
+	accpVersion: string;
+	nodes: AccpArtifactGraphNode[];
+	edges: AccpArtifactGraphEdge[];
+}
 
 /**
  * ACCP Artifact Store — writes compiled artifacts to the filesystem.
@@ -77,7 +121,21 @@ export class AccpArtifactStore {
 	 * Save the compiled result.
 	 */
 	saveCompiled(reportId: string, result: AccpCompileResult): string {
-		return this.writeJson("compiled", reportId, "compiled.json", result);
+		const path = this.writeJson("compiled", reportId, "compiled.json", result);
+		const diagnosticCount = result.diagnostics?.length ?? 0;
+		const fatalCount = result.diagnostics?.filter((d) => d.fatal).length ?? 0;
+		const eventStatus: "compiled" | "compiled_with_warnings" | "failed" =
+			result.status === "not_compiled" ? "compiled" : result.status;
+		getAccpProgressEmitter().emitCompilationCompleted({
+			reportId,
+			reportType: result.reportType,
+			status: eventStatus,
+			diagnosticCount,
+			fatalCount,
+			diagnostics: result.diagnostics,
+		});
+		getAccpProgressEmitter().emitArtifactWritten({ reportId, kind: "compiled", path });
+		return path;
 	}
 
 	/**
@@ -91,7 +149,18 @@ export class AccpArtifactStore {
 	 * Save the gate verdict.
 	 */
 	saveGateVerdict(reportId: string, verdict: AccpGateVerdict): string {
-		return this.writeJson("verdict", reportId, "gate-verdict.json", verdict);
+		const path = this.writeJson("verdict", reportId, "gate-verdict.json", verdict);
+		getAccpProgressEmitter().emitGateCompleted({
+			reportId,
+			reportType: verdict.reportType,
+			valid: verdict.valid,
+			evidenceStatus: verdict.evidenceStatus,
+			fatalErrorCount: verdict.fatalErrors?.length ?? 0,
+			blockingFindingCount: verdict.blockingFindings?.length ?? 0,
+			warningCount: verdict.warnings?.length ?? 0,
+		});
+		getAccpProgressEmitter().emitArtifactWritten({ reportId, kind: "verdict", path });
+		return path;
 	}
 
 	/**
@@ -148,6 +217,90 @@ export class AccpArtifactStore {
 			const filePath = resolve(dir, `${reportId}.gate-verdict.json`);
 			if (!existsSync(filePath)) return null;
 			return JSON.parse(readFileSync(filePath, "utf-8")) as AccpGateVerdict;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Save the source ACCP YAML. */
+	saveSource(reportId: string, yamlContent: string): string {
+		const dir = this.ensureDir("source");
+		const filePath = resolve(dir, `${reportId}.accp.yaml`);
+		writeFileSync(filePath, yamlContent, "utf-8");
+		return filePath;
+	}
+
+	/** Read the source ACCP YAML. */
+	readSource(reportId: string): string | null {
+		try {
+			const dir = resolve(this.getPlanDir(), "source");
+			const filePath = resolve(dir, `${reportId}.accp.yaml`);
+			if (!existsSync(filePath)) return null;
+			return readFileSync(filePath, "utf-8");
+		} catch {
+			return null;
+		}
+	}
+
+	/** Read an intermediate representation. */
+	readIr(reportId: string): AccpIntermediateRepresentation | null {
+		try {
+			const dir = resolve(this.getPlanDir(), "ir");
+			const filePath = resolve(dir, `${reportId}.ir.json`);
+			if (!existsSync(filePath)) return null;
+			return JSON.parse(readFileSync(filePath, "utf-8")) as AccpIntermediateRepresentation;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Read the rendered markdown. */
+	readRendered(reportId: string): string | null {
+		try {
+			const dir = resolve(this.getPlanDir(), "rendered");
+			const filePath = resolve(dir, `${reportId}.accp.md`);
+			if (!existsSync(filePath)) return null;
+			return readFileSync(filePath, "utf-8");
+		} catch {
+			return null;
+		}
+	}
+
+	/** Save the plan-level artifact index. */
+	saveIndex(index: AccpArtifactIndex): string {
+		const dir = this.ensureDir("");
+		const filePath = resolve(dir, "index.json");
+		writeFileSync(filePath, JSON.stringify(index, null, 2), "utf-8");
+		return filePath;
+	}
+
+	/** Read the plan-level artifact index. */
+	readIndex(): AccpArtifactIndex | null {
+		try {
+			const dir = this.getPlanDir();
+			const filePath = resolve(dir, "index.json");
+			if (!existsSync(filePath)) return null;
+			return JSON.parse(readFileSync(filePath, "utf-8")) as AccpArtifactIndex;
+		} catch {
+			return null;
+		}
+	}
+
+	/** Save the plan-level artifact graph. */
+	saveGraph(graph: AccpArtifactGraph): string {
+		const dir = this.ensureDir("");
+		const filePath = resolve(dir, "graph.json");
+		writeFileSync(filePath, JSON.stringify(graph, null, 2), "utf-8");
+		return filePath;
+	}
+
+	/** Read the plan-level artifact graph. */
+	readGraph(): AccpArtifactGraph | null {
+		try {
+			const dir = this.getPlanDir();
+			const filePath = resolve(dir, "graph.json");
+			if (!existsSync(filePath)) return null;
+			return JSON.parse(readFileSync(filePath, "utf-8")) as AccpArtifactGraph;
 		} catch {
 			return null;
 		}
