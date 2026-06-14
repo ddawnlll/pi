@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P49_TRUTH_AUDIT_RAR_001",
+  "sourceReportType": "RAR",
+  "recommendedNextAction": "investigate",
+  "recommendedNextRoute": "BSR",
+  "confidence": "medium",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "read_only",
+  "targetResolved": true
+}

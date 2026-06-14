@@ -1,0 +1,14 @@
+packages/coding-agent/src/modes/interactive/interactive-mode.ts
+packages/coding-agent/src/modes/interactive/components/footer.ts
+packages/coding-agent/src/modes/interactive/components/accp-status-component.ts
+packages/coding-agent/src/modes/interactive/components/accp-result-component.ts
+packages/coding-agent/src/core/agent-session.ts
+scripts/p49-tui-live-accp-smoke.mjs
+scripts/p49-strict-runtime-verification.mjs
+package.json
+reports/accp/P49_32B_tui_accp_live_visibility_final_100/evidence/onefile.evidence.json
+reports/accp/P49_32B_tui_accp_live_visibility_final_100/scorecard.json
+reports/accp/P49_32B_tui_accp_live_visibility_final_100/source/P49_32B_PRR.accp.yaml
+reports/accp/P49_32C_tui_accp_closure_commit/evidence/onefile.evidence.json
+reports/accp/P49_32C_tui_accp_closure_commit/scorecard.json
+reports/accp/P49_32C_tui_accp_closure_commit/source/P49_32C_PRR.accp.yaml

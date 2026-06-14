@@ -1,0 +1,107 @@
+{
+  "gapsAndBlockersGenerated": "2026-06-11T21:00:00+03:00",
+  "blockers": [
+    {
+      "class": "no_live_server_e2e",
+      "severity": "critical",
+      "description": "No test starts a live HTTP server and executes a multi-plan task against it. All claimed e2e tests use in-process faux providers.",
+      "evidence": "Code review of all e2e-*.test.ts files and scripts/run-*.ts files confirms no server startup."
+    },
+    {
+      "class": "no_real_multi_plan_task",
+      "severity": "critical",
+      "description": "No test creates, schedules, and executes a realistic multi-plan task against a live system.",
+      "evidence": "The real-agent-mini-multiplan-gate.ts creates synthetic plan artifacts but uses deterministic mode by default."
+    },
+    {
+      "class": "no_average_parallelism_measurement",
+      "severity": "high",
+      "description": "No test measures average, peak, or sustained parallelism across real async assembly execution.",
+      "evidence": "P45 concurrency and load profile scripts are stubs with empty function bodies."
+    },
+    {
+      "class": "no_centralized_gauntlet",
+      "severity": "high",
+      "description": "No single gauntlet or make target centralizes all strongest tests (real-agent, P45, P49, execution stability).",
+      "evidence": "make test runs only test/execution-gauntlet/. make test-full omits real-agent, P45, and P49. Neither is in CI."
+    },
+    {
+      "class": "make_test_full_not_sufficient",
+      "severity": "high",
+      "description": "make test-full does not include the most critical tests: real-agent mini-multiplan gate, P45 scripts, P49 ACCP e2e.",
+      "evidence": "Makefile lines 360-440: test-full-phase-01 through test-full-phase-04."
+    },
+    {
+      "class": "e2e_name_but_not_true_e2e",
+      "severity": "high",
+      "description": "11 files named e2e but all use faux/deterministic providers, no live server. Names are misleading.",
+      "evidence": "Read of e2e-flagship.test.ts, e2e-plan-execution.test.ts, e2e-accp-native-flow.test.ts confirms faux providers."
+    },
+    {
+      "class": "dogfood_not_in_ci",
+      "severity": "medium",
+      "description": "8 dogfood test files exist but none are wired into CI workflows.",
+      "evidence": "CI workflows show only npm test and mini-execution-correctness. No dogfood targets."
+    },
+    {
+      "class": "script_exists_but_not_promoted",
+      "severity": "medium",
+      "description": "P45 scripts (load-profile, concurrency-profile, unbounded-concurrency-experiment) are stubs. Not wired into make test-full or CI.",
+      "evidence": "Code review of each script confirms empty bodies or hardcoded results."
+    },
+    {
+      "class": "missing_machine_readable_evidence",
+      "severity": "medium",
+      "description": "No standardized machine-readable evidence artifact format for promotion gating.",
+      "evidence": "Some tests write ad hoc JSON reports but no consistent schema or evidence service."
+    },
+    {
+      "class": "missing_negative_failure_mode",
+      "severity": "medium",
+      "description": "No test verifies fail-closed behavior when server, LLM, or database is unavailable.",
+      "evidence": "No test file found that validates fail-closed for unavailable dependencies."
+    },
+    {
+      "class": "missing_accp_validation_report",
+      "severity": "high",
+      "description": "No P50 readiness validation report exists. ACCP compiler exists but pre-existing reports cover P43, P44.5, P44.6, P45 only.",
+      "evidence": "find reports/accp/P50* returns no results. reports/accp/ contains only P43/, P44.5/, P44.6/, P45/."
+    },
+    {
+      "class": "missing_promotion_gate",
+      "severity": "high",
+      "description": "No promotion gate exists on the real runtime execution path that checks test coverage.",
+      "evidence": "No test or script found that implements a promotion gate based on e2e test results."
+    },
+    {
+      "class": "real_llm_not_exercised",
+      "severity": "high",
+      "description": "Real LLM mode exists but is guarded behind PI_DIAG_RUN_REAL_LLM=1 and never runs in CI.",
+      "evidence": "mini-execution-correctness.yml line: PI_REAL_AGENT_GATE_MODE: commit (faux mode). Real-LLM is workflow_dispatch only."
+    },
+    {
+      "class": "real_database_not_exercised",
+      "severity": "medium",
+      "description": "PostgreSQL backend exists but all CI tests use JSON-fallback or in-memory state store.",
+      "evidence": "CI workflows do not set DATABASE_URL or PG* environment variables for test runs."
+    },
+    {
+      "class": "completion_gate_not_on_real_runtime_path",
+      "severity": "medium",
+      "description": "Completion gate tests are unit-tested but not exercised as part of a live end-to-end execution.",
+      "evidence": "Completion gate tests (5 files) use isolated in-process testing."
+    },
+    {
+      "class": "async_assembly_not_on_real_runtime_path",
+      "severity": "high",
+      "description": "Async assembly tests (22 files) are unit tests, not wired into any real execution runtime.",
+      "evidence": "assembly/ directory in test/ contains unit tests, not integration or e2e tests."
+    },
+    {
+      "class": "route_bus_not_on_real_runtime_path",
+      "severity": "medium",
+      "description": "Route bus test is an isolated ACCP test, not exercised on the real runtime execution path.",
+      "evidence": "test/accp/route-bus.test.ts imports ACCP compiler directly, no runtime wiring."
+    }
+  ]
+}

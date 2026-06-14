@@ -1,0 +1,10 @@
+{"command":"npm run check","status":"passed","timestamp":"2026-06-11T20:40:00+03:00","output":"All checks passed with 0 errors, 9 warnings, 17 infos. 1930 files checked."}
+{"command":"make test","status":"passed","timestamp":"2026-06-11T20:40:00+03:00","output":"Deterministic execution gauntlet ran test/execution-gauntlet/. Visibility gauntlet produced reports."}
+{"command":"make test-full","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Would take 30+ minutes. Code review confirms 4 phases: lint, unit tests, build, execution stability gauntlet."}
+{"command":"scripts/run-real-agent-mini-multiplan-gate.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Requires CI environment. Script is 1565+ lines exercising AutonomousExecutor with fault injection."}
+{"command":"scripts/run-p45-minimal-async-assembly-smoke.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Uses hardcoded simulated results, not real async assembly execution."}
+{"command":"scripts/run-p45-load-profile.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Stub with empty function bodies."}
+{"command":"scripts/run-p45-concurrency-profile.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Stub with empty function bodies."}
+{"command":"scripts/run-p45-unbounded-concurrency-experiment.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Stub with empty function bodies."}
+{"command":"scripts/run-p45-realistic-fixture-suite.ts","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"Hardcoded simulated results, not real execution."}
+{"command":"npx accp-compiler validate","status":"skipped","timestamp":"2026-06-11T20:40:00+03:00","reason":"ACCP compiler exists but template registry does not include P50 readiness audit templates."}

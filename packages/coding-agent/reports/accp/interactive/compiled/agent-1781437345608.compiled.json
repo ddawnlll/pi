@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "reportId": "UNKNOWN",
+  "reportType": "FCR",
+  "diagnostics": [
+    {
+      "code": "ACCP_PARSE_YAML_INVALID",
+      "message": "Source does not start with accp_version",
+      "severity": "error",
+      "fatal": true
+    }
+  ],
+  "hasBlockingFindings": true
+}

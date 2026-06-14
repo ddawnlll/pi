@@ -1,0 +1,66 @@
+{
+  "request_id": "P49_14V_ACCP_VISIBILITY_WIRING_RESEARCH",
+  "nodes": [
+    { "id": "main.verbose", "label": "parsed.verbose" },
+    { "id": "settings.verboseAccpOutput", "label": "terminal.verboseAccpOutput" },
+    { "id": "interactive_mode", "label": "InteractiveMode" },
+    { "id": "agent_session", "label": "AgentSession" },
+    { "id": "progress_emitter", "label": "AccpProgressEmitter" },
+    { "id": "footer", "label": "FooterComponent" },
+    { "id": "status_card", "label": "AccpStatusComponent" },
+    { "id": "result_card", "label": "AccpResultComponent" },
+    { "id": "manual_agent_end", "label": "manual agent_end result path" },
+    { "id": "plan_executor", "label": "AutonomousExecutor" },
+    { "id": "accp_mode_indicator", "label": "persistent ACCP mode indicator" }
+  ],
+  "edges": [
+    {
+      "from": "main.verbose",
+      "to": "interactive_mode",
+      "state": "wired",
+      "note": "startup verbosity only"
+    },
+    {
+      "from": "settings.verboseAccpOutput",
+      "to": "interactive_mode",
+      "state": "wired",
+      "note": "gates ACCP chat verbosity"
+    },
+    {
+      "from": "agent_session",
+      "to": "progress_emitter",
+      "state": "wired",
+      "note": "session-side persistence handler installed first"
+    },
+    {
+      "from": "interactive_mode",
+      "to": "progress_emitter",
+      "state": "overrides",
+      "note": "set() replaces the shared handler bundle"
+    },
+    {
+      "from": "progress_emitter",
+      "to": "status_card",
+      "state": "wired",
+      "note": "live compilation/gate/artifact rendering"
+    },
+    {
+      "from": "manual_agent_end",
+      "to": "result_card",
+      "state": "gated",
+      "note": "requires accpTaskEnvelope and non-off mode"
+    },
+    {
+      "from": "plan_executor",
+      "to": "progress_emitter",
+      "state": "wired",
+      "note": "plan execution emits compilation-started and persists artifacts"
+    },
+    {
+      "from": "footer",
+      "to": "accp_mode_indicator",
+      "state": "wired",
+      "note": "persistent mode display"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_PIR_001
+  type: PIR
+  family: core
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+summary: "PlanSpec review confirms P49 has 30 workspaces across 8 waves. All PlanSpec requirements are clear and correct. The gap is production wiring vs test-only implementation."
+findings:
+  - id: F-PIR-001
+    severity: info
+    category: plan_coverage
+    description: "PlanSpec defines complete set of ACCP v2.0 components"
+    affected_ac_refs: []
+  - id: F-PIR-002
+    severity: warning
+    category: production_wiring
+    description: "PlanSpec requires runtime wiring but actual implementation is test-only for 6 of 13 key requirements"
+    affected_ac_refs: ["P49-R003", "P49-R004", "P49-R005", "P49-R006", "P49-R008", "P49-R009"]

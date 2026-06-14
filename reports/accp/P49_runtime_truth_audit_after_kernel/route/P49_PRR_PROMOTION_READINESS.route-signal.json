@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P49_TRUTH_AUDIT_PRR_001",
+  "sourceReportType": "PRR",
+  "recommendedNextAction": "promote",
+  "recommendedNextRoute": "",
+  "confidence": "high",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "mutation_allowed",
+  "targetResolved": false
+}

@@ -1,0 +1,38 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_ECR_001
+  type: ECR
+  family: coordination
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+summary: "Onefile evidence and scorecard generated. 31 source files inspected. 8 commands executed. 5 existing P49/P0 reports audited. 3 evidence contradictions found in PRR."
+evidence_artifacts:
+  - type: onefile_evidence
+    path: "reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+  - type: scorecard
+    path: "reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+evidence_contradictions:
+  - report_source: "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+    claimed_field: "GC-TUI-PICKER"
+    claimed_status: "PASS"
+    actual: "CONTRADICTED — Live TUI smoke: PROBE_SCREEN_CONTAINS_PICKER=false"
+    severity: high
+  - report_source: "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+    claimed_field: "GC-CG-ACC"
+    claimed_status: "PASS"
+    actual: "TEST_ONLY — AccpGate not in STAGE_ORDER, runAccpGateStage not called by orchestrator"
+    severity: high
+  - report_source: "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+    claimed_field: "p50Readiness.ready"
+    claimed_status: "true"
+    actual: "CONTRADICTED — P49 foundational runtime wiring must be production-active before P50"
+    severity: high

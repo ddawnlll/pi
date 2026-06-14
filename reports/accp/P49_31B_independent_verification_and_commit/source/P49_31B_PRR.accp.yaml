@@ -1,0 +1,83 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report_id: P49_31B_PRR_001
+report_type: PRR
+report_family: core
+report_name: P49.31B Post-Commit Promotion Readiness Report
+support_level: schema_strict
+
+report:
+  id: "P49_31B_PRR_001"
+  type: "PRR"
+  family: "core"
+  kind: "promotion_readiness"
+  status: "complete"
+
+meta:
+  plan_id: "P49.31B"
+  parent_plan_id: "P49.31"
+  inspection_mode: "independent_verification"
+  confidence: "high"
+
+final_decision:
+  verdict: "PASS_WITH_HOLDS"
+  commit_sha: "f587b0016fa005349fb79a5b6dcf3b0848cc2d82"
+  branch: "main"
+  committed_files: 20
+  verification_gates_passed: 12
+  verification_gates_held: 2
+  runtime_verified_percent: 100
+  critical_blockers: 0
+
+held_gates:
+  - gate: "IVG-005-LIVE-TUI-PICKER"
+    reason: >
+      The live TUI smoke test (scripts/p0-tui-smoke.mjs) exercises the bare
+      editor component in isolation and does not instantiate InteractiveMode,
+      which is where the Tab keybinding for `app.accp.modePicker` is registered.
+      Static source analysis confirms:
+      - accpModePickerEnabled defaults true in InteractiveMode constructor
+      - defaultEditor.onAction("app.accp.modePicker", showAccpModePicker) is wired
+      - showAccpModePicker calls createInitialRouteIndicator + createAccpTaskEnvelope
+      But live emission evidence requires a full InteractiveMode boot path test
+      that the current smoke infrastructure does not provide. This is a testing
+      gap, not a missing wiring. Fix requires enhancing p0:tui-smoke to launch
+      the full InteractiveMode or adding a dedicated TUI integration test.
+  - gate: "IVG-006-LIVE-ROUTE-EMISSION"
+    reason: >
+      Same root cause as IVG-005. InitialRouteIndicator and AccpTaskEnvelope
+      factory call sites are present and wired through showAccpModePicker, but
+      the live event trace from a full InteractiveMode session is not captured
+      by the current smoke harness. The event trace in reports/tmp/gate-sanity/P0_1/tui/
+      shows only raw input events (sendInput), not application-level action
+      dispatches like app.accp.modePicker.
+
+operator_sign_off:
+  status: "pending"
+  required_for:
+    - "P50 start authorization"
+    - "ACCP mode promotion from warn to required"
+    - "Enhanced TUI integration test to close IVG-005/006 holds"
+  notes: >
+    All structural P49 runtime wiring repairs are committed and verified.
+    The 12 passed gates cover CompletionGate STAGE_ORDER, runAccpGateStage
+    registration, kernel ACCP predicate, worker adapter bridge, RouteBus
+    instantiation, ArtifactStore read/write, evidence cap rules, PlanSpec
+    ownership, and build/check reproduction. The 2 held gates are testing
+    infrastructure limitations, not missing code. Operator must review and
+    sign off before P50 can proceed.
+
+p50_remains_blocked:
+  blocked: true
+  reasons:
+    - "Hard stop HS-010: Any P50 implementation or promotion is attempted → STOP_WITH_FAIL"
+    - "Operator sign-off pending (see operator_sign_off above)"
+    - "IVG-005/006 holds require enhanced TUI integration test before production stability claim"
+    - "Sustained multi-agent handoff under load not yet demonstrated"
+  next_phase: "P49.32 — Operator sign-off, TUI integration test enhancement, and sustained production monitoring"
+
+post_commit_validation:
+  post_commit_sha: "f587b0016fa005349fb79a5b6dcf3b0848cc2d82"
+  npm_run_check_exit_code: 0
+  npm_run_p49_strict_exit_code: 0
+  uncommitted_product_repair_files: false

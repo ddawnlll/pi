@@ -1,0 +1,10 @@
+{
+  "sourceReportId": "P49_TRUTH_AUDIT_TVR_001",
+  "sourceReportType": "TVR",
+  "recommendedNextAction": "review_warnings",
+  "recommendedNextRoute": "CAR",
+  "confidence": "medium",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "validation_only",
+  "targetResolved": true
+}

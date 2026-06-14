@@ -1,0 +1,146 @@
+# P49.14A ACCP Auto Routing v2 PlanSpec Amendment Report
+# Generated: 2026-06-14
+# Request ID: P49_14A_ACCP_AUTO_ROUTING_PLANSPEC_AMENDMENT
+# ACCP Version: 2.0.0
+
+accp:
+  version: "2.0.0"
+  request_id: "P49_14A_ACCP_AUTO_ROUTING_PLANSPEC_AMENDMENT"
+  status: "complete"
+  amends: "P49.14 PlanSpec"
+
+execution_summary:
+  phase: "P49.14A"
+  title: "ACCP Auto Routing v2 PlanSpec Amendment"
+  mode: "planning_amendment_only"
+  product_code_mutated: false
+  planspec_amended: true
+  reports_generated: true
+  implementation_performed: false
+  commit_performed: false
+
+amendments_applied:
+  - id: "AMEND-001"
+    title: "TUI production wiring must be explicit"
+    status: "applied"
+    changes:
+      - "Updated W3 wave title to 'TUI Route UX and Production Wiring' with production wiring description and HS-018 reference."
+      - "Added production TUI files to W3 gate requiredArtifacts: interactive-mode.ts, components/footer.ts, footer-data-provider.ts."
+      - "Added production wiring files to P49.14.09 allowedFiles: interactive-mode.ts, components/footer.ts, footer-data-provider.ts."
+      - "Added AC-P491409-003 (Route footer wired into production render path) and AC-P491409-004 (Route state visible from production render path) to P49.14.09 acceptance criteria."
+      - "Added VAL-P491409-003 (TypeScript must fail if accp-route-footer not importable from production files) to P49.14.09 validation."
+      - "Added production keybinding files to P49.14.12 allowedFiles: keybindings.ts, keybinding-hints.ts."
+      - "Added TUI wiring negative test to P49.14.08: 'TUI component on disk without production call-site wiring is blocked (HS-018)'."
+      - "Added TUI wiring verification to P49.14.16 final verification instruction and AC-P491416-003."
+    production_files_added:
+      - "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+      - "packages/coding-agent/src/modes/interactive/components/footer.ts"
+      - "packages/coding-agent/src/modes/interactive/components/keybinding-hints.ts"
+      - "packages/coding-agent/src/core/footer-data-provider.ts"
+      - "packages/coding-agent/src/core/keybindings.ts"
+    new_hard_stop: "HS-018 (ACCP_HS018_TUI_COMPONENT_NOT_WIRED)"
+
+  - id: "AMEND-002"
+    title: "RouteDecisionEvidence schema must be locked"
+    status: "applied"
+    changes:
+      - "Updated WI-P491403-001 to reference all 29 required fields as a locked contract, not deferred detail."
+      - "Added WI-P491403-004 containing the full minimum schema contract with 29 required fields, 10 invariant rules, and output pattern."
+      - "Added AC-P491403-003 (Invariants enforced: route_decision_is_advisory always true, authorization flags always false)."
+      - "Added AC-P491403-004 (Canonical JSON SHA-256 is deterministic and verifiable)."
+      - "Updated AC-P491403-001 and AC-P491403-002 to reference 29-field contract."
+    schema_fields_locked: 29
+    invariant_rules: 10
+    output_pattern: "reports/accp/route-decisions/<timestamp>-<task-id>.route-decision.json"
+    new_hard_stop: "HS-017 (ACCP_HS017_INVALID_ROUTE_DECISION_EVIDENCE)"
+
+  - id: "AMEND-003"
+    title: "ACCP protocol version ambiguity must be resolved"
+    status: "applied"
+    changes:
+      - "Updated authority.reports.version from '1.2.0' to '2.0.0' with runtimeAuthorityVersion, legacyTemplateVersion, and legacyVersionNote fields."
+      - "Added mixedProtocolAuthorityWithoutAdapterIsHardBlocked flag to authority.reports."
+      - "Added compatibility.notes entry explaining ACCP 2.0.0 runtime authority with 1.2.0 template compatibility."
+      - "Updated top-level reports.version from '1.2.0' to '2.0.0' with legacyTemplateVersion field."
+      - "Added new top-level accpProtocolAuthority section declaring 2.0.0 runtime authority, 1.2.0 template compatibility, and HS-019 enforcement rule."
+      - "Added protocol authority check to P49.14.16 final verification instruction."
+    new_hard_stop: "HS-019 (ACCP_HS019_AMBIGUOUS_ACCP_PROTOCOL_VERSION)"
+
+new_hard_stops_added:
+  - id: "HS-017"
+    condition: "RouteDecisionEvidence is missing, malformed, unhashable, or lacks required schema fields."
+    action: "Block route acceptance and route execution; require valid route-decision evidence."
+    severity: "block"
+    diagnosticCode: "ACCP_HS017_INVALID_ROUTE_DECISION_EVIDENCE"
+  - id: "HS-018"
+    condition: "TUI route component exists on disk but has no production call-site wiring."
+    action: "Block TUI workspace (W3) completion; require InteractiveMode/Footer production wiring evidence."
+    severity: "block"
+    diagnosticCode: "ACCP_HS018_TUI_COMPONENT_NOT_WIRED"
+  - id: "HS-019"
+    condition: "Mixed ACCP protocol versions are used without explicit legacy adapter."
+    action: "Block implementation readiness; require protocol authority resolution."
+    severity: "block"
+    diagnosticCode: "ACCP_HS019_AMBIGUOUS_ACCP_PROTOCOL_VERSION"
+
+preserved_invariants:
+  - "6-route primary taxonomy preserved (Intake/Inventory, Plan/Spec, Execute/Build, Verify/Validate, Review/Promote, Repair/Debug)."
+  - "Abort and Reroute remain control actions, not primary routes."
+  - "Expert / Direct remains advanced escape hatch."
+  - "BSR mapped to Repair/Debug (not Plan/Spec)."
+  - "FPR mapped to Repair/Debug (not Execute/Build)."
+  - "ECR excluded from critical bugfix chain between FVR and PRR."
+  - "All HS-001 through HS-016 preserved."
+  - "Route decision authority remains advisory-only."
+  - "CompletionGateV2 remains final authority."
+  - "No Abort/Learn/Rollback added as primary routes."
+
+verification_results:
+  valid_json:
+    command: "jq empty /Users/hootie/src/pi/docs/01_p49_14_accp_auto_routing_v2.planspec.json"
+    exit_code: 0
+    result: "PASS"
+  production_wiring_terms:
+    command: "rg production call-site|InteractiveMode|Footer|interactive-mode|HS-018"
+    result: "PASS (all terms found in amended PlanSpec)"
+  route_decision_schema_terms:
+    command: "rg RouteDecisionEvidence|canonical_json_sha256|route_decision_is_advisory|HS-017"
+    result: "PASS (all terms found, 29-field schema locked)"
+  accp_version_authority:
+    command: "rg 'ACCP 2.0.0|runtime authority|legacy adapter|HS-019'"
+    result: "PASS (ACCP 2.0.0 authority resolved, HS-019 enforced)"
+  no_product_mutation:
+    result: "PASS (no product code files changed during P49.14A)"
+  taxonomy_preserved:
+    result: "PASS (6 primary routes preserved, Abort/Reroute are control actions)"
+  bsr_fpr_ecr_corrections:
+    result: "PASS (BSR/FPR/ECR correction rules preserved)"
+
+hard_stop_checks:
+  HS-P49-14A-001: "PASS (existing PlanSpec read)"
+  HS-P49-14A-002: "PASS (vision v2 read)"
+  HS-P49-14A-003: "PASS (amended PlanSpec is valid JSON)"
+  HS-P49-14A-004: "PASS (no product code modified)"
+  HS-P49-14A-005: "PASS (TUI production wiring gate added with HS-018)"
+  HS-P49-14A-006: "PASS (RouteDecisionEvidence minimum schema explicitly present)"
+  HS-P49-14A-007: "PASS (ACCP protocol authority resolved with HS-019)"
+  HS-P49-14A-008: "PASS (no Abort/Learn/Rollback added as primary routes)"
+  HS-P49-14A-009: "PASS (BSR/FPR/ECR correction rules preserved)"
+  HS-P49-14A-010: "PASS (route decision advisory-only authority preserved)"
+
+final_machine_summary:
+  P49.14A_verdict: "PlanSpec amended successfully. All three gaps closed. All 10 hard stops passed. Score 100/100. Execute-ready for P49.14B."
+  planspec_amended: true
+  valid_json: true
+  product_code_mutated: false
+  tui_production_wiring_gate_added: true
+  route_decision_evidence_schema_locked: true
+  accp_protocol_authority_resolved: true
+  new_hard_stops_added: 3
+  total_hard_stops: 19
+  primary_route_taxonomy_preserved: true
+  bsr_fpr_ecr_correction_rules_preserved: true
+  score: 100
+  execute_ready_for_P49_14B: true
+  blockers: []
+  next_recommended_phase: "P49.14B — ACCP Auto Routing v2 Implementation"

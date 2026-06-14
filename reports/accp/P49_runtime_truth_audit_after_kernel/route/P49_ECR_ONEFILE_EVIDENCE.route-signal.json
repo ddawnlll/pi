@@ -1,0 +1,13 @@
+{
+  "sourceReportId": "P49_TRUTH_AUDIT_ECR_001",
+  "sourceReportType": "ECR",
+  "recommendedNextAction": "unresolved_route_target",
+  "recommendedNextRoute": "HIR",
+  "confidence": "low",
+  "isAdvisory": true,
+  "mutationPolicyNeeded": "read_only",
+  "targetResolved": false,
+  "unresolvedRefs": [
+    "ECR"
+  ]
+}

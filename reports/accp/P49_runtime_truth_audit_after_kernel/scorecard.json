@@ -1,0 +1,190 @@
+{
+  "audit_id": "P49_RUNTIME_TRUTH_AUDIT_AFTER_EXECUTION_KERNEL_RUN",
+  "p49_previous_percent": 30,
+  "p49_current_percent": 37.65,
+  "p49_delta": 7.65,
+  "runtime_verified_percent": 0,
+  "test_only_percent": 7.5,
+  "dead_code_percent": 13.15,
+  "missing_percent": 62.35,
+  "verdict": "FAIL",
+  "promotion_ready": false,
+  "requirements": [
+    {
+      "id": "P49-R001",
+      "title": "ACCP v2 compiler/package exists and validates ACCP reports",
+      "weight": 8,
+      "status": "implemented_with_live_or_runtime_evidence",
+      "credit": 1.0,
+      "weighted_score": 8.0
+    },
+    {
+      "id": "P49-R002",
+      "title": "ACCP report registry and strict YAML report schemas are implemented",
+      "weight": 6,
+      "status": "implemented_with_live_or_runtime_evidence",
+      "credit": 1.0,
+      "weighted_score": 6.0
+    },
+    {
+      "id": "P49-R003",
+      "title": "InitialRouteIndicator generated from real selection/runtime event",
+      "weight": 8,
+      "status": "source_present_unwired",
+      "credit": 0.25,
+      "weighted_score": 2.0
+    },
+    {
+      "id": "P49-R004",
+      "title": "AccpTaskEnvelope generated from real selection/runtime event",
+      "weight": 8,
+      "status": "source_present_unwired",
+      "credit": 0.25,
+      "weighted_score": 2.0
+    },
+    {
+      "id": "P49-R005",
+      "title": "AccpRouteBus implemented and instantiated in production boot/runtime path",
+      "weight": 9,
+      "status": "source_present_unwired",
+      "credit": 0.25,
+      "weighted_score": 2.25
+    },
+    {
+      "id": "P49-R006",
+      "title": "Route authority guard prevents route signals from becoming runtime authority without gate approval",
+      "weight": 9,
+      "status": "source_present_unwired",
+      "credit": 0.25,
+      "weighted_score": 2.25
+    },
+    {
+      "id": "P49-R007",
+      "title": "workerResult.accp is populated with compiled ACCP artifacts in worker adapter/runtime",
+      "weight": 10,
+      "status": "implemented_with_integration_test_only",
+      "credit": 0.75,
+      "weighted_score": 7.5
+    },
+    {
+      "id": "P49-R008",
+      "title": "runAccpGateStage is wired into CompletionGateV2 production completion pipeline",
+      "weight": 12,
+      "status": "source_present_unwired",
+      "credit": 0.15,
+      "weighted_score": 1.8
+    },
+    {
+      "id": "P49-R009",
+      "title": "Compiled ACCP JSON/gate-verdict/route-signal artifacts are consumed by runtime",
+      "weight": 8,
+      "status": "source_present_unwired",
+      "credit": 0.25,
+      "weighted_score": 2.0
+    },
+    {
+      "id": "P49-R010",
+      "title": "TUI Tab opens ACCP mode picker in live TUI path",
+      "weight": 8,
+      "status": "contradicted_by_live_evidence",
+      "credit": 0.0,
+      "weighted_score": 0.0
+    },
+    {
+      "id": "P49-R011",
+      "title": "Current ACCP mode is visible in user-facing TUI",
+      "weight": 5,
+      "status": "source_present_unwired",
+      "credit": 0.15,
+      "weighted_score": 0.75
+    },
+    {
+      "id": "P49-R012",
+      "title": "File picker is reassigned away from Tab to @ or Ctrl+P",
+      "weight": 4,
+      "status": "source_present_unwired",
+      "credit": 0.15,
+      "weighted_score": 0.6
+    },
+    {
+      "id": "P49-R013",
+      "title": "P49 validation chain produces onefile evidence and machine-readable scorecard",
+      "weight": 5,
+      "status": "implemented_with_live_or_runtime_evidence",
+      "credit": 1.0,
+      "weighted_score": 5.0
+    }
+  ],
+  "weighted_total": 100,
+  "earned_total": 38.15,
+  "final_percent": 38.15,
+  "cap_reasons": [
+    {
+      "rule_id": "CAP_BUILD_OR_CHECK_FAIL",
+      "condition": "npm run build fails (exit code 1)",
+      "applied_cap": "final_percent_cap: 49",
+      "effective": false,
+      "note": "Cap would normally limit to 49, but actual score (38.15) is below that."
+    },
+    {
+      "rule_id": "CAP_P0_FAIL",
+      "condition": "P0 gate sanity fails (exit code 1)",
+      "applied_cap": "final_percent_cap: 49",
+      "effective": false,
+      "note": "Same — 38.15 is below cap."
+    },
+    {
+      "rule_id": "CAP_TUI_LIVE_CONTRADICTION",
+      "condition": "Live TUI smoke contradicts Tab/mode-picker claim (P49-R010)",
+      "applied_credit": 0.0,
+      "effective": true,
+      "note": "P49-R010 scores 0 — directly contradicted by live evidence."
+    },
+    {
+      "rule_id": "CAP_NO_RUNTIME_WIRING",
+      "condition": "R003, R004, R005, R006, R008, R009 have source but no production call site",
+      "applied_status": "source_present_unwired",
+      "max_credit": 0.25,
+      "effective": true,
+      "note": "Six requirements capped at 0.25 credit due to missing production wiring."
+    },
+    {
+      "rule_id": "CAP_COMPLETION_GATE_NOT_WIRED",
+      "condition": "runAccpGateStage is not consumed by CompletionGateV2 production path",
+      "applied_max": 0.15,
+      "effective": true,
+      "note": "P49-R008 capped at 0.15 (raw report / dead code level)."
+    },
+    {
+      "rule_id": "CAP_UNIT_ONLY",
+      "condition": "P49-R007 has integration tests but no production call site for worker adapter bridge",
+      "applied_status": "implemented_with_integration_test_only",
+      "max_credit": 0.75,
+      "effective": true,
+      "note": "P49-R007 at 0.75 (integration test only — autonomous executor has ACCP compile hook but worker adapter doesn't propagate accp)."
+    }
+  ],
+  "top_blockers": [
+    "BLOCKER-001: npm run build fails — worker-adapters TS error (Property 'contextUsed' missing on AgentExecutionResult)",
+    "BLOCKER-002: P0 gate sanity fails — p0-audit-harness step cannot find run-sanity-check.mjs",
+    "BLOCKER-003: Live TUI evidence contradicts P49-R010 — Tab does NOT open ACCP mode picker (PROBE_SCREEN_CONTAINS_PICKER=false)",
+    "BLOCKER-004: AccpGate stage not wired into CompletionGateVNext STAGE_ORDER — test-only coverage",
+    "BLOCKER-005: AccpRouteBus never instantiated or consumed in production boot path",
+    "BLOCKER-006: InitialRouteIndicator and AccpTaskEnvelope only produced in dead code path (accpModePickerEnabled never true)",
+    "BLOCKER-007: File picker reassignment to @ or Ctrl+P not implemented — filePickerGesture schema field exists but never consumed",
+    "BLOCKER-008: Current ACCP mode not displayed in TUI UI — exists only in session state, no rendering",
+    "BLOCKER-009: AccpArtifactStore read methods never called from production — write-only pattern",
+    "BLOCKER-010: PRR makes false claims about runtime wiring (GC-TUI-PICKER, GC-CG-ACC based on tests not production wiring)"
+  ],
+  "next_fix_scope": "P49.22 (Tab mode picker activation), P49.18 (CompletionGate ACCP wiring), P49.12 (RouteBus production instantiation), worker-adapters type fix, P0 gate sanity script repair, P49.23 (event production from live path)",
+  "promotion_ready_requirements": {
+    "p49_current_percent_gte_90": false,
+    "runtime_verified_percent_gte_75": false,
+    "npm_run_check_exit_0": true,
+    "npm_run_build_exit_0": false,
+    "P0_gate_sanity_PASS": false,
+    "no_critical_blockers": false,
+    "live_TUI_smoke_passes_for_Tab_mode_picker": false,
+    "CompletionGateV2_consumes_ACCP_verdict_in_production_path": false
+  }
+}

@@ -1,0 +1,134 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P50RA-PRR-P50-READINESS
+  type: PRR
+  family: p50_readiness_audit
+  title: "P50 Readiness Audit — Promotion Readiness"
+  generated_at: "2026-06-11T21:00:00+03:00"
+  generator: accp_research_prompt_v2_strict_yaml
+promotion_target:
+  target: "Production promotion of Pi multi-plan execution capability"
+  definition: "Ability to execute a large multi-plan task end-to-end against a live system with real LLM, real database, and real server, with centralized CI gating, average parallelism measurement, and promotion gates"
+  current_state: "Tests prove internal/unit/trust-boundary behavior only. No live server e2e, no real multi-plan task, no centralized gauntlet in CI, no promotion gate."
+gate_checks:
+  - gate: live_server_true_e2e
+    status: FAIL
+    evidence: "No test starts a live server and executes a multi-plan task against it. Claimed e2e tests use faux providers with no server."
+    required_for_promotion: true
+  - gate: real_multi_plan_task_execution
+    status: FAIL
+    evidence: "No test executes a realistic multi-plan task against a live system. The real-agent-mini-multiplan-gate creates synthetic plan artifacts but uses deterministic mode by default."
+    required_for_promotion: true
+  - gate: average_parallelism_measurement
+    status: FAIL
+    evidence: "No test measures average, peak, or sustained parallelism across real async assembly execution. P45 concurrency and load profile scripts are stubs with empty function bodies."
+    required_for_promotion: true
+  - gate: centralized_gauntlet_in_ci
+    status: FAIL
+    evidence: "make test and make test-full exist but are not in CI. CI runs npm test (package unit tests) only. The real-agent gate runs in a separate workflow. No single gauntlet centralizes all strongest tests."
+    required_for_promotion: true
+  - gate: real_llm_exercise_in_ci
+    status: FAIL
+    evidence: "Real LLM mode exists in scripts/run-real-agent-mini-multiplan-gate.ts but is guarded behind PI_DIAG_RUN_REAL_LLM=1 and never executes in CI. The mini-execution-correctness.yml workflow runs real-agent gate with PI_REAL_AGENT_GATE_MODE=commit which uses faux providers."
+    required_for_promotion: true
+  - gate: make_test_full_sufficient
+    status: FAIL
+    evidence: "make test-full runs 4 phases: lint, unit tests, build, execution stability gauntlet. It does NOT include real-agent mini-multiplan gate, P45 async assembly scripts, or P49 ACCP e2e tests."
+    required_for_promotion: true
+  - gate: accp_validation_report_present
+    status: FAIL
+    evidence: "No P50 readiness validation report exists. ACCP compiler is available (packages/accp-compiler) but pre-existing ACCP reports cover P43, P44.5, P44.6, P45 phases only."
+    required_for_promotion: true
+  - gate: negative_failure_mode_coverage
+    status: FAIL
+    evidence: "No test verifies fail-closed behavior when server, LLM, or database is unavailable."
+    required_for_promotion: false
+  - gate: false_positive_guard_review
+    status: NOT_ASSESSED
+    evidence: "A false-positive-tracker.test.ts exists but was not reviewed in depth for this audit."
+    required_for_promotion: false
+  - gate: machine_readable_evidence_artifacts
+    status: FAIL
+    evidence: "No standardized machine-readable evidence artifact format exists for promotion gating. Some tests write JSON reports but not in a consistent schema."
+    required_for_promotion: true
+  - gate: promotion_gate_on_real_runtime_path
+    status: FAIL
+    evidence: "No promotion gate exists on the real runtime execution path that checks test coverage or e2e success before allowing promotion."
+    required_for_promotion: true
+open_risks:
+  - id: RISK-E2E-GAP
+    description: "Without a live-server true e2e test, regressions in the end-to-end execution pipeline (agent session, server routing, state store persistence, LLM integration, async assembly) are undetectable until production."
+    severity: critical
+    mitigation: "Implement P50 true e2e gate with live server, real database, and real LLM."
+  - id: RISK-P45-STUBS
+    description: "Multiple P45 scripts are stubs with empty bodies or hardcoded results. These create the impression of async assembly coverage but provide no real validation."
+    severity: high
+    mitigation: "Complete P45 load, concurrency, and Monte Carlo scripts with real execution."
+  - id: RISK-CI-FRAGMENTATION
+    description: "CI coverage is split across ci.yml (unit tests) and mini-execution-correctness.yml (real-agent gate). Neither centralizes all gauntlets. Strong tests are not in make test or make test-full."
+    severity: high
+    mitigation: "Unify gauntlets into make test-full and wire into CI on main branch pushes."
+  - id: RISK-REAL-LLM-NEVER-TESTED
+    description: "The real-LLM execution path has never been tested in CI. Any regression in LLM provider integration, streaming, tool calling, or prompt rendering will only surface in manual testing."
+    severity: high
+    mitigation: "Schedule periodic real-LLM runs in CI (e.g., weekly) with cost budget."
+  - id: RISK-EVIDENCE-NOT-ACTIONABLE
+    description: "Test results are scattered across log files, JSON reports, and ndjson dumps. No centralized evidence service collects, indexes, or gates on this data."
+    severity: medium
+    mitigation: "Adopt ACCP evidence bundle standard and wire into promotion gates."
+signoff_requirements:
+  - requirement: "P50 true e2e gate implemented and passing"
+    required_by: ["live_server_true_e2e", "real_multi_plan_task_execution"]
+  - requirement: "P45 async assembly scripts completed with real execution"
+    required_by: ["average_parallelism_measurement"]
+  - requirement: "make test-full centralized and wired into CI on main"
+    required_by: ["centralized_gauntlet_in_ci", "make_test_full_sufficient"]
+  - requirement: "Real LLM execution scheduled in CI"
+    required_by: ["real_llm_exercise_in_ci"]
+  - requirement: "ACCP validation report generated for all gauntlet runs"
+    required_by: ["accp_validation_report_present"]
+  - requirement: "Promotion gate implemented on real runtime path"
+    required_by: ["promotion_gate_on_real_runtime_path"]
+  - requirement: "Machine-readable evidence artifact standard adopted"
+    required_by: ["machine_readable_evidence_artifacts"]
+decisions:
+  - decision: DENY_PROMOTION
+    status: BLOCKED
+    verdict: HOLD_FOR_P50_REAL_E2E
+    rationale: "All critical gates failed. The system cannot be considered production-ready for multi-plan execution without a live-server true e2e test, centralized gauntlet in CI, real LLM exercise, average parallelism measurement, and ACCP validation reports. P50 workstream is required."
+    required_actions:
+      - "Implement P50 true live-server e2e gate"
+      - "Complete P45 async assembly scripts"
+      - "Centralize gauntlets into make test-full and wire into CI"
+      - "Schedule real LLM runs in CI"
+      - "Generate ACCP validation reports for all gauntlet runs"
+      - "Implement promotion gate on real runtime path"
+      - "Adopt machine-readable evidence artifact standard"
+final_status:
+  verdict: HOLD_FOR_P50_REAL_E2E
+  promotion_ready: false
+  blocking_gates:
+    - live_server_true_e2e
+    - real_multi_plan_task_execution
+    - average_parallelism_measurement
+    - centralized_gauntlet_in_ci
+    - real_llm_exercise_in_ci
+    - make_test_full_sufficient
+    - accp_validation_report_present
+    - machine_readable_evidence_artifacts
+    - promotion_gate_on_real_runtime_path
+  non_blocking_but_recommended:
+    - negative_failure_mode_coverage
+    - false_positive_guard_review
+  top_blocker_list:
+    - no_live_server_e2e
+    - no_real_multi_plan_task
+    - no_average_parallelism_measurement
+    - no_centralized_gauntlet
+    - make_test_full_not_sufficient
+    - e2e_name_but_not_true_e2e
+    - missing_promotion_gate
+    - real_llm_not_exercised
+    - async_assembly_not_on_real_runtime_path
+    - missing_accp_validation_report

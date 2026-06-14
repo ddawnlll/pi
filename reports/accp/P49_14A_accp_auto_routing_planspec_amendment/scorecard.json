@@ -1,0 +1,49 @@
+{
+  "scorecard": {
+    "phase": "P49.14A",
+    "title": "ACCP Auto Routing v2 PlanSpec Amendment",
+    "generated_at": "2026-06-14T00:00:00Z",
+    "total_score": 100,
+    "max_score": 100,
+    "execute_ready_threshold": 95,
+    "execute_ready_for_P49_14B": true,
+    "categories": {
+      "tui_production_wiring_gate": {
+        "weight": 35,
+        "score": 35,
+        "notes": "W3 wave updated with production wiring description and HS-018 gating. Production files (interactive-mode.ts, footer.ts, footer-data-provider.ts, keybindings.ts, keybinding-hints.ts) added to W3 gate requiredArtifacts and workspaces P49.14.09/P49.14.12 allowedFiles. New acceptance criteria AC-P491409-003 (production call-site wiring) and AC-P491409-004 (production render path) added. Validation requirement VAL-P491409-003 verifies TypeScript compilation fails without production import. Negative test added to P49.14.08. Final verification (P49.14.16) includes TUI wiring check. HS-018 (ACCP_HS018_TUI_COMPONENT_NOT_WIRED) blocks W3 completion without production wiring evidence."
+      },
+      "route_decision_schema_contract": {
+        "weight": 30,
+        "score": 30,
+        "notes": "Full RouteDecisionEvidence schema contract locked in P49.14.03 via WI-P491403-004 with all 29 required fields, 10 invariant rules, and output pattern. Invariants enforce route_decision_is_advisory=true, all three authorization flags=false, canonical_json_sha256 computed excluding hash field. New acceptance criteria AC-P491403-003 (invariants enforced) and AC-P491403-004 (hash deterministic and verifiable). HS-017 (ACCP_HS017_INVALID_ROUTE_DECISION_EVIDENCE) blocks route execution without valid evidence."
+      },
+      "accp_protocol_authority_resolution": {
+        "weight": 20,
+        "score": 20,
+        "notes": "ACCP protocol version ambiguity resolved. authority.reports now declares runtimeAuthorityVersion 2.0.0 with legacyTemplateVersion 1.2.0 for template compatibility. New top-level accpProtocolAuthority section with explicit rule and HS-019 reference. compatibility.notes updated. reports section now uses version 2.0.0 with legacyTemplateVersion field. HS-019 (ACCP_HS019_AMBIGUOUS_ACCP_PROTOCOL_VERSION) blocks implementation if versions are mixed without adapter."
+      },
+      "no_product_mutation": {
+        "weight": 10,
+        "score": 10,
+        "notes": "No product code files (packages/, scripts/, test/, tests/) were modified. Only the PlanSpec JSON and amendment report artifacts were created/modified."
+      },
+      "json_validity_and_template_preservation": {
+        "weight": 5,
+        "score": 5,
+        "notes": "PlanSpec remains valid JSON (jq empty passes). All v5 alpha2 template sections preserved. 16 workspaces, 4 waves, 19 hard stops (16 original + 3 new). 6-route taxonomy preserved. BSR/FPR/ECR correction rules preserved. Abort/Reroute remain control actions, not primary routes."
+      }
+    },
+    "blockers": [],
+    "warnings": [],
+    "new_hard_stops": [
+      "HS-017: RouteDecisionEvidence missing/malformed/unhashable",
+      "HS-018: TUI component not wired to production render path",
+      "HS-019: Ambiguous ACCP protocol version"
+    ],
+    "total_hard_stops": 19,
+    "hard_stops_preserved": 16,
+    "next_recommended_phase": "P49.14B — ACCP Auto Routing v2 Implementation",
+    "notes": "All three amendment gaps closed. PlanSpec is now execution-ready with no unresolved blockers. Score of 100/100 exceeds the 95-point threshold."
+  }
+}

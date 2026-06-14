@@ -1,0 +1,1442 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+report:
+  id: "P49-SYSTEM-CULPRIT-AUDIT-ONEFILE"
+  type: "RCA"
+  family: "system_audit"
+  kind: "culprit_audit"
+  title: "P49 System Culprit Audit — Onefile Evidence Report"
+  generated_at: "2026-06-13T22:00:00+03:00"
+  repo_root: "/Users/hootie/src/pi"
+  verdict: "HOLD"
+  confidence: "high"
+  audit_class: "read_only_truth_audit"
+  audit_id: "P49-SYSTEM-CULPRIT-AUDIT-ONEFILE"
+  request_id: "P49_SYSTEM_CULPRIT_AUDIT_ONEFILE"
+  request_type: "read_only_truth_audit"
+
+executive_summary:
+  one_sentence_answer: >-
+    Both manual execution and ExecutionKernel execution reported P49 as complete because
+    (1) the CompletionGate vNext STAGE_ORDER omits the AccpGate stage, so runAccpGateStage
+    is never scheduled even though it is declared as a stage name; (2) the LocalPiWorkerAdapter
+    never populates the `accp` field of WorkerRunResult, so the executor's ACCP compile hook
+    reads undefined and the P49 path through worker→autonomous-executor is silently broken;
+    (3) the TUI Tab mode picker exists but `accpModePickerEnabled` is never set to true in any
+    production caller, leaving the live TUI mode picker and InitialRouteIndicator/AccpTaskEnvelope
+    path as unreachable dead code; (4) AccpRouteBus and AccpArtifactStore have full method
+    surfaces but zero production readers/writers; (5) the PRR evidence engine accepts
+    source presence, unit-test counts, and wave TVR PASS status as the basis for a
+    "P50 can begin" verdict despite 62.35% of P49 requirements still being unwired; and
+    (6) the PlanSpec decomposition never assigned allowedFiles ownership for
+    `local-pi-worker-adapter.ts` or `accp-gate-stage-runner.ts`, so no workspace could have
+    produced the missing wiring even if execution had been perfect.
+  primary_root_cause: >-
+    CompletionGate vNext STAGE_ORDER does not include the AccpGate stage, so the production
+    completion pipeline can never run ACCP gate evaluation, and the entire P49 "wiring
+    completion" claim rests on a gate that is not in the executable stage list. The supporting
+    wiring chain (worker adapter accp bridge, TUI picker activation, AccpRouteBus boot instance,
+    AccpArtifactStore readers) is also broken at every link, and no PlanSpec workspace owned the
+    files where the bridge must be repaired.
+  secondary_root_causes:
+    - "LocalPiWorkerAdapter.run() never populates WorkerRunResult.accp; autonomous-executor reads workerResult.accp?.shouldCompile which is always undefined."
+    - "accpModePickerEnabled is never set to true in any production caller, so showAccpModePicker (and the only call site of createInitialRouteIndicator/createAccpTaskEnvelope) is unreachable from the live TUI Tab path."
+    - "PRR/PRR-like evidence engine treats unit-test counts and source presence as runtime completion; the P49 PRR marks p50Readiness.ready=true with 62.35% missing wiring and only 'operator_approval' as a blocker."
+    - "AccpRouteBus.getAccpRouteBus() and AccpArtifactStore.{save,read}{Compiled,Verdict,RouteSignal} have zero non-test production call sites; the runtime consumes nothing through the artifact store."
+    - "PlanSpec allowedFiles decomposition never assigned `packages/worker-adapters/src/local-pi-worker-adapter.ts` or `packages/coding-agent/src/core/accp-gate-stage-runner.ts` to any workspace; P49.18 owns `completion-gate.ts` but not the `completion/` subdir where STAGE_ORDER lives."
+    - "planCompletionPredicate (execution-runtime/plan-supervisor.ts) is a pure stage-state reducer and has no awareness of ACCP gate verdict, so even a missing AccpGate stage cannot be detected by the kernel."
+  rejected_root_causes:
+    - "Write/edit tool silent failure — atomicWriteFile uses temp+rename+postHash verify; direct FS write probe in P49_codeloss_rca confirmed disk mutation; no silent success-without-mutation pattern found."
+    - "Worktree diff loss — the 45 modified files in `git status` and 3307 insertions confirm agent code reached the working tree; the gap is integration/wiring, not storage."
+    - "PlanSpec admission rejection of P49 — admission gate did not block P49; P49 ran end-to-end, which is the audit's whole premise."
+  final_hypothesis_counts:
+    confirmed: 14
+    rejected: 4
+    inconclusive: 2
+    not_testable: 0
+    total: 20
+
+repo_state:
+  commit: "52c05ee58a33e3929cb6958582a528f6a4fcccd4"
+  branch: "main"
+  dirty_state: "dirty"
+  git_status_excerpt: >-
+    M .pi/execution-journal.ndjson, .pi/executions.json, .pi/plan-state.json;
+    M PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json;
+    M packages/accp-compiler/** (6 files), packages/ai/src/{models,image-models}.generated.ts;
+    M packages/coding-agent/src/core/{accp-artifact-store,accp-prompt-renderer,
+    accp-repair-controller,accp-route-bus,agent-session,index,keybindings}.ts,
+    packages/coding-agent/src/core/plan-compiler/** (6 files), packages/coding-agent/src/index.ts,
+    packages/coding-agent/src/modes/interactive/interactive-mode.ts;
+    M packages/coding-agent/test/accp/{repair-loop,workspace-agent-executor-accp}.test.ts,
+    packages/coding-agent/test/plan-compiler/accp-planspec-authority.test.ts;
+    M packages/execution-contracts/src/{accp-types,index,planspec/accp-planspec-types}.ts;
+    M packages/execution-runtime/src/event-schema.ts;
+    M packages/tui/src/index.ts;
+    M packages/web-server/src/execution-archive.ts;
+    M packages/web-ui/dashboard/src/{navigation/NavigationState.tsx,routes/RunRoute.tsx};
+    M reports/accp/gate-sanity/P0_1/{compiled/**,evidence/onefile.evidence.json} (12 files);
+    ?? reports/accp/P49_codeloss_rca/, reports/accp/P49_runtime_truth_audit_after_kernel/,
+    reports/accp/P50_READINESS_AUDIT/, reports/accp/.DS_Store.
+  diff_stat_excerpt: >-
+    49 files changed, 3307 insertions(+), 554 deletions(-).
+    Working tree is dirty with uncommitted P49 repair attempts and prior-audit artifacts.
+  recent_commits:
+    - "52c05ee58 perf(web-server): hoist getGitInfo out of workspace loops and persist contextUsed in DB"
+    - "94b113df8 fix(coding-agent): replace cherry-pick with diff-tree+apply for worktree auto-commit"
+    - "065ebce1b feat(pP49): complete workspace P49.30 — Final Promotion, Documentation, Operator Guide, and P50 Readiness"
+    - "dcbc570d1 feat(pP49): complete workspace P49.26 — Dashboard ACCP Status, Diagnostics, Graph, and Route Visualization"
+    - "cffa7eb57 feat(pP49): complete workspace P49.29 — End-to-End ACCP Native Flow Tests and Gauntlets"
+
+planspec_findings:
+  planspec_path: "/Users/hootie/src/pi/docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+  planspec_hash: "sha256:8d04e03f0367835e9d1127f7176c9b2dcd1989b2371c1236e871a1fad10a2afa"
+  declared_authority_rules:
+    - "authority.completion.completionGate = 'CompletionGateV2'"
+    - "authority.completion.evidenceLedgerRequired = true"
+    - "authority.completion.missingEvidenceBlocksCompletion = true"
+    - "authority.completion.accpGateVerdictRequiredWhenModeRequired = true"
+    - "authority.completion.workerSelfReportIsClaimOnly = true"
+    - "authority.reports.compiledJsonIsRuntimeInput = true"
+    - "authority.reports.rawYamlIsNotRuntimeAuthority = true"
+    - "authority.routing.planSpecDoesNotChooseNextMode = true"
+    - "security.hardStops includes 'accp_gate_blocked_required_mode', 'accp_compile_failed_required_mode'"
+  declared_runtime_requirements:
+    - "ExecutionKernel, CompletionGateV2, evidence ledger"
+    - "Missing-evidence-blocks-completion policy"
+    - "ACCP gate verdict required when ACCP mode is required"
+    - "Tab ACCP mode picker in TUI"
+    - "Compiled JSON runtime input (compiled.accp.json, gate-verdict.json, route-signal.json)"
+    - "AccpRouteBus for multi-agent handoff"
+    - "AccpArtifactStore for compiled artifact persistence"
+    - "AccpWorkerOutput propagation through WorkerRunResult.accp"
+  declared_validation_gaps:
+    - "No acceptance criterion mandates live/TUI evidence — evidenceTypes are ['source','unit_test','integration_test','report'] with no 'live_tui' or 'runtime_call_site'."
+    - "allowedFiles decomposition never assigned worker-adapters/src/local-pi-worker-adapter.ts to any of the 30 workspaces."
+    - "allowedFiles decomposition never assigned accp-gate-stage-runner.ts to any of the 30 workspaces."
+    - "P49.18 (Completion Gate V2 ACCP Verdict Integration) owns completion-gate.ts (root core/) but not completion/completion-gate-vnext-types.ts where STAGE_ORDER actually lives."
+  plan_problem_percent_estimate: 18.0
+  plan_problem_rationale: >-
+    The PlanSpec is mostly correct in declaring authority rules and validation requirements,
+    but the decomposition into 30 workspaces left two critical integration files
+    (`local-pi-worker-adapter.ts` and `accp-gate-stage-runner.ts`) without any owning workspace,
+    and assigned `completion-gate.ts` (the V2 gate root) instead of the actual
+    `completion/completion-gate-vnext-types.ts` (where STAGE_ORDER is declared) to P49.18.
+    The AC `evidenceTypes` allow source/unit_test/integration_test/report but not live_tui or
+    runtime_call_site, which is why "source presence + unit tests" was treated as completion.
+    Estimated plan-side contribution: ~18% of total culpability.
+
+hypotheses:
+  - id: "H1"
+    title: "CompletionGate false-positive accepted P49 completion"
+    status: "confirmed"
+    responsible_area: "runtime_completion_gate"
+    severity: "critical"
+    culprit_weight_percent: 22
+    evidence_summary: >-
+      CompletionGate vNext iterates STAGE_ORDER (9 stages). AccpGate is declared as a
+      CompletionGateStageName type member but excluded from STAGE_ORDER, so the orchestrator
+      never schedules it. runAccpGateStage is defined and unit-tested, but CompletionGateVNext
+      cannot call it. The planCompletionPredicate in execution-runtime/plan-supervisor.ts is a
+      pure stage-state reducer with no ACCP awareness, so the kernel never recomputes the ACCP
+      verdict. All of P49's "completion" rests on a gate that is not in the executable stage list.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts:sha256:950b189c9d97bbf187b797ed46226262645eb3c36bf4c9a4bbd12451a6650004"
+      - "file:packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+      - "file:packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+      - "command:RG-STAGE-ORDER"
+      - "report:reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+    files_inspected:
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+      - "packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+    commands_used:
+      - "RG-STAGE-ORDER"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      STAGE_ORDER in completion-gate-vnext-types.ts lists 9 stages
+      (DeclaredOutputExistence, EvidenceLedger, Validation, ScopeAndWriteSet, CommitCandidate,
+      CommitExecution, PostCommitVerification, CommitMessageComposer, DestructiveOperationGuard);
+      AccpGate is in the type union but absent from the array. Orchestrator iteration of
+      STAGE_ORDER therefore never reaches AccpGate, and unregistered stages are skipped with
+      a warning (not blocked). planCompletionPredicate has no ACCP branch.
+
+  - id: "H2"
+    title: "AccpGate registered in type but absent from STAGE_ORDER"
+    status: "confirmed"
+    responsible_area: "runtime_completion_gate"
+    severity: "critical"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      Direct source inspection. CompletionGateStageName union includes 'AccpGate';
+      STAGE_ORDER readonly array does not. This is the precise structural defect.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts:50-65"
+    files_inspected:
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+    commands_used:
+      - "RG-STAGE-ORDER"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      STAGE_ORDER array literal at line ~58 explicitly omits 'AccpGate'. Even if a runner were
+      registered for AccpGate, the orchestrator's `for (const stageName of STAGE_ORDER)` loop
+      would never invoke it.
+
+  - id: "H3"
+    title: "runAccpGateStage is dead code"
+    status: "confirmed"
+    responsible_area: "runtime_completion_gate"
+    severity: "critical"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      Only test files and a p49_5 audit script import runAccpGateStage. No production
+      orchestrator imports it. Stage runner registry is empty by default
+      (createDefaultStageRegistry returns an empty registry).
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/accp-gate-stage-runner.ts:sha256:6e9bd650f0332c3eb38baf39d98c95d5e3a98d823564c1cb944b04c2e10343b6"
+      - "command:RG-runAccpGateStage"
+    files_inspected:
+      - "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+      - "packages/coding-agent/test/accp/completion-gate-accp.test.ts"
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+    commands_used:
+      - "RG-runAccpGateStage"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      Even if AccpGate were added to STAGE_ORDER, no StageRunnerRegistry.register('AccpGate', runAccpGateStage)
+      call exists in any production file. The default registry is empty. The orchestrator
+      treats unregistered stages as "skipped with warning" (not blocking).
+
+  - id: "H4"
+    title: "PRR / evidence engine treats source presence and unit tests as runtime completion"
+    status: "confirmed"
+    responsible_area: "evidence_engine"
+    severity: "critical"
+    culprit_weight_percent: 18
+    evidence_summary: >-
+      P49 PRR (reports/accp/P49/prr_promotion_readiness.accp.yaml) shows:
+      - promotion_decision.ready: false (only because operator_approval pending)
+      - p50Readiness.ready: true with reason "All gating criteria for P50 start are met"
+      - evidence_summary cites 226 compiler tests, 128 coding-agent accp tests, 70 runtime accp
+        tests, 12 e2e native flow tests — all unit/integration test counts
+      - No live TUI evidence, no runtime call-site evidence, no production boot trace.
+      R008 in P49 truth audit (runAccpGateStage wired into CompletionGateV2) had weight 12
+      and received only 0.15 credit (source_present_unwired). The PRR marks wave TVRs PASS
+      based on `gate_status: passed` and `command_results` of unit-test commands, then
+      declares P50 ready.
+    evidence_refs:
+      - "file:reports/accp/P49/prr_promotion_readiness.accp.yaml:21-50"
+      - "file:reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+      - "file:reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+    files_inspected:
+      - "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+      - "reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+    commands_used:
+      - "READ-PRR"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      PRR credit criteria treat a passing wave TVR (which is unit-test-based) as full
+      completion of the workspace's intent. No credit criterion requires live TUI trace
+      or production boot invocation. Source presence earns >=0.25 credit; unit-test-only
+      evidence earns 0.75; the missing rung (1.0) requires live/runtime evidence that
+      is not collected.
+
+  - id: "H5"
+    title: "WorkerRunResult drops accp, changedFiles, events, commandHistory"
+    status: "confirmed"
+    responsible_area: "worker_adapter_bridge"
+    severity: "critical"
+    culprit_weight_percent: 12
+    evidence_summary: >-
+      Direct read of packages/worker-adapters/src/local-pi-worker-adapter.ts:
+      run() returns { verdict, events: [], changedFiles: [], commandHistory: [],
+      report, error, metadata }. The metadata object embeds contextUsed (which then
+      differs from the AgentExecutionResult contract). The file does not import
+      AccpWorkerOutput and never sets `accp`. autonomous-executor.ts line 1273 reads
+      `workerResult.accp?.shouldCompile` and the resulting compile hook is permanently
+      skipped. events/commandHistory are hardcoded empty arrays.
+    evidence_refs:
+      - "file:packages/worker-adapters/src/local-pi-worker-adapter.ts:sha256:6669d7c685db2a83b8ede7ca795c3fcb9deff6e4d3b474d5d35d7159882a9949"
+      - "file:packages/coding-agent/src/core/autonomous-executor.ts:1273"
+    files_inspected:
+      - "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+      - "packages/coding-agent/src/core/autonomous-executor.ts"
+    commands_used:
+      - "READ-LocalPiWorkerAdapter"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      WorkerRunResult has optional `accp?: AccpWorkerOutput` field, but adapter.run()
+      returns a literal that omits the field entirely. Downstream `workerResult.accp?.shouldCompile`
+      is always undefined; ACCP compile path is silently disabled.
+
+  - id: "H6"
+    title: "TUI ACCP mode picker is dead code"
+    status: "confirmed"
+    responsible_area: "tui_runtime_wiring"
+    severity: "critical"
+    culprit_weight_percent: 10
+    evidence_summary: >-
+      interactive-mode.ts line 237 declares accpModePickerEnabled?: boolean as an
+      interactive-mode option. Line 2413-2415 registers the Tab handler only inside
+      `if (this.options.accpModePickerEnabled) { ... }`. showAccpModePicker (line 6145)
+      is the only call site of createInitialRouteIndicator (line 6153) and
+      createAccpTaskEnvelope (line 6158). No production caller sets
+      accpModePickerEnabled=true. The P0_1 TUI smoke (reports/tmp/gate-sanity/P0_1/tui/smoke-result.json)
+      captured a live TUI Tab keypress and reports "Tab does NOT open accp-mode-picker
+      overlay in the live TUI editor. The accp-mode-picker module exists but is not
+      wired to the editor's Tab handler. User-visible behavior is unverified."
+    evidence_refs:
+      - "file:packages/coding-agent/src/modes/interactive/interactive-mode.ts:237"
+      - "file:packages/coding-agent/src/modes/interactive/interactive-mode.ts:2413-2415"
+      - "file:packages/coding-agent/src/modes/interactive/interactive-mode.ts:6145-6160"
+      - "file:packages/coding-agent/src/modes/interactive/interactive-mode.ts:sha256:1504de67f23acb018357b686f49c3e94e5b2da26a6781f1a569b7b2ad879fcb5"
+      - "file:reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+      - "file:reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+    files_inspected:
+      - "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+      - "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+    commands_used:
+      - "READ-InteractiveMode"
+      - "READ-P0_1-TUI-Smoke"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      accpModePickerEnabled defaults to undefined (falsy). The Tab keybinding block is
+      guarded by truthiness. Live TUI Tab opens the editor's default behavior (file
+      completion) instead of the ACCP mode picker. Direct live evidence from P0_1 smoke
+      confirms this.
+
+  - id: "H7"
+    title: "InitialRouteIndicator and AccpTaskEnvelope are unreachable"
+    status: "confirmed"
+    responsible_area: "tui_runtime_wiring"
+    severity: "high"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      createInitialRouteIndicator and createAccpTaskEnvelope are exported from
+      accp-initial-route-indicator.ts. Their only call sites are showAccpModePicker
+      (line 6153 and 6158), which is itself dead code (H6). AgentSession has a
+      `_accpTaskEnvelope` field and a public getter but no production path populates
+      it. The TUI smoke trace shows no InitialRouteIndicator or AccpTaskEnvelope event.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+      - "file:packages/coding-agent/src/core/agent-session.ts:336,954,967"
+      - "file:packages/coding-agent/src/modes/interactive/interactive-mode.ts:6145-6160"
+      - "file:reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json"
+    files_inspected:
+      - "packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+      - "packages/coding-agent/src/core/agent-session.ts"
+      - "reports/tmp/gate-sanity/P0_1/tui/tui-event-trace.json"
+    commands_used:
+      - "RG-InitialRouteIndicator"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      Both factory functions are only called inside the dead showAccpModePicker path.
+      Live TUI event trace in tui-event-trace.json shows no InitialRouteIndicator
+      emission. AgentSession's _accpTaskEnvelope remains undefined in production.
+
+  - id: "H8"
+    title: "AccpRouteBus has implementation but no production boot instance"
+    status: "confirmed"
+    responsible_area: "route_bus_runtime_wiring"
+    severity: "high"
+    culprit_weight_percent: 8
+    evidence_summary: >-
+      AccpRouteBus class is defined in packages/coding-agent/src/core/accp-route-bus.ts.
+      getAccpRouteBus() is a lazy singleton (line 344). The only non-test import of
+      AccpRouteBus as a type is in accp-artifact-subscriptions.ts (createDefaultSubscriptions
+      parameter), but createDefaultSubscriptions is itself never called from production.
+      The only call site of `getAccpRouteBus()` is undefined in production code.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/accp-route-bus.ts:127,344"
+      - "file:packages/coding-agent/src/core/accp-route-bus.ts:sha256:108a45924ce43ad3d4a328f923fb270d895b93ad0d6062eccaf5b65f46db55b9"
+      - "command:RG-getAccpRouteBus"
+    files_inspected:
+      - "packages/coding-agent/src/core/accp-route-bus.ts"
+      - "packages/coding-agent/src/core/accp-artifact-subscriptions.ts"
+    commands_used:
+      - "RG-getAccpRouteBus"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      `_globalBus` is module-scoped. getAccpRouteBus() is never called, so
+      `_globalBus` is never instantiated. Any route signal publication requires a
+      production caller of getAccpRouteBus(); none exists.
+
+  - id: "H9"
+    title: "AccpArtifactStore has methods but no production writer/reader consumers"
+    status: "confirmed"
+    responsible_area: "artifact_store_runtime_wiring"
+    severity: "high"
+    culprit_weight_percent: 6
+    evidence_summary: >-
+      saveCompiled/readCompiled/saveRouteSignal/readRouteSignal exist in
+      packages/coding-agent/src/core/accp-artifact-store.ts. grep across packages
+      excluding tests shows zero non-test call sites. The compiler writes compiled
+      output directly to disk via its own paths, not through AccpArtifactStore. The
+      completion gate does not read gate-verdict.json through the store.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/accp-artifact-store.ts:199,206,253,260"
+      - "file:packages/coding-agent/src/core/accp-artifact-store.ts:sha256:a03e066e341b6989f77c48a8f69749d190aa6bebe5a9e0ba97a2ad380b94a40e"
+      - "command:RG-saveCompiled"
+    files_inspected:
+      - "packages/coding-agent/src/core/accp-artifact-store.ts"
+      - "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+    commands_used:
+      - "RG-saveCompiled"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      The artifact store is a complete write/read API, but no orchestrator constructs
+      an AccpArtifactStore instance, no ACCP compiler path calls saveCompiled, and
+      CompletionGateVNext does not call readVerdict. The store is structurally present
+      but functionally inert.
+
+  - id: "H10"
+    title: "Runtime accepts raw report claims or PRR claims instead of compiled/gate artifacts"
+    status: "confirmed"
+    responsible_area: "runtime_completion_gate"
+    severity: "critical"
+    culprit_weight_percent: 4
+    evidence_summary: >-
+      P49 PRR (raw YAML) marks p50Readiness.ready=true. The PlanSpec explicitly
+      states 'reportsAreEvidenceOnly = true; reportsDoNotAuthorizeExecution = true;
+      rawYamlIsNotRuntimeAuthority = true; compiledJsonIsRuntimeInput = true'.
+      Despite the rules, the PRR's "P50 can begin" conclusion was treated as
+      completion authority. P49's hardStops include
+      'accp_compile_failed_required_mode' and 'accp_gate_blocked_required_mode',
+      but mode remains 'warn' (per design), so the hard stops are dormant.
+    evidence_refs:
+      - "file:reports/accp/P49/prr_promotion_readiness.accp.yaml:38-50"
+      - "file:docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json:security.hardStops"
+    files_inspected:
+      - "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+      - "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+    commands_used:
+      - "READ-PRR-promotion_decision"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      The PRR is a raw YAML report. The PlanSpec forbids using raw YAML as runtime
+      authority. But the PRR's p50Readiness.ready=true and "P50 can begin immediately"
+      narrative was propagated to "P49 complete" claims without an independent
+      completion_gate_v2 verdict.
+
+  - id: "H11"
+    title: "Plan admission does not reject unverifiable or overbroad plans"
+    status: "confirmed"
+    responsible_area: "planspec_admission"
+    severity: "high"
+    culprit_weight_percent: 6
+    evidence_summary: >-
+      The PlanSpec's AC evidenceTypes allow ['source','unit_test','integration_test','report']
+      with no required live_tui or runtime_call_site evidence. No acceptance criterion
+      explicitly demands a TUI smoke trace or runtime boot invocation. 30 workspaces
+      were admitted with no per-workspace live-evidence gate. The admission gate
+      does not require edge-ownership ACs (e.g. "TUI-to-CompletionGate full path
+      validated end-to-end").
+    evidence_refs:
+      - "file:docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json:acceptanceCriteria[*].evidenceTypes"
+      - "command:RG-evidenceTypes"
+    files_inspected:
+      - "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+    commands_used:
+      - "RG-evidenceTypes"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      ACs at workspace level use evidenceTypes that admit source and unit tests as
+      sufficient. A pre-execution linter that required runtime_call_site and live_tui
+      evidence types for any AC touching runtime behavior would have rejected the
+      plan until such ACs were added.
+
+  - id: "H12"
+    title: "AllowedFiles prevented required wiring edits"
+    status: "confirmed"
+    responsible_area: "planspec_admission"
+    severity: "high"
+    culprit_weight_percent: 8
+    evidence_summary: >-
+      PlanSpec has 30 workspaces. None of the 30 allowedFiles blocks include
+      `packages/worker-adapters/src/local-pi-worker-adapter.ts` or
+      `packages/coding-agent/src/core/accp-gate-stage-runner.ts`. P49.18 owns
+      `packages/coding-agent/src/core/completion-gate.ts` (root core/) but not
+      `packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts`
+      (the file where STAGE_ORDER is declared). P49.17 owns autonomous-executor.ts
+      but cannot edit the worker adapter that produces the accp field it reads.
+    evidence_refs:
+      - "command:RG-local-pi-worker-adapter|accp-gate-stage-runner|in-planspec"
+      - "file:docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json:3429"
+    files_inspected:
+      - "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+    commands_used:
+      - "RG-allowedFiles-p49"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      Two production-critical files (LocalPiWorkerAdapter, AccpGateStageRunner) have
+      no owning workspace. One production-critical file
+      (completion-gate-vnext-types.ts containing STAGE_ORDER) is misassigned to a
+      workspace that owns a different file path. No agent could have written the
+      missing wiring without first modifying allowedFiles — which is itself a
+      PlanSpec mutation requiring its own gate.
+
+  - id: "H13"
+    title: "Workspace decomposition caused ownership loss"
+    status: "confirmed"
+    responsible_area: "planspec_admission"
+    severity: "medium_high"
+    culprit_weight_percent: 4
+    evidence_summary: >-
+      30 workspaces across 8 waves, each with allowedFiles scoped to a narrow
+      module or single file. No workspace owns the end-to-end runtime edge
+      (TUI Tab → showAccpModePicker → InitialRouteIndicator → AccpTaskEnvelope →
+      AgentSession → autonomous-executor → compileAccpSource → AccpArtifactStore →
+      CompletionGateV2 AccpGate). The PRR claims 'All gating criteria for P50
+      start are met' but the workspace reports are bounded to their own files and
+      cannot validate the full path.
+    evidence_refs:
+      - "file:docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json:933-end"
+      - "command:RG-workspace-ids"
+    files_inspected:
+      - "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+    commands_used:
+      - "RG-workspace-ids"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      Decomposition optimizes for parallel implementation but not for cross-component
+      validation. Each workspace TVR passes by unit-testing its own files. The
+      missing AC — "TUI Tab invokes ACCP gate in production" — has no workspace owner.
+
+  - id: "H14"
+    title: "ExecutionKernel acted as pass-through runner"
+    status: "confirmed"
+    responsible_area: "runtime_completion_gate"
+    severity: "critical"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      planCompletionPredicate (execution-runtime/plan-supervisor.ts) is a 9-line
+      function that takes workspace states and returns a stage. It has zero
+      awareness of ACCP gate verdict, compiled artifacts, route signals, or
+      the worker adapter accp field. The kernel is the authority owner per
+      PlanSpec but does not recompute any evidence score; it accepts whatever
+      the worker/PRR claim provides and reduces it to a stage.
+    evidence_refs:
+      - "file:packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+    files_inspected:
+      - "packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+      - "packages/coding-agent/src/execution-runtime/completion-predicate.ts"
+    commands_used:
+      - "READ-plan-supervisor"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      planCompletionPredicate only checks: (a) any required handoff not complete →
+      HANDOFF_REQUIRED, (b) any required workspace FAILED_FINAL → FAILED_FINAL,
+      (c) all required SUCCEEDED → FINAL_VALIDATION. There is no branch that
+      consults the ACCP gate verdict or the AccpArtifactStore. The kernel cannot
+      independently detect a missing ACCP gate.
+
+  - id: "H15"
+    title: "Command validation gave false confidence"
+    status: "confirmed"
+    responsible_area: "command_validation"
+    severity: "medium"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      'npm run check' (biome + tsgo + browser-smoke + web-ui tsc) passes with
+      exit 0. 'npm run build' (tsgo -p tsconfig.build.json + copy assets + tsc + tailwind)
+      passes with exit 0. PRR cites 'typeCheckPassed: true' and 'compilerTestsTotal: 226'
+      as evidence of completion. These are necessary but insufficient: they do
+      not exercise the runtime boot path, TUI live Tab, or production call sites
+      of runAccpGateStage / getAccpRouteBus / AccpArtifactStore.
+    evidence_refs:
+      - "command:VALIDATE_NPM_CHECK:exit_code=0"
+      - "command:VALIDATE_NPM_BUILD:exit_code=0"
+    files_inspected:
+      - "package.json"
+    commands_used:
+      - "VALIDATE_NPM_CHECK"
+      - "VALIDATE_NPM_BUILD"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      The PlanSpec's exactAllowedCommands include CMD-TYPECHECK-TSGO and
+      CMD-ACCP-COMPILER-UNIT but no live-TUI smoke command for ACCP gate
+      invocation. Wave TVRs cite only the typecheck and unit-test commands.
+      Build success is treated as runtime readiness by the PRR narrative.
+
+  - id: "H16"
+    title: "Write/edit tool silently failed"
+    status: "rejected"
+    responsible_area: "write_edit_tooling"
+    severity: "low"
+    culprit_weight_percent: 4
+    evidence_summary: >-
+      Direct source inspection of packages/coding-agent/src/core/mutation/atomic-file-writer.ts
+      shows temp-write + rename + read-back postHash verify pattern. The empty
+      catch{} on line 135 is for tempfile cleanup (safe). P49_codeloss_rca
+      probed with `node -e` direct write to reports/accp/P49_codeloss_rca/probes/
+      and `git diff --stat` showed the untracked dir, confirming disk mutation.
+      The 49 files / 3307 insertions in current `git status --short` are
+      tangible evidence that writes reached disk. No silent success-without-mutation
+      pattern found in write.ts, edit.ts, or mutation/.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/mutation/atomic-file-writer.ts:114-140"
+      - "file:reports/accp/P49_codeloss_rca/onefile.accp.yaml:PROBE_TOOL_IMPLEMENTATION_SCAN"
+      - "command:git status --short (49 modified files)"
+    files_inspected:
+      - "packages/coding-agent/src/core/mutation/atomic-file-writer.ts"
+      - "packages/coding-agent/src/core/tools/write.ts"
+      - "packages/coding-agent/src/core/tools/edit.ts"
+    commands_used:
+      - "READ-atomic-file-writer"
+    fix_required_before_p49_repair: false
+    exact_failure_mode: >-
+      atomicWriteFile uses write-to-temp + rename + read-back-verify pattern.
+      Returns {success: true, postHash} on success. No silent failure pattern.
+
+  - id: "H17"
+    title: "Worktree diff was lost before integration"
+    status: "rejected"
+    responsible_area: "worktree_integration"
+    severity: "medium"
+    culprit_weight_percent: 2
+    evidence_summary: >-
+      git status --short shows 49 modified files in working tree including
+      packages/coding-agent/src/core/{accp-route-bus,accp-artifact-store,
+      agent-session,index,keybindings,accp-prompt-renderer,accp-repair-controller}.ts,
+      packages/coding-agent/src/modes/interactive/interactive-mode.ts, and the
+      new packages/accp-compiler. The .pi/execution-journal.ndjson shows 19,981+
+      workspace_start/workspace_complete events with file_lock_acquired/released
+      pairs. Recent commits include 065ebce1b (P49.30), dcbc570d1 (P49.26),
+      cffa7eb57 (P49.29). The diff reached the working tree; the gap is that
+      the production wiring (STAGE_ORDER, LocalPiWorkerAdapter, Tab activation)
+      was never written into those diffs.
+    evidence_refs:
+      - "command:git status --short"
+      - "command:git log --oneline -5"
+      - "command:tail .pi/execution-journal.ndjson"
+    files_inspected:
+      - ".pi/execution-journal.ndjson"
+    commands_used:
+      - "READ-journal"
+    fix_required_before_p49_repair: false
+    exact_failure_mode: >-
+      No diff loss detected. The integration gap is in the diff content (production
+      wiring was never written), not in the diff transport.
+
+  - id: "H18"
+    title: "Completion gate error observability is insufficient"
+    status: "inconclusive"
+    responsible_area: "observability"
+    severity: "high"
+    culprit_weight_percent: 4
+    evidence_summary: >-
+      terminal-reconciler.ts exists and writes blockReasons into
+      completionGateBlockReasons (autonomous-executor.ts line 1674). The
+      runAccpGateStage returns StageVerdict with blockReasons and warnings.
+      However, because AccpGate is not in STAGE_ORDER, the ACCP gate block
+      reasons are never produced at all — the gate is silent by absence.
+      Live TUI smoke (P0_1) reports user-visible behavior is unverified,
+      which is the worst kind of observability: no false signal. The
+      question of whether error messages are *machine-readable* when the
+      gate does fire cannot be answered from the audit context, since the
+      gate is never exercised in production.
+    evidence_refs:
+      - "file:packages/coding-agent/src/core/completion/terminal-reconciler.ts"
+      - "file:packages/coding-agent/src/core/autonomous-executor.ts:1662-1724"
+      - "file:reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+    files_inspected:
+      - "packages/coding-agent/src/core/completion/terminal-reconciler.ts"
+      - "packages/coding-agent/src/core/autonomous-executor.ts"
+    commands_used:
+      - "READ-reconciler"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      When the AccpGate stage is missing from STAGE_ORDER, the orchestrator
+      produces zero blockReasons from ACCP. The terminal reconciler has
+      nothing to surface. The absence is the bug, not the message format.
+
+  - id: "H19"
+    title: "Evidence ledger exists but is not linked end-to-end"
+    status: "confirmed"
+    responsible_area: "evidence_engine"
+    severity: "critical"
+    culprit_weight_percent: 0
+    evidence_summary: >-
+      TVR reports (e.g., reports/accp/P49/tvr_wave_W1.accp.yaml) cite
+      command_results with executable + exit_code + output_excerpt but no
+      sha256 hash of the produced artifact, no file_path to the produced
+      compiled JSON, and no command_id that resolves to a recorded run in
+      the execution journal. The PRR cites 'compilerTestsPassed: 226' as
+      a single number without per-test sha or report_id mapping. The P49
+      truth audit onefile.evidence.json does carry hashes for some evidence
+      (e.g., 'sha256: b4b76765e1d25e7a093139b9399b21b6f47a1d0d83bb97d02841856efec77d46'
+      for tui_smoke), but the PRR does not consume them.
+    evidence_refs:
+      - "file:reports/accp/P49/tvr_wave_W1.accp.yaml:command_results"
+      - "file:reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+    files_inspected:
+      - "reports/accp/P49/tvr_wave_W1.accp.yaml"
+    commands_used:
+      - "READ-TVR"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      No evidence_ref in the TVRs or PRR carries a sha256 hash of a compiled
+      JSON artifact or a route-signal.json. The evidence ledger is a textual
+      count, not a hash-anchored chain.
+
+  - id: "H20"
+    title: "P0.1 validates harness readiness but not P49-specific wiring"
+    status: "confirmed"
+    responsible_area: "observability"
+    severity: "high"
+    culprit_weight_percent: 2
+    evidence_summary: >-
+      P0 scorecard (reports/accp/gate-sanity/P0/scorecard.json) reports
+      kernel_sanity.verdict = 'PASS', all_negative_controls_blocked = true,
+      promotion_allowed = false. P0_1 evidence (reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json)
+      reports p0_rerun.verdict = 'PASS' and tui_smoke.status = 'blocked' with
+      the explicit statement "Tab does NOT open accp-mode-picker overlay in the
+      live TUI editor". The harness readiness check passed (false-positive
+      negative controls are correctly blocked) but the live TUI Tab did not
+      open the picker. P0 is a harness gate, not a P49 feature gate.
+    evidence_refs:
+      - "file:reports/accp/gate-sanity/P0/scorecard.json"
+      - "file:reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+      - "file:reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+    files_inspected:
+      - "reports/accp/gate-sanity/P0/scorecard.json"
+      - "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+      - "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+    commands_used:
+      - "READ-P0-scorecard"
+    fix_required_before_p49_repair: true
+    exact_failure_mode: >-
+      P0 PASS means 'the harness can produce false-positive signals and they
+      are correctly blocked' — i.e., the meta-harness works. It does not
+      mean 'P49 runtime wiring is complete'. P49 needs its own feature
+      scorecard with live_TUI_accp_picker_opened, accp_gate_in_STAGE_ORDER,
+      worker_adapter_sets_accp, route_bus_instantiated_in_production,
+      artifact_store_consumed_in_completion_gate — none of which exist.
+
+system_culpability_breakdown:
+  runtime_completion_gate:
+    percent: 36
+    rationale: >-
+      STAGE_ORDER omission (H1/H2), runAccpGateStage never registered (H3),
+      planCompletionPredicate has no ACCP branch (H14), raw YAML/operator_approval
+      treated as authority (H10). This is the single largest cause: a gate that
+      should have blocked P49 completion was never scheduled.
+  evidence_engine:
+    percent: 22
+    rationale: >-
+      PRR (H4) credits source presence and unit-test counts as runtime completion;
+      evidence ledger (H19) cites test counts not hash-anchored artifacts.
+      H4 alone is responsible for the "P50 can begin" claim that propagated to
+      "P49 complete" without an independent runtime verification.
+  worker_adapter_bridge:
+    percent: 12
+    rationale: >-
+      H5 — LocalPiWorkerAdapter never populates accp field. The entire ACCP
+      compile pipeline (worker→executor→compile→artifact→gate) collapses
+      at the first link. Without this fix, none of the downstream links
+      can be exercised.
+  planspec_admission_and_decomposition:
+    percent: 18
+    rationale: >-
+      H11 (no live_TUI evidence type), H12 (allowedFiles gaps for
+      local-pi-worker-adapter.ts and accp-gate-stage-runner.ts), H13
+      (no end-to-end owner). The plan admitted 30 narrow workspaces
+      that each closed a unit-test loop but could not validate the
+      production edge. Plan problem estimate: 18% (see planspec_findings).
+  model_agent_behavior:
+    percent: 0
+    rationale: >-
+      The agent followed instructions within its allowedFiles. It wrote
+      valid TypeScript, passed unit tests, and produced wave TVRs. The
+      false completion is not a model error — it is a consequence of
+      the plan's evidence rules and the gate's wiring. Per scoring
+      rules, model/agent must not exceed runtime/gate responsibility
+      when runtime/gate correctly rejected claims (it did not reject).
+  write_edit_tooling:
+    percent: 4
+    rationale: >-
+      H16 rejected (write path works). Remaining 4% reflects that
+      agent-side prompt-instruction interpretations ('a passing PRR
+      is enough') were not contradicted by tooling, but this is a
+      minor factor and capped at <=10 by scoring rules.
+  worktree_integration:
+    percent: 2
+    rationale: >-
+      H17 rejected. Diff is present in working tree (49 files / 3307
+      insertions). 2% reflects that integration did not trigger a
+      cross-component regression test that would have caught the
+      wiring gap.
+  command_validation:
+    percent: 4
+    rationale: >-
+      H15 confirmed. 'npm run check' and 'npm run build' pass; PRR
+      cites them as evidence. They are necessary but not sufficient.
+      No live TUI smoke or runtime boot trace is required by the
+      command policy.
+  observability:
+    percent: 2
+    rationale: >-
+      H18 inconclusive. The ACCP gate's silence-by-absence is the
+      observability gap. H20 confirmed: P0.1 PASS does not validate
+      P49. Observability's main role is that the false completion was
+      not detected by any automated check that did not require manual
+      cross-component reasoning.
+  total_percent: 100
+
+component_findings:
+  completion_gate:
+    status: "fail"
+    findings:
+      - "STAGE_ORDER in completion-gate-vnext-types.ts omits AccpGate; orchestrator never reaches it."
+      - "StageRunnerRegistry defaults to empty; no production file registers runAccpGateStage."
+      - "planCompletionPredicate has no ACCP gate awareness; kernel cannot detect missing gate."
+      - "CompletionGateV2 is a wrapper around completion-gate.ts and adds PlanSpec-mode checks (lock hashes, worker echo) but not ACCP."
+    required_fix:
+      - "Add 'AccpGate' to STAGE_ORDER (after EvidenceLedger)."
+      - "Register runAccpGateStage in default or production registry."
+      - "Wire planCompletionPredicate to consult AccpGateVerdict when present."
+      - "Add per-workspace live/runtime call-site evidence requirement to CompletionGateV2."
+  evidence_engine:
+    status: "fail"
+    findings:
+      - "PRR credits source presence (>=0.25) and unit tests (0.75) as completion; no live/TUI evidence requirement."
+      - "P49 PRR p50Readiness.ready=true despite 62.35% missing wiring (R005/R007/R008/R010/R011 etc.)."
+      - "TVRs cite unit-test command_results without sha256 or artifact_path to compiled JSON."
+    required_fix:
+      - "Add credit rubric rung 'live_runtime_verified = 1.0' and require it for any AC touching user-visible runtime."
+      - "Add 'live_tui' and 'runtime_call_site' to AC evidenceTypes options."
+      - "Hash-anchor every TVR command result to the produced compiled/verdict/route artifact."
+  worker_adapter:
+    status: "fail"
+    findings:
+      - "LocalPiWorkerAdapter.run() returns {verdict, events:[], changedFiles:[], commandHistory:[], report, error, metadata} — no accp field."
+      - "Adapter does not import AccpWorkerOutput."
+      - "autonomous-executor.ts line 1273 reads workerResult.accp?.shouldCompile which is always undefined."
+      - "contextUsed is placed in metadata (an extra nesting) rather than as a direct WorkerRunResult property."
+    required_fix:
+      - "Import AccpWorkerOutput type in local-pi-worker-adapter.ts."
+      - "Populate workerResult.accp from executor.execute() output or post-execution compile step."
+      - "Wire changedFiles/events/commandHistory from agentResult instead of hardcoding empty arrays."
+      - "Move contextUsed out of metadata to top-level property."
+  tui_runtime:
+    status: "fail"
+    findings:
+      - "accpModePickerEnabled never set to true in any production caller."
+      - "Tab keybinding block is guarded by if (this.options.accpModePickerEnabled)."
+      - "showAccpModePicker is the only caller of createInitialRouteIndicator and createAccpTaskEnvelope."
+      - "P0_1 TUI smoke captured a live Tab keypress and confirmed picker did not open."
+    required_fix:
+      - "Set accpModePickerEnabled = true in InteractiveMode boot path (TUI new-session)."
+      - "Or expose a setting/flag that user can toggle to enable the picker."
+      - "Add a live_TUI smoke test that asserts the picker overlay appears on Tab and emits InitialRouteIndicator."
+  route_bus:
+    status: "fail"
+    findings:
+      - "AccpRouteBus class exists; getAccpRouteBus() lazy singleton exists."
+      - "Zero non-test call sites of getAccpRouteBus()."
+      - "createDefaultSubscriptions(bus, publish) is only imported by tests."
+    required_fix:
+      - "Call getAccpRouteBus() in agent-session boot or in a designated runtime singleton initialization step."
+      - "Wire createDefaultSubscriptions(bus, publish) into a boot module that subscribes ACCP consumers."
+  artifact_store:
+    status: "fail"
+    findings:
+      - "AccpArtifactStore saveCompiled/readCompiled/saveRouteSignal/readRouteSignal exist."
+      - "Zero non-test call sites."
+      - "ACCP compiler writes compiled output directly to disk, bypassing the store."
+    required_fix:
+      - "Wire AccpArtifactStore instance into compiler bridge (saveCompiled)."
+      - "Wire readVerdict/readRouteSignal into CompletionGateVNext AccpGate stage."
+      - "Single AccpArtifactStore instance per plan execution."
+  planspec_admission:
+    status: "fail"
+    findings:
+      - "30 workspaces with allowedFiles scoped to narrow file lists; no workspace owns local-pi-worker-adapter.ts or accp-gate-stage-runner.ts."
+      - "P49.18 owns completion-gate.ts (root core/) but not completion/completion-gate-vnext-types.ts (where STAGE_ORDER is declared)."
+      - "AC evidenceTypes lack 'live_tui' and 'runtime_call_site'."
+      - "No per-workspace edge-ownership AC for the end-to-end runtime path."
+    required_fix:
+      - "Add a new workspace or extend P49.18 with allowedFiles covering completion/completion-gate-vnext-types.ts."
+      - "Add allowedFiles for local-pi-worker-adapter.ts to a new or extended P49.17/P49.18."
+      - "Add 'live_tui' and 'runtime_call_site' to evidenceTypes and require at least one for runtime ACs."
+      - "Add a cross-component AC: 'TUI Tab invokes ACCP gate in production path' with explicit owner."
+  write_edit_tools:
+    status: "pass"
+    findings:
+      - "atomicWriteFile uses temp+rename+postHash verify; no silent success pattern."
+      - "Direct FS write probe in P49_codeloss_rca confirmed disk mutation; 49 files / 3307 insertions in git status."
+    required_fix:
+      - "No fix required for write/edit tools."
+  evidence_index:
+    commands_run:
+      - id: "SCAN_REPO_HEAD"
+        command: "git rev-parse HEAD"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "52c05ee58a33e3929cb6958582a528f6a4fcccd4"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H1"
+          - "H4"
+      - id: "SCAN_REPO_BRANCH"
+        command: "git branch --show-current"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 30
+        stdout_excerpt: "main"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H1"
+      - id: "SCAN_GIT_STATUS"
+        command: "git status --short"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 80
+        stdout_excerpt: "49 files modified, several untracked report dirs; 3307 insertions, 554 deletions"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H16"
+          - "H17"
+      - id: "SCAN_GIT_DIFF_STAT"
+        command: "git diff --stat"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 80
+        stdout_excerpt: "49 files changed, 3307 insertions(+), 554 deletions(-)"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H16"
+          - "H17"
+      - id: "SCAN_P49_PLANSPEC"
+        command: "cat docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 120
+        stdout_excerpt: "planspec hash 8d04e03f...; 30 workspaces across 8 waves; declares ExecutionKernel, CompletionGateV2, evidence ledger, missing evidence block, ACCP gate verdict, Tab ACCP picker, compiled JSON runtime input"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H11"
+          - "H12"
+          - "H13"
+      - id: "RG-STAGE-ORDER"
+        command: "rg -n 'STAGE_ORDER|CompletionGateStageName|AccpGate|runAccpGateStage|CompletionGateVNext|CompletionGateV2' packages"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 200
+        stdout_excerpt: "AccpGate in type union; STAGE_ORDER has 9 stages, omits AccpGate; runAccpGateStage only in tests + p49_5 audit script"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H1"
+          - "H2"
+          - "H3"
+      - id: "RG-runAccpGateStage"
+        command: "rg -n 'runAccpGateStage|accp-gate-stage-runner' packages"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 150
+        stdout_excerpt: "14 matches in 5 files: d.ts, accp-gate-stage-runner.ts, p49_5/*, test/accp/completion-gate-accp.test.ts (8 call sites)"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H3"
+      - id: "RG-getAccpRouteBus"
+        command: "rg -n 'AccpRouteBus|getAccpRouteBus' packages --type ts -g '!node_modules' -g '!*test*'"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 180
+        stdout_excerpt: "16 matches in 4 files: d.ts only, accp-artifact-subscriptions.ts (type import only), accp-route-bus.ts (definition). getAccpRouteBus() never called in production."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H8"
+      - id: "RG-saveCompiled"
+        command: "rg -n 'AccpArtifactStore|saveCompiled|readCompiled|saveVerdict|readVerdict|saveRouteSignal|readRouteSignal' packages --type ts -g '!node_modules' -g '!*test*'"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 200
+        stdout_excerpt: "17 matches in 2 files: d.ts only and accp-artifact-store.ts (definition). Zero non-test call sites."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H9"
+      - id: "READ-LocalPiWorkerAdapter"
+        command: "read packages/worker-adapters/src/local-pi-worker-adapter.ts"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 80
+        stdout_excerpt: "Adapter does not import AccpWorkerOutput; run() returns literal without accp field; events/changedFiles/commandHistory hardcoded empty arrays; contextUsed inside metadata."
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H5"
+      - id: "READ-InteractiveMode"
+        command: "rg -n 'accpModePickerEnabled|showAccpModePicker|InitialRouteIndicator|AccpTaskEnvelope' packages/coding-agent/src"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 200
+        stdout_excerpt: "accpModePickerEnabled guarded at line 2414; showAccpModePicker at 6145 is the only call site of createInitialRouteIndicator (6153) and createAccpTaskEnvelope (6158)."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H6"
+          - "H7"
+      - id: "READ-P0_1-TUI-Smoke"
+        command: "cat reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "Tab keypress captured; result_summary: 'Tab does NOT open accp-mode-picker overlay in the live TUI editor'"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H6"
+          - "H20"
+      - id: "READ-PRR"
+        command: "cat reports/accp/P49/prr_promotion_readiness.accp.yaml"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "promotion_decision.ready=false (operator_approval pending); p50Readiness.ready=true; evidence_summary cites 226 compiler tests, 128 coding-agent accp tests, 70 runtime accp tests, 12 e2e native flow tests"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H4"
+          - "H10"
+      - id: "READ-plan-supervisor"
+        command: "read packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "planCompletionPredicate is 9 lines; checks handoff required, FAILED_FINAL, all SUCCEEDED; no ACCP gate branch"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H14"
+      - id: "READ-TVR"
+        command: "cat reports/accp/P49/tvr_wave_W1.accp.yaml"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "command_results include CMD-TYPECHECK-TSGO + vitest runs; no sha256 / artifact_path"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H19"
+      - id: "READ-P0-scorecard"
+        command: "cat reports/accp/gate-sanity/P0/scorecard.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "kernel_sanity.verdict=PASS; promotion_allowed=false; all_negative_controls_blocked=true; p0_1 tui_smoke.status=blocked"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H20"
+      - id: "READ-atomic-file-writer"
+        command: "read packages/coding-agent/src/core/mutation/atomic-file-writer.ts"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "atomicWriteFile uses temp+rename+postHash verify; empty catch{} on tempfile cleanup is safe"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H16"
+      - id: "READ-PRR-promotion_decision"
+        command: "rg -n 'promotion_decision|p50Readiness|hardStops' reports/accp/P49/prr_promotion_readiness.accp.yaml docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 100
+        stdout_excerpt: "PRR promotion_decision.ready=false (operator_approval only); p50Readiness.ready=true; planspec hardStops include accp_gate_blocked_required_mode (dormant in warn mode)"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H10"
+      - id: "READ-reconciler"
+        command: "rg -n 'blockReasons|TerminalVerdictReconciler' packages/coding-agent/src/core/completion/terminal-reconciler.ts packages/coding-agent/src/core/autonomous-executor.ts"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 100
+        stdout_excerpt: "Reconciler writes blockReasons into completionGateBlockReasons at autonomous-executor.ts line 1674. runAccpGateStage returns StageVerdict with blockReasons. Gate is silent by absence, not by message format."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H18"
+      - id: "RG-InitialRouteIndicator"
+        command: "rg -n 'createInitialRouteIndicator|createAccpTaskEnvelope|_accpTaskEnvelope' packages/coding-agent/src"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 150
+        stdout_excerpt: "createInitialRouteIndicator / createAccpTaskEnvelope defined in accp-initial-route-indicator.ts. Only call sites inside showAccpModePicker (dead path). AgentSession stores _accpTaskEnvelope but never populated."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H7"
+      - id: "RG-workspace-ids"
+        command: "rg -n '\"id\": \"P49\\.\\d+\"' docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "30 workspaces; 8 waves; no workspace owns local-pi-worker-adapter.ts or accp-gate-stage-runner.ts"
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H12"
+          - "H13"
+      - id: "RG-allowedFiles-p49"
+        command: "rg -n 'local-pi-worker-adapter|accp-gate-stage-runner' docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "0 matches. local-pi-worker-adapter.ts and accp-gate-stage-runner.ts appear in zero workspace allowedFiles."
+        stderr_excerpt: ""
+        output_truncated: false
+        satisfies_claims:
+          - "H12"
+      - id: "RG-evidenceTypes"
+        command: "rg -n 'evidenceTypes' docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 100
+        stdout_excerpt: "evidenceTypes values across ACs: ['source','unit_test','integration_test','report']; some add 'negative'. No 'live_tui' or 'runtime_call_site'."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H11"
+      - id: "READ-journal"
+        command: "tail -50 .pi/execution-journal.ndjson"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 50
+        stdout_excerpt: "workspace_start, file_lock_acquired, file_lock_released, workspace_complete events for V5.* workspaces (parallel agents). 19,981+ events."
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H17"
+      - id: "VALIDATE_NPM_CHECK"
+        command: "npm run check"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 90000
+        stdout_excerpt: "biome check 1935 files (no fixes), tsgo --noEmit, browser-smoke, web-ui tsc — all exit 0"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H15"
+      - id: "VALIDATE_NPM_BUILD"
+        command: "npm run build"
+        cwd: "/Users/hootie/src/pi"
+        exit_code: 0
+        duration_ms: 180000
+        stdout_excerpt: "tsgo -p tsconfig.build.json, copy-assets, web-ui tsc + tailwindcss — all exit 0"
+        stderr_excerpt: ""
+        output_truncated: true
+        satisfies_claims:
+          - "H15"
+    files_inspected:
+      - path: "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        sha256: "8d04e03f0367835e9d1127f7176c9b2dcd1989b2371c1236e871a1fad10a2afa"
+        inspected_for:
+          - "H11"
+          - "H12"
+          - "H13"
+        finding: "30 workspaces; allowedFiles for P49.18 cover completion-gate.ts but not completion/completion-gate-vnext-types.ts; allowedFiles never include local-pi-worker-adapter.ts or accp-gate-stage-runner.ts; AC evidenceTypes lack live_tui and runtime_call_site"
+      - path: "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+        sha256: "950b189c9d97bbf187b797ed46226262645eb3c36bf4c9a4bbd12451a6650004"
+        inspected_for:
+          - "H1"
+          - "H2"
+        finding: "CompletionGateStageName union includes 'AccpGate'; STAGE_ORDER omits it"
+      - path: "packages/coding-agent/src/core/completion/completion-gate-vnext.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H1"
+          - "H3"
+        finding: "Orchestrator iterates STAGE_ORDER; default registry is empty; unregistered stages are skipped with warning"
+      - path: "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+        sha256: "6e9bd650f0332c3eb38baf39d98c95d5e3a98d823564c1cb944b04c2e10343b6"
+        inspected_for:
+          - "H3"
+        finding: "runAccpGateStage defined; only test imports and p49_5 audit script import it"
+      - path: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        sha256: "1504de67f23acb018357b686f49c3e94e5b2da26a6781f1a569b7b2ad879fcb5"
+        inspected_for:
+          - "H6"
+          - "H7"
+        finding: "accpModePickerEnabled guarded Tab handler; showAccpModePicker is only call site of createInitialRouteIndicator / createAccpTaskEnvelope"
+      - path: "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+        sha256: "6669d7c685db2a83b8ede7ca795c3fcb9deff6e4d3b474d5d35d7159882a9949"
+        inspected_for:
+          - "H5"
+        finding: "Adapter does not import AccpWorkerOutput; run() returns literal without accp field; events/changedFiles/commandHistory hardcoded empty arrays"
+      - path: "packages/coding-agent/src/core/accp-route-bus.ts"
+        sha256: "108a45924ce43ad3d4a328f923fb270d895b93ad0d6062eccaf5b65f46db55b9"
+        inspected_for:
+          - "H8"
+        finding: "AccpRouteBus class + getAccpRouteBus() lazy singleton; zero non-test call sites"
+      - path: "packages/coding-agent/src/core/accp-artifact-store.ts"
+        sha256: "a03e066e341b6989f77c48a8f69749d190aa6bebe5a9e0ba97a2ad380b94a40e"
+        inspected_for:
+          - "H9"
+        finding: "saveCompiled/readCompiled/saveRouteSignal/readRouteSignal exist; zero non-test call sites"
+      - path: "packages/coding-agent/src/execution-runtime/plan-supervisor.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H14"
+        finding: "planCompletionPredicate is a 9-line stage-state reducer; no ACCP gate branch"
+      - path: "packages/coding-agent/src/execution-runtime/completion-predicate.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H14"
+        finding: "isPlanComplete / assertNoUnresolvedHandoffs; no ACCP gate integration"
+      - path: "packages/coding-agent/src/core/mutation/atomic-file-writer.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H16"
+        finding: "atomicWriteFile uses temp+rename+postHash verify; no silent success pattern"
+      - path: "packages/coding-agent/src/core/completion/terminal-reconciler.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H18"
+        finding: "Reconciler writes blockReasons; runAccpGateStage returns StageVerdict with blockReasons; gate is silent by absence"
+      - path: "packages/coding-agent/src/core/autonomous-executor.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H5"
+          - "H18"
+        finding: "Line 1273 reads workerResult.accp?.shouldCompile (always undefined); line 1674 stores completionGateBlockReasons"
+      - path: "packages/coding-agent/src/core/agent-session.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H7"
+        finding: "_accpTaskEnvelope field and accpTaskEnvelope getter; never populated in production"
+      - path: "packages/coding-agent/src/core/accp-initial-route-indicator.ts"
+        sha256: "n/a"
+        inspected_for:
+          - "H7"
+        finding: "createInitialRouteIndicator / createAccpTaskEnvelope exported; only call sites inside dead showAccpModePicker path"
+      - path: "reports/accp/P49/prr_promotion_readiness.accp.yaml"
+        sha256: "n/a"
+        inspected_for:
+          - "H4"
+          - "H10"
+        finding: "p50Readiness.ready=true despite 62.35% missing; operator_approval only blocker"
+      - path: "reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+        sha256: "n/a"
+        inspected_for:
+          - "H1"
+          - "H4"
+        finding: "38.15% truth; 0 runtime_verified; 7.5 test_only; 13.15 dead_code; 62.35 missing; FAIL"
+      - path: "reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+        sha256: "n/a"
+        inspected_for:
+          - "H1"
+          - "H4"
+        finding: "Per-requirement credit and evidence summaries; R005/R007/R008 capped at 0.15-0.75"
+      - path: "reports/accp/P49/tvr_wave_W1.accp.yaml"
+        sha256: "n/a"
+        inspected_for:
+          - "H19"
+        finding: "command_results lack sha256/artifact_path"
+      - path: "reports/accp/gate-sanity/P0/scorecard.json"
+        sha256: "n/a"
+        inspected_for:
+          - "H20"
+        finding: "kernel_sanity PASS; promotion_allowed false; all negative controls blocked"
+      - path: "reports/accp/gate-sanity/P0_1/evidence/onefile.evidence.json"
+        sha256: "n/a"
+        inspected_for:
+          - "H6"
+          - "H20"
+        finding: "tui_smoke.status=blocked; explicit 'Tab does NOT open accp-mode-picker overlay'"
+      - path: "reports/tmp/gate-sanity/P0_1/tui/smoke-result.json"
+        sha256: "n/a"
+        inspected_for:
+          - "H6"
+          - "H20"
+        finding: "Live TUI smoke result; Tab keypress captured; picker did not open"
+      - path: "reports/accp/P49_codeloss_rca/onefile.accp.yaml"
+        sha256: "n/a"
+        inspected_for:
+          - "H16"
+          - "H17"
+        finding: "Direct FS write probe succeeded; sha256 ab972da6... confirmed disk mutation; no silent success pattern"
+      - path: "reports/accp/P49_codeloss_rca/probes/write_probe/direct.txt"
+        sha256: "ab972da605a2035a78cb2ae81ef9aa9d0bad81254dd5c0179bde718c52a9f718"
+        inspected_for:
+          - "H16"
+        finding: "Direct write probe; file persisted; sha256 verifies"
+    artifact_hashes:
+      - path: "docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json"
+        sha256: "8d04e03f0367835e9d1127f7176c9b2dcd1989b2371c1236e871a1fad10a2afa"
+      - path: "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+        sha256: "950b189c9d97bbf187b797ed46226262645eb3c36bf4c9a4bbd12451a6650004"
+      - path: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        sha256: "1504de67f23acb018357b686f49c3e94e5b2da26a6781f1a569b7b2ad879fcb5"
+      - path: "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+        sha256: "6669d7c685db2a83b8ede7ca795c3fcb9deff6e4d3b474d5d35d7159882a9949"
+      - path: "packages/coding-agent/src/core/accp-route-bus.ts"
+        sha256: "108a45924ce43ad3d4a328f923fb270d895b93ad0d6062eccaf5b65f46db55b9"
+      - path: "packages/coding-agent/src/core/accp-artifact-store.ts"
+        sha256: "a03e066e341b6989f77c48a8f69749d190aa6bebe5a9e0ba97a2ad380b94a40e"
+      - path: "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+        sha256: "6e9bd650f0332c3eb38baf39d98c95d5e3a98d823564c1cb944b04c2e10343b6"
+    validation_results:
+      npm_run_check:
+        exit_code: 0
+        interpretation: "necessary_not_sufficient"
+      npm_run_build:
+        exit_code: 0
+        interpretation: "necessary_not_sufficient"
+      p0_gate_sanity:
+        exit_code: 0
+        verdict: "PASS"
+        interpretation: "harness_readiness_not_p49_completion"
+      tui_smoke:
+        exit_code: 0
+        verdict: "FAIL"
+        interpretation: "live_tui_evidence_for_p49_only"
+
+final_decision:
+  culprit_audit_status: "complete"
+  p49_repair_should_start: "conditional"
+  evidence_engine_required_before_repair: true
+  completion_gate_hardening_required_before_repair: true
+  top_10_required_fixes_in_order:
+    - order: 1
+      fix: >-
+        Add 'AccpGate' to STAGE_ORDER in completion-gate-vnext-types.ts and register
+        runAccpGateStage in the production StageRunnerRegistry. Default registry must
+        include AccpGate; verify with a unit test that iterates STAGE_ORDER.
+      responsible_component: "completion-gate-vnext"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "CompletionGate vNext can never evaluate ACCP; H1/H2/H3 will remain confirmed."
+    - order: 2
+      fix: >-
+        Wire planCompletionPredicate / isPlanComplete to consult AccpGateVerdict
+        (when present) and require it for any plan with required ACCP mode.
+      responsible_component: "execution-runtime/plan-supervisor"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "ExecutionKernel will continue to accept worker/PRR claims without an ACCP gate cross-check."
+    - order: 3
+      fix: >-
+        Populate WorkerRunResult.accp in LocalPiWorkerAdapter.run(). Import
+        AccpWorkerOutput, derive accp from executor.execute() output or
+        post-execution compile, and return it on the result. Also populate
+        changedFiles/events/commandHistory from agentResult rather than empty
+        arrays.
+      responsible_component: "worker-adapters/local-pi-worker-adapter"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "autonomous-executor ACCP compile path will remain permanently disabled."
+    - order: 4
+      fix: >-
+        Add allowedFiles for packages/worker-adapters/src/local-pi-worker-adapter.ts
+        to P49.18 (or a new P49.31) so that the worker adapter wiring has an
+        owner. Same for accp-gate-stage-runner.ts.
+      responsible_component: "planspec-admission"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "Future P49 repair agents will continue to be unable to touch the missing files."
+    - order: 5
+      fix: >-
+        Add allowedFiles for packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts
+        to P49.18 so that STAGE_ORDER modifications have a workspace owner. P49.18 currently
+        owns only the root completion-gate.ts.
+      responsible_component: "planspec-admission"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "The file with STAGE_ORDER has no workspace owner."
+    - order: 6
+      fix: >-
+        Set accpModePickerEnabled = true in the InteractiveMode boot path, or expose
+        a setting/flag that the user can toggle. Add a live TUI smoke test that
+        asserts the picker overlay appears on Tab and that InitialRouteIndicator +
+        AccpTaskEnvelope are emitted.
+      responsible_component: "interactive-mode"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "TUI mode picker remains dead code; user cannot select ACCP mode at runtime."
+    - order: 7
+      fix: >-
+        Wire AccpRouteBus boot: call getAccpRouteBus() once at agent-session
+        initialization, call createDefaultSubscriptions(bus, publish) to wire
+        consumer subscriptions.
+      responsible_component: "accp-route-bus + agent-session"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "Route bus remains structurally present but functionally inert."
+    - order: 8
+      fix: >-
+        Wire AccpArtifactStore: compiler bridge calls saveCompiled; CompletionGateVNext
+        AccpGate stage calls readVerdict / readRouteSignal. Single AccpArtifactStore
+        instance per plan execution.
+      responsible_component: "accp-artifact-store + completion-gate-vnext"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "Compiled JSON artifacts are never persisted through the artifact store; gate verdict is never read."
+    - order: 9
+      fix: >-
+        Add a P49 feature scorecard with required credit rung
+        'live_runtime_verified = 1.0'. Add 'live_tui' and 'runtime_call_site'
+        to AC evidenceTypes and require at least one for any AC touching
+        runtime/user-visible behavior. PRR must not declare p50Readiness.ready
+        while any required AC lacks live_runtime_verified credit.
+      responsible_component: "evidence-engine + planspec-admission"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "Source-presence and unit-test-only claims will continue to be treated as runtime completion."
+    - order: 10
+      fix: >-
+        Hash-anchor every TVR command result to the produced compiled/verdict/route
+        artifact. Each TVR evidence block must include sha256 + artifact_path.
+        P49 truth-audit onefile.evidence.json already carries some hashes; the
+        PRR must consume them rather than only test counts.
+      responsible_component: "evidence-engine + tvr-template"
+      blocks_p49_repair: true
+      hard_stop_if_ignored:
+        - "Evidence ledger will remain a textual count, not a hash-anchored chain."
+
+evidence_completeness_checklist:
+  plan_problem_percent: 18.0
+  runtime_completion_gate_percent: 36
+  evidence_engine_percent: 22
+  worker_adapter_bridge_percent: 12
+  planspec_admission_and_decomposition_percent: 18
+  model_agent_behavior_percent: 0
+  write_edit_tooling_percent: 4
+  worktree_integration_percent: 2
+  command_validation_percent: 4
+  observability_percent: 2
+  total_percent: 100
+  constraint_compliance:
+    - "Total equals 100."
+    - "Write/edit tooling = 4 (<=10 cap)."
+    - "Model/agent = 0 (<= runtime/gate responsibility since runtime/gate did not reject claims)."
+    - "Plan/decomposition scored separately from runtime/gate (18 + 36 = 54)."
+    - "CompletionGate did not execute AccpGate → runtime_completion_gate = 36 (>= 25)."
+    - "Evidence Engine accepted source/unit-only runtime claims → evidence_engine = 22 (>= 20)."
+    - "Adapter drops accp/changedFiles/events/commandHistory → worker_adapter_bridge = 12 (>= 10)."
+  hard_stop_compliance:
+    - "HS_NO_FIX_DURING_AUDIT: no product code mutated. Required-fix lists are recommendations only."
+    - "HS_NO_MULTIFILE_AUTHORITY: all findings are in this single onefile. scorecard.json is informational."
+    - "HS_NO_PHANTOM_EVIDENCE: every confirmed hypothesis has at least one file path + sha256 or command_id + observed stdout_excerpt."
+    - "HS_NO_SOURCE_ONLY_PASS: RIR/PIR/R005/etc. marked source_present_unwired (0.25) not 1.0."
+    - "HS_NO_UNIT_ONLY_RUNTIME_PASS: R007 etc. marked implemented_with_integration_test_only (0.75) not 1.0."
+    - "HS_BUILD_CHECK_ARE_NOT_RUNTIME_PROOF: npm run check / build treated as necessary_not_sufficient."
+  outstanding_unknowns:
+    - "H18 message-format quality cannot be tested without a live ACCP gate firing; marked inconclusive."
+    - "ExecutionKernel source vs dist: packages/execution-kernel/ contains only dist/ (no src/). All references resolve to packages/coding-agent/src/execution-runtime/. The packages/coding-agent/dist/execution-runtime/*.d.ts has the same definitions; no source-vs-dist split detected. Confirmed consistent."
+
+post_audit_self_check:
+  p49_repair_recommendation: "Do not start P49 repair until fixes 1, 3, 4, 5, 6 are in place. The current PRR is structurally unable to detect the missing wiring; the evidence engine must be hardened (fix 9) before any new P49 attempt can be trusted. P0.1 already proved the harness produces live TUI smoke evidence; reuse that harness for every ACCP-touching AC."
+  next_recommended_phase: "P49.31 (or P49.5 hardening) — PlanSpec amendment + CompletionGate vNext STAGE_ORDER + LocalPiWorkerAdapter accp + TUI picker boot wiring. Do not call P50 start until the new P49 scorecard reports runtime_verified_percent >= 60 with live_tui evidence in place."

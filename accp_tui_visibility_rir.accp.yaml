@@ -1,0 +1,241 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+request_id: ACCP_TUI_VISIBILITY_RIR
+report:
+  id: ACCP_TUI_VISIBILITY_RIR
+  type: RIR
+  family: core
+  status: ready
+
+meta:
+  plan_id: P49_TUI_001
+  workspace_id: accp-tui-visibility-rir
+  generated_at: "2026-06-14T10:30:00Z"
+  generated_by: "manual"
+  canonical_file: docs/accp/accp_v2_0_strict_yaml_onefile_master.accp.yaml
+
+purpose:
+  summary: >-
+    Research why ACCP compile/gate/artifact events emitted through the
+    process-wide progress emitter never reach the interactive-mode chat TUI.
+    The AutonomousExecutor calls compileAccpSource() and AccpArtifactStore
+    save methods which emit events. The InteractiveMode calls
+    getAccpProgressEmitter().set(...) in its init() method to register
+    handlers. The events should appear as inline chat messages, but they
+    never render.
+  examples_remain_examples: false
+  production_generation_uses_this_file: false
+
+authority_boundary:
+  reports_are_evidence_only: true
+  reports_do_not_authorize_execution: true
+  route_signals_are_advisory: true
+  compiled_json_is_runtime_input: false
+  raw_yaml_is_not_runtime_authority: true
+  rendered_markdown_is_human_preview_only: true
+
+report:
+  inspection_mode: read_only
+  selection_signals:
+    - repo_discovery
+    - architecture_inventory
+    - baseline_inspection
+  required_sections:
+    - repo_tree
+    - domain_map
+    - authority_docs
+    - contracts_and_schemas
+    - gaps_and_risks
+    - final_status
+
+repo_tree:
+  description: "Files involved in the ACCP progress emitter → TUI pipeline"
+  modules:
+    - path: packages/coding-agent/src/core/accp-progress-emitter.ts
+      role: "Process-wide singleton emitter. Exposes getAccpProgressEmitter() and set(handlers)."
+      relevant: true
+    - path: packages/coding-agent/src/core/accp-artifact-store.ts
+      role: "Calls getAccpProgressEmitter().emitCompilationCompleted() and emitArtifactWritten() in saveCompiled, saveGateVerdict, etc."
+      relevant: true
+    - path: packages/coding-agent/src/core/autonomous-executor.ts
+      role: "Calls getAccpProgressEmitter().emitCompilationStarted() before compileAccpSource(). Runs in a SEPARATE execution pipeline, not the interactive chat process."
+      relevant: true
+    - path: packages/coding-agent/src/core/accp-gate-stage-runner.ts
+      role: "Calls getAccpProgressEmitter().emitGateStarted() and emitGateCompleted() during gate evaluation."
+      relevant: true
+    - path: packages/coding-agent/src/core/agent-session.ts
+      role: "Constructor calls attachAccpProgressEmitter() to set handlers. These handlers get OVERWRITTEN by InteractiveMode.init() which calls getAccpProgressEmitter().set(...) later."
+      relevant: true
+    - path: packages/coding-agent/src/modes/interactive/interactive-mode.ts
+      role: "Calls getAccpProgressEmitter().set(...) in init() with handlers that directly manipulate this.chatContainer to show inline ACCP messages."
+      relevant: true
+    - path: packages/coding-agent/src/core/settings-manager.ts
+      role: "Exposes getVerboseAccpOutput() / setVerboseAccpOutput() for the /settings toggle."
+      relevant: false
+    - path: packages/coding-agent/src/modes/interactive/components/settings-selector.ts
+      role: "Renders the 'Verbose ACCP output' toggle in the settings menu."
+      relevant: false
+    - path: packages/coding-agent/src/modes/interactive/components/accp-status-component.ts
+      role: "Compact status card component (idle → compiling → compiled → gate_running → pass/hold/fail)."
+      relevant: true
+    - path: packages/coding-agent/src/modes/interactive/components/accp-result-component.ts
+      role: "Final result card shown at agent_end with real verdict and diagnostics."
+      relevant: true
+
+domain_map:
+  description: "Data flow from ACCP execution to TUI rendering"
+  components:
+    - name: "AutonomousExecutor (process A)"
+      description: >-
+        Runs compileAccpSource() → AccpArtifactStore.saveCompiled() →
+        AccpArtifactStore.saveGateVerdict(). Each call hits the process-wide
+        getAccpProgressEmitter() singleton. Events are emitted but the
+        question is: is this the SAME process as InteractiveMode?
+      question: "Is AutonomousExecutor running in the same Node.js process as the InteractiveMode chat TUI?"
+      symptoms: "If separate process, events fire in process A but process B never sees them because the singleton is per-process."
+
+    - name: "InteractiveMode (process B?)"
+      description: >-
+        Calls getAccpProgressEmitter().set(...) in init() to register
+        handlers that write to this.chatContainer. This runs in the TUI
+        chat process.
+      question: "Does init() run BEFORE or AFTER AutonomousExecutor emits events?"
+      symptoms: "If init() hasn't run yet when events fire, the handlers map is empty and events silently drop."
+
+    - name: "AccpProgressEmitter (singleton)"
+      description: >-
+        A process-wide singleton. getAccpProgressEmitter() returns the
+        same instance. set(handlers) replaces ALL handlers. If called
+        twice, the second call overwrites the first.
+      question: "Is there a race between AgentSession.set and InteractiveMode.set?"
+      symptoms: "AgentSession constructor calls attachAccpProgressEmitter(), then InteractiveMode.init() calls getAccpProgressEmitter().set(...). The second call overwrites the first. This is intentional but may cause events that fire between the two calls to be lost."
+
+    - name: "AcpArtifactStore"
+      description: >-
+        Calls getAccpProgressEmitter().emitCompilationCompleted() and
+        emitArtifactWritten() synchronously. No async delay.
+      question: "Is the emitter instantiated before the store methods are called?"
+      symptoms: "The emitter singleton is lazy-instantiated on first getAccpProgressEmitter() call. If store methods are called before the first get(), the emitter exists but has empty handlers."
+
+contracts_and_schemas:
+  description: "Key contracts governing event flow"
+  contracts:
+    - contract: "getAccpProgressEmitter() returns process-wide singleton"
+      evidence: "accp-progress-emitter.ts:158 — const sharedEmitter = new AccpProgressEmitterImpl()"
+      status: "confirmed"
+
+    - contract: "set(handlers) replaces ALL handlers atomically"
+      evidence: "accp-progress-emitter.ts:108 — this.handlers = handlers"
+      status: "confirmed"
+
+    - contract: "InteractiveMode.init() registers handlers that write to this.chatContainer"
+      evidence: "interactive-mode.ts:684 — getAccpProgressEmitter().set({ onCompilationStarted: ..., onCompilationCompleted: ... })"
+      status: "confirmed"
+
+    - contract: "AutonomousExecutor calls compileAccpSource() and AccpArtifactStore.saveCompiled()"
+      evidence: "autonomous-executor.ts:1275-1297"
+      status: "confirmed"
+
+    - contract: "AccpArtifactStore.saveCompiled() calls emitter.emitCompilationCompleted()"
+      evidence: "accp-artifact-store.ts:212-219"
+      status: "confirmed"
+
+gaps_and_risks:
+  description: "Identified gaps that could explain why events never reach the TUI"
+  gaps:
+    - id: GAP-001
+      description: "AutonomousExecutor may run in a different Node.js process than InteractiveMode"
+      severity: critical
+      evidence: >-
+        The AutonomousExecutor is used in plan-execution contexts (workspace workers,
+        gauntlet runners). These may fork separate processes. The interactive chat TUI
+        runs in the main process. If they're different processes, the process-wide
+        singleton emitter in process A has NO connection to process B.
+      investigation: >-
+        Check whether AutonomousExecutor.executeWorkspace() runs in-process or via
+        child_process.fork() / worker_threads. If it's forked, the progress emitter
+        events can never reach the TUI.
+      resolution: >-
+        If in-process: add logging to verify events fire and handlers execute.
+        If separate process: need IPC bridge (worker.postMessage, process.send, or
+        a file-watch-based approach where the TUI polls the artifact store for new
+        files).
+
+    - id: GAP-002
+      description: "AccpArtifactStore may be instantiated with a different config rootDir"
+      severity: medium
+      evidence: >-
+        saveCompiled() writes to reports/accp/{planId}/compiled/{reportId}.compiled.json.
+        The TUI could watch this directory for new files as a fallback signal.
+      investigation: >-
+        Check the actual file paths being written. Run: find reports/accp/ -name "*.compiled.json" -newer <start-time>.
+      resolution: >-
+        If artifacts are written to the expected path, the file system is a valid
+        side channel. The TUI can poll/watcher for evidence even without IPC.
+
+    - id: GAP-003
+      description: "Timing: emitter.set() may happen AFTER events fire"
+      severity: medium
+      evidence: >-
+        InteractiveMode.init() runs during TUI startup. AutonomousExecutor starts
+        after a plan is submitted. If init() runs first and set() is called, handlers
+        are in place before any compilation happens. But if there's a race (e.g.,
+        a plan is submitted during init), events may fire before set().
+      investigation: >-
+        Add console.log in onCompilationStarted handler. Check if it fires when
+        running the test prompt.
+      resolution: >-
+        If handler fires but no output: the TUI rendering is the issue (Text
+        component not added correctly, render loop not triggered). If handler
+        never fires: the emitter is in a different process or set() hasn't been
+        called yet.
+
+    - id: GAP-004
+      description: "Text components added to chatContainer may not render"
+      severity: medium
+      evidence: >-
+        The handler code does:
+          this.chatContainer.addChild(new Text(...))
+          this.ui.requestRender()
+        If chatContainer's render is not being called or if the Text component
+        has incorrect padding/size, it may not appear.
+      investigation: >-
+        Add a console.log right before requestRender() in the handler. Check
+        if it fires. If it does, the Text component is the issue.
+      resolution: >-
+        Use a Spacer(1) before adding Text, or wrap in a Container. Check that
+        chatContainer.render(width) includes the new children.
+
+final_status:
+  verdict: HOLD
+  confidence: high
+  summary: >-
+    The ACCP progress emitter → TUI pipeline has been wired in code
+    (accp-progress-emitter.ts → accp-artifact-store.ts → interactive-mode.ts)
+    but the events never render in the chat. The most likely root cause is
+    GAP-001: AutonomousExecutor runs in a separate process from InteractiveMode,
+    so the process-wide singleton emitter events in the worker process never
+    reach the TUI process. Secondary possibilities: GAP-003 (timing race),
+    GAP-004 (Text component rendering issue).
+
+    This RIR research prompt asks for concrete investigation:
+
+    1. Confirm whether AutonomousExecutor.executeWorkspace() forks a child process
+       or runs in-process. Check for child_process.fork(), worker_threads, or
+       AgentSessionRuntime usage.
+
+    2. Add a console.log in the InteractiveMode.init() progress emitter handler
+       and check if it fires during an ACCP workflow.
+
+    3. Check the artifact store filesystem to confirm artifacts are being written.
+
+    4. If GAP-001 is confirmed (separate process), design an IPC bridge or
+       filesystem-watch approach.
+
+  blockers:
+    - "Unknown whether AutonomousExecutor and InteractiveMode share the same process"
+    - "No console.log in the emitter handler path to confirm execution"
+  next_step: >-
+    Investigate GAP-001 first: trace the AutonomousExecutor process model.
+    Then add console.log to verify handler execution. Based on results,
+    determine whether IPC bridge or filesystem-watch is needed.

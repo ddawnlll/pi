@@ -1,0 +1,67 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_RAR_001
+  type: RAR
+  family: core
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+summary: "10 gaps identified: 3 critical (build, gate sanity, TUI live contradiction), 3 high (completion gate wiring, route bus wiring, PRR integrity), 3 medium, 1 low"
+findings:
+  - id: F-RAR-001
+    severity: critical
+    category: production_wiring
+    description: "ACCP mode picker never activated — accpModePickerEnabled never set true"
+    affected_ac_refs: ["P49-R010", "P49-R003", "P49-R004", "P49-R011"]
+    fix: "Set accpModePickerEnabled: true in main.ts InteractiveMode constructor call"
+    fix_effort: "small"
+  - id: F-RAR-002
+    severity: critical
+    category: build
+    description: "npm run build fails — TS error in worker-adapters"
+    affected_ac_refs: ["P49-R007"]
+    fix: "Add contextUsed property Accessor to AgentExecutionResult or cast in worker-adapter"
+    fix_effort: "small"
+  - id: F-RAR-003
+    severity: critical
+    category: infrastructure
+    description: "P0 gate sanity fails — can't find run-sanity-check.mjs"
+    affected_ac_refs: []
+    fix: "Repair P0 gate sanity script paths"
+    fix_effort: "medium"
+  - id: F-RAR-004
+    severity: high
+    category: production_wiring
+    description: "AccpGate not in CompletionGateVNext STAGE_ORDER"
+    affected_ac_refs: ["P49-R008"]
+    fix: "Add AccpGate to STAGE_ORDER array, register StageRunner"
+    fix_effort: "medium"
+  - id: F-RAR-005
+    severity: high
+    category: production_wiring
+    description: "AccpRouteBus never instantiated in production"
+    affected_ac_refs: ["P49-R005", "P49-R006"]
+    fix: "Call getAccpRouteBus() in main.ts or interactive-mode init"
+    fix_effort: "medium"
+  - id: F-RAR-006
+    severity: high
+    category: reporting_integrity
+    description: "PRR makes false claims about production wiring"
+    affected_ac_refs: ["P49-R008", "P49-R010"]
+    fix: "Correct PRR after fixing gaps"
+    fix_effort: "small"
+gaps:
+  total: 10
+  critical: 3
+  high: 3
+  medium: 3
+  low: 1
+estimated_fix_score: "~85 after fixing critical gaps, ~95 after all gaps"

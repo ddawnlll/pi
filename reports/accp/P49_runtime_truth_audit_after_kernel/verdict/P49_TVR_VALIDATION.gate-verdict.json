@@ -1,0 +1,18 @@
+{
+  "reportId": "P49_TRUTH_AUDIT_TVR_001",
+  "reportType": "TVR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [
+    "[ACCP_SCHEMA_FAMILY_TYPE_MISMATCH] Report family \"feature\" does not match canonical family \"core\" for type \"TVR\""
+  ],
+  "blockingFindings": [],
+  "findingCount": 1,
+  "promotionReady": true,
+  "evidenceStatus": "complete",
+  "details": {
+    "planId": "P49",
+    "workspaceId": "P49-TRUTH-AUDIT",
+    "sourceFile": "P49_TVR_VALIDATION.accp.yaml"
+  }
+}

@@ -1,0 +1,178 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P50RA-RAR-COVERAGE-SCORING
+  type: RAR
+  family: p50_readiness_audit
+  title: "P50 Readiness Audit — Coverage Scoring"
+  generated_at: "2026-06-11T20:55:00+03:00"
+  generator: accp_research_prompt_v2_strict_yaml
+regression_summary:
+  primary_question: "Do the current tests prove that Pi can really execute a large multi-plan task end-to-end against a live system, or do they mostly prove internal/unit/trust-boundary behavior?"
+  answer: "The current tests overwhelmingly prove internal/unit/trust-boundary behavior. There is no test that starts a live server, connects a real agent, submits a multi-plan task, and validates the outcome against a live system. The real-agent mini-multiplan gate is the closest but uses faux providers by default. Real-LLM mode exists but is guarded and never runs in CI."
+  verdict: HOLD_FOR_P50_REAL_E2E
+evidence:
+  test_inventory:
+    total_test_files: 450_plus
+    claimed_e2e: 11
+    true_e2e: 0
+    dogfood: 8
+    real_agent: 2
+    gauntlet: 13
+    assembly_unit: 22
+    accp_compiler: 11
+  scripts_inventory:
+    total_relevant_scripts: 49
+    p45_scripts: 7
+    p49_scripts: 2
+    real_agent_scripts: 1
+    e2e_scripts: 2
+    gauntlet_scripts: 1
+  ci_coverage:
+    ci_yml_runs: npm run build, npm run check, npm test
+    mini_execution_correctness_yml: Separate workflow with real-agent mini-multiplan gate (5 PR fault modes, nightly full 14 fault modes)
+    make_test_in_ci: false
+    make_test_full_in_ci: false
+  p45_script_reality:
+    - script: run-p45-load-profile.ts
+      assessment: stub — empty function bodies
+    - script: run-p45-concurrency-profile.ts
+      assessment: stub — empty function bodies
+    - script: run-p45-unbounded-concurrency-experiment.ts
+      assessment: stub — empty function bodies
+    - script: run-p45-realistic-fixture-suite.ts
+      assessment: simulated — hardcoded results
+    - script: run-p45-minimal-async-assembly-smoke.ts
+      assessment: simulated — hardcoded manifests and ACCP refs
+    - script: run-p45-p42-replan-experiment.ts
+      assessment: unknown — not inspected full content
+  make_test_sufficiency:
+    - make_test runs only test/execution-gauntlet/ (8 files)
+    - make_test_full runs lint, all package unit tests, build, and execution stability gauntlet
+    - Neither includes real-agent-mini-multiplan-gate, P45 scripts, or P49 scripts
+    - Neither is wired into CI
+score_categories:
+  unit_test_coverage:
+    score: 8
+    rationale: Extensive unit tests across all packages. Hundreds of test files.
+  integration_test_coverage:
+    score: 7
+    rationale: Good integration coverage within coding-agent using faux providers, deterministic execution paths, and synthetic workers.
+  claimed_e2e_coverage:
+    score: 5
+    rationale: 11 files named e2e but all use faux/deterministic providers, no live server. Name is misleading.
+  true_e2e_coverage:
+    score: 0
+    rationale: No test starts a live server, connects a real agent, and executes a multi-plan task against a real system.
+  dogfood_coverage:
+    score: 4
+    rationale: 8 dogfood test files but they exercise internal flows, not against a live production system.
+  real_agent_coverage:
+    score: 3
+    rationale: 2 files reference real-agent but use faux providers. The script supports real-llm mode but is guarded and never runs in CI.
+  live_server_coverage:
+    score: 0
+    rationale: No test starts a live HTTP server and executes a task against it.
+  multi_plan_execution_coverage:
+    score: 2
+    rationale: The real-agent-mini-multiplan-gate script creates multiple plan artifacts and exercises PlanQueueRunner with deterministic mode, but does not execute real multi-plan tasks against a live system.
+  async_assembly_coverage:
+    score: 3
+    rationale: 22 unit tests covering assembly components. P45 scripts exist but most are stubs. No end-to-end async assembly test on real runtime.
+  accp_compiler_gate_coverage:
+    score: 6
+    rationale: 11 ACCP-specific tests covering compile, validate, gate, repair. But not integrated into the real runtime path.
+  accp_route_bus_coverage:
+    score: 3
+    rationale: Isolated route bus test exists but is not on the real runtime execution path.
+  completion_gate_coverage:
+    score: 5
+    rationale: Multiple completion gate tests (completion-gate.test.ts, completion-gate-v2.test.ts, completion-gate-vnext.test.ts) but not exercised on the real runtime path with real LLM.
+  negative_fail_closed_coverage:
+    score: 1
+    rationale: Minimal coverage. No test verifies system fails closed when server, LLM, or database is unavailable.
+  false_positive_guard_coverage:
+    score: 2
+    rationale: false-positive-tracker.test.ts exists but is limited in scope.
+  performance_load_coverage:
+    score: 1
+    rationale: Stub P45 scripts exist for load and concurrency profiling but have empty implementations.
+  parallelism_measurement_coverage:
+    score: 1
+    rationale: No test measures average, peak, or sustained parallelism across real async assembly execution.
+  evidence_artifact_coverage:
+    score: 3
+    rationale: Some tests write reports to reports/ directory but no standardized machine-readable evidence artifact format for promotion gating.
+  make_test_centralization:
+    score: 3
+    rationale: make test exists and runs deterministic gauntlet, but does not centralize the strongest tests (real-agent, P45, P49).
+  make_test_full_centralization:
+    score: 4
+    rationale: make test-full includes more phases but still omits real-agent mini-multiplan gate, P45 scripts, and P49 ACCP e2e tests. Not wired into CI.
+  ci_centralization:
+    score: 4
+    rationale: CI.yml runs build+check+npm test. Mini-execution-correctness.yml runs real-agent gate separately. The two workflows are not unified.
+  promotion_readiness_coverage:
+    score: 1
+    rationale: No promotion gate exists that checks real test coverage before promoting to production. No centralized gauntlet defines a pass/fail bar.
+  production_reality_confidence:
+    score: 1
+    rationale: Without live-server e2e, real multi-plan execution, real LLM exercise, or centralized gauntlet in CI, confidence in production readiness is low.
+candidate_causes:
+  - cause: Historical evolution — tests were written incrementally alongside features. Each feature added its own tests without a unifying e2e framework.
+  - cause: Cost avoidance — real LLM tests cost money. The project deliberately uses faux providers for CI to avoid API costs.
+  - cause: Missing infrastructure — no test harness exists that starts a live server, provisions a real database, and runs a full multi-plan scenario.
+  - cause: Phase separation — P45 (async assembly) and P49 (ACCP native e2e) are in-progress with stubs that were never completed.
+blast_radius:
+  - If Pi is deployed without live-server e2e coverage, regressions in the execution pipeline, multi-plan coordination, async assembly, and real LLM integration could go undetected.
+  - The deterministic gauntlets cover many internal invariants but cannot catch issues that only manifest with real LLM behavior, real database persistence, or real server request/response cycles.
+minimal_fix_scope:
+  - item: Write a true e2e gate (P50) that starts a live server, connects a real agent session, submits a multi-plan task, and validates the outcome
+  - item: Wire make test-full into CI on the main branch
+  - item: Complete the P45 async assembly scripts (load-profile, concurrency-profile) with real execution
+  - item: Run the real-agent mini-multiplan gate with real-llm mode periodically in CI
+  - item: Add a centralized promotion gate that checks test coverage thresholds
+  - item: Add negative failure mode tests for server/LLM/database unavailability
+  - item: Generate machine-readable evidence artifacts from all gauntlet runs
+decisions:
+  - decision: HOLD_FOR_P50_REAL_E2E
+    rationale: "The primary question cannot be answered affirmatively. No test proves Pi can execute a large multi-plan task end-to-end against a live system. The existing tests mostly prove internal/unit/trust-boundary behavior with faux providers."
+  - decision: P50 implementation is required before production promotion
+    rationale: "A P50 workstream should implement a true live-server end-to-end test that executes a realistic multi-plan scenario and validates the outcome against a real database and real LLM."
+final_status:
+  verdict: HOLD_FOR_P50_REAL_E2E
+  score_summary:
+    overall: 2.4
+    unit_test_coverage: 8
+    integration_test_coverage: 7
+    claimed_e2e_coverage: 5
+    true_e2e_coverage: 0
+    dogfood_coverage: 4
+    real_agent_coverage: 3
+    live_server_coverage: 0
+    multi_plan_execution_coverage: 2
+    async_assembly_coverage: 3
+    accp_compiler_gate_coverage: 6
+    accp_route_bus_coverage: 3
+    completion_gate_coverage: 5
+    negative_fail_closed_coverage: 1
+    false_positive_guard_coverage: 2
+    performance_load_coverage: 1
+    parallelism_measurement_coverage: 1
+    evidence_artifact_coverage: 3
+    make_test_centralization: 3
+    make_test_full_centralization: 4
+    ci_centralization: 4
+    promotion_readiness_coverage: 1
+    production_reality_confidence: 1
+  top_blockers:
+    - no_live_server_e2e
+    - no_real_multi_plan_task
+    - no_average_parallelism_measurement
+    - no_centralized_gauntlet
+    - make_test_full_not_sufficient
+    - e2e_name_but_not_true_e2e
+    - missing_promotion_gate
+    - real_llm_not_exercised
+    - async_assembly_not_on_real_runtime_path
+    - missing_accp_validation_report

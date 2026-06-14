@@ -1,0 +1,2178 @@
+{
+  "$schema": "../PlanSpec_v5_alpha2_template_pack/02_planspec_v5_alpha2_schema.json",
+  "planSpecVersion": "5.0.0-alpha2",
+  "kind": "ImplementationPlan",
+  "metadata": {
+    "phaseId": "P49.14",
+    "title": "P49.14 — ACCP Auto Routing v2: User Routes Over Internal Report Types",
+    "description": "Implement a 6-route user-facing taxonomy over the 24-type ACCP internal report matrix. Deliver the route registry, hard stop engine, deterministic auto-router, bugfix chain selector, multi-intent decomposer, route-decision evidence schema, and TUI route UX. Auto routing is advisory; CompletionGate and EvidenceGate remain final authority. This PlanSpec defines the implementation contract for P49.14B.",
+    "createdAt": "2026-06-14T00:00:00Z",
+    "updatedAt": "2026-06-14T00:00:00Z",
+    "owner": "pi",
+    "status": "draft",
+    "sourceDocument": "accp_auto_routing_vision_v2_review_ready.md"
+  },
+  "compatibility": {
+    "runtimeContractVersion": "4.1.1",
+    "runtimeTemplateVersion": "4.1.1",
+    "legacyTemplateCompatible": true,
+    "generatedFromV411": true,
+    "v411AdapterRequired": true,
+    "notes": [
+      "Generated from PlanSpec v5 alpha2 template.",
+      "P49.14 is a planning-only phase; generated PlanSpec is the primary output.",
+      "No product code may be mutated during P49.14 generation.",
+      "ACCP runtime authority is 2.0.0. Legacy report version 1.2.0 in the reports section is template compatibility only. P49.14B must emit ACCP 2.0.0 reports unless a legacy adapter is explicitly declared and active. Hard stop HS-019 enforces this.",
+      "P49.14A amendment: TUI production wiring gated, RouteDecisionEvidence schema locked, ACCP protocol authority resolved."
+    ]
+  },
+  "intent": {
+    "executionClass": "planning_only",
+    "safetyLevel": "strict",
+    "executionMode": "planspec_generation",
+    "parallelism": 1,
+    "targetPromotionMode": "planning_complete",
+    "p45ImplementationAllowed": false,
+    "humanReviewRecommended": true
+  },
+  "authority": {
+    "executionState": {
+      "owner": "ExecutionKernel",
+      "workersMayMutateState": false,
+      "stateTransitionRequiresGate": true
+    },
+    "completion": {
+      "workerSelfReportIsClaimOnly": true,
+      "completionGate": "CompletionGateV2",
+      "evidenceLedgerRequired": true,
+      "missingEvidenceBlocksCompletion": true,
+      "staleAttemptVerdictIgnored": true
+    },
+    "repositoryMutation": {
+      "writeGateRequired": true,
+      "workspaceCommitGateRequired": true,
+      "allowedFilesRequired": true,
+      "largeOverwriteBlockedByDefault": true
+    },
+    "reports": {
+      "protocol": "ACCP",
+      "version": "2.0.0",
+      "runtimeAuthorityVersion": "2.0.0",
+      "legacyTemplateVersion": "1.2.0",
+      "legacyVersionNote": "PlanSpec template compatibility required version 1.2.0 in the reports section. Runtime authority for P49.14B is ACCP 2.0.0. Implementation reports emitted for P49.14B must use ACCP 2.0.0 unless a legacy adapter explicitly translates them from 2.0.0 to 1.2.0 for template-formatted output.",
+      "reportsAreEvidenceOnly": true,
+      "reportsDoNotAuthorizeExecution": true,
+      "mixedProtocolAuthorityWithoutAdapterIsHardBlocked": true
+    }
+  },
+  "enforcementRegistry": {
+    "mechanisms": [
+      {
+        "id": "ER-ROUTE-REGISTRY",
+        "name": "Route Registry Authority",
+        "description": "The ACCP route registry defines user-facing routes, internal type mappings, and control actions. It is the sole authority for valid route names and type-to-route assignments."
+      },
+      {
+        "id": "ER-HARD-STOP-ENGINE",
+        "name": "Hard Stop Engine",
+        "description": "Hard stops block mutation, completion, and promotion when required evidence or authorization is missing. The hard stop engine runs before any route is accepted."
+      },
+      {
+        "id": "ER-ROUTE-DECISION-EVIDENCE",
+        "name": "Route Decision Evidence",
+        "description": "Every route decision is written as a hashable, auditable evidence artifact. Route decisions are advisory and do not authorize completion, mutation, or promotion."
+      },
+      {
+        "id": "ER-COMPLETION-GATE-V2",
+        "name": "CompletionGate v2",
+        "description": "CompletionGate v2 is authoritative; worker self-report is claim-only. It rejects missing evidence, stale attempt verdicts, and validation shortcuts."
+      }
+    ]
+  },
+  "security": {
+    "schemaValidationRequired": true,
+    "lockRequiredForExecution": true,
+    "canonicalJsonHashRequired": true,
+    "signatureRequired": false,
+    "signatureAlgorithm": "none",
+    "hardStops": [
+      {
+        "id": "HS-001",
+        "condition": "Execute / Build requested but no PlanLock exists for non-trivial mutation.",
+        "action": "Block ECR/EXR/MER; route to Plan / Spec or ask for explicit small-change override.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS001_NO_PLANLOCK_FOR_EXECUTE"
+      },
+      {
+        "id": "HS-002",
+        "condition": "Review / Promote requested but no current FVR or TVR PASS exists.",
+        "action": "Block PRR/RAR; route to Verify / Validate.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS002_NO_VERIFY_PASS_FOR_REVIEW"
+      },
+      {
+        "id": "HS-003",
+        "condition": "Multi-workspace FPR requested but no RCA exists.",
+        "action": "Block FPR; require RCA.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS003_NO_RCA_FOR_MULTI_WS_FPR"
+      },
+      {
+        "id": "HS-004",
+        "condition": "Wave N+1 execution requested while wave N gate is not PASS.",
+        "action": "Block next wave; require repair or validation.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS004_WAVE_GATE_NOT_PASS"
+      },
+      {
+        "id": "HS-005",
+        "condition": "Code mutation attempted while active route is Verify / Validate.",
+        "action": "Block mutation; require Execute / Build or Repair / Debug re-route.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS005_MUTATION_IN_VERIFY_ROUTE"
+      },
+      {
+        "id": "HS-006",
+        "condition": "PRR requested while any active-chain FVR is FAIL, BLOCK, or HOLD.",
+        "action": "Block PRR; require Repair / Debug or Verify / Validate.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS006_FVR_NOT_PASS_FOR_PRR"
+      },
+      {
+        "id": "HS-007",
+        "condition": "Critical bug detected but no HIR/escalation artifact exists.",
+        "action": "Block FPR; require HIR or equivalent halt/isolate decision.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS007_CRITICAL_BUG_NO_HIR"
+      },
+      {
+        "id": "HS-008",
+        "condition": "Router confidence below threshold and user has not selected route.",
+        "action": "Block route execution; ask user or default to Intake / Inventory for read-only discovery.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS008_LOW_CONFIDENCE_NO_ROUTE"
+      },
+      {
+        "id": "HS-009",
+        "condition": "Live-stack or production-adjacent mutation requested but no fresh RIR exists.",
+        "action": "Block mutation; run Intake / Inventory first.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS009_LIVE_STACK_NO_RIR"
+      },
+      {
+        "id": "HS-010",
+        "condition": "Multi-intent chain violates canonical phase order.",
+        "action": "Block chain; present corrected order for confirmation.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS010_CHAIN_ORDER_VIOLATION"
+      },
+      {
+        "id": "HS-011",
+        "condition": "PRR requested with unit-only evidence for runtime-visible feature.",
+        "action": "Block PRR; require runtime/live evidence.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS011_UNIT_ONLY_EVIDENCE_FOR_PRR"
+      },
+      {
+        "id": "HS-012",
+        "condition": "Repair / Debug entered without diagnostic trigger artifact, failing test, error log, HOLD/FAIL, or user-provided symptom.",
+        "action": "Block repair chain; require BSR or diagnostic trigger.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS012_NO_DIAGNOSTIC_TRIGGER_FOR_REPAIR"
+      },
+      {
+        "id": "HS-013",
+        "condition": "Expert / Direct override selected but required evidence or authority gate is missing.",
+        "action": "Block exact-type execution; show missing gate.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS013_EXPERT_DIRECT_MISSING_GATE"
+      },
+      {
+        "id": "HS-014",
+        "condition": "Route decision attempts to authorize completion, mutation, or promotion by itself.",
+        "action": "Block; route decision is advisory only.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS014_ROUTE_AUTHORITY_OVERRIDE"
+      },
+      {
+        "id": "HS-015",
+        "condition": "Evidence artifact is stale relative to commit, branch, or TTL.",
+        "action": "Block Review / Promote; route to Verify / Validate.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS015_STALE_EVIDENCE"
+      },
+      {
+        "id": "HS-016",
+        "condition": "Chain length exceeds configured maximum without user confirmation.",
+        "action": "Pause and ask user to split or confirm extended chain.",
+        "severity": "warn",
+        "diagnosticCode": "ACCP_HS016_CHAIN_LENGTH_EXCEEDED"
+      },
+      {
+        "id": "HS-017",
+        "condition": "RouteDecisionEvidence is missing, malformed, unhashable, or lacks required schema fields.",
+        "action": "Block route acceptance and route execution; require valid route-decision evidence.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS017_INVALID_ROUTE_DECISION_EVIDENCE"
+      },
+      {
+        "id": "HS-018",
+        "condition": "TUI route component exists on disk but has no production call-site wiring (InteractiveMode/Footer render path does not import or invoke the route footer, picker, or control action modules).",
+        "action": "Block TUI workspace (W3) completion; require InteractiveMode/Footer production wiring evidence.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS018_TUI_COMPONENT_NOT_WIRED"
+      },
+      {
+        "id": "HS-019",
+        "condition": "Mixed ACCP protocol versions are used without explicit legacy adapter or runtime authority declaration (e.g., ACCP 2.0.0 runtime with 1.2.0 report templates without adapter).",
+        "action": "Block implementation readiness; require protocol authority resolution.",
+        "severity": "block",
+        "diagnosticCode": "ACCP_HS019_AMBIGUOUS_ACCP_PROTOCOL_VERSION"
+      }
+    ],
+    "forbiddenFiles": [
+      "package.json",
+      "pnpm-lock.yaml",
+      ".env",
+      ".env.*",
+      "node_modules/**",
+      ".git/**",
+      "packages/ai/src/models.generated.ts"
+    ]
+  },
+  "commands": {
+    "policy": "risk_tiered",
+    "defaultMode": "deny_unless_class_or_grant",
+    "shellDefault": "forbidden",
+    "exactAllowedCommands": [
+      {
+        "id": "CMD-P4914-TYPECHECK",
+        "kind": "exact",
+        "mode": "allowed",
+        "risk": "low",
+        "cwd": "/Users/hootie/src/pi",
+        "executable": "npx",
+        "args": ["tsc", "--noEmit", "-p", "packages/accp-compiler/tsconfig.json"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 60,
+        "falsePositiveGuards": ["output must include 0 errors"]
+      },
+      {
+        "id": "CMD-P4914-ACCP-COMPILER-UNIT",
+        "kind": "exact",
+        "mode": "allowed",
+        "risk": "low",
+        "cwd": "/Users/hootie/src/pi",
+        "executable": "npx",
+        "args": ["vitest", "--run", "--config", "packages/accp-compiler/vitest.config.ts"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 120,
+        "falsePositiveGuards": ["all tests must pass"]
+      },
+      {
+        "id": "CMD-P4914-TUI-UNIT",
+        "kind": "exact",
+        "mode": "allowed",
+        "risk": "low",
+        "cwd": "/Users/hootie/src/pi",
+        "executable": "npx",
+        "args": ["vitest", "--run", "--config", "packages/coding-agent/vitest.config.ts", "test/suite/regressions"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "evidenceRequired": true,
+        "timeoutSeconds": 120,
+        "falsePositiveGuards": ["all tests must pass"]
+      }
+    ],
+    "commandClasses": [
+      {
+        "id": "CC-TYPECHECK",
+        "title": "TypeScript Type Checking",
+        "risk": "low",
+        "sideEffects": "none",
+        "mode": "allowed",
+        "executables": ["npx", "tsc"],
+        "allowedGitSubcommands": [],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "timeoutSeconds": 120,
+        "maxOutputBytes": 1048576,
+        "recordAsEvidence": true,
+        "grantRequired": false
+      },
+      {
+        "id": "CC-VALIDATE-JSON",
+        "title": "JSON Validation",
+        "risk": "low",
+        "sideEffects": "none",
+        "mode": "allowed",
+        "executables": ["jq", "python3"],
+        "allowedGitSubcommands": [],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "timeoutSeconds": 30,
+        "maxOutputBytes": 1048576,
+        "recordAsEvidence": true,
+        "grantRequired": false
+      },
+      {
+        "id": "CC-GIT-READ",
+        "title": "Git Read Operations",
+        "risk": "low",
+        "sideEffects": "none",
+        "mode": "allowed",
+        "executables": ["git"],
+        "allowedGitSubcommands": ["status", "diff", "log", "show", "branch"],
+        "shellAllowed": false,
+        "networkAllowed": false,
+        "timeoutSeconds": 30,
+        "maxOutputBytes": 1048576,
+        "recordAsEvidence": true,
+        "grantRequired": false
+      }
+    ],
+    "runtimeCommandGrant": {
+      "enabled": true,
+      "requiresJustification": true,
+      "grantScope": "workspace_attempt",
+      "grantExpires": "on_workspace_completion",
+      "recordAsEvidence": true,
+      "autoGrantRules": [
+        {
+          "id": "AGR-GIT-SAFE",
+          "risk": "low",
+          "sideEffects": "none",
+          "networkAllowed": false,
+          "shellAllowed": false,
+          "maxTimeoutSeconds": 30,
+          "decision": "auto_grant_within_class"
+        }
+      ],
+      "grantRequestSchema": {
+        "requiredFields": ["command", "justification", "risk", "workspaceRef"]
+      }
+    },
+    "hardDeniedCommands": [
+      {
+        "id": "HD-FORCE-PUSH",
+        "match": "git.*push.*force",
+        "reason": "Force push is forbidden."
+      },
+      {
+        "id": "HD-RM-RF-ROOT",
+        "match": "rm.*-rf.*[/]",
+        "reason": "Recursive delete of directory trees is forbidden without explicit approval."
+      },
+      {
+        "id": "HD-CURL-UNTRUSTED",
+        "match": "curl.*\\|.*sh",
+        "reason": "Piped shell execution is forbidden."
+      },
+      {
+        "id": "HD-NPM-INSTALL-GLOBAL",
+        "match": "npm.*install.*-g",
+        "reason": "Global npm install is forbidden."
+      },
+      {
+        "id": "HD-GIT-RESET-HARD",
+        "match": "git.*reset.*--hard",
+        "reason": "Hard reset is forbidden."
+      }
+    ],
+    "validationEvidenceRules": {
+      "finalPromotionRequiresExactAllowedCommand": true,
+      "discoveryCommandsMayNotSatisfyFinalValidation": true,
+      "runtimeGrantCommandsCanSatisfyValidationOnlyIfGrantStatesValidationPurpose": true
+    }
+  },
+  "locking": {
+    "lockVersion": "1.0.0",
+    "lockFile": "04_p49_14_planlock.generated.json",
+    "lockRequired": true,
+    "workerMustEchoPlanLockHash": true,
+    "workerMustEchoWorkspaceLockHash": true,
+    "hashes": {
+      "algorithm": "sha256",
+      "fieldsHashed": ["workspaces", "waves", "security.hardStops", "commands.exactAllowedCommands"]
+    },
+    "lifecycle": {
+      "states": ["DRAFT", "VALIDATED", "LOCKED", "ADMITTED", "RUNNING", "FINAL_VALIDATION", "COMPLETED"]
+    },
+    "mutationRules": {
+      "DRAFT": "spec_mutable",
+      "VALIDATED": "spec_mutable_lock_invalidated",
+      "LOCKED": "immutable_new_lock_required",
+      "ADMITTED": "immutable_new_execution_required",
+      "RUNNING": "immutable_amendment_required",
+      "FINAL_VALIDATION": "immutable",
+      "COMPLETED": "immutable"
+    }
+  },
+  "brief": {
+    "mission": {
+      "id": "MISSION-P4914",
+      "text": "Generate the P49.14 implementation PlanSpec for ACCP Auto Routing v2. This PlanSpec defines the work to build a 6-route user-facing taxonomy over the 24-type ACCP internal report matrix. It must encode the final taxonomy, internal report type mapping, hard stops HS-001 through HS-016, auto-routing rules, bugfix chains, P50 route chain, TUI requirements, route-decision evidence schema, test matrix, allowedFiles, commands, and hard completion gates. This PlanSpec is the primary output of P49.14 (planning-only) and is the execution contract for P49.14B (implementation)."
+    },
+    "hardRequirements": [
+      {
+        "id": "REQ-001",
+        "priority": "must",
+        "kind": "taxonomy",
+        "text": "Use exactly 6 primary user-facing routes: Intake / Inventory, Plan / Spec, Execute / Build, Verify / Validate, Review / Promote, Repair / Debug. Expert / Direct is an advanced escape hatch. Abort / Reroute are control actions.",
+        "enforcedBy": ["route_registry", "tui_route_picker"]
+      },
+      {
+        "id": "REQ-002",
+        "priority": "must",
+        "kind": "mapping",
+        "text": "Map all 24 internal ACCP report types to user-facing routes. BSR must not be mapped under Plan / Spec. FPR must not be mapped under Execute / Build. ECR must not appear between FVR and PRR in the critical bugfix chain.",
+        "enforcedBy": ["route_registry", "auto_router", "unit_tests"]
+      },
+      {
+        "id": "REQ-003",
+        "priority": "must",
+        "kind": "auto_routing",
+        "text": "Auto routing must be default only if hard-stop safety rules pass. Router must use user text signals, repo state signals, evidence state signals, and risk signals. Confidence thresholds must be explicit. Low-confidence routing must ask user or fall back safely.",
+        "enforcedBy": ["auto_router", "hard_stop_engine", "confidence_policy"]
+      },
+      {
+        "id": "REQ-004",
+        "priority": "must",
+        "kind": "multi_intent",
+        "text": "Requests like 'plan, implement, verify, commit' must be decomposed into ordered route chains: Intake -> Plan -> Execute -> Verify -> Review. Repair can be injected on FAIL/HOLD. Each phase must be independently hard-gated.",
+        "enforcedBy": ["multi_intent_decomposer", "hard_stop_engine"]
+      },
+      {
+        "id": "REQ-005",
+        "priority": "must",
+        "kind": "bugfix_chains",
+        "text": "Must support small bug chain (BRR->FPR->FVR->PRR), unknown bug chain (BSR->BRR->RCA->FPR->FVR->PRR), and critical bug chain (BSR->BRR->RCA->HIR->FPR->FVR->PRR). BRR must not be skipped when reproduction is absent. RCA must not be skipped for multi-workspace or high-risk fixes. HIR required for critical/authority-bypass bugs.",
+        "enforcedBy": ["bugfix_chain_selector", "hard_stop_engine", "integration_tests"]
+      },
+      {
+        "id": "REQ-006",
+        "priority": "must",
+        "kind": "p50_chain",
+        "text": "P50 Stack-Up Live Execution Correctness Gauntlet must route through Intake -> Plan -> Execute -> Verify -> Review, with Repair conditional. Primary evidence path must be make stack-up live stack. Synthetic/Python mini-server must not satisfy the main P50 promotion gate.",
+        "enforcedBy": ["p50_route_chain", "hard_stop_engine", "promotion_gate"]
+      },
+      {
+        "id": "REQ-007",
+        "priority": "must",
+        "kind": "evidence_schema",
+        "text": "Every route decision must be written as hashable, auditable evidence with selected route, candidate routes, confidence, reason, signals, blocked routes, hard stops, internal report chain, and next required artifact.",
+        "enforcedBy": ["route_decision_evidence", "evidence_ledger"]
+      },
+      {
+        "id": "REQ-008",
+        "priority": "must",
+        "kind": "tui_ux",
+        "text": "Default TUI shows user-facing route, not raw internal types. Auto display shows inferred route, next step, confidence, and primary reason. Expert display groups exact types under domains. TUI must show hard-stop reason when blocked. Abort/Reroute must be available as control actions.",
+        "enforcedBy": ["tui_route_footer", "tui_route_picker", "tui_expert_picker"]
+      }
+    ],
+    "antiPatterns": [
+      {
+        "id": "AP-001",
+        "text": "Do not expose flat 24 report types as daily default UX.",
+        "enforcedBy": ["tui_route_footer"]
+      },
+      {
+        "id": "AP-002",
+        "text": "Do not make route selection completion authority.",
+        "enforcedBy": ["completion_gate_v2", "route_decision_evidence"]
+      },
+      {
+        "id": "AP-003",
+        "text": "Do not let Auto routing skip hard stops.",
+        "enforcedBy": ["hard_stop_engine", "auto_router"]
+      },
+      {
+        "id": "AP-004",
+        "text": "Do not collapse multi-phase requests into a single report type.",
+        "enforcedBy": ["multi_intent_decomposer"]
+      },
+      {
+        "id": "AP-005",
+        "text": "Do not let Expert / Direct bypass hard stops.",
+        "enforcedBy": ["hard_stop_engine", "tui_expert_picker"]
+      }
+    ],
+    "operatorNotes": [
+      {
+        "id": "ON-001",
+        "text": "P49.14 is planning-only. This PlanSpec is the primary output. P49.14B implements from this PlanSpec."
+      },
+      {
+        "id": "ON-002",
+        "text": "The existing accp-compiler package has a 24-type report registry and route signal emitter. These are extended, not replaced."
+      }
+    ]
+  },
+  "waves": [
+    {
+      "id": "W1",
+      "title": "Registry and Hard Stops — Foundation",
+      "description": "Define the final route taxonomy, authoritative internal type mapping, hard stop registry, and route-decision evidence schema. No auto-execution. No mutation by router.",
+      "workspaceIds": ["P49.14.01", "P49.14.02", "P49.14.03"],
+      "dependencies": [],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-P4914-TYPECHECK", "CMD-P4914-ACCP-COMPILER-UNIT"],
+        "requiredArtifacts": [
+          "packages/accp-compiler/src/router/route-registry.ts",
+          "packages/accp-compiler/src/router/hard-stop-engine.ts",
+          "packages/accp-compiler/src/router/route-decision-evidence.ts"
+        ]
+      }
+    },
+    {
+      "id": "W2",
+      "title": "Deterministic Router and Tests",
+      "description": "Build the rule-based route scorer, bugfix chain selector, multi-intent decomposer, and route decision evidence writer. Add unit tests, negative tests, and integration tests.",
+      "workspaceIds": ["P49.14.04", "P49.14.05", "P49.14.06", "P49.14.07", "P49.14.08"],
+      "dependencies": ["W1"],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-P4914-TYPECHECK", "CMD-P4914-ACCP-COMPILER-UNIT"],
+        "requiredArtifacts": [
+          "packages/accp-compiler/src/router/auto-router.ts",
+          "packages/accp-compiler/src/router/bugfix-chain-selector.ts",
+          "packages/accp-compiler/src/router/multi-intent-decomposer.ts",
+          "packages/accp-compiler/test/router/"
+        ]
+      }
+    },
+    {
+      "id": "W3",
+      "title": "TUI Route UX and Production Wiring",
+      "description": "Build the Auto route footer/card, low-confidence picker, Expert / Direct grouped picker, Abort / Reroute controls, and chain progress display. Wire all new route UI components into the production InteractiveMode/Footer render path. Component existence alone does not satisfy this wave; production call-site import or invocation evidence is required (HS-018).",
+      "workspaceIds": ["P49.14.09", "P49.14.10", "P49.14.11", "P49.14.12"],
+      "dependencies": ["W1", "W2"],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-P4914-TYPECHECK", "CMD-P4914-TUI-UNIT"],
+        "requiredArtifacts": [
+          "packages/coding-agent/src/tui/accp-route-footer.ts",
+          "packages/coding-agent/src/tui/accp-route-picker.ts",
+          "packages/coding-agent/src/tui/accp-expert-picker.ts",
+          "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+          "packages/coding-agent/src/modes/interactive/components/footer.ts",
+          "packages/coding-agent/src/core/footer-data-provider.ts"
+        ]
+      }
+    },
+    {
+      "id": "W4",
+      "title": "Live Integration and Calibration",
+      "description": "Integrate P50 route chain, add live route tests, calibrate confidence thresholds, and enable gated Auto-accept. Final verification and promotion readiness.",
+      "workspaceIds": ["P49.14.13", "P49.14.14", "P49.14.15", "P49.14.16"],
+      "dependencies": ["W1", "W2", "W3"],
+      "batchSize": 1,
+      "gate": {
+        "required": true,
+        "commandRefs": ["CMD-P4914-TYPECHECK", "CMD-P4914-ACCP-COMPILER-UNIT", "CMD-P4914-TUI-UNIT"],
+        "requiredArtifacts": [
+          "packages/accp-compiler/src/router/p50-route-chain.ts",
+          "packages/accp-compiler/test/router/live/",
+          "reports/accp/P49.14B/route-calibration-report.json"
+        ]
+      }
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "P49.14.01",
+      "title": "Route Registry and Internal Type Mapping",
+      "waveId": "W1",
+      "dependencies": [],
+      "role": "registry",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/route-registry.ts",
+        "packages/accp-compiler/src/router/route-types.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491401-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Define the ACCP route registry with exactly 6 primary user-facing routes (Intake / Inventory, Plan / Spec, Execute / Build, Verify / Validate, Review / Promote, Repair / Debug), Expert / Direct escape hatch, and control actions (Abort, Reroute).",
+          "enforcedBy": ["route_registry", "unit_tests"]
+        },
+        {
+          "id": "WI-P491401-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Map all 24 internal ACCP report types to user-facing routes. Source the authoritative type list from ACCP_REPORT_REGISTRY in packages/accp-compiler/src/registry/report-registry.ts. Do not hardcode types.",
+          "enforcedBy": ["route_registry", "unit_tests"]
+        },
+        {
+          "id": "WI-P491401-003",
+          "priority": "must",
+          "kind": "correction_rule",
+          "text": "BSR must not be mapped under Plan / Spec. FPR must not be mapped under Execute / Build. ECR must not be listed between FVR and PRR in the critical bugfix chain.",
+          "enforcedBy": ["unit_tests", "hard_stop_engine"]
+        },
+        {
+          "id": "WI-P491401-004",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Export lookup functions: getRouteForType(type), getTypesForRoute(route), isLegalRoute(route), getRouteMetadata(route). The registry must be a readonly data structure generated from the authoritative ACCP_REPORT_REGISTRY.",
+          "enforcedBy": ["route_registry", "type_system"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491401-001",
+          "title": "Route registry defines exactly 6 primary routes + Expert + controls",
+          "text": "The registry exports 6 main routes, Expert/Direct, Abort, and Reroute. Route count is validatable.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491401-001"]
+        },
+        {
+          "id": "AC-P491401-002",
+          "title": "All 24 internal types mapped to routes",
+          "text": "Every type in ACCP_REPORT_REGISTRY has a getRouteForType result. No type is unmapped.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491401-001"]
+        },
+        {
+          "id": "AC-P491401-003",
+          "title": "BSR not under Plan/Spec, FPR not under Execute/Build",
+          "text": "getRouteForType('BSR') returns Repair / Debug. getRouteForType('FPR') returns Repair / Debug.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491401-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491401-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491401-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.02",
+      "title": "Hard Stop Engine — HS-001 through HS-016",
+      "waveId": "W1",
+      "dependencies": ["P49.14.01"],
+      "role": "safety",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/hard-stop-engine.ts",
+        "packages/accp-compiler/src/router/hard-stop-types.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491402-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement the Hard Stop Engine with exactly 16 hard stops (HS-001 through HS-016). Each hard stop must have condition, blocked action, required action, severity, and diagnostic code.",
+          "enforcedBy": ["hard_stop_engine", "unit_tests"]
+        },
+        {
+          "id": "WI-P491402-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Hard stops must run before any route is accepted. The engine must return { blocked: boolean, hardStops: HardStop[], reason: string } for any given route, evidence state, and repo state.",
+          "enforcedBy": ["hard_stop_engine", "auto_router"]
+        },
+        {
+          "id": "WI-P491402-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Hard stops must block mutation/promotion/completion when evidence is missing. PlanLock missing blocks Execute. FVR PASS missing blocks PRR. Verify route blocks mutation. Unit-only evidence blocks promotion.",
+          "enforcedBy": ["hard_stop_engine", "completion_gate_v2"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491402-001",
+          "title": "All 16 hard stops defined and testable",
+          "text": "Each HS-001 through HS-016 has a condition, blocked action, required action, severity, and diagnostic code. Unit tests cover trigger and non-trigger for each.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491402-001"]
+        },
+        {
+          "id": "AC-P491402-002",
+          "title": "Hard stops block correctly",
+          "text": "HS-001 blocks Execute without PlanLock. HS-002 blocks PRR without FVR/TVR PASS. HS-006 blocks PRR when FVR is FAIL/HOLD. HS-011 blocks PRR with unit-only evidence.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491402-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491402-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491402-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.03",
+      "title": "Route Decision Evidence Schema and Writer",
+      "waveId": "W1",
+      "dependencies": ["P49.14.01"],
+      "role": "evidence",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/route-decision-evidence.ts",
+        "packages/accp-compiler/src/router/route-decision-types.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491403-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Define the RouteDecisionEvidence schema with all 29 required fields. The minimum schema is contractually fixed here in the PlanSpec. Implementation may extend but may not omit or rename required fields. Schema must be hashable, auditable, replayable, and stable.",
+          "enforcedBy": ["evidence_ledger", "json_schema", "route_decision_schema"]
+        },
+        {
+          "id": "WI-P491403-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement a deterministic evidence writer that emits route-decision artifacts to reports/accp/route-decisions/<timestamp>-<task-id>.route-decision.json. Every route decision must be hashable and auditable. The canonical JSON SHA-256 hash must be computed from canonical JSON excluding the hash field itself.",
+          "enforcedBy": ["evidence_ledger", "completion_gate_v2"]
+        },
+        {
+          "id": "WI-P491403-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Route decision evidence must be replayable: given the same inputs, the same decision should be reproducible.",
+          "enforcedBy": ["unit_tests"]
+        },
+        {
+          "id": "WI-P491403-004",
+          "priority": "must",
+          "kind": "schema_contract",
+          "text": "RouteDecisionEvidence MINIMUM SCHEMA CONTRACT — The following 29 fields are required in every RouteDecisionEvidence artifact. Implementation may extend but may not omit or rename these fields.",
+          "enforcedBy": ["json_schema", "hs-017"],
+          "routeDecisionEvidenceSchema": {
+            "artifactName": "RouteDecisionEvidence",
+            "outputPattern": "reports/accp/route-decisions/<timestamp>-<task-id>.route-decision.json",
+            "requiredFields": [
+              "schema_version",
+              "accp_version",
+              "task_id",
+              "user_request_hash",
+              "selected_route",
+              "selected_internal_report_type_or_chain",
+              "candidate_routes",
+              "confidence",
+              "confidence_policy",
+              "primary_signal",
+              "user_text_signals",
+              "repo_state_signals",
+              "evidence_state_signals",
+              "risk_signals",
+              "blocked_routes",
+              "hard_stops_checked",
+              "hard_stops_triggered",
+              "repo_state_snapshot_hash",
+              "evidence_state_snapshot_hash",
+              "input_artifact_hashes",
+              "canonical_phase_order",
+              "user_confirmation_required",
+              "user_confirmation_received",
+              "route_decision_is_advisory",
+              "authorized_mutation",
+              "authorized_completion",
+              "authorized_promotion",
+              "next_required_artifact",
+              "created_at",
+              "canonical_json_sha256"
+            ],
+            "invariantRules": [
+              "route_decision_is_advisory must always be true.",
+              "authorized_mutation must always be false.",
+              "authorized_completion must always be false.",
+              "authorized_promotion must always be false.",
+              "canonical_json_sha256 must be computed from canonical JSON excluding the hash field itself.",
+              "selected_route must be one of the 6 primary routes or Expert / Direct.",
+              "Abort and Reroute are control actions, not primary routes.",
+              "candidate_routes must include confidence and reason for each candidate.",
+              "hard_stops_checked must not be empty.",
+              "hard_stops_triggered must include diagnostic codes when blocked."
+            ]
+          }
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491403-001",
+          "title": "Route decision schema is valid and hashable",
+          "text": "The RouteDecisionEvidence type includes all 29 required fields defined in the schema contract. Schema validates against the minimum schema. Evidence artifacts are hashable via canonical JSON SHA-256.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491403-001"]
+        },
+        {
+          "id": "AC-P491403-002",
+          "title": "Evidence writer emits valid artifacts",
+          "text": "writeRouteDecisionEvidence produces a valid JSON artifact at the expected path.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491403-001"]
+        },
+        {
+          "id": "AC-P491403-003",
+          "title": "Invariants enforced: route_decision_is_advisory always true, authorization flags always false",
+          "text": "Every emitted artifact has route_decision_is_advisory=true, authorized_mutation=false, authorized_completion=false, authorized_promotion=false. Schema validation rejects any artifact with invariants violated.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491403-001"]
+        },
+        {
+          "id": "AC-P491403-004",
+          "title": "Canonical JSON SHA-256 is deterministic and verifiable",
+          "text": "Two identical decisions produce the same canonical_json_sha256. Hash is computed from canonical JSON excluding the hash field itself. Hash is verifiable by re-computing.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491403-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491403-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491403-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.04",
+      "title": "Rule-Based Auto Router Engine",
+      "waveId": "W2",
+      "dependencies": ["P49.14.01", "P49.14.02"],
+      "role": "router",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/auto-router.ts",
+        "packages/accp-compiler/src/router/route-scorer.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491404-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement a 6-layer deterministic auto-router: Layer 0 (Safety preflight), Layer 1 (Intent extraction), Layer 2 (State signals), Layer 3 (Candidate route scoring), Layer 4 (Hard stop filtering), Layer 5 (Confidence and user confirmation), Layer 6 (Route decision evidence).",
+          "enforcedBy": ["auto_router", "hard_stop_engine"]
+        },
+        {
+          "id": "WI-P491404-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Confidence thresholds: auto-accept non-mutating routes at 0.85, auto-accept mutating/promoting at 0.90, ask user between 0.60-0.85, force manual/Intake below 0.60.",
+          "enforcedBy": ["confidence_policy", "unit_tests"]
+        },
+        {
+          "id": "WI-P491404-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Router must never authorize mutation, completion, or promotion. Route selection is advisory; CompletionGate and EvidenceGate remain final authority.",
+          "enforcedBy": ["completion_gate_v2", "route_decision_evidence"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491404-001",
+          "title": "Auto router scores routes correctly for labeled intent samples",
+          "text": "For a set of known intent samples (e.g. 'fix this bug' -> Repair/Debug), the router selects the correct route with >= 90% accuracy on the calibration set.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test", "report"],
+          "validationRefs": ["VAL-P491404-001"]
+        },
+        {
+          "id": "AC-P491404-002",
+          "title": "Confidence thresholds enforced at exact boundaries",
+          "text": "At confidence 0.84, non-mutating route asks user. At 0.85, auto-accepts. At 0.59, forces manual. At 0.60, asks. At 0.89, mutating asks. At 0.90, auto-accepts.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491404-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491404-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491404-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.05",
+      "title": "Bugfix Chain Selector",
+      "waveId": "W2",
+      "dependencies": ["P49.14.01", "P49.14.02"],
+      "role": "router",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/bugfix-chain-selector.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491405-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement bugfix chain selector with three chains: small bug (BRR->FPR->FVR->PRR), unknown bug (BSR->BRR->RCA->FPR->FVR->PRR), critical bug (BSR->BRR->RCA->HIR->FPR->FVR->PRR).",
+          "enforcedBy": ["bugfix_chain_selector", "unit_tests"]
+        },
+        {
+          "id": "WI-P491405-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "BRR must not be skipped when reproduction is absent. RCA must not be skipped for multi-workspace or high-risk fixes. HIR required for critical/authority-bypass bugs.",
+          "enforcedBy": ["hard_stop_engine", "bugfix_chain_selector"]
+        },
+        {
+          "id": "WI-P491405-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Support feedback loops: BRR cannot reproduce -> BSR; RCA hypothesis rejected -> BSR; FVR fails same bug -> RCA; FVR fails regression -> RCA or FPR; PRR hold missing runtime evidence -> Verify/Validate.",
+          "enforcedBy": ["bugfix_chain_selector", "integration_tests"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491405-001",
+          "title": "Correct chain selected for small, unknown, critical bugs",
+          "text": "Small bug context selects small chain. Unknown symptom selects unknown chain. Critical severity selects critical chain with HIR.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491405-001"]
+        },
+        {
+          "id": "AC-P491405-002",
+          "title": "ECR not in critical bugfix chain between FVR and PRR",
+          "text": "The critical bugfix chain does not include ECR. FVR maps to Verify route. PRR maps to Review route.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491405-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491405-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491405-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.06",
+      "title": "Multi-Intent Decomposer",
+      "waveId": "W2",
+      "dependencies": ["P49.14.01", "P49.14.02"],
+      "role": "router",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/multi-intent-decomposer.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491406-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement multi-intent decomposition following canonical phase order: Intake -> Plan -> Execute -> Verify -> Review. Repair can be injected on FAIL/HOLD.",
+          "enforcedBy": ["multi_intent_decomposer", "unit_tests"]
+        },
+        {
+          "id": "WI-P491406-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Each phase must be independently hard-gated. No multi-phase request may be collapsed into a single report type. Show the decomposed chain to the user before mutation or promotion.",
+          "enforcedBy": ["hard_stop_engine", "multi_intent_decomposer"]
+        },
+        {
+          "id": "WI-P491406-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Multi-intent decomposition must not promote before verify. Must not execute before PlanLock unless explicit small local mutation override exists.",
+          "enforcedBy": ["hard_stop_engine", "completion_gate_v2"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491406-001",
+          "title": "Multi-intent request decomposed into ordered chain",
+          "text": "Request 'plan, implement, verify, commit' decomposes into Plan->Execute->Verify->Review.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491406-001"]
+        },
+        {
+          "id": "AC-P491406-002",
+          "title": "Chain order violations are blocked",
+          "text": "A chain with Execute before Plan is corrected or blocked by HS-010.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491406-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491406-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491406-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.07",
+      "title": "Confidence Policy and Auto-Accept Gating",
+      "waveId": "W2",
+      "dependencies": ["P49.14.04"],
+      "role": "router",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/confidence-policy.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491407-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement confidence policy with configurable thresholds. Default: auto-accept non-mutating at 0.85, auto-accept mutating at 0.90, ask user at 0.60-0.85, force manual below 0.60.",
+          "enforcedBy": ["confidence_policy", "unit_tests"]
+        },
+        {
+          "id": "WI-P491407-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Raw LLM confidence must not be treated as calibrated truth. The router should be tested against labeled routing samples before Auto is trusted.",
+          "enforcedBy": ["confidence_policy", "calibration_tests"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491407-001",
+          "title": "Confidence policy enforces correct thresholds",
+          "text": "Non-mutating routes auto-accept at 0.85. Mutating routes auto-accept at 0.90. Below 0.60 forces manual.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491407-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491407-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491407-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.08",
+      "title": "Router Unit, Integration, and Negative Tests",
+      "waveId": "W2",
+      "dependencies": ["P49.14.04", "P49.14.05", "P49.14.06", "P49.14.07"],
+      "role": "test",
+      "allowedFiles": [
+        "packages/accp-compiler/test/router/route-registry.test.ts",
+        "packages/accp-compiler/test/router/hard-stop-engine.test.ts",
+        "packages/accp-compiler/test/router/auto-router.test.ts",
+        "packages/accp-compiler/test/router/bugfix-chain-selector.test.ts",
+        "packages/accp-compiler/test/router/multi-intent-decomposer.test.ts",
+        "packages/accp-compiler/test/router/confidence-policy.test.ts",
+        "packages/accp-compiler/test/router/route-decision-evidence.test.ts",
+        "packages/accp-compiler/test/router/negative/negative-routing.test.ts",
+        "packages/accp-compiler/test/router/negative/tui-production-wiring-negative.test.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491408-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Write unit tests for route inference across all 6 routes plus Expert/Direct. Cover confidence threshold boundaries. Verify BSR excluded from Plan/Spec, FPR excluded from Execute/Build.",
+          "enforcedBy": ["unit_tests", "continuous_integration"]
+        },
+        {
+          "id": "WI-P491408-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Write integration tests for bugfix chains, P50 chain, multi-intent decomposition, repair loop injection, mutation blocking in Verify route, route decision evidence writing.",
+          "enforcedBy": ["integration_tests", "continuous_integration"]
+        },
+        {
+          "id": "WI-P491408-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Write negative tests: Execute without PlanLock blocked, PRR without FVR/TVR PASS blocked, PRR with unit-only evidence blocked, FPR without RCA for multi-ws blocked, low-confidence route blocks mutation, Expert/Direct cannot bypass hard stops, false PASS routes to Repair not Review, TUI component on disk without production call-site wiring is blocked (HS-018).",
+          "enforcedBy": ["negative_tests", "hard_stop_engine", "hs-018"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491408-001",
+          "title": "All unit, integration, and negative tests pass",
+          "text": "Full test suite passes with no failures. Negative tests confirm blocking behavior.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test", "integration_test", "negative"],
+          "validationRefs": ["VAL-P491408-001"]
+        },
+        {
+          "id": "AC-P491408-002",
+          "title": "Hard stop coverage complete",
+          "text": "All HS-001 through HS-016 have at least one triggering test and one non-triggering test.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491408-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491408-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.09",
+      "title": "TUI Auto Route Footer / Card",
+      "waveId": "W3",
+      "dependencies": ["P49.14.01", "P49.14.04"],
+      "role": "tui",
+      "allowedFiles": [
+        "packages/coding-agent/src/tui/accp-route-footer.ts",
+        "packages/coding-agent/src/tui/accp-route-state.ts",
+        "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+        "packages/coding-agent/src/modes/interactive/components/footer.ts",
+        "packages/coding-agent/src/core/footer-data-provider.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491409-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement default Auto display showing user-facing route, not raw internal types. Display format: 'ACCP: Auto · Route: <route> · Step: <step> · Confidence: <pct>%'.",
+          "enforcedBy": ["tui_route_footer", "tui_design_standards"]
+        },
+        {
+          "id": "WI-P491409-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Support expandable detail view showing internal chain, hard stops triggered, evidence artifacts.",
+          "enforcedBy": ["tui_route_footer"]
+        },
+        {
+          "id": "WI-P491409-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "TUI must show hard-stop reason when blocked. TUI must not expose flat 24 report types as default UX.",
+          "enforcedBy": ["tui_route_footer", "hard_stop_engine"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491409-001",
+          "title": "Default display shows user-facing route, not internal types",
+          "text": "The footer shows 'Repair / Debug' not 'BSR'. Internal types are only visible in expandable detail or Expert mode.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491409-001"]
+        },
+        {
+          "id": "AC-P491409-002",
+          "title": "Hard stop reason displayed when blocked",
+          "text": "When HS-001 blocks Execute, the TUI shows 'Blocked: No PlanLock exists'.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491409-001"]
+        },
+        {
+          "id": "AC-P491409-003",
+          "title": "Route footer wired into production InteractiveMode/Footer render path",
+          "text": "The accp-route-footer module is imported or invoked by interactive-mode.ts or components/footer.ts. A non-test production call site must exist. Component existence alone does not satisfy this AC; a source-code grep or import trace must confirm the production import chain.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "command"],
+          "validationRefs": ["VAL-P491409-001", "VAL-P491409-003"]
+        },
+        {
+          "id": "AC-P491409-004",
+          "title": "Route state visible from production render path, not only from tests",
+          "text": "A production-mode InteractiveMode session renders the ACCP route footer line, not just a test harness. The production InteractiveMode/Footer render path must reach the new route UI code without test-only injection.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "live_test"],
+          "validationRefs": ["VAL-P491409-003"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491409-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TUI-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491409-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491409-003",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true,
+            "notes": "TypeScript compilation must fail if accp-route-footer module is not importable from interactive-mode.ts or components/footer.ts. Production call-site wiring is verified by the TypeScript compiler."
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.10",
+      "title": "TUI Low-Confidence Route Picker",
+      "waveId": "W3",
+      "dependencies": ["P49.14.09"],
+      "role": "tui",
+      "allowedFiles": [
+        "packages/coding-agent/src/tui/accp-route-picker.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491410-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement low-confidence picker showing top 2 candidate routes with confidence percentages and primary reasons. Display format: 'ACCP: Low confidence · Pick route: 1. Route A — Pct% — reason 2. Route B — Pct% — reason'.",
+          "enforcedBy": ["tui_route_picker", "confidence_policy"]
+        },
+        {
+          "id": "WI-P491410-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Picker must include Escape for Abort and a keybinding for Expert / Direct override.",
+          "enforcedBy": ["tui_route_picker"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491410-001",
+          "title": "Low-confidence picker shows top 2 routes",
+          "text": "When confidence is 0.64, picker shows 2 routes with scores and reasons. User can select or abort.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491410-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491410-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TUI-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491410-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.11",
+      "title": "TUI Expert / Direct Grouped Picker",
+      "waveId": "W3",
+      "dependencies": ["P49.14.01", "P49.14.09"],
+      "role": "tui",
+      "allowedFiles": [
+        "packages/coding-agent/src/tui/accp-expert-picker.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491411-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement Expert / Direct picker with report types grouped by domain (Discovery/Inventory, Planning, Execution, Verification, Review, Repair). Do not present flat 24-type list.",
+          "enforcedBy": ["tui_expert_picker", "route_registry"]
+        },
+        {
+          "id": "WI-P491411-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Exact report type selection must show warnings if hard stops block that type. Expert / Direct must not bypass hard stops.",
+          "enforcedBy": ["hard_stop_engine", "tui_expert_picker"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491411-001",
+          "title": "Expert picker groups types under domains",
+          "text": "Picker shows groups: Discovery, Planning, Execution, Verification, Review, Repair. Types are listed under each group, not flat.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491411-001"]
+        },
+        {
+          "id": "AC-P491411-002",
+          "title": "Expert picker shows hard stop warnings",
+          "text": "Selecting FPR in Expert mode when RCA is missing shows HS-003 warning.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491411-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491411-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TUI-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491411-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.12",
+      "title": "TUI Chain Progress and Abort / Reroute Controls",
+      "waveId": "W3",
+      "dependencies": ["P49.14.09", "P49.14.10"],
+      "role": "tui",
+      "allowedFiles": [
+        "packages/coding-agent/src/tui/accp-chain-progress.ts",
+        "packages/coding-agent/src/tui/accp-control-actions.ts",
+        "packages/coding-agent/src/core/keybindings.ts",
+        "packages/coding-agent/src/modes/interactive/components/keybinding-hints.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491412-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement multi-step chain progress display: 'ACCP: Auto · Chain: Plan -> Execute -> Verify -> Review · Current: Execute / Build · Next: TVR · 2/4'.",
+          "enforcedBy": ["tui_chain_progress", "multi_intent_decomposer"]
+        },
+        {
+          "id": "WI-P491412-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement Abort and Reroute as control actions (not primary routes). Abort writes chain abort artifact. Reroute writes route decision artifact. Keybindings: Esc for Abort, Tab for Reroute.",
+          "enforcedBy": ["tui_control_actions", "route_decision_evidence"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491412-001",
+          "title": "Chain progress display shows current step and total",
+          "text": "Display shows route chain, current step, next step, and progress fraction.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491412-001"]
+        },
+        {
+          "id": "AC-P491412-002",
+          "title": "Abort/Reroute available as control actions",
+          "text": "Esc triggers Abort. Tab triggers Reroute. Both write appropriate evidence.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491412-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491412-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TUI-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491412-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.13",
+      "title": "P50 Route Chain Integration",
+      "waveId": "W4",
+      "dependencies": ["P49.14.01", "P49.14.04", "P49.14.05", "P49.14.06"],
+      "role": "router",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/p50-route-chain.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491413-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement P50 route chain: Intake (RIR) -> Plan (IPR/PlanSpec/PlanLock) -> Execute (ECR/EXR/MER) -> Verify (TVR/FVR) -> Review (PRR/RAR), with Repair conditional on FAIL/HOLD.",
+          "enforcedBy": ["p50_route_chain", "hard_stop_engine"]
+        },
+        {
+          "id": "WI-P491413-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "P50 hard rules: RIR must confirm live stack. PlanLock must exist before ECR. make stack-up is primary evidence path. No synthetic server satisfies promotion gate. averageParallelism and peakParallelism from live events. make test-promotion is the central promotion gate.",
+          "enforcedBy": ["p50_route_chain", "promotion_gate"]
+        },
+        {
+          "id": "WI-P491413-003",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Real task submission path missing must produce P50_BLOCKED_NO_REAL_STACK. Synthetic/Python mini-server must not satisfy the main P50 promotion gate.",
+          "enforcedBy": ["p50_route_chain", "hard_stop_engine"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491413-001",
+          "title": "P50 chain routes through correct phases",
+          "text": "P50 follows Intake->Plan->Execute->Verify->Review. Repair injects on FAIL/HOLD.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test", "integration_test"],
+          "validationRefs": ["VAL-P491413-001"]
+        },
+        {
+          "id": "AC-P491413-002",
+          "title": "P50_BLOCKED_NO_REAL_STACK when real task path missing",
+          "text": "When make stack-up is not reachable, P50 chain is blocked with P50_BLOCKED_NO_REAL_STACK.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491413-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491413-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491413-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.14",
+      "title": "Live Route Tests and Confidence Calibration",
+      "waveId": "W4",
+      "dependencies": ["P49.14.08"],
+      "role": "test",
+      "allowedFiles": [
+        "packages/accp-compiler/test/router/live/p50-route-chain-live.test.ts",
+        "packages/accp-compiler/test/router/live/wrong-route-negative.test.ts",
+        "packages/accp-compiler/test/router/live/multi-intent-live.test.ts",
+        "packages/accp-compiler/test/router/live/critical-bug-escalation.test.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491414-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Write live tests for P50 stack-up route chain on real local stack. Wrong-route negative prompt set. Multi-intent live chain with user confirmation gate. Critical bug/authority-boundary escalation path. Abort/Reroute preserves chain state.",
+          "enforcedBy": ["live_tests", "continuous_integration"]
+        },
+        {
+          "id": "WI-P491414-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Build a confidence calibration set with labeled routing samples. Test against negative prompts to prevent over-confident wrong routing.",
+          "enforcedBy": ["confidence_policy", "calibration_tests"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491414-001",
+          "title": "Live tests pass on real stack",
+          "text": "All live route tests pass. Wrong-route prompts correctly identify blocked/incorrect routes.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "integration_test", "live_test"],
+          "validationRefs": ["VAL-P491414-001"]
+        },
+        {
+          "id": "AC-P491414-002",
+          "title": "Confidence calibration set achieves >= 90% accuracy",
+          "text": "Calibrated router correctly identifies the intended route for >= 90% of labeled samples.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "report"],
+          "validationRefs": ["VAL-P491414-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491414-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" },
+          { "type": "RIR", "after": "repo_inspection" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.15",
+      "title": "Registry-Router Wiring and Public API Exports",
+      "waveId": "W4",
+      "dependencies": ["P49.14.04", "P49.14.09"],
+      "role": "integration",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/index.ts",
+        "packages/accp-compiler/src/index.ts"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491415-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Wire the route registry, auto router, hard stop engine, bugfix chain selector, multi-intent decomposer, route decision evidence writer, and confidence policy into a clean public API via packages/accp-compiler/src/router/index.ts.",
+          "enforcedBy": ["public_api", "type_system"]
+        },
+        {
+          "id": "WI-P491415-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Export route router types and functions from the accp-compiler package index so coding-agent can import them for TUI and runtime use.",
+          "enforcedBy": ["public_api", "package_exports"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491415-001",
+          "title": "Router public API is clean and typed",
+          "text": "All router functions exportable from a single index. Types are complete. No circular imports.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "typecheck"],
+          "validationRefs": ["VAL-P491415-001"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491415-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    },
+    {
+      "id": "P49.14.16",
+      "title": "Final Verification and Promotion Readiness",
+      "waveId": "W4",
+      "dependencies": ["P49.14.13", "P49.14.14", "P49.14.15"],
+      "role": "final",
+      "allowedFiles": [
+        "packages/accp-compiler/src/router/route-drift-check.ts",
+        "reports/accp/P49.14B/route-calibration-report.json",
+        "reports/accp/P49.14B/final-verification-report.json"
+      ],
+      "forbiddenFiles": [
+        "package.json",
+        "pnpm-lock.yaml",
+        ".env",
+        ".env.*",
+        "node_modules/**",
+        ".git/**",
+        "packages/ai/src/models.generated.ts"
+      ],
+      "instructions": [
+        {
+          "id": "WI-P491416-001",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Implement a route drift check that compares the route registry against the internal ACCP_REPORT_REGISTRY to detect missing, extra, or misassigned types.",
+          "enforcedBy": ["route_drift_check", "continuous_integration"]
+        },
+        {
+          "id": "WI-P491416-002",
+          "priority": "must",
+          "kind": "implementation_rule",
+          "text": "Produce final verification report: code written, code wired, tests passing, evidence generated, no hard stops bypassed. Specifically verify: (a) TUI route footer/picker/control-action components are reachable from the production InteractiveMode/Footer render path (HS-018). (b) RouteDecisionEvidence schema validates all 29 required fields and invariants (HS-017). (c) All emitted reports use ACCP 2.0.0 or a declared legacy adapter (HS-019). PRR/scorecard must be claim-only unless evidence gate passes.",
+          "enforcedBy": ["completion_gate_v2", "promotion_evaluator", "hs-017", "hs-018", "hs-019"]
+        }
+      ],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-P491416-001",
+          "title": "Drift check detects missing/misassigned types",
+          "text": "If a new report type is added to ACCP_REPORT_REGISTRY, drift check warns about unmapped type.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test"],
+          "validationRefs": ["VAL-P491416-001"]
+        },
+        {
+          "id": "AC-P491416-002",
+          "title": "Final verification confirms all gates",
+          "text": "All tests pass. No hard stops bypassed. Evidence is complete. TUI route code is wired into production InteractiveMode/Footer render path. RouteDecisionEvidence artifacts validate all 29 fields and invariants. Reports use ACCP 2.0.0 or declared legacy adapter. PRR is claim-only unless evidence gate passes.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "unit_test", "report"],
+          "validationRefs": ["VAL-P491416-001", "VAL-P491416-002"]
+        },
+        {
+          "id": "AC-P491416-003",
+          "title": "HS-017, HS-018, HS-019 all pass final gate check",
+          "text": "HS-017: All route-decision evidence is valid and hashable. HS-018: TUI components have production call-site wiring evidence. HS-019: No ambiguous ACCP protocol version without declared adapter.",
+          "level": "required",
+          "evidenceRequired": true,
+          "evidenceTypes": ["source", "command", "report"],
+          "validationRefs": ["VAL-P491416-002"]
+        }
+      ],
+      "validation": {
+        "requirements": [
+          {
+            "id": "VAL-P491416-001",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-ACCP-COMPILER-UNIT",
+            "evidenceRequired": true
+          },
+          {
+            "id": "VAL-P491416-002",
+            "type": "command_ref",
+            "commandRef": "CMD-P4914-TYPECHECK",
+            "evidenceRequired": true
+          }
+        ]
+      },
+      "reports": {
+        "required": [
+          { "type": "IPR", "after": "workspace_mutation" },
+          { "type": "TVR", "after": "workspace_validation" },
+          { "type": "PRR", "after": "final_promotion" }
+        ]
+      },
+      "rollback": {
+        "strategy": "revert_workspace_files_only",
+        "notes": "Rollback only files owned by this workspace. Preserve ACCP reports."
+      }
+    }
+  ],
+  "validation": {
+    "finalRequired": true,
+    "watchModeForbidden": true,
+    "noTestsFoundIsFailure": true,
+    "commandEvidenceRequired": true,
+    "forbiddenPatterns": [
+      "|| true",
+      "|| exit 0",
+      "; true"
+    ],
+    "finalValidationCommandRefs": [
+      "CMD-P4914-TYPECHECK",
+      "CMD-P4914-ACCP-COMPILER-UNIT",
+      "CMD-P4914-TUI-UNIT"
+    ],
+    "discoveryCommandsMayNotSatisfyFinalValidation": true
+  },
+  "evidence": {
+    "ledgerRequired": true,
+    "confidenceEnum": ["high", "medium", "low"],
+    "requiredEvidenceTypes": [
+      "source",
+      "unit_test",
+      "integration_test",
+      "command",
+      "diff",
+      "report",
+      "negative",
+      "mutation",
+      "commit",
+      "route_decision",
+      "hard_stop",
+      "calibration"
+    ],
+    "evidenceItemRequiredFields": [
+      "id",
+      "type",
+      "workspaceId",
+      "acRefs",
+      "createdAt",
+      "confidence"
+    ],
+    "hashWhenAvailable": true
+  },
+  "accpProtocolAuthority": {
+    "runtimeVersion": "2.0.0",
+    "templateCompatibilityVersion": "1.2.0",
+    "rule": "Implementation reports emitted for P49.14B must use ACCP 2.0.0. If a consuming system requires 1.2.0 format, an explicit legacy adapter must translate. Mixed protocol without adapters is hard-blocked by HS-019.",
+    "hardStopRef": "HS-019"
+  },
+  "reports": {
+    "protocol": "ACCP",
+    "version": "2.0.0",
+    "legacyTemplateVersion": "1.2.0",
+    "required": [
+      { "type": "RIR", "when": "repo_inspection" },
+      { "type": "PIR", "when": "plan_inspection" },
+      { "type": "IPR", "when": "workspace_mutation" },
+      { "type": "TVR", "when": "validation_completed" },
+      { "type": "HIR", "when": "handoff_required" },
+      { "type": "RAR", "when": "regression_detected" },
+      { "type": "PRR", "when": "final_promotion" },
+      { "type": "CAR", "when": "report_correction_required" }
+    ],
+    "artifactDirectory": "reports/accp/P49.14B/",
+    "stableIdsRequired": true,
+    "commandEvidenceRequired": true,
+    "rollbackPlanRequiredForMutation": true
+  },
+  "p45Bridge": {
+    "implementationAllowed": false,
+    "allowedArtifactPaths": [
+      "reports/p49-14-verified-completion/route-registry-artifacts.json",
+      "reports/p49-14-verified-completion/hard-stop-registry.json",
+      "reports/p49-14-verified-completion/evidence-ledger-export.json",
+      "reports/p49-14-verified-completion/route-calibration-report.json",
+      "reports/p49-14-verified-completion/final-verification-report.json"
+    ],
+    "forbiddenRuntimePaths": [
+      "packages/coding-agent/src/p45/**",
+      "packages/coding-agent/src/async-assembly/**"
+    ],
+    "artifactExports": [
+      {
+        "type": "routeRegistry",
+        "path": "reports/p49-14-verified-completion/route-registry-artifacts.json"
+      },
+      {
+        "type": "hardStopRegistry",
+        "path": "reports/p49-14-verified-completion/hard-stop-registry.json"
+      },
+      {
+        "type": "evidenceLedgerExport",
+        "path": "reports/p49-14-verified-completion/evidence-ledger-export.json"
+      },
+      {
+        "type": "routeCalibration",
+        "path": "reports/p49-14-verified-completion/route-calibration-report.json"
+      }
+    ]
+  },
+  "renderHints": {
+    "generatedMarkdownPath": "docs/01_p49_14_accp_auto_routing_v2.preview.md",
+    "includeBrief": true,
+    "includeWaves": true,
+    "includeWorkspaces": true,
+    "includeAcceptanceCriteria": true,
+    "includeValidation": true,
+    "markPreviewNonAuthoritative": true
+  },
+  "migration": {
+    "from": "Implementation Template v4.1.1",
+    "strategy": "extract_part3_json_then_expand_to_planspec",
+    "adapterRequired": true,
+    "legacyFieldsMapped": [
+      { "v411": "contractVersion", "planspec": "compatibility.runtimeContractVersion" },
+      { "v411": "templateVersion", "planspec": "compatibility.runtimeTemplateVersion" },
+      { "v411": "workspaces", "planspec": "workspaces" },
+      { "v411": "validation", "planspec": "validation" },
+      { "v411": "reports", "planspec": "reports" }
+    ]
+  }
+}

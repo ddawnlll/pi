@@ -1,0 +1,554 @@
+# =============================================================================
+# P49.32A — TUI ACCP Live Path and Visibility Research
+# ACCP-YAML Report (CANONICAL ONEFILE)
+# =============================================================================
+accp:
+  version: "2.0.0"
+  request_id: "P49_32A_TUI_ACCP_RUNTIME_RESEARCH"
+  phase: "P49.32A"
+  title: "TUI ACCP Live Path and Visibility Research"
+  status: "complete"
+  authority: "read_only"
+
+report:
+  executive_summary: >
+    This research phase exhaustively mapped the TUI ACCP runtime architecture
+    across packages/coding-agent and packages/tui. The real InteractiveMode boot
+    path, ACCP hint/hover rendering surfaces, ACCP mode status rendering, ACCP
+    result/gate-verdict rendering, keybinding flows, and the existing P0 smoke
+    test infrastructure were analyzed. Two architectural gaps were confirmed:
+    (1) the existing P0 tui-smoke probe exercises only the bare Editor component
+    (packages/tui), not the full InteractiveMode boot path (packages/coding-agent),
+    so it cannot prove live ACCP picker or route emission; (2) the ACCP result
+    (PASS/HOLD/FAIL), gate-verdict, and artifact-path rendering surfaces do not
+    yet exist in the TUI — they must be built. A concrete implementation file map
+    with exact insertion points is provided below.
+
+  current_tui_architecture:
+    components:
+      - name: "InteractiveMode"
+        file: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        role: "Main TUI orchestrator. Owns TUI lifecycle, editor, footer, header, overlays, key handlers."
+        constructors:
+          - "new InteractiveMode(runtime, options) — called from main.ts:762"
+          - "InteractiveMode.run() — calls init(), then event loop via getUserInput()"
+        init_path:
+          - "InteractiveMode.init(): creates TUI(new ProcessTerminal()), sets up containers, header, editor, footer"
+          - "ui.start() enables raw terminal mode"
+          - "Then setupKeyHandlers() binds onAction handlers"
+          - "Then rebindCurrentSession() loads extensions"
+        accp_wiring:
+          - "accpModePickerEnabled defaults to true in InteractiveMode constructor (P49.31 FIX-005)"
+          - "env var PI_DISABLE_ACCP_MODE_PICKER=1 disables it"
+          - "Tab key opens AccpModePicker overlay via app.accp.modePicker action"
+          - "showAccpModePicker() creates AccpModePicker, InitialRouteIndicator, AccpTaskEnvelope"
+          - "Envelope stored on AgentSession via setAccpMode(mode, envelope)"
+        
+      - name: "AgentSession"
+        file: "packages/coding-agent/src/core/agent-session.ts"
+        role: "Core session. Stores ACCP mode, envelope, route bus."
+        accp_state:
+          - "_accpMode: AccpMode (default 'warn') — line 336"
+          - "_accpTaskEnvelope: AccpTaskEnvelope | undefined — line 338"
+          - "_accpRouteBus: AccpRouteBus | undefined — line 342"
+          - "setAccpMode() rebuilds system prompt with ACCP directive"
+          - "renderAccpModeDirective() called during system prompt build"
+
+      - name: "FooterComponent"
+        file: "packages/coding-agent/src/modes/interactive/components/footer.ts"
+        role: "Renders 2-3 lines at screen bottom: pwd, token stats, model name, extension statuses"
+        accp_gap: "No ACCP mode indication, no ACCP gate status"
+
+      - name: "KeybindingHints"
+        file: "packages/coding-agent/src/modes/interactive/components/keybinding-hints.ts"
+        role: "Utility functions for rendering keybinding hints in dim/muted theme colors"
+        usage: "Used in startup header (keyHint, rawKeyHint) and various overlay components"
+
+      - name: "AccpModePicker (TUI component)"
+        file: "packages/tui/src/components/accp-mode-picker.ts"
+        role: "Interactive overlay for selecting ACCP mode (off/warn/required) and initial report type"
+        status: "Wired and working. Tested via AccpModePicker unit tests in packages/tui/test/accp-mode-picker.test.ts"
+        tab_behavior: "Tab cycles through report types; Enter confirms; 1-3 quick-select; Esc cancels"
+
+      - name: "AccpStatusView"
+        file: "packages/tui/src/components/accp-status-view.ts"
+        role: "Renders ACCP status as a single-line string (mode + diagnostics + gate)"
+        status: "Not wired into any TUI surface. The renderAccpStatus() function exists but is never called."
+
+      - name: "AccpDiagnosticsView"
+        file: "packages/tui/src/components/accp-diagnostics-view.ts"
+        role: "Renders ACCP diagnostics as TUI lines"
+        status: "Same as AccpStatusView — exported but never consumed."
+
+  interactive_mode_boot_path:
+    real_entrypoint: "packages/coding-agent/src/main.ts:762"
+    full_sequence:
+      - "1. main.ts creates AgentSessionRuntime (all services, session)"
+      - "2. main.ts calls new InteractiveMode(runtime, {options})"
+      - "3. InteractiveMode constructor: sets up TUI(new ProcessTerminal()), containers, editor, footer, keybindings"
+      - "4. InteractiveMode.init(): UI.start(), setupKeyHandlers(), rebindCurrentSession(), renderInitialMessages()"
+      - "5. InteractiveMode.run(): while(true) getUserInput() -> session.prompt()"
+    key_difference_from_p0_smoke: >
+      The P0.1 smoke probe (scripts/p0-tui-smoke.mjs) creates a TUI directly
+      with a bare Editor component from packages/tui. It does NOT create
+      InteractiveMode, does NOT create AgentSession, does NOT call
+      setupKeyHandlers(), does NOT pass accpModePickerEnabled. Therefore:
+      - Tab in P0 smoke triggers tui.input.tab (file completion), NOT app.accp.modePicker
+      - InitialRouteIndicator and AccpTaskEnvelope are never created
+      - The AccpModePicker overlay is never shown
+      - The P0 smoke verifies factory wiring of ACCP exports, not live emission
+
+  current_keybinding_map:
+    tab_key_dual_role:
+      - tui.input.tab: defaultKeys "tab" (defined in packages/tui/src/keybindings.ts:120)
+      - app.accp.modePicker: defaultKeys "tab" (defined in packages/coding-agent/src/core/keybindings.ts:204)
+    resolution_order:
+      - "CustomEditor.handleInput() checks actions map first"
+      - "If accpModePickerEnabled is true, app.accp.modePicker handler fires on Tab"
+      - "If accpModePickerEnabled is false, Tab falls through to Editor.handleInput() -> tui.input.tab -> handleTabCompletion()"
+      - "If autocomplete is already active, Tab selects the current autocomplete item"
+    Ctrl_P:
+      - "app.model.cycleForward: defaultKeys 'ctrl+p'"
+      - "This cycles scoped models, not file picker"
+    @_mention:
+      - "Triggered by CombinedAutocompleteProvider when '@' is typed in the editor"
+      - "Opens file path autocomplete, not a separate overlay"
+      - "No keybinding change needed for ACCP — @ stays as file path completion"
+    file_picker_gesture:
+      - "app.filePicker: defined as keybinding in packages/coding-agent/src/core/keybindings.ts:209 with defaultKeys: []"
+      - "NOT currently wired to any handler. The plan spec can set filePickerGesture."
+      - "When ACCP mode picker takes Tab, file path completion moves to @-mention (already working)"
+
+  current_render_surfaces:
+    startup_header:
+      component: "ExpandableText (builtInHeader)"
+      location: "headerContainer (top of screen)"
+      content: "Logo, version, keybinding hints (expanded/collapsed)"
+      accp_gap: "No ACCP mode or ACCP status shown here"
+
+    chat_container:
+      component: "Container with chat message components"
+      location: "Below header, above editor"
+      content: "User messages, assistant messages, tool outputs, status messages"
+      accp_status_method: "showStatus() appends to chatContainer"
+
+    status_container:
+      component: "Container for pending messages/spacers"
+      location: "Between chat and editor"
+
+    editor:
+      component: "CustomEditor (wraps Editor from packages/tui)"
+      location: "Above footer"
+      content: "Input area with autocomplete"
+
+    footer:
+      component: "FooterComponent"
+      location: "Bottom of screen"
+      content: "pwd, git branch, token stats, model name, extension statuses"
+      lines_rendered:
+        - "Line 1: pwd (with git branch and session name)"
+        - "Line 2: token stats left, model name right (dimmed)"
+        - "Line 3: extension statuses (if any)"
+
+    overlay:
+      component: "Any Component shown via TUI.showOverlay()"
+      location: "Centered or anchored overlay on top of other content"
+      accp_usage: "AccpModePicker is shown as overlay"
+
+  accp_visibility_gap_analysis:
+    rq001_interactive_mode_boot:
+      answer: "InteractiveMode is created in main.ts:762. Options passed: migratedProviders, modelFallbackMessage, initialMessage, initialImages, initialMessages, verbose. accpModePickerEnabled is NOT passed by main.ts — it defaults to true in the InteractiveMode constructor (lines 367-374)."
+      p0_smoke_answer: "The P0 tui-smoke at scripts/p0-tui-smoke.mjs creates a standalone TUI(new VirtualTerminal()) + Editor, NOT InteractiveMode. It exercises a lower-level editor path, not the full boot path."
+
+    rq002_accp_hints_rendering:
+      answer: >
+        Footer/status/hints are rendered by FooterComponent (footer.ts) at the bottom of screen.
+        Keybinding hints are rendered in the startup header (ExpandableText in builtInHeader).
+        ACCP hints (Tab/@/Ctrl+P) should be rendered in the header or footer.
+        Currently no ACCP mode is shown anywhere in the persistent TUI surfaces.
+        The keybinding hints in the header show app.interrupt, app.clear, etc. but NOT the
+        ACCP mode picker hint. Adding an ACCP tab hint requires updating the header text
+        or adding a footer line.
+
+    rq003_current_mode_visibility:
+      answer: >
+        Current ACCP mode is stored in AgentSession._accpMode (default: "warn").
+        It is readable via session.accpMode getter.
+        Before mode selection: default "warn" is active (from AgentSession constructor).
+        After mode selection: session.accpMode reflects the selected mode.
+        NO surface currently renders the ACCP mode in the TUI persistently.
+        Visual distinction (warn/required/disabled) should use theme.fg("accent") or
+        theme.fg("warning") / theme.fg("error") text styling for clarity.
+
+    rq004_accp_result_rendering:
+      answer: >
+        Normal results are rendered in chatContainer via AssistantMessageComponent
+        (Markdown rendering). Gate verdicts/status messages are shown via showStatus()
+        in chatContainer.
+        ACCP PASS/HOLD/FAIL: NO surface currently renders this. Must be added.
+        Blocked reasons: NO surface currently renders this. Must be added.
+        Artifact path, gate-verdict path, route-signal path: NO surface renders these.
+        Recommended: Add a dedicated ACCP result component or extend the footer/header
+        to show the latest gate verdict. Also show verdicts as status messages via
+        showStatus().
+
+    rq005_live_evidence:
+      answer: >
+        InitialRouteIndicator and AccpTaskEnvelope are created inside
+        showAccpModePicker() in interactive-mode.ts (lines 6161-6167).
+        They are stored via this.session.setAccpMode().
+        They would appear in event trace only if the full InteractiveMode boot
+        path is exercised AND Tab is pressed to open the picker AND a mode is selected.
+        The P0 smoke cannot show this because it doesn't create InteractiveMode.
+        Recommendation: Wire InitialRouteIndicator emission as an AgentSessionEvent
+        ("accp_route_indicator") and AccpTaskEnvelope emission similarly, so any test
+        that subscribes to session events can assert live emission.
+
+    rq006_enhanced_tui_test:
+      answer: >
+        Design documented below in "recommended_enhanced_tui_test".
+
+    rq007_visibility_states:
+      states:
+        - "ACCP disabled: mode='off', show nothing or 'ACCP off'"
+        - "ACCP available but no mode selected: mode='warn' (default), show 'ACCP warn'"
+        - "ACCP picker open: overlay shown on Tab (already implemented)"
+        - "ACCP mode selected: update footer/header with selected mode"
+        - "ACCP compile pending: show 'Compiling...' status"
+        - "ACCP compiled: show 'Compiled: <report type>' status + artifact path"
+        - "ACCP gate running: show 'Gating...' or loader"
+        - "ACCP PASS: show green-colored 'ACCP PASS' in footer/status"
+        - "ACCP HOLD: show yellow-colored 'ACCP HOLD' with reason"
+        - "ACCP FAIL: show red-colored 'ACCP FAIL' with block reason"
+        - "ACCP blocked with reasons: show block reasons as error messages"
+        - "ACCP artifact missing: show 'No artifact' status"
+        - "ACCP stale verdict ignored: show dimmed 'Stale' indicator"
+
+  live_tui_test_gap_analysis:
+    existing_p0_smoke:
+      file: "scripts/p0-tui-smoke.mjs"
+      exercise_path: "Editor component (packages/tui) only"
+      proven_capabilities:
+        - "VirtualTerminal can be created and driven"
+        - "Editor receives key input and renders to viewport"
+        - "Event trace captures sendInput and requestRender events"
+      unproven_capabilities:
+        - "InteractiveMode boot path — Tab does NOT trigger AccpModePicker"
+        - "InitialRouteIndicator/AccpTaskEnvelope emission — not created"
+        - "AccpModePicker overlay — not shown"
+        - "ACCP mode state — not stored or read"
+      gate_holds:
+        - "IVG-005-LIVE-TUI-PICKER: live picker unverified"
+        - "IVG-006-LIVE-ROUTE-EMISSION: live route emission unverified"
+
+  recommended_tui_state_model:
+    storage:
+      location: "AgentSession (already holds _accpMode and _accpTaskEnvelope)"
+      event_bus:
+        - "Add 'accp_mode_changed' AgentSessionEvent with {mode, envelope?}"
+        - "Add 'accp_route_emitted' AgentSessionEvent with {indicator, envelope}"
+    render_triggers:
+      - "Footer reads session.accpMode on every render() call"
+      - "Footer reads session.accpTaskEnvelope for route status"
+      - "Header reads ACCP mode for hint display"
+      - "Status line: ACCP compile/gate events emitted as session events -> showStatus()"
+
+  recommended_rendering_design:
+    footer_accp_mode:
+      location: "FooterComponent, add to line 1 (pwd line) or new line"
+      content: "'[ACCP: off|warn|required]' using theme.fg styling"
+      condition: "Always visible when mode !== 'off' (or always visible)"
+
+    header_accp_hints:
+      location: "Startup header ExpandableText, compact mode"
+      content: "Add hint like 'Tab for ACCP mode picker' when accpModePickerEnabled"
+      condition: "When accpModePickerEnabled and no mode selected yet"
+
+    accp_result_rendering:
+      location: "chatContainer, via showStatus() or dedicated component"
+      design:
+        - "PASS: theme.fg('success', 'ACCP PASS: <report-type>') in status line"
+        - "HOLD: theme.fg('warning', 'ACCP HOLD: <reason>') in status line"
+        - "FAIL: theme.fg('error', 'ACCP FAIL: <reasons>') in status line"
+        - "Artifact path: show as dim text after verdict"
+        - "Gate-verdict path: show as dim text"
+        - "Route-signal path: show as dim text"
+      difference_from_normal: >
+        Normal results are rendered as Markdown in AssistantMessageComponent.
+        ACCP results are structured status/verdict messages rendered as styled
+        single-line or multi-line status updates, separate from the assistant
+        message stream. They appear in the chatContainer alongside status updates,
+        not as part of the Markdown conversation flow.
+
+    blocked_reasons:
+      location: "chatContainer via showStatus() calls, or overlay"
+      content: "List of blockage reasons with error styling"
+      trigger: "When ACCP gate verdict is FAIL or HOLD"
+
+  recommended_event_trace_contract:
+    events_to_emit:
+      - id: "accp_picker_opened"
+        payload: "{ timestamp, currentMode }"
+        emission_point: "showAccpModePicker() entry"
+      - id: "accp_mode_selected"
+        payload: "{ mode, initialReportType?, indicator, envelope }"
+        emission_point: "picker.onSelect() callback"
+      - id: "accp_route_indicator"
+        payload: "{ indicator: InitialRouteIndicator }"
+        emission_point: "createInitialRouteIndicator() call site"
+      - id: "accp_task_envelope"
+        payload: "{ envelope: AccpTaskEnvelope }"
+        emission_point: "createAccpTaskEnvelope() call site, or session.setAccpMode()"
+    trace_assertion:
+      - "Time-ordered sequence: accp_picker_opened -> accp_mode_selected -> accp_route_indicator -> accp_task_envelope"
+      - "Each event includes a sha256 hash of its previous event for chain integrity"
+
+  recommended_enhanced_tui_test:
+    test_name: "P49 interactive-mode-accp-live.test.ts"
+    location: "packages/coding-agent/test/suite/regressions/49-32a-accp-live-tui.test.ts"
+    approach: >
+      Boot a real InteractiveMode with a VirtualTerminal (from packages/tui/test/)
+      instead of ProcessTerminal. Pass an AgentSessionRuntime created via the local
+      test harness (packages/coding-agent/test/suite/harness.ts) with a FauxProvider.
+      This exercises the full InteractiveMode.init() and InteractiveMode.run() path.
+    harness_requirements:
+      - "AgentSessionRuntime with VirtualTerminal instead of ProcessTerminal"
+      - "AgentSession with FauxProvider (no real API calls)"
+      - "InteractiveMode constructed with { accpModePickerEnabled: true }"
+      - "TUI added to InteractiveMode before init so VirtualTerminal is used"
+    steps:
+      - "1. Create AgentSessionRuntime via test harness (harness.createRuntime())"
+      - "2. Create InteractiveMode with accpModePickerEnabled: true, pass VirtualTerminal"
+      - "3. Call init() — starts TUI, sets up key handlers"
+      - "4. Capture initial event trace"
+      - "5. Send Tab key via VirtualTerminal.sendInput('\t')"
+      - "6. Wait for render cycle (vt.waitForRender())"
+      - "7. Capture screen: vt.getViewport()"
+      - "8. Assert screen contains 'ACCP Mode Picker' or 'Mode:' or mode options"
+      - "9. Assert InitialRouteIndicator and AccpTaskEnvelope emission"
+      - "10. Capture hash of screen + event trace for chain-of-custody"
+    assertions:
+      - "Screen contains ACCP mode options after Tab"
+      - "InitialRouteIndicator was created (event trace or session state)"
+      - "AccpTaskEnvelope was stored on session"
+      - "Screen capture sha256 and event trace sha256 are recorded"
+      - "No exceptions in init() or during key dispatch"
+
+  implementation_file_map:
+    files_to_modify:
+      - path: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        changes:
+          - "Emit AgentSessionEvent on AccpModePicker open/select"
+          - "Emit event trace for InitialRouteIndicator and AccpTaskEnvelope"
+        reason: "Wire live event trace emission so tests can assert"
+
+      - path: "packages/coding-agent/src/core/agent-session.ts"
+        changes:
+          - "Add AgentSessionEvent types: 'accp_picker_opened', 'accp_mode_selected', 'accp_route_indicator', 'accp_task_envelope'"
+        reason: "Define event contract for subscription-based assertion"
+
+      - path: "packages/coding-agent/src/modes/interactive/components/footer.ts"
+        changes:
+          - "Add ACCP mode display line (or append to existing pwd line)"
+          - "Read session.accpMode and session.accpTaskEnvelope for rendering"
+          - "Show PASS/HOLD/FAIL with theme colors"
+        reason: "Persistent ACCP mode visibility in TUI"
+
+      - path: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        changes:
+          - "In showStatus/setupEditorSubmitHandler/render flow: show ACCP compile/gate results"
+        reason: "ACCP result rendering in chat"
+
+      - path: "packages/coding-agent/src/modes/index.ts"
+        changes:
+          - "Export InteractiveModeOptions for test construction"
+        reason: "Test harness needs access to options type"
+
+    files_to_create:
+      - path: "packages/coding-agent/test/suite/regressions/49-32a-accp-live-tui.test.ts"
+        content: >
+          Full InteractiveMode test with VirtualTerminal, Tab send, screen capture,
+          event trace assertion, hash chaining.
+
+    tests_to_update:
+      - path: "scripts/p0-tui-smoke.mjs"
+        changes:
+          - "Update to optionally exercise InteractiveMode path (requires VirtualTerminal)"
+          - "Or keep as Editor-only probe but add note about coverage gap"
+        reason: "P0 smoke should cover the real boot path"
+
+    config_changes:
+      - "accpModePickerEnabled defaulting: already done in InteractiveMode constructor (P49.31 FIX-005)"
+      - "main.ts currently does NOT pass accpModePickerEnabled in options — relies on default. No change needed."
+
+  where_accpModePickerEnabled_should_be_set:
+    result: "Already set in InteractiveMode constructor (line 372-374). Defaults to true unless PI_DISABLE_ACCP_MODE_PICKER=1. main.ts does not pass it explicitly — that's correct, the constructor default handles it."
+
+  where_ACCP_hints_should_render:
+    result: "FooterComponent (footer.ts) — add ACCP mode + status to the footer lines. Optionally in the startup header ExpandableText (compact instructions)."
+
+  where_ACCP_PASS_HOLD_FAIL_should_render:
+    result: >
+      In chatContainer via showStatus() for transient results.
+      Additionally in footer for persistent gate status.
+      The AccpStatusView renderer (accp-status-view.ts) should be used for the
+      footer rendering. The AccpDiagnosticsView renderer (accp-diagnostics-view.ts)
+      should be used for showing diagnostic details.
+
+  how_ACCP_result_differs_from_normal:
+    result: >
+      Normal results: Markdown rendering in AssistantMessageComponent, full
+      conversation flow. ACCP results: structured status lines with theme colors
+      (success/warning/error), rendered as status messages or footer lines.
+      ACCP results show: verdict (PASS/HOLD/FAIL), compiled artifact path,
+      gate-verdict path, route-signal path, blocked reasons. They appear
+      alongside status updates, not as Markdown conversation messages.
+
+  how_live_InitialRouteIndicator_emission_will_be_proven:
+    result: >
+      Via two mechanisms:
+      1. AgentSessionEvent subscription: emit 'accp_route_indicator' event
+         when createInitialRouteIndicator() is called.
+      2. TUI integration test: boot InteractiveMode, send Tab, select mode,
+         assert the event was emitted via session subscription.
+      The test captures the full event trace with timestamps and sha256 hashes.
+
+  how_live_AccpTaskEnvelope_emission_will_be_proven:
+    result: >
+      Same mechanism as InitialRouteIndicator.
+      1. AgentSessionEvent: emit 'accp_task_envelope' event when envelope is stored.
+      2. TUI integration test: assert session.accpTaskEnvelope is set after picker select.
+      3. Serialize envelope and verify taskId, initialRoute, targetReportTypes.
+
+  how_file_picker_reassignment_will_be_proven:
+    result: >
+      The tab keybinding conflict resolution is proven statically:
+      - app.accp.modePicker has defaultKeys "tab"
+      - CustomEditor.handleInput() checks app.accp.modePicker before tui.input.tab
+      - When accpModePickerEnabled=true, Tab opens picker (not file completion)
+      - @-mention for file path completion works regardless (autocomplete provider)
+      - File picker gesture (app.filePicker) can be configured via plan spec
+      Live proof: the integration test sends Tab and asserts ACCP picker appears.
+      The @-mention path completion can be tested by typing "@" and checking
+      autocomplete triggers.
+
+  how_screen_capture_and_event_trace_will_be_hash_linked:
+    result: >
+      The enhanced test will:
+      1. Capture screen text via vt.getViewport().join("\n")
+      2. Compute sha256 of screen capture
+      3. Serialize event trace to JSON
+      4. Compute sha256 of event trace
+      5. Record both hashes in the test result
+      6. Assert test result JSON also has a sha256
+      This creates a cryptographic chain: screen -> hashA, events -> hashB,
+      result -> hash(resultJson) that proves what was captured and emitted.
+
+  risk_assessment:
+    risks:
+      - id: "R1"
+        description: "VirtualTerminal may not accurately emulate all TTY features that ProcessTerminal uses"
+        mitigation: "VirtualTerminal already tested in packages/tui/test/editor.test.ts and other TUI tests"
+        severity: "medium"
+
+      - id: "R2"
+        description: "InteractiveMode.init() loads extensions and resources which may fail in test environment"
+        mitigation: "Use minimal test harness (harness.ts) with no extension loading, minimal settings"
+        severity: "medium"
+
+      - id: "R3"
+        description: "AccpModePicker is a Container component with rendering — its render() output may not surface in viewport capture if overlay positioning fails"
+        mitigation: "AccpModePicker tested in packages/tui/test/accp-mode-picker.test.ts. Assert both 'screen contains mode options' and 'session.accpMode changed'"
+        severity: "low"
+
+      - id: "R4"
+        description: "Event trace emission adds coupling between InteractiveMode and test instrumentation"
+        mitigation: "Emit via AgentSessionEvent subscription interface (already exists). Test subscribes to session events."
+        severity: "low"
+
+      - id: "R5"
+        description: "Default ACCP mode is 'warn', not 'off' — users may be surprised that ACCP is active by default"
+        mitigation: "Document this. The mode picker lets users switch to 'off'."
+        severity: "info"
+
+    blockers:
+      - "None. All required infrastructure exists (VirtualTerminal, TUI, AccpModePicker, harness.ts). Implementation is additive only."
+
+  next_phase_prompt_requirements:
+    phase: "P49.32B"
+    title: "P49.32B — TUI ACCP Live Integration and Visibility Implementation"
+    requires:
+      - "Wire ACCP mode display in FooterComponent"
+      - "Wire ACCP PASS/HOLD/FAIL and blocked reasons rendering in status/chat"
+      - "Emit AgentSessionEvent for ACCP picker open, mode select, route emitted"
+      - "Create enhanced TUI integration test with full InteractiveMode boot"
+      - "Verify IVG-005 and IVG-006 gates pass"
+      - "Update P0 smoke probe optionally"
+    files_to_modify:
+      - "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+      - "packages/coding-agent/src/modes/interactive/components/footer.ts"
+      - "packages/coding-agent/src/core/agent-session.ts"
+      - "packages/coding-agent/src/core/keybindings.ts"
+    files_to_create:
+      - "packages/coding-agent/test/suite/regressions/49-32a-accp-live-tui.test.ts"
+    authority: "mutation_allowed"
+
+# =============================================================================
+# Research Answers (per RQ)
+# =============================================================================
+research_answers:
+  - question_id: "RQ-001"
+    title: "Where does the real TUI boot path start?"
+    answers:
+      - "InteractiveMode is created at main.ts:762"
+      - "Options passed: migratedProviders, modelFallbackMessage, initialMessage, initialImages, initialMessages, verbose"
+      - "accpModePickerEnabled defaults to true in InteractiveMode constructor (lines 367-374 of interactive-mode.ts)"
+      - "P0 tui-smoke (scripts/p0-tui-smoke.mjs) exercises Editor only, NOT InteractiveMode"
+
+  - question_id: "RQ-002"
+    title: "Where should ACCP hints be rendered?"
+    answers:
+      - "FooterComponent renders footer/status (footer.ts)"
+      - "Startup header (ExpandableText) renders keybinding hints"
+      - "Tab/ACCp picker hint should be in header or footer"
+      - "Hints can be updated based on ACCP mode by re-rendering header/footer on mode change"
+
+  - question_id: "RQ-003"
+    title: "How should current ACCP mode be visible?"
+    answers:
+      - "Stored in AgentSession._accpMode (default 'warn')"
+      - "Read via session.accpMode getter"
+      - "Before selection: default 'warn' shown"
+      - "After selection: selected mode shown"
+      - "Distinguish: theme colors for warn (yellow), required (red/bold), off (dim)"
+
+  - question_id: "RQ-004"
+    title: "How should ACCP result render differently from normal result?"
+    answers:
+      - "Normal: Markdown in AssistantMessageComponent"
+      - "ACCP: Status lines in chat + footer with theme colors (success/warning/error)"
+      - "PASS/HOLD/FAIL: styled status messages"
+      - "Blocked reasons: error-styled status lists"
+      - "Artifact/gate-verdict/route paths: dimmed text after verdict"
+
+  - question_id: "RQ-005"
+    title: "How do InitialRouteIndicator and AccpTaskEnvelope become live evidence?"
+    answers:
+      - "Emit AgentSessionEvent on creation (recommended new event types)"
+      - "Store on session (already done via setAccpMode)"
+      - "Full InteractiveMode test subscribes to events and asserts emission"
+      - "TUI smoke must exercise InteractiveMode, not just Editor"
+
+  - question_id: "RQ-006"
+    title: "What enhanced TUI integration test is needed?"
+    answers:
+      - "Full InteractiveMode boot with VirtualTerminal"
+      - "AgentSession from test harness with FauxProvider"
+      - "Send Tab, capture screen, assert picker visible"
+      - "Assert InitialRouteIndicator/AccpTaskEnvelope events/session state"
+      - "Hash-chain screen + event trace for non-repudiation"
+
+  - question_id: "RQ-007"
+    title: "What ACCP visibility states must exist?"
+    answers:
+      - "All 13 states listed in state model above. Implementation: footer for persistent state, showStatus() for transient."

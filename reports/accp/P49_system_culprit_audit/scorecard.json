@@ -1,0 +1,100 @@
+{
+  "audit_id": "P49-SYSTEM-CULPRIT-AUDIT-ONEFILE",
+  "generated_at": "2026-06-13T22:00:00+03:00",
+  "request_id": "P49_SYSTEM_CULPRIT_AUDIT_ONEFILE",
+  "repo": {
+    "commit": "52c05ee58a33e3929cb6958582a528f6a4fcccd4",
+    "branch": "main",
+    "dirty": true,
+    "git_status_excerpt": "49 files modified; 3307 insertions, 554 deletions"
+  },
+  "verdict": "HOLD",
+  "confidence": "high",
+  "onefile_report_path": "reports/accp/P49_system_culprit_audit/onefile.culprit-audit.accp.yaml",
+  "planspec_hash": "sha256:8d04e03f0367835e9d1127f7176c9b2dcd1989b2371c1236e871a1fad10a2afa",
+  "hypotheses": {
+    "total": 20,
+    "confirmed": 14,
+    "rejected": 4,
+    "inconclusive": 2,
+    "not_testable": 0,
+    "details": {
+      "H1": "confirmed",
+      "H2": "confirmed",
+      "H3": "confirmed",
+      "H4": "confirmed",
+      "H5": "confirmed",
+      "H6": "confirmed",
+      "H7": "confirmed",
+      "H8": "confirmed",
+      "H9": "confirmed",
+      "H10": "confirmed",
+      "H11": "confirmed",
+      "H12": "confirmed",
+      "H13": "confirmed",
+      "H14": "confirmed",
+      "H15": "confirmed",
+      "H16": "rejected",
+      "H17": "rejected",
+      "H18": "inconclusive",
+      "H19": "confirmed",
+      "H20": "confirmed"
+    }
+  },
+  "system_culpability_breakdown": {
+    "runtime_completion_gate": 36,
+    "evidence_engine": 22,
+    "worker_adapter_bridge": 12,
+    "planspec_admission_and_decomposition": 18,
+    "model_agent_behavior": 0,
+    "write_edit_tooling": 4,
+    "worktree_integration": 2,
+    "command_validation": 4,
+    "observability": 2,
+    "total_percent": 100
+  },
+  "primary_root_cause": "CompletionGate vNext STAGE_ORDER omits the AccpGate stage; runAccpGateStage is never scheduled; planCompletionPredicate has no ACCP branch; P49 PRR credits source presence and unit-test counts as runtime completion.",
+  "secondary_root_causes": [
+    "LocalPiWorkerAdapter.run() never populates WorkerRunResult.accp; autonomous-executor reads workerResult.accp?.shouldCompile which is always undefined.",
+    "accpModePickerEnabled never set to true in any production caller; showAccpModePicker (and the only call site of createInitialRouteIndicator / createAccpTaskEnvelope) is unreachable from the live TUI Tab path.",
+    "PRR/PRR-like evidence engine treats unit-test counts and source presence as runtime completion; P49 PRR marks p50Readiness.ready=true with 62.35% missing wiring and only 'operator_approval' as a blocker.",
+    "AccpRouteBus.getAccpRouteBus() and AccpArtifactStore.{save,read}{Compiled,Verdict,RouteSignal} have zero non-test production call sites.",
+    "PlanSpec allowedFiles decomposition never assigned local-pi-worker-adapter.ts or accp-gate-stage-runner.ts to any workspace; P49.18 owns completion-gate.ts but not completion/completion-gate-vnext-types.ts where STAGE_ORDER lives."
+  ],
+  "rejected_root_causes": [
+    "Write/edit tool silent failure (atomicWriteFile uses temp+rename+postHash verify; direct probe confirmed disk mutation).",
+    "Worktree diff loss (49 files / 3307 insertions in git status; diff is present, content is wrong)."
+  ],
+  "top_5_required_fixes": [
+    "Add 'AccpGate' to STAGE_ORDER in completion-gate-vnext-types.ts and register runAccpGateStage in the production StageRunnerRegistry.",
+    "Wire planCompletionPredicate / isPlanComplete to consult AccpGateVerdict and require it for plans with required ACCP mode.",
+    "Populate WorkerRunResult.accp in LocalPiWorkerAdapter.run() and import AccpWorkerOutput; populate changedFiles/events/commandHistory from agentResult.",
+    "Add allowedFiles for local-pi-worker-adapter.ts, accp-gate-stage-runner.ts, and completion/completion-gate-vnext-types.ts to P49.18 or a new P49.31 workspace.",
+    "Set accpModePickerEnabled = true in the InteractiveMode boot path; add a live TUI smoke test that asserts the picker overlay appears on Tab and that InitialRouteIndicator + AccpTaskEnvelope are emitted."
+  ],
+  "validation": {
+    "npm_run_check": {
+      "exit_code": 0,
+      "interpretation": "necessary_not_sufficient"
+    },
+    "npm_run_build": {
+      "exit_code": 0,
+      "interpretation": "necessary_not_sufficient"
+    },
+    "p0_gate_sanity": {
+      "verdict": "PASS",
+      "interpretation": "harness_readiness_not_p49_completion"
+    },
+    "tui_smoke": {
+      "verdict": "FAIL",
+      "interpretation": "Tab does NOT open accp-mode-picker overlay in live TUI"
+    }
+  },
+  "final_decision": {
+    "culprit_audit_status": "complete",
+    "p49_repair_should_start": "conditional",
+    "evidence_engine_required_before_repair": true,
+    "completion_gate_hardening_required_before_repair": true,
+    "next_recommended_phase": "P49.31 — PlanSpec amendment + CompletionGate vNext STAGE_ORDER + LocalPiWorkerAdapter accp + TUI picker boot wiring. Do not call P50 start until new P49 scorecard reports runtime_verified_percent >= 60 with live_tui evidence."
+  }
+}

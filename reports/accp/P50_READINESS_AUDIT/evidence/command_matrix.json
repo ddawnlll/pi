@@ -1,0 +1,77 @@
+{
+  "commandMatrixGenerated": "2026-06-11T21:00:00+03:00",
+  "commands": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "result": "All checks passed with 0 errors, 9 warnings, 17 infos. 1930 files checked.",
+      "evidence": "observed_terminal_output"
+    },
+    {
+      "command": "make test",
+      "status": "passed",
+      "result": "Deterministic execution gauntlet ran test/execution-gauntlet/. Visibility gauntlet produced reports.",
+      "evidence": "observed_terminal_output"
+    },
+    {
+      "command": "make test-full",
+      "status": "skipped",
+      "reason": "Would take 30+ minutes. Code review confirms 4 phases: lint, unit tests, build, execution stability gauntlet.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-real-agent-mini-multiplan-gate.ts",
+      "status": "skipped",
+      "reason": "Requires CI environment. Script is 1565+ lines exercising AutonomousExecutor with fault injection.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p45-minimal-async-assembly-smoke.ts",
+      "status": "skipped",
+      "reason": "Uses hardcoded simulated results, not real async assembly execution.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p45-load-profile.ts",
+      "status": "skipped",
+      "reason": "Stub with empty function bodies.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p45-concurrency-profile.ts",
+      "status": "skipped",
+      "reason": "Stub with empty function bodies.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p45-unbounded-concurrency-experiment.ts",
+      "status": "skipped",
+      "reason": "Stub with empty function bodies.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p45-realistic-fixture-suite.ts",
+      "status": "skipped",
+      "reason": "Hardcoded simulated results, not real execution.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "scripts/run-p49-5-large-plan-readiness-probe.ts",
+      "status": "skipped",
+      "reason": "Readiness probe, not an execution test.",
+      "evidence": "code_review"
+    },
+    {
+      "command": "npx accp-compiler validate (P50 reports)",
+      "status": "skipped",
+      "reason": "ACCP compiler exists but template registry does not include P50 readiness audit templates.",
+      "evidence": "code_review"
+    }
+  ],
+  "summary": {
+    "totalCommands": 11,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 9
+  }
+}

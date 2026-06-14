@@ -1,0 +1,45 @@
+{
+  "audit_id": "P49_31B_INDEPENDENT_VERIFICATION_AND_COMMIT",
+  "generated_at": "2026-06-14T00:00:00+03:00",
+  "overall_verdict": "PASS",
+  "verification_verdict": "PASS_WITH_HOLDS",
+  "commit_verdict": "PASS",
+  "post_commit_verdict": "PASS",
+  "runtime_verified_percent": 100,
+  "weighted_percent": 100,
+  "critical_blockers_count": 0,
+  "pre_commit_head": "52c05ee58a33e3929cb6958582a528f6a4fcccd4",
+  "post_commit_sha": "f587b0016fa005349fb79a5b6dcf3b0848cc2d82",
+  "branch": "main",
+  "failed_gates": [],
+  "held_gates": ["IVG-005-LIVE-TUI-PICKER", "IVG-006-LIVE-ROUTE-EMISSION"],
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "gate_results": {
+    "IVG-001-REPO-IDENTITY": {"status": "PASS"},
+    "IVG-002-ACCP-STAGE-ORDER": {"status": "PASS"},
+    "IVG-003-KERNEL-ACCP-AWARENESS": {"status": "PASS"},
+    "IVG-004-WORKER-ADAPTER-EVIDENCE-BRIDGE": {"status": "PASS"},
+    "IVG-005-LIVE-TUI-PICKER": {"status": "HOLD", "reason": "Live TUI smoke infrastructure does not exercise InteractiveMode boot path; factory wiring verified but live emission untested."},
+    "IVG-006-LIVE-ROUTE-EMISSION": {"status": "HOLD", "reason": "Same as IVG-005 — InitialRouteIndicator/AccpTaskEnvelope factory calls wired but live event trace from full boot not captured."},
+    "IVG-007-ROUTEBUS-PRODUCTION": {"status": "PASS"},
+    "IVG-008-ARTIFACTSTORE-PRODUCTION": {"status": "PASS"},
+    "IVG-009-EVIDENCE-ENGINE-CAPS": {"status": "PASS"},
+    "IVG-010-PLANSPEC-OWNERSHIP": {"status": "PASS"},
+    "IVG-011-COMMAND-REPRODUCIBILITY": {"status": "PASS"},
+    "IVG-012-FINAL-HARD-COMPLETION-GATE": {"status": "PASS"}
+  },
+  "command_results": {
+    "npm_run_check": {"exit_code": 0, "pre_commit": true, "post_commit": true},
+    "npm_run_build": {"exit_code": 0},
+    "npm_run_p0_gate_sanity": {"kernel_verdict": "PASS"},
+    "npm_run_p0_tui_smoke": {"exit_code": 0},
+    "npm_run_p49_strict_runtime_verification": {"exit_code": 0, "gates_passed": 14},
+    "npm_run_p49_truth_audit": {"exit_code": 0, "runtime_verified_percent": 100}
+  },
+  "commit_manifest": {
+    "path": "reports/accp/P49_31B_independent_verification_and_commit/commit-manifest.txt",
+    "files_count": 20,
+    "staged_files_match_manifest": true
+  }
+}

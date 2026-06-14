@@ -1,0 +1,60 @@
+{
+  "scorecard": {
+    "phase": "P49.14",
+    "title": "ACCP Auto Routing v2 PlanSpec Generation",
+    "generated_at": "2026-06-14T00:00:00Z",
+    "total_score": 96,
+    "max_score": 100,
+    "execute_ready_threshold": 90,
+    "execute_ready": true,
+    "categories": {
+      "template_conformance": {
+        "weight": 15,
+        "score": 15,
+        "notes": "PlanSpec follows PlanSpec v5 alpha2 template structure exactly. All top-level sections present: metadata, compatibility, intent, authority, enforcementRegistry, security, commands, locking, brief, waves, workspaces, validation, evidence, reports, p45Bridge, renderHints, migration."
+      },
+      "vision_requirement_coverage": {
+        "weight": 20,
+        "score": 20,
+        "notes": "All 12 requirements (REQ-001 through REQ-012) from the vision document are encoded in the PlanSpec. Hard requirements, anti-patterns, and operator notes cover the full vision scope."
+      },
+      "internal_type_mapping_quality": {
+        "weight": 15,
+        "score": 15,
+        "notes": "All 24 internal ACCP report types are accounted for. The mapping sources from the authoritative ACCP_REPORT_REGISTRY rather than hardcoding. Corrections applied: BSR to Repair/Debug, FPR to Repair/Debug, ECR excluded from critical bugfix chain between FVR and PRR."
+      },
+      "hard_stop_registry_quality": {
+        "weight": 15,
+        "score": 15,
+        "notes": "Full 16 hard stops (HS-001 through HS-016) defined with condition, blocked action, required action, severity, and diagnostic code. Coverage spans PlanLock enforcement, verify evidence, bugfix chains, wave gates, route safety, auto-routing safety, Expert/Direct safety, chain order, and chain length limits."
+      },
+      "multi_intent_and_bugfix_chain_quality": {
+        "weight": 10,
+        "score": 10,
+        "notes": "Three bugfix chains defined (small, unknown, critical) with 5 feedback loops. Multi-intent decomposition with canonical phase order and conditional Repair detour. Each phase independently hard-gated."
+      },
+      "tui_and_ux_plan_quality": {
+        "weight": 10,
+        "score": 9,
+        "notes": "Four TUI workspaces cover default Auto display, low-confidence picker, Expert grouped picker, chain progress, and Abort/Reroute controls. -1: TUI keybindings are placeholders (Esc/Tab); final bindings deferred to configurable keybinding system in implementation."
+      },
+      "test_matrix_quality": {
+        "weight": 10,
+        "score": 10,
+        "notes": "Complete test matrix with unit tests, integration tests, negative tests, live tests, and drift test. Hard stop coverage requires at least one triggering and one non-triggering test per HS-001..HS-016."
+      },
+      "evidence_schema_quality": {
+        "weight": 5,
+        "score": 2,
+        "notes": "Route decision evidence schema defined with 14 fields, hashability, auditability, and replayability. -3: The exact JSON schema definition is deferred to implementation workspace P49.14.03; PlanSpec describes requirements but not the formal schema structure."
+      }
+    },
+    "blockers": [],
+    "warnings": [
+      "TUI keybindings (Esc for Abort, Tab for Reroute) are placeholder defaults. Implementation should integrate with the configurable keybinding system defined in packages/coding-agent/src/core/keybindings.ts.",
+      "Route decision evidence JSON schema is described in requirements but the formal schema definition is deferred to workspace P49.14.03 implementation."
+    ],
+    "next_recommended_phase": "P49.14B — ACCP Auto Routing v2 Implementation",
+    "notes": "P49.14 is planning-only. This PlanSpec is the primary output. P49.14B should implement from this PlanSpec. The PlanSpec defines 16 workspaces across 4 waves. All hard stops passed. Score of 96/100 is above the 90-point execute_ready threshold."
+  }
+}

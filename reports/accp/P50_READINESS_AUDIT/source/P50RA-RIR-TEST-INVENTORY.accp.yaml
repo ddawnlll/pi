@@ -1,0 +1,268 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P50RA-RIR-TEST-INVENTORY
+  type: RIR
+  family: p50_readiness_audit
+  title: "P50 Readiness Audit — Repo Test Inventory"
+  generated_at: "2026-06-11T20:45:00+03:00"
+  generator: accp_research_prompt_v2_strict_yaml
+repo_tree:
+  root: /Users/hootie/src/pi
+  commit: e0b44e9283db627a93577deb9428e12c47a8b075
+  branch: V5.14-planspec-rc1-integration
+  packages:
+    - name: coding-agent
+      path: packages/coding-agent
+      test_files_found: 312
+      test_dir: packages/coding-agent/test
+      sub_dirs:
+        - accp (7 files)
+        - assembly (22 files)
+        - brain (23 files)
+        - completion (15 files)
+        - execution (10 files)
+        - execution-gauntlet (8 files)
+        - execution-runtime (16 files)
+        - gauntlet (5 files)
+        - mode (34 files)
+        - suite (10 files)
+        - suite/regressions (18 files)
+    - name: accp-compiler
+      path: packages/accp-compiler
+      test_files_found: 11
+      test_dir: packages/accp-compiler/test
+    - name: execution-runtime
+      path: packages/execution-runtime
+      test_files_found: 1
+      test_dir: packages/execution-runtime/test
+    - name: execution-service
+      path: packages/execution-service
+      test_files_found: 4
+      test_dir: packages/execution-service/test
+    - name: execution-contracts
+      path: packages/execution-contracts
+      test_files_found: 7
+      test_dir: packages/execution-contracts/test
+    - name: web-server
+      path: packages/web-server
+      test_files_found: 11
+      test_dir: packages/web-server/test
+    - name: web-ui
+      path: packages/web-ui
+      test_files_found: 3
+      test_dir: packages/web-ui/test
+      additional: packages/web-ui/dashboard/test (19 files)
+    - name: tui
+      path: packages/tui
+      test_files_found: 22
+      test_dir: packages/tui/test
+    - name: db
+      path: packages/db
+      test_files_found: 10
+      test_dir: packages/db/test
+  scripts_directory:
+    total_scripts: 49
+    relevant_gauntlet_scripts:
+      - scripts/run-real-agent-mini-multiplan-gate.ts
+      - scripts/run-mini-execution-correctness-e2e.ts
+      - scripts/run-mini-execution-correctness-gauntlet.ts
+      - scripts/run-execution-stability-gauntlet.ts
+      - scripts/run-p45-minimal-async-assembly-smoke.ts
+      - scripts/run-p45-realistic-fixture-suite.ts
+      - scripts/run-p45-concurrency-profile.ts
+      - scripts/run-p45-load-profile.ts
+      - scripts/run-p45-unbounded-concurrency-experiment.ts
+      - scripts/run-p45-p42-replan-experiment.ts
+      - scripts/run-p49-5-large-plan-readiness-probe.ts
+      - scripts/run-p49-5-p45-readiness-gate.ts
+      - scripts/run-post-implementation-audit.ts
+  ci_workflows:
+    - .github/workflows/ci.yml
+    - .github/workflows/mini-execution-correctness.yml
+  existing_reports:
+    reports_p41_visibility: true
+    reports_p42_dashboard: true
+    reports_accp_p43: true
+    reports_accp_p44_5: true
+    reports_accp_p44_6: true
+    reports_accp_p45: true
+    reports_accp_p49_5: true
+    reports_p50_readiness_audit: false
+domain_map:
+  unit_tests:
+    count: estimated_300_plus
+    packages_covered: all
+    vitest_config: per_package
+  integration_tests:
+    count: estimated_100_plus
+    packages_covered: coding-agent, execution-runtime, execution-service, execution-contracts, web-server, tui, db
+    description: Tests exercising multiple layers but using faux/deterministic providers
+  e2e_claimed_tests:
+    count: 11
+    files:
+      - packages/coding-agent/test/e2e-flagship.test.ts
+      - packages/coding-agent/test/e2e-plan-execution.test.ts
+      - packages/coding-agent/test/e2e-plan-batches-and-regression.test.ts
+      - packages/coding-agent/test/e2e-smoke.test.ts
+      - packages/coding-agent/test/v5-e2e-integration.test.ts
+      - packages/coding-agent/test/accp/e2e-accp-native-flow.test.ts
+      - packages/coding-agent/test/smart-read-e2e.test.ts
+      - packages/coding-agent/test/suite/regressions/mini-execution-correctness-e2e.test.ts
+      - packages/coding-agent/test/suite/regressions/mini-execution-correctness.test.ts
+      - packages/web-ui/dashboard/test/P42.11-critical-flows.test.tsx
+      - scripts/v5-e2e-execution-test.sh
+    assessment: most_use_faux_providers_no_live_server
+  true_e2e_tests:
+    count: 0
+    assessment: No test starts a live server, connects a real agent session, and executes a multi-plan task against a live system
+  dogfood_tests:
+    count: 8
+    files:
+      - packages/coding-agent/test/adaptive-edit-dogfood.test.ts
+      - packages/coding-agent/test/brain/p17-dogfood-verification.test.ts
+      - packages/coding-agent/test/brain/p18-dogfood-verification.test.ts
+      - packages/coding-agent/test/brain/p24-daily-intelligence.test.ts
+      - packages/coding-agent/test/brain/p20-dogfood-overnight.test.ts
+      - packages/coding-agent/test/brain/proposals/dogfood-verification.test.ts
+      - packages/coding-agent/test/p6-large-project-dogfood.test.ts
+      - packages/coding-agent/test/p65-experimental-6-dogfood.test.ts
+    assessment: Nominal tests exercising internal flows, not against a live production system
+  real_agent_tests:
+    count: 2
+    files:
+      - packages/coding-agent/test/real-agent-execution.test.ts
+      - packages/coding-agent/test/suite/regressions/real-agent-mini-multiplan-gate.test.ts
+    assessment: Uses faux providers. The real-agent-mini-multiplan-gate.ts script supports real-llm mode but it is guarded behind PI_DIAG_RUN_REAL_LLM=1 and not run in CI
+  gauntlet_tests:
+    count: 13
+    files:
+      - packages/coding-agent/test/gauntlet/commit-durability-completion-gate.test.ts
+      - packages/coding-agent/test/gauntlet/commit-scope-gauntlet.test.ts
+      - packages/coding-agent/test/gauntlet/fake-complete-and-commit-scope.test.ts
+      - packages/coding-agent/test/gauntlet/fake-complete-gauntlet.test.ts
+      - packages/coding-agent/test/gauntlet/mutation-safety-gauntlet.test.ts
+      - packages/coding-agent/test/execution-gauntlet/invariant-checker.test.ts
+      - packages/coding-agent/test/execution-gauntlet/replay.test.ts
+      - packages/coding-agent/test/execution-gauntlet/retry-safety.test.ts
+      - packages/coding-agent/test/execution-gauntlet/scenario-registry.test.ts
+      - packages/coding-agent/test/execution-gauntlet/stable3-profile.test.ts
+      - packages/coding-agent/test/execution-gauntlet/synthetic-worker.test.ts
+      - packages/coding-agent/test/execution-gauntlet/visibility-gauntlet.test.ts
+      - packages/coding-agent/test/brain/brain-activity-gauntlet.test.ts
+    assessment: Deterministic synthetic gauntlets exercising internal execution paths
+  p45_async_assembly_tests:
+    count: 22
+    files:
+      - packages/coding-agent/test/assembly/*.test.ts
+    assessment: Isolation-unit tests for async assembly components. P45 scripts exist but many are stubs or incomplete
+  accp_compiler_tests:
+    count: 11
+    files:
+      - packages/coding-agent/test/accp/agent-session-accp.test.ts
+      - packages/coding-agent/test/accp/autonomous-executor-accp.test.ts
+      - packages/coding-agent/test/accp/completion-gate-accp.test.ts
+      - packages/coding-agent/test/accp/e2e-accp-native-flow.test.ts
+      - packages/coding-agent/test/accp/initial-route-indicator.test.ts
+      - packages/coding-agent/test/accp/prompt-renderer.test.ts
+      - packages/coding-agent/test/accp/repair-loop.test.ts
+      - packages/coding-agent/test/accp/route-bus.test.ts
+      - packages/coding-agent/test/accp/workspace-agent-executor-accp.test.ts
+      - packages/accp-compiler/test/*
+    assessment: Exercising ACCP compile/validate/repair but not on the real runtime path with live data
+authority_docs:
+  - path: /Users/hootie/src/pi/packages/coding-agent/AGENTS.md
+    status: read
+    relevance: project-level guidelines and commit rules
+  - path: /Users/hootie/src/pi/.pi/agent/AGENTS.md
+    status: read
+    relevance: project guidelines for pi itself
+  - path: /Users/hootie/src/pi/Makefile
+    status: read
+    relevance: defines test targets and gauntlet commands
+  - path: /Users/hootie/src/pi/.github/workflows/ci.yml
+    status: read
+    relevance: CI pipeline runs build + check + npm test only, not make test-full
+  - path: /Users/hootie/src/pi/.github/workflows/mini-execution-correctness.yml
+    status: read
+    relevance: Separate CI workflow for real-agent mini multi-plan gate, includes nightly and manual full-v5
+contracts_and_schemas:
+  - accp_compiler_cli: packages/accp-compiler/src/cli.ts
+  - accp_compiler_pipeline: packages/accp-compiler/src/compiler-pipeline.ts
+  - accp_report_registry: packages/accp-compiler/src/registry/report-registry.ts
+  - accp_support_matrix: packages/accp-compiler/src/registry/support-matrix.ts
+gaps_and_risks:
+  - id: GAP-NO-LIVE-SERVER-E2E
+    description: No test starts a live server and executes a multi-plan task against it
+    severity: critical
+    blocker_class: no_live_server_e2e
+  - id: GAP-NO-REAL-MULTI-PLAN-TASK
+    description: No test exercises a real multi-plan task (multiple dependent plans executed against a live system)
+    severity: critical
+    blocker_class: no_real_multi_plan_task
+  - id: GAP-NO-PARALLELISM-MEASUREMENT
+    description: No test measures average, peak, or sustained parallelism across real async assembly
+    severity: high
+    blocker_class: no_average_parallelism_measurement
+  - id: GAP-NO-CENTRALIZED-GAUNTLET
+    description: make test (deterministic gauntlet) and make test-full exist but are not wired into CI. CI runs only npm test (all package unit tests). The stronger gauntlets are in a separate mini-execution-correctness workflow
+    severity: high
+    blocker_class: no_centralized_gauntlet
+  - id: GAP-E2E-NAME-NOT-TRUE-E2E
+    description: Files named e2e-* use faux/deterministic providers and no live server. They test internal execution paths, not live end-to-end flows
+    severity: high
+    blocker_class: e2e_name_but_not_true_e2e
+  - id: GAP-MAKE-TEST-FULL-NOT-SUFFICIENT
+    description: make test-full does not include the real-agent-mini-multiplan-gate or any P45/P49 gauntlet scripts. Phase 4 runs the execution stability gauntlet only
+    severity: high
+    blocker_class: make_test_full_not_sufficient
+  - id: GAP-MISSING-ACC-PROMOTION-GATE
+    description: No promotion gate exists that checks real test coverage before promoting to production
+    severity: high
+    blocker_class: missing_promotion_gate
+  - id: GAP-P45-SCRIPTS-STUBBED
+    description: Several P45 scripts (load-profile, concurrency-profile, unbounded-concurrency-experiment, realistic-fixture-suite) contain stub/simulated implementations, not real execution
+    severity: medium
+    blocker_class: script_exists_but_not_promoted
+  - id: GAP-ASYNC-ASSEMBLY-NOT-ON-REAL-PATH
+    description: Async assembly tests (test/assembly/*) are unit tests, not wired into any real execution runtime
+    severity: high
+    blocker_class: async_assembly_not_on_real_runtime_path
+  - id: GAP-ROUTE-BUS-NOT-ON-REAL-PATH
+    description: Route bus tests (test/accp/route-bus.test.ts) are isolated ACCP tests, not exercised on the real runtime execution path
+    severity: medium
+    blocker_class: route_bus_not_on_real_runtime_path
+  - id: GAP-COMPLETION-GATE-NOT-ON-REAL-RUNTIME-PATH
+    description: Completion gate tests are unit-tested but not exercised as part of a live end-to-end execution with real LLM
+    severity: medium
+    blocker_class: completion_gate_not_on_real_runtime_path
+  - id: GAP-REAL-LLM-NOT-EXERCISED
+    description: Real LLM mode exists in the mini-multiplan-gate script but is guarded behind PI_DIAG_RUN_REAL_LLM=1 and never runs in CI
+    severity: high
+    blocker_class: real_llm_not_exercised
+  - id: GAP-REAL-DATABASE-NOT-EXERCISED
+    description: State store can use PostgreSQL backend but all CI tests use JSON-fallback or in-memory state store
+    severity: medium
+    blocker_class: real_database_not_exercised
+  - id: GAP-MISSING-NEGATIVE-FAILURE-MODE
+    description: No test validates that the system fails closed when real server, real LLM, or real database are unavailable
+    severity: medium
+    blocker_class: missing_negative_failure_mode
+  - id: GAP-MISSING-ACCP-VALIDATION-REPORT
+    description: The ACCP compiler exists (packages/accp-compiler) but this audit report is the first time generated P50 readiness ACCP reports. No pre-existing P50 validation report exists
+    severity: high
+    blocker_class: missing_accp_validation_report
+  - id: GAP-EVIDENCE-NOT-MACHINE-READABLE
+    description: Test results go to log files and JSON reports but there is no standardized machine-readable evidence artifact format for promotion gating
+    severity: medium
+    blocker_class: missing_machine_readable_evidence
+final_status:
+  verdict: NOT_READY
+  summary: The repo has an extensive test suite with hundreds of unit, integration, and deterministic gauntlet tests. However, there is no true end-to-end test that starts a live server, connects a real LLM agent, and executes a multi-plan task against a live system. The CI runs only npm test (package unit tests). make test and make test-full exist but are not in CI. P45 and P49 scripts exist but many are stubs. The real-agent mini-multiplan gate runs in a separate CI workflow but uses faux providers by default. Real-LLM mode is guarded and never runs in CI. A large multi-plan true e2e test against a live system is the missing critical piece.
+  required_for_promotion:
+    - Live server true e2e with real multi-plan task
+    - Average parallelism measurement on real async path
+    - Centralized gauntlet in CI that includes the strongest tests
+    - Real LLM exercise in CI
+    - ACCP validation report compilation
+    - Promotion gate on real runtime path

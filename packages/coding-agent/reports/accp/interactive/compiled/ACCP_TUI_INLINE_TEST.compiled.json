@@ -1,0 +1,14 @@
+{
+  "status": "failed",
+  "reportId": "UNKNOWN",
+  "reportType": "FCR",
+  "diagnostics": [
+    {
+      "code": "ACCP_SCHEMA_MISSING_REQUIRED_SECTION",
+      "message": "Missing required field: report.id",
+      "severity": "error",
+      "fatal": true
+    }
+  ],
+  "hasBlockingFindings": true
+}

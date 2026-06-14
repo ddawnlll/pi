@@ -1,0 +1,16 @@
+{
+  "reportId": "P49_TRUTH_AUDIT_RAR_001",
+  "reportType": "RAR",
+  "valid": true,
+  "fatalErrors": [],
+  "warnings": [],
+  "blockingFindings": [],
+  "findingCount": 0,
+  "promotionReady": true,
+  "evidenceStatus": "complete",
+  "details": {
+    "planId": "P49",
+    "workspaceId": "P49-TRUTH-AUDIT",
+    "sourceFile": "P49_RAR_GAP_ANALYSIS.accp.yaml"
+  }
+}

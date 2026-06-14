@@ -1,0 +1,45 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_PRR_001
+  type: PRR
+  family: core
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+promotion_decision:
+  ready: false
+  promotion_eligible: false
+  reason: "P49 is NOT promotion-ready. Score: 38.15/100. 3 critical gaps: build fails, P0 gate sanity fails, TUI Tab mode picker contradicted by live evidence. 6 of 13 requirements have source but zero production call sites (dead code). ACCP gate stage excluded from CompletionGateVNext pipeline. Route bus not instantiated in production. PRR contains evidence contradictions."
+  blocking_reasons:
+    - "npm run build fails (exit 1)"
+    - "P0 gate sanity fails (exit 1)"
+    - "P49-R010 (Tab opens ACCP mode picker) contradicted by live TUI evidence"
+    - "P49-R008 (ACCP gate in CompletionGateV2) not wired into production pipeline"
+    - "P49-R005 (AccpRouteBus in production) never instantiated in boot path"
+    - "P49-R003/R004 (InitialRouteIndicator/AccpTaskEnvelope) only in dead code"
+    - "PRR contains evidence contradictions (GC-TUI-PICKER, GC-CG-ACC)"
+  score: 38.15
+  runtime_verified_percent: 0
+  test_only_percent: 7.5
+  dead_code_percent: 13.15
+  missing_percent: 62.35
+  promotion_requirements:
+    - "score >= 90: false (current: 38.15)"
+    - "runtime_verified >= 75: false (current: 0)"
+    - "npm run check exit 0: true"
+    - "npm run build exit 0: false"
+    - "P0 gate sanity PASS: false"
+    - "no critical blockers: false"
+    - "live TUI smoke passes: false"
+    - "CompletionGateV2 consumes ACCP verdict: false"
+recommended_next_phase: "P49.REPAIR"
+recommended_next_fix_scope: "Fix 3 critical gaps: (1) worker-adapters TS build error, (2) P0 gate sanity script, (3) activate accpModePickerEnabled=true. Then wire AccpGate into STAGE_ORDER and instantiate RouteBus."
+estimated_post_fix_score: "~85%"

@@ -1,0 +1,146 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+request_id: "P49_14V_ACCP_VISIBILITY_WIRING_RESEARCH"
+report_type: "RIR"
+report_family: "core"
+report_name: "P49.14V ACCP Visibility Wiring Research"
+support_level: "schema_strict"
+
+accp:
+  version: "2.0.0"
+  request_id: "P49_14V_ACCP_VISIBILITY_WIRING_RESEARCH"
+  phase: "P49.14V"
+  title: "P49.14V — ACCP Visibility Wiring Research"
+  status: "complete"
+  authority: "read_only"
+
+report:
+  executive_summary: >
+    ACCP is wired into the live interactive TUI, but the visibility path is
+    split across multiple gates. The general `--verbose` flag only affects
+    startup and editor behavior; ACCP inline output is controlled by the
+    separate `terminal.verboseAccpOutput` setting. The persistent ACCP result
+    card also depends on an ACCP task envelope that is only created through the
+    mode picker, and the interactive TUI replaces the shared progress-emitter
+    handler installed by AgentSession. That means live events can render, but
+    session-backed completion evidence can stay stale and manual runs can lose
+    the final result card.
+
+  trace:
+    settings_verbose_propagation:
+      finding: "Broken link between startup verbose and ACCP visibility"
+      evidence:
+        - "packages/coding-agent/src/main.ts:752-769 passes parsed.verbose into InteractiveMode."
+        - "packages/coding-agent/src/core/settings-manager.ts:38 and 1165-1174 define terminal.verboseAccpOutput as the ACCP visibility toggle."
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:705-819 and 3061-3223 gate all ACCP chat verbosity on getVerboseAccpOutput()."
+      conclusion: >
+        The traced code does not bridge `parsed.verbose` to `verboseAccpOutput`,
+        so enabling verbose startup output does not, by itself, enable ACCP
+        visibility.
+
+    accp_mode_selection:
+      finding: "Mode picker is wired; footer shows mode state"
+      evidence:
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:6566-6582 creates the ACCP envelope and calls session.setAccpMode()."
+        - "packages/coding-agent/src/modes/interactive/components/footer.ts:111-139 renders a persistent ACCP[off|warn|req] indicator."
+      conclusion: >
+        ACCP mode selection is not the missing link. The mode state reaches the
+        session and the footer renders it persistently.
+
+    manual_execution_path:
+      finding: "Final manual result rendering is gated by accpTaskEnvelope"
+      evidence:
+        - "packages/coding-agent/src/core/agent-session.ts:1213-1239 emits accp_mode_selected, accp_route_indicator, and accp_task_envelope."
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:3034-3038 treats accp_task_envelope as no-op."
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:3243-3297 renders AccpResultComponent only when accpMode != off and accpTaskEnvelope exists, then removes the live status card."
+      conclusion: >
+        Manual interactive runs that never go through the picker can show only
+        transient status updates. The persistent result card is skipped.
+
+    plan_execution_path:
+      finding: "Plan execution is wired to ACCP progress emission"
+      evidence:
+        - "packages/coding-agent/src/core/autonomous-executor.ts:1275-1300 emits compilation-started and persists compiled artifacts through AccpArtifactStore."
+        - "packages/coding-agent/src/core/accp-artifact-store.ts emits compilation-completed, gate-completed, and artifact-written events from save* methods."
+      conclusion: >
+        Plan execution is not bypassing ACCP visibility. It emits progress and
+        writes artifacts; the gap is in how the live TUI consumes and preserves
+        that state.
+
+    main_execution_loop:
+      finding: "AgentSession compiles ACCP before agent_end"
+      evidence:
+        - "packages/coding-agent/src/core/agent-session.ts:822-829 compiles ACCP YAML before emitting agent_end."
+        - "packages/coding-agent/src/core/agent-session.ts:925-974 scans assistant messages, compiles ACCP YAML, and stores the compile path."
+      conclusion: >
+        The main loop does attempt to produce ACCP output for the live TUI; the
+        break is downstream of emission, not in the compile hook itself.
+
+    tui_event_subscription:
+      finding: "InteractiveMode replaces the shared ACCP progress handler"
+      evidence:
+        - "packages/coding-agent/src/core/accp-progress-emitter.ts:111-113 shows set() replaces the entire handler bundle."
+        - "packages/coding-agent/src/core/agent-session.ts:439-500 installs the session-side handler that persists lastAccpCompileResult, lastAccpGateVerdict, and lastAccpArtifactPath."
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:681-823 installs a second handler with getAccpProgressEmitter().set({...})."
+      conclusion: >
+        The live TUI handler is wired, but it overwrites the session-side
+        persistence bridge. That leaves the final result builder dependent on
+        stale session fields.
+
+    tui_render_path:
+      finding: "Live status and result components exist and are mounted from interactive-mode"
+      evidence:
+        - "packages/coding-agent/src/modes/interactive/components/accp-status-component.ts:37-118 renders the collapsible live status card."
+        - "packages/coding-agent/src/modes/interactive/components/accp-result-component.ts:31-129 renders the structured PASS/HOLD/FAIL result card."
+        - "packages/coding-agent/src/modes/interactive/interactive-mode.ts:3041-3204 mounts the live status card on compilation and gate events."
+      conclusion: >
+        The component layer itself is present. The visibility failure is not a
+        missing component implementation.
+
+    accp_report_artifact_generation:
+      finding: "Artifacts are generated, but result surfacing depends on the live TUI path"
+      evidence:
+        - "packages/coding-agent/src/core/agent-session.ts:959-974 writes compiled artifacts during manual-agent ACCP detection."
+        - "packages/coding-agent/src/core/autonomous-executor.ts:1292-1299 persists compiled and route artifacts for plan execution."
+      conclusion: >
+        ACCP artifacts are being written. The user-visible problem is surfacing
+        and persistence, not artifact generation.
+
+    verbose_vs_visibility:
+      finding: "Verbose output is not the same control as ACCP visibility"
+      evidence:
+        - "packages/coding-agent/src/main.ts:762-769 passes only parsed.verbose into InteractiveMode."
+        - "packages/coding-agent/src/core/settings-manager.ts:1165-1174 stores ACCP verbosity separately."
+      conclusion: >
+        ACCP visibility is gated by a dedicated setting, not by the general
+        verbose startup flag.
+
+  findings:
+    - id: "F-001"
+      severity: "high"
+      title: "General verbose does not enable ACCP visibility"
+      evidence:
+        - "main.ts only forwards parsed.verbose"
+        - "ACCP output is gated by terminal.verboseAccpOutput"
+      impact: "Users can enable verbose startup output and still never see ACCP chat diagnostics."
+    - id: "F-002"
+      severity: "high"
+      title: "Manual runs can lose the persistent ACCP result card"
+      evidence:
+        - "result card requires accpTaskEnvelope"
+        - "agent_end removes the live status card unconditionally"
+      impact: "ACCP can appear transiently, then disappear at completion without a durable result."
+    - id: "F-003"
+      severity: "medium"
+      title: "InteractiveMode overwrites the session progress-emitter handler"
+      evidence:
+        - "AgentSession installs persistence for lastAccpCompileResult / lastAccpGateVerdict"
+        - "InteractiveMode replaces the shared emitter handler"
+      impact: "Final evidence fields can remain stale, weakening completion reporting."
+
+  bottom_line: >
+    ACCP visibility is partially wired: live status rendering exists, artifact
+    generation exists, and the footer shows mode state. The missing links are
+    the settings bridge from general verbose to ACCP verbosity, and the
+    completion bridge that keeps the final result card alive and backed by
+    session state.

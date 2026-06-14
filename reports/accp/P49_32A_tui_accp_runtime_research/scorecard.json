@@ -1,0 +1,74 @@
+{
+  "audit_id": "P49_32A_TUI_ACCP_RUNTIME_RESEARCH",
+  "generated_at": "2026-06-14T00:00:00+00:00",
+  "overall_verdict": "PASS",
+  "verification_verdict": "PASS",
+  "promotion_allowed": false,
+  "p50_start_allowed": false,
+  "hard_stops_passed": {
+    "HS-001-NO-PRODUCT-MUTATION": "PASS",
+    "HS-002-NO-IMPLEMENTATION": "PASS",
+    "HS-003-NO-CALLSITE-AS-LIVE-EVIDENCE": "PASS",
+    "HS-004-NO-P50": "PASS"
+  },
+  "scoring": {
+    "total": 100,
+    "categories": {
+      "boot_path_mapped": {
+        "weight": 15,
+        "score": 15,
+        "evidence": "InteractiveMode boot path traced from main.ts:762. P0 smoke gap identified. accpModePickerEnabled defaulting confirmed in constructor."
+      },
+      "render_surfaces_mapped": {
+        "weight": 15,
+        "score": 15,
+        "evidence": "Footer, header, chat container, status container, overlay all identified. AccpStatusView/AccpDiagnosticsView confirmed unwired."
+      },
+      "keybindings_mapped": {
+        "weight": 10,
+        "score": 10,
+        "evidence": "Tab dual routing (app.accp.modePicker vs tui.input.tab), Ctrl+P model cycle, @ file completion, app.filePicker gesture all mapped."
+      },
+      "accp_visibility_design_complete": {
+        "weight": 20,
+        "score": 20,
+        "evidence": "Full 13-state visibility model designed. ACCP result rendering design complete (footer + status + dedicated events). Distinction from normal results documented."
+      },
+      "live_test_design_complete": {
+        "weight": 20,
+        "score": 20,
+        "evidence": "Enhanced TUI integration test design complete. VirtualTerminal + InteractiveMode + AgentSession harness. Event trace + screen capture + hash chain proof."
+      },
+      "implementation_file_map_complete": {
+        "weight": 10,
+        "score": 10,
+        "evidence": "Exact files to modify (4 files), files to create (1 test), exact insertion points. accpModePickerEnabled defaulting location confirmed."
+      },
+      "risks_and_blockers_identified": {
+        "weight": 10,
+        "score": 10,
+        "evidence": "5 risks assessed (medium/low/info). 0 blockers. VirtualTerminal accuracy and extension loading risks documented."
+      }
+    },
+    "total_score": 100
+  },
+  "held_gates": [],
+  "failed_gates": [],
+  "machine_summary": {
+    "P49.32A_verdict": "PASS",
+    "TUI_boot_path_mapped": "interactive-mode.ts:365 (constructor), main.ts:762 (instantiation). P0 smoke uses Editor-only path, not InteractiveMode.",
+    "ACCP_hint_render_surface_identified": "FooterComponent (footer.ts) line 1 or new ACCP line. Optional startup header ExpandableText for Tab hint.",
+    "ACCP_mode_status_render_surface_identified": "FooterComponent — add persistent ACCP mode line with theme styling. AccpStatusView renderer exists but unwired.",
+    "ACCP_result_render_surface_identified": "chatContainer via showStatus() for transient results. Footer for persistent gate status. AccpDiagnosticsView for details.",
+    "Tab_picker_path_mapped": "Tab -> CustomEditor.handleInput() -> app.accp.modePicker action -> showAccpModePicker() -> AccpModePicker overlay. Default keys: 'tab'.",
+    "file_picker_at_Ctrl+P_path_mapped": "@ -> CombinedAutocompleteProvider file completion. Ctrl+P -> app.model.cycleForward (model cycling). app.filePicker exists with defaultKeys [].",
+    "InitialRouteIndicator_live_proof_design_ready": "Emit 'accp_route_indicator' AgentSessionEvent from showAccpModePicker(). TUI test subscribes and asserts.",
+    "AccpTaskEnvelope_live_proof_design_ready": "Emit 'accp_task_envelope' AgentSessionEvent from showAccpModePicker(). TUI test asserts session.accpTaskEnvelope is set.",
+    "enhanced_TUI_integration_test_design_ready": "InteractiveMode + VirtualTerminal + harness.ts boot. Tab send. Screen capture. Event trace. Hash chain. All assertions defined.",
+    "implementation_file_map_ready": "Modify: interactive-mode.ts, footer.ts, agent-session.ts, keybindings.ts. Create: test/suite/regressions/49-32a-accp-live-tui.test.ts",
+    "blocked_items": "None. All infrastructure exists. Implementation is additive.",
+    "onefile_report_path": "reports/accp/P49_32A_tui_accp_runtime_research/onefile.tui-research.accp.yaml",
+    "scorecard_path": "reports/accp/P49_32A_tui_accp_runtime_research/scorecard.json",
+    "next_recommended_phase": "P49.32B — TUI ACCP Live Integration and Visibility Implementation: wire ACCP mode display in footer, wire PASS/HOLD/FAIL rendering, emit session events, create enhanced integration test, verify IVG-005/IVG-006 pass."
+  }
+}

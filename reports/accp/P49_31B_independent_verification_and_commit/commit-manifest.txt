@@ -1,0 +1,43 @@
+# P49.31 Commit Manifest
+# Generated during P49.31B independent verification
+# Only includes verified P49.31 repair files
+
+# PlanSpec amendment
+docs/P49_accp_v2_native_route_bus_implementation_plan.planspec.json
+
+# CompletionGate vNext wiring
+packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts
+packages/coding-agent/src/core/completion/completion-gate-vnext.ts
+packages/coding-agent/src/core/accp-gate-stage-runner.ts
+
+# ExecutionKernel ACCP awareness
+packages/coding-agent/src/execution-runtime/completion-predicate.ts
+
+# Worker adapter bridge
+packages/worker-adapters/src/local-pi-worker-adapter.ts
+packages/worker-adapters/src/accp-bridge.ts
+packages/worker-adapters/src/evidence-extractors.ts
+packages/execution-contracts/src/worker-adapter.ts
+
+# TUI mode picker boot
+packages/coding-agent/src/modes/interactive/interactive-mode.ts
+
+# RouteBus production instantiation
+packages/coding-agent/src/core/agent-session.ts
+
+# ArtifactStore wiring
+packages/coding-agent/src/core/autonomous-executor.ts
+
+# Evidence Engine cap rules
+packages/coding-agent/src/core/completion/evidence-engine-cap-rules.ts
+
+# Verification harness
+scripts/p49-strict-runtime-verification.mjs
+scripts/p49-truth-audit.mjs
+package.json
+
+# P49.31 reports and evidence
+reports/accp/P49_31_strict_runtime_wiring_repair/scorecard.json
+reports/accp/P49_31_strict_runtime_wiring_repair/evidence/onefile.evidence.json
+reports/accp/P49_31_strict_runtime_wiring_repair/evidence/strict-runtime-verification.json
+reports/accp/P49_31_strict_runtime_wiring_repair/source/P49_31_PRR.accp.yaml

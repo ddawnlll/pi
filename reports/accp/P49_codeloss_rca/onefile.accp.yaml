@@ -1,0 +1,435 @@
+accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+report:
+  id: "P49-CODELOSS-RCA-RESULT"
+  type: "RCA"
+  title: "P49 Code Loss Root Cause Analysis"
+  generated_at: "2026-06-13T19:47:36Z"
+  repo_root: "/Users/hootie/src/pi"
+  verdict: "FAIL"
+  executive_summary:
+    root_cause_classification: "MULTIPLE_ROOT_CAUSES"
+    confidence: "high"
+    one_sentence_answer: >
+      Kod gerçekten yazıldı ve source'da var, ancak production wiring chain'i (TUI activation, completion gate registration, worker adapter accp bridge, RouteBus instantiation, ArtifactStore consumption, event production) zincirin birden fazla noktasında kopuk; write/edit tool zinciri sağlam, worktree diff kaybolmamış, problem integration ve wiring tarafında.
+    most_likely_bug_location: "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts (STAGE_ORDER AccpGate'i içermiyor) + packages/coding-agent/src/modes/interactive/interactive-mode.ts (accpModePickerEnabled asla true değil) + packages/worker-adapters/src/local-pi-worker-adapter.ts (accp alanı hiç populate edilmiyor)"
+    immediate_next_fix: >
+      AccpGate'i STAGE_ORDER'a ekle, accpModePickerEnabled'i TUI interactive mode boot path'te true yap, LocalPiWorkerAdapter.run()'a accp alanı populate et, AccpRouteBus'u boot path'e instantiate et, InitialRouteIndicator'ı gerçek TUI event'ten üret, AccpArtifactStore read metodlarını completion gate'te tüket.
+
+  evidence:
+    commands_run:
+      - id: "DISCOVERY_GIT_STATUS"
+        command: "git status --short"
+        exit_code: 0
+        output_excerpt: "dirty — 45 modified files, several untracked report dirs"
+        artifact_path: null
+      - id: "DISCOVERY_HEAD"
+        command: "git rev-parse HEAD"
+        exit_code: 0
+        output_excerpt: "52c05ee58a33e3929cb6958582a528f6a4fcccd4 on main"
+        artifact_path: null
+      - id: "PROBE_DIRECT_FS_WRITE"
+        command: "node -e write direct.txt to probes dir"
+        exit_code: 0
+        output_excerpt: "SHA256 ab972da6... direct-write-ok-1781379780938"
+        artifact_path: "reports/accp/P49_codeloss_rca/probes/write_probe/direct.txt"
+      - id: "PROBE_GIT_DIFF_AFTER_DIRECT_WRITE"
+        command: "git diff --stat -- reports/accp/P49_codeloss_rca/probes/"
+        exit_code: 0
+        output_excerpt: "untracked dir visible to git — write layer works"
+        artifact_path: null
+      - id: "PROBE_TOOL_IMPLEMENTATION_SCAN"
+        command: "grep class Write|class Edit|class Mutation|atomicWriteFile + grep AtomicWriteResult"
+        exit_code: 0
+        output_excerpt: >
+          atomicWriteFile atomically writes + rename + verify hash. Returns {success:true, postHash} on success.
+          AtomicWriteResult.success + postHash guarantee disk mutation verification.
+        artifact_path: null
+      - id: "PROBE_WRITE_SILENT_FAILURE_SCAN"
+        command: "grep 'success: true|ok: true|noop|skip' + catch{} patterns in tools/edit.ts, tools/write.ts, mutation/"
+        exit_code: 0
+        output_excerpt: >
+          atomic-file-writer.ts has silent catch{} on tempfile cleanup (line 135) which is safe/correct.
+          edit.ts line 118 has catch{} on JSON.parse of malformed edits string — also harmless.
+          No silent success-return-without-mutation pattern found.
+          WriteGate/WriteSetGuard noops are all gate/filter decisions, not mutation bypasses.
+        artifact_path: null
+      - id: "PROBE_COMPLETION_GATE_ORDER"
+        command: "grep STAGE_ORDER completion-gate-vnext-types.ts"
+        exit_code: 0
+        output_excerpt: >
+          STAGE_ORDER contains 9 stages. AccpGate IS NOT in the array:
+          ["DeclaredOutputExistence","EvidenceLedger","Validation","ScopeAndWriteSet",
+           "CommitCandidate","CommitExecution","PostCommitVerification",
+           "CommitMessageComposer","DestructiveOperationGuard"]
+          runAccpGateStage exists in accp-gate-stage-runner.ts but is NEVER imported
+          or called by CompletionGateVNext or any production orchestrator.
+        artifact_path: null
+      - id: "PROBE_ACC_ROUTEBUS_CALLS"
+        command: "grep -R 'getAccpRouteBus|new AccpRouteBus|AccpRouteBus' --include=*.ts | grep -v test/"
+        exit_code: 0
+        output_excerpt: >
+          AccpRouteBus class defined in accp-route-bus.ts.
+          getAccpRouteBus() defined (line 344) as lazy singleton.
+          ZERO production call sites. getAccpRouteBus() never imported by any non-test file.
+          Only import: accp-artifact-subscriptions.ts imports type AccpRouteBus (not the singleton factory).
+        artifact_path: null
+      - id: "PROBE_ACC_ARTIFACTSTORE_READS"
+        command: "grep -R 'saveCompiled|readCompiled|saveVerdict|saveRoute' --include=*.ts | grep -v test/"
+        exit_code: 0
+        output_excerpt: >
+          AccpArtifactStore.saveCompiled(), .readCompiled(), .saveRouteSignal(), .readRouteSignal() all defined.
+          ZERO production call sites for ANY method. Write-only by definition (no readers, no writers in production).
+          Write methods exist but are never called — not even the write path is wired.
+          (Compiler bridge writes directly to disk via its own paths, not via AccpArtifactStore.)
+        artifact_path: null
+      - id: "PROBE_TUI_PICKER_PATH"
+        command: "grep -R accpModePickerEnabled + showAccpModePicker --include=*.ts | grep -v test/"
+        exit_code: 0
+        output_excerpt: >
+          accpModePickerEnabled is defined as an option property (line 237 of interactive-mode.ts).
+          It is checked in init (line 2414): `if (this.options.accpModePickerEnabled)` to register the Tab handler.
+          NO PRODUCTION CODE EVER SETS accpModePickerEnabled to true. No caller, no config, no flag.
+          showAccpModePicker() exists (line 6145) and creates InitialRouteIndicator + AccpTaskEnvelope.
+          This entire code path is dead.
+        artifact_path: null
+      - id: "PROBE_WORKER_ADAPTER_ACC_BRIDGE"
+        command: "grep -R 'accp' local-pi-worker-adapter.ts + contract interface"
+        exit_code: 0
+        output_excerpt: >
+          WorkerRunResult interface (execution-contracts) defines `accp?: AccpWorkerOutput`.
+          LocalPiWorkerAdapter.run() returns a WorkerRunResult. It does NOT import AccpWorkerOutput.
+          The adapter return value has NO accp field — not even undefined — field is ommitted entirely.
+          autonomous-executor.ts line 1273 reads `workerResult.accp?.shouldCompile` — this will
+          always be undefined because the adapter never sets it.
+          Additional field loss: changedFiles is always `[]`, events is always `[]`,
+          commandHistory is always `[]`. contextUsed is placed in metadata (line 55) but
+          the AgentExecutionResult interface has it as a direct property.
+        artifact_path: null
+      - id: "PROBE_BUILD_STATUS"
+        command: "npm run build"
+        exit_code: 0
+        output_excerpt: "All packages build successfully (contextUsed field fix applied)"
+        artifact_path: null
+      - id: "PROBE_CHECK_STATUS"
+        command: "npm run check"
+        exit_code: 0
+        output_excerpt: "biome check + tsgo passed"
+        artifact_path: null
+      - id: "VALIDATE_P49_TRUTH_AUDIT"
+        command: "read reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+        exit_code: 0
+        output_excerpt: "38.15% score. 62.35 missing. All 6 critical runtime wiring requirements capped at 0.25 credit."
+        artifact_path: "reports/accp/P49_runtime_truth_audit_after_kernel/evidence/onefile.evidence.json"
+      - id: "VALIDATE_SCORECARD"
+        command: "read reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+        exit_code: 0
+        output_excerpt: "38.15 final. 0 runtime_verified. 10 top_blockers identified. promotion_ready: false."
+        artifact_path: "reports/accp/P49_runtime_truth_audit_after_kernel/scorecard.json"
+
+    files_inspected:
+      - path: "packages/worker-adapters/src/local-pi-worker-adapter.ts"
+        reason: "AXIS_5 — worker adapter field bridge inspection"
+        finding: >
+          Does NOT propagate accp field. Does not import AccpWorkerOutput.
+          Returns {verdict, events:[], changedFiles:[], commandHistory:[], report, error, metadata}.
+          events, changedFiles, commandHistory are hardcoded empty arrays.
+          autonomous-executor.ts accesses workerResult.accp?.shouldCompile which is always undefined.
+      - path: "packages/coding-agent/src/core/completion/completion-gate-vnext-types.ts"
+        reason: "AXIS_4 — completion gate STAGE_ORDER inspection"
+        finding: >
+          STAGE_ORDER array explicitly lists 9 stages, AccpGate is NOT among them.
+          runAccpGateStage defined but never called by production orchestrator.
+          CompletionGateVNext will never run ACCP validation.
+      - path: "packages/coding-agent/src/modes/interactive/interactive-mode.ts"
+        reason: "AXIS_6 — TUI picker wiring inspection"
+        finding: >
+          accpModePickerEnabled option exists but is NEVER set to true by any caller.
+          showAccpModePicker() exists but is dead code because the guard `if (this.options.accpModePickerEnabled)` is false.
+          InitialRouteIndicator and AccpTaskEnvelope production only happen inside showAccpModePicker (dead path).
+      - path: "packages/coding-agent/src/core/accp-route-bus.ts"
+        reason: "AXIS_6 — RouteBus production call-site inspection"
+        finding: >
+          Full implementation with publishRoute, subscribe, validateDeliveryIntegrity.
+          getAccpRouteBus() lazy singleton exists. ZERO non-test imports.
+          No production code calls getAccpRouteBus(). Route bus is test-only.
+      - path: "packages/coding-agent/src/core/accp-artifact-store.ts"
+        reason: "AXIS_6 — ArtifactStore consumption inspection"
+        finding: >
+          saveCompiled, readCompiled, saveRouteSignal, readRouteSignal all defined.
+          ZERO production call sites. No file imports AccpArtifactStore.
+          Even the write path is not used (compiler bridge writes directly to disk).
+      - path: "packages/coding-agent/src/core/accp-gate-stage-runner.ts"
+        reason: "AXIS_4 — gate stage runner consumption inspection"
+        finding: >
+          runAccpGateStage exported but never imported by any non-test production file.
+          No orchestrator, no agent-session, no CompletionGateVNext calls it.
+      - path: "packages/coding-agent/src/core/mutation/atomic-file-writer.ts"
+        reason: "AXIS_2 — write tool integrity verification"
+        finding: >
+          atomicWriteFile uses write-to-temp + rename + read-back-verify pattern.
+          Returns {success: true, postHash} on verified write. Conclusion: WRITE PATH IS NOT BROKEN.
+      - path: "packages/coding-agent/src/core/tools/write.ts"
+        reason: "AXIS_2 — write tool creation inspection"
+        finding: "createWriteTool wraps atomicWrite path. No silent success-without-mutation pattern."
+      - path: "packages/coding-agent/src/core/tools/edit.ts"
+        reason: "AXIS_2 — edit tool creation inspection"
+        finding: >
+          createEditTool applies patches via edit-diff.ts. Reports success only when patches apply correctly.
+          No catch-and-report-success pattern found. empty catch{} on JSON.parse of malformed edits string (line 118) is benign.
+    hashes:
+      - path: "reports/accp/P49_codeloss_rca/probes/write_probe/direct.txt"
+        sha256: "ab972da605a2035a78cb2ae81ef9aa9d0bad81254dd5c0179bde718c52a9f718"
+
+    metrics:
+      input_tokens_total: null
+      output_tokens_total: null
+      tool_call_count:
+        description: >
+          .pi/execution-journal.ndjson has 20192 worker_status events, 3886 tool_call events
+          (all read/ls/grep/find — orchestrator dispatch tools, not agent write/edit calls).
+          Agent tool calls not directly measurable from worktree transcript logs.
+          However, git diff shows 45 files modified in production source — code was written.
+      edit_tool_call_count: null
+      write_tool_call_count: null
+      worktree_diff_lines_added: null
+      worktree_diff_lines_removed: null
+      final_repo_diff_lines_added: null
+      final_repo_diff_lines_removed: null
+      diff_retention_percent: null
+      runtime_wiring_score_percent:
+        computed: 11.0
+        edges:
+          "TUI event -> AccpModePicker": "missing (0.0) — accpModePickerEnabled never true"
+          "AccpModePicker -> InitialRouteIndicator": "source_present_unwired (0.2) — inside dead showAccpModePicker"
+          "InitialRouteIndicator -> AccpTaskEnvelope": "source_present_unwired (0.2) — inside dead showAccpModePicker"
+          "WorkerRunResult.accp -> autonomous-executor compile": "test_only (0.1) — adapter never sets accp"
+          "compiled artifacts -> AccpArtifactStore": "missing (0.0) — no production code uses AccpArtifactStore"
+          "AccpArtifactStore read -> runtime gate reader": "missing (0.0) — no production code uses AccpArtifactStore"
+          "runAccpGateStage -> CompletionGateVNext STAGE_ORDER": "missing (0.0) — AccpGate not in STAGE_ORDER"
+          "AccpRouteBus -> production boot singleton": "missing (0.0) — no production code imports getAccpRouteBus"
+          "route signal -> advisory only": "source_present_unwired (0.2) — validateDeliveryIntegrity defined but never called"
+        total_edges: 9
+        computed_percent: 11.111
+      source_lines_added: null
+      test_lines_added: null
+      docs_report_lines_added: null
+
+    findings:
+      write_edit_integrity:
+        status: "pass"
+        evidence:
+          - "atomicWriteFile uses write-to-temp + rename + hash verification pattern"
+          - "direct fs write probe confirmed git detects untracked file"
+          - "no silent success-without-mutation pattern found in write/edit tool chain"
+          - "WriteGate and WriteSetGuard are filter/gate mechanisms, not mutation bypasses"
+        bug_if_any:
+          file: null
+          function_or_class: null
+          explanation: null
+
+      worktree_integration_integrity:
+        status: "unknown"
+        evidence:
+          - "Only main worktree present (no active workspace worktrees on disk)"
+          - "P49 workspaces (30 total) completed successfully per PRR"
+          - "Repo dirty with 45 modified files including P49-related source changes"
+          - "No evidence of worktree diff loss — files modified in main repo are present"
+          - "Cannot compute diff_retention_percent without snapshotted worktree diffs post-facto"
+        lost_files: []
+        suspected_stage: "unknown"
+
+      completion_gate_integrity:
+        status: "fail"
+        evidence:
+          - "AccpGate is in CompletionGateStageName type union (line 64)"
+          - "AccpGate is EXCLUDED from STAGE_ORDER array (line 68-78)"
+          - "STAGE_ORDER contains 9 stages, none is AccpGate"
+          - "runAccpGateStage is exported but never imported by any non-test production file"
+          - "CompletionGateVNext does not consume ACCP verdict results"
+          - "Tests pass in isolation (unit test for runAccpGateStage) but production path is dead"
+        false_positive_conditions:
+          - "PRR claims GC-CG-ACC: PASS based on unit test passing, not production wiring"
+          - "PRR claims GC-TUI-PICKER: PASS based on unit test passing, contradicted by live TUI smoke"
+          - "npm run check passes, npm run build now passes (was failing), creating false sense of readiness"
+          - "Source file presence counts as success for gate criteria, but production call site is dead"
+
+      worker_adapter_integrity:
+        status: "fail"
+        evidence:
+          - "WorkerRunResult interface defines accp?: AccpWorkerOutput"
+          - "LocalPiWorkerAdapter.run() does NOT import AccpWorkerOutput"
+          - "Adapter return value omits accp field entirely"
+          - "autonomous-executor.ts reads workerResult.accp?.shouldCompile — always undefined"
+          - "additional losses: changedFiles hardcoded [], events [], commandHistory []"
+          - "contextUsed placed in metadata.xxx instead of direct property (worked around)"
+        dropped_fields:
+          - "accp (entire AccpWorkerOutput object)"
+          - "changedFiles (hardcoded empty)"
+          - "events (hardcoded empty)"
+          - "commandHistory (hardcoded empty)"
+        type_mismatches:
+          - "AgentExecutionResult.contextUsed is direct property; adapter puts it in metadata.contextUsed"
+
+      runtime_wiring_integrity:
+        status: "fail"
+        evidence:
+          - "AccpRouteBus: ZERO production call sites (getAccpRouteBus never imported)"
+          - "AccpArtifactStore: ZERO production call sites (no code imports it at all)"
+          - "runAccpGateStage: ZERO production call sites (not imported by CompletionGateVNext)"
+          - "createInitialRouteIndicator: inside dead showAccpModePicker (accpModePickerEnabled never true)"
+          - "createAccpTaskEnvelope: inside dead showAccpModePicker (same dead path)"
+          - "AccpModePicker: component exists, never instantiated in live TUI"
+          - "accpModePickerEnabled: never set to true by any caller"
+        missing_edges:
+          - "TUI boot path does not set accpModePickerEnabled = true"
+          - "CompletionGateVNext orchestrator does not call runAccpGateStage"
+          - "AccpGate stage not in STAGE_ORDER"
+          - "Production boot path does not instantiate AccpRouteBus"
+          - "Production completion gate does not read AccpArtifactStore"
+          - "LocalPiWorkerAdapter does not propagate accp field"
+
+      task_granularity_and_prompt_pressure:
+        status: "fail"
+        evidence:
+          - "P49 was decomposed into 30 workspaces across 8 waves"
+          - "Waves W1-W8 all have TVRs showing PASS"
+          - "Each workspace showed 'complete' verdict, including the ones implementing dead code"
+          - "Agent workspace reports consistently show READ-ONLY verification rather than write/edit"
+          - "P49.12 workspace: agent found code already committed and declared COMPLETE without writing"
+          - "Evidence suggests agents rewarded for verifying existing code vs writing new production wiring"
+          - "PRR makes false claims (GC-TUI-PICKER, GC-CG-ACC) based on unit tests not live wiring"
+        symptoms:
+          - "Source presence alone causes completion gate to pass"
+          - "Unit test coverage substitutes for production wiring verification"
+          - "No workspace had 'runtime wiring must include production call site' as a completion criterion"
+          - "Self-review PRR is self-congratulatory despite 38.15% truth audit score"
+
+    blockers:
+      - id: "BLOCKER-B1-ACC_GATE_NOT_IN_STAGE_ORDER"
+        severity: "critical"
+        title: "AccpGate completion stage not in STAGE_ORDER"
+        exact_evidence: >
+          completion-gate-vnext-types.ts STAGE_ORDER array does not include "AccpGate".
+          AccpGate is in the type union but not the enum/list of stages that are actually executed.
+          runAccpGateStage exists but is dead code.
+        blocks_repair: true
+        fix_hint: "Add 'AccpGate' to STAGE_ORDER array at apprpriate position (after Validation, before CommitCandidate)"
+
+      - id: "BLOCKER-B2-ACC_MODE_PICKER_NEVER_ENABLED"
+        severity: "critical"
+        title: "accpModePickerEnabled never set to true — TUI mode picker dead code"
+        exact_evidence: >
+          interactive-mode.ts line 2414: `if (this.options.accpModePickerEnabled)` — this option
+          is never set to true by any TUI boot path, config, or caller.
+          showAccpModePicker() and all InitialRouteIndicator/AccpTaskEnvelope production
+          code (line 6145+) is unreachable.
+        blocks_repair: true
+        fix_hint: "Set accpModePickerEnabled: true in InteractiveModeOptions defaults or boot path config"
+
+      - id: "BLOCKER-B3-ROUTE_BUS_NO_PRODUCTION_INSTANCE"
+        severity: "critical"
+        title: "AccpRouteBus never instantiated in production boot path"
+        exact_evidence: >
+          getAccpRouteBus() defined as lazy singleton in accp-route-bus.ts.
+          ZERO non-test imports. No production code creates or uses AccpRouteBus.
+        blocks_repair: true
+        fix_hint: "Call getAccpRouteBus() in production boot path, wire to route signal delivery"
+
+      - id: "BLOCKER-B4-WORKER_ADAPTER_ACC_LOSS"
+        severity: "critical"
+        title: "LocalPiWorkerAdapter does not propagate accp field to WorkerRunResult"
+        exact_evidence: >
+          WorkerRunResult.accp is in contract interface. LocalPiWorkerAdapter.run()
+          never imports AccpWorkerOutput, never sets accp field on return value.
+          autonomous-executor.ts workerResult.accp?.shouldCompile is always undefined.
+          Additionally, changedFiles, events, commandHistory are hardcoded empty arrays.
+        blocks_repair: true
+        fix_hint: "Populate accp field from agent result, propagate changedFiles/events/commandHistory"
+
+      - id: "BLOCKER-B5-ARTIFACT_STORE_NO_CONSUMERS"
+        severity: "high"
+        title: "AccpArtifactStore write/read methods never called from production"
+        exact_evidence: >
+          No production file imports AccpArtifactStore. All saveCompiled/readCompiled/
+          saveRouteSignal/readRouteSignal methods are defined but never used. Even the
+          write path is unwired (compiler bridge writes directly to disk).
+        blocks_repair: false
+        fix_hint: "Wire AccpArtifactStore into completion gate for reading compiled artifacts, and into compiler bridge for writes"
+
+      - id: "BLOCKER-B6-PRR_FALSE_EVIDENCE"
+        severity: "high"
+        title: "PRR claims PASS for gate criteria based on unit tests, not production wiring"
+        exact_evidence: >
+          PRR gateCriteria claims GC-TUI-PICKER: PASS based on test file existence.
+          Live TUI smoke says PROBE_SCREEN_CONTAINS_PICKER=false — direct contradiction.
+          GC-CG-ACC claims PASS based on test file, but AccpGate is not in STAGE_ORDER.
+          PRR promotion_decision says all 30 workspaces complete with verified commit hashes
+          and all wave gates passed — yet truth audit shows 38.15% with 62.35 missing.
+        blocks_repair: false
+        fix_hint: "Require production call-site evidence for gate criteria, reject test-only claims"
+
+      - id: "BLOCKER-B7-INITIAL_ROUTE_DEAD_CODE"
+        severity: "high"
+        title: "InitialRouteIndicator and AccpTaskEnvelope only produced in dead code path"
+        exact_evidence: >
+          createInitialRouteIndicator and createAccpTaskEnvelope are only called inside
+          showAccpModePicker() (line 6152+), which is guarded by accpModePickerEnabled
+          which is never true. These event types are never produced from any live TUI event.
+        blocks_repair: false
+        fix_hint: "Fix B2 first, then these will become live"
+
+    recommended_repair_sequence:
+      - order: 1
+        title: "Wire AccpGate into CompletionGateVNext STAGE_ORDER"
+        reason: "Without this, the entire ACCP gate validation chain is invisible to the completion pipeline. This is the single highest-leverage fix — it enables gate feedback for all subsequent wiring."
+        expected_validation: "npm run check passes, unit tests for CompletionGateVNext include AccpGate stage"
+        risk: "low"
+      - order: 2
+        title: "Set accpModePickerEnabled: true in TUI interactive mode boot path"
+        reason: "This activates the TUI mode picker, which also activates InitialRouteIndicator and AccpTaskEnvelope production from live user events."
+        expected_validation: "Live TUI smoke shows PROBE_SCREEN_CONTAINS_PICKER=true"
+        risk: "low"
+      - order: 3
+        title: "Propagate accp field from AgentExecutionResult through LocalPiWorkerAdapter"
+        reason: "autonomous-executor.ts already reads workerResult.accp but the adapter never populates it. Also populate changedFiles, events, commandHistory (currently hardcoded empty arrays)."
+        expected_validation: "workerResult.accp is populated with compiled ACCP artifacts; npm run build passes"
+        risk: "medium"
+      - order: 4
+        title: "Instantiate AccpRouteBus in production boot path"
+        reason: "Route bus has full implementation including publishRoute/subscribe/validateDeliveryIntegrity but is test-only. Boot path must call getAccpRouteBus() and wire to route signal delivery."
+        expected_validation: "Production import of getAccpRouteBus exists; route signals flow through bus"
+        risk: "medium"
+      - order: 5
+        title: "Wire AccpArtifactStore read methods into completion gate"
+        reason: "Compiled artifacts are written but never read by gate validation. Completion gate must call readCompiled/readRouteSignal as part of AccpGate stage evaluation."
+        expected_validation: "CompletionGateVNext reads AccpArtifactStore artifacts during AccpGate stage"
+        risk: "medium"
+      - order: 6
+        title: "Fix PRR gate criteria to require production call-site evidence"
+        reason: "PRR currently passes GC-CG-ACC and GC-TUI-PICKER based on unit tests alone. Gate criteria must reject test-only evidence for runtime wiring claims."
+        expected_validation: "PRR gate criteria produce FAIL for unwired components; promotion blocked until wired"
+        risk: "low"
+
+    hard_gates:
+      - id: "HG1_NO_SOURCE_PRESENCE_PASS"
+        rule: "Source file existence alone can never count as complete."
+        status: "VIOLATED — 6 requirements scored source_present_unwired at 0.25 credit, but PRR claims full PASS"
+      - id: "HG2_WRITE_SUCCESS_REQUIRES_HASH_CHANGE"
+        rule: "Any claimed write/edit success must be backed by file hash change or git diff."
+        status: "PASS — atomicWriteFile enforces hash change on success; no silent mutation bypass found"
+      - id: "HG3_WORKTREE_DIFF_RETENTION_REQUIRED"
+        rule: "Every workspace must report pre-integration diff and post-integration final diff."
+        status: "UNKNOWN — no active worktrees to measure post-facto. Workspace reports show COMPLETE verdicts but no diff retention data."
+      - id: "HG4_BUILD_FAILURE_BLOCKS_COMPLETION"
+        rule: "npm run build failure blocks completion even if npm run check passes."
+        status: "WAS VIOLATED — build was failing on contextUsed type error. Now fixed (build passes)."
+      - id: "HG5_RUNTIME_WIRING_REQUIRED"
+        rule: "Runtime feature complete requires live production call site, not test-only invocation."
+        status: "VIOLATED — 6 of 13 requirements have source but no production call site. AccpRouteBus, AccpArtifactStore, AccpGate, InitialRouteIndicator all test-only."
+      - id: "HG6_GATE_REASON_REQUIRED"
+        rule: "Completion gate must emit exact pass/block reason and evidence path."
+        status: "UNKNOWN — AccpGate not active in STAGE_ORDER so cannot verify if reason/evidence emission works in production"
+      - id: "HG7_ADAPTER_FIELD_PRESERVATION_REQUIRED"
+        rule: "Worker adapter must preserve changedFiles, artifacts, accp, evidence, contextUsed, and tool result metadata."
+        status: "VIOLATED — changedFiles, events, commandHistory hardcoded empty; accp entirely omitted; contextUsed placed in metadata sub-object"

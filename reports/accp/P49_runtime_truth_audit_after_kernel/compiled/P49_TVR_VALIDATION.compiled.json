@@ -1,0 +1,14 @@
+{
+  "status": "compiled_with_warnings",
+  "reportId": "P49_TRUTH_AUDIT_TVR_001",
+  "reportType": "TVR",
+  "diagnostics": [
+    {
+      "code": "ACCP_SCHEMA_FAMILY_TYPE_MISMATCH",
+      "message": "Report family \"feature\" does not match canonical family \"core\" for type \"TVR\"",
+      "severity": "warning",
+      "fatal": false
+    }
+  ],
+  "hasBlockingFindings": false
+}

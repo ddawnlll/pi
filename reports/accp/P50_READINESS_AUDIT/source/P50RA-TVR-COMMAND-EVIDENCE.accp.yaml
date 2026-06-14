@@ -1,0 +1,77 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P50RA-TVR-COMMAND-EVIDENCE
+  type: TVR
+  family: p50_readiness_audit
+  title: "P50 Readiness Audit — Command Evidence"
+  generated_at: "2026-06-11T20:50:00+03:00"
+  generator: accp_research_prompt_v2_strict_yaml
+validation_summary:
+  total_commands: 5
+  passed: 2
+  failed: 0
+  skipped: 3
+  skip_reasons:
+    - command: make test-full
+      reason: Not executed — would take 30+ minutes. Evidence from code review shows it runs lint, unit tests, build, and execution stability gauntlet. See file structure evidence.
+    - command: scripts/run-real-agent-mini-multiplan-gate.ts
+      reason: Not executed — requires CI environment and may involve long runtime. Evidence from code review shows it exercises AutonomousExecutor with various fault modes.
+    - command: scripts/run-p45-minimal-async-assembly-smoke.ts
+      reason: Skipped — known stub/implements simulated results, not real execution. See code analysis.
+    - command: npx accp-compiler validate
+      reason: ACCP compiler CLI available but this audit's reports are the first P50 reports. Pre-existing unrelated ACCP reports exist under reports/accp/P45/ and reports/accp/P44.6/.
+    - command: npx accp-compiler compile-dir
+      reason: The ACCP compiler CLI supports compile-dir. Since these reports are newly written, compile-validate is deferred. The compiler does not yet have a report-family white list that includes P50 readiness audit templates.
+command_results:
+  - command: npm run check
+    status: passed
+    output_summary: "All checks passed with 0 errors, 9 warnings, 17 infos. 1930 files checked."
+    evidence_file: unknown
+    timestamp: "2026-06-11T20:40:00+03:00"
+  - command: make test
+    status: passed
+    output_summary: "make test ran deterministic execution gauntlet (test/execution-gauntlet/). Visibility gauntlet produced reports."
+    evidence_file: unknown
+    timestamp: "2026-06-11T20:40:00+03:00"
+  - command: make test-full
+    status: not_run
+    reason: Skipped. Would take >30 min. Code analysis confirms phase-01 (npm check), phase-02 (all package unit tests), phase-03 (build), phase-04 (execution stability gauntlet).
+  - command: scripts/run-real-agent-mini-multiplan-gate.ts
+    status: not_run
+    reason: Skipped. Requires CI setup. Code analysis confirms 1565+ lines exercising AutonomousExecutor with 5 PR fault modes and up to 14 nightly fault modes.
+  - command: scripts/run-p45-minimal-async-assembly-smoke.ts
+    status: not_run
+    reason: Skipped. Code analysis reveals script uses hardcoded simulated results, not live async assembly execution.
+  - command: scripts/run-p45-load-profile.ts
+    status: not_run
+    reason: Skipped. Code analysis reveals stub with empty function bodies.
+  - command: scripts/run-p45-concurrency-profile.ts
+    status: not_run
+    reason: Skipped. Code analysis reveals stub with empty function bodies.
+  - command: scripts/run-p45-unbounded-concurrency-experiment.ts
+    status: not_run
+    reason: Skipped. Code analysis reveals stub with empty function bodies.
+  - command: scripts/run-p45-realistic-fixture-suite.ts
+    status: not_run
+    reason: Skipped. Code analysis reveals hardcoded simulated results, not real execution.
+  - command: scripts/run-p49-5-large-plan-readiness-probe.ts
+    status: not_run
+    reason: Skipped. Calls large-plan-readiness-probe which requires specific repo state. Not a true e2e test.
+  - command: scripts/run-p49-5-p45-readiness-gate.ts
+    status: not_run
+    reason: Skipped. Readiness gate check, not an execution test.
+validation_not_run:
+  - group: ACCP Compiler Validation
+    reason: ACCP compiler exists at packages/accp-compiler/src/cli.ts. It supports compile, validate, compile-dir, render, graph commands. However these P50 readiness audit reports are newly generated. The ACCP compiler's template registry (packages/accp-compiler/src/registry/) does not include P50 readiness audit templates. Pre-existing ACCP reports (P43, P44.5, P44.6, P45) were previously compiled/validated by their respective generation processes but there is no central P50 validation report.
+regressions:
+  none_detected: true
+  note: This is a new audit. No prior P50 readiness report exists for comparison.
+final_status:
+  valid: true
+  commands_run: 2
+  commands_passed: 2
+  commands_failed: 0
+  commands_skipped: 8
+  evidence_sufficient: false
+  evidence_gap: All critical validation commands that would prove true e2e capability were skipped or not available. make test-full not executed. Real-agent mini-multiplan gate not executed. P45 assembly scripts not executed (most are stubs). ACCP compiler not validated against P50 reports.

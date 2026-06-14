@@ -1,0 +1,52 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_TVR_001
+  type: TVR
+  family: feature
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+validation_summary:
+  status: partially_passed
+  passed: 3
+  failed: 3
+  exit_code: 1
+  blocks_promotion: true
+validation_results:
+  - id: VAL-NPM-CHECK
+    description: "npm run check"
+    command: "npm run check"
+    exit_code: 0
+    expected: 0
+    result: pass
+    output_excerpt: "Checked 1934 files in 2s. No fixes applied."
+  - id: VAL-NPM-BUILD
+    description: "npm run build"
+    command: "npm run build"
+    exit_code: 1
+    expected: 0
+    result: fail
+    output_excerpt: "src/local-pi-worker-adapter.ts(56,31): error TS2339: Property 'contextUsed' does not exist on type 'AgentExecutionResult'."
+  - id: VAL-P0-GATE-SANITY
+    description: "P0 Gate Sanity"
+    command: "npm run p0:gate-sanity"
+    exit_code: 1
+    expected: 0
+    result: fail
+    output_excerpt: "Error: Cannot find module '.../run-sanity-check.mjs'"
+  - id: VAL-TUI-SMOKE
+    description: "TUI Tab/ACCP-mode picker live smoke"
+    command: "npm run p0:tui-smoke"
+    exit_code: 0
+    expected: 0
+    result: fail_conceptual
+    output_excerpt: "PROBE_SCREEN_CONTAINS_PICKER=false"
+    note: "Probe ran but result contradicts P49-R010 requirement"

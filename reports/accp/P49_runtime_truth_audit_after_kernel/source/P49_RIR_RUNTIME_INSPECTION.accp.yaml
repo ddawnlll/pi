@@ -1,0 +1,58 @@
+accp_version: "2.0.0"
+source_format: ACCP-YAML
+report:
+  id: P49_TRUTH_AUDIT_RIR_001
+  type: RIR
+  family: core
+  status: complete
+meta:
+  plan_id: P49
+  workspace_id: P49-TRUTH-AUDIT
+  report_generated_at: "2026-06-13T14:30:00+03:00"
+  report_stale_after: on_next_commit
+  inspection_mode: final
+agent:
+  agent_id: truth-audit-executor
+  agent_role: auditor
+summary: "Runtime inspection reveals systematic gap: excellent source coverage but critical production wiring missing. 6 requirements capped at source_present_unwired. Live TUI evidence contradicts P49-R010."
+findings:
+  - id: F-RIR-001
+    severity: critical
+    category: production_wiring
+    description: "accpModePickerEnabled never set true — ACCP mode picker, InitialRouteIndicator, AccpTaskEnvelope all in dead code"
+    affected_ac_refs: ["P49-R010", "P49-R003", "P49-R004"]
+  - id: F-RIR-002
+    severity: critical
+    category: build
+    description: "npm run build fails: worker-adapters TS error — Property 'contextUsed' missing on AgentExecutionResult"
+    affected_ac_refs: ["P49-R007"]
+  - id: F-RIR-003
+    severity: critical
+    category: infrastructure
+    description: "P0 gate sanity fails: missing run-sanity-check.mjs script"
+    affected_ac_refs: []
+  - id: F-RIR-004
+    severity: high
+    category: production_wiring
+    description: "AccpGate not in CompletionGateVNext STAGE_ORDER — runAccpGateStage never called by orchestrator"
+    affected_ac_refs: ["P49-R008"]
+  - id: F-RIR-005
+    severity: high
+    category: production_wiring
+    description: "AccpRouteBus never instantiated in production — getAccpRouteBus() not called by any boot path"
+    affected_ac_refs: ["P49-R005", "P49-R006"]
+  - id: F-RIR-006
+    severity: high
+    category: reporting_integrity
+    description: "PRR claims GC-TUI-PICKER and GC-CG-ACC as PASS based on tests, not production wiring"
+    affected_ac_refs: ["P49-R008", "P49-R010"]
+  - id: F-RIR-007
+    severity: medium
+    category: ui_visibility
+    description: "ACCP mode stored on AgentSession but never rendered in TUI"
+    affected_ac_refs: ["P49-R011"]
+  - id: F-RIR-008
+    severity: medium
+    category: file_picker
+    description: "filePickerGesture schema field exists but never consumed by runtime"
+    affected_ac_refs: ["P49-R012"]

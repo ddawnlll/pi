@@ -1,0 +1,39 @@
+{
+  "request_id": "P49_14V_ACCP_VISIBILITY_WIRING_RESEARCH",
+  "report_path": "reports/accp/P49_14V_accp_visibility_wiring_research/P49_14V_RIR_visibility_wiring.accp.yaml",
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "high",
+      "title": "General verbose does not enable ACCP visibility",
+      "conclusion": "The general verbose flag is only forwarded into InteractiveMode startup behavior. ACCP visibility is controlled separately by terminal.verboseAccpOutput.",
+      "evidence": [
+        "packages/coding-agent/src/main.ts:762-769",
+        "packages/coding-agent/src/core/settings-manager.ts:38, 1165-1174",
+        "packages/coding-agent/src/modes/interactive/interactive-mode.ts:705-819, 3061-3223"
+      ]
+    },
+    {
+      "id": "F-002",
+      "severity": "high",
+      "title": "Manual runs can lose the persistent ACCP result card",
+      "conclusion": "The final result card is only rendered when an ACCP task envelope exists. The live status card is then removed at agent_end.",
+      "evidence": [
+        "packages/coding-agent/src/core/agent-session.ts:1213-1239",
+        "packages/coding-agent/src/modes/interactive/interactive-mode.ts:3034-3038",
+        "packages/coding-agent/src/modes/interactive/interactive-mode.ts:3243-3297"
+      ]
+    },
+    {
+      "id": "F-003",
+      "severity": "medium",
+      "title": "InteractiveMode overwrites the session progress-emitter handler",
+      "conclusion": "The live TUI handler replaces the session-side handler that persists lastAccpCompileResult, lastAccpGateVerdict, and lastAccpArtifactPath.",
+      "evidence": [
+        "packages/coding-agent/src/core/accp-progress-emitter.ts:111-113, 173-175",
+        "packages/coding-agent/src/core/agent-session.ts:439-500",
+        "packages/coding-agent/src/modes/interactive/interactive-mode.ts:681-823"
+      ]
+    }
+  ]
+}
