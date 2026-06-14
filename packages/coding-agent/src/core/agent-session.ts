@@ -42,8 +42,14 @@ import { sleep } from "../utils/sleep.js";
 import { AccpArtifactStore } from "./accp-artifact-store.js";
 import { createDefaultSubscriptions } from "./accp-artifact-subscriptions.js";
 import { getAccpProgressEmitter, subscribeToAccpProgressEmitter } from "./accp-progress-emitter.js";
-import { type AccpMode, renderAccpModeDirective, renderAccpPrompt } from "./accp-prompt-renderer.js";
+import {
+	type AccpMode,
+	renderAccpFallbackTemplate,
+	renderAccpModeDirective,
+	renderAccpPrompt,
+} from "./accp-prompt-renderer.js";
 import { type AccpRouteBus, getAccpRouteBus } from "./accp-route-bus.js";
+import { classifyAccpTurn } from "./accp-turn-classifier.js";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.js";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.js";
 import {
@@ -194,7 +200,14 @@ export type AgentSessionEvent =
 			blockingFindingCount: number;
 			warningCount: number;
 	  }
-	| { type: "accp_artifact_written"; reportId: string; kind: string; path: string };
+	| { type: "accp_artifact_written"; reportId: string; kind: string; path: string }
+	// P49.14Y — ACCP required-mode missing output diagnostic
+	| {
+			type: "accp_required_output_missing";
+			diagnosticCode: string;
+			mode: "required" | "warn";
+			description: string;
+	  };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -376,7 +389,7 @@ export class AgentSession {
 	private _baseSystemPromptOptions!: BuildSystemPromptOptions;
 
 	// P49.23: ACCP mode — set by TUI mode picker, drives system prompt directive
-	private _accpMode: AccpMode = "warn";
+	private _accpMode: AccpMode = "required";
 	// P49.23: ACCP task envelope — produced when user selects initial mode
 	private _accpTaskEnvelope: AccpTaskEnvelope | undefined = undefined;
 	// P49.31 FIX-006: hold a per-session route bus instance. We capture
@@ -413,6 +426,24 @@ export class AgentSession {
 	}
 	public get lastAccpArtifactPath(): string | undefined {
 		return this._lastAccpArtifactPath;
+	}
+
+	// P49.14Y: diagnostic set when required/warn mode produces no ACCP YAML (fail-closed)
+	private _lastAccpMissingYamlDiagnostic:
+		| { diagnosticCode: string; mode: "required" | "warn"; description: string; timestamp: number }
+		| undefined = undefined;
+
+	public get lastAccpMissingYamlDiagnostic():
+		| { diagnosticCode: string; mode: "required" | "warn"; description: string; timestamp: number }
+		| undefined {
+		return this._lastAccpMissingYamlDiagnostic;
+	}
+
+	// P49.14AA: turn classification result from the last ACCP compile attempt
+	private _lastAccpTurnClass: import("./accp-turn-classifier.js").AccpTurnClass | undefined = undefined;
+
+	public get lastAccpTurnClass(): import("./accp-turn-classifier.js").AccpTurnClass | undefined {
+		return this._lastAccpTurnClass;
 	}
 
 	constructor(config: AgentSessionConfig) {
@@ -498,6 +529,20 @@ export class AgentSession {
 			onArtifactWritten: (reportId, kind, path) => {
 				this._lastAccpArtifactPath = path;
 				this._emit({ type: "accp_artifact_written", reportId, kind, path });
+			},
+			onRequiredOutputMissing: (payload) => {
+				this._lastAccpMissingYamlDiagnostic = {
+					diagnosticCode: payload.diagnosticCode,
+					mode: payload.mode,
+					description: payload.description,
+					timestamp: Date.now(),
+				};
+				this._emit({
+					type: "accp_required_output_missing",
+					diagnosticCode: payload.diagnosticCode,
+					mode: payload.mode,
+					description: payload.description,
+				});
 			},
 		});
 
@@ -924,7 +969,30 @@ export class AgentSession {
 	 * update the live status card and result card.
 	 */
 	private async _compileAccpFromAgentMessages(messages: AgentMessage[]): Promise<void> {
+		// P49.14Y: clear any previous missing-YAML diagnostic
+		this._lastAccpMissingYamlDiagnostic = undefined;
+
+		// P49.14AA: get the last user message for turn classification
+		let lastUserMessage = "";
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg.role === "user") {
+				const content = (msg as { content?: string | Array<{ type: string; text?: string }> }).content;
+				if (typeof content === "string") {
+					lastUserMessage = content;
+				} else if (Array.isArray(content)) {
+					lastUserMessage = content
+						.filter((c) => c.type === "text")
+						.map((c) => c.text ?? "")
+						.join("\n");
+				}
+				break;
+			}
+		}
+
 		// Scan all assistant messages (most recent first) for ACCP YAML
+		let foundAccpYaml = false;
+		let lastAssistantText = "";
 		for (let i = messages.length - 1; i >= 0; i--) {
 			const msg = messages[i];
 			if (msg.role !== "assistant") continue;
@@ -940,11 +1008,15 @@ export class AgentSession {
 			const fullText = textBlocks.join("\n");
 			if (!fullText) continue;
 
+			lastAssistantText = fullText;
+
 			// Check for ACCP YAML markers (same detection as accp-bridge.ts)
 			const stripped = fullText.replace(/```(?:yaml|yml|accp)?\n/g, "\n").replace(/```/g, "");
 			const isAccpYaml =
 				/accp_version:\s*"?2\.0\.0"?/m.test(stripped) && /source_format:\s*"?ACCP-YAML"?/m.test(stripped);
 			if (!isAccpYaml) continue;
+
+			foundAccpYaml = true;
 
 			// Extract report type and report ID from YAML
 			const reportType = /^report_type:\s*"?([^"\n]+)"?\s*$/m.exec(stripped)?.[1]?.trim() ?? "RIR";
@@ -986,6 +1058,86 @@ export class AgentSession {
 
 			// Only process the first ACCP YAML found (most recent message)
 			break;
+		}
+
+		// P49.14AA: classify the turn to decide whether to emit missing-YAML diagnostic
+		const turnClass =
+			!foundAccpYaml && lastAssistantText
+				? classifyAccpTurn({
+						userMessage: lastUserMessage,
+						assistantOutput: lastAssistantText,
+						hasTaskEnvelope: !!this._accpTaskEnvelope,
+						// Check if any recent messages have tool use — indicates active task
+						hasActiveTools: messages.slice(-3).some((m) => {
+							const c = (m as { content?: unknown }).content;
+							return (
+								Array.isArray(c) &&
+								c.some((x: { type?: string }) => x.type === "tool_use" || x.type === "tool_result")
+							);
+						}),
+						isCompletionClaim: false,
+						accpMode: this._accpMode,
+					})
+				: undefined;
+
+		// Store the turn class for TUI consumption
+		this._lastAccpTurnClass = turnClass;
+
+		// P49.14AA: emit missing-YAML diagnostic ONLY for governed/completion turns
+		if (!foundAccpYaml && this._accpMode !== "off") {
+			// Casual and clarification turns do NOT emit missing-YAML diagnostic
+			if (turnClass === "casual_conversation" || turnClass === "clarification_or_question") {
+				// No diagnostic — casual conversation is allowed without ACCP YAML
+				// Still clear stale state
+				this._lastAccpCompileResult = undefined;
+				this._lastAccpGateVerdict = undefined;
+				this._lastAccpArtifactPath = undefined;
+				this._lastAccpMissingYamlDiagnostic = undefined;
+				return;
+			}
+
+			const diagnosticCode =
+				this._accpMode === "required" ? "ACCP_REQUIRED_BUT_NO_YAML_OUTPUT" : "ACCP_WARN_NO_YAML_OUTPUT";
+			const description =
+				this._accpMode === "required"
+					? "ACCP required for this task, but no ACCP-YAML report was produced. The assistant response was plain text, not ACCP-YAML. Completion is blocked."
+					: "ACCP mode is warn but no ACCP-YAML markers were found in the assistant output.";
+
+			this._lastAccpMissingYamlDiagnostic = {
+				diagnosticCode,
+				mode: this._accpMode,
+				description,
+				timestamp: Date.now(),
+			};
+
+			// P49.14AA: set synthetic gate verdict for runtime completion blocking
+			if (this._accpMode === "required") {
+				this._lastAccpGateVerdict = {
+					reportId: `missing-${Date.now()}`,
+					reportType: "RIR" as import("@earendil-works/pi-execution-contracts").AccpReportType,
+					valid: false,
+					evidenceStatus: "missing" as const,
+					fatalErrors: [description],
+					blockingFindings: [diagnosticCode],
+					warnings: [],
+					findingCount: 1,
+					promotionReady: false,
+				};
+			} else {
+				this._lastAccpGateVerdict = undefined;
+			}
+
+			// Clear stale compile/artifact state since no real compilation happened
+			this._lastAccpCompileResult = undefined;
+			this._lastAccpArtifactPath = undefined;
+
+			// Emit progress event so the TUI can react in real time
+			getAccpProgressEmitter().emitRequiredOutputMissing({
+				reportId: `missing-${Date.now()}`,
+				diagnosticCode,
+				mode: this._accpMode,
+				description,
+			});
 		}
 	}
 
@@ -1402,11 +1554,19 @@ export class AgentSession {
 		// ACCP mode directive injection (gated by ACCP mode; off = no-op)
 		const accpDirective = renderAccpModeDirective(this._accpMode);
 
-		// ACCP report type template — inject the contract template for the selected report type
+		// ACCP report type template — inject the contract template for the selected report type.
+		// When no task envelope exists, use a self-contained fallback template so required/warn
+		// mode always provides a concrete ACCP-YAML schema (P49.14Y).
 		let accpReportDirective = "";
-		if (this._accpMode !== "off" && this._accpTaskEnvelope?.targetReportTypes?.length) {
-			const reportType = this._accpTaskEnvelope.targetReportTypes[0]!;
-			accpReportDirective = renderAccpPrompt(reportType, this._accpMode);
+		if (this._accpMode !== "off") {
+			if (this._accpTaskEnvelope?.targetReportTypes?.length) {
+				const reportType = this._accpTaskEnvelope.targetReportTypes[0]!;
+				accpReportDirective = renderAccpPrompt(reportType, this._accpMode);
+			} else {
+				// Fallback: no envelope set — inject concrete template so required mode
+				// is self-contained rather than depending on the mode picker.
+				accpReportDirective = renderAccpFallbackTemplate(this._accpMode);
+			}
 		}
 
 		const appendSystemPrompt =

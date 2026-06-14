@@ -29,12 +29,12 @@ describe("ACCP PlanSpec Authority Boundary", () => {
 		expect([off, warn, required]).toContain("required");
 	});
 
-	it("should have a default mode policy with warn as initial default", () => {
-		expect(DEFAULT_ACCP_MODE_POLICY.default).toBe("warn");
+	it("should have a default mode policy with required as initial default", () => {
+		expect(DEFAULT_ACCP_MODE_POLICY.default).toBe("required");
 	});
 
-	it("should allow all three modes in the default policy", () => {
-		expect(DEFAULT_ACCP_MODE_POLICY.allowed).toContain("off");
+	it("should allow warn and required in the default policy", () => {
+		expect(DEFAULT_ACCP_MODE_POLICY.allowed).not.toContain("off");
 		expect(DEFAULT_ACCP_MODE_POLICY.allowed).toContain("warn");
 		expect(DEFAULT_ACCP_MODE_POLICY.allowed).toContain("required");
 	});

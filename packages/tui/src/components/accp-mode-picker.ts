@@ -15,6 +15,7 @@
 
 import type { AccpMode, AccpReportType } from "@earendil-works/pi-execution-contracts";
 import { getKeybindings } from "../keybindings.js";
+import { matchesKey } from "../keys.js";
 import { Container } from "../tui.js";
 
 // =============================================================================
@@ -28,11 +29,6 @@ export const ACCP_MODE_OPTIONS: Array<{
 	description: string;
 }> = [
 	{
-		value: "off",
-		label: "Off",
-		description: "ACCP is disabled — no compilation, no gating",
-	},
-	{
 		value: "warn",
 		label: "Warn",
 		description: "ACCP diagnostics are collected but non-blocking",
@@ -40,7 +36,7 @@ export const ACCP_MODE_OPTIONS: Array<{
 	{
 		value: "required",
 		label: "Required",
-		description: "ACCP gates block on failure — mode must be explicitly enabled",
+		description: "ACCP gates block on failure — ACCP is always enabled",
 	},
 ];
 
@@ -319,9 +315,10 @@ export class AccpModePicker extends Container {
 			return;
 		}
 
-		// Number keys 1-3 for direct mode selection
-		if (data === "1" || data === "2" || data === "3") {
-			const idx = parseInt(data, 10) - 1;
+		// Number keys 1-2 for direct mode selection
+		const digitMatch = (["1", "2"] as const).find((d) => matchesKey(data, d));
+		if (digitMatch) {
+			const idx = parseInt(digitMatch, 10) - 1;
 			if (idx < ACCP_MODE_OPTIONS.length) {
 				this.selectedModeIndex = idx;
 				// Auto-confirm with the directly selected mode
@@ -425,7 +422,7 @@ export class AccpModePicker extends Container {
 		lines.push("");
 
 		// Footer
-		lines.push(centerText("Enter=Select  Esc=Cancel  1-3=Quick Mode", available, "─"));
+		lines.push(centerText("Enter=Select  Esc=Cancel  1-2=Quick Mode", available, "─"));
 
 		return lines;
 	}
@@ -454,7 +451,7 @@ export function renderAccpModePicker(): string {
 	}
 
 	lines.push("║                                          ║");
-	lines.push("║  Enter 1-3 to select, Esc to cancel      ║");
+	lines.push("║  Enter 1-2 to select, Esc to cancel      ║");
 	lines.push("╚══════════════════════════════════════════╝");
 
 	return lines.join("\n");

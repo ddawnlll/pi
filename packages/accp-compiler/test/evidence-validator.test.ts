@@ -48,9 +48,15 @@ describe("ACCP Evidence Validator", () => {
 		expect(diags).toHaveLength(0);
 	});
 
-	it("should reject empty evidence list", () => {
-		const diags = validateEvidence([]);
+	it("should reject empty evidence list for promotion-bearing reports", () => {
+		const diags = validateEvidence([], undefined, "PRR");
 		expect(diags.some((d) => d.fatal)).toBe(true);
+	});
+
+	it("should warn on empty evidence list for non-promotion reports", () => {
+		const diags = validateEvidence([], undefined, "RIR");
+		expect(diags.some((d) => d.code === "ACCP_EVIDENCE_MISSING")).toBe(true);
+		expect(diags.some((d) => d.fatal)).toBe(false);
 	});
 
 	// ---------------------------------------------------------------------------

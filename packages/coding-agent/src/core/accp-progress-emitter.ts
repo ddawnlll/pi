@@ -63,6 +63,14 @@ export interface AccpArtifactWritten {
 	path: string;
 }
 
+/** Payload for a required-output-missing notification when no ACCP YAML was produced. */
+export interface AccpRequiredOutputMissing {
+	reportId: string;
+	diagnosticCode: string;
+	mode: "required" | "warn";
+	description: string;
+}
+
 /** Handler bundle that AgentSession installs in its constructor. */
 export interface AccpProgressHandlers {
 	onCompilationStarted?: (
@@ -91,6 +99,8 @@ export interface AccpProgressHandlers {
 		warningCount: number,
 	) => void;
 	onArtifactWritten?: (reportId: string, kind: string, path: string) => void;
+	/** Emitted when ACCP mode is required/warn but no ACCP-YAML is found in assistant output. */
+	onRequiredOutputMissing?: (payload: AccpRequiredOutputMissing) => void;
 }
 
 /**
@@ -174,6 +184,16 @@ class AccpProgressEmitterImpl {
 	emitArtifactWritten(payload: AccpArtifactWritten): void {
 		for (const handlers of this.subscribers) {
 			handlers.onArtifactWritten?.(payload.reportId, payload.kind, payload.path);
+		}
+	}
+
+	/**
+	 * Emit when ACCP mode is required/warn but no ACCP-YAML markers are found
+	 * in the assistant output. Used for fail-closed visibility (P49.14Y).
+	 */
+	emitRequiredOutputMissing(payload: AccpRequiredOutputMissing): void {
+		for (const handlers of this.subscribers) {
+			handlers.onRequiredOutputMissing?.(payload);
 		}
 	}
 }

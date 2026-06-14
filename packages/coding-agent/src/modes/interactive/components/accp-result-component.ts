@@ -13,7 +13,7 @@ import { type Component, Container, Spacer, Text } from "@earendil-works/pi-tui"
 import { theme } from "../theme/theme.js";
 
 /** ACCP result status. */
-export type AccpResultStatus = "pass" | "hold" | "fail";
+export type AccpResultStatus = "pass" | "hold" | "fail" | "skipped";
 
 /** Data for rendering an ACCP result. */
 export interface AccpResultData {
@@ -25,6 +25,10 @@ export interface AccpResultData {
 	diagnostics: AccpDiagnostic[];
 	gateVerdict?: AccpGateVerdict;
 	blockedReasons: string[];
+	/** Human-readable reason when status is "skipped" (shown as a summary line). */
+	skipReason?: string;
+	/** Detailed bullet points explaining why ACCP was skipped. */
+	skipDetails?: string[];
 }
 
 /**
@@ -84,8 +88,23 @@ export class AccpResultComponent implements Component {
 			case "fail":
 				statusBadge = theme.fg("error", `[FAIL]`);
 				break;
+			case "skipped":
+				statusBadge = theme.fg("warning", `[SKIPPED]`);
+				break;
 		}
 		this.container.addChild(new Text(`Status: ${statusBadge}`, 1, 0));
+
+		// Skipped: show explanation with specific reasons
+		if (status === "skipped") {
+			const reason = this.data.skipReason ?? "ACCP compilation did not run.";
+			this.container.addChild(new Text(theme.fg("warning", reason), 1, 0));
+			if (this.data.skipDetails?.length) {
+				for (const detail of this.data.skipDetails) {
+					this.container.addChild(new Text(theme.fg("dim", `  → ${detail}`), 1, 0));
+				}
+			}
+			return;
+		}
 
 		// Diagnostics summary
 		if (diagnostics.length > 0) {

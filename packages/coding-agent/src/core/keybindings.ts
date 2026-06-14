@@ -200,6 +200,10 @@ export const KEYBINDINGS = {
 		defaultKeys: "shift+ctrl+o",
 		description: "Tree filter: cycle backward",
 	},
+	"app.accp.modePicker": {
+		defaultKeys: "tab",
+		description: "Open ACCP mode picker",
+	},
 } as const satisfies KeybindingDefinitions;
 
 const KEYBINDING_NAME_MIGRATIONS = {

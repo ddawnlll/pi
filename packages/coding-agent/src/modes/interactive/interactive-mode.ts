@@ -266,6 +266,8 @@ export class InteractiveMode {
 	// updated on every compilation/gate/artifact event, removed on agent_end.
 	private accpStatusComponent: AccpStatusComponent | undefined = undefined;
 	private accpTaskEnvelope: AccpTaskEnvelope | undefined = undefined;
+	/** P49.14AA: flag to deduplicate missing-YAML diagnostic within one turn. */
+	private _accpMissingYamlRendered = false;
 	private workingMessage: string | undefined = undefined;
 	private workingVisible = true;
 	private workingIndicatorOptions: LoaderIndicatorOptions | undefined = undefined;
@@ -372,15 +374,7 @@ export class InteractiveMode {
 		runtimeHost: AgentSessionRuntime,
 		private options: InteractiveModeOptions = {},
 	) {
-		// P49.31 FIX-005: Default the ACCP mode picker to enabled in the
-		// production TUI boot path. Operators can opt out by passing
-		// `accpModePickerEnabled: false` or by setting the env var
-		// `PI_DISABLE_ACCP_MODE_PICKER=1`. This ensures Tab opens the
-		// ACCP mode picker in live TUI runs instead of being dead code.
-		if (this.options.accpModePickerEnabled === undefined) {
-			const envDisable = process.env.PI_DISABLE_ACCP_MODE_PICKER === "1";
-			this.options.accpModePickerEnabled = !envDisable;
-		}
+		// ACCP mode picker is always enabled. Tab opens the mode picker.
 		this.runtimeHost = runtimeHost;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
@@ -2427,10 +2421,8 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.session.fork", () => this.showUserMessageSelector());
 		this.defaultEditor.onAction("app.session.resume", () => this.showSessionSelector());
 
-		// P49.22: ACCP mode picker (Tab when accpModePickerEnabled)
-		if (this.options.accpModePickerEnabled) {
-			this.defaultEditor.onAction("app.accp.modePicker", () => this.showAccpModePicker());
-		}
+		// ACCP mode picker on Tab (always enabled)
+		this.defaultEditor.onAction("app.accp.modePicker", () => this.showAccpModePicker());
 
 		this.defaultEditor.onChange = (text: string) => {
 			const wasBashMode = this.isBashMode;
@@ -3077,7 +3069,59 @@ export class InteractiveMode {
 				break;
 			}
 
+			case "accp_required_output_missing": {
+				// P49.14AA: one canonical diagnostic per turn — skip if already shown
+				if (this._accpMissingYamlRendered) break;
+				this._accpMissingYamlRendered = true;
+
+				// Build a user-friendly label based on turn class
+				const turnClass = this.session.lastAccpTurnClass;
+				const userLabel =
+					turnClass === "casual_conversation" || turnClass === "clarification_or_question"
+						? `[ACCP ${event.mode === "required" ? "SKIPPED_CASUAL" : "SKIPPED"}] ACCP not required for this turn.`
+						: event.mode === "required"
+							? `[${event.diagnosticCode}] ${event.description}`
+							: `[${event.diagnosticCode}] ${event.description}`;
+
+				// Create the status component once (will be removed on agent_end)
+				if (!this.accpStatusComponent) {
+					this.accpStatusComponent = new AccpStatusComponent({
+						mode: this.session.accpMode,
+						compilationStatus: event.mode === "required" ? "fail" : "hold",
+						diagnostics: [
+							{
+								code: event.diagnosticCode,
+								message: event.description,
+								severity: event.mode === "required" ? "error" : "warning",
+								fatal: event.mode === "required",
+								reportId: "agent",
+							},
+						],
+						lastCompiledReport:
+							turnClass === "casual_conversation" || turnClass === "clarification_or_question"
+								? "casual — no ACCP required"
+								: event.mode === "required"
+									? `${event.diagnosticCode} (blocks completion)`
+									: `${event.diagnosticCode} (non-blocking)`,
+					});
+					this.chatContainer.addChild(this.accpStatusComponent);
+				}
+				// Single inline message — always visible, independent of verboseAccpOutput
+				const inlineColor =
+					turnClass === "casual_conversation" || turnClass === "clarification_or_question"
+						? theme.fg("dim", userLabel)
+						: event.mode === "required"
+							? theme.fg("error", userLabel)
+							: theme.fg("warning", userLabel);
+				this.chatContainer.addChild(new Text(inlineColor, 1, 0));
+				this.ui.requestRender();
+				break;
+			}
+
 			case "agent_end": {
+				// P49.14AA: reset per-turn dedup flags
+				this._accpMissingYamlRendered = false;
+
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(false);
 				}
@@ -3095,25 +3139,40 @@ export class InteractiveMode {
 
 				// P49.32C — Render ACCP result if ACCP mode is not 'off'
 				const accpMode = this.session.accpMode;
-				const accpTaskEnvelope =
-					this.accpTaskEnvelope ?? this.session.accpTaskEnvelope ?? this.buildFallbackAccpTaskEnvelope();
-				if (accpMode !== "off" && accpTaskEnvelope) {
+				if (accpMode !== "off") {
 					// Check if we already have an ACCP result in the chat
 					const hasAccpResult = this.chatContainer.children.some(
 						(child) => child.constructor.name === "AccpResultComponent",
 					);
 					if (!hasAccpResult) {
-						// P49.TUI-001: build the result data from real session
-						// state, not hardcoded placeholders. Default to "hold"
-						// (not "pass") when no gate verdict exists, so we
-						// never claim completion without evidence.
 						const lastVerdict = this.session.lastAccpGateVerdict;
 						const lastCompile = this.session.lastAccpCompileResult;
 						const blockedReasons: string[] = [];
 						const diagnostics: AccpDiagnostic[] = [];
-						let resultStatus: AccpResultData["status"] = "hold";
+						let resultStatus: AccpResultData["status"];
+						let skipDetails: string[] | undefined;
 
-						if (lastVerdict) {
+						if (!lastCompile && !lastVerdict) {
+							// No ACCP compilation happened at all — agent produced no ACCP YAML
+							const missingDiag = this.session.lastAccpMissingYamlDiagnostic;
+							const turnClass = this.session.lastAccpTurnClass;
+							resultStatus = "skipped";
+							skipDetails = [];
+							if (turnClass === "casual_conversation" || turnClass === "clarification_or_question") {
+								// Casual/clarification — no ACCP required, no failure
+								skipDetails.push("Casual conversation or clarification — no ACCP report required.");
+								skipDetails.push("ACCP required mode allows plain text for non-task turns.");
+							} else if (missingDiag) {
+								// Use the diagnostic from the fail-closed path
+								skipDetails.push(`[${missingDiag.diagnosticCode}] ${missingDiag.description}`);
+								if (missingDiag.mode === "required") {
+									skipDetails.push("This blocks completion until ACCP-YAML is produced.");
+								}
+							} else {
+								// Fallback: no diagnostic was set (e.g. mode changed between compile and end)
+								skipDetails.push("No ACCP YAML markers found in assistant output.");
+							}
+						} else if (lastVerdict) {
 							if (!lastVerdict.valid) {
 								resultStatus = "fail";
 								blockedReasons.push(...(lastVerdict.fatalErrors ?? []));
@@ -3125,21 +3184,66 @@ export class InteractiveMode {
 							} else {
 								resultStatus = "pass";
 							}
+						} else {
+							// Compiled but no gate verdict yet
+							resultStatus = "hold";
 						}
 						if (lastCompile?.diagnostics) {
 							diagnostics.push(...(lastCompile.diagnostics as AccpDiagnostic[]));
 						}
 
+						const accpTaskEnvelope =
+							this.accpTaskEnvelope ?? this.session.accpTaskEnvelope ?? this.buildFallbackAccpTaskEnvelope();
+						const reportId = accpTaskEnvelope?.taskId ?? lastCompile?.reportId ?? `accp-${Date.now()}`;
+
+						const skipReason =
+							resultStatus === "skipped"
+								? (() => {
+										const turnClass = this.session.lastAccpTurnClass;
+										if (turnClass === "casual_conversation" || turnClass === "clarification_or_question") {
+											return "ACCP not required for this turn (casual conversation).";
+										}
+										const diag = this.session.lastAccpMissingYamlDiagnostic;
+										return diag
+											? `[${diag.diagnosticCode}] ${diag.description}`
+											: `ACCP compilation skipped — agent response did not contain ACCP-YAML (mode: ${accpMode})`;
+									})()
+								: undefined;
+
 						const resultData: AccpResultData = {
 							status: resultStatus,
-							reportId: accpTaskEnvelope.taskId,
+							reportId,
 							compiledArtifactPath: this.session.lastAccpArtifactPath,
 							diagnostics,
 							gateVerdict: lastVerdict,
 							blockedReasons,
+							skipReason,
+							skipDetails: resultStatus === "skipped" ? skipDetails : undefined,
 						};
 						const accpResult = new AccpResultComponent(resultData);
 						this.chatContainer.addChild(accpResult);
+
+						// Verbose ACCP output for skipped state (detail only — not duplicated from inline diagnostic)
+						if (resultStatus === "skipped" && this.settingsManager.getVerboseAccpOutput()) {
+							const turnClass = this.session.lastAccpTurnClass;
+							if (turnClass === "casual_conversation" || turnClass === "clarification_or_question") {
+								this.chatContainer.addChild(
+									new Text(theme.fg("dim", "ACCP: turn classified as casual — no ACCP-YAML required"), 1, 0),
+								);
+							} else {
+								const missingDiag = this.session.lastAccpMissingYamlDiagnostic;
+								this.chatContainer.addChild(
+									new Text(
+										theme.fg(
+											missingDiag?.mode === "required" ? "error" : "warning",
+											`ACCP: [${missingDiag?.diagnosticCode ?? "NO_YAML"}] ${missingDiag?.description ?? "No ACCP YAML in assistant output"}`,
+										),
+										1,
+										0,
+									),
+								);
+							}
+						}
 					}
 				}
 
@@ -6150,10 +6254,7 @@ export class InteractiveMode {
 		const dequeue = this.getAppKeyDisplay("app.message.dequeue");
 		const pasteImage = this.getAppKeyDisplay("app.clipboard.pasteImage");
 
-		// P49.32B — Update Tab hint based on ACCP mode picker state
-		const tabAction = this.options.accpModePickerEnabled
-			? "Open ACCP mode picker"
-			: "Path completion / accept autocomplete";
+		const tabAction = "Open ACCP mode picker";
 
 		let hotkeys = `
 **Navigation**

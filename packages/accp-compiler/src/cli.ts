@@ -5,21 +5,21 @@
  * Command-line interface for the ACCP compiler.
  * Supports: compile, validate, compile-dir, render, graph
  *
+ * All commands use the same Compiler V2 pipeline (compileAccpSource).
+ *
  * @packageDocumentation
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { compileAccpSource } from "./compiler.js";
 import { renderAsMarkdown } from "./emit/emit-rendered-markdown.js";
-import { parseAccpYaml } from "./parser/yaml-parser.js";
-import { validateCommonSchema } from "./validation/common-schema-validator.js";
 
 /** CLI command handler. */
 type CommandHandler = (...args: string[]) => void;
 
 const commands: Record<string, CommandHandler> = {
-	compile: (filePath: string) => {
+	compile: (filePath: string, outDir?: string) => {
 		const resolved = resolve(filePath);
 		if (!existsSync(resolved)) {
 			console.error(`File not found: ${resolved}`);
@@ -28,6 +28,31 @@ const commands: Record<string, CommandHandler> = {
 
 		const source = readFileSync(resolved, "utf-8");
 		const result = compileAccpSource(source, filePath);
+
+		// Optionally write artifacts to disk
+		if (outDir) {
+			const outputBase = resolve(outDir);
+			mkdirSync(outputBase, { recursive: true });
+			writeFileSync(
+				resolve(outputBase, `${result.reportId}.compiled.json`),
+				JSON.stringify(result, null, 2),
+				"utf-8",
+			);
+			if ((result as import("./compiler-pipeline.js").AccpCompiledArtifact).gateVerdict) {
+				writeFileSync(
+					resolve(outputBase, `${result.reportId}.gate-verdict.json`),
+					JSON.stringify((result as import("./compiler-pipeline.js").AccpCompiledArtifact).gateVerdict, null, 2),
+					"utf-8",
+				);
+			}
+			if ((result as import("./compiler-pipeline.js").AccpCompiledArtifact).routeSignal) {
+				writeFileSync(
+					resolve(outputBase, `${result.reportId}.route-signal.json`),
+					JSON.stringify((result as import("./compiler-pipeline.js").AccpCompiledArtifact).routeSignal, null, 2),
+					"utf-8",
+				);
+			}
+		}
 
 		console.log(JSON.stringify(result, null, 2));
 
@@ -43,16 +68,11 @@ const commands: Record<string, CommandHandler> = {
 		}
 
 		const source = readFileSync(resolved, "utf-8");
-		const { parsed, diagnostics } = parseAccpYaml(source, filePath);
+		const result = compileAccpSource(source, filePath);
+		const valid =
+			!result.hasBlockingFindings && (result.status === "compiled" || result.status === "compiled_with_warnings");
 
-		if (parsed) {
-			const schemaDiags = validateCommonSchema(parsed);
-			diagnostics.push(...schemaDiags);
-		}
-
-		const valid = !diagnostics.some((d: { fatal: boolean }) => d.fatal);
-
-		console.log(JSON.stringify({ valid, diagnostics }, null, 2));
+		console.log(JSON.stringify({ valid, diagnostics: result.diagnostics }, null, 2));
 
 		if (!valid) {
 			process.exit(1);
@@ -97,7 +117,13 @@ const commands: Record<string, CommandHandler> = {
 
 		const source = readFileSync(resolved, "utf-8");
 		const result = compileAccpSource(source, filePath);
-		const rendered = renderAsMarkdown(result);
+		const artifact = result as import("./compiler-pipeline.js").AccpCompiledArtifact;
+		const rendered = renderAsMarkdown(
+			result,
+			artifact.intermediateRepresentation,
+			artifact.gateVerdict,
+			artifact.routeSignal,
+		);
 		console.log(rendered.content);
 	},
 	graph: (dirPath: string) => {
@@ -126,12 +152,12 @@ function showHelp(): void {
 ACCP v2.0 Compiler CLI
 
 Usage:
-  accp compile <file>              Compile a single ACCP YAML file
-  accp validate <file>             Validate a single ACCP YAML file
-  accp compile-dir <dir>           Compile all ACCP YAML files in a directory
-  accp render <file>               Render a compiled ACCP file as Markdown
-  accp graph <dir>                 Generate a graph from compiled artifacts
-  accp help                        Show this help
+  accp compile <file> [outDir]   Compile a single ACCP YAML file
+  accp validate <file>           Validate a single ACCP YAML file
+  accp compile-dir <dir>         Compile all ACCP YAML files in a directory
+  accp render <file>             Render a compiled ACCP file as Markdown
+  accp graph <dir>               Generate a graph from compiled artifacts
+  accp help                      Show this help
 `);
 }
 

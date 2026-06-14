@@ -41,7 +41,7 @@ export type {
 } from "@earendil-works/pi-execution-contracts";
 // Core compiler pipeline
 export { compileAccpSource } from "./compiler.js";
-export { AccpCompilerPipeline } from "./compiler-pipeline.js";
+export { type AccpCompiledArtifact, AccpCompilerPipeline } from "./compiler-pipeline.js";
 export { compileGateVerdict } from "./emit/emit-gate-verdict.js";
 // Route signal and gate verdict compilers
 export { compileRouteSignal, type RouteSignalCompileOptions } from "./emit/emit-route-signal.js";

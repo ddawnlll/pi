@@ -115,10 +115,10 @@ export interface PlanSpecAccpExtension {
 // Defaults
 // ---------------------------------------------------------------------------
 
-/** Default ACCP mode policy for P49. */
+/** Default ACCP mode policy for P49 (always enabled & required). */
 export const DEFAULT_ACCP_MODE_POLICY: AccpModePolicy = {
-	default: "warn",
-	allowed: ["off", "warn", "required"],
+	default: "required",
+	allowed: ["warn", "required"],
 	promotionToRequiredRequires: ["all_waves_passed", "e2e_gauntlets_passed", "operator_approval"],
 };
 

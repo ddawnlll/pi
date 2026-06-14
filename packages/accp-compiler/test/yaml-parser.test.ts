@@ -146,7 +146,7 @@ describe("ACCP YAML Parser", () => {
 		const yaml = 'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"';
 		const result = extractAccpYaml(yaml);
 		expect(result.yaml).toBe(yaml);
-		expect(result.diagnostics).toHaveLength(0);
+		expect(result.diagnostics.some((d) => d.severity === "error" || d.severity === "warning")).toBe(false);
 	});
 
 	it("should extract YAML from code fence in markdown", () => {
@@ -207,15 +207,15 @@ describe("ACCP YAML Parser", () => {
 			'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"\n\nreport:\n  id: "T001"\n  type: "XYZ"\n  family: "core"';
 		const { parsed, diagnostics } = parseAccpYaml(yaml);
 		expect(parsed).toBeNull();
-		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_INVALID_REPORT_TYPE")).toBe(true);
+		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_UNKNOWN_REPORT_TYPE")).toBe(true);
 	});
 
-	it("should reject unknown family values", () => {
+	it("should warn when family value conflicts with known type", () => {
 		const yaml =
 			'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"\n\nreport:\n  id: "T001"\n  type: "TVR"\n  family: "unknown_family"';
 		const { parsed, diagnostics } = parseAccpYaml(yaml);
-		expect(parsed).toBeNull();
-		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_INVALID_FAMILY")).toBe(true);
+		expect(parsed).not.toBeNull();
+		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_FAMILY_TYPE_MISMATCH")).toBe(true);
 	});
 
 	// ---------------------------------------------------------------------------
@@ -228,10 +228,10 @@ describe("ACCP YAML Parser", () => {
 		expect(diagnostics.some((d) => d.fatal)).toBe(true);
 	});
 
-	it("should reject YAML that does not start with accp_version", () => {
+	it("should reject YAML that does not contain required ACCP fields", () => {
 		const { parsed, diagnostics } = parseAccpYaml("foo: bar\nbaz: qux");
 		expect(parsed).toBeNull();
-		expect(diagnostics.some((d) => d.code === "ACCP_PARSE_SOURCE_INVALID")).toBe(true);
+		expect(diagnostics.some((d) => d.fatal)).toBe(true);
 	});
 
 	it("should reject YAML with wrong source_format", () => {

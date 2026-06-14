@@ -1,7 +1,7 @@
 /**
- * ACCP Compiler Integration Tests (P49.29)
+ * ACCP Compiler Integration Tests (P49.29 / V2)
  *
- * Verifies the full compiler pipeline from parse to emit.
+ * Verifies the full Compiler V2 pipeline from parse to emit.
  */
 import { describe, expect, it } from "vitest";
 import { compileAccpSource } from "../src/compiler.js";
@@ -11,20 +11,33 @@ import { evaluatePromotion } from "../src/gate/promotion-evaluator.js";
 import { parseAccpYaml } from "../src/parser/yaml-parser.js";
 import { validateCommonSchema } from "../src/validation/common-schema-validator.js";
 
+const validRir = `accp_version: "2.0.0"
+source_format: "ACCP-YAML"
+
+report:
+  id: "INT_TEST_001"
+  type: "RIR"
+  family: "core"
+
+scope:
+  target: "test"
+
+evidence:
+  - id: "EV001"
+    type: "file"
+    path: "packages/accp-compiler/src/compiler.ts"`;
+
 describe("ACCP Compiler Integration", () => {
 	it("should compile valid YAML end-to-end", () => {
-		const yaml =
-			'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"\n\nreport:\n  id: "INT_TEST_001"\n  type: "TVR"\n  family: "core"';
-		const result = compileAccpSource(yaml);
+		const result = compileAccpSource(validRir);
 		expect(result.status).toBe("compiled");
 		expect(result.reportId).toBe("INT_TEST_001");
+		expect(result.reportType).toBe("RIR");
 		expect(result.hasBlockingFindings).toBe(false);
 	});
 
 	it("should parse, validate, and produce route signal", () => {
-		const yaml =
-			'accp_version: "2.0.0"\nsource_format: "ACCP-YAML"\n\nreport:\n  id: "INT_TEST_002"\n  type: "TVR"\n  family: "core"';
-		const { parsed } = parseAccpYaml(yaml);
+		const { parsed } = parseAccpYaml(validRir);
 		expect(parsed).not.toBeNull();
 
 		if (parsed) {
@@ -33,7 +46,7 @@ describe("ACCP Compiler Integration", () => {
 
 			const { signal } = compileRouteSignal(parsed.report.id, parsed.report.type, []);
 			expect(signal.isAdvisory).toBe(true);
-			expect(signal.recommendedNextRoute).toBe("PRR");
+			expect(signal.sourceReportType).toBe("RIR");
 		}
 	});
 

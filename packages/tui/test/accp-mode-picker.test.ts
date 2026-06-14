@@ -17,13 +17,13 @@ import {
 
 describe("AccpModePicker", () => {
 	describe("ACCP_MODE_OPTIONS", () => {
-		it("should have three mode options", () => {
-			assert.equal(ACCP_MODE_OPTIONS.length, 3);
+		it("should have two mode options (warn and required)", () => {
+			assert.equal(ACCP_MODE_OPTIONS.length, 2);
 		});
 
-		it("should include off, warn, and required", () => {
+		it("should include warn and required only (no off)", () => {
 			const values = ACCP_MODE_OPTIONS.map((o) => o.value);
-			assert.deepStrictEqual(values, ["off", "warn", "required"]);
+			assert.deepStrictEqual(values, ["warn", "required"]);
 		});
 
 		it("should have labels and descriptions for each mode", () => {
@@ -75,22 +75,15 @@ describe("AccpModePicker", () => {
 	});
 
 	describe("selectAccpMode (legacy)", () => {
-		it("should return the correct mode for index 1", () => {
+		it("should return the correct mode for index 1 (warn)", () => {
 			const result = selectAccpMode(1);
-			assert.ok(result);
-			assert.equal(result!.selectedMode, "off");
-			assert.equal(result!.initialAction, "Off");
-		});
-
-		it("should return the correct mode for index 2", () => {
-			const result = selectAccpMode(2);
 			assert.ok(result);
 			assert.equal(result!.selectedMode, "warn");
 			assert.equal(result!.initialAction, "Warn");
 		});
 
-		it("should return the correct mode for index 3", () => {
-			const result = selectAccpMode(3);
+		it("should return the correct mode for index 2 (required)", () => {
+			const result = selectAccpMode(2);
 			assert.ok(result);
 			assert.equal(result!.selectedMode, "required");
 			assert.equal(result!.initialAction, "Required");
@@ -98,7 +91,7 @@ describe("AccpModePicker", () => {
 
 		it("should return null for out-of-range indices", () => {
 			assert.equal(selectAccpMode(0), null);
-			assert.equal(selectAccpMode(4), null);
+			assert.equal(selectAccpMode(3), null);
 			assert.equal(selectAccpMode(-1), null);
 		});
 	});
@@ -111,29 +104,22 @@ describe("AccpModePicker", () => {
 
 		it("should contain mode labels", () => {
 			const output = renderAccpModePicker();
-			assert.ok(output.includes("Off"));
 			assert.ok(output.includes("Warn"));
 			assert.ok(output.includes("Required"));
 		});
 
 		it("should contain selection instructions", () => {
 			const output = renderAccpModePicker();
-			assert.ok(output.includes("Enter 1-3 to select"));
+			assert.ok(output.includes("Enter 1-2 to select"));
 			assert.ok(output.includes("Esc to cancel"));
 		});
 	});
 
 	describe("AccpModePicker component", () => {
-		it("should construct with default mode 'off'", () => {
-			const picker = new AccpModePicker("off");
-			const rendered = picker.render(80);
-			// Should render without errors
-			assert.ok(rendered.length > 0);
-		});
-
 		it("should construct with 'warn' mode", () => {
 			const picker = new AccpModePicker("warn");
 			const rendered = picker.render(80);
+			// Should render without errors
 			assert.ok(rendered.length > 0);
 		});
 
@@ -144,12 +130,11 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should render mode options and report types", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			const rendered = picker.render(100);
 			const output = rendered.join("\n");
 
-			// Should show mode options
-			assert.ok(output.includes("Off"));
+			// Should show mode options (no Off — always enabled)
 			assert.ok(output.includes("Warn"));
 			assert.ok(output.includes("Required"));
 
@@ -165,17 +150,17 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should show navigation hints", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			const rendered = picker.render(80);
 			const output = rendered.join("\n");
 
 			assert.ok(output.includes("Enter=Select"));
 			assert.ok(output.includes("Esc=Cancel"));
-			assert.ok(output.includes("1-3=Quick Mode"));
+			assert.ok(output.includes("1-2=Quick Mode"));
 		});
 
 		it("should render without errors at reasonable widths", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			// Test at 80 cols (typical terminal) and wider
 			const lines80 = picker.render(80);
 			assert.ok(lines80.length > 0);
@@ -189,7 +174,7 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should call onCancel when escape is pressed", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			let cancelled = false;
 			picker.onCancel = () => {
 				cancelled = true;
@@ -202,21 +187,21 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should call onSelect with mode when enter is pressed", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			let result: AccpModePickerResult | null = null;
 			picker.onSelect = (r) => {
 				result = r;
 			};
 
-			// Simulate enter press (default mode is 'off' at index 0)
+			// Simulate enter press (default mode is 'warn' at index 0)
 			picker.handleInput("\r");
 
 			assert.ok(result, "onSelect should have been called");
-			assert.equal((result as AccpModePickerResult).selectedMode, "off");
+			assert.equal((result as AccpModePickerResult).selectedMode, "warn");
 		});
 
 		it("should navigate report types with up/down", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 
 			// Move selection down
 			picker.handleInput("\x1b[B"); // down arrow
@@ -234,21 +219,21 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should select mode via number keys", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			let result: AccpModePickerResult | null = null;
 			picker.onSelect = (r) => {
 				result = r;
 			};
 
-			// Press '2' for warn mode
+			// Press '2' for required mode
 			picker.handleInput("2");
 
 			assert.ok(result, "onSelect should have been called");
-			assert.equal((result as AccpModePickerResult).selectedMode, "warn");
+			assert.equal((result as AccpModePickerResult).selectedMode, "required");
 		});
 
 		it("should call onSelect with initial report type when enter is pressed after navigation", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			let result: AccpModePickerResult | null = null;
 			picker.onSelect = (r) => {
 				result = r;
@@ -267,7 +252,7 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should not crash on pageUp/pageDown input", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			assert.doesNotThrow(() => {
 				picker.handleInput("\x1b[5~"); // pageUp
 				picker.handleInput("\x1b[6~"); // pageDown
@@ -275,7 +260,7 @@ describe("AccpModePicker", () => {
 		});
 
 		it("should handle unrecognized input gracefully", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			assert.doesNotThrow(() => {
 				picker.handleInput("x");
 				picker.handleInput("!");
@@ -285,7 +270,7 @@ describe("AccpModePicker", () => {
 
 	describe("Authority boundary", () => {
 		it("ACCP mode picker result should not contain executable commands", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			let result: AccpModePickerResult | null = null;
 			picker.onSelect = (r) => {
 				result = r;
@@ -302,14 +287,14 @@ describe("AccpModePicker", () => {
 		});
 
 		it("mode picker should not have access to filesystem", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			// Verify the component doesn't expose filesystem operations
 			assert.ok(!("readFile" in (picker as any)));
 			assert.ok(!("writeFile" in (picker as any)));
 		});
 
 		it("route signal implications should be advisory text only", () => {
-			const picker = new AccpModePicker("off");
+			const picker = new AccpModePicker("warn");
 			const rendered = picker.render(80);
 			const output = rendered.join("\n");
 

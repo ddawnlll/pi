@@ -37,7 +37,7 @@ describe("ACCP Schema Validator", () => {
 		};
 		const diagnostics = validateCommonSchema(parsed);
 		expect(diagnostics.some((d) => d.fatal)).toBe(true);
-		expect(diagnostics[0].code).toBe("ACCP_SCHEMA_MISSING_REQUIRED_SECTION");
+		expect(diagnostics[0].code).toBe("ACCP_SCHEMA_INVALID_ACCP_VERSION");
 	});
 
 	it("should reject invalid source_format", () => {
@@ -59,7 +59,7 @@ describe("ACCP Schema Validator", () => {
 			sections: {},
 		};
 		const diagnostics = validateCommonSchema(parsed);
-		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_MISSING_REQUIRED_SECTION")).toBe(true);
+		expect(diagnostics.some((d) => d.code === "ACCP_SCHEMA_REPORT_ID_MISSING")).toBe(true);
 	});
 
 	// ---------------------------------------------------------------------------
@@ -71,19 +71,19 @@ describe("ACCP Schema Validator", () => {
 			validation_summary: { status: "passed" },
 			command_results: [{ commandRef: "CMD-TEST" }],
 		});
-		expect(diagnostics).toHaveLength(0);
+		expect(diagnostics.some((d) => d.fatal)).toBe(false);
 	});
 
 	it("should pass PRR validation with required section", () => {
 		const diagnostics = validateReportSchema("PRR", {
 			promotion_decision: { status: "ready" },
 		});
-		expect(diagnostics).toHaveLength(0);
+		expect(diagnostics.some((d) => d.fatal)).toBe(false);
 	});
 
 	it("should pass for non-strict types with no sections", () => {
 		const diagnostics = validateReportSchema("FER", {});
-		expect(diagnostics).toHaveLength(0);
+		expect(diagnostics.some((d) => d.fatal)).toBe(false);
 	});
 
 	// ---------------------------------------------------------------------------
