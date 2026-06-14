@@ -460,6 +460,16 @@ export class SettingsSelectorComponent extends Container {
 			values: ["disabled", "observe_only", "shadow", "active_safe"],
 		});
 
+		// Verbose ACCP output (insert after token-context-mode)
+		const tokenContextModeIndex = items.findIndex((item) => item.id === "token-context-mode");
+		items.splice(tokenContextModeIndex + 1, 0, {
+			id: "verbose-accp-output",
+			label: "Verbose ACCP output",
+			description: "Show verbose ACCP diagnostic output in responses",
+			currentValue: config.verboseAccpOutput ? "true" : "false",
+			values: ["true", "false"],
+		});
+
 		// Add borders
 		this.addChild(new DynamicBorder());
 
@@ -535,6 +545,9 @@ export class SettingsSelectorComponent extends Container {
 						callbacks.onTokenContextModeChange(
 							newValue as "disabled" | "observe_only" | "shadow" | "active_safe",
 						);
+						break;
+					case "verbose-accp-output":
+						callbacks.onVerboseAccpOutputChange(newValue === "true");
 						break;
 				}
 			},
