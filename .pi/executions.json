@@ -151,5 +151,14 @@
     "status": "running",
     "startedAt": "2026-06-01T10:58:18.172Z",
     "completedAt": null
+  },
+  {
+    "id": "2bc02dcf-889c-4e0a-ab74-5d023dfdec6e",
+    "projectId": "default",
+    "phase": "P-V5",
+    "title": "Brain Reality Layer",
+    "status": "running",
+    "startedAt": "2026-06-14T15:11:22.860Z",
+    "completedAt": null
   }
 ]

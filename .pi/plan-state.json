@@ -6,150 +6,189 @@
       "workspaceId": "V5.00",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498243,
+      "startedAt": 1781449882891,
       "ownedFiles": [],
-      "completedAt": 1780311498332
+      "completedAt": 1781449882935
     },
     {
       "workspaceId": "V5.01",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498371,
+      "startedAt": 1781449882955,
       "ownedFiles": [],
-      "completedAt": 1780311498413
+      "completedAt": 1781449882996
     },
     {
       "workspaceId": "V5.02",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498433,
+      "startedAt": 1781449883015,
       "ownedFiles": [],
-      "completedAt": 1780311498475
+      "completedAt": 1781449883059
     },
     {
       "workspaceId": "V5.03",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498496,
+      "startedAt": 1781449883085,
       "ownedFiles": [],
-      "completedAt": 1780311498557
+      "completedAt": 1781449883150
     },
     {
       "workspaceId": "V5.04",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498613,
+      "startedAt": 1781449883191,
       "ownedFiles": [],
-      "completedAt": 1780311498666
+      "completedAt": 1781449883235
     },
     {
       "workspaceId": "V5.05",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498684,
+      "startedAt": 1781449883256,
       "ownedFiles": [],
-      "completedAt": 1780311498742
+      "completedAt": 1781449883298
     },
     {
       "workspaceId": "V5.06",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498765,
+      "startedAt": 1781449883325,
       "ownedFiles": [],
-      "completedAt": 1780311498840
+      "completedAt": 1781449883400
     },
     {
       "workspaceId": "V5.07",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498881,
+      "startedAt": 1781449883438,
       "ownedFiles": [],
-      "completedAt": 1780311499025
+      "completedAt": 1781449883479
     },
     {
       "workspaceId": "V5.08",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311499066,
+      "startedAt": 1781449883499,
       "ownedFiles": [],
-      "completedAt": 1780311499143
+      "completedAt": 1781449883542
     },
     {
       "workspaceId": "V5.09",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311499381,
+      "startedAt": 1781449883562,
       "ownedFiles": [],
-      "completedAt": 1780311499435
+      "completedAt": 1781449883604
     },
     {
       "workspaceId": "V5.10",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311499456,
+      "startedAt": 1781449883630,
       "ownedFiles": [],
-      "completedAt": 1780311499561
+      "completedAt": 1781449883707
     },
     {
       "workspaceId": "V5.11",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311499684,
+      "startedAt": 1781449883744,
       "ownedFiles": [],
-      "completedAt": 1780311499780
+      "completedAt": 1781449883788
     },
     {
       "workspaceId": "V5.12",
       "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311499801,
+      "startedAt": 1781449883808,
       "ownedFiles": [],
-      "completedAt": 1780311499831
+      "completedAt": 1781449883851
     },
     {
       "workspaceId": "V5.13",
-      "stage": "active",
+      "stage": "complete",
       "attempts": 1,
-      "startedAt": 1780311498495,
+      "startedAt": 1781449883085,
       "ownedFiles": [
         "packages/web-ui/dashboard/src/App.tsx",
         "packages/web-ui/dashboard/src/components/LeftNav.tsx",
         "packages/web-ui/dashboard/src/components/sidebar/**",
         "packages/web-ui/dashboard/src/components/topbar/**",
         "packages/web-ui/dashboard/src/types-brain-v5.ts"
-      ]
+      ],
+      "completedAt": 1781449883166
     },
     {
       "workspaceId": "V5.14",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449883872,
+      "ownedFiles": [],
+      "completedAt": 1781449883915
     },
     {
       "workspaceId": "V5.15",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449883630,
+      "ownedFiles": [
+        "packages/web-ui/dashboard/src/components/brain/query/**",
+        "packages/web-ui/dashboard/src/components/brain/evidence/**",
+        "packages/web-ui/dashboard/src/hooks/useBrainQuery.ts",
+        "packages/web-ui/dashboard/src/hooks/useEvidenceRefs.ts",
+        "packages/web-ui/dashboard/src/api/brain.ts",
+        "packages/web-ui/dashboard/src/types-brain-v5.ts"
+      ],
+      "completedAt": 1781449883717
     },
     {
       "workspaceId": "V5.16",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449883325,
+      "ownedFiles": [
+        "packages/web-ui/dashboard/src/pages/BrainTemporalPage.tsx",
+        "packages/web-ui/dashboard/src/pages/BrainMemoryPage.tsx",
+        "packages/web-ui/dashboard/src/pages/BrainRepoScannerPage.tsx",
+        "packages/web-ui/dashboard/src/components/brain/temporal/**",
+        "packages/web-ui/dashboard/src/components/brain/memory/**",
+        "packages/web-ui/dashboard/src/components/brain/scanner/**",
+        "packages/web-ui/dashboard/src/hooks/useTemporalJournal.ts",
+        "packages/web-ui/dashboard/src/hooks/useMemoryInjection.ts",
+        "packages/web-ui/dashboard/src/hooks/useRepoScanner.ts",
+        "packages/web-ui/dashboard/src/api/brain.ts",
+        "packages/web-ui/dashboard/src/types-brain-v5.ts"
+      ],
+      "completedAt": 1781449883409
     },
     {
       "workspaceId": "V5.17",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449883939,
+      "ownedFiles": [],
+      "completedAt": 1781449883983
     },
     {
       "workspaceId": "V5.18",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449884005,
+      "ownedFiles": [],
+      "completedAt": 1781449884069
     },
     {
       "workspaceId": "V5.19",
-      "stage": "pending",
-      "attempts": 0
+      "stage": "complete",
+      "attempts": 1,
+      "startedAt": 1781449884091,
+      "ownedFiles": [],
+      "completedAt": 1781449884135
     }
   ],
-  "startedAt": 1780311498156,
-  "status": "running"
+  "startedAt": 1781449882843,
+  "status": "running",
+  "executionPolicyMode": "manual_no_plan"
 }
